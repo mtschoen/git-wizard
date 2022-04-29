@@ -5,34 +5,38 @@
 
     <ScrollView>
         <VerticalStackLayout Spacing="25" Padding="30">
+            <HorizontalStackLayout>
 
-            <Label 
-                Text="Git Wizard UI"
-                SemanticProperties.HeadingLevel="Level1"
-                FontSize="32"
-                HorizontalOptions="Center" />
+                <Label
+                    Text="Root Path"
+                    SemanticProperties.HeadingLevel="Level1"
+                    FontSize="18"
+                    VerticalOptions="Center" />
 
-            <Label 
-                Text="Welcome to .NET Multi-platform App UI"
-                SemanticProperties.HeadingLevel="Level1"
-                SemanticProperties.Description="Welcome to dot net Multi platform App UI"
-                FontSize="18"
-                HorizontalOptions="Center" />
+                <Entry
+                    Text="%HOMEPATH%"
+                    FontSize="18"
+                    x:Name="RootPath"
+                    HorizontalOptions="Center" />
 
-            <Label 
-                Text="Current count: 0"
-                FontSize="18"
-                FontAttributes="Bold"
-                x:Name="CounterLabel"
-                HorizontalOptions="Center" />
+                <Button
+                    Text="Refresh"
+                    FontAttributes="Bold"
+                    SemanticProperties.Hint="Refresh the report"
+                    Clicked="OnRefreshButtonClicked"
+                    HorizontalOptions="Center" />
 
-            <Button 
-                Text="Click me"
-                FontAttributes="Bold"
-                SemanticProperties.Hint="Counts the number of times you click"
-                Clicked="OnCounterClicked"
-                HorizontalOptions="Center" />
+                <Label
+                    x:Name="StatusLabel"
+                    Text=""
+                    SemanticProperties.HeadingLevel="Level1"
+                    FontSize="18"
+                    VerticalOptions="End" />
 
+            </HorizontalStackLayout>
+            <ListView 
+                ItemsSource="{Binding ListRows}"
+                x:Name="ListView" />
         </VerticalStackLayout>
     </ScrollView>
 </ContentPage>

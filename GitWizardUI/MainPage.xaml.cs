@@ -1,20 +1,37 @@
-﻿namespace GitWizardUI
+﻿using GitWizard;
+
+namespace GitWizardUI
 {
-    public partial class MainPage : ContentPage
+    public partial class MainPage : ContentPage, IUpdateProgressString
     {
-        int count = 0;
+        Task getPathsTask;
 
         public MainPage()
         {
             InitializeComponent();
+
+#if MACCATALYST
+            RootPath.Text = "~";
+#endif
         }
 
-        private void OnCounterClicked(object sender, EventArgs e)
-        {
-            count++;
-            CounterLabel.Text = $"Current count: {count}";
+        public List<string> ListRows { get; set; } = new List<string>();
 
-            SemanticScreenReader.Announce(CounterLabel.Text);
+        public void UpdateProgress(string message)
+        {
+            Dispatcher.Dispatch(() => StatusLabel.Text = message);
+        }
+
+        private void OnRefreshButtonClicked(object sender, EventArgs e)
+        {
+            if (getPathsTask != null && !getPathsTask.IsCompleted)
+                return;
+
+            lock(ListRows)
+                ListRows.Clear();
+
+            StatusLabel.Text = "Getting Repositories...";
+            getPathsTask = Task.Run(() => GitWizardAPI.GetRepositoryPaths(RootPath.Text, ListRows, this));
         }
     }
 }

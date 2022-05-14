@@ -1,0 +1,4 @@
+- Flesh out CLI app to provide a report
+- "Pretty print" in path lists to transform environment variables into their values
+- Define report structure for extensibility
+- Async save/load for configs and reports

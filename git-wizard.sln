@@ -7,6 +7,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "git-wizard", "git-wizard\gi
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GitWizard", "GitWizard\GitWizard.csproj", "{FD576A44-8D91-407A-B475-2807CECC56B3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GitWizardUI", "GitWizardUI\GitWizardUI.csproj", "{747BB3C1-9D23-4A2A-B204-4CFDCDAFEF30}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{FD576A44-8D91-407A-B475-2807CECC56B3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FD576A44-8D91-407A-B475-2807CECC56B3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FD576A44-8D91-407A-B475-2807CECC56B3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{747BB3C1-9D23-4A2A-B204-4CFDCDAFEF30}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{747BB3C1-9D23-4A2A-B204-4CFDCDAFEF30}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{747BB3C1-9D23-4A2A-B204-4CFDCDAFEF30}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{747BB3C1-9D23-4A2A-B204-4CFDCDAFEF30}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

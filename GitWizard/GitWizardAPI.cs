@@ -46,8 +46,20 @@ namespace GitWizard
                 onUpdate?.Invoke(rootPath);
                 foreach (var subDirectory in Directory.GetDirectories(rootPath))
                 {
-                    // TODO: Add config setting for ignoring hidden directories
                     var split = subDirectory.Split('\\');
+                    var lastDirectory = split.Last();
+
+                    if (lastDirectory == ".git")
+                    {
+                        lock (paths)
+                        {
+                            paths.Add(subDirectory);
+                        }
+
+                        continue;
+                    }
+
+                    // TODO: Add config setting for ignoring hidden directories
                     if (split.Last().StartsWith("."))
                         continue;
 
@@ -57,16 +69,6 @@ namespace GitWizard
 
                     if (ignoredPaths.Contains(subDirectory))
                         continue;
-
-                    if (subDirectory.EndsWith(".git"))
-                    {
-                        lock (paths)
-                        {
-                            paths.Add(subDirectory);
-                        }
-
-                        continue;
-                    }
 
                     await Task.Run(() => FindGitRepositoriesRecursively(subDirectory, paths, ignoredPaths, onUpdate));
                 }

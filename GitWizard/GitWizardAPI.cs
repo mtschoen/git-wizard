@@ -1,33 +1,46 @@
-﻿using System.Runtime.InteropServices;
-
-namespace GitWizard
+﻿namespace GitWizard
 {
     public static class GitWizardAPI
     {
         const string GitWizardFolder = ".GitWizard";
+        const string RepositoryPathListFileName = "repositories";
+
         public static string GetCachePath()
         {
-            var homeFolder = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-                ? Environment.ExpandEnvironmentVariables("%USERPROFILE%")
-                : "~";
-
+            var homeFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             return Path.Combine(homeFolder, GitWizardFolder);
         }
 
         /// <summary>
-        /// Get all sub-directory paths within <paramref name="rootPath"/> that contain .git folders we care about
+        /// Get the path to the file where cached repository paths are stored.
         /// </summary>
-        /// <param name="rootPath">The path to search</param>
-        /// <param name="paths">List of strings to store the results</param>
-        public static async Task GetRepositoryPaths(string rootPath, ICollection<string> paths, ICollection<string> ignoredPaths, Action<string>? onUpdate = null)
+        /// <returns>The path to the file where cached repository paths are stored.</returns>
+        public static string GetCachedRepositoryListPath()
         {
+            return Path.Combine(GetCachePath(), RepositoryPathListFileName);
+        }
+
+        /// <summary>
+        /// Get all sub-directory paths within <paramref name="rootPath"/> that contain .git folders we care about.
+        /// </summary>
+        /// <param name="rootPath">The path to search.</param>
+        /// <param name="paths">Collection of strings to store the results.</param>
+        /// <param name="ignoredPaths">Collection of strings containing paths to ignore.</param>
+        /// <param name="onUpdate">Optional callback for progress updates.</param>
+        public static async Task GetRepositoryPaths(string rootPath, ICollection<string> paths,
+            ICollection<string> ignoredPaths, Action<string>? onUpdate = null)
+        {
+            // TODO: Find utility for interpreting special paths like %USERPROFILE% and ~
             // If the string starts with a % we can try treating it as an environment variable
             if (rootPath.StartsWith("%"))
             {
                 var path = Environment.ExpandEnvironmentVariables(rootPath);
-                if (path != null)
+                if (string.IsNullOrEmpty(path))
                     rootPath = path;
             }
+
+            if (rootPath == "~")
+                rootPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
             if (!Directory.Exists(rootPath))
             {
@@ -35,7 +48,7 @@ namespace GitWizard
                 return;
             }
 
-            await FindGitRepositoriesRecursively(rootPath, paths, ignoredPaths,onUpdate);
+            await Task.Run(() => FindGitRepositoriesRecursively(rootPath, paths, ignoredPaths, onUpdate));
             onUpdate?.Invoke($"Found {paths.Count} repositories");
         }
 
@@ -46,14 +59,14 @@ namespace GitWizard
                 onUpdate?.Invoke(rootPath);
                 foreach (var subDirectory in Directory.GetDirectories(rootPath))
                 {
-                    var split = subDirectory.Split('\\');
+                    var split = subDirectory.Split(Path.DirectorySeparatorChar);
                     var lastDirectory = split.Last();
 
                     if (lastDirectory == ".git")
                     {
                         lock (paths)
                         {
-                            paths.Add(subDirectory);
+                            paths.Add(rootPath);
                         }
 
                         continue;
@@ -78,6 +91,21 @@ namespace GitWizard
                 onUpdate?.Invoke($"Exception reading {rootPath}: {e.Message}");
                 // Ignore exceptions like access failure
             }
+        }
+
+        /// <summary>
+        /// Get the cached list of repository paths
+        /// </summary>
+        /// <returns>An array containing the cached paths</returns>
+        public static string[]? GetCachedRepositoryPaths()
+        {
+            var fileName = GetCachedRepositoryListPath();
+            if (!File.Exists(fileName))
+                return null;
+
+            // TODO: Async file reads
+            var paths = File.ReadAllText(fileName);
+            return paths.Split('\n');
         }
     }
 }

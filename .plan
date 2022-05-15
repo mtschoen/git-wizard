@@ -1,4 +1,15 @@
-- Flesh out CLI app to provide a report
+- Explore MAUI or other cross-platform UI solutions--goal is one UI project for Windows/Mac
+- Explore CLI argument parsing libraries which can auto-generate manual/help (replace RunConfiguration)
+- Explore path handling library for `%USERPROFILE%` and `~` path aliases
 - "Pretty print" in path lists to transform environment variables into their values
 - Define report structure for extensibility
-- Async save/load for configs and reports
+- Async save/load for cached files (configs and reports)
+- Identify repositories with unstaged or pending changes
+- Identify repositories 
+- Identify submodules which are not checked out to project pointer reference
+- Identify submodules which have not been checked out/init
+- Identify submodules which are in .gitmodules but not in the index, or vice versa
+- Identify detached heads with pending/unstaged changes
+- Button/utility to check out branch head that matches detached head
+- Testing automation
+- Profiling/optimization (am I using await correctly?)

@@ -1,206 +1,221 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace GitWizard.CLI
+// ReSharper disable once CheckNamespace
+namespace GitWizard.CLI;
+
+public static class Program
 {
-    public static class Program
+    /// <summary>
+    /// Struct containing configuration details specified in command line arguments
+    /// TODO: use a library for parsing CLI args that can also generate a -h manual
+    /// </summary>
+    struct RunConfiguration
     {
-        /// <summary>
-        /// Struct containing configuration details specified in command line arguments
-        /// TODO: use a library for parsing CLI args that can also generate a -h manual
-        /// </summary>
-        struct RunConfiguration
-        {
-            const string HelpManual = @"GitWizard 0.1 Help
+        const string HelpManual = @"GitWizard 0.1 Help
 Supported command line arguments (all optional):
   -v                    Enable verbose logging.
+  -silent               Do not print to the console
   -rebuild-report       Rebuild the list of repositories (instead of using cache)
   -rebuild-repo-list    Rebuild the report from scratch (instead of using cache)
   -no-refresh           Do not refresh the report based on the latest state; just print out the cached report
   -rebuild-all          Rebuild the report and list of repositories (instead of using cache)
+  -print-minified       Print the output to the console as minified JSON
   -save-path            Path where the report will be saved to disk (otherwise it is only printed to the console)
   -config-path          Path to custom configuration file (otherwise global or default configuration is used)
 ";
 
-            /// <summary>
-            /// Enable verbose logging.
-            /// </summary>
-            public readonly bool Verbose = false;
+        /// <summary>
+        /// Enable verbose logging.
+        /// </summary>
+        public readonly bool Verbose = false;
 
-            /// <summary>
-            /// Rebuild the list of repositories (instead of using cache).
-            /// </summary>
-            public readonly bool RebuildRepositoryList = false;
+        /// <summary>
+        /// Rebuild the list of repositories (instead of using cache).
+        /// </summary>
+        public readonly bool RebuildRepositoryList = false;
 
-            /// <summary>
-            /// Rebuild the report from scratch (instead of using cache).
-            /// </summary>
-            public readonly bool RebuildReport = false;
+        /// <summary>
+        /// Rebuild the report from scratch (instead of using cache).
+        /// </summary>
+        public readonly bool RebuildReport = false;
 
-            /// <summary>
-            /// Refresh the report based on the latest state (otherwise just print out the cached report).
-            /// </summary>
-            public readonly bool RefreshReport = true;
+        /// <summary>
+        /// Refresh the report based on the latest state (otherwise just print out the cached report).
+        /// </summary>
+        public readonly bool RefreshReport = true;
 
-            /// <summary>
-            /// Print/save the report as minified JSON.
-            /// </summary>
-            public readonly bool Minified = false;
+        /// <summary>
+        /// Print/save the report as minified JSON.
+        /// </summary>
+        public readonly bool Minified = false;
 
-            /// <summary>
-            /// Path where the report will be saved to disk (otherwise it is only printed to the console).
-            /// </summary>
-            public readonly string? SavePath = null;
+        /// <summary>
+        /// Path where the report will be saved to disk (otherwise it is only printed to the console).
+        /// </summary>
+        public readonly string? SavePath = null;
 
-            /// <summary>
-            /// Path to custom configuration file (otherwise global or default configuration is used)
-            /// </summary>
-            public readonly string? CustomConfigurationPath = null;
+        /// <summary>
+        /// Path to custom configuration file (otherwise global or default configuration is used)
+        /// </summary>
+        public readonly string? CustomConfigurationPath = null;
 
-            public RunConfiguration()
+        public RunConfiguration()
+        {
+            var arguments = Environment.GetCommandLineArgs();
+            var length = arguments.Length;
+            for (var i = 0; i < length; i++)
             {
-                var arguments = Environment.GetCommandLineArgs();
-                var length = arguments.Length;
-                for (var i = 0; i < length; i++)
+                var argument = arguments[i];
+                switch (argument)
                 {
-                    var argument = arguments[i];
-                    switch (argument)
-                    {
-                        case "-h":
+                    case "-h":
+                        if (!GitWizardApi.SilentMode)
                             Console.WriteLine(HelpManual);
-                            Environment.Exit(0);
-                            break;
-                        case "-v":
-                            Verbose = true;
-                            break;
-                        case "-rebuild-report":
-                            RebuildReport = true;
-                            break;
-                        case "-no-refresh":
-                            RefreshReport = false;
-                            break;
-                        case "-rebuild-repo-list":
-                            RebuildRepositoryList = true;
-                            break;
-                        case "-rebuild-all":
-                            RebuildReport = true;
-                            RebuildRepositoryList = true;
-                            break;
-                        case "-save-path":
-                            if (i >= length)
-                            {
+
+                        Environment.Exit(0);
+                        break;
+                    case "-v":
+                        Verbose = true;
+                        break;
+                    case "-silent":
+                        GitWizardApi.SilentMode = true;
+                        break;
+                    case "-rebuild-report":
+                        RebuildReport = true;
+                        break;
+                    case "-no-refresh":
+                        RefreshReport = false;
+                        break;
+                    case "-rebuild-repo-list":
+                        RebuildRepositoryList = true;
+                        break;
+                    case "-rebuild-all":
+                        RebuildReport = true;
+                        RebuildRepositoryList = true;
+                        break;
+                    case "-print-minified":
+                        Minified = true;
+                        break;
+                    case "-save-path":
+                        if (i >= length)
+                        {
+                            if (!GitWizardApi.SilentMode)
                                 Console.WriteLine("Error: -save-path argument passed without a following argument.");
-                                break;
-                            }
 
-                            // TODO: Validate path
-                            SavePath = arguments[i + 1];
                             break;
-                        case "-config-path":
-                            if (i >= length)
-                            {
+                        }
+
+                        // TODO: Validate path
+                        SavePath = arguments[i + 1];
+                        break;
+                    case "-config-path":
+                        if (i >= length)
+                        {
+                            if (!GitWizardApi.SilentMode)
                                 Console.WriteLine("Error: -config-path argument passed without a following argument.");
-                                break;
-                            }
 
-                            // TODO: Validate path
-                            CustomConfigurationPath = arguments[i + 1];
                             break;
-                    }
+                        }
+
+                        // TODO: Validate path
+                        CustomConfigurationPath = arguments[i + 1];
+                        break;
                 }
             }
         }
+    }
 
-        public static async Task Main()
+    public static async Task Main()
+    {
+        var runConfiguration = new RunConfiguration();
+        var configuration = GetConfiguration(runConfiguration);
+        var repositoryPaths = GetRepositoryPaths(runConfiguration);
+        var report = await GetReport(runConfiguration, configuration, repositoryPaths);
+        if (report == null)
         {
-            var runConfiguration = new RunConfiguration();
-            var configuration = GetConfiguration(runConfiguration);
-            var repositoryPaths = GetRepositoryPaths(runConfiguration);
-            var report = await GetReport(runConfiguration, configuration, repositoryPaths);
-            if (report == null)
-            {
+            if (!GitWizardApi.SilentMode)
                 Console.WriteLine("Could not retrieve cached report");
-                Environment.Exit(0);
-                return;
-            }
 
-            SaveReport(runConfiguration, report);
+            Environment.Exit(0);
+            return;
+        }
 
-            var jsonString = SerializeReport(runConfiguration, report);
+        SaveReport(runConfiguration, report);
+
+        var jsonString = SerializeReport(runConfiguration, report);
+
+        if (!GitWizardApi.SilentMode)
             Console.WriteLine(jsonString);
-        }
+    }
 
-        static void SaveReport(RunConfiguration runConfiguration, GitWizardReport report)
-        {
-            // Always save a cache
-            report.Save(GitWizardReport.GetCachedReportPath());
+    static void SaveReport(RunConfiguration runConfiguration, GitWizardReport report)
+    {
+        // Always save a cache
+        report.Save(GitWizardReport.GetCachedReportPath());
 
-            var savePath = runConfiguration.SavePath;
-            if (savePath == null)
-                return;
+        var savePath = runConfiguration.SavePath;
+        if (savePath == null)
+            return;
 
+        if (!GitWizardApi.SilentMode)
             Console.WriteLine($"Saving report to {savePath}");
-            report.Save(savePath);
-        }
 
-        static string SerializeReport(RunConfiguration runConfiguration, GitWizardReport report)
+        report.Save(savePath);
+    }
+
+    static string SerializeReport(RunConfiguration runConfiguration, GitWizardReport report)
+    {
+        var options = new JsonSerializerOptions
         {
-            var options = new JsonSerializerOptions
-            {
-                WriteIndented = !runConfiguration.Minified,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
-            };
+            WriteIndented = !runConfiguration.Minified,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
+        };
 
-            var jsonString = JsonSerializer.Serialize(report, options);
-            return jsonString;
-        }
+        var jsonString = JsonSerializer.Serialize(report, options);
+        return jsonString;
+    }
 
-        static async Task<GitWizardReport?> GetReport(RunConfiguration runConfiguration, GitWizardConfiguration configuration,
-            ICollection<string>? repositoryPaths = null)
+    static async Task<GitWizardReport?> GetReport(RunConfiguration runConfiguration, GitWizardConfiguration configuration,
+        ICollection<string>? repositoryPaths = null)
+    {
+        if (!runConfiguration.RebuildReport)
         {
-            if (!runConfiguration.RebuildReport)
-            {
-                var cachedReport = GitWizardReport.GetCachedReport();
-                if (!runConfiguration.RefreshReport)
-                    return cachedReport;
+            var cachedReport = GitWizardReport.GetCachedReport();
+            if (!runConfiguration.RefreshReport)
+                return cachedReport;
 
-                if (cachedReport != null && repositoryPaths != null)
-                {
-                    await cachedReport.Refresh(repositoryPaths);
-                    return cachedReport;
-                }
+            if (cachedReport != null && repositoryPaths != null)
+            {
+                await cachedReport.Refresh(repositoryPaths);
+                return cachedReport;
             }
-
-            Action<string>? onUpdate = runConfiguration.Verbose ? Console.WriteLine : null;
-            var report = await GitWizardReport.GenerateReport(configuration, repositoryPaths, onUpdate: onUpdate);
-            return report;
         }
 
-        static string[]? GetRepositoryPaths(RunConfiguration runConfiguration)
-        {
-            return runConfiguration.RebuildRepositoryList ? null : GitWizardAPI.GetCachedRepositoryPaths();
-        }
+        Action<string>? onUpdate = runConfiguration.Verbose && !GitWizardApi.SilentMode ? Console.WriteLine : null;
+        var report = await GitWizardReport.GenerateReport(configuration, repositoryPaths, onUpdate: onUpdate);
+        return report;
+    }
 
-        static GitWizardConfiguration GetConfiguration(RunConfiguration runConfiguration)
-        {
-            GitWizardConfiguration? configuration;
-            var customConfigurationPath = runConfiguration.CustomConfigurationPath;
-            if (customConfigurationPath != null)
-            {
-                configuration = GitWizardConfiguration.GetConfigurationAtPath(customConfigurationPath);
-                if (configuration == null)
-                {
-                    Console.WriteLine($"Error: Could not find custom configuration at path: {customConfigurationPath}");
-                    Environment.Exit(0);
-                    return configuration;
-                }
-            }
-            else
-            {
-                configuration = GitWizardConfiguration.GetGlobalConfiguration();
-            }
+    static string[]? GetRepositoryPaths(RunConfiguration runConfiguration)
+    {
+        return runConfiguration.RebuildRepositoryList ? null : GitWizardApi.GetCachedRepositoryPaths();
+    }
 
+    static GitWizardConfiguration GetConfiguration(RunConfiguration runConfiguration)
+    {
+        var customConfigurationPath = runConfiguration.CustomConfigurationPath;
+        if (customConfigurationPath == null)
+            return GitWizardConfiguration.GetGlobalConfiguration();
+
+        var configuration = GitWizardConfiguration.GetConfigurationAtPath(customConfigurationPath);
+        if (configuration != null)
             return configuration;
-        }
+
+        if (!GitWizardApi.SilentMode)
+            Console.WriteLine($"Error: Could not find custom configuration at path: {customConfigurationPath}");
+
+        Environment.Exit(0);
+        return null;
     }
 }

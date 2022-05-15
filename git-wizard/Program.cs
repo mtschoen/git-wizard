@@ -7,7 +7,7 @@ public class WeatherForecast
     public string? Summary { get; set; }
 }
 
-public class Program
+public static class Program
 {
     public static void Main()
     {

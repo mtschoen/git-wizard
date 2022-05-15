@@ -13,3 +13,5 @@
 - Button/utility to check out branch head that matches detached head
 - Testing automation
 - Profiling/optimization (am I using await correctly?)
+- Log file
+- User-configurable loggers

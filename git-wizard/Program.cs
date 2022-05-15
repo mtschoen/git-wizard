@@ -26,11 +26,6 @@ Supported command line arguments (all optional):
 ";
 
         /// <summary>
-        /// Enable verbose logging.
-        /// </summary>
-        public readonly bool Verbose = false;
-
-        /// <summary>
         /// Rebuild the list of repositories (instead of using cache).
         /// </summary>
         public readonly bool RebuildRepositoryList = false;
@@ -70,16 +65,14 @@ Supported command line arguments (all optional):
                 switch (argument)
                 {
                     case "-h":
-                        if (!GitWizardApi.SilentMode)
-                            Console.WriteLine(HelpManual);
-
+                        Console.WriteLine(HelpManual);
                         Environment.Exit(0);
                         break;
                     case "-v":
-                        Verbose = true;
+                        GitWizardLog.VerboseMode = true;
                         break;
                     case "-silent":
-                        GitWizardApi.SilentMode = true;
+                        GitWizardLog.SilentMode = true;
                         break;
                     case "-rebuild-report":
                         RebuildReport = true;
@@ -100,9 +93,7 @@ Supported command line arguments (all optional):
                     case "-save-path":
                         if (i >= length)
                         {
-                            if (!GitWizardApi.SilentMode)
-                                Console.WriteLine("Error: -save-path argument passed without a following argument.");
-
+                            GitWizardLog.Log("-save-path argument passed without a following argument.", GitWizardLog.LogType.Error);
                             break;
                         }
 
@@ -112,9 +103,7 @@ Supported command line arguments (all optional):
                     case "-config-path":
                         if (i >= length)
                         {
-                            if (!GitWizardApi.SilentMode)
-                                Console.WriteLine("Error: -config-path argument passed without a following argument.");
-
+                            GitWizardLog.Log("-config-path argument passed without a following argument.", GitWizardLog.LogType.Error);
                             break;
                         }
 
@@ -134,9 +123,7 @@ Supported command line arguments (all optional):
         var report = await GetReport(runConfiguration, configuration, repositoryPaths);
         if (report == null)
         {
-            if (!GitWizardApi.SilentMode)
-                Console.WriteLine("Could not retrieve cached report");
-
+            GitWizardLog.Log("Could not retrieve cached report", GitWizardLog.LogType.Error);
             Environment.Exit(0);
             return;
         }
@@ -145,7 +132,7 @@ Supported command line arguments (all optional):
 
         var jsonString = SerializeReport(runConfiguration, report);
 
-        if (!GitWizardApi.SilentMode)
+        if (!GitWizardLog.SilentMode)
             Console.WriteLine(jsonString);
     }
 
@@ -158,8 +145,7 @@ Supported command line arguments (all optional):
         if (savePath == null)
             return;
 
-        if (!GitWizardApi.SilentMode)
-            Console.WriteLine($"Saving report to {savePath}");
+        GitWizardLog.Log($"Saving report to {savePath}");
 
         report.Save(savePath);
     }
@@ -192,9 +178,8 @@ Supported command line arguments (all optional):
             }
         }
 
-        Action<string>? onUpdate = runConfiguration.Verbose && !GitWizardApi.SilentMode ? Console.WriteLine : null;
-        var report = await GitWizardReport.GenerateReport(configuration, repositoryPaths, onUpdate: onUpdate);
-        return report;
+        return await GitWizardReport.GenerateReport(configuration, repositoryPaths,
+            path => GitWizardLog.Log(path, GitWizardLog.LogType.Verbose));
     }
 
     static string[]? GetRepositoryPaths(RunConfiguration runConfiguration)
@@ -212,9 +197,7 @@ Supported command line arguments (all optional):
         if (configuration != null)
             return configuration;
 
-        if (!GitWizardApi.SilentMode)
-            Console.WriteLine($"Error: Could not find custom configuration at path: {customConfigurationPath}");
-
+        GitWizardLog.Log($"Could not find custom configuration at path: {customConfigurationPath}", GitWizardLog.LogType.Error);
         Environment.Exit(0);
         return null;
     }

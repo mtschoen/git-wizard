@@ -76,12 +76,7 @@ public class GitWizardConfiguration
         }
         catch (Exception e)
         {
-            if (!GitWizardApi.SilentMode)
-            {
-                Console.WriteLine($"Error: Failed to save configuration to path: {path}. Exception details to follow.");
-                Console.WriteLine(e.Message);
-                Console.WriteLine(e.StackTrace);
-            }
+            GitWizardLog.LogException(e, $"Error: Failed to save configuration to path: {path}.");
         }
     }
 

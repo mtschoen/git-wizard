@@ -67,8 +67,27 @@ public class GitWizardReport
             return _cachedReport;
 
         // TODO: Async config load (file read)
-        var jsonText = File.ReadAllText(globalConfigurationPath);
-        _cachedReport = JsonSerializer.Deserialize<GitWizardReport>(jsonText);
+        string jsonText;
+        try
+        {
+            jsonText = File.ReadAllText(globalConfigurationPath);
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, "Failed to get cached report.");
+            return null;
+        }
+
+        try
+        {
+            _cachedReport = JsonSerializer.Deserialize<GitWizardReport>(jsonText);
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception,
+                $"Failed to deserialize cached report.\nYou may need to modify or delete the file at {globalConfigurationPath}.\n");
+        }
+
         return _cachedReport;
     }
 
@@ -141,14 +160,9 @@ public class GitWizardReport
                 DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
             }));
         }
-        catch (Exception e)
+        catch (Exception exception)
         {
-            if (GitWizardApi.SilentMode)
-            {
-                Console.WriteLine($"Error: Failed to save report to path: {path}. Exception details to follow.");
-                Console.WriteLine(e.Message);
-                Console.WriteLine(e.StackTrace);
-            }
+            GitWizardLog.LogException(exception, $"Failed to save report to path: {path}.");
         }
     }
 }

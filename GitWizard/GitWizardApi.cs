@@ -5,11 +5,6 @@ public static class GitWizardApi
     const string GitWizardFolder = ".GitWizard";
     const string RepositoryPathListFileName = "repositories";
 
-    /// <summary>
-    /// Set SilentMode to true to disable all console logging
-    /// </summary>
-    public static bool SilentMode { get; set; }
-
     public static string GetCachePath()
     {
         var homeFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -49,9 +44,7 @@ public static class GitWizardApi
 
         if (!Directory.Exists(rootPath))
         {
-            if (!SilentMode)
-                Console.WriteLine($"Could not get repository paths at {rootPath} because it is not a directory");
-
+            GitWizardLog.Log($"Could not get repository paths at {rootPath} because it is not a directory", GitWizardLog.LogType.Error);
             return;
         }
 

@@ -10,10 +10,16 @@ public class GitWizardReport
     [Serializable]
     public class Repository
     {
-        public readonly string WorkingDirectory;
+        public string? WorkingDirectory { get; private set; }
         public string? CurrentBranch { get; private set; }
         public bool IsDetachedHead { get; private set; }
+        public bool HasPendingChanges { get; private set; }
         public SortedDictionary<string, Repository?>? Submodules { get; private set; }
+
+        //[JsonConstructor]
+        Repository()
+        {
+        }
 
         public Repository(string workingDirectory)
         {
@@ -22,9 +28,18 @@ public class GitWizardReport
 
         public async Task Refresh()
         {
+            if (string.IsNullOrEmpty(WorkingDirectory) || !Directory.Exists(WorkingDirectory))
+            {
+                GitWizardLog.Log($"Working directory {WorkingDirectory} is invalid.", GitWizardLog.LogType.Error);
+                return;
+            }
+
             var repository = new LibGit2Sharp.Repository(WorkingDirectory);
             CurrentBranch = repository.Head.FriendlyName;
             IsDetachedHead = repository.Head.Reference is not SymbolicReference;
+            var status = repository.RetrieveStatus();
+            HasPendingChanges = status.IsDirty;
+
 
             foreach (var submodule in repository.Submodules)
             {

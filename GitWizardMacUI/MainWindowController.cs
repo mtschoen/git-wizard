@@ -28,5 +28,10 @@ namespace GitWizardMacUI
 		public new MainWindow Window {
 			get { return (MainWindow) base.Window; }
 		}
-	}
+
+        public override void WindowDidLoad()
+        {
+            base.WindowDidLoad();
+        }
+    }
 }

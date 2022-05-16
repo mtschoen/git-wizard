@@ -72,7 +72,6 @@
     <Compile Include="AppDelegate.cs" />
   </ItemGroup>
   <ItemGroup>
-    <InterfaceDefinition Include="MainMenu.xib" />
     <InterfaceDefinition Include="MainWindow.xib" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath)\Xamarin\Mac\Xamarin.Mac.CSharp.targets" />

@@ -6,16 +6,13 @@ namespace GitWizardMacUI
 	[Register ("AppDelegate")]
 	public class AppDelegate : NSApplicationDelegate
 	{
-		MainWindowController mainWindowController;
-
 		public AppDelegate ()
 		{
 		}
 
 		public override void DidFinishLaunching (NSNotification notification)
 		{
-			mainWindowController = new MainWindowController ();
-			mainWindowController.Window.MakeKeyAndOrderFront (this);
+			// Insert code here to initialize your application
 		}
 
 		public override void WillTerminate (NSNotification notification)
@@ -24,3 +21,4 @@ namespace GitWizardMacUI
 		}
 	}
 }
+

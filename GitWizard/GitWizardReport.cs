@@ -1,6 +1,9 @@
-﻿using System.Text.Json;
-using System.Text.Json.Serialization;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading.Tasks;
 using LibGit2Sharp;
+using Newtonsoft.Json;
 
 namespace GitWizard;
 
@@ -95,7 +98,7 @@ public class GitWizardReport
 
         try
         {
-            _cachedReport = JsonSerializer.Deserialize<GitWizardReport>(jsonText);
+            _cachedReport = JsonConvert.DeserializeObject<GitWizardReport>(jsonText);
         }
         catch (Exception exception)
         {
@@ -169,10 +172,10 @@ public class GitWizardReport
         try
         {
             // TODO: Async config save
-            File.WriteAllText(path, JsonSerializer.Serialize(this, new JsonSerializerOptions
+            File.WriteAllText(path, JsonConvert.SerializeObject(this, Formatting.Indented, new JsonSerializerSettings
             {
-                WriteIndented = true,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
+                NullValueHandling = NullValueHandling.Ignore,
+                DefaultValueHandling = DefaultValueHandling.Ignore
             }));
         }
         catch (Exception exception)

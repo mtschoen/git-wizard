@@ -715,19 +715,19 @@
                                 <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                 <subviews>
                                     <customView id="bnN-zi-BZj">
-                                        <rect key="frame" x="0.0" y="0.0" width="262" height="600"/>
+                                        <rect key="frame" x="0.0" y="0.0" width="280" height="600"/>
                                         <autoresizingMask key="autoresizingMask"/>
                                         <subviews>
                                             <splitView fixedFrame="YES" arrangesAllSubviews="NO" dividerStyle="thin" translatesAutoresizingMaskIntoConstraints="NO" id="chT-jJ-Rar">
-                                                <rect key="frame" x="0.0" y="0.0" width="262" height="600"/>
+                                                <rect key="frame" x="0.0" y="0.0" width="280" height="600"/>
                                                 <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                                 <subviews>
                                                     <customView fixedFrame="YES" id="dDK-km-ddz">
-                                                        <rect key="frame" x="0.0" y="0.0" width="262" height="298"/>
+                                                        <rect key="frame" x="0.0" y="0.0" width="280" height="298"/>
                                                         <autoresizingMask key="autoresizingMask"/>
                                                         <subviews>
                                                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="mgw-ac-mIh">
-                                                                <rect key="frame" x="-2" y="265" width="266" height="28"/>
+                                                                <rect key="frame" x="-2" y="265" width="284" height="28"/>
                                                                 <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
                                                                 <textFieldCell key="cell" lineBreakMode="clipping" alignment="center" title="Search Directories" id="TwQ-RB-u4p">
                                                                     <font key="font" metaFont="system" size="24"/>
@@ -736,11 +736,11 @@
                                                                 </textFieldCell>
                                                             </textField>
                                                             <browser verticalHuggingPriority="750" fixedFrame="YES" allowsExpansionToolTips="YES" enabled="YES" hasHorizontalScroller="YES" allowsEmptySelection="YES" defaultColumnWidth="100" minColumnWidth="100" maxVisibleColumns="1" titled="YES" separatesColumns="YES" allowsTypeSelect="YES" columnResizingType="auto" translatesAutoresizingMaskIntoConstraints="NO" id="Uje-4S-2IM">
-                                                                <rect key="frame" x="10" y="12" width="242" height="238"/>
+                                                                <rect key="frame" x="10" y="12" width="260" height="238"/>
                                                                 <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                                             </browser>
                                                             <textField verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="eil-VS-opq">
-                                                                <rect key="frame" x="10" y="236" width="119" height="21"/>
+                                                                <rect key="frame" x="10" y="236" width="113" height="21"/>
                                                                 <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
                                                                 <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="YES" borderStyle="bezel" drawsBackground="YES" id="qsO-XN-a3K">
                                                                     <font key="font" metaFont="system"/>
@@ -749,7 +749,7 @@
                                                                 </textFieldCell>
                                                             </textField>
                                                             <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="TSr-X0-dat">
-                                                                <rect key="frame" x="180" y="230" width="79" height="32"/>
+                                                                <rect key="frame" x="166" y="230" width="79" height="32"/>
                                                                 <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMinY="YES"/>
                                                                 <buttonCell key="cell" type="push" title="Browse" bezelStyle="rounded" alignment="center" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="GOd-Dv-54W">
                                                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
@@ -759,8 +759,19 @@
                                                                     <action selector="SearchDirectoriesBrowseButtonClicked:" target="XfG-lQ-9wD" id="yvX-A0-vNt"/>
                                                                 </connections>
                                                             </button>
+                                                            <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="Loy-dl-6dZ">
+                                                                <rect key="frame" x="234" y="230" width="43" height="32"/>
+                                                                <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMinY="YES"/>
+                                                                <buttonCell key="cell" type="push" title="X" bezelStyle="rounded" alignment="center" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="VFy-dZ-Yd1">
+                                                                    <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                                                                    <font key="font" metaFont="system"/>
+                                                                </buttonCell>
+                                                                <connections>
+                                                                    <action selector="SearchDirectoriesDeleteButtonClicked:" target="XfG-lQ-9wD" id="PFX-5P-yMV"/>
+                                                                </connections>
+                                                            </button>
                                                             <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="c4r-HL-NAX">
-                                                                <rect key="frame" x="130" y="230" width="59" height="32"/>
+                                                                <rect key="frame" x="118" y="230" width="59" height="32"/>
                                                                 <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMinY="YES"/>
                                                                 <buttonCell key="cell" type="push" title="Add" bezelStyle="rounded" alignment="center" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="BlW-JN-ACQ">
                                                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
@@ -773,11 +784,11 @@
                                                         </subviews>
                                                     </customView>
                                                     <customView fixedFrame="YES" id="Hj5-DQ-yNx">
-                                                        <rect key="frame" x="0.0" y="299" width="262" height="301"/>
+                                                        <rect key="frame" x="0.0" y="299" width="280" height="301"/>
                                                         <autoresizingMask key="autoresizingMask"/>
                                                         <subviews>
                                                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="IW8-Uk-vI3">
-                                                                <rect key="frame" x="-2" y="270" width="266" height="28"/>
+                                                                <rect key="frame" x="-2" y="270" width="284" height="28"/>
                                                                 <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
                                                                 <textFieldCell key="cell" lineBreakMode="clipping" alignment="center" title="Ignored Directories" id="Rew-8R-zHL">
                                                                     <font key="font" metaFont="system" size="24"/>
@@ -786,11 +797,11 @@
                                                                 </textFieldCell>
                                                             </textField>
                                                             <browser verticalHuggingPriority="750" fixedFrame="YES" allowsExpansionToolTips="YES" enabled="YES" hasHorizontalScroller="YES" allowsEmptySelection="YES" defaultColumnWidth="100" minColumnWidth="100" maxVisibleColumns="1" titled="YES" separatesColumns="YES" allowsTypeSelect="YES" columnResizingType="auto" translatesAutoresizingMaskIntoConstraints="NO" id="EjX-J8-hmp">
-                                                                <rect key="frame" x="10" y="10" width="242" height="245"/>
+                                                                <rect key="frame" x="10" y="10" width="260" height="245"/>
                                                                 <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                                             </browser>
                                                             <textField verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="mID-g6-Qh2">
-                                                                <rect key="frame" x="10" y="241" width="119" height="21"/>
+                                                                <rect key="frame" x="10" y="241" width="111" height="21"/>
                                                                 <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
                                                                 <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="YES" borderStyle="bezel" drawsBackground="YES" id="1Q7-le-y2r">
                                                                     <font key="font" metaFont="system"/>
@@ -798,19 +809,8 @@
                                                                     <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
                                                                 </textFieldCell>
                                                             </textField>
-                                                            <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="3my-Ju-7EH">
-                                                                <rect key="frame" x="130" y="235" width="59" height="32"/>
-                                                                <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMinY="YES"/>
-                                                                <buttonCell key="cell" type="push" title="Add" bezelStyle="rounded" alignment="center" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="VFx-Ay-cbX">
-                                                                    <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
-                                                                    <font key="font" metaFont="system"/>
-                                                                </buttonCell>
-                                                                <connections>
-                                                                    <action selector="IgnoredDirectoriesAddButtonClicked:" target="XfG-lQ-9wD" id="zKX-xL-AHm"/>
-                                                                </connections>
-                                                            </button>
                                                             <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="dGP-Hx-6qd">
-                                                                <rect key="frame" x="180" y="235" width="79" height="32"/>
+                                                                <rect key="frame" x="166" y="235" width="79" height="32"/>
                                                                 <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMinY="YES"/>
                                                                 <buttonCell key="cell" type="push" title="Browse" bezelStyle="rounded" alignment="center" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="Bxp-YN-gDD">
                                                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
@@ -819,6 +819,28 @@
                                                                         <action selector="IgnoredDirectoriesBrowseButtonClicked:" target="XfG-lQ-9wD" id="DPH-v1-0bs"/>
                                                                     </connections>
                                                                 </buttonCell>
+                                                            </button>
+                                                            <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="15Y-qx-Ijv">
+                                                                <rect key="frame" x="234" y="235" width="43" height="32"/>
+                                                                <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMinY="YES"/>
+                                                                <buttonCell key="cell" type="push" title="X" bezelStyle="rounded" alignment="center" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="KQE-Od-NvQ">
+                                                                    <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                                                                    <font key="font" metaFont="system"/>
+                                                                </buttonCell>
+                                                                <connections>
+                                                                    <action selector="IgnoredDirectoriesDeleteButtonClicked:" target="XfG-lQ-9wD" id="bhk-Mp-afe"/>
+                                                                </connections>
+                                                            </button>
+                                                            <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="3my-Ju-7EH">
+                                                                <rect key="frame" x="117" y="234" width="59" height="32"/>
+                                                                <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMinY="YES"/>
+                                                                <buttonCell key="cell" type="push" title="Add" bezelStyle="rounded" alignment="center" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="VFx-Ay-cbX">
+                                                                    <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                                                                    <font key="font" metaFont="system"/>
+                                                                </buttonCell>
+                                                                <connections>
+                                                                    <action selector="IgnoredDirectoriesAddButtonClicked:" target="XfG-lQ-9wD" id="zKX-xL-AHm"/>
+                                                                </connections>
                                                             </button>
                                                         </subviews>
                                                     </customView>
@@ -834,7 +856,7 @@
                                         </constraints>
                                     </customView>
                                     <customView fixedFrame="YES" id="2Mw-UZ-kcn">
-                                        <rect key="frame" x="263" y="0.0" width="537" height="600"/>
+                                        <rect key="frame" x="281" y="0.0" width="519" height="600"/>
                                         <autoresizingMask key="autoresizingMask"/>
                                     </customView>
                                 </subviews>

@@ -30,24 +30,20 @@ namespace GitWizardMacUI
 		[Action ("IgnoredDirectoriesBrowseButtonClicked:")]
 		partial void IgnoredDirectoriesBrowseButtonClicked (Foundation.NSObject sender);
 
+		[Action ("IgnoredDirectoriesDeleteButtonClicked:")]
+		partial void IgnoredDirectoriesDeleteButtonClicked (Foundation.NSObject sender);
+
 		[Action ("SearchDirectoriesAddButtonClicked:")]
 		partial void SearchDirectoriesAddButtonClicked (Foundation.NSObject sender);
 
 		[Action ("SearchDirectoriesBrowseButtonClicked:")]
 		partial void SearchDirectoriesBrowseButtonClicked (Foundation.NSObject sender);
+
+		[Action ("SearchDirectoriesDeleteButtonClicked:")]
+		partial void SearchDirectoriesDeleteButtonClicked (Foundation.NSObject sender);
 		
 		void ReleaseDesignerOutlets ()
 		{
-			if (SearchDirectoriesBrowser != null) {
-				SearchDirectoriesBrowser.Dispose ();
-				SearchDirectoriesBrowser = null;
-			}
-
-			if (SearchDirectoriesTextBox != null) {
-				SearchDirectoriesTextBox.Dispose ();
-				SearchDirectoriesTextBox = null;
-			}
-
 			if (IgnoredDirectoriesBrowser != null) {
 				IgnoredDirectoriesBrowser.Dispose ();
 				IgnoredDirectoriesBrowser = null;
@@ -56,6 +52,16 @@ namespace GitWizardMacUI
 			if (IgnoredDirectoriesTextBox != null) {
 				IgnoredDirectoriesTextBox.Dispose ();
 				IgnoredDirectoriesTextBox = null;
+			}
+
+			if (SearchDirectoriesBrowser != null) {
+				SearchDirectoriesBrowser.Dispose ();
+				SearchDirectoriesBrowser = null;
+			}
+
+			if (SearchDirectoriesTextBox != null) {
+				SearchDirectoriesTextBox.Dispose ();
+				SearchDirectoriesTextBox = null;
 			}
 		}
 	}

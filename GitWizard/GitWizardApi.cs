@@ -1,4 +1,10 @@
-﻿namespace GitWizard;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+
+namespace GitWizard;
 
 public static class GitWizardApi
 {
@@ -27,7 +33,7 @@ public static class GitWizardApi
     /// <param name="paths">Collection of strings to store the results.</param>
     /// <param name="ignoredPaths">Collection of strings containing paths to ignore.</param>
     /// <param name="onUpdate">Optional callback for progress updates.</param>
-    public static async Task GetRepositoryPaths(string rootPath, ICollection<string> paths,
+    public static async Task GetRepositoryPaths(string rootPath, System.Collections.Generic.ICollection<string> paths,
         ICollection<string> ignoredPaths, Action<string>? onUpdate = null)
     {
         // TODO: Find utility for interpreting special paths like %USERPROFILE% and ~

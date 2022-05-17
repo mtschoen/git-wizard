@@ -15,3 +15,6 @@
 - Profiling/optimization (am I using await correctly?)
 - Log file
 - User-configurable loggers
+- Mac UI
+  - Delete key/command for directory browsers
+  - Clean up menu items

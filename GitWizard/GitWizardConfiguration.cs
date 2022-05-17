@@ -1,6 +1,9 @@
-﻿using System.Runtime.InteropServices;
-using System.Text.Json;
-using System.Text.Json.Serialization;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
+using Newtonsoft.Json;
 
 namespace GitWizard;
 
@@ -11,15 +14,20 @@ public class GitWizardConfiguration
     public SortedSet<string> SearchPaths { get; set; } = new();
     public SortedSet<string> IgnoredPaths { get; set; } = new();
 
-    public static string GetGlobalConfigPath()
+    public static string GetGlobalConfigurationPath()
     {
         return Path.Combine(GitWizardApi.GetCachePath(), "config.json");
     }
 
     public static GitWizardConfiguration GetGlobalConfiguration()
     {
-        _globalConfiguration ??= GetConfigurationAtPath(GetGlobalConfigPath());
+        _globalConfiguration ??= GetConfigurationAtPath(GetGlobalConfigurationPath());
         return _globalConfiguration ??= CreateDefaultConfig();
+    }
+
+    public static void SaveGlobalConfiguration(GitWizardConfiguration configuration)
+    {
+        configuration.Save(GetGlobalConfigurationPath());
     }
 
     public static GitWizardConfiguration? GetConfigurationAtPath(string path)
@@ -31,7 +39,7 @@ public class GitWizardConfiguration
         {
             // TODO: Async file read
             var jsonText = File.ReadAllText(path);
-            return JsonSerializer.Deserialize<GitWizardConfiguration>(jsonText);
+            return JsonConvert.DeserializeObject<GitWizardConfiguration>(jsonText);
         }
         catch
         {
@@ -68,10 +76,10 @@ public class GitWizardConfiguration
         try
         {
             // TODO: Async config save
-            File.WriteAllText(path, JsonSerializer.Serialize(this, new JsonSerializerOptions
+            File.WriteAllText(path, JsonConvert.SerializeObject(this, Formatting.Indented, new JsonSerializerSettings
             {
-                WriteIndented = true,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
+                NullValueHandling = NullValueHandling.Ignore,
+                DefaultValueHandling = DefaultValueHandling.Ignore
             }));
         }
         catch (Exception e)

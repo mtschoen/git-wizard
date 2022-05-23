@@ -64,5 +64,12 @@ public static class GitWizardLog
 
         Console.WriteLine(exception.Message);
         Console.WriteLine(exception.StackTrace);
+
+        var innerException = exception.InnerException;
+        if (innerException != null)
+        {
+            Console.WriteLine("Inner exception:");
+            LogException(innerException);
+        }
     }
 }

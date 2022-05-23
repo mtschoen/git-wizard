@@ -9,7 +9,7 @@ namespace GitWizard;
 public static class GitWizardApi
 {
     const string GitWizardFolder = ".GitWizard";
-    const string RepositoryPathListFileName = "repositories";
+    const string RepositoryPathListFileName = "repositories.txt";
 
     public static string GetCachePath()
     {
@@ -17,11 +17,18 @@ public static class GitWizardApi
         return Path.Combine(homeFolder, GitWizardFolder);
     }
 
+    public static void EnsureCacheFolderExists()
+    {
+        var path = GetCachePath();
+        if (!Directory.Exists(path))
+            Directory.CreateDirectory(path);
+    }
+
     /// <summary>
     /// Get the path to the file where cached repository paths are stored.
     /// </summary>
     /// <returns>The path to the file where cached repository paths are stored.</returns>
-    static string GetCachedRepositoryListPath()
+    public static string GetCachedRepositoryListPath()
     {
         return Path.Combine(GetCachePath(), RepositoryPathListFileName);
     }
@@ -122,6 +129,24 @@ public static class GitWizardApi
         }
     }
 
+    public static void ClearCache()
+    {
+        try
+        {
+            var cachedRepositoryListPath = GetCachedRepositoryListPath();
+            if (File.Exists(cachedRepositoryListPath))
+                File.Delete(cachedRepositoryListPath);
+
+            var cachedReportPath = GitWizardReport.GetCachedReportPath();
+            if (File.Exists(cachedReportPath))
+                File.Delete(cachedReportPath);
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, "Caught exception trying to clear cache");
+        }
+    }
+
     /// <summary>
     /// Get the cached list of repository paths
     /// </summary>
@@ -135,5 +160,12 @@ public static class GitWizardApi
         // TODO: Async file reads
         var paths = File.ReadAllText(fileName);
         return paths.Split('\n');
+    }
+
+    public static void SaveCachedRepositoryPaths(IEnumerable<string> paths)
+    {
+        EnsureCacheFolderExists();
+        var path = GetCachedRepositoryListPath();
+        File.WriteAllTextAsync(path, string.Join('\n', paths));
     }
 }

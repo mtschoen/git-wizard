@@ -19,7 +19,6 @@ public class GitWizardReport
         public bool HasPendingChanges { get; private set; }
         public SortedDictionary<string, Repository?>? Submodules { get; private set; }
 
-        //[JsonConstructor]
         Repository()
         {
         }
@@ -37,29 +36,37 @@ public class GitWizardReport
                 return;
             }
 
-            var repository = new LibGit2Sharp.Repository(WorkingDirectory);
-            CurrentBranch = repository.Head.FriendlyName;
-            IsDetachedHead = repository.Head.Reference is not SymbolicReference;
-            var status = repository.RetrieveStatus();
-            HasPendingChanges = status.IsDirty;
+            Console.WriteLine($"Refreshing {WorkingDirectory}");
 
-
-            foreach (var submodule in repository.Submodules)
+            try
             {
-                Submodules ??= new SortedDictionary<string, Repository?>();
+                var repository = new LibGit2Sharp.Repository(WorkingDirectory);
+                CurrentBranch = repository.Head.FriendlyName;
+                IsDetachedHead = repository.Head.Reference is not SymbolicReference;
+                var status = repository.RetrieveStatus();
+                HasPendingChanges = status.IsDirty;
 
-                var path = Path.Combine(WorkingDirectory, submodule.Path);
-                if (!Submodules.TryGetValue(path, out var submoduleRepository))
+                foreach (var submodule in repository.Submodules)
                 {
-                    submoduleRepository = LibGit2Sharp.Repository.IsValid(path) ? new Repository(path) : null;
-                    Submodules[path] = submoduleRepository;
+                    Submodules ??= new SortedDictionary<string, Repository?>();
+
+                    var path = Path.Combine(WorkingDirectory, submodule.Path);
+                    if (!Submodules.TryGetValue(path, out var submoduleRepository))
+                    {
+                        submoduleRepository = LibGit2Sharp.Repository.IsValid(path) ? new Repository(path) : null;
+                        Submodules[path] = submoduleRepository;
+                    }
+
+                    if (submoduleRepository == null)
+                        continue;
+
+                    //TODO: Should be using AwaitAll?
+                    await Task.Run(submoduleRepository.Refresh);
                 }
-
-                if (submoduleRepository == null)
-                    continue;
-
-                //TODO: Should be using AwaitAll?
-                await Task.Run(submoduleRepository.Refresh);
+            }
+            catch (Exception exception)
+            {
+                GitWizardLog.LogException(exception, $"Exception thrown trying to refresh {WorkingDirectory}");
             }
         }
     }
@@ -136,7 +143,7 @@ public class GitWizardReport
             await report.GetRepositoryPaths(repositoryPaths, onUpdate);
         }
 
-        await report.Refresh(repositoryPaths);
+        await report.Refresh(repositoryPaths, onUpdate);
 
         return report;
     }
@@ -149,7 +156,7 @@ public class GitWizardReport
         }
     }
 
-    public async Task Refresh(IEnumerable<string> repositoryPaths)
+    public async Task Refresh(IEnumerable<string> repositoryPaths, Action<string>? onUpdate = null)
     {
         foreach (var path in repositoryPaths)
         {
@@ -158,6 +165,16 @@ public class GitWizardReport
                 repository = new Repository(path);
                 Repositories[path] = repository;
             }
+
+            try
+            {
+                onUpdate?.Invoke($"Refreshing {path}");
+            }
+            catch (Exception exception)
+            {
+                GitWizardLog.LogException(exception, "Exception thrown by Refresh onUpdate callback.");
+            }
+
 
             await Task.Run(repository.Refresh);
         }
@@ -181,6 +198,14 @@ public class GitWizardReport
         catch (Exception exception)
         {
             GitWizardLog.LogException(exception, $"Failed to save report to path: {path}.");
+        }
+    }
+
+    public IEnumerable<string> GetRepositoryPaths()
+    {
+        foreach (var kvp in Repositories)
+        {
+            yield return kvp.Key;
         }
     }
 }

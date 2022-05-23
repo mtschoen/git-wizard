@@ -19,7 +19,7 @@ namespace GitWizardMacUI
 		AppKit.NSTextField IgnoredDirectoriesTextBox { get; set; }
 
 		[Outlet]
-		AppKit.NSBrowser MainBrowser { get; set; }
+		AppKit.NSStackView RepositoryStackView { get; set; }
 
 		[Outlet]
 		AppKit.NSBrowser SearchDirectoriesBrowser { get; set; }
@@ -29,6 +29,9 @@ namespace GitWizardMacUI
 
 		[Outlet]
 		AppKit.NSTextField StatusLabel { get; set; }
+
+		[Action ("ClearCacheButtonClicked:")]
+		partial void ClearCacheButtonClicked (Foundation.NSObject sender);
 
 		[Action ("IgnoredDirectoriesAddButtonClicked:")]
 		partial void IgnoredDirectoriesAddButtonClicked (Foundation.NSObject sender);
@@ -78,9 +81,9 @@ namespace GitWizardMacUI
 				StatusLabel = null;
 			}
 
-			if (MainBrowser != null) {
-				MainBrowser.Dispose ();
-				MainBrowser = null;
+			if (RepositoryStackView != null) {
+				RepositoryStackView.Dispose ();
+				RepositoryStackView = null;
 			}
 		}
 	}

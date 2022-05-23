@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using AppKit;
 using Foundation;
 using GitWizard;
@@ -34,6 +37,8 @@ namespace GitWizardMacUI
 		GitWizardConfiguration _configuration;
 		BrowserDelegate _SearchDirectoriesBrowserDelegate;
 		BrowserDelegate _IgnoredDirectoriesBrowserDelegate;
+
+		readonly Stopwatch _Stopwatch = new Stopwatch();
 
 		public ViewController (IntPtr handle) : base (handle)
 		{
@@ -91,17 +96,48 @@ namespace GitWizardMacUI
 			DeleteButtonClicked(SearchDirectoriesBrowser, _SearchDirectoriesBrowserDelegate, _configuration.SearchPaths);
 		}
 
-        partial void RefreshButtonClicked(NSObject sender)
+        partial void ClearCacheButtonClicked(NSObject sender)
         {
-			var repositoryPaths = GitWizardApi.GetCachedRepositoryPaths();
-			StatusLabel.StringValue = "Refresh";
-			var report = GitWizardReport.GenerateReport(_configuration, repositoryPaths, (path) =>
+			GitWizardApi.ClearCache();
+        }
+
+        partial void RefreshButtonClicked(NSObject sender)
+		{
+			StatusLabel.StringValue = "Refreshing...";
+			Task.Run(async () =>
 			{
-				Console.WriteLine(path);
+				var repositoryPaths = GitWizardApi.GetCachedRepositoryPaths();
+				_Stopwatch.Restart();
+				var report = await GitWizardReport.GenerateReport(_configuration, repositoryPaths, (path) =>
+				{
+					InvokeOnMainThread(() =>
+					{
+						StatusLabel.StringValue = path;
+					});
+				});
+
+				_Stopwatch.Stop();
 				InvokeOnMainThread(() =>
 				{
-					StatusLabel.StringValue = path;
+					StatusLabel.StringValue = $"Refresh completed in {(float)_Stopwatch.ElapsedMilliseconds / 1000} seconds";
+
+					var subViews = RepositoryStackView.Subviews;
+					foreach (var view in subViews)
+					{
+						RepositoryStackView.RemoveArrangedSubview(view);
+					}
+
+					foreach (var kvp in report.Repositories)
+                    {
+						RepositoryStackView.AddArrangedSubview(new NSTextField()
+						{
+							StringValue = kvp.Key
+						});
+                    }
 				});
+
+				if (repositoryPaths == null)
+					GitWizardApi.SaveCachedRepositoryPaths(report.GetRepositoryPaths());
 			});
 		}
 

@@ -93,5 +93,11 @@
       <Name>GitWizard</Name>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup>
+    <NativeReference Include="..\packages\LibGit2Sharp.NativeBinaries.2.0.306\runtimes\osx\native\libgit2-106a5f2.dylib">
+      <Kind>Dynamic</Kind>
+      <SmartLink>False</SmartLink>
+    </NativeReference>
+  </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath)\Xamarin\Mac\Xamarin.Mac.CSharp.targets" />
 </Project>

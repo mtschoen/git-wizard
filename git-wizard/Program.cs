@@ -123,10 +123,14 @@ Supported command line arguments (all optional):
         var report = await GetReport(runConfiguration, configuration, repositoryPaths);
         if (report == null)
         {
+            // If the user requested to not generate a new report, and no cached report exists, early out
             GitWizardLog.Log("Could not retrieve cached report", GitWizardLog.LogType.Error);
             Environment.Exit(0);
             return;
         }
+
+        if (repositoryPaths == null)
+            GitWizardApi.SaveCachedRepositoryPaths(report.GetRepositoryPaths());
 
         SaveReport(runConfiguration, report);
 

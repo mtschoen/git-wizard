@@ -859,13 +859,9 @@
                                         <rect key="frame" x="281" y="0.0" width="519" height="600"/>
                                         <autoresizingMask key="autoresizingMask"/>
                                         <subviews>
-                                            <browser verticalHuggingPriority="750" fixedFrame="YES" allowsExpansionToolTips="YES" enabled="YES" hasHorizontalScroller="YES" allowsEmptySelection="YES" defaultColumnWidth="100" minColumnWidth="100" maxVisibleColumns="1" titled="YES" separatesColumns="YES" allowsTypeSelect="YES" columnResizingType="auto" translatesAutoresizingMaskIntoConstraints="NO" id="TRc-40-wQP">
-                                                <rect key="frame" x="0.0" y="0.0" width="519" height="586"/>
-                                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                            </browser>
                                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="tBD-lF-xfn">
-                                                <rect key="frame" x="18" y="572" width="408" height="16"/>
-                                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                                <rect key="frame" x="18" y="572" width="312" height="16"/>
+                                                <autoresizingMask key="autoresizingMask" widthSizable="YES" flexibleMinY="YES"/>
                                                 <textFieldCell key="cell" lineBreakMode="clipping" id="L8v-IT-n0H">
                                                     <font key="font" usesAppearanceFont="YES"/>
                                                     <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
@@ -874,7 +870,7 @@
                                             </textField>
                                             <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="j5r-S8-Tdn">
                                                 <rect key="frame" x="425" y="562" width="81" height="32"/>
-                                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                                <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMinY="YES"/>
                                                 <buttonCell key="cell" type="push" title="Refresh" bezelStyle="rounded" alignment="center" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="SLD-Dj-bge">
                                                     <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
                                                     <font key="font" metaFont="system"/>
@@ -883,6 +879,45 @@
                                                     <action selector="RefreshButtonClicked:" target="XfG-lQ-9wD" id="GUd-hm-xUj"/>
                                                 </connections>
                                             </button>
+                                            <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="0M5-iO-ckF">
+                                                <rect key="frame" x="323" y="562" width="108" height="32"/>
+                                                <autoresizingMask key="autoresizingMask" flexibleMinX="YES" flexibleMinY="YES"/>
+                                                <buttonCell key="cell" type="push" title="Clear Cache" bezelStyle="rounded" alignment="center" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="5Pc-Oh-hGV">
+                                                    <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                                                    <font key="font" metaFont="system"/>
+                                                </buttonCell>
+                                                <connections>
+                                                    <action selector="ClearCacheButtonClicked:" target="XfG-lQ-9wD" id="cET-CI-TCo"/>
+                                                </connections>
+                                            </button>
+                                            <scrollView fixedFrame="YES" horizontalLineScroll="10" horizontalPageScroll="10" verticalLineScroll="10" verticalPageScroll="10" usesPredominantAxisScrolling="NO" translatesAutoresizingMaskIntoConstraints="NO" id="APc-DC-kP7">
+                                                <rect key="frame" x="7" y="0.0" width="512" height="564"/>
+                                                <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                                <clipView key="contentView" id="g0w-Kw-WpJ">
+                                                    <rect key="frame" x="1" y="1" width="510" height="562"/>
+                                                    <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                                    <subviews>
+                                                        <view id="TQY-Bh-6HC">
+                                                            <rect key="frame" x="0.0" y="0.0" width="495" height="547"/>
+                                                            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                                            <subviews>
+                                                                <stackView autoresizesSubviews="NO" distribution="fillEqually" orientation="vertical" alignment="leading" horizontalStackHuggingPriority="249.99998474121094" verticalStackHuggingPriority="249.99998474121094" fixedFrame="YES" detachesHiddenViews="YES" translatesAutoresizingMaskIntoConstraints="NO" id="hJW-h1-lFw">
+                                                                    <rect key="frame" x="0.0" y="0.0" width="504" height="557"/>
+                                                                    <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                                                </stackView>
+                                                            </subviews>
+                                                        </view>
+                                                    </subviews>
+                                                </clipView>
+                                                <scroller key="horizontalScroller" wantsLayer="YES" verticalHuggingPriority="750" horizontal="YES" id="Ofb-Yy-GCH">
+                                                    <rect key="frame" x="1" y="547" width="510" height="16"/>
+                                                    <autoresizingMask key="autoresizingMask"/>
+                                                </scroller>
+                                                <scroller key="verticalScroller" wantsLayer="YES" verticalHuggingPriority="750" doubleValue="1" horizontal="NO" id="2JL-V3-ApX">
+                                                    <rect key="frame" x="495" y="1" width="16" height="562"/>
+                                                    <autoresizingMask key="autoresizingMask"/>
+                                                </scroller>
+                                            </scrollView>
                                         </subviews>
                                     </customView>
                                 </subviews>
@@ -896,7 +931,7 @@
                     <connections>
                         <outlet property="IgnoredDirectoriesBrowser" destination="EjX-J8-hmp" id="qUs-Jz-Xxg"/>
                         <outlet property="IgnoredDirectoriesTextBox" destination="mID-g6-Qh2" id="lVI-fn-cmf"/>
-                        <outlet property="MainBrowser" destination="TRc-40-wQP" id="esr-ls-JE6"/>
+                        <outlet property="RepositoryStackView" destination="hJW-h1-lFw" id="ts0-1w-j7U"/>
                         <outlet property="SearchDirectoriesBrowser" destination="Uje-4S-2IM" id="UHO-nY-jWt"/>
                         <outlet property="SearchDirectoriesTextBox" destination="eil-VS-opq" id="0Q5-BQ-lo8"/>
                         <outlet property="StatusLabel" destination="tBD-lF-xfn" id="BdH-ol-bEw"/>

@@ -858,6 +858,32 @@
                                     <customView fixedFrame="YES" id="2Mw-UZ-kcn">
                                         <rect key="frame" x="281" y="0.0" width="519" height="600"/>
                                         <autoresizingMask key="autoresizingMask"/>
+                                        <subviews>
+                                            <browser verticalHuggingPriority="750" fixedFrame="YES" allowsExpansionToolTips="YES" enabled="YES" hasHorizontalScroller="YES" allowsEmptySelection="YES" defaultColumnWidth="100" minColumnWidth="100" maxVisibleColumns="1" titled="YES" separatesColumns="YES" allowsTypeSelect="YES" columnResizingType="auto" translatesAutoresizingMaskIntoConstraints="NO" id="TRc-40-wQP">
+                                                <rect key="frame" x="0.0" y="0.0" width="519" height="586"/>
+                                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                            </browser>
+                                            <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="tBD-lF-xfn">
+                                                <rect key="frame" x="18" y="572" width="408" height="16"/>
+                                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                                <textFieldCell key="cell" lineBreakMode="clipping" id="L8v-IT-n0H">
+                                                    <font key="font" usesAppearanceFont="YES"/>
+                                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                                    <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                                                </textFieldCell>
+                                            </textField>
+                                            <button verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="j5r-S8-Tdn">
+                                                <rect key="frame" x="425" y="562" width="81" height="32"/>
+                                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                                <buttonCell key="cell" type="push" title="Refresh" bezelStyle="rounded" alignment="center" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="SLD-Dj-bge">
+                                                    <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                                                    <font key="font" metaFont="system"/>
+                                                </buttonCell>
+                                                <connections>
+                                                    <action selector="RefreshButtonClicked:" target="XfG-lQ-9wD" id="GUd-hm-xUj"/>
+                                                </connections>
+                                            </button>
+                                        </subviews>
                                     </customView>
                                 </subviews>
                                 <holdingPriorities>
@@ -870,8 +896,10 @@
                     <connections>
                         <outlet property="IgnoredDirectoriesBrowser" destination="EjX-J8-hmp" id="qUs-Jz-Xxg"/>
                         <outlet property="IgnoredDirectoriesTextBox" destination="mID-g6-Qh2" id="lVI-fn-cmf"/>
+                        <outlet property="MainBrowser" destination="TRc-40-wQP" id="esr-ls-JE6"/>
                         <outlet property="SearchDirectoriesBrowser" destination="Uje-4S-2IM" id="UHO-nY-jWt"/>
                         <outlet property="SearchDirectoriesTextBox" destination="eil-VS-opq" id="0Q5-BQ-lo8"/>
+                        <outlet property="StatusLabel" destination="tBD-lF-xfn" id="BdH-ol-bEw"/>
                     </connections>
                 </viewController>
                 <customObject id="rPt-NT-nkU" userLabel="First Responder" customClass="NSResponder" sceneMemberID="firstResponder"/>

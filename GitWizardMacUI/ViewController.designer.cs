@@ -19,10 +19,16 @@ namespace GitWizardMacUI
 		AppKit.NSTextField IgnoredDirectoriesTextBox { get; set; }
 
 		[Outlet]
+		AppKit.NSBrowser MainBrowser { get; set; }
+
+		[Outlet]
 		AppKit.NSBrowser SearchDirectoriesBrowser { get; set; }
 
 		[Outlet]
 		AppKit.NSTextField SearchDirectoriesTextBox { get; set; }
+
+		[Outlet]
+		AppKit.NSTextField StatusLabel { get; set; }
 
 		[Action ("IgnoredDirectoriesAddButtonClicked:")]
 		partial void IgnoredDirectoriesAddButtonClicked (Foundation.NSObject sender);
@@ -32,6 +38,9 @@ namespace GitWizardMacUI
 
 		[Action ("IgnoredDirectoriesDeleteButtonClicked:")]
 		partial void IgnoredDirectoriesDeleteButtonClicked (Foundation.NSObject sender);
+
+		[Action ("RefreshButtonClicked:")]
+		partial void RefreshButtonClicked (Foundation.NSObject sender);
 
 		[Action ("SearchDirectoriesAddButtonClicked:")]
 		partial void SearchDirectoriesAddButtonClicked (Foundation.NSObject sender);
@@ -62,6 +71,16 @@ namespace GitWizardMacUI
 			if (SearchDirectoriesTextBox != null) {
 				SearchDirectoriesTextBox.Dispose ();
 				SearchDirectoriesTextBox = null;
+			}
+
+			if (StatusLabel != null) {
+				StatusLabel.Dispose ();
+				StatusLabel = null;
+			}
+
+			if (MainBrowser != null) {
+				MainBrowser.Dispose ();
+				MainBrowser = null;
 			}
 		}
 	}

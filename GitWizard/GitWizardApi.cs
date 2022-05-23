@@ -55,14 +55,30 @@ public static class GitWizardApi
         }
 
         await Task.Run(() => FindGitRepositoriesRecursively(rootPath, paths, ignoredPaths, onUpdate));
-        onUpdate?.Invoke($"Found {paths.Count} repositories");
+
+        try
+        {
+            onUpdate?.Invoke($"Found {paths.Count} repositories");
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, "Exception thrown by GenerateReport onUpdate callback.");
+        }
     }
 
     static async Task FindGitRepositoriesRecursively(string rootPath, ICollection<string> paths, ICollection<string> ignoredPaths, Action<string>? onUpdate = null)
     {
         try
         {
-            onUpdate?.Invoke(rootPath);
+            try
+            {
+                onUpdate?.Invoke(rootPath);
+            }
+            catch (Exception nextException)
+            {
+                GitWizardLog.LogException(nextException, "Exception thrown by GenerateReport onUpdate callback.");
+            }
+
             foreach (var subDirectory in Directory.GetDirectories(rootPath))
             {
                 var split = subDirectory.Split(Path.DirectorySeparatorChar);
@@ -92,10 +108,17 @@ public static class GitWizardApi
                 await Task.Run(() => FindGitRepositoriesRecursively(subDirectory, paths, ignoredPaths, onUpdate));
             }
         }
-        catch (Exception e)
+        catch (Exception exception)
         {
-            onUpdate?.Invoke($"Exception reading {rootPath}: {e.Message}");
             // Ignore exceptions like access failure
+            try
+            {
+                onUpdate?.Invoke($"Exception reading {rootPath}: {exception.Message}");
+            }
+            catch (Exception nextException)
+            {
+                GitWizardLog.LogException(nextException, "Exception thrown by GenerateReport onUpdate callback.");
+            }
         }
     }
 

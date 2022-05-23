@@ -82,9 +82,9 @@ public class GitWizardConfiguration
                 DefaultValueHandling = DefaultValueHandling.Ignore
             }));
         }
-        catch (Exception e)
+        catch (Exception exception)
         {
-            GitWizardLog.LogException(e, $"Error: Failed to save configuration to path: {path}.");
+            GitWizardLog.LogException(exception, $"Error: Failed to save configuration to path: {path}.");
         }
     }
 

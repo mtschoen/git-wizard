@@ -91,7 +91,21 @@ namespace GitWizardMacUI
 			DeleteButtonClicked(SearchDirectoriesBrowser, _SearchDirectoriesBrowserDelegate, _configuration.SearchPaths);
 		}
 
-		private void AddButtonClicked(NSBrowser browser, BrowserDelegate @delegate, string path, SortedSet<string> paths)
+        partial void RefreshButtonClicked(NSObject sender)
+        {
+			var repositoryPaths = GitWizardApi.GetCachedRepositoryPaths();
+			StatusLabel.StringValue = "Refresh";
+			var report = GitWizardReport.GenerateReport(_configuration, repositoryPaths, (path) =>
+			{
+				Console.WriteLine(path);
+				InvokeOnMainThread(() =>
+				{
+					StatusLabel.StringValue = path;
+				});
+			});
+		}
+
+        void AddButtonClicked(NSBrowser browser, BrowserDelegate @delegate, string path, SortedSet<string> paths)
 		{
 			if (string.IsNullOrEmpty(path))
 				return;
@@ -102,7 +116,7 @@ namespace GitWizardMacUI
 			browser.LoadColumnZero();
 		}
 
-		private void BrowseButtonClicked(string title, NSBrowser browser, BrowserDelegate @delegate, SortedSet<string> paths)
+		void BrowseButtonClicked(string title, NSBrowser browser, BrowserDelegate @delegate, SortedSet<string> paths)
 		{
 			var openFilePanel = new NSOpenPanel
 			{
@@ -123,7 +137,7 @@ namespace GitWizardMacUI
 			browser.LoadColumnZero();
 		}
 
-		private void DeleteButtonClicked(NSBrowser browser, BrowserDelegate @delegate, SortedSet<string> paths)
+		void DeleteButtonClicked(NSBrowser browser, BrowserDelegate @delegate, SortedSet<string> paths)
         {
 			var selected = (int)browser.SelectedRow(0);
 			if (selected < 0 || selected >= paths.Count)

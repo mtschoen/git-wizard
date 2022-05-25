@@ -115,12 +115,12 @@ Supported command line arguments (all optional):
         }
     }
 
-    public static async Task Main()
+    public static void Main()
     {
         var runConfiguration = new RunConfiguration();
         var configuration = GetConfiguration(runConfiguration);
         var repositoryPaths = GetRepositoryPaths(runConfiguration);
-        var report = await GetReport(runConfiguration, configuration, repositoryPaths);
+        var report = GetReport(runConfiguration, configuration, repositoryPaths);
         if (report == null)
         {
             // If the user requested to not generate a new report, and no cached report exists, early out
@@ -166,7 +166,7 @@ Supported command line arguments (all optional):
         return jsonString;
     }
 
-    static async Task<GitWizardReport?> GetReport(RunConfiguration runConfiguration, GitWizardConfiguration configuration,
+    static GitWizardReport? GetReport(RunConfiguration runConfiguration, GitWizardConfiguration configuration,
         ICollection<string>? repositoryPaths = null)
     {
         if (!runConfiguration.RebuildReport)
@@ -177,12 +177,12 @@ Supported command line arguments (all optional):
 
             if (cachedReport != null && repositoryPaths != null)
             {
-                await cachedReport.Refresh(repositoryPaths);
+                cachedReport.Refresh(repositoryPaths);
                 return cachedReport;
             }
         }
 
-        return await GitWizardReport.GenerateReport(configuration, repositoryPaths,
+        return GitWizardReport.GenerateReport(configuration, repositoryPaths,
             path => GitWizardLog.Log(path, GitWizardLog.LogType.Verbose));
     }
 

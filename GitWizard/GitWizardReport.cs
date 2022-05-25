@@ -1,9 +1,9 @@
-﻿using System;
+﻿using LibGit2Sharp;
+using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
-using LibGit2Sharp;
-using Newtonsoft.Json;
 
 namespace GitWizard;
 
@@ -28,7 +28,7 @@ public class GitWizardReport
             WorkingDirectory = workingDirectory;
         }
 
-        public async Task Refresh()
+        public void Refresh()
         {
             if (string.IsNullOrEmpty(WorkingDirectory) || !Directory.Exists(WorkingDirectory))
             {
@@ -46,7 +46,7 @@ public class GitWizardReport
                 var status = repository.RetrieveStatus();
                 HasPendingChanges = status.IsDirty;
 
-                foreach (var submodule in repository.Submodules)
+                Parallel.ForEach(repository.Submodules, submodule =>
                 {
                     Submodules ??= new SortedDictionary<string, Repository?>();
 
@@ -58,11 +58,10 @@ public class GitWizardReport
                     }
 
                     if (submoduleRepository == null)
-                        continue;
+                        return;
 
-                    //TODO: Should be using AwaitAll?
-                    await Task.Run(submoduleRepository.Refresh);
-                }
+                    submoduleRepository.Refresh();
+                });
             }
             catch (Exception exception)
             {
@@ -133,37 +132,41 @@ public class GitWizardReport
     /// <param name="repositoryPaths">The repository paths to include in the report.</param>
     /// <param name="onUpdate">Optional callback for reporting progress</param>
     /// <returns>Task containing the report</returns>
-    public static async Task<GitWizardReport> GenerateReport(GitWizardConfiguration configuration,
+    public static GitWizardReport GenerateReport(GitWizardConfiguration configuration,
         ICollection<string>? repositoryPaths = null, Action<string>? onUpdate = null)
     {
         var report = new GitWizardReport(configuration);
         if (repositoryPaths == null)
         {
             repositoryPaths = new SortedSet<string>();
-            await report.GetRepositoryPaths(repositoryPaths, onUpdate);
+            report.GetRepositoryPaths(repositoryPaths, onUpdate);
         }
 
-        await report.Refresh(repositoryPaths, onUpdate);
+        report.Refresh(repositoryPaths, onUpdate);
 
         return report;
     }
 
-    async Task GetRepositoryPaths(ICollection<string> repositoryPaths, Action<string>? onUpdate = null)
+    void GetRepositoryPaths(ICollection<string> repositoryPaths, Action<string>? onUpdate = null)
     {
-        foreach (var path in SearchPaths)
+        Parallel.ForEach(SearchPaths, path =>
         {
-            await GitWizardApi.GetRepositoryPaths(path, repositoryPaths, IgnoredPaths, onUpdate);
-        }
+            GitWizardApi.GetRepositoryPaths(path, repositoryPaths, IgnoredPaths, onUpdate);
+        });
     }
 
-    public async Task Refresh(IEnumerable<string> repositoryPaths, Action<string>? onUpdate = null)
+    public void Refresh(ICollection<string> repositoryPaths, Action<string>? onUpdate = null)
     {
-        foreach (var path in repositoryPaths)
+        Parallel.ForEach(repositoryPaths, path =>
         {
-            if (!Repositories.TryGetValue(path, out var repository))
+            Repository? repository;
+            lock (Repositories)
             {
-                repository = new Repository(path);
-                Repositories[path] = repository;
+                if (!Repositories.TryGetValue(path, out repository))
+                {
+                    repository = new Repository(path);
+                    Repositories[path] = repository;
+                }
             }
 
             try
@@ -175,9 +178,8 @@ public class GitWizardReport
                 GitWizardLog.LogException(exception, "Exception thrown by Refresh onUpdate callback.");
             }
 
-
-            await Task.Run(repository.Refresh);
-        }
+            repository.Refresh();
+        });
     }
 
     public void Save(string path)

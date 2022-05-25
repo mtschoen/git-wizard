@@ -40,7 +40,7 @@ public static class GitWizardApi
     /// <param name="paths">Collection of strings to store the results.</param>
     /// <param name="ignoredPaths">Collection of strings containing paths to ignore.</param>
     /// <param name="onUpdate">Optional callback for progress updates.</param>
-    public static async Task GetRepositoryPaths(string rootPath, System.Collections.Generic.ICollection<string> paths,
+    public static void GetRepositoryPaths(string rootPath, ICollection<string> paths,
         ICollection<string> ignoredPaths, Action<string>? onUpdate = null)
     {
         // TODO: Find utility for interpreting special paths like %USERPROFILE% and ~
@@ -48,7 +48,7 @@ public static class GitWizardApi
         if (rootPath.StartsWith("%"))
         {
             var path = Environment.ExpandEnvironmentVariables(rootPath);
-            if (string.IsNullOrEmpty(path))
+            if (!string.IsNullOrEmpty(path))
                 rootPath = path;
         }
 
@@ -61,7 +61,7 @@ public static class GitWizardApi
             return;
         }
 
-        await Task.Run(() => FindGitRepositoriesRecursively(rootPath, paths, ignoredPaths, onUpdate));
+        FindGitRepositoriesRecursively(rootPath, paths, ignoredPaths, onUpdate);
 
         try
         {
@@ -73,7 +73,7 @@ public static class GitWizardApi
         }
     }
 
-    static async Task FindGitRepositoriesRecursively(string rootPath, ICollection<string> paths, ICollection<string> ignoredPaths, Action<string>? onUpdate = null)
+    static void FindGitRepositoriesRecursively(string rootPath, ICollection<string> paths, ICollection<string> ignoredPaths, Action<string>? onUpdate = null)
     {
         try
         {
@@ -86,7 +86,11 @@ public static class GitWizardApi
                 GitWizardLog.LogException(nextException, "Exception thrown by GenerateReport onUpdate callback.");
             }
 
-            foreach (var subDirectory in Directory.GetDirectories(rootPath))
+            var directories = Directory.GetDirectories(rootPath);
+            if (directories == null || directories.Length == 0)
+                return;
+
+            Parallel.ForEach(directories, subDirectory =>
             {
                 var split = subDirectory.Split(Path.DirectorySeparatorChar);
                 var lastDirectory = split.Last();
@@ -98,22 +102,22 @@ public static class GitWizardApi
                         paths.Add(rootPath);
                     }
 
-                    continue;
+                    return;
                 }
 
                 // TODO: Add config setting for ignoring hidden directories
                 if (split.Last().StartsWith("."))
-                    continue;
+                    return;
 
                 var directoryInfo = new DirectoryInfo(subDirectory);
                 if (directoryInfo.Attributes.HasFlag(FileAttributes.Hidden))
-                    continue;
+                    return;
 
                 if (ignoredPaths.Contains(subDirectory))
-                    continue;
+                    return;
 
-                await Task.Run(() => FindGitRepositoriesRecursively(subDirectory, paths, ignoredPaths, onUpdate));
-            }
+                FindGitRepositoriesRecursively(subDirectory, paths, ignoredPaths, onUpdate);
+            });
         }
         catch (Exception exception)
         {

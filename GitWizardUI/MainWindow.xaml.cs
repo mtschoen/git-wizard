@@ -1,4 +1,6 @@
-﻿using System.Windows;
+﻿using System.Diagnostics;
+using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Forms;
 using GitWizard;
 using System.Windows.Input;
@@ -8,16 +10,18 @@ namespace GitWizardUI
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
-    public partial class MainWindow : Window
+    public partial class MainWindow
     {
-        GitWizardConfig config;
+        readonly GitWizardConfiguration _configuration;
+
+        readonly Stopwatch _stopwatch = new();
 
         public MainWindow()
         {
             InitializeComponent();
-            config = GitWizardConfig.GetGlobalConfig();
-            SearchList.ItemsSource = config.SearchPaths;
-            IgnoredList.ItemsSource = config.IgnoredPaths;
+            _configuration = GitWizardConfiguration.GetGlobalConfiguration();
+            SearchList.ItemsSource = _configuration.SearchPaths;
+            IgnoredList.ItemsSource = _configuration.IgnoredPaths;
         }
 
         void BrowseSearchPathButton_Click(object sender, RoutedEventArgs e)
@@ -41,8 +45,8 @@ namespace GitWizardUI
             if (string.IsNullOrWhiteSpace(path))
                 return;
 
-            config.SearchPaths.Add(path);
-            config.Save(GitWizardConfig.GetGlobalConfigPath());
+            _configuration.SearchPaths.Add(path);
+            _configuration.Save(GitWizardConfiguration.GetGlobalConfigurationPath());
             SearchList.Items.Refresh();
         }
 
@@ -67,8 +71,8 @@ namespace GitWizardUI
             if (string.IsNullOrWhiteSpace(path))
                 return;
 
-            config.IgnoredPaths.Add(path);
-            config.Save(GitWizardConfig.GetGlobalConfigPath());
+            _configuration.IgnoredPaths.Add(path);
+            _configuration.Save(GitWizardConfiguration.GetGlobalConfigurationPath());
             IgnoredList.Items.Refresh();
         }
 
@@ -77,9 +81,9 @@ namespace GitWizardUI
             if (e.Key != Key.Delete)
                 return;
 
-            config.IgnoredPaths.Remove((string)IgnoredList.SelectedValue);
+            _configuration.IgnoredPaths.Remove((string)IgnoredList.SelectedValue);
             IgnoredList.Items.Refresh();
-            config.Save(GitWizardConfig.GetGlobalConfigPath());
+            _configuration.Save(GitWizardConfiguration.GetGlobalConfigurationPath());
         }
 
         void SearchList_KeyUp(object sender, System.Windows.Input.KeyEventArgs e)
@@ -87,9 +91,9 @@ namespace GitWizardUI
             if (e.Key != Key.Delete)
                 return;
 
-            config.SearchPaths.Remove((string)SearchList.SelectedValue);
+            _configuration.SearchPaths.Remove((string)SearchList.SelectedValue);
             SearchList.Items.Refresh();
-            config.Save(GitWizardConfig.GetGlobalConfigPath());
+            _configuration.Save(GitWizardConfiguration.GetGlobalConfigurationPath());
         }
 
         void IgnoredPathTextBox_KeyUp(object sender, System.Windows.Input.KeyEventArgs e)
@@ -110,13 +114,32 @@ namespace GitWizardUI
 
         void RefreshButton_Click(object sender, RoutedEventArgs e)
         {
-            var report = GitWizardReport.GenerateReport(config, (path) =>
+            Header.Text = "Refreshing...";
+            var modifiers = Keyboard.Modifiers;
+            Task.Run(() =>
             {
+                string[]? repositoryPaths = null;
+                if ((modifiers & ModifierKeys.Shift) == 0)
+                    repositoryPaths = GitWizardApi.GetCachedRepositoryPaths();
+
+                _stopwatch.Restart();
+                var report = GitWizardReport.GenerateReport(_configuration, repositoryPaths, path =>
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        Header.Text = path;
+                        Header.InvalidateVisual();
+                    });
+                });
+
+                _stopwatch.Stop();
                 Dispatcher.Invoke(() =>
                 {
-                    Header.Text = path;
-                    Header.InvalidateVisual();
+                    Header.Text = $"Refresh completed in {(float)_stopwatch.ElapsedMilliseconds / 1000} seconds";
                 });
+
+                if (repositoryPaths == null)
+                    GitWizardApi.SaveCachedRepositoryPaths(report.GetRepositoryPaths());
             });
         }
     }

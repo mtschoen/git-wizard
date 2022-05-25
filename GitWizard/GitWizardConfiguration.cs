@@ -88,11 +88,11 @@ public class GitWizardConfiguration
         }
     }
 
-    public async Task GetRepositoryPaths(ICollection<string> paths, Action<string>? onUpdate = null)
+    public void GetRepositoryPaths(ICollection<string> paths, Action<string>? onUpdate = null)
     {
-        foreach (var path in SearchPaths)
+        Parallel.ForEach(SearchPaths, path =>
         {
-            await GitWizardApi.GetRepositoryPaths(path, paths, IgnoredPaths, onUpdate);
-        }
+            GitWizardApi.GetRepositoryPaths(path, paths, IgnoredPaths, onUpdate);
+        });
     }
 }

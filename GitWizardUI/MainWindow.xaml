@@ -61,7 +61,7 @@
         </Grid>
 
         <GridSplitter Grid.Column="1" Width="5" Grid.Row="0" Grid.RowSpan="4"  HorizontalAlignment="Stretch" />
-        <Button Grid.Row="0" Grid.Column="2" Click="RefreshButton_Click">Refresh</Button>
+        <Button Grid.Row="0" Grid.Column="2" Name="RefreshButton" Click="RefreshButton_Click">Refresh</Button>
         <Grid Grid.Column="2" Grid.Row="1" Grid.RowSpan="3" >
             <Grid.RowDefinitions>
                 <RowDefinition Height="30" />

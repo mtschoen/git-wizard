@@ -17,7 +17,9 @@ public class GitWizardReport
         public string? CurrentBranch { get; private set; }
         public bool IsDetachedHead { get; private set; }
         public bool HasPendingChanges { get; private set; }
-        public SortedDictionary<string, Repository?>? Submodules { get; private set; }
+        public SortedDictionary<string, Repository>? Submodules { get; private set; }
+
+        public bool IsRefreshing { get; private set; }
 
         Repository()
         {
@@ -41,27 +43,36 @@ public class GitWizardReport
             try
             {
                 var repository = new LibGit2Sharp.Repository(WorkingDirectory);
-                CurrentBranch = repository.Head.FriendlyName;
-                IsDetachedHead = repository.Head.Reference is not SymbolicReference;
-                var status = repository.RetrieveStatus();
-                HasPendingChanges = status.IsDirty;
-
-                Parallel.ForEach(repository.Submodules, submodule =>
-                {
-                    Submodules ??= new SortedDictionary<string, Repository?>();
-
-                    var path = Path.Combine(WorkingDirectory, submodule.Path);
-                    if (!Submodules.TryGetValue(path, out var submoduleRepository))
+                IsRefreshing = true;
+                //ThreadPool.QueueUserWorkItem(_ =>
+                //{
+                    Parallel.ForEach(repository.Submodules, submodule =>
                     {
-                        submoduleRepository = LibGit2Sharp.Repository.IsValid(path) ? new Repository(path) : null;
-                        Submodules[path] = submoduleRepository;
-                    }
+                        Submodules ??= new SortedDictionary<string, Repository>();
 
-                    if (submoduleRepository == null)
-                        return;
+                        var path = Path.Combine(WorkingDirectory, submodule.Path);
+                        if (!Submodules.TryGetValue(path, out var submoduleRepository))
+                        {
+                            if (LibGit2Sharp.Repository.IsValid(path))
+                            {
+                                submoduleRepository = new Repository(path);
+                                Submodules[path] = submoduleRepository;
+                            }
+                        }
 
-                    submoduleRepository.Refresh();
-                });
+                        if (submoduleRepository == null)
+                            return;
+
+                        submoduleRepository.Refresh();
+                    });
+
+                    CurrentBranch = repository.Head.FriendlyName;
+                    IsDetachedHead = repository.Head.Reference is not SymbolicReference;
+                    var status = repository.RetrieveStatus();
+                    HasPendingChanges = status.IsDirty;
+
+                    IsRefreshing = false;
+                //});
             }
             catch (Exception exception)
             {
@@ -157,28 +168,31 @@ public class GitWizardReport
 
     public void Refresh(ICollection<string> repositoryPaths, Action<string>? onUpdate = null)
     {
-        Parallel.ForEach(repositoryPaths, path =>
+        Task.Run(() =>
         {
-            Repository? repository;
-            lock (Repositories)
+            Parallel.ForEach(repositoryPaths, path =>
             {
-                if (!Repositories.TryGetValue(path, out repository))
+                Repository? repository;
+                lock (Repositories)
                 {
-                    repository = new Repository(path);
-                    Repositories[path] = repository;
+                    if (!Repositories.TryGetValue(path, out repository))
+                    {
+                        repository = new Repository(path);
+                        Repositories[path] = repository;
+                    }
                 }
-            }
 
-            try
-            {
-                onUpdate?.Invoke($"Refreshing {path}");
-            }
-            catch (Exception exception)
-            {
-                GitWizardLog.LogException(exception, "Exception thrown by Refresh onUpdate callback.");
-            }
+                try
+                {
+                    onUpdate?.Invoke($"Refreshing {path}");
+                }
+                catch (Exception exception)
+                {
+                    GitWizardLog.LogException(exception, "Exception thrown by Refresh onUpdate callback.");
+                }
 
-            repository.Refresh();
+                repository.Refresh();
+            });
         });
     }
 

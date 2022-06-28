@@ -182,8 +182,7 @@ Supported command line arguments (all optional):
             }
         }
 
-        return GitWizardReport.GenerateReport(configuration, repositoryPaths,
-            path => GitWizardLog.Log(path, GitWizardLog.LogType.Verbose));
+        return GitWizardReport.GenerateReport(configuration, repositoryPaths, new UpdateHandler());
     }
 
     static string[]? GetRepositoryPaths(RunConfiguration runConfiguration)

@@ -39,9 +39,9 @@ public static class GitWizardApi
     /// <param name="rootPath">The path to search.</param>
     /// <param name="paths">Collection of strings to store the results.</param>
     /// <param name="ignoredPaths">Collection of strings containing paths to ignore.</param>
-    /// <param name="onUpdate">Optional callback for progress updates.</param>
+    /// <param name="updateHandler">Optional handler for UI updates.</param>
     public static void GetRepositoryPaths(string rootPath, ICollection<string> paths,
-        ICollection<string> ignoredPaths, Action<string>? onUpdate = null)
+        ICollection<string> ignoredPaths, IUpdateHandler? updateHandler = null)
     {
         // TODO: Find utility for interpreting special paths like %USERPROFILE% and ~
         // If the string starts with a % we can try treating it as an environment variable
@@ -61,11 +61,11 @@ public static class GitWizardApi
             return;
         }
 
-        FindGitRepositoriesRecursively(rootPath, paths, ignoredPaths, onUpdate);
+        FindGitRepositoriesRecursively(rootPath, paths, ignoredPaths, updateHandler);
 
         try
         {
-            onUpdate?.Invoke($"Found {paths.Count} repositories");
+            updateHandler?.SendUpdateMessage($"Found {paths.Count} repositories");
         }
         catch (Exception exception)
         {
@@ -73,13 +73,13 @@ public static class GitWizardApi
         }
     }
 
-    static void FindGitRepositoriesRecursively(string rootPath, ICollection<string> paths, ICollection<string> ignoredPaths, Action<string>? onUpdate = null)
+    static void FindGitRepositoriesRecursively(string rootPath, ICollection<string> paths, ICollection<string> ignoredPaths, IUpdateHandler? updateHandler = null)
     {
         try
         {
             try
             {
-                onUpdate?.Invoke(rootPath);
+                updateHandler?.SendUpdateMessage(rootPath);
             }
             catch (Exception nextException)
             {
@@ -116,7 +116,7 @@ public static class GitWizardApi
                 if (ignoredPaths.Contains(subDirectory))
                     return;
 
-                FindGitRepositoriesRecursively(subDirectory, paths, ignoredPaths, onUpdate);
+                FindGitRepositoriesRecursively(subDirectory, paths, ignoredPaths, updateHandler);
             });
         }
         catch (Exception exception)
@@ -124,7 +124,7 @@ public static class GitWizardApi
             // Ignore exceptions like access failure
             try
             {
-                onUpdate?.Invoke($"Exception reading {rootPath}: {exception.Message}");
+                updateHandler?.SendUpdateMessage($"Exception reading {rootPath}: {exception.Message}");
             }
             catch (Exception nextException)
             {

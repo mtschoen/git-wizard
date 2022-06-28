@@ -1,9 +1,9 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
 
 namespace GitWizard;
 
@@ -88,11 +88,11 @@ public class GitWizardConfiguration
         }
     }
 
-    public void GetRepositoryPaths(ICollection<string> paths, Action<string>? onUpdate = null)
+    public void GetRepositoryPaths(ICollection<string> paths, IUpdateHandler? updateHandler = null)
     {
         Parallel.ForEach(SearchPaths, path =>
         {
-            GitWizardApi.GetRepositoryPaths(path, paths, IgnoredPaths, onUpdate);
+            GitWizardApi.GetRepositoryPaths(path, paths, IgnoredPaths, updateHandler);
         });
     }
 }

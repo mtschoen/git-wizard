@@ -1,5 +1,4 @@
-﻿using LibGit2Sharp;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -10,77 +9,6 @@ namespace GitWizard;
 [Serializable]
 public class GitWizardReport
 {
-    [Serializable]
-    public class Repository
-    {
-        public string? WorkingDirectory { get; private set; }
-        public string? CurrentBranch { get; private set; }
-        public bool IsDetachedHead { get; private set; }
-        public bool HasPendingChanges { get; private set; }
-        public SortedDictionary<string, Repository>? Submodules { get; private set; }
-
-        public bool IsRefreshing { get; private set; }
-
-        Repository()
-        {
-        }
-
-        public Repository(string workingDirectory)
-        {
-            WorkingDirectory = workingDirectory;
-        }
-
-        public void Refresh()
-        {
-            if (string.IsNullOrEmpty(WorkingDirectory) || !Directory.Exists(WorkingDirectory))
-            {
-                GitWizardLog.Log($"Working directory {WorkingDirectory} is invalid.", GitWizardLog.LogType.Error);
-                return;
-            }
-
-            Console.WriteLine($"Refreshing {WorkingDirectory}");
-
-            try
-            {
-                var repository = new LibGit2Sharp.Repository(WorkingDirectory);
-                IsRefreshing = true;
-                //ThreadPool.QueueUserWorkItem(_ =>
-                //{
-                    Parallel.ForEach(repository.Submodules, submodule =>
-                    {
-                        Submodules ??= new SortedDictionary<string, Repository>();
-
-                        var path = Path.Combine(WorkingDirectory, submodule.Path);
-                        if (!Submodules.TryGetValue(path, out var submoduleRepository))
-                        {
-                            if (LibGit2Sharp.Repository.IsValid(path))
-                            {
-                                submoduleRepository = new Repository(path);
-                                Submodules[path] = submoduleRepository;
-                            }
-                        }
-
-                        if (submoduleRepository == null)
-                            return;
-
-                        submoduleRepository.Refresh();
-                    });
-
-                    CurrentBranch = repository.Head.FriendlyName;
-                    IsDetachedHead = repository.Head.Reference is not SymbolicReference;
-                    var status = repository.RetrieveStatus();
-                    HasPendingChanges = status.IsDirty;
-
-                    IsRefreshing = false;
-                //});
-            }
-            catch (Exception exception)
-            {
-                GitWizardLog.LogException(exception, $"Exception thrown trying to refresh {WorkingDirectory}");
-            }
-        }
-    }
-
     static GitWizardReport? _cachedReport;
 
     public SortedSet<string> SearchPaths { get; set; } = new();
@@ -141,58 +69,55 @@ public class GitWizardReport
     /// </summary>
     /// <param name="configuration">The configuration to use for this report.</param>
     /// <param name="repositoryPaths">The repository paths to include in the report.</param>
-    /// <param name="onUpdate">Optional callback for reporting progress</param>
+    /// <param name="updateHandler">Optional handler for UI updates.</param>
     /// <returns>Task containing the report</returns>
     public static GitWizardReport GenerateReport(GitWizardConfiguration configuration,
-        ICollection<string>? repositoryPaths = null, Action<string>? onUpdate = null)
+        ICollection<string>? repositoryPaths = null, IUpdateHandler? updateHandler = null)
     {
         var report = new GitWizardReport(configuration);
         if (repositoryPaths == null)
         {
             repositoryPaths = new SortedSet<string>();
-            report.GetRepositoryPaths(repositoryPaths, onUpdate);
+            report.GetRepositoryPaths(repositoryPaths, updateHandler);
         }
 
-        report.Refresh(repositoryPaths, onUpdate);
+        report.Refresh(repositoryPaths, updateHandler);
 
         return report;
     }
 
-    void GetRepositoryPaths(ICollection<string> repositoryPaths, Action<string>? onUpdate = null)
+    void GetRepositoryPaths(ICollection<string> repositoryPaths, IUpdateHandler? updateHandler = null)
     {
         Parallel.ForEach(SearchPaths, path =>
         {
-            GitWizardApi.GetRepositoryPaths(path, repositoryPaths, IgnoredPaths, onUpdate);
+            GitWizardApi.GetRepositoryPaths(path, repositoryPaths, IgnoredPaths, updateHandler);
         });
     }
 
-    public void Refresh(ICollection<string> repositoryPaths, Action<string>? onUpdate = null)
+    public void Refresh(ICollection<string> repositoryPaths, IUpdateHandler? updateHandler = null)
     {
-        Task.Run(() =>
+        Parallel.ForEach(repositoryPaths, path =>
         {
-            Parallel.ForEach(repositoryPaths, path =>
+            Repository? repository;
+            lock (Repositories)
             {
-                Repository? repository;
-                lock (Repositories)
+                if (!Repositories.TryGetValue(path, out repository))
                 {
-                    if (!Repositories.TryGetValue(path, out repository))
+                    repository = new Repository(path);
+                    Repositories[path] = repository;
+
+                    try
                     {
-                        repository = new Repository(path);
-                        Repositories[path] = repository;
+                        updateHandler?.OnRepositoryCreated(repository);
+                    }
+                    catch (Exception exception)
+                    {
+                        GitWizardLog.LogException(exception, "Exception thrown by Refresh onUpdate callback.");
                     }
                 }
+            }
 
-                try
-                {
-                    onUpdate?.Invoke($"Refreshing {path}");
-                }
-                catch (Exception exception)
-                {
-                    GitWizardLog.LogException(exception, "Exception thrown by Refresh onUpdate callback.");
-                }
-
-                repository.Refresh();
-            });
+            repository.Refresh();
         });
     }
 

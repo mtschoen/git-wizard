@@ -1,0 +1,15 @@
+{
+  "profiles": {
+    "git-wizard": {
+      "commandName": "Project"
+    },
+    "git-wizard-silent": {
+      "commandName": "Project",
+      "commandLineArgs": "-silent"
+    },
+    "git-wizard-rebuild": {
+      "commandName": "Project",
+      "commandLineArgs": "-rebuild-repo-list"
+    }
+  }
+}

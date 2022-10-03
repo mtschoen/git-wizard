@@ -9,9 +9,6 @@
     <DisableImplicitNamespaceImports>true</DisableImplicitNamespaceImports>
     <Description>Maintain and manage all of your local git repositories. Filter by status and see issues like unpublished changes at a glance.</Description>
     <Copyright>Sticktoitive Software</Copyright>
-    <StartupObject>GitWizardUI.App</StartupObject>
-    <SignAssembly>True</SignAssembly>
-    <AssemblyOriginatorKeyFile>C:\Users\mtsch\GitWizard\git-wizard\git-wizard.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
 
   <ItemGroup>

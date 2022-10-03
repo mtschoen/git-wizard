@@ -19,11 +19,18 @@ namespace GitWizardUI
     public partial class MainWindow : IUpdateHandler
     {
         const int UIRefreshDelayMilliseconds = 500;
+        const string ProgressBarFormatString = "{0} {1} / {2}";
+
         readonly GitWizardConfiguration _configuration;
-        string? _lastMessage;
         readonly Stopwatch _stopwatch = new();
+        readonly ConcurrentQueue<Repository> _createdRepositories = new();
+        readonly GridLength _progressRowStartHeight;
+
+        string? _lastMessage;
         GitWizardReport? _report;
-        ConcurrentQueue<Repository> _createdRepositories = new();
+        string? _progressDescription;
+        int? _progressTotal;
+        int? _progressCount;
 
         public MainWindow()
         {
@@ -31,6 +38,8 @@ namespace GitWizardUI
             _configuration = GitWizardConfiguration.GetGlobalConfiguration();
             SearchList.ItemsSource = _configuration.SearchPaths;
             IgnoredList.ItemsSource = _configuration.IgnoredPaths;
+            _progressRowStartHeight = ProgressBarRow.Height;
+            ProgressBarRow.Height = new GridLength(0);
 
             new Thread(() =>
             {
@@ -41,13 +50,19 @@ namespace GitWizardUI
                         Header.Text = _lastMessage;
                         Header.InvalidateVisual();
 
-                        if (_report != null)
+                        var items = TreeView.Items;
+                        while (_createdRepositories.TryDequeue(out var repository))
                         {
-                            var items = TreeView.Items;
-                            while (_createdRepositories.TryDequeue(out var repository))
-                            {
-                                items.Add(CreateTreeViewItem(repository));
-                            }
+                            items.Add(CreateTreeViewItem(repository));
+                        }
+
+                        if (_progressCount.HasValue && _progressTotal.HasValue)
+                        {
+
+                            ProgressBar.Value = (double)_progressCount / _progressTotal.Value;
+                            ProgressBarLabel.Content = string.Format(ProgressBarFormatString, _progressDescription, _progressCount, _progressTotal);
+                            if (_progressTotal.Value == _progressCount)
+                                ProgressBarRow.Height = new GridLength(0);
                         }
                     });
 
@@ -64,8 +79,7 @@ namespace GitWizardUI
             var panel = new StackPanel { Orientation = Orientation.Horizontal };
             item.Header = panel;
             panel.Children.Add(new TextBlock { Text = repository.WorkingDirectory });
-            panel.Children.Add(new CheckBox
-                { IsChecked = !repository.IsRefreshing, IsEnabled = false });
+            panel.Children.Add(new CheckBox { IsChecked = !repository.IsRefreshing, IsEnabled = false });
 
             if (repository.Submodules != null)
             {
@@ -176,6 +190,11 @@ namespace GitWizardUI
 
         void RefreshButton_Click(object sender, RoutedEventArgs e)
         {
+            DoRefresh();
+        }
+
+        void DoRefresh()
+        {
             Header.Text = "Refreshing...";
             var modifiers = Keyboard.Modifiers;
             _report = null;
@@ -198,10 +217,7 @@ namespace GitWizardUI
                 if (repositoryPaths == null)
                     GitWizardApi.SaveCachedRepositoryPaths(_report.GetRepositoryPaths());
 
-                Dispatcher.Invoke(() =>
-                {
-                    RefreshButton.IsEnabled = true;
-                });
+                Dispatcher.Invoke(() => { RefreshButton.IsEnabled = true; });
             });
         }
 
@@ -219,6 +235,31 @@ namespace GitWizardUI
         public void OnRepositoryCreated(Repository repository)
         {
             _createdRepositories.Enqueue(repository);
+        }
+
+        public void StartProgress(string description, int total)
+        {
+            _progressDescription = description;
+            _progressTotal = total;
+            Dispatcher.Invoke(() =>
+            {
+                ProgressBarRow.Height = _progressRowStartHeight;
+                ProgressBar.Value = 0;
+                ProgressBarLabel.Content = string.Format(ProgressBarFormatString, description, 0, total);
+            });
+        }
+
+        public void UpdateProgress(int count)
+        {
+            if (!_progressTotal.HasValue)
+                throw new InvalidOperationException("Cannot update ProgressBar without first calling StarProgress");
+
+            _progressCount = count;
+        }
+
+        void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            DoRefresh();
         }
     }
 }

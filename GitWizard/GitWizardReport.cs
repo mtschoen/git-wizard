@@ -88,14 +88,19 @@ public class GitWizardReport
 
     void GetRepositoryPaths(ICollection<string> repositoryPaths, IUpdateHandler? updateHandler = null)
     {
+        var count = 0;
+        updateHandler?.StartProgress("Getting Repository Paths", SearchPaths.Count);
         Parallel.ForEach(SearchPaths, path =>
         {
             GitWizardApi.GetRepositoryPaths(path, repositoryPaths, IgnoredPaths, updateHandler);
+            updateHandler?.UpdateProgress(++count);
         });
     }
 
     public void Refresh(ICollection<string> repositoryPaths, IUpdateHandler? updateHandler = null)
     {
+        var count = 0;
+        updateHandler?.StartProgress("Scanning repositories", repositoryPaths.Count);
         Parallel.ForEach(repositoryPaths, path =>
         {
             Repository? repository;
@@ -105,17 +110,19 @@ public class GitWizardReport
                 {
                     repository = new Repository(path);
                     Repositories[path] = repository;
+                }
 
-                    try
-                    {
-                        updateHandler?.OnRepositoryCreated(repository);
-                    }
-                    catch (Exception exception)
-                    {
-                        GitWizardLog.LogException(exception, "Exception thrown by Refresh onUpdate callback.");
-                    }
+                try
+                {
+                    updateHandler?.OnRepositoryCreated(repository);
+                }
+                catch (Exception exception)
+                {
+                    GitWizardLog.LogException(exception, "Exception thrown by Refresh onUpdate callback.");
                 }
             }
+
+            updateHandler?.UpdateProgress(++count);
 
             repository.Refresh();
         });

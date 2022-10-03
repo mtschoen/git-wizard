@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:GitWizardUI"
         mc:Ignorable="d"
-        Title="GitWizard" Height="450" Width="800">
+        Title="GitWizard" Height="450" Width="800" Loaded="Window_Loaded">
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="250" />
@@ -66,10 +66,13 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="30" />
                 <RowDefinition Height="*" />
+                <RowDefinition Height="25" Name="ProgressBarRow" />
             </Grid.RowDefinitions>
 
             <TextBlock Grid.Row="0" Name="Header" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="10,0,0,0" />
             <TreeView Grid.Row="1" Name="TreeView" />
+            <ProgressBar Grid.Row="2" Minimum="0" Maximum="1" Name="ProgressBar" />
+            <Label Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="10" Name="ProgressBarLabel"></Label>
         </Grid>
     </Grid>
 </Window>

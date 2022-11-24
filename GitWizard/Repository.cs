@@ -24,7 +24,7 @@ public class Repository
         WorkingDirectory = workingDirectory;
     }
 
-    public void Refresh()
+    public void Refresh(IUpdateHandler? updateHandler)
     {
         if (string.IsNullOrEmpty(WorkingDirectory) || !Directory.Exists(WorkingDirectory))
         {
@@ -49,11 +49,13 @@ public class Repository
                     {
                         // Uninitialized submodules will have a null work directory commit id
                         Submodules[path] = null;
+                        updateHandler?.OnUninitializedSubmoduleCreated(this, path);
                     }
                     else if (LibGit2Sharp.Repository.IsValid(path))
                     {
                         submoduleRepository = new Repository(path);
                         Submodules[path] = submoduleRepository;
+                        updateHandler?.OnSubmoduleCreated(this, submoduleRepository);
                     }
                     else
                     {
@@ -64,7 +66,7 @@ public class Repository
                 if (submoduleRepository == null)
                     return;
 
-                submoduleRepository.Refresh();
+                submoduleRepository.Refresh(updateHandler);
             });
 
             CurrentBranch = repository.Head.FriendlyName;

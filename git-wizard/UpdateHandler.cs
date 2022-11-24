@@ -24,4 +24,14 @@ class UpdateHandler : IUpdateHandler
 
         GitWizardLog.Log(workingDirectory, GitWizardLog.LogType.Verbose);
     }
+
+    public void StartProgress(string description, int total)
+    {
+        // TODO: Persistent progress bar
+    }
+
+    public void UpdateProgress(int count)
+    {
+        // TODO: Persistent progress bar
+    }
 }

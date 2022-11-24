@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace GitWizard;
@@ -124,7 +125,7 @@ public class GitWizardReport
 
             updateHandler?.UpdateProgress(++count);
 
-            repository.Refresh();
+            repository.Refresh(updateHandler);
         });
     }
 

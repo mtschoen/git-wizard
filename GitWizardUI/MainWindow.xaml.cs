@@ -20,11 +20,17 @@ namespace GitWizardUI
     {
         const int UIRefreshDelayMilliseconds = 500;
         const string ProgressBarFormatString = "{0} {1} / {2}";
+        const int k_BackgroundThreadPoolMultiplier = 1;
+        const int k_ForegroundThreadPoolMultiplier = 100;
+        const int k_CompletionThreadCount = 1000;
 
         readonly GitWizardConfiguration _configuration;
         readonly Stopwatch _stopwatch = new();
         readonly ConcurrentQueue<Repository> _createdRepositories = new();
+        readonly ConcurrentQueue<(Repository, Repository)> _createdSubmodules = new();
+        readonly ConcurrentQueue<(Repository, string)> _createdUninitializedSubmodules = new();
         readonly GridLength _progressRowStartHeight;
+        readonly ConcurrentDictionary<string, TreeViewItem> _treeViewItemMap = new();
 
         string? _lastMessage;
         GitWizardReport? _report;
@@ -53,12 +59,29 @@ namespace GitWizardUI
                         var items = TreeView.Items;
                         while (_createdRepositories.TryDequeue(out var repository))
                         {
-                            items.Add(CreateTreeViewItem(repository));
+                            var path = repository.WorkingDirectory;
+                            if (string.IsNullOrEmpty(path))
+                                throw new InvalidOperationException("Cannot add repository to UI with null working directory");
+
+                            var item = CreateTreeViewItem(repository);
+                            _treeViewItemMap[path] = item;
+                            items.Add(item);
+                        }
+
+                        while (_createdSubmodules.TryDequeue(out var update))
+                        {
+                            var (parent, submodule) = update;
+                            AddSubmodule(parent, submodule);
+                        }
+
+                        while (_createdUninitializedSubmodules.TryDequeue(out var update))
+                        {
+                            var (parent, submodulePath) = update;
+                            AddUninitializedSubmodule(parent, submodulePath);
                         }
 
                         if (_progressCount.HasValue && _progressTotal.HasValue)
                         {
-
                             ProgressBar.Value = (double)_progressCount / _progressTotal.Value;
                             ProgressBarLabel.Content = string.Format(ProgressBarFormatString, _progressDescription, _progressCount, _progressTotal);
                             if (_progressTotal.Value == _progressCount)
@@ -81,23 +104,37 @@ namespace GitWizardUI
             panel.Children.Add(new TextBlock { Text = repository.WorkingDirectory });
             panel.Children.Add(new CheckBox { IsChecked = !repository.IsRefreshing, IsEnabled = false });
 
-            if (repository.Submodules != null)
-            {
-                var items = item.Items;
-                foreach (var kvp in repository.Submodules)
-                {
-                    var submodule = kvp.Value;
-                    if (submodule == null)
-                    {
-                        items.Add(new TextBlock {Text = $"{kvp.Key}: Uninitialized"});
-                        continue;
-                    }
-
-                    items.Add(CreateTreeViewItem(submodule));
-                }
-            }
-            
             return item;
+        }
+
+        void AddSubmodule(Repository parent, Repository submodule)
+        {
+            var path = parent.WorkingDirectory;
+            if (string.IsNullOrEmpty(path))
+                throw new InvalidOperationException("Cannot add submodule to UI under parent with null working directory");
+
+            if (!_treeViewItemMap.TryGetValue(path, out var item))
+                throw new InvalidOperationException("Cannot find tree view item to add submodule");
+
+            path = submodule.WorkingDirectory;
+            if (string.IsNullOrEmpty(path))
+                throw new InvalidOperationException("Cannot add repository to UI with null working directory");
+
+            var submoduleItem = CreateTreeViewItem(submodule);
+            _treeViewItemMap[path] = item;
+            item.Items.Add(submoduleItem);
+        }
+
+        void AddUninitializedSubmodule(Repository parent, string submodulePath)
+        {
+            var path = parent.WorkingDirectory;
+            if (string.IsNullOrEmpty(path))
+                throw new InvalidOperationException("Cannot add submodule to UI under parent with null working directory");
+
+            if (!_treeViewItemMap.TryGetValue(path, out var item))
+                throw new InvalidOperationException("Cannot find tree view item to add submodule");
+
+            item.Items.Add(new TextBlock { Text = $"{submodulePath}: Uninitialized" });
         }
 
         void BrowseSearchPathButton_Click(object sender, RoutedEventArgs e)
@@ -151,7 +188,6 @@ namespace GitWizardUI
             _configuration.Save(GitWizardConfiguration.GetGlobalConfigurationPath());
             IgnoredList.Items.Refresh();
         }
-
         void IgnoredList_KeyUp(object sender, System.Windows.Input.KeyEventArgs e)
         {
             if (e.Key != Key.Delete)
@@ -190,10 +226,10 @@ namespace GitWizardUI
 
         void RefreshButton_Click(object sender, RoutedEventArgs e)
         {
-            DoRefresh();
+            Refresh(false);
         }
 
-        void DoRefresh()
+        void Refresh(bool background)
         {
             Header.Text = "Refreshing...";
             var modifiers = Keyboard.Modifiers;
@@ -201,6 +237,9 @@ namespace GitWizardUI
             RefreshButton.IsEnabled = false;
 
             TreeView.Items.Clear();
+
+            var multiplier = background ? k_BackgroundThreadPoolMultiplier : k_ForegroundThreadPoolMultiplier;
+            ThreadPool.SetMaxThreads(Environment.ProcessorCount * multiplier, k_CompletionThreadCount);
 
             Task.Run(() =>
             {
@@ -219,6 +258,16 @@ namespace GitWizardUI
 
                 Dispatcher.Invoke(() => { RefreshButton.IsEnabled = true; });
             });
+        }
+
+        void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            Refresh(true);
+        }
+
+        void CheckWindowsDefenderMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            WindowsDefenderException.AddException();
         }
 
         public void SendUpdateMessage(string? message)
@@ -257,9 +306,14 @@ namespace GitWizardUI
             _progressCount = count;
         }
 
-        void Window_Loaded(object sender, RoutedEventArgs e)
+        public void OnSubmoduleCreated(Repository parent, Repository submodule)
         {
-            DoRefresh();
+            _createdSubmodules.Enqueue((parent, submodule));
+        }
+
+        public void OnUninitializedSubmoduleCreated(Repository parent, string submodulePath)
+        {
+            _createdUninitializedSubmodules.Enqueue((parent, submodulePath));
         }
     }
 }

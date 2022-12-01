@@ -20,9 +20,9 @@ namespace GitWizardUI
     {
         const int UIRefreshDelayMilliseconds = 500;
         const string ProgressBarFormatString = "{0} {1} / {2}";
-        const int k_BackgroundThreadPoolMultiplier = 1;
-        const int k_ForegroundThreadPoolMultiplier = 100;
-        const int k_CompletionThreadCount = 1000;
+        const int BackgroundThreadPoolMultiplier = 1;
+        const int ForegroundThreadPoolMultiplier = 100;
+        const int CompletionThreadCount = 1000;
 
         readonly GitWizardConfiguration _configuration;
         readonly Stopwatch _stopwatch = new();
@@ -235,11 +235,13 @@ namespace GitWizardUI
             var modifiers = Keyboard.Modifiers;
             _report = null;
             RefreshButton.IsEnabled = false;
+            ClearCacheMenuItem.IsEnabled = false;
+            DeleteAllLocalFilesMenuItem.IsEnabled = false;
 
             TreeView.Items.Clear();
 
-            var multiplier = background ? k_BackgroundThreadPoolMultiplier : k_ForegroundThreadPoolMultiplier;
-            ThreadPool.SetMaxThreads(Environment.ProcessorCount * multiplier, k_CompletionThreadCount);
+            var multiplier = background ? BackgroundThreadPoolMultiplier : ForegroundThreadPoolMultiplier;
+            ThreadPool.SetMaxThreads(Environment.ProcessorCount * multiplier, CompletionThreadCount);
 
             Task.Run(() =>
             {
@@ -256,7 +258,12 @@ namespace GitWizardUI
                 if (repositoryPaths == null)
                     GitWizardApi.SaveCachedRepositoryPaths(_report.GetRepositoryPaths());
 
-                Dispatcher.Invoke(() => { RefreshButton.IsEnabled = true; });
+                Dispatcher.Invoke(() =>
+                {
+                    RefreshButton.IsEnabled = true;
+                    ClearCacheMenuItem.IsEnabled = true;
+                    DeleteAllLocalFilesMenuItem.IsEnabled = true;
+                });
             });
         }
 
@@ -268,6 +275,16 @@ namespace GitWizardUI
         void CheckWindowsDefenderMenuItem_Click(object sender, RoutedEventArgs e)
         {
             WindowsDefenderException.AddException();
+        }
+
+        void ClearCacheMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            GitWizardApi.ClearCache();
+        }
+
+        void DeleteAllLocalFilesMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            GitWizardApi.DeleteAllLocalFiles();
         }
 
         public void SendUpdateMessage(string? message)
@@ -288,6 +305,7 @@ namespace GitWizardUI
 
         public void StartProgress(string description, int total)
         {
+            _progressCount = 0;
             _progressDescription = description;
             _progressTotal = total;
             Dispatcher.Invoke(() =>

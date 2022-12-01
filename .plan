@@ -5,7 +5,6 @@
 - Define report structure for extensibility
 - Async save/load for cached files (configs and reports)
 - Identify repositories with unstaged or pending changes
-- Identify repositories 
 - Identify submodules which are not checked out to project pointer reference
 - Identify submodules which have not been checked out/init
 - Identify submodules which are in .gitmodules but not in the index, or vice versa
@@ -13,8 +12,6 @@
 - Button/utility to check out branch head that matches detached head
 - Testing automation
 - Profiling/optimization (am I using await correctly?)
-- Log file
-- User-configurable loggers
 - Mac UI
   - Delete key/command for directory browsers
   - Clean up menu items

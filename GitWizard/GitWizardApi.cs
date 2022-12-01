@@ -10,16 +10,22 @@ public static class GitWizardApi
 {
     const string GitWizardFolder = ".GitWizard";
     const string RepositoryPathListFileName = "repositories.txt";
+    const string LogFolder = "Logs";
 
-    public static string GetCachePath()
+    public static string GetLocalFilesPath()
     {
         var homeFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         return Path.Combine(homeFolder, GitWizardFolder);
     }
 
-    public static void EnsureCacheFolderExists()
+    public static string GetLogFolderPath()
     {
-        var path = GetCachePath();
+        return Path.Combine(GetLocalFilesPath(), LogFolder);
+    }
+
+    public static void EnsureLocalFolderExists()
+    {
+        var path = GetLocalFilesPath();
         if (!Directory.Exists(path))
             Directory.CreateDirectory(path);
     }
@@ -30,7 +36,7 @@ public static class GitWizardApi
     /// <returns>The path to the file where cached repository paths are stored.</returns>
     public static string GetCachedRepositoryListPath()
     {
-        return Path.Combine(GetCachePath(), RepositoryPathListFileName);
+        return Path.Combine(GetLocalFilesPath(), RepositoryPathListFileName);
     }
 
     /// <summary>
@@ -151,6 +157,19 @@ public static class GitWizardApi
         }
     }
 
+    public static void DeleteAllLocalFiles()
+    {
+        try
+        {
+            GitWizardLog.CloseCurrentLogFile();
+            Directory.Delete(GetLocalFilesPath(), true);
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, "Caught exception trying to delete all local files");
+        }
+    }
+
     /// <summary>
     /// Get the cached list of repository paths
     /// </summary>
@@ -168,7 +187,7 @@ public static class GitWizardApi
 
     public static void SaveCachedRepositoryPaths(IEnumerable<string> paths)
     {
-        EnsureCacheFolderExists();
+        EnsureLocalFolderExists();
         var path = GetCachedRepositoryListPath();
         File.WriteAllTextAsync(path, string.Join('\n', paths));
     }

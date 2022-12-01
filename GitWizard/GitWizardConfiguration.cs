@@ -16,7 +16,7 @@ public class GitWizardConfiguration
 
     public static string GetGlobalConfigurationPath()
     {
-        return Path.Combine(GitWizardApi.GetCachePath(), "config.json");
+        return Path.Combine(GitWizardApi.GetLocalFilesPath(), "config.json");
     }
 
     public static GitWizardConfiguration GetGlobalConfiguration()

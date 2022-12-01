@@ -2,7 +2,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace GitWizard;
@@ -18,7 +17,7 @@ public class GitWizardReport
 
     public static string GetCachedReportPath()
     {
-        return Path.Combine(GitWizardApi.GetCachePath(), "report.json");
+        return Path.Combine(GitWizardApi.GetLocalFilesPath(), "report.json");
     }
 
     public static GitWizardReport? GetCachedReport()

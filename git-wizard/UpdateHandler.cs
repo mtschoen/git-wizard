@@ -34,4 +34,14 @@ class UpdateHandler : IUpdateHandler
     {
         // TODO: Persistent progress bar
     }
+
+    public void OnSubmoduleCreated(Repository parent, Repository submodule)
+    {
+        // Nothing to do here
+    }
+
+    public void OnUninitializedSubmoduleCreated(Repository parent, string submodulePath)
+    {
+        // Nothing to do here
+    }
 }

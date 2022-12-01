@@ -24,6 +24,8 @@
         <Menu Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3">
             <MenuItem Header="Tools">
                 <MenuItem Header="Configure Windows Defender" Click="CheckWindowsDefenderMenuItem_Click"></MenuItem>
+                <MenuItem Header="Clear Cache" Name="ClearCacheMenuItem" Click="ClearCacheMenuItem_Click"></MenuItem>
+                <MenuItem Header="Delete All Local Files" Name="DeleteAllLocalFilesMenuItem" Click="DeleteAllLocalFilesMenuItem_Click"></MenuItem>
             </MenuItem>
         </Menu>
         <TextBlock Grid.Row="1" Grid.Column="0" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Top" TextWrapping="Wrap">Search Directories</TextBlock>

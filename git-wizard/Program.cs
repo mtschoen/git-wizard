@@ -14,15 +14,19 @@ public static class Program
     {
         const string HelpManual = @"GitWizard 0.1 Help
 Supported command line arguments (all optional):
-  -v                    Enable verbose logging.
-  -silent               Do not print to the console
-  -rebuild-report       Rebuild the list of repositories (instead of using cache)
-  -rebuild-repo-list    Rebuild the report from scratch (instead of using cache)
-  -no-refresh           Do not refresh the report based on the latest state; just print out the cached report
-  -rebuild-all          Rebuild the report and list of repositories (instead of using cache)
-  -print-minified       Print the output to the console as minified JSON
-  -save-path            Path where the report will be saved to disk (otherwise it is only printed to the console)
-  -config-path          Path to custom configuration file (otherwise global or default configuration is used)
+  -v                        Enable verbose logging.
+  -silent                   Do not print to the console
+  -rebuild-report           Rebuild the list of repositories (instead of using cache)
+  -rebuild-repo-list        Rebuild the report from scratch (instead of using cache)
+  -no-refresh               Do not refresh the report based on the latest state; just print out the cached report
+  -rebuild-all              Rebuild the report and list of repositories (instead of using cache)
+  -print-minified           Print the output to the console as minified JSON
+  -save-path                Path where the report will be saved to disk (otherwise it is only printed to the console)
+  -config-path              Path to custom configuration file (otherwise global or default configuration is used)
+  -clear-cache              Delete cached reports and configurations before running
+                            (combine with -no-refresh to avoid re-generating the cache)
+  -delete-all-local-files   Delete all files created by GitWizard before running (includes files deleted by -clear-cache;
+                            combine with -no-refresh to avoid creating any more local files)
 ";
 
         /// <summary>
@@ -34,6 +38,16 @@ Supported command line arguments (all optional):
         /// Rebuild the report from scratch (instead of using cache).
         /// </summary>
         public readonly bool RebuildReport = false;
+
+        /// <summary>
+        /// Delete cached reports and configurations before doing anything else.
+        /// </summary>
+        public readonly bool ClearCache = false;
+
+        /// <summary>
+        /// Delete all local files before doing anything else.
+        /// </summary>
+        public readonly bool DeleteAllLocalFiles = false;
 
         /// <summary>
         /// Refresh the report based on the latest state (otherwise just print out the cached report).
@@ -55,6 +69,9 @@ Supported command line arguments (all optional):
         /// </summary>
         public readonly string? CustomConfigurationPath = null;
 
+        /// <summary>
+        /// Initialize a RunConfiguration using Environment.GetCommandLineArgs
+        /// </summary>
         public RunConfiguration()
         {
             var arguments = Environment.GetCommandLineArgs();
@@ -87,6 +104,12 @@ Supported command line arguments (all optional):
                         RebuildReport = true;
                         RebuildRepositoryList = true;
                         break;
+                    case "-clear-cache":
+                        ClearCache = true;
+                        break;
+                    case "-delete-all-local-files":
+                        DeleteAllLocalFiles = true;
+                        break;
                     case "-print-minified":
                         Minified = true;
                         break;
@@ -115,9 +138,35 @@ Supported command line arguments (all optional):
         }
     }
 
+    const string SessionStartMessage = @"Session Start Message
+=======================================================================================================================
+git-wizard Session Started
+=======================================================================================================================";
+
     public static void Main()
     {
         var runConfiguration = new RunConfiguration();
+        if (runConfiguration.DeleteAllLocalFiles)
+        {
+            GitWizardApi.DeleteAllLocalFiles();
+            if (!runConfiguration.RefreshReport)
+            {
+                Environment.Exit(0);
+                return;
+            }
+        }
+
+        if (runConfiguration.ClearCache)
+        {
+            GitWizardApi.ClearCache();
+            if (!runConfiguration.RefreshReport)
+            {
+                Environment.Exit(0);
+                return;
+            }
+        }
+
+        GitWizardLog.Log(SessionStartMessage);
         var configuration = GetConfiguration(runConfiguration);
         var repositoryPaths = GetRepositoryPaths(runConfiguration);
         var report = GetReport(runConfiguration, configuration, repositoryPaths);

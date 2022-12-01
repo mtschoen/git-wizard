@@ -22,7 +22,7 @@ public class GitWizardConfiguration
     public static GitWizardConfiguration GetGlobalConfiguration()
     {
         _globalConfiguration ??= GetConfigurationAtPath(GetGlobalConfigurationPath());
-        return _globalConfiguration ??= CreateDefaultConfig();
+        return _globalConfiguration ??= CreateDefaultConfiguration();
     }
 
     public static void SaveGlobalConfiguration(GitWizardConfiguration configuration)
@@ -51,7 +51,7 @@ public class GitWizardConfiguration
     }
 
 
-    static GitWizardConfiguration CreateDefaultConfig()
+    public static GitWizardConfiguration CreateDefaultConfiguration()
     {
         var configuration = new GitWizardConfiguration();
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))

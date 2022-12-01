@@ -86,7 +86,7 @@ public class GitWizardReport
         return report;
     }
 
-    void GetRepositoryPaths(ICollection<string> repositoryPaths, IUpdateHandler? updateHandler = null)
+    public void GetRepositoryPaths(ICollection<string> repositoryPaths, IUpdateHandler? updateHandler = null)
     {
         var count = 0;
         updateHandler?.StartProgress("Getting Repository Paths", SearchPaths.Count);
@@ -111,15 +111,15 @@ public class GitWizardReport
                     repository = new Repository(path);
                     Repositories[path] = repository;
                 }
+            }
 
-                try
-                {
-                    updateHandler?.OnRepositoryCreated(repository);
-                }
-                catch (Exception exception)
-                {
-                    GitWizardLog.LogException(exception, "Exception thrown by Refresh onUpdate callback.");
-                }
+            try
+            {
+                updateHandler?.OnRepositoryCreated(repository);
+            }
+            catch (Exception exception)
+            {
+                GitWizardLog.LogException(exception, "Exception thrown by Refresh OnRepositoryCreated callback.");
             }
 
             updateHandler?.UpdateProgress(++count);

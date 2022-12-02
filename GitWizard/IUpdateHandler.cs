@@ -8,4 +8,5 @@ public interface IUpdateHandler
     void UpdateProgress(int count);
     void OnSubmoduleCreated(Repository parent, Repository submodule);
     void OnUninitializedSubmoduleCreated(Repository parent, string submodulePath);
+    void OnRepositoryRefreshCompleted(Repository repository);
 }

@@ -93,6 +93,8 @@ public class Repository
             HasPendingChanges = status.IsDirty;
 
             IsRefreshing = false;
+
+            updateHandler?.OnRepositoryRefreshCompleted(this);
         }
         catch (Exception exception)
         {

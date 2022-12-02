@@ -44,4 +44,9 @@ class UpdateHandler : IUpdateHandler
     {
         // Nothing to do here
     }
+
+    public void OnRepositoryRefreshCompleted(Repository repository)
+    {
+        // Nothing to do here
+    }
 }

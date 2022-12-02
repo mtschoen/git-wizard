@@ -8,8 +8,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Forms;
 using System.Windows.Input;
-using CheckBox = System.Windows.Controls.CheckBox;
-using Orientation = System.Windows.Controls.Orientation;
 
 namespace GitWizardUI
 {
@@ -29,8 +27,9 @@ namespace GitWizardUI
         readonly ConcurrentQueue<Repository> _createdRepositories = new();
         readonly ConcurrentQueue<(Repository, Repository)> _createdSubmodules = new();
         readonly ConcurrentQueue<(Repository, string)> _createdUninitializedSubmodules = new();
+        readonly ConcurrentQueue<Repository> _completedRepositories = new();
         readonly GridLength _progressRowStartHeight;
-        readonly ConcurrentDictionary<string, TreeViewItem> _treeViewItemMap = new();
+        readonly ConcurrentDictionary<string, GitWizardTreeViewItem> _treeViewItemMap = new();
 
         string? _lastMessage;
         GitWizardReport? _report;
@@ -63,9 +62,24 @@ namespace GitWizardUI
                             if (string.IsNullOrEmpty(path))
                                 throw new InvalidOperationException("Cannot add repository to UI with null working directory");
 
-                            var item = CreateTreeViewItem(repository);
+                            var item = new GitWizardTreeViewItem(repository);
+                            GitWizardLog.Log($"==================created {path}");
                             _treeViewItemMap[path] = item;
-                            items.Add(item);
+
+                            if (items.Count == 0)
+                            {
+                                items.Add(item);
+                            }
+                            else
+                            {
+                                var insertIndex = 0;
+                                while (insertIndex < items.Count)
+                                {
+                                    if
+                                }
+
+                                items.Insert(insertIndex, item);
+                            }
                         }
 
                         while (_createdSubmodules.TryDequeue(out var update))
@@ -78,6 +92,12 @@ namespace GitWizardUI
                         {
                             var (parent, submodulePath) = update;
                             AddUninitializedSubmodule(parent, submodulePath);
+                        }
+
+                        while (_completedRepositories.TryDequeue(out var repository))
+                        {
+                            GitWizardLog.Log($"==================updating {repository.WorkingDirectory}");
+                            UpdateCompletedRepository(repository);
                         }
 
                         if (_progressCount.HasValue && _progressTotal.HasValue)
@@ -96,17 +116,6 @@ namespace GitWizardUI
             }).Start();
         }
 
-        static TreeViewItem CreateTreeViewItem(Repository repository)
-        {
-            var item = new TreeViewItem();
-            var panel = new StackPanel { Orientation = Orientation.Horizontal };
-            item.Header = panel;
-            panel.Children.Add(new TextBlock { Text = repository.WorkingDirectory });
-            panel.Children.Add(new CheckBox { IsChecked = !repository.IsRefreshing, IsEnabled = false });
-
-            return item;
-        }
-
         void AddSubmodule(Repository parent, Repository submodule)
         {
             var path = parent.WorkingDirectory;
@@ -120,7 +129,7 @@ namespace GitWizardUI
             if (string.IsNullOrEmpty(path))
                 throw new InvalidOperationException("Cannot add repository to UI with null working directory");
 
-            var submoduleItem = CreateTreeViewItem(submodule);
+            var submoduleItem = new GitWizardTreeViewItem(submodule);
             _treeViewItemMap[path] = item;
             item.Items.Add(submoduleItem);
         }
@@ -134,7 +143,20 @@ namespace GitWizardUI
             if (!_treeViewItemMap.TryGetValue(path, out var item))
                 throw new InvalidOperationException("Cannot find tree view item to add submodule");
 
+
             item.Items.Add(new TextBlock { Text = $"{submodulePath}: Uninitialized" });
+        }
+
+        void UpdateCompletedRepository(Repository repository)
+        {
+            var path = repository.WorkingDirectory;
+            if (string.IsNullOrEmpty(path))
+                throw new InvalidOperationException("Cannot add submodule to UI under parent with null working directory");
+
+            if (!_treeViewItemMap.TryGetValue(path, out var item))
+                return;
+
+            item.Update();
         }
 
         void BrowseSearchPathButton_Click(object sender, RoutedEventArgs e)
@@ -332,6 +354,11 @@ namespace GitWizardUI
         public void OnUninitializedSubmoduleCreated(Repository parent, string submodulePath)
         {
             _createdUninitializedSubmodules.Enqueue((parent, submodulePath));
+        }
+
+        public void OnRepositoryRefreshCompleted(Repository repository)
+        {
+            _completedRepositories.Enqueue(repository);
         }
     }
 }

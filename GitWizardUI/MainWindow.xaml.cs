@@ -121,7 +121,7 @@ namespace GitWizardUI
                 throw new InvalidOperationException("Cannot add repository to UI with null working directory");
 
             var submoduleItem = new GitWizardTreeViewItem(submodule);
-            _treeViewItemMap[path] = item;
+            _treeViewItemMap[path] = submoduleItem;
             item.Items.Add(submoduleItem);
         }
 
@@ -350,6 +350,9 @@ namespace GitWizardUI
         public void OnRepositoryRefreshCompleted(Repository repository)
         {
             _completedRepositories.Enqueue(repository);
+            GitWizardLog.Log($"Enqueue {repository.WorkingDirectory}");
+            if (repository.IsRefreshing)
+                GitWizardLog.Log(repository.WorkingDirectory + " is still refreshing??");
         }
     }
 }

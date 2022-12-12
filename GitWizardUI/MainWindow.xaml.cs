@@ -1,6 +1,7 @@
 ﻿using GitWizard;
 using System;
 using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -45,6 +46,8 @@ namespace GitWizardUI
             IgnoredList.ItemsSource = _configuration.IgnoredPaths;
             _progressRowStartHeight = ProgressBarRow.Height;
             ProgressBarRow.Height = new GridLength(0);
+            TreeView.Items.IsLiveSorting = true;
+            TreeView.Items.SortDescriptions.Add(new SortDescription("SortingIndex", ListSortDirection.Ascending));
 
             new Thread(() =>
             {
@@ -65,21 +68,7 @@ namespace GitWizardUI
                             var item = new GitWizardTreeViewItem(repository);
                             GitWizardLog.Log($"==================created {path}");
                             _treeViewItemMap[path] = item;
-
-                            if (items.Count == 0)
-                            {
-                                items.Add(item);
-                            }
-                            else
-                            {
-                                var insertIndex = 0;
-                                while (insertIndex < items.Count)
-                                {
-                                    if
-                                }
-
-                                items.Insert(insertIndex, item);
-                            }
+                            items.Add(item);
                         }
 
                         while (_createdSubmodules.TryDequeue(out var update))
@@ -107,6 +96,8 @@ namespace GitWizardUI
                             if (_progressTotal.Value == _progressCount)
                                 ProgressBarRow.Height = new GridLength(0);
                         }
+
+                        items.Refresh();
                     });
 
                     Thread.Sleep(UIRefreshDelayMilliseconds);

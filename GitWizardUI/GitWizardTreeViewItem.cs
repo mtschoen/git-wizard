@@ -1,4 +1,5 @@
-﻿using GitWizard;
+﻿using System;
+using GitWizard;
 using System.Windows.Controls;
 
 namespace GitWizardUI
@@ -7,6 +8,8 @@ namespace GitWizardUI
     {
         public readonly Repository Repository;
         readonly CheckBox _checkBox;
+
+        public string? SortingIndex => Repository.WorkingDirectory;
 
         public GitWizardTreeViewItem(Repository repository)
         {

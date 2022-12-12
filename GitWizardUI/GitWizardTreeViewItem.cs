@@ -23,9 +23,6 @@ namespace GitWizardUI
 
         public void Update()
         {
-            if (Repository.IsRefreshing)
-                GitWizardLog.Log(Repository.WorkingDirectory + " is still refreshing??");
-
             _checkBox.IsChecked = !Repository.IsRefreshing;
         }
     }

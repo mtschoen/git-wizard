@@ -215,8 +215,8 @@ namespace GitWizardUI
                 return;
 
             _configuration.SearchPaths.Remove((string)SearchList.SelectedValue);
-            SearchList.Items.Refresh();
             _configuration.Save(GitWizardConfiguration.GetGlobalConfigurationPath());
+            SearchList.Items.Refresh();
         }
 
         void IgnoredPathTextBox_KeyUp(object sender, System.Windows.Input.KeyEventArgs e)

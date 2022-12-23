@@ -1,8 +1,10 @@
 ﻿using GitWizard;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -32,6 +34,10 @@ namespace GitWizardUI
         readonly GridLength _progressRowStartHeight;
         readonly ConcurrentDictionary<string, GitWizardTreeViewItem> _treeViewItemMap = new();
 
+        readonly List<string> _searchPaths;
+        readonly List<string> _ignoredPaths;
+
+
         string? _lastMessage;
         GitWizardReport? _report;
         string? _progressDescription;
@@ -42,8 +48,10 @@ namespace GitWizardUI
         {
             InitializeComponent();
             _configuration = GitWizardConfiguration.GetGlobalConfiguration();
-            SearchList.ItemsSource = _configuration.SearchPaths;
-            IgnoredList.ItemsSource = _configuration.IgnoredPaths;
+            _searchPaths = _configuration.SearchPaths.ToList();
+            _ignoredPaths = _configuration.IgnoredPaths.ToList();
+            SearchList.ItemsSource = _searchPaths;
+            IgnoredList.ItemsSource = _ignoredPaths;
             _progressRowStartHeight = ProgressBarRow.Height;
             ProgressBarRow.Height = new GridLength(0);
             TreeView.Items.IsLiveSorting = true;
@@ -169,8 +177,12 @@ namespace GitWizardUI
             if (string.IsNullOrWhiteSpace(path))
                 return;
 
-            _configuration.SearchPaths.Add(path);
+            var searchPaths = _configuration.SearchPaths;
+            searchPaths.Add(path);
             _configuration.Save(GitWizardConfiguration.GetGlobalConfigurationPath());
+
+            _searchPaths.Clear();
+            _searchPaths.AddRange(searchPaths);
             SearchList.Items.Refresh();
         }
 
@@ -195,8 +207,12 @@ namespace GitWizardUI
             if (string.IsNullOrWhiteSpace(path))
                 return;
 
-            _configuration.IgnoredPaths.Add(path);
+            var ignoredPaths = _configuration.IgnoredPaths;
+            ignoredPaths.Add(path);
             _configuration.Save(GitWizardConfiguration.GetGlobalConfigurationPath());
+
+            _ignoredPaths.Clear();
+            _ignoredPaths.AddRange(ignoredPaths);
             IgnoredList.Items.Refresh();
         }
         void IgnoredList_KeyUp(object sender, System.Windows.Input.KeyEventArgs e)
@@ -204,9 +220,13 @@ namespace GitWizardUI
             if (e.Key != Key.Delete)
                 return;
 
-            _configuration.IgnoredPaths.Remove((string)IgnoredList.SelectedValue);
-            IgnoredList.Items.Refresh();
+            var ignoredPaths = _configuration.IgnoredPaths;
+            ignoredPaths.Remove((string)IgnoredList.SelectedValue);
             _configuration.Save(GitWizardConfiguration.GetGlobalConfigurationPath());
+
+            _ignoredPaths.Clear();
+            _ignoredPaths.AddRange(ignoredPaths);
+            IgnoredList.Items.Refresh();
         }
 
         void SearchList_KeyUp(object sender, System.Windows.Input.KeyEventArgs e)
@@ -214,8 +234,12 @@ namespace GitWizardUI
             if (e.Key != Key.Delete)
                 return;
 
-            _configuration.SearchPaths.Remove((string)SearchList.SelectedValue);
+            var searchPaths = _configuration.SearchPaths;
+            searchPaths.Remove((string)SearchList.SelectedValue);
             _configuration.Save(GitWizardConfiguration.GetGlobalConfigurationPath());
+
+            _searchPaths.Clear();
+            _searchPaths.AddRange(searchPaths);
             SearchList.Items.Refresh();
         }
 

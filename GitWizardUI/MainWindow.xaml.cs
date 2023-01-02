@@ -29,6 +29,7 @@ namespace GitWizardUI
         readonly Stopwatch _stopwatch = new();
         readonly ConcurrentQueue<Repository> _createdRepositories = new();
         readonly ConcurrentQueue<(Repository, Repository)> _createdSubmodules = new();
+        readonly ConcurrentQueue<Repository> _createdWorktrees = new();
         readonly ConcurrentQueue<(Repository, string)> _createdUninitializedSubmodules = new();
         readonly ConcurrentQueue<Repository> _completedRepositories = new();
         readonly GridLength _progressRowStartHeight;
@@ -66,22 +67,20 @@ namespace GitWizardUI
                         Header.Text = _lastMessage;
                         Header.InvalidateVisual();
 
-                        var items = TreeView.Items;
                         while (_createdRepositories.TryDequeue(out var repository))
                         {
-                            var path = repository.WorkingDirectory;
-                            if (string.IsNullOrEmpty(path))
-                                throw new InvalidOperationException("Cannot add repository to UI with null working directory");
-
-                            var item = new GitWizardTreeViewItem(repository);
-                            _treeViewItemMap[path] = item;
-                            items.Add(item);
+                            AddRepository(repository);
                         }
 
                         while (_createdSubmodules.TryDequeue(out var update))
                         {
                             var (parent, submodule) = update;
                             AddSubmodule(parent, submodule);
+                        }
+
+                        while (_createdWorktrees.TryDequeue(out var worktree))
+                        {
+                            AddRepository(worktree);
                         }
 
                         while (_createdUninitializedSubmodules.TryDequeue(out var update))
@@ -103,7 +102,7 @@ namespace GitWizardUI
                                 ProgressBarRow.Height = new GridLength(0);
                         }
 
-                        items.Refresh();
+                        TreeView.Items.Refresh();
                     });
 
                     Thread.Sleep(UIRefreshDelayMilliseconds);
@@ -111,6 +110,17 @@ namespace GitWizardUI
 
                 // ReSharper disable once FunctionNeverReturns
             }).Start();
+        }
+
+        void AddRepository(Repository repository)
+        {
+            var path = repository.WorkingDirectory;
+            if (string.IsNullOrEmpty(path))
+                throw new InvalidOperationException("Cannot add repository to UI with null working directory");
+
+            var item = new GitWizardTreeViewItem(repository);
+            _treeViewItemMap[path] = item;
+            TreeView.Items.Add(item);
         }
 
         void AddSubmodule(Repository parent, Repository submodule)
@@ -148,10 +158,10 @@ namespace GitWizardUI
         {
             var path = repository.WorkingDirectory;
             if (string.IsNullOrEmpty(path))
-                throw new InvalidOperationException("Cannot add submodule to UI under parent with null working directory");
+                throw new InvalidOperationException("Cannot update UI for repository with null working directory");
 
             if (!_treeViewItemMap.TryGetValue(path, out var item))
-                return;
+                throw new InvalidOperationException($"Cannot find tree view item for repository at path {path}");
 
             item.Update();
         }
@@ -215,6 +225,7 @@ namespace GitWizardUI
             _ignoredPaths.AddRange(ignoredPaths);
             IgnoredList.Items.Refresh();
         }
+
         void IgnoredList_KeyUp(object sender, System.Windows.Input.KeyEventArgs e)
         {
             if (e.Key != Key.Delete)
@@ -362,6 +373,11 @@ namespace GitWizardUI
         public void OnSubmoduleCreated(Repository parent, Repository submodule)
         {
             _createdSubmodules.Enqueue((parent, submodule));
+        }
+
+        public void OnWorktreeCreated(Repository worktree)
+        {
+            _createdWorktrees.Enqueue(worktree);
         }
 
         public void OnUninitializedSubmoduleCreated(Repository parent, string submodulePath)

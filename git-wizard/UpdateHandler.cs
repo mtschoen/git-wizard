@@ -40,6 +40,11 @@ class UpdateHandler : IUpdateHandler
         // Nothing to do here
     }
 
+    public void OnWorktreeCreated(Repository worktrees)
+    {
+        // Nothing to do here
+    }
+
     public void OnUninitializedSubmoduleCreated(Repository parent, string submodulePath)
     {
         // Nothing to do here

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
 namespace GitWizard;
@@ -92,9 +93,17 @@ public static class GitWizardApi
                 GitWizardLog.LogException(nextException, "Exception thrown by GenerateReport onUpdate callback.");
             }
 
-            var directories = Directory.GetDirectories(rootPath);
-            if (directories == null || directories.Length == 0)
+            string[]? directories;
+            try
+            {
+                directories = Directory.GetDirectories(rootPath);
+                if (directories == null || directories.Length == 0)
+                    return;
+            }
+            catch
+            {
                 return;
+            }
 
             Parallel.ForEach(directories, subDirectory =>
             {
@@ -105,7 +114,9 @@ public static class GitWizardApi
                 {
                     lock (paths)
                     {
-                        paths.Add(rootPath);
+                        paths.Add(RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                            ? rootPath.ToLowerInvariant()
+                            : rootPath);
                     }
 
                     return;

@@ -89,18 +89,44 @@ public class GitWizardReport
     public void GetRepositoryPaths(ICollection<string> repositoryPaths, IUpdateHandler? updateHandler = null)
     {
         var count = 0;
-        updateHandler?.StartProgress("Getting Repository Paths", SearchPaths.Count);
+
+        try
+        {
+            updateHandler?.StartProgress("Getting Repository Paths", SearchPaths.Count);
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, "Exception thrown by GetRepositoryPaths StartProgress callback.");
+        }
+
         Parallel.ForEach(SearchPaths, path =>
         {
             GitWizardApi.GetRepositoryPaths(path, repositoryPaths, IgnoredPaths, updateHandler);
-            updateHandler?.UpdateProgress(++count);
+
+            try
+            {
+                updateHandler?.UpdateProgress(++count);
+            }
+            catch (Exception exception)
+            {
+                GitWizardLog.LogException(exception, "Exception thrown by GetRepositoryPaths UpdateProgress callback.");
+            }
         });
     }
 
     public void Refresh(ICollection<string> repositoryPaths, IUpdateHandler? updateHandler = null)
     {
         var count = 0;
-        updateHandler?.StartProgress("Scanning repositories", repositoryPaths.Count);
+
+        try
+        {
+            updateHandler?.StartProgress("Scanning repositories", repositoryPaths.Count);
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, "Exception thrown by Refresh StartProgress callback.");
+        }
+
         Parallel.ForEach(repositoryPaths, path =>
         {
             Repository? repository;
@@ -122,7 +148,14 @@ public class GitWizardReport
                 GitWizardLog.LogException(exception, "Exception thrown by Refresh OnRepositoryCreated callback.");
             }
 
-            updateHandler?.UpdateProgress(++count);
+            try
+            {
+                updateHandler?.UpdateProgress(++count);
+            }
+            catch (Exception exception)
+            {
+                GitWizardLog.LogException(exception, "Exception thrown by Refresh UpdateProgress callback.");
+            }
 
             repository.Refresh(updateHandler);
         });

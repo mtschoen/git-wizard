@@ -11,7 +11,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GitWizardUI", "GitWizardUI\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GitWizardMacUI", "GitWizardMacUI\GitWizardMacUI.csproj", "{C5A36DC2-A38E-4AFA-AC9C-2777AA48366B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GitWizardTests", "GitWizardTests\GitWizardTests.csproj", "{0132E6E0-5462-45EA-8307-CFD78780C348}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GitWizardTests", "GitWizardTests\GitWizardTests.csproj", "{0132E6E0-5462-45EA-8307-CFD78780C348}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

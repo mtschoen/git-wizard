@@ -27,5 +27,4 @@
   - Active branches
   - My branches
 - Group by same remote
-- Fix file access exceptions if scanning root folder
-- Fix exception on removing item from search list
+- Undo/Redo for search/ignore list

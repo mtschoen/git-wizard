@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
 namespace GitWizard;
@@ -78,6 +79,9 @@ public class Repository
             Parallel.ForEach(submodules, submodule =>
             {
                 var path = Path.Combine(workingDirectory, submodule.Path);
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                    path = path.ToLowerInvariant();
+
                 Repository? submoduleRepository;
                 bool hasExisting;
                 lock (Submodules)
@@ -157,6 +161,9 @@ public class Repository
             Parallel.ForEach(worktrees, worktree =>
             {
                 var path = worktree.WorktreeRepository.Info.WorkingDirectory;
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                    path = path.ToLowerInvariant();
+
                 Repository? worktreeRepository;
                 bool hasExisting;
                 lock (Worktrees)

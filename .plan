@@ -12,6 +12,9 @@
   - Identify submodules which are in .gitmodules but not in the index, or vice versa
   - Identify detached heads with pending/unstaged changes
   - Identify repos that I have ever committed to (query for commit email)
+- Sorting
+  - Recently used
+  - Remote URL
 - Button/utility to check out branch head that matches detached head
 - Testing automation
 - Profiling/optimization (am I using await correctly?)
@@ -26,5 +29,4 @@
 - Branches view of github (maybe?)
   - Active branches
   - My branches
-- Group by same remote
-- Undo/Redo for search/ignore list
+- Undo/Redo for search/ignore list changes

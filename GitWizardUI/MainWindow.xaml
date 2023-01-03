@@ -3,7 +3,6 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:GitWizardUI"
         mc:Ignorable="d"
         Title="GitWizard" Height="450" Width="800" Loaded="Window_Loaded">
     <Grid>
@@ -16,56 +15,47 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="20" />
             <RowDefinition Height="30" />
-            <RowDefinition Height="*" />
+            <RowDefinition Height="180" />
             <RowDefinition Height="30" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <Menu Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3">
             <MenuItem Header="Tools">
+                <MenuItem Header="Settings" Click="SettingsMenuItem_Click"></MenuItem>
                 <MenuItem Header="Configure Windows Defender" Click="CheckWindowsDefenderMenuItem_Click"></MenuItem>
                 <MenuItem Header="Clear Cache" Name="ClearCacheMenuItem" Click="ClearCacheMenuItem_Click"></MenuItem>
                 <MenuItem Header="Delete All Local Files" Name="DeleteAllLocalFilesMenuItem" Click="DeleteAllLocalFilesMenuItem_Click"></MenuItem>
             </MenuItem>
         </Menu>
-        <TextBlock Grid.Row="1" Grid.Column="0" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Top" TextWrapping="Wrap">Search Directories</TextBlock>
+        <TextBlock Grid.Row="1" Grid.Column="0" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Top" TextWrapping="Wrap">Filter by</TextBlock>
         <Grid Grid.Row="2" Grid.Column="0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="30" />
-                <RowDefinition Height="*" />
+                <RowDefinition Height="30" />
+                <RowDefinition Height="30" />
+                <RowDefinition Height="30" />
+                <RowDefinition Height="30" />
+                <RowDefinition Height="30" />
             </Grid.RowDefinitions>
-            
-            <Grid Grid.Row="0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="50" />
-                    <ColumnDefinition Width="30" />
-                </Grid.ColumnDefinitions>
-                <TextBox Grid.Column="0" Name="SearchPathTextBox" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" VerticalContentAlignment="Center" Margin="5,0,5,0" KeyUp="SearchPathTextBox_KeyUp" />
-                <Button Grid.Column="1" Click="BrowseSearchPathButton_Click">Browse</Button>
-                <Button Grid.Column="2" Click="AddSearchPathButton_Click">Add</Button>
-            </Grid>
-            <ListBox Grid.Row="1" Name="SearchList" FontSize="12" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" d:ItemsSource="{d:SampleData ItemCount=5}" KeyUp="SearchList_KeyUp" />
+            <Button Grid.Row="0" ToolTip="Repositories with un-staged or pending changes">Pending Changes</Button>
+            <Button Grid.Row="1" ToolTip="Repositories with submodules which are not checked out to project pointer reference">Submodule Checkout</Button>
+            <Button Grid.Row="2" ToolTip="Repositories submodules which have not been checked out/initialized">Submodule Uninitialized</Button>
+            <Button Grid.Row="3" ToolTip="Repositories with submodules which are in .gitmodules but not in the index, or vice versa">Submodule Config Issue</Button>
+            <Button Grid.Row="4" ToolTip="Repositories or submodules with detached heads with pending/unstaged changes">Detached Head</Button>
+            <Button Grid.Row="5" ToolTip="Repositories repos that you have committed to (based on email in global git configuration)">My Repositories</Button>
         </Grid>
 
-        <TextBlock Grid.Row="3" Grid.Column="0" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Top" TextWrapping="Wrap">Ignore Directories</TextBlock>
+        <TextBlock Grid.Row="3" Grid.Column="0" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Top" TextWrapping="Wrap">Sort by</TextBlock>
         <Grid Grid.Row="4" Grid.Column="0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="30" />
-                <RowDefinition Height="*" />
+                <RowDefinition Height="30" />
+                <RowDefinition Height="30" />
             </Grid.RowDefinitions>
-
-            <Grid Grid.Row="0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="50" />
-                    <ColumnDefinition Width="30" />
-                </Grid.ColumnDefinitions>
-                <TextBox Grid.Column="0" Name="IgnoredPathTextBox" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" VerticalContentAlignment="Center" Margin="5,0,5,0" KeyUp="IgnoredPathTextBox_KeyUp" />
-                <Button Grid.Column="1" Click="BrowseIgnoredPathButton_Click">Browse</Button>
-                <Button Grid.Column="2" Click="AddIgnoredPathButton_Click">Add</Button>
-            </Grid>
-            <ListBox Grid.Row="1" Name="IgnoredList" FontSize="12" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" KeyUp="IgnoredList_KeyUp" d:ItemsSource="{d:SampleData ItemCount=5}" />
+            <Button Grid.Row="0" ToolTip="Path to working directory, alphabetically">Working Directory</Button>
+            <Button Grid.Row="1" ToolTip="Time of the most recent commit">Recently Used</Button>
+            <Button Grid.Row="2" ToolTip="URL of first remote (usually origin)">Remote URL</Button>
         </Grid>
 
         <GridSplitter Grid.Column="1" Width="5" Grid.Row="1" Grid.RowSpan="4"  HorizontalAlignment="Stretch" />

@@ -1,5 +1,4 @@
-﻿using System;
-using GitWizard;
+﻿using GitWizard;
 using System.Windows.Controls;
 
 namespace GitWizardUI

@@ -1,8 +1,9 @@
-﻿using Newtonsoft.Json;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace GitWizard;
@@ -39,7 +40,7 @@ public class GitWizardConfiguration
         {
             // TODO: Async file read
             var jsonText = File.ReadAllText(path);
-            return JsonConvert.DeserializeObject<GitWizardConfiguration>(jsonText);
+            return JsonSerializer.Deserialize<GitWizardConfiguration>(jsonText);
         }
         catch
         {
@@ -76,10 +77,10 @@ public class GitWizardConfiguration
         try
         {
             // TODO: Async config save
-            File.WriteAllText(path, JsonConvert.SerializeObject(this, Formatting.Indented, new JsonSerializerSettings
+            File.WriteAllText(path, JsonSerializer.Serialize(this, new JsonSerializerOptions
             {
-                NullValueHandling = NullValueHandling.Ignore,
-                DefaultValueHandling = DefaultValueHandling.Ignore
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
+                WriteIndented = true
             }));
         }
         catch (Exception exception)

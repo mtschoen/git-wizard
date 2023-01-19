@@ -16,6 +16,25 @@ namespace GitWizardUI
     /// </summary>
     public partial class MainWindow : IUpdateHandler
     {
+        struct RefreshMessage
+        {
+            public enum MessageType
+            {
+                Invalid,
+                CreatedRepository,
+                CreatedSubmodule,
+                CreatedWorktree,
+                CreatedUninitializedSubmodule,
+                CompletedRepository
+            }
+
+            public MessageType Type;
+
+            public Repository Repository;
+            public Repository Submodule;
+            public string SubmodulePath;
+        }
+
         const int UIRefreshDelayMilliseconds = 500;
         const string ProgressBarFormatString = "{0} {1} / {2}";
         const int BackgroundThreadPoolMultiplier = 1;
@@ -23,11 +42,7 @@ namespace GitWizardUI
         const int CompletionThreadCount = 1000;
 
         readonly Stopwatch _stopwatch = new();
-        readonly ConcurrentQueue<Repository> _createdRepositories = new();
-        readonly ConcurrentQueue<(Repository, Repository)> _createdSubmodules = new();
-        readonly ConcurrentQueue<Repository> _createdWorktrees = new();
-        readonly ConcurrentQueue<(Repository, string)> _createdUninitializedSubmodules = new();
-        readonly ConcurrentQueue<Repository> _completedRepositories = new();
+        readonly ConcurrentQueue<RefreshMessage> _refreshMessages = new();
         readonly GridLength _progressRowStartHeight;
         readonly ConcurrentDictionary<string, GitWizardTreeViewItem> _treeViewItemMap = new();
 
@@ -55,31 +70,31 @@ namespace GitWizardUI
                         Header.Text = _lastMessage;
                         Header.InvalidateVisual();
 
-                        while (_createdRepositories.TryDequeue(out var repository))
+                        while (_refreshMessages.TryDequeue(out var message))
                         {
-                            AddRepository(repository);
-                        }
-
-                        while (_createdSubmodules.TryDequeue(out var update))
-                        {
-                            var (parent, submodule) = update;
-                            AddSubmodule(parent, submodule);
-                        }
-
-                        while (_createdWorktrees.TryDequeue(out var worktree))
-                        {
-                            AddRepository(worktree);
-                        }
-
-                        while (_createdUninitializedSubmodules.TryDequeue(out var update))
-                        {
-                            var (parent, submodulePath) = update;
-                            AddUninitializedSubmodule(parent, submodulePath);
-                        }
-
-                        while (_completedRepositories.TryDequeue(out var repository))
-                        {
-                            UpdateCompletedRepository(repository);
+                            var repository = message.Repository;
+                            switch (message.Type)
+                            {
+                                case RefreshMessage.MessageType.Invalid:
+                                    throw new ArgumentException("Cannot process invalid message");
+                                case RefreshMessage.MessageType.CreatedRepository:
+                                    AddRepository(repository);
+                                    break;
+                                case RefreshMessage.MessageType.CreatedSubmodule:
+                                    AddSubmodule(repository, message.Submodule);
+                                    break;
+                                case RefreshMessage.MessageType.CreatedWorktree:
+                                    AddRepository(repository);
+                                    break;
+                                case RefreshMessage.MessageType.CreatedUninitializedSubmodule:
+                                    AddUninitializedSubmodule(repository, message.SubmodulePath);
+                                    break;
+                                case RefreshMessage.MessageType.CompletedRepository:
+                                    UpdateCompletedRepository(repository);
+                                    break;
+                                default:
+                                    throw new ArgumentOutOfRangeException();
+                            }
                         }
 
                         if (_progressCount.HasValue && _progressTotal.HasValue)
@@ -237,7 +252,11 @@ namespace GitWizardUI
 
         public void OnRepositoryCreated(Repository repository)
         {
-            _createdRepositories.Enqueue(repository);
+            _refreshMessages.Enqueue(new RefreshMessage
+            {
+                Type = RefreshMessage.MessageType.CreatedRepository,
+                Repository = repository
+            });
         }
 
         public void StartProgress(string description, int total)
@@ -263,22 +282,40 @@ namespace GitWizardUI
 
         public void OnSubmoduleCreated(Repository parent, Repository submodule)
         {
-            _createdSubmodules.Enqueue((parent, submodule));
+            _refreshMessages.Enqueue(new RefreshMessage
+            {
+                Type = RefreshMessage.MessageType.CreatedSubmodule,
+                Repository = parent,
+                Submodule =  submodule
+            });
         }
 
         public void OnWorktreeCreated(Repository worktree)
         {
-            _createdWorktrees.Enqueue(worktree);
+            _refreshMessages.Enqueue(new RefreshMessage
+            {
+                Type = RefreshMessage.MessageType.CreatedWorktree,
+                Repository = worktree
+            });
         }
 
         public void OnUninitializedSubmoduleCreated(Repository parent, string submodulePath)
         {
-            _createdUninitializedSubmodules.Enqueue((parent, submodulePath));
+            _refreshMessages.Enqueue(new RefreshMessage
+            {
+                Type = RefreshMessage.MessageType.CreatedUninitializedSubmodule,
+                Repository = parent,
+                SubmodulePath = submodulePath
+            });
         }
 
         public void OnRepositoryRefreshCompleted(Repository repository)
         {
-            _completedRepositories.Enqueue(repository);
+            _refreshMessages.Enqueue(new RefreshMessage
+            {
+                Type = RefreshMessage.MessageType.CompletedRepository,
+                Repository = repository
+            });
         }
     }
 }

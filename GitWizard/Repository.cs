@@ -160,6 +160,9 @@ public class Repository
             Worktrees ??= new SortedDictionary<string, Repository?>();
             Parallel.ForEach(worktrees, worktree =>
             {
+                if (worktree == null)
+                    return;
+
                 var path = worktree.WorktreeRepository.Info.WorkingDirectory;
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                     path = path.ToLowerInvariant();

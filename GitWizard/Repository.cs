@@ -15,11 +15,13 @@ public class Repository
     public string? CurrentBranch { get; private set; }
     public bool IsDetachedHead { get; private set; }
     public bool HasPendingChanges { get; private set; }
+    public int NumberOfPendingChanges { get; private set; }
     public bool IsWorktree { get; private set; }
     public SortedDictionary<string, Repository?>? Submodules { get; private set; }
     public SortedDictionary<string, Repository?>? Worktrees { get; private set; }
 
     public bool IsRefreshing { get; private set; }
+    public bool LocalOnlyCommits { get; private set; }
 
     Repository() { }
 
@@ -52,6 +54,38 @@ public class Repository
             IsDetachedHead = repository.Head.Reference is not SymbolicReference;
             var status = repository.RetrieveStatus();
             HasPendingChanges = status.IsDirty;
+            if (HasPendingChanges)
+            {
+                NumberOfPendingChanges = 0;
+                foreach (var _ in status.Modified)
+                {
+                    NumberOfPendingChanges++;
+                }
+
+                foreach (var _ in status.Staged)
+                {
+                    NumberOfPendingChanges++;
+                }
+
+                foreach (var _ in status.Removed)
+                {
+                    NumberOfPendingChanges++;
+                }
+            }
+
+            // TODO: Enable/disable deep checks
+            // TODO: Include optional fetch
+            foreach (var branch in repository.Branches)
+            {
+                if (branch.TrackedBranch == null)
+                    continue;
+
+                if (branch.Tip != branch.TrackedBranch.Tip)
+                {
+                    // TODO: Check that branch tip is _ahead_ of tracked tip
+                    LocalOnlyCommits = true;
+                }
+            }
 
             IsRefreshing = false;
 

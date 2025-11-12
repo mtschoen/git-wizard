@@ -1,6 +1,7 @@
 ﻿using GitWizard;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Threading;
@@ -8,6 +9,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using LibGit2Sharp;
 
 namespace GitWizardUI
 {
@@ -35,6 +37,11 @@ namespace GitWizardUI
             public string SubmodulePath;
         }
 
+        enum FilterType
+        {
+            PendingChanges
+        }
+
         const int UIRefreshDelayMilliseconds = 500;
         const string ProgressBarFormatString = "{0} {1} / {2}";
         const int BackgroundThreadPoolMultiplier = 1;
@@ -52,6 +59,7 @@ namespace GitWizardUI
         int? _progressTotal;
         int? _progressCount;
         SettingsWindow? _settingsWindow;
+        readonly HashSet<FilterType> _filterTypes = new();
 
         public MainWindow()
         {
@@ -316,6 +324,63 @@ namespace GitWizardUI
                 Type = RefreshMessage.MessageType.CompletedRepository,
                 Repository = repository
             });
+        }
+
+        void PendingChangesFilterButton_Click(object sender, RoutedEventArgs e)
+        {
+            ToggleFilter(FilterType.PendingChanges);
+            ((Button)sender).IsPressed = HasFilter(FilterType.PendingChanges);
+        }
+
+        bool HasFilter(FilterType type)
+        {
+            return _filterTypes.Contains(type);
+        }
+
+        void ToggleFilter(FilterType type)
+        {
+            if (_filterTypes.Remove(type))
+            {
+                RefreshFilters();
+                return;
+            }
+
+            _filterTypes.Add(type);
+            RefreshFilters();
+        }
+
+        void RefreshFilters()
+        {
+            var items = TreeView.Items;
+            if (_filterTypes.Count == 0)
+            {
+                items.IsLiveFiltering = false;
+                items.Filter = null;
+                items.Refresh();
+                return;
+            }
+
+            items.IsLiveFiltering = true;
+            items.Filter = TreeViewItemsFilter;
+            items.Refresh();
+        }
+
+        bool TreeViewItemsFilter(object obj)
+        {
+            var item = (GitWizardTreeViewItem)obj;
+            foreach (var filterType in _filterTypes)
+            {
+                switch (filterType)
+                {
+                    case FilterType.PendingChanges:
+                        if (item.Repository.IsDirty)
+                            return true;
+
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException();
+                }
+            }
         }
     }
 }

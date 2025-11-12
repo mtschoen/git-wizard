@@ -38,12 +38,12 @@
                 <RowDefinition Height="30" />
                 <RowDefinition Height="30" />
             </Grid.RowDefinitions>
-            <Button Grid.Row="0" ToolTip="Repositories with un-staged or pending changes">Pending Changes</Button>
+            <Button Grid.Row="0" ToolTip="Repositories with un-staged or pending changes" Click="PendingChangesFilterButton_Click">Pending Changes</Button>
             <Button Grid.Row="1" ToolTip="Repositories with submodules which are not checked out to project pointer reference">Submodule Checkout</Button>
             <Button Grid.Row="2" ToolTip="Repositories submodules which have not been checked out/initialized">Submodule Uninitialized</Button>
             <Button Grid.Row="3" ToolTip="Repositories with submodules which are in .gitmodules but not in the index, or vice versa">Submodule Config Issue</Button>
             <Button Grid.Row="4" ToolTip="Repositories or submodules with detached heads with pending/unstaged changes">Detached Head</Button>
-            <Button Grid.Row="5" ToolTip="Repositories repos that you have committed to (based on email in global git configuration)">My Repositories</Button>
+            <Button Grid.Row="5" ToolTip="Repositories that you have committed to (based on email in global git configuration)">My Repositories</Button>
         </Grid>
 
         <TextBlock Grid.Row="3" Grid.Column="0" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Top" TextWrapping="Wrap">Sort by</TextBlock>

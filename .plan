@@ -1,4 +1,13 @@
-- Explore MAUI or other cross-platform UI solutions--goal is one UI project for Windows/Mac
+## Next Up
+
+- Update MAUI project to latest SDK (currently on net7.0 which is out of support)
+- Translate WPF UI to MAUI and delete WPF UI project (GitWizardUI)
+- Add Fetch button with per-row progress bar and status control to replace check mark
+
+## Backlog
+
+- Make Fork.exe path configurable in settings (currently hard-coded to %LocalAppData%\Fork\Fork.exe)
+  - See TODO in GitWizardUI/GitWizardTreeViewItem.cs:50
 - Explore CLI argument parsing libraries which can auto-generate manual/help (replace RunConfiguration)
 - Explore path handling library for `%USERPROFILE%` and `~` path aliases
 - "Pretty print" in path lists to transform environment variables into their values
@@ -6,25 +15,22 @@
 - Async save/load for cached files (configs and reports)
 - Filtering
   - Filters should be additive not exclusive
-  - Identify repositories with unstaged or pending changes
+  - [DONE] Identify repositories with unstaged or pending changes
   - Identify submodules which are not checked out to project pointer reference
   - Identify submodules which have not been checked out/init
   - Identify submodules which are in .gitmodules but not in the index, or vice versa
-  - Identify detached heads with pending/unstaged changes
+  - [DONE] Identify detached heads with pending/unstaged changes
   - Identify repos that I have ever committed to (query for commit email)
+  - [DONE] Filter for local-only commits (branches ahead of remote or not tracking)
 - Sorting
   - Recently used
   - Remote URL
 - Button/utility to check out branch head that matches detached head
 - Testing automation
 - Profiling/optimization (am I using await correctly?)
-- Mac UI
-  - Delete key/command for directory browsers
-  - Clean up menu items
 - Figure out best way to avoid Windows Defender
 - Progress bar for CLI
 - Sort by recently used
-- Filter buttons on the left
 - Show DB size
 - Branches view of github (maybe?)
   - Active branches

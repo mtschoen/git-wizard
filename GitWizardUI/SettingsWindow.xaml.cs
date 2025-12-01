@@ -18,7 +18,7 @@ public partial class SettingsWindow
     readonly List<string> _searchPaths;
     readonly List<string> _ignoredPaths;
 
-    public event Action WindowClosed;
+    public event Action? WindowClosed;
 
     public SettingsWindow()
     {

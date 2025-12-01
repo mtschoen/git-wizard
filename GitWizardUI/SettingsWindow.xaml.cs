@@ -1,4 +1,5 @@
-﻿using GitWizard;
+﻿using System;
+using GitWizard;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
@@ -16,6 +17,8 @@ public partial class SettingsWindow
     readonly GitWizardConfiguration _configuration;
     readonly List<string> _searchPaths;
     readonly List<string> _ignoredPaths;
+
+    public event Action WindowClosed;
 
     public SettingsWindow()
     {
@@ -129,5 +132,10 @@ public partial class SettingsWindow
             return;
 
         AddSearchPath(SearchPathTextBox.Text);
+    }
+
+    void SettingsWindow_Closed(object sender, EventArgs eventArgs)
+    {
+        WindowClosed?.Invoke();
     }
 }

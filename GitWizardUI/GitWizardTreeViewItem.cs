@@ -16,11 +16,13 @@ namespace GitWizardUI
             Repository = repository;
             var panel = new StackPanel { Orientation = Orientation.Horizontal };
             Header = panel;
-            _checkBox = new CheckBox { IsChecked = !repository.IsRefreshing, IsEnabled = false };
+            _checkBox = new CheckBox { IsEnabled = false };
             panel.Children.Add(_checkBox);
             _textBlock = new TextBlock();
-            UpdateLabel();
             panel.Children.Add(_textBlock);
+
+            // Update to sync with current repository state
+            Update();
         }
 
         public void Update()
@@ -36,12 +38,12 @@ namespace GitWizardUI
             string label = Repository.WorkingDirectory ?? "Invalid";
             if (pendingChanges)
             {
-                label += $" * ({Repository.NumberOfPendingChanges}";
+                label += $" * ({Repository.NumberOfPendingChanges})";
             }
 
             if (localOnlyCommits)
             {
-                label += " u";
+                label += " \u2191"; // Up arrow symbol to indicate unpushed/untracked changes
             }
 
             _textBlock.Text = label;

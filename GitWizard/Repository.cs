@@ -52,38 +52,58 @@ public class Repository
 
             CurrentBranch = repository.Head.FriendlyName;
             IsDetachedHead = repository.Head.Reference is not SymbolicReference;
-            var status = repository.RetrieveStatus();
-            HasPendingChanges = status.IsDirty;
-            if (HasPendingChanges)
+
+            try
             {
-                NumberOfPendingChanges = 0;
-                foreach (var _ in status.Modified)
+                var status = repository.RetrieveStatus();
+                HasPendingChanges = status.IsDirty;
+                if (HasPendingChanges)
                 {
-                    NumberOfPendingChanges++;
-                }
+                    NumberOfPendingChanges = 0;
+                    foreach (var _ in status.Modified)
+                    {
+                        NumberOfPendingChanges++;
+                    }
 
-                foreach (var _ in status.Staged)
-                {
-                    NumberOfPendingChanges++;
-                }
+                    foreach (var _ in status.Staged)
+                    {
+                        NumberOfPendingChanges++;
+                    }
 
-                foreach (var _ in status.Removed)
-                {
-                    NumberOfPendingChanges++;
+                    foreach (var _ in status.Removed)
+                    {
+                        NumberOfPendingChanges++;
+                    }
                 }
+            }
+            catch (Exception exception)
+            {
+                GitWizardLog.LogException(exception, $"Exception retrieving status for {WorkingDirectory}");
             }
 
             // TODO: Enable/disable deep checks
             // TODO: Include optional fetch
             foreach (var branch in repository.Branches)
             {
-                if (branch.TrackedBranch == null)
+                // Check if this is a local branch (not a remote tracking branch)
+                if (branch.IsRemote)
                     continue;
 
-                if (branch.Tip != branch.TrackedBranch.Tip)
+                // Case 1: Local branch not tracking any remote
+                if (branch.TrackedBranch == null)
                 {
-                    // TODO: Check that branch tip is _ahead_ of tracked tip
                     LocalOnlyCommits = true;
+                    continue;
+                }
+
+                // Case 2: Local branch is ahead of its remote tracking branch
+                if (branch.Tip != null && branch.TrackedBranch.Tip != null && branch.Tip != branch.TrackedBranch.Tip)
+                {
+                    var divergence = repository.ObjectDatabase.CalculateHistoryDivergence(branch.Tip, branch.TrackedBranch.Tip);
+                    if (divergence.AheadBy > 0)
+                    {
+                        LocalOnlyCommits = true;
+                    }
                 }
             }
 
@@ -106,9 +126,12 @@ public class Repository
 
     void RefreshSubmodules(IUpdateHandler? updateHandler, LibGit2Sharp.Repository repository, string workingDirectory)
     {
-        var submodules = repository.Submodules;
-        if (submodules.Any())
+        try
         {
+            var submodules = repository.Submodules;
+            if (!submodules.Any())
+                return;
+
             Submodules ??= new SortedDictionary<string, Repository?>();
             Parallel.ForEach(submodules, submodule =>
             {
@@ -184,6 +207,10 @@ public class Repository
                 submoduleRepository.Refresh(updateHandler);
             });
         }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, $"Exception enumerating submodules for {WorkingDirectory}");
+        }
     }
 
     void RefreshWorktrees(IUpdateHandler? updateHandler, LibGit2Sharp.Repository repository)
@@ -194,20 +221,22 @@ public class Repository
             Worktrees ??= new SortedDictionary<string, Repository?>();
             Parallel.ForEach(worktrees, worktree =>
             {
-                var path = worktree.WorktreeRepository.Info.WorkingDirectory;
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                    path = path.ToLowerInvariant();
+                string? path = null;
+                Repository? worktreeRepository = null;
 
-                Repository? worktreeRepository;
-                bool hasExisting;
-                lock (Worktrees)
+                try
                 {
-                    hasExisting = Worktrees.TryGetValue(path, out worktreeRepository);
-                }
+                    path = worktree.WorktreeRepository.Info.WorkingDirectory;
+                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                        path = path.ToLowerInvariant();
 
-                if (!hasExisting)
-                {
-                    try
+                    bool hasExisting;
+                    lock (Worktrees)
+                    {
+                        hasExisting = Worktrees.TryGetValue(path, out worktreeRepository);
+                    }
+
+                    if (!hasExisting)
                     {
                         if (LibGit2Sharp.Repository.IsValid(path))
                         {
@@ -224,25 +253,25 @@ public class Repository
                             catch (Exception exception)
                             {
                                 GitWizardLog.LogException(exception,
-                                    "Exception thrown by Refresh OnSubmoduleCreated callback.");
+                                    "Exception thrown by Refresh OnWorktreeCreated callback.");
                             }
                         }
                         else
                         {
-                            GitWizardLog.LogException(new Exception(), $"Unknown submodule state for {path}");
+                            GitWizardLog.LogException(new Exception(), $"Unknown worktree state for {path}");
                         }
                     }
-                    catch (Exception exception)
+
+                    if (worktreeRepository != null)
                     {
-                        GitWizardLog.LogException(exception,
-                            $"Exception updating worktrees for {WorkingDirectory}");
+                        worktreeRepository.Refresh(updateHandler);
                     }
                 }
-
-                if (worktreeRepository == null)
-                    return;
-
-                worktreeRepository.Refresh(updateHandler);
+                catch (Exception exception)
+                {
+                    GitWizardLog.LogException(exception,
+                        $"Exception updating worktrees for {WorkingDirectory}");
+                }
             });
         }
     }

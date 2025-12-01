@@ -169,7 +169,8 @@ git-wizard Session Started
         GitWizardLog.Log(SessionStartMessage);
         var configuration = GetConfiguration(runConfiguration);
         var repositoryPaths = GetRepositoryPaths(runConfiguration);
-        var report = GetReport(runConfiguration, configuration, repositoryPaths);
+        var updateHandler = new UpdateHandler();
+        var report = GetReport(runConfiguration, configuration, repositoryPaths, updateHandler);
         if (report == null)
         {
             // If the user requested to not generate a new report, and no cached report exists, early out
@@ -177,6 +178,11 @@ git-wizard Session Started
             Environment.Exit(0);
             return;
         }
+
+        // Process any queued commands
+        GitWizardLog.Log("Processing queued commands...");
+        updateHandler.ProcessCommands();
+        updateHandler.PrintSummary();
 
         if (repositoryPaths == null)
             GitWizardApi.SaveCachedRepositoryPaths(report.GetRepositoryPaths());
@@ -216,7 +222,7 @@ git-wizard Session Started
     }
 
     static GitWizardReport? GetReport(RunConfiguration runConfiguration, GitWizardConfiguration configuration,
-        ICollection<string>? repositoryPaths = null)
+        ICollection<string>? repositoryPaths, UpdateHandler updateHandler)
     {
         if (!runConfiguration.RebuildReport)
         {
@@ -226,12 +232,12 @@ git-wizard Session Started
 
             if (cachedReport != null && repositoryPaths != null)
             {
-                cachedReport.Refresh(repositoryPaths);
+                cachedReport.Refresh(repositoryPaths, updateHandler);
                 return cachedReport;
             }
         }
 
-        return GitWizardReport.GenerateReport(configuration, repositoryPaths, new UpdateHandler());
+        return GitWizardReport.GenerateReport(configuration, repositoryPaths, updateHandler);
     }
 
     static string[]? GetRepositoryPaths(RunConfiguration runConfiguration)

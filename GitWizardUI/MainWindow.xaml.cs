@@ -1,6 +1,7 @@
 ﻿using GitWizard;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Threading;
@@ -23,11 +24,7 @@ namespace GitWizardUI
         const int CompletionThreadCount = 1000;
 
         readonly Stopwatch _stopwatch = new();
-        readonly ConcurrentQueue<Repository> _createdRepositories = new();
-        readonly ConcurrentQueue<(Repository, Repository)> _createdSubmodules = new();
-        readonly ConcurrentQueue<Repository> _createdWorktrees = new();
-        readonly ConcurrentQueue<(Repository, string)> _createdUninitializedSubmodules = new();
-        readonly ConcurrentQueue<Repository> _completedRepositories = new();
+        readonly ConcurrentQueue<RepositoryUICommand> _uiCommands = new();
         readonly GridLength _progressRowStartHeight;
         readonly ConcurrentDictionary<string, GitWizardTreeViewItem> _treeViewItemMap = new();
 
@@ -37,6 +34,35 @@ namespace GitWizardUI
         int? _progressTotal;
         int? _progressCount;
         SettingsWindow? _settingsWindow;
+        FilterType _currentFilter = FilterType.None;
+
+        enum FilterType
+        {
+            None,
+            PendingChanges,
+            LocalOnlyCommits,
+            SubmoduleCheckout,
+            SubmoduleUninitialized,
+            SubmoduleConfig,
+            DetachedHead
+        }
+
+        enum RepositoryUICommandType
+        {
+            RepositoryCreated,
+            SubmoduleCreated,
+            WorktreeCreated,
+            UninitializedSubmoduleCreated,
+            RefreshCompleted
+        }
+
+        struct RepositoryUICommand
+        {
+            public RepositoryUICommandType Type;
+            public Repository? Repository;
+            public Repository? ParentRepository;
+            public string? SubmodulePath;
+        }
 
         public MainWindow()
         {
@@ -55,31 +81,17 @@ namespace GitWizardUI
                         Header.Text = _lastMessage;
                         Header.InvalidateVisual();
 
-                        while (_createdRepositories.TryDequeue(out var repository))
+                        bool itemsChanged = false;
+
+                        while (_uiCommands.TryDequeue(out var command))
                         {
-                            AddRepository(repository);
+                            ProcessUICommand(command);
+                            itemsChanged = true;
                         }
 
-                        while (_createdSubmodules.TryDequeue(out var update))
+                        if (itemsChanged && _currentFilter != FilterType.None)
                         {
-                            var (parent, submodule) = update;
-                            AddSubmodule(parent, submodule);
-                        }
-
-                        while (_createdWorktrees.TryDequeue(out var worktree))
-                        {
-                            AddRepository(worktree);
-                        }
-
-                        while (_createdUninitializedSubmodules.TryDequeue(out var update))
-                        {
-                            var (parent, submodulePath) = update;
-                            AddUninitializedSubmodule(parent, submodulePath);
-                        }
-
-                        while (_completedRepositories.TryDequeue(out var repository))
-                        {
-                            UpdateCompletedRepository(repository);
+                            ApplyFilter();
                         }
 
                         if (_progressCount.HasValue && _progressTotal.HasValue)
@@ -100,6 +112,33 @@ namespace GitWizardUI
             }).Start();
         }
 
+        void ProcessUICommand(RepositoryUICommand command)
+        {
+            switch (command.Type)
+            {
+                case RepositoryUICommandType.RepositoryCreated:
+                    if (command.Repository != null)
+                        AddRepository(command.Repository);
+                    break;
+                case RepositoryUICommandType.SubmoduleCreated:
+                    if (command.ParentRepository != null && command.Repository != null)
+                        AddSubmodule(command.ParentRepository, command.Repository);
+                    break;
+                case RepositoryUICommandType.WorktreeCreated:
+                    if (command.Repository != null)
+                        AddRepository(command.Repository);
+                    break;
+                case RepositoryUICommandType.UninitializedSubmoduleCreated:
+                    if (command.ParentRepository != null && command.SubmodulePath != null)
+                        AddUninitializedSubmodule(command.ParentRepository, command.SubmodulePath);
+                    break;
+                case RepositoryUICommandType.RefreshCompleted:
+                    if (command.Repository != null)
+                        UpdateCompletedRepository(command.Repository);
+                    break;
+            }
+        }
+
         void AddRepository(Repository repository)
         {
             var path = repository.WorkingDirectory;
@@ -115,14 +154,14 @@ namespace GitWizardUI
         {
             var path = parent.WorkingDirectory;
             if (string.IsNullOrEmpty(path))
-                throw new InvalidOperationException("Cannot add submodule to UI under parent with null working directory");
+                return;  // Parent not ready yet
 
             if (!_treeViewItemMap.TryGetValue(path, out var item))
-                throw new InvalidOperationException("Cannot find tree view item to add submodule");
+                return;  // Parent not added to UI yet
 
             path = submodule.WorkingDirectory;
             if (string.IsNullOrEmpty(path))
-                throw new InvalidOperationException("Cannot add repository to UI with null working directory");
+                return;
 
             var submoduleItem = new GitWizardTreeViewItem(submodule);
             _treeViewItemMap[path] = submoduleItem;
@@ -133,11 +172,10 @@ namespace GitWizardUI
         {
             var path = parent.WorkingDirectory;
             if (string.IsNullOrEmpty(path))
-                throw new InvalidOperationException("Cannot add submodule to UI under parent with null working directory");
+                return;  // Parent not ready yet
 
             if (!_treeViewItemMap.TryGetValue(path, out var item))
-                throw new InvalidOperationException("Cannot find tree view item to add submodule");
-
+                return;  // Parent not added to UI yet
 
             item.Items.Add(new TextBlock { Text = $"{submodulePath}: Uninitialized" });
         }
@@ -146,10 +184,10 @@ namespace GitWizardUI
         {
             var path = repository.WorkingDirectory;
             if (string.IsNullOrEmpty(path))
-                throw new InvalidOperationException("Cannot update UI for repository with null working directory");
+                return;  // Repository not ready yet
 
             if (!_treeViewItemMap.TryGetValue(path, out var item))
-                throw new InvalidOperationException($"Cannot find tree view item for repository at path {path}");
+                return;  // Repository not added to UI yet (created command not processed)
 
             item.Update();
         }
@@ -206,6 +244,7 @@ namespace GitWizardUI
         void SettingsMenuItem_Click(object sender, RoutedEventArgs eventArgs)
         {
             _settingsWindow ??= new SettingsWindow();
+            _settingsWindow.WindowClosed += () => _settingsWindow = null;
             _settingsWindow.Show();
         }
 
@@ -237,7 +276,11 @@ namespace GitWizardUI
 
         public void OnRepositoryCreated(Repository repository)
         {
-            _createdRepositories.Enqueue(repository);
+            _uiCommands.Enqueue(new RepositoryUICommand
+            {
+                Type = RepositoryUICommandType.RepositoryCreated,
+                Repository = repository
+            });
         }
 
         public void StartProgress(string description, int total)
@@ -263,22 +306,122 @@ namespace GitWizardUI
 
         public void OnSubmoduleCreated(Repository parent, Repository submodule)
         {
-            _createdSubmodules.Enqueue((parent, submodule));
+            _uiCommands.Enqueue(new RepositoryUICommand
+            {
+                Type = RepositoryUICommandType.SubmoduleCreated,
+                ParentRepository = parent,
+                Repository = submodule
+            });
         }
 
         public void OnWorktreeCreated(Repository worktree)
         {
-            _createdWorktrees.Enqueue(worktree);
+            _uiCommands.Enqueue(new RepositoryUICommand
+            {
+                Type = RepositoryUICommandType.WorktreeCreated,
+                Repository = worktree
+            });
         }
 
         public void OnUninitializedSubmoduleCreated(Repository parent, string submodulePath)
         {
-            _createdUninitializedSubmodules.Enqueue((parent, submodulePath));
+            _uiCommands.Enqueue(new RepositoryUICommand
+            {
+                Type = RepositoryUICommandType.UninitializedSubmoduleCreated,
+                ParentRepository = parent,
+                SubmodulePath = submodulePath
+            });
         }
 
         public void OnRepositoryRefreshCompleted(Repository repository)
         {
-            _completedRepositories.Enqueue(repository);
+            _uiCommands.Enqueue(new RepositoryUICommand
+            {
+                Type = RepositoryUICommandType.RefreshCompleted,
+                Repository = repository
+            });
+        }
+
+        void FilterButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button button)
+                return;
+
+            _currentFilter = button.Name switch
+            {
+                nameof(FilterNone) => FilterType.None,
+                nameof(FilterPendingChanges) => FilterType.PendingChanges,
+                nameof(FilterLocalOnlyCommits) => FilterType.LocalOnlyCommits,
+                nameof(FilterSubmoduleCheckout) => FilterType.SubmoduleCheckout,
+                nameof(FilterSubmoduleUninitialized) => FilterType.SubmoduleUninitialized,
+                nameof(FilterSubmoduleConfig) => FilterType.SubmoduleConfig,
+                nameof(FilterDetachedHead) => FilterType.DetachedHead,
+                _ => FilterType.None
+            };
+
+            ApplyFilter();
+        }
+
+        void ApplyFilter()
+        {
+            foreach (var item in TreeView.Items)
+            {
+                if (item is GitWizardTreeViewItem treeViewItem)
+                {
+                    treeViewItem.Visibility = ShouldShowItem(treeViewItem) ? Visibility.Visible : Visibility.Collapsed;
+                }
+            }
+        }
+
+        bool ShouldShowItem(GitWizardTreeViewItem item)
+        {
+            var repo = item.Repository;
+
+            return _currentFilter switch
+            {
+                FilterType.None => true,
+                FilterType.PendingChanges => repo.HasPendingChanges,
+                FilterType.LocalOnlyCommits => repo.LocalOnlyCommits,
+                FilterType.DetachedHead => repo.IsDetachedHead,
+                FilterType.SubmoduleCheckout => HasSubmoduleCheckoutIssues(item),
+                FilterType.SubmoduleUninitialized => HasUninitializedSubmodules(item),
+                FilterType.SubmoduleConfig => HasSubmoduleConfigIssues(item),
+                _ => true
+            };
+        }
+
+        bool HasSubmoduleCheckoutIssues(GitWizardTreeViewItem item)
+        {
+            // Check if any submodules have pending changes or detached heads
+            if (item.Repository.Submodules == null)
+                return false;
+
+            foreach (var submodule in item.Repository.Submodules.Values)
+            {
+                if (submodule != null && (submodule.HasPendingChanges || submodule.IsDetachedHead))
+                    return true;
+            }
+
+            return false;
+        }
+
+        bool HasUninitializedSubmodules(GitWizardTreeViewItem item)
+        {
+            // Check if there are any uninitialized submodules in the tree view item children
+            foreach (var child in item.Items)
+            {
+                if (child is TextBlock textBlock && textBlock.Text.Contains("Uninitialized"))
+                    return true;
+            }
+
+            return false;
+        }
+
+        bool HasSubmoduleConfigIssues(GitWizardTreeViewItem item)
+        {
+            // This would require more sophisticated checking of .gitmodules vs index
+            // For now, return false as this feature isn't fully implemented
+            return false;
         }
     }
 }

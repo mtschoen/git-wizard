@@ -1,7 +1,6 @@
 ﻿using GitWizard;
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Threading;
@@ -96,7 +95,9 @@ namespace GitWizardUI
 
                         if (_progressCount.HasValue && _progressTotal.HasValue)
                         {
-                            ProgressBar.Value = (double)_progressCount / _progressTotal.Value;
+                            if (_progressTotal.Value > 0)
+                                ProgressBar.Value = (double)_progressCount / _progressTotal.Value;
+
                             ProgressBarLabel.Content = string.Format(ProgressBarFormatString, _progressDescription, _progressCount, _progressTotal);
                             if (_progressTotal.Value == _progressCount)
                                 ProgressBarRow.Height = new GridLength(0);
@@ -276,6 +277,9 @@ namespace GitWizardUI
 
         public void OnRepositoryCreated(Repository repository)
         {
+            if (string.IsNullOrEmpty(repository.WorkingDirectory))
+                throw new InvalidOperationException("Repository WorkingDirectory is null or empty.");
+
             _uiCommands.Enqueue(new RepositoryUICommand
             {
                 Type = RepositoryUICommandType.RepositoryCreated,
@@ -306,6 +310,12 @@ namespace GitWizardUI
 
         public void OnSubmoduleCreated(Repository parent, Repository submodule)
         {
+            if (string.IsNullOrEmpty(parent.WorkingDirectory))
+                throw new InvalidOperationException("Parent repository WorkingDirectory is null or empty.");
+
+            if (string.IsNullOrEmpty(submodule.WorkingDirectory))
+                throw new InvalidOperationException("Submodule WorkingDirectory is null or empty.");
+
             _uiCommands.Enqueue(new RepositoryUICommand
             {
                 Type = RepositoryUICommandType.SubmoduleCreated,
@@ -316,6 +326,9 @@ namespace GitWizardUI
 
         public void OnWorktreeCreated(Repository worktree)
         {
+            if (string.IsNullOrEmpty(worktree.WorkingDirectory))
+                throw new InvalidOperationException("Wortkree WorkingDirectory is null or empty.");
+
             _uiCommands.Enqueue(new RepositoryUICommand
             {
                 Type = RepositoryUICommandType.WorktreeCreated,
@@ -325,6 +338,9 @@ namespace GitWizardUI
 
         public void OnUninitializedSubmoduleCreated(Repository parent, string submodulePath)
         {
+            if (string.IsNullOrEmpty(parent.WorkingDirectory))
+                throw new InvalidOperationException("Parent repository WorkingDirectory is null or empty.");
+
             _uiCommands.Enqueue(new RepositoryUICommand
             {
                 Type = RepositoryUICommandType.UninitializedSubmoduleCreated,
@@ -335,6 +351,9 @@ namespace GitWizardUI
 
         public void OnRepositoryRefreshCompleted(Repository repository)
         {
+            if (string.IsNullOrEmpty(repository.WorkingDirectory))
+                throw new InvalidOperationException("Repository WorkingDirectory is null or empty.");
+
             _uiCommands.Enqueue(new RepositoryUICommand
             {
                 Type = RepositoryUICommandType.RefreshCompleted,

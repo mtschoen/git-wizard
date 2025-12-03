@@ -6,6 +6,21 @@
 
 ## Backlog
 
+- Fix local-only status update--it seems to be showing false positives
+- Include deleted and added files in uncommitted changes count
+- Quick refresh or filesystem watcher to remove UI for deleted or renamed repositories
+- Sort by size on disk
+- Show remote URLs
+- Show error log, exceptions are just logged to output
+- Context menu
+  - Move open in Fork button to context menu
+  - Clean
+  - Open in Explorer
+- Check if downstream branches are included in some upstream branch (deleted after merge)
+- Indicate broken repos
+- Aggregate statuses from submodules
+- Refresh individual repos
+- Add Windows folder to default exclusions
 - Make Fork.exe path configurable in settings (currently hard-coded to %LocalAppData%\Fork\Fork.exe)
   - See TODO in GitWizardUI/GitWizardTreeViewItem.cs:50
 - Explore CLI argument parsing libraries which can auto-generate manual/help (replace RunConfiguration)

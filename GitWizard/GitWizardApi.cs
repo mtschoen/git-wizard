@@ -193,6 +193,9 @@ public static class GitWizardApi
 
         // TODO: Async file reads
         var paths = File.ReadAllText(fileName);
+        if (string.IsNullOrWhiteSpace(paths))
+            return null;
+
         return paths.Split('\n');
     }
 

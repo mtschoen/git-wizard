@@ -7,6 +7,7 @@
 ## Backlog
 
 - Fix local-only status update--it seems to be showing false positives
+  - Doing a normal git status refreshes index, seems to make the diffs go away
 - Include deleted and added files in uncommitted changes count
 - Quick refresh or filesystem watcher to remove UI for deleted or renamed repositories
 - Sort by size on disk
@@ -16,6 +17,7 @@
   - Move open in Fork button to context menu
   - Clean
   - Open in Explorer
+  - Copy working directory to clipboard
 - Check if downstream branches are included in some upstream branch (deleted after merge)
 - Indicate broken repos
 - Aggregate statuses from submodules

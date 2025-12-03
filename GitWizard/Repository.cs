@@ -55,6 +55,9 @@ public class Repository
 
             try
             {
+                // Refresh the index to update stale stat data
+                RefreshIndex(repository);
+
                 var status = repository.RetrieveStatus();
                 HasPendingChanges = status.IsDirty;
                 if (HasPendingChanges)
@@ -273,6 +276,52 @@ public class Repository
                         $"Exception updating worktrees for {WorkingDirectory}");
                 }
             });
+        }
+    }
+
+    static void RefreshIndex(LibGit2Sharp.Repository repository)
+    {
+        try
+        {
+            // Call git update-index --refresh to update stale stat cache
+            // This matches what 'git status' does automatically
+            // TODO: Remove this workaround once LibGit2Sharp exposes GIT_STATUS_OPT_UPDATE_INDEX
+            // See: https://github.com/libgit2/libgit2/discussions/6852
+            var workingDirectory = repository.Info.WorkingDirectory;
+
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "git",
+                Arguments = "update-index --refresh -q",
+                WorkingDirectory = workingDirectory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using (var process = System.Diagnostics.Process.Start(psi))
+            {
+                if (process != null)
+                {
+                    process.WaitForExit();
+
+                    // Note: git update-index --refresh returns non-zero if files are truly modified,
+                    // which is normal and expected. We only log if there's an actual error message.
+                    if (process.ExitCode != 0)
+                    {
+                        var error = process.StandardError.ReadToEnd();
+                        if (!string.IsNullOrEmpty(error))
+                        {
+                            GitWizardLog.Log($"git update-index --refresh reported: {error}", GitWizardLog.LogType.Warning);
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, "Exception refreshing index via git CLI");
         }
     }
 }

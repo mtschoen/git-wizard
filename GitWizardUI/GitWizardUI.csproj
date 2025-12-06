@@ -18,13 +18,13 @@
 		<Nullable>enable</Nullable>
 
 		<!-- Display name -->
-		<ApplicationTitle>GitWizardUI</ApplicationTitle>
+		<ApplicationTitle>GitWizard</ApplicationTitle>
 
 		<!-- App Identifier -->
-		<ApplicationId>com.companyname.GitWizardUI</ApplicationId>
+		<ApplicationId>com.sticktoitive.gitwizard</ApplicationId>
 
 		<!-- Versions -->
-		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+		<ApplicationDisplayVersion>0.2.0</ApplicationDisplayVersion>
 		<ApplicationVersion>1</ApplicationVersion>
 
 		<!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->
@@ -62,6 +62,10 @@
 
 	<ItemGroup>
 	  <Folder Include="Resources\Images\" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="..\GitWizard\GitWizard.csproj" />
 	</ItemGroup>
 
 </Project>

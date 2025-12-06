@@ -164,7 +164,7 @@ namespace GitWizardUI.UITests
                     Directory.CreateDirectory(k_ScreenshotPath);
 
                 // Save screenshot
-                var screenshotPath = Path.Combine(k_ScreenshotPath, "maui-ui.png");
+                var screenshotPath = Path.Combine(k_ScreenshotPath, "GitWizardUI.png");
                 bitmap.Save(screenshotPath, ImageFormat.Png);
 
                 Console.WriteLine($"Screenshot saved to: {screenshotPath}");

@@ -22,8 +22,7 @@ public partial class MainPage : ContentPage
 
     async void SettingsMenuItem_Click(object sender, EventArgs eventArgs)
     {
-        // TODO: Implement settings page
-        await DisplayAlertAsync("Settings", "Settings page not yet implemented", "OK");
+        await Shell.Current.GoToAsync(nameof(SettingsPage));
     }
 
     void CheckWindowsDefenderMenuItem_Click(object sender, EventArgs eventArgs)

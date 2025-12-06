@@ -27,6 +27,8 @@ namespace GitWizardUI.UITests
         [DllImport("user32.dll")]
         static extern bool PrintWindow(IntPtr hWnd, IntPtr hdcBlt, int nFlags);
 
+        const int PW_RENDERFULLCONTENT = 0x00000002;
+
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]
         static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder text, int count);
 
@@ -38,6 +40,9 @@ namespace GitWizardUI.UITests
 
         [DllImport("user32.dll")]
         static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        static extern uint GetDpiForWindow(IntPtr hWnd);
 
         delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
@@ -119,19 +124,36 @@ namespace GitWizardUI.UITests
                     Assert.Fail("Failed to get window dimensions");
                 }
 
-                int width = rect.Right - rect.Left;
-                int height = rect.Bottom - rect.Top;
+                int windowWidth = rect.Right - rect.Left;
+                int windowHeight = rect.Bottom - rect.Top;
 
-                Console.WriteLine($"Window size: {width}x{height}");
+                // Get DPI scaling factor
+                uint dpi = GetDpiForWindow(windowHandle);
+                double scaleFactor = dpi / 96.0; // 96 is the standard DPI
+
+                Console.WriteLine($"Window rect size: {windowWidth}x{windowHeight}");
+                Console.WriteLine($"DPI: {dpi} (scale factor: {scaleFactor:F2})");
+
+                // Create bitmap large enough to capture scaled content
+                // Try using the window size multiplied by scale factor
+                int bitmapWidth = (int)(windowWidth * scaleFactor);
+                int bitmapHeight = (int)(windowHeight * scaleFactor);
+
+                Console.WriteLine($"Bitmap size: {bitmapWidth}x{bitmapHeight}");
 
                 // Capture the window
-                using var bitmap = new Bitmap(width, height, PixelFormat.Format32bppArgb);
+                using var bitmap = new Bitmap(bitmapWidth, bitmapHeight, PixelFormat.Format32bppArgb);
+                bitmap.SetResolution(dpi, dpi);
+
                 using var graphics = Graphics.FromImage(bitmap);
+                graphics.PageUnit = GraphicsUnit.Pixel;
+
                 var hdc = graphics.GetHdc();
 
                 try
                 {
-                    PrintWindow(windowHandle, hdc, 0);
+                    bool success = PrintWindow(windowHandle, hdc, PW_RENDERFULLCONTENT);
+                    Console.WriteLine($"PrintWindow result: {success}");
                 }
                 finally
                 {

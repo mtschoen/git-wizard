@@ -68,4 +68,17 @@
 	  <ProjectReference Include="..\GitWizard\GitWizard.csproj" />
 	</ItemGroup>
 
+	<Target Name="CleanOldReleases" BeforeTargets="ZipPublishOutput">
+		<ItemGroup>
+			<OldReleaseZips Include="..\Releases\GitWizardUI-*.zip" />
+		</ItemGroup>
+		<Delete Files="@(OldReleaseZips)" />
+		<Message Importance="high" Text="Cleaned up old release zips" Condition="'@(OldReleaseZips)' != ''" />
+	</Target>
+
+	<Target Name="ZipPublishOutput" AfterTargets="Publish">
+		<ZipDirectory SourceDirectory="$(PublishDir)" DestinationFile="..\Releases\GitWizardUI-$(ApplicationDisplayVersion).zip" Overwrite="true" />
+		<Message Importance="high" Text="Created release zip: Releases\GitWizardUI-$(ApplicationDisplayVersion).zip" />
+	</Target>
+
 </Project>

@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="git-wizard/git-wizard.csproj" Id="87b5e766-5fb4-4603-90fd-9f8a3b81d9eb" />
+  <Project Path="GitWizard/GitWizard.csproj" Id="7b2636ca-cd48-44aa-b4e6-2562d727b264" />
+  <Project Path="GitWizardUI.UITests/GitWizardUI.UITests.csproj" Id="0460cbf0-bdd1-47a7-bbb3-569cbdc8b338" />
+  <Project Path="GitWizardUI/GitWizardUI.csproj" />
+  <Project Path="GitWizardTests/GitWizardTests.csproj" Id="8b8913fd-ce8c-473d-9016-8a254ea47cdf" />
+</Solution>

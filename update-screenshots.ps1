@@ -19,7 +19,7 @@ try {
     # Build the MAUI project
     Write-Host ""
     Write-Host "Building MAUI project..." -ForegroundColor Yellow
-    dotnet build "GitWizardMAUI\GitWizardMAUI.csproj" -c Debug -f net10.0-windows10.0.19041.0
+    dotnet build "GitWizardUI\GitWizardUI.csproj" -c Debug -f net10.0-windows10.0.19041.0
 
     if ($LASTEXITCODE -ne 0) {
         throw "Build failed"
@@ -29,7 +29,7 @@ try {
     # Run screenshot capture test
     Write-Host ""
     Write-Host "Capturing screenshots..." -ForegroundColor Yellow
-    dotnet test "GitWizardMAUI.UITests\GitWizardMAUI.UITests.csproj" `
+    dotnet test "GitWizardUI.UITests\GitWizardUI.UITests.csproj" `
         --filter "FullyQualifiedName~CaptureMainWindowScreenshot" `
         --logger "console;verbosity=normal"
 

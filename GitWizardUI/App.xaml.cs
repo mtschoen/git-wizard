@@ -1,22 +1,17 @@
-﻿using GitWizard;
-using System.Diagnostics;
+﻿using Microsoft.Extensions.DependencyInjection;
 
 namespace GitWizardUI
 {
-    /// <summary>
-    /// Interaction logic for App.xaml
-    /// </summary>
-    public partial class App
+    public partial class App : Application
     {
-        const string SessionStartMessage = @"Session Start Message
-=======================================================================================================================
-GitWizardUI Session Started
-=======================================================================================================================";
-
-        static App()
+        public App()
         {
-            GitWizardLog.LogMethod = message => Debug.WriteLine(message);
-            GitWizardLog.Log(SessionStartMessage);
+            InitializeComponent();
+        }
+
+        protected override Window CreateWindow(IActivationState? activationState)
+        {
+            return new Window(new AppShell());
         }
     }
 }

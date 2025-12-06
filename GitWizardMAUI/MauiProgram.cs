@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using UraniumUI;
 
 namespace GitWizardMAUI;
 
@@ -9,6 +10,8 @@ public static class MauiProgram
 		var builder = MauiApp.CreateBuilder();
 		builder
 			.UseMauiApp<App>()
+			.UseUraniumUI()
+			.UseUraniumUIMaterial()
 			.ConfigureFonts(fonts =>
 			{
 				fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");

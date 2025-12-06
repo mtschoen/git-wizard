@@ -1,18 +1,29 @@
 ﻿using GitWizard;
+using GitWizardMAUI.ViewModels;
 
 namespace GitWizardMAUI;
 
 public partial class MainPage : ContentPage
 {
-	public MainPage()
-	{
-		InitializeComponent();
-	}
+    private readonly MainViewModel _viewModel;
 
-    void SettingsMenuItem_Click(object sender, EventArgs eventArgs)
+    public MainPage()
     {
-        //_settingsWindow ??= new SettingsWindow();
-        //_settingsWindow.Show();
+        InitializeComponent();
+        _viewModel = new MainViewModel();
+        BindingContext = _viewModel;
+    }
+
+    protected override async void OnAppearing()
+    {
+        base.OnAppearing();
+        await _viewModel.RefreshAsync(background: true);
+    }
+
+    async void SettingsMenuItem_Click(object sender, EventArgs eventArgs)
+    {
+        // TODO: Implement settings page
+        await DisplayAlertAsync("Settings", "Settings page not yet implemented", "OK");
     }
 
     void CheckWindowsDefenderMenuItem_Click(object sender, EventArgs eventArgs)
@@ -20,19 +31,21 @@ public partial class MainPage : ContentPage
         WindowsDefenderException.AddException();
     }
 
-    void ClearCacheMenuItem_Click(object sender, EventArgs eventArgs)
+    async void ClearCacheMenuItem_Click(object sender, EventArgs eventArgs)
     {
         GitWizardApi.ClearCache();
+        await DisplayAlertAsync("Cache Cleared", "Repository cache has been cleared", "OK");
     }
 
-    void DeleteAllLocalFilesMenuItem_Click(object sender, EventArgs eventArgs)
+    async void DeleteAllLocalFilesMenuItem_Click(object sender, EventArgs eventArgs)
     {
         GitWizardApi.DeleteAllLocalFiles();
+        await DisplayAlertAsync("Files Deleted", "All local files have been deleted", "OK");
     }
 
-    void RefreshButton_Click(object sender, EventArgs e)
+    async void RefreshButton_Click(object sender, EventArgs e)
     {
-        //Refresh(false);
+        await _viewModel.RefreshAsync(background: false);
     }
 }
 

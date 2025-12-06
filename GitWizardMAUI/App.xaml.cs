@@ -11,8 +11,11 @@ public partial class App : Application
             GitWizardLog.VerboseMode = true;
 
         InitializeComponent();
-
-		MainPage = new AppShell();
 	}
+
+    protected override Window CreateWindow(IActivationState? activationState)
+    {
+        return new Window(new AppShell());
+    }
 }
 

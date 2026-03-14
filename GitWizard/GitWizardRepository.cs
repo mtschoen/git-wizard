@@ -17,6 +17,8 @@ public class GitWizardRepository
 
     public bool IsRefreshing { get; private set; }
     public bool LocalOnlyCommits { get; private set; }
+    public double RefreshTimeSeconds { get; set; }
+    public string? RefreshError { get; set; }
 
     GitWizardRepository() { }
 
@@ -302,7 +304,12 @@ public class GitWizardRepository
             using var process = System.Diagnostics.Process.Start(psi);
             if (process != null)
             {
-                process.WaitForExit();
+                if (!process.WaitForExit(30000))
+                {
+                    GitWizardLog.Log($"git update-index --refresh timed out for {workingDirectory}", GitWizardLog.LogType.Warning);
+                    process.Kill();
+                    return;
+                }
 
                 // Note: git update-index --refresh returns non-zero if files are truly modified,
                 // which is normal and expected. We only log if there's an actual error message.

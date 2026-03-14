@@ -27,6 +27,7 @@ Supported command line arguments (all optional):
                             (combine with -no-refresh to avoid re-generating the cache)
   -delete-all-local-files   Delete all files created by GitWizard before running (includes files deleted by -clear-cache;
                             combine with -no-refresh to avoid creating any more local files)
+  -setup-defender           Add Windows Defender exclusions for git/dotnet processes and search paths (triggers UAC prompt)
 ";
 
         /// <summary>
@@ -48,6 +49,11 @@ Supported command line arguments (all optional):
         /// Delete all local files before doing anything else.
         /// </summary>
         public readonly bool DeleteAllLocalFiles = false;
+
+        /// <summary>
+        /// Add Windows Defender exclusions before running.
+        /// </summary>
+        public readonly bool SetupDefender = false;
 
         /// <summary>
         /// Refresh the report based on the latest state (otherwise just print out the cached report).
@@ -103,6 +109,9 @@ Supported command line arguments (all optional):
                     case "-rebuild-all":
                         RebuildReport = true;
                         RebuildRepositoryList = true;
+                        break;
+                    case "-setup-defender":
+                        SetupDefender = true;
                         break;
                     case "-clear-cache":
                         ClearCache = true;
@@ -168,6 +177,12 @@ git-wizard Session Started
 
         GitWizardLog.Log(k_SessionStartMessage);
         var configuration = GetConfiguration(runConfiguration);
+
+        if (runConfiguration.SetupDefender)
+        {
+            GitWizardLog.Log("Setting up Windows Defender exclusions...");
+            WindowsDefenderException.AddExclusions();
+        }
         var repositoryPaths = GetRepositoryPaths(runConfiguration);
         var updateHandler = new UpdateHandler();
         var report = GetReport(runConfiguration, configuration, repositoryPaths, updateHandler);

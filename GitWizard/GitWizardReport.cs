@@ -145,16 +145,35 @@ public class GitWizardReport
                 GitWizardLog.LogException(exception, "Exception thrown by Refresh OnRepositoryCreated callback.");
             }
 
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var refreshTask = Task.Run(() => repository.Refresh(updateHandler));
+            if (!refreshTask.Wait(TimeSpan.FromMinutes(5)))
+            {
+                repository.RefreshError = "Timed out after 5 minutes";
+                GitWizardLog.Log($"Refresh timed out after 5 minutes for {path}", GitWizardLog.LogType.Warning);
+            }
+            else if (refreshTask.IsFaulted)
+            {
+                repository.RefreshError = refreshTask.Exception?.InnerException?.Message;
+                GitWizardLog.Log($"Refresh failed for {path}: {repository.RefreshError}",
+                    GitWizardLog.LogType.Error);
+            }
+
+            stopwatch.Stop();
+            repository.RefreshTimeSeconds = Math.Round(stopwatch.Elapsed.TotalSeconds, 1);
+            if (stopwatch.Elapsed.TotalSeconds >= 10)
+            {
+                GitWizardLog.Log($"Refresh took {repository.RefreshTimeSeconds}s for {path}", GitWizardLog.LogType.Warning);
+            }
+
             try
             {
-                updateHandler?.UpdateProgress(++count);
+                updateHandler?.UpdateProgress(Interlocked.Increment(ref count));
             }
             catch (Exception exception)
             {
                 GitWizardLog.LogException(exception, "Exception thrown by Refresh UpdateProgress callback.");
             }
-
-            repository.Refresh(updateHandler);
         });
     }
 

@@ -1,4 +1,5 @@
 ﻿using System.Runtime.InteropServices;
+using MFTLib;
 
 namespace GitWizard;
 
@@ -63,6 +64,12 @@ public static class GitWizardApi
             return;
         }
 
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) &&
+            TryFindGitRepositoriesUsingMft(rootPath, paths, ignoredPaths, updateHandler))
+        {
+            return;
+        }
+
         FindGitRepositoriesRecursively(rootPath, paths, ignoredPaths, updateHandler);
 
         try
@@ -72,6 +79,88 @@ public static class GitWizardApi
         catch (Exception exception)
         {
             GitWizardLog.LogException(exception, "Exception thrown by GenerateReport onUpdate callback.");
+        }
+    }
+
+    static bool TryFindGitRepositoriesUsingMft(string rootPath, ICollection<string> paths,
+        ICollection<string> ignoredPaths, IUpdateHandler? updateHandler = null)
+    {
+        try
+        {
+            var driveLetter = Path.GetPathRoot(rootPath)?[..1];
+            if (driveLetter == null)
+                return false;
+
+            updateHandler?.SendUpdateMessage($"Using MFT to search {driveLetter}: drive");
+
+            using var volume = MftVolume.Open(driveLetter);
+            var rootPathLower = rootPath.ToLowerInvariant();
+
+            // Expand ignored paths once upfront
+            var expandedIgnoredPaths = ignoredPaths
+                .Select(p => Environment.ExpandEnvironmentVariables(p).ToLowerInvariant())
+                .ToList();
+
+            // Collect candidates first, then filter out nested repos
+            var candidates = new List<string>();
+
+            foreach (var gitDirPath in volume.FindDirectories(".git"))
+            {
+                var parentPath = Path.GetDirectoryName(gitDirPath);
+                if (parentPath == null)
+                    continue;
+
+                var parentPathLower = parentPath.ToLowerInvariant();
+
+                // Must be under the root search path
+                if (!parentPathLower.StartsWith(rootPathLower))
+                    continue;
+
+                // Skip ignored paths
+                if (expandedIgnoredPaths.Any(ignored => parentPathLower.StartsWith(ignored)))
+                    continue;
+
+                // Skip paths containing hidden/dot directories (matches recursive search behavior)
+                var relativePath = parentPathLower[rootPathLower.Length..];
+                if (relativePath.Split(Path.DirectorySeparatorChar)
+                    .Any(segment => segment.Length > 0 && segment.StartsWith('.')))
+                    continue;
+
+                // Verify the directory is accessible
+                if (!Directory.Exists(parentPath))
+                    continue;
+
+                candidates.Add(parentPathLower);
+            }
+
+            // Sort so parent paths come before child paths
+            candidates.Sort(StringComparer.OrdinalIgnoreCase);
+
+            // Filter out paths that are nested inside another found repo
+            string? lastAddedRepo = null;
+            foreach (var candidate in candidates)
+            {
+                if (lastAddedRepo != null &&
+                    candidate.StartsWith(lastAddedRepo + Path.DirectorySeparatorChar))
+                    continue;
+
+                lock (paths)
+                {
+                    paths.Add(candidate);
+                }
+
+                lastAddedRepo = candidate;
+            }
+
+            updateHandler?.SendUpdateMessage($"MFT search found {paths.Count} repositories on {driveLetter}:");
+
+            return true;
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.Log($"MFT search failed, falling back to directory scan: {exception.Message}",
+                GitWizardLog.LogType.Warning);
+            return false;
         }
     }
 

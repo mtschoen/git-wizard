@@ -47,14 +47,19 @@ class UpdateHandler : IUpdateHandler
         });
     }
 
+    int _progressTotal;
+    string? _progressDescription;
+
     public void StartProgress(string description, int total)
     {
-        // TODO: Persistent progress bar
+        _progressDescription = description;
+        _progressTotal = total;
+        GitWizardLog.Log($"{description} (0/{total})");
     }
 
     public void UpdateProgress(int count)
     {
-        // TODO: Persistent progress bar
+        GitWizardLog.Log($"{_progressDescription} ({count}/{_progressTotal})");
     }
 
     public void OnSubmoduleCreated(GitWizardRepository parent, GitWizardRepository submodule)

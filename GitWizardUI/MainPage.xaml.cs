@@ -17,6 +17,7 @@ public partial class MainPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        await Task.Delay(500);
         await _viewModel.RefreshAsync(background: true);
     }
 

@@ -135,7 +135,8 @@ public class GitWizardReport
             GitWizardLog.LogException(exception, "Exception thrown by Refresh StartProgress callback.");
         }
 
-        Parallel.ForEach(repositoryPaths, path =>
+        var options = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) };
+        Parallel.ForEach(repositoryPaths, options, path =>
         {
             GitWizardRepository? repository;
             lock (Repositories)

@@ -196,15 +196,25 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         {
             while (true)
             {
-                await Task.Delay(500);
+                await Task.Delay(100);
+
+                // Process commands in small batches to keep UI responsive
+                const int batchSize = 20;
+                var processed = 0;
+                while (_uiCommands.TryPeek(out _) && processed < batchSize)
+                {
+                    await MainThread.InvokeOnMainThreadAsync(() =>
+                    {
+                        for (var i = 0; i < batchSize && _uiCommands.TryDequeue(out var command); i++)
+                        {
+                            ProcessUICommand(command);
+                            processed++;
+                        }
+                    });
+                }
 
                 await MainThread.InvokeOnMainThreadAsync(() =>
                 {
-                    while (_uiCommands.TryDequeue(out var command))
-                    {
-                        ProcessUICommand(command);
-                    }
-
                     if (_progressCount.HasValue && _progressTotal.HasValue && _progressTotal.Value > 0)
                     {
                         ProgressValue = (double)_progressCount / _progressTotal.Value;

@@ -63,7 +63,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="30" />
                 <RowDefinition Height="*" />
-                <RowDefinition Height="25" x:Name="ProgressBarRow" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <Label Grid.Row="0" x:Name="Header" HorizontalTextAlignment="Start" VerticalTextAlignment="Center" Margin="10,0,0,0" Text="{Binding HeaderText}" />
@@ -93,10 +93,10 @@
                 </material:TreeView>
             </ScrollView>
 
-            <Grid Grid.Row="2" IsVisible="{Binding IsProgressVisible}">
-                <ProgressBar Progress="{Binding ProgressValue}" />
+            <StackLayout Grid.Row="2" IsVisible="{Binding IsProgressVisible}" Padding="5,2" Spacing="2">
+                <ProgressBar Progress="{Binding ProgressValue}" HeightRequest="8" />
                 <Label HorizontalTextAlignment="Center" VerticalTextAlignment="Center" FontSize="10" Text="{Binding ProgressText}" />
-            </Grid>
+            </StackLayout>
         </Grid>
 
     </Grid>

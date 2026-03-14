@@ -25,9 +25,14 @@ public partial class MainPage : ContentPage
         await Shell.Current.GoToAsync(nameof(SettingsPage));
     }
 
-    void CheckWindowsDefenderMenuItem_Click(object sender, EventArgs eventArgs)
+    async void CheckWindowsDefenderMenuItem_Click(object sender, EventArgs eventArgs)
     {
-        WindowsDefenderException.AddException();
+        var success = await Task.Run(() => WindowsDefenderException.AddExclusions());
+        await DisplayAlertAsync(
+            success ? "Defender Exclusions Added" : "Defender Setup Failed",
+            success ? "Process exclusions for dotnet, git, git-lfs, and git-wizard have been added."
+                    : "Failed to add Windows Defender exclusions. You may need to run as administrator.",
+            "OK");
     }
 
     async void ClearCacheMenuItem_Click(object sender, EventArgs eventArgs)

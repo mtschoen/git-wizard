@@ -37,17 +37,10 @@ public static class GitWizardApi
     }
 
     /// <summary>
-    /// Get all sub-directory paths within <paramref name="rootPath"/> that contain .git folders we care about.
+    /// Expand a search path, resolving environment variables and ~.
     /// </summary>
-    /// <param name="rootPath">The path to search.</param>
-    /// <param name="paths">Collection of strings to store the results.</param>
-    /// <param name="ignoredPaths">Collection of strings containing paths to ignore.</param>
-    /// <param name="updateHandler">Optional handler for UI updates.</param>
-    public static void GetRepositoryPaths(string rootPath, ICollection<string> paths,
-        ICollection<string> ignoredPaths, IUpdateHandler? updateHandler = null)
+    public static string? ExpandSearchPath(string rootPath)
     {
-        // TODO: Find utility for interpreting special paths like %USERPROFILE% and ~
-        // If the string starts with a % we can try treating it as an environment variable
         if (rootPath.StartsWith("%"))
         {
             var path = Environment.ExpandEnvironmentVariables(rootPath);
@@ -58,17 +51,104 @@ public static class GitWizardApi
         if (rootPath == "~")
             rootPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
-        if (!Directory.Exists(rootPath))
+        return Directory.Exists(rootPath) ? rootPath : null;
+    }
+
+    /// <summary>
+    /// Try to find all git repositories across all search paths using MFT.
+    /// On Windows, this will launch an elevated helper process if not already elevated.
+    /// </summary>
+    /// <returns>True if MFT search was used successfully.</returns>
+    public static bool TryFindAllRepositoriesUsingMft(GitWizardConfiguration configuration,
+        ICollection<string> paths, IUpdateHandler? updateHandler = null)
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            return false;
+
+        if (ElevatedProcessHelper.IsElevated())
+        {
+            // Already elevated — scan directly
+            foreach (var searchPath in configuration.SearchPaths)
+            {
+                var expanded = ExpandSearchPath(searchPath);
+                if (expanded == null)
+                    continue;
+
+                TryFindGitRepositoriesUsingMft(expanded, paths, configuration.IgnoredPaths, updateHandler);
+            }
+
+            return paths.Count > 0;
+        }
+
+        // Not elevated — try launching an elevated helper
+        var configPath = GitWizardConfiguration.GetGlobalConfigurationPath();
+        var outputPath = Path.Combine(Path.GetTempPath(), $"gitwizard-mft-{Guid.NewGuid()}.txt");
+
+        try
+        {
+            if (!ElevatedProcessHelper.TryRunElevatedMftScan(configPath, outputPath))
+                return false;
+
+            if (!File.Exists(outputPath))
+                return false;
+
+            var lines = File.ReadAllLines(outputPath);
+            foreach (var line in lines)
+            {
+                if (!string.IsNullOrWhiteSpace(line))
+                    paths.Add(line);
+            }
+
+            updateHandler?.SendUpdateMessage($"MFT search found {paths.Count} repositories");
+            return paths.Count > 0;
+        }
+        finally
+        {
+            try { File.Delete(outputPath); } catch { /* ignore */ }
+        }
+    }
+
+    /// <summary>
+    /// Run the elevated MFT scan and write results to the output file.
+    /// Called by the elevated child process.
+    /// </summary>
+    public static void RunElevatedMftScan(string configPath, string outputPath)
+    {
+        var configuration = GitWizardConfiguration.GetConfigurationAtPath(configPath)
+                            ?? GitWizardConfiguration.CreateDefaultConfiguration();
+
+        var paths = new SortedSet<string>();
+
+        foreach (var searchPath in configuration.SearchPaths)
+        {
+            var expanded = ExpandSearchPath(searchPath);
+            if (expanded == null)
+                continue;
+
+            TryFindGitRepositoriesUsingMft(expanded, paths, configuration.IgnoredPaths);
+        }
+
+        File.WriteAllLines(outputPath, paths);
+    }
+
+    /// <summary>
+    /// Get all sub-directory paths within <paramref name="rootPath"/> that contain .git folders we care about.
+    /// </summary>
+    /// <param name="rootPath">The path to search.</param>
+    /// <param name="paths">Collection of strings to store the results.</param>
+    /// <param name="ignoredPaths">Collection of strings containing paths to ignore.</param>
+    /// <param name="updateHandler">Optional handler for UI updates.</param>
+    public static void GetRepositoryPaths(string rootPath, ICollection<string> paths,
+        ICollection<string> ignoredPaths, IUpdateHandler? updateHandler = null)
+    {
+        var expanded = ExpandSearchPath(rootPath);
+        if (expanded == null)
         {
             GitWizardLog.Log($"Could not get repository paths at {rootPath} because it is not a directory", GitWizardLog.LogType.Error);
             return;
         }
 
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) &&
-            TryFindGitRepositoriesUsingMft(rootPath, paths, ignoredPaths, updateHandler))
-        {
-            return;
-        }
+        rootPath = expanded;
 
         FindGitRepositoriesRecursively(rootPath, paths, ignoredPaths, updateHandler);
 

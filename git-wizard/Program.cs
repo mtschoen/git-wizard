@@ -154,6 +154,50 @@ git-wizard Session Started
 
     public static void Main()
     {
+        // Handle elevated helper modes (launched by self-elevation)
+        var args = Environment.GetCommandLineArgs();
+        for (var i = 0; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--elevated-mft":
+                {
+                    string? configPath = null;
+                    string? outputPath = null;
+                    for (var j = i + 1; j < args.Length; j++)
+                    {
+                        switch (args[j])
+                        {
+                            case "--config-path":
+                                if (j + 1 < args.Length) configPath = args[++j];
+                                break;
+                            case "--output":
+                                if (j + 1 < args.Length) outputPath = args[++j];
+                                break;
+                        }
+                    }
+
+                    if (configPath != null && outputPath != null)
+                    {
+                        GitWizardApi.RunElevatedMftScan(configPath, outputPath);
+                        Environment.Exit(0);
+                    }
+                    else
+                    {
+                        Environment.Exit(1);
+                    }
+
+                    return;
+                }
+                case "--elevated-defender":
+                {
+                    var success = WindowsDefenderException.RunDefenderCommands();
+                    Environment.Exit(success ? 0 : 1);
+                    return;
+                }
+            }
+        }
+
         var runConfiguration = new RunConfiguration();
         if (runConfiguration.DeleteAllLocalFiles)
         {

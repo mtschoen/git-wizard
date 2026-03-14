@@ -85,6 +85,17 @@ public class GitWizardReport
 
     public void GetRepositoryPaths(ICollection<string> repositoryPaths, IUpdateHandler? updateHandler = null)
     {
+        // Try MFT scan first (Windows only) — handles elevation automatically
+        var configuration = new GitWizardConfiguration
+        {
+            SearchPaths = SearchPaths,
+            IgnoredPaths = IgnoredPaths
+        };
+
+        if (GitWizardApi.TryFindAllRepositoriesUsingMft(configuration, repositoryPaths, updateHandler))
+            return;
+
+        // Fall back to recursive directory scan
         var count = 0;
 
         try

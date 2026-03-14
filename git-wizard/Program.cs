@@ -12,7 +12,7 @@ public static class Program
     /// </summary>
     struct RunConfiguration
     {
-        const string k_HelpManual = @"GitWizard 0.1 Help
+        const string k_HelpManual = @"GitWizard 0.3.0 Help
 Supported command line arguments (all optional):
   -v                        Enable verbose logging.
   -silent                   Do not print to the console

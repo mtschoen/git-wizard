@@ -27,6 +27,10 @@ dotnet publish GitWizardUI/GitWizardUI.csproj -f net10.0-windows10.0.19041.0 -c 
 - **Self-elevation** — Both CLI and MAUI handle `--elevated-mft` and `--elevated-defender` hidden args for child process elevation.
 - **ElevatedProcessHelper** — Manages launching self as admin with `Verb = "runas"`.
 - **IUpdateHandler** — Interface for progress reporting, used by both CLI (UpdateHandler) and MAUI (MainViewModel).
+- **CollectionView** — UI uses MAUI CollectionView (not TreeView/UraniumUI) with `ItemsUpdatingScrollMode="KeepScrollOffset"` to prevent scroll reset during refresh. Group expand/collapse is simulated by inserting/removing children in a flat list.
+- **Collection swap pattern** — `ApplyFilterAndGrouping()` builds a new `ObservableCollection` off-screen and swaps it in one shot to avoid per-item layout updates with 700+ repos.
+- **UI command queue** — Background refresh threads enqueue `RepositoryUICommand` structs; a UI update thread drains them in batches on the main thread every 250ms.
+- **RefreshStatus enum** — Per-repo status (Refreshing/Success/Timeout/Error) drives the status icon in column 0. `MarkRefreshFailed()` on `GitWizardRepository` handles timeout/error paths.
 
 ## Local files
 
@@ -46,11 +50,30 @@ Use these to debug crashes/freezes instead of guessing. For the MAUI UI, run the
 
 VS2026 is also installed at `C:/Program Files/Microsoft Visual Studio/2022/Community/` for interactive debugging when CLI tools aren't enough.
 
-## Release process
+## Screenshots
+
+The UI test project captures screenshots automatically:
+
+```bash
+# Capture a screenshot (builds, launches app, captures window, kills app)
+dotnet test GitWizardUI.UITests/GitWizardUI.UITests.csproj --filter "FullyQualifiedName~CaptureMainWindowScreenshot"
+```
+
+Screenshots are saved to `Screenshots/GitWizardUI.png`. The test uses Win32 `PrintWindow` API for accurate capture including DPI scaling.
+
+## Release checklist
 
 1. Update `ApplicationDisplayVersion` in `GitWizardUI/GitWizardUI.csproj`
 2. Update version in CLI help text in `git-wizard/Program.cs`
-3. Commit, tag (e.g., `v0.3.0`), push with tag
-4. `dotnet publish` creates zip automatically via MSBuild target
-5. Create GitHub release with `gh release create`, attach the zip
-6. Check in the release zip to `Releases/`
+3. Update screenshot: `dotnet test GitWizardUI.UITests/...` (see above)
+4. Commit, tag (e.g., `v0.4.0`), push with tag
+5. `dotnet publish` creates zip automatically via MSBuild target
+6. Create GitHub release with `gh release create`, attach the zip
+7. Check in the release zip to `Releases/`
+
+## Tips
+
+- To kill GitWizardUI from bash (Git Bash mangles `/IM`): `cmd.exe //c "taskkill /IM GitWizardUI.exe /F"`
+- MAUI CollectionView scroll fix: `ItemsUpdatingScrollMode="KeepScrollOffset"` — without this, adding items resets scroll to top
+- Avoid `IsEnabled` binding on sidebar buttons during refresh — CollectionView handles concurrent updates fine now
+- `deepRefresh` parameter skips expensive `git update-index --refresh` during auto-refresh; per-repo ↻ button triggers it on demand

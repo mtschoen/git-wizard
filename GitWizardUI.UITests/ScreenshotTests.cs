@@ -93,7 +93,7 @@ namespace GitWizardUI.UITests
                 Console.WriteLine("Waiting for app to initialize...");
 
                 // Wait and periodically check if process is still alive
-                for (int i = 0; i < 10; i++)
+                for (int i = 0; i < 30; i++)
                 {
                     Thread.Sleep(500);
                     appProcess.Refresh();

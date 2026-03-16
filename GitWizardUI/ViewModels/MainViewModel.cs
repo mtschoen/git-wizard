@@ -29,7 +29,20 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
     int? _progressTotal;
     int? _progressCount;
 
-    public ObservableCollection<RepositoryNodeViewModel> Repositories { get; } = new();
+    ObservableCollection<RepositoryNodeViewModel> _repositories = new();
+
+    public ObservableCollection<RepositoryNodeViewModel> Repositories
+    {
+        get => _repositories;
+        private set
+        {
+            if (_repositories != value)
+            {
+                _repositories = value;
+                OnPropertyChanged();
+            }
+        }
+    }
 
     public string HeaderText
     {
@@ -138,21 +151,34 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         }
     }
 
+    public Action<RepositoryNodeViewModel>? ScrollToRequest { get; set; }
+
     public ICommand OpenInExplorerCommand { get; }
     public ICommand OpenInForkCommand { get; }
     public ICommand DeepRefreshCommand { get; }
+    public ICommand ToggleGroupExpandCommand { get; }
 
     public MainViewModel()
     {
         OpenInExplorerCommand = new Command<RepositoryNodeViewModel>(OpenInExplorer);
         OpenInForkCommand = new Command<RepositoryNodeViewModel>(OpenInFork);
         DeepRefreshCommand = new Command<RepositoryNodeViewModel>(DeepRefreshRepository);
+        ToggleGroupExpandCommand = new Command<RepositoryNodeViewModel>(ToggleGroupExpand);
         StartUIUpdateThread();
     }
 
     void OpenInExplorer(RepositoryNodeViewModel? node)
     {
-        if (node == null || string.IsNullOrEmpty(node.WorkingDirectory))
+        if (node == null)
+            return;
+
+        if (node.IsGroupHeader)
+        {
+            ToggleGroupExpand(node);
+            return;
+        }
+
+        if (string.IsNullOrEmpty(node.WorkingDirectory))
             return;
 
         try
@@ -251,6 +277,39 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         });
     }
 
+    void ToggleGroupExpand(RepositoryNodeViewModel? node)
+    {
+        if (node == null || !node.IsGroupHeader)
+            return;
+
+        var index = Repositories.IndexOf(node);
+        if (index < 0)
+            return;
+
+        if (node.IsExpanded)
+        {
+            // Collapse: remove children after the header
+            node.IsExpanded = false;
+            while (index + 1 < Repositories.Count && !Repositories[index + 1].IsGroupHeader)
+            {
+                Repositories.RemoveAt(index + 1);
+            }
+        }
+        else
+        {
+            // Expand: insert children after the header
+            node.IsExpanded = true;
+            var insertIndex = index + 1;
+            foreach (var child in node.Children)
+            {
+                Repositories.Insert(insertIndex++, child);
+            }
+        }
+
+        node.UpdateDisplayText();
+        ScrollToRequest?.Invoke(node);
+    }
+
     void StartUIUpdateThread()
     {
         Task.Run(async () =>
@@ -345,12 +404,13 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
 
         var sorted = ApplySort(filtered);
 
-        Repositories.Clear();
+        // Build off-screen and swap in one shot to avoid per-item layout updates
+        var newCollection = new ObservableCollection<RepositoryNodeViewModel>();
 
         if (_activeGroupMode == GroupMode.None)
         {
             foreach (var repo in sorted)
-                Repositories.Add(repo);
+                newCollection.Add(repo);
         }
         else
         {
@@ -359,19 +419,23 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
             // For remote URL grouping, only show groups with multiple copies (the duplicates you want to clean up)
             var minGroupSize = _activeGroupMode == GroupMode.RemoteUrl ? 2 : 1;
 
-            // Flatten groups into the list: header row followed by repo rows
+            // Add group headers (collapsed); children are stored on the header node
             foreach (var group in groups.OrderByDescending(g => g.Value.Count))
             {
                 if (group.Value.Count < minGroupSize)
                     continue;
 
-                var header = RepositoryNodeViewModel.CreateGroupHeader($"{group.Key} ({group.Value.Count})");
-                Repositories.Add(header);
+                var header = RepositoryNodeViewModel.CreateGroupHeader(group.Key);
                 foreach (var repo in group.Value)
-                    Repositories.Add(repo);
+                    header.Children.Add(repo);
+
+                // Update display text now that children are added (so count is correct)
+                header.UpdateDisplayText();
+                newCollection.Add(header);
             }
         }
 
+        Repositories = newCollection;
         UpdateHeaderWithFilterInfo();
     }
 

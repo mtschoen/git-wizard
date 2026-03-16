@@ -13,6 +13,10 @@ public partial class MainPage : ContentPage
     {
         InitializeComponent();
         _viewModel = new MainViewModel();
+        _viewModel.ScrollToRequest = node =>
+        {
+            RepositoryList.ScrollTo(node, position: ScrollToPosition.MakeVisible, animate: false);
+        };
         BindingContext = _viewModel;
     }
 

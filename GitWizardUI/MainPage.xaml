@@ -1,7 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:material="http://schemas.enisn-projects.io/dotnet/maui/uraniumui/material"
              xmlns:viewModels="clr-namespace:GitWizardUI.ViewModels"
              x:DataType="viewModels:MainViewModel"
              x:Class="GitWizardUI.MainPage"
@@ -62,20 +61,19 @@
 
             <Label Grid.Row="0" x:Name="Header" HorizontalTextAlignment="Start" VerticalTextAlignment="Center" Margin="10,0,0,0" Text="{Binding HeaderText}" />
 
-            <CollectionView Grid.Row="1" ItemsSource="{Binding Repositories}">
+            <CollectionView Grid.Row="1" x:Name="RepositoryList" ItemsSource="{Binding Repositories}">
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="viewModels:RepositoryNodeViewModel">
                         <HorizontalStackLayout Spacing="10" Padding="5">
+                            <HorizontalStackLayout.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.OpenInExplorerCommand}" CommandParameter="{Binding .}" />
+                            </HorizontalStackLayout.GestureRecognizers>
                             <CheckBox IsChecked="{Binding IsCompleted}" IsEnabled="False" VerticalOptions="Center" IsVisible="{Binding IsNotGroupHeader}" />
                             <Label Text="{Binding DisplayText}"
                                    VerticalTextAlignment="Center"
-                                   HorizontalOptions="Start"
+                                   HorizontalOptions="StartAndExpand"
                                    FontAttributes="{Binding GroupHeaderFontAttributes}"
-                                   Padding="{Binding ItemPadding}">
-                                <Label.GestureRecognizers>
-                                    <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.OpenInExplorerCommand}" CommandParameter="{Binding .}" />
-                                </Label.GestureRecognizers>
-                            </Label>
+                                   Padding="{Binding ItemPadding}" />
                             <Button Text="Fork"
                                     Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.OpenInForkCommand}"
                                     CommandParameter="{Binding .}"

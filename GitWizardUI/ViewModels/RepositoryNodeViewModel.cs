@@ -19,6 +19,11 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
     /// </summary>
     public bool IsGroupHeader { get; init; }
 
+    /// <summary>
+    /// The group key label (e.g. remote URL or drive letter), without the expand indicator.
+    /// </summary>
+    public string GroupKey { get; init; } = string.Empty;
+
     public bool IsNotGroupHeader => !IsGroupHeader;
     public FontAttributes GroupHeaderFontAttributes => IsGroupHeader ? FontAttributes.Bold : FontAttributes.None;
     public Thickness ItemPadding => IsGroupHeader ? new Thickness(0, 10, 0, 0) : new Thickness(20, 0, 0, 0);
@@ -74,18 +79,19 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// Creates a group header node with the given label.
+    /// Creates a group header node with the given key.
     /// </summary>
-    public static RepositoryNodeViewModel CreateGroupHeader(string label)
+    public static RepositoryNodeViewModel CreateGroupHeader(string groupKey)
     {
-        // Use a dummy repository for group headers
         var dummy = new GitWizardRepository(string.Empty);
-        return new RepositoryNodeViewModel(dummy)
+        var node = new RepositoryNodeViewModel(dummy)
         {
             IsGroupHeader = true,
+            GroupKey = groupKey,
             _isRefreshing = false,
-            _displayText = label
         };
+        node.UpdateDisplayText();
+        return node;
     }
 
     public void Update()
@@ -94,8 +100,15 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
         UpdateDisplayText();
     }
 
-    void UpdateDisplayText()
+    public void UpdateDisplayText()
     {
+        if (IsGroupHeader)
+        {
+            var indicator = IsExpanded ? "▼" : "▶";
+            DisplayText = $"{indicator} {GroupKey} ({Children.Count})";
+            return;
+        }
+
         var pendingChanges = Repository.HasPendingChanges;
         var localOnlyCommits = Repository.LocalOnlyCommits;
         var label = WorkingDirectory;
@@ -107,7 +120,7 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
 
         if (localOnlyCommits)
         {
-            label += " ↑"; // Up arrow symbol to indicate unpushed/untracked changes
+            label += " ↑";
         }
 
         DisplayText = label;

@@ -26,7 +26,7 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
 
     public bool IsNotGroupHeader => !IsGroupHeader;
     public FontAttributes GroupHeaderFontAttributes => IsGroupHeader ? FontAttributes.Bold : FontAttributes.None;
-    public Thickness ItemPadding => IsGroupHeader ? new Thickness(0, 10, 0, 0) : new Thickness(20, 0, 0, 0);
+    public Thickness ItemPadding => IsGroupHeader ? new Thickness(0, 5, 0, 0) : new Thickness(15, 0, 0, 0);
 
     public bool IsExpanded
     {
@@ -87,6 +87,8 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
 
     public bool IsStatusVisible => !IsGroupHeader;
 
+    public string ExpandIndicator => IsExpanded ? "▼" : "▶";
+
     public string DisplayText
     {
         get => _displayText;
@@ -140,8 +142,14 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
     {
         if (IsGroupHeader)
         {
-            var indicator = IsExpanded ? "▼" : "▶";
-            DisplayText = $"{indicator} {GroupKey} ({Children.Count})";
+            var errorCount = Children.Count(c => c.Status == RefreshStatus.Error);
+            var warningCount = Children.Count(c => c.Status == RefreshStatus.Timeout);
+            var suffix = "";
+            if (errorCount > 0) suffix += $" {errorCount} error{(errorCount > 1 ? "s" : "")}";
+            if (warningCount > 0) suffix += $" {warningCount} warning{(warningCount > 1 ? "s" : "")}";
+            if (suffix.Length > 0) suffix = " —" + suffix;
+            DisplayText = $"{GroupKey} ({Children.Count}){suffix}";
+            OnPropertyChanged(nameof(ExpandIndicator));
             return;
         }
 
@@ -172,9 +180,18 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
             FilterType.SubmoduleUninitialized => HasUninitializedSubmodules(),
             FilterType.SubmoduleConfigIssue => HasSubmoduleConfigIssues(),
             FilterType.DetachedHead => HasDetachedHeadRecursive(),
-            FilterType.MyRepositories => false, // TODO: Requires git global user.email lookup
+            FilterType.MyRepositories => IsMyRepository(),
             _ => true
         };
+    }
+
+    bool IsMyRepository()
+    {
+        var email = MainViewModel.GlobalUserEmail;
+        if (string.IsNullOrEmpty(email) || Repository.AuthorEmails == null)
+            return false;
+
+        return Repository.AuthorEmails.Contains(email);
     }
 
     bool HasPendingChangesRecursive()

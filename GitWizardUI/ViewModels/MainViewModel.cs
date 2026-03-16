@@ -25,6 +25,8 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
     GroupMode _activeGroupMode = GroupMode.None;
     SortMode _activeSortMode = SortMode.WorkingDirectory;
     string? _lastRefreshMessage;
+    string _searchText = string.Empty;
+    public static string? GlobalUserEmail { get; private set; }
 
     string? _progressDescription;
     int? _progressTotal;
@@ -393,6 +395,12 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         ApplyFilterAndGrouping();
     }
 
+    public void SetSearchText(string text)
+    {
+        _searchText = text;
+        ApplyFilterAndGrouping();
+    }
+
     void ApplyFilterAndGrouping()
     {
         _pendingGroups.Clear();
@@ -400,6 +408,9 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         var filtered = _activeFilter == FilterType.None
             ? _allRepositories
             : _allRepositories.Where(r => r.MatchesFilter(_activeFilter)).ToList();
+
+        if (!string.IsNullOrWhiteSpace(_searchText))
+            filtered = filtered.Where(r => r.WorkingDirectory.Contains(_searchText, StringComparison.OrdinalIgnoreCase)).ToList();
 
         var sorted = ApplySort(filtered);
 
@@ -425,7 +436,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
                     continue;
 
                 var header = RepositoryNodeViewModel.CreateGroupHeader(group.Key);
-                foreach (var repo in group.Value)
+                foreach (var repo in ApplySort(group.Value))
                     header.Children.Add(repo);
 
                 // Update display text now that children are added (so count is correct)
@@ -634,6 +645,10 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         if (!node.MatchesFilter(_activeFilter))
             return;
 
+        if (!string.IsNullOrWhiteSpace(_searchText) &&
+            !node.WorkingDirectory.Contains(_searchText, StringComparison.OrdinalIgnoreCase))
+            return;
+
         if (_activeGroupMode == GroupMode.None)
         {
             Repositories.Add(node);
@@ -685,8 +700,18 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
 
             UpdateHeaderWithFilterInfo();
         }
-        // When grouping is active, nodes are already in group children — just let Update() handle display text.
-        // Full group rebuild only happens on explicit toggle or at end of refresh.
+        // When grouping is active, update the parent group header to reflect error/warning counts
+        if (_activeGroupMode != GroupMode.None)
+        {
+            foreach (var item in Repositories)
+            {
+                if (item.IsGroupHeader && item.Children.Contains(node))
+                {
+                    item.UpdateDisplayText();
+                    break;
+                }
+            }
+        }
     }
 
     public async Task RefreshAsync(bool background = false, bool fetchRemotes = false)
@@ -696,6 +721,31 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
 
         IsRefreshing = true;
         HeaderText = fetchRemotes ? "Fetching remotes and refreshing..." : "Refreshing...";
+
+        // Read global git user email for "My Repositories" filter
+        if (GlobalUserEmail == null)
+        {
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "git",
+                    Arguments = "config --global user.email",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var process = Process.Start(psi);
+                if (process != null)
+                {
+                    GlobalUserEmail = (await process.StandardOutput.ReadToEndAsync()).Trim();
+                }
+            }
+            catch
+            {
+                // Ignore — filter will just not match anything
+            }
+        }
         Repositories.Clear();
         _allRepositories.Clear();
         _repositoryMap.Clear();

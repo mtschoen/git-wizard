@@ -21,6 +21,7 @@ public class GitWizardRepository
     public DateTimeOffset? LastCommitDate { get; private set; }
     public double RefreshTimeSeconds { get; set; }
     public string? RefreshError { get; set; }
+    public HashSet<string>? AuthorEmails { get; private set; }
 
     GitWizardRepository() { }
 
@@ -124,6 +125,20 @@ public class GitWizardRepository
                         LocalOnlyCommits = true;
                     }
                 }
+            }
+
+            // Cache author emails for "My Repositories" filter
+            try
+            {
+                AuthorEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var commit in repository.Commits.Take(200))
+                {
+                    AuthorEmails.Add(commit.Author.Email);
+                }
+            }
+            catch (Exception exception)
+            {
+                GitWizardLog.LogException(exception, $"Exception collecting author emails for {WorkingDirectory}");
             }
 
             IsRefreshing = false;

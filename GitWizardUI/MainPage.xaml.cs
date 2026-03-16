@@ -8,6 +8,7 @@ public partial class MainPage : ContentPage
     private readonly MainViewModel _viewModel;
     private Button? _activeFilterButton;
     private Button? _activeGroupButton;
+    private CancellationTokenSource? _searchDebounce;
 
     public MainPage()
     {
@@ -142,6 +143,23 @@ public partial class MainPage : ContentPage
         if (button == SortByRecentlyUsed) return SortMode.RecentlyUsed;
         if (button == SortByRemoteUrl) return SortMode.RemoteUrl;
         return SortMode.WorkingDirectory;
+    }
+
+    async void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        _searchDebounce?.Cancel();
+        _searchDebounce = new CancellationTokenSource();
+        var token = _searchDebounce.Token;
+
+        try
+        {
+            await Task.Delay(200, token);
+            _viewModel.SetSearchText(e.NewTextValue ?? string.Empty);
+        }
+        catch (TaskCanceledException)
+        {
+            // Debounce cancelled — newer keystroke took over
+        }
     }
 
     FilterType GetFilterType(Button button)

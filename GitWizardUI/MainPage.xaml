@@ -55,13 +55,16 @@
         <Grid Grid.Row="2" Grid.Column="1" Grid.RowSpan="3" >
             <Grid.RowDefinitions>
                 <RowDefinition Height="30" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <Label Grid.Row="0" x:Name="Header" HorizontalTextAlignment="Start" VerticalTextAlignment="Center" Margin="10,0,0,0" Text="{Binding HeaderText}" />
 
-            <CollectionView Grid.Row="1" x:Name="RepositoryList" ItemsSource="{Binding Repositories}" ItemsUpdatingScrollMode="KeepScrollOffset">
+            <Entry Grid.Row="1" x:Name="SearchBox" Placeholder="Search repositories..." TextChanged="SearchBox_TextChanged" Margin="10,2" />
+
+            <CollectionView Grid.Row="2" x:Name="RepositoryList" ItemsSource="{Binding Repositories}" ItemsUpdatingScrollMode="KeepScrollOffset">
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="viewModels:RepositoryNodeViewModel">
                         <Grid Padding="5,5,20,5" ColumnSpacing="8">
@@ -74,6 +77,7 @@
                             <Grid.GestureRecognizers>
                                 <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.OpenInExplorerCommand}" CommandParameter="{Binding .}" />
                             </Grid.GestureRecognizers>
+                            <!-- Status icon for repos, expand indicator for group headers -->
                             <Label Grid.Column="0"
                                    Text="{Binding StatusIcon}"
                                    TextColor="{Binding StatusColor}"
@@ -82,6 +86,12 @@
                                    VerticalTextAlignment="Center"
                                    ToolTipProperties.Text="{Binding StatusTooltip}"
                                    IsVisible="{Binding IsStatusVisible}" />
+                            <Label Grid.Column="0"
+                                   Text="{Binding ExpandIndicator}"
+                                   FontSize="12"
+                                   HorizontalTextAlignment="Center"
+                                   VerticalTextAlignment="Center"
+                                   IsVisible="{Binding IsGroupHeader}" />
                             <Label Grid.Column="1"
                                    Text="{Binding DisplayText}"
                                    VerticalTextAlignment="Center"
@@ -109,7 +119,7 @@
                 </CollectionView.ItemTemplate>
             </CollectionView>
 
-            <StackLayout Grid.Row="2" IsVisible="{Binding IsProgressVisible}" Padding="5,2" Spacing="2">
+            <StackLayout Grid.Row="3" IsVisible="{Binding IsProgressVisible}" Padding="5,2" Spacing="2">
                 <ProgressBar Progress="{Binding ProgressValue}" HeightRequest="8" />
                 <Label HorizontalTextAlignment="Center" VerticalTextAlignment="Center" FontSize="10" Text="{Binding ProgressText}" />
             </StackLayout>

@@ -66,10 +66,12 @@ Screenshots are saved to `Screenshots/GitWizardUI.png`. The test uses Win32 `Pri
 1. Update `ApplicationDisplayVersion` in `GitWizardUI/GitWizardUI.csproj`
 2. Update version in CLI help text in `git-wizard/Program.cs`
 3. Update screenshot: `dotnet test GitWizardUI.UITests/...` (see above)
-4. Commit, tag (e.g., `v0.4.0`), push with tag
-5. `dotnet publish` creates zip automatically via MSBuild target
-6. Create GitHub release with `gh release create`, attach the zip
-7. Check in the release zip to `Releases/`
+4. Commit version bump, screenshot, and all pending changes
+5. `dotnet publish` creates zip automatically via MSBuild target (also deletes old zip from `Releases/`)
+6. `git add` the new zip AND the deleted old zip, then commit
+7. Tag (e.g., `v0.4.0`)
+8. Push with tag: `git push origin main --tags`
+9. Create GitHub release with `gh release create`, attach the zip
 
 ## Tips
 

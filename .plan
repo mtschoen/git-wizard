@@ -1,30 +1,22 @@
 ## Next Up
 
-- Update MAUI project to latest SDK (currently on net7.0 which is out of support)
-- Translate WPF UI to MAUI and delete WPF UI project (GitWizardUI)
-- Add Fetch button with per-row progress bar and status control to replace check mark
-
-## Backlog
-
-- Fix local-only status update--it seems to be showing false positives
-  - Doing a normal git status refreshes index, seems to make the diffs go away
+- Update MFT parser to also find `.git` files (not just directories) so worktrees with origins outside search paths are discovered
 - Include deleted and added files in uncommitted changes count
-- Quick refresh or filesystem watcher to remove UI for deleted or renamed repositories
-- Sort by size on disk
-- Show remote URLs
-- Show error log, exceptions are just logged to output
+- Show error log — exceptions are currently just logged to output
 - Context menu
   - Move open in Fork button to context menu
   - Clean
   - Open in Explorer
   - Copy working directory to clipboard
+
+## Backlog
+
+- Quick refresh or filesystem watcher to remove UI for deleted or renamed repositories
+- Sort by size on disk
 - Check if downstream branches are included in some upstream branch (deleted after merge)
-- Indicate broken repos
 - Aggregate statuses from submodules
-- Refresh individual repos
 - Add Windows folder to default exclusions
 - Make Fork.exe path configurable in settings (currently hard-coded to %LocalAppData%\Fork\Fork.exe)
-  - See TODO in GitWizardUI/GitWizardTreeViewItem.cs:50
 - Explore CLI argument parsing libraries which can auto-generate manual/help (replace RunConfiguration)
 - Explore path handling library for `%USERPROFILE%` and `~` path aliases
 - "Pretty print" in path lists to transform environment variables into their values
@@ -32,22 +24,13 @@
 - Async save/load for cached files (configs and reports)
 - Filtering
   - Filters should be additive not exclusive
-  - [DONE] Identify repositories with unstaged or pending changes
   - Identify submodules which are not checked out to project pointer reference
   - Identify submodules which have not been checked out/init
   - Identify submodules which are in .gitmodules but not in the index, or vice versa
-  - [DONE] Identify detached heads with pending/unstaged changes
-  - Identify repos that I have ever committed to (query for commit email)
-  - [DONE] Filter for local-only commits (branches ahead of remote or not tracking)
-- Sorting
-  - Recently used
-  - Remote URL
 - Button/utility to check out branch head that matches detached head
 - Testing automation
 - Profiling/optimization (am I using await correctly?)
-- Figure out best way to avoid Windows Defender
 - Progress bar for CLI
-- Sort by recently used
 - Show DB size
 - Branches view of github (maybe?)
   - Active branches

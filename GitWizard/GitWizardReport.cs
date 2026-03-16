@@ -163,14 +163,14 @@ public class GitWizardReport
             var refreshTask = Task.Run(() => repository.Refresh(updateHandler, fetchRemotes, deepRefresh));
             if (!refreshTask.Wait(TimeSpan.FromMinutes(5)))
             {
-                repository.RefreshError = "Timed out after 5 minutes";
                 GitWizardLog.Log($"Refresh timed out after 5 minutes for {path}", GitWizardLog.LogType.Warning);
+                repository.MarkRefreshFailed("Timed out after 5 minutes", updateHandler);
             }
             else if (refreshTask.IsFaulted)
             {
-                repository.RefreshError = refreshTask.Exception?.InnerException?.Message;
-                GitWizardLog.Log($"Refresh failed for {path}: {repository.RefreshError}",
-                    GitWizardLog.LogType.Error);
+                var errorMsg = refreshTask.Exception?.InnerException?.Message ?? "Unknown error";
+                GitWizardLog.Log($"Refresh failed for {path}: {errorMsg}", GitWizardLog.LogType.Error);
+                // Note: OnRepositoryRefreshCompleted is called from the catch block in Refresh()
             }
 
             stopwatch.Stop();

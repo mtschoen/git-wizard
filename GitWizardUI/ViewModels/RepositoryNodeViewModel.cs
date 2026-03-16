@@ -8,7 +8,7 @@ namespace GitWizardUI.ViewModels;
 public class RepositoryNodeViewModel : INotifyPropertyChanged
 {
     bool _isExpanded;
-    bool _isRefreshing = true;
+    RefreshStatus _status = RefreshStatus.Refreshing;
     string _displayText = string.Empty;
 
     public GitWizardRepository Repository { get; }
@@ -41,21 +41,51 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
         }
     }
 
-    public bool IsRefreshing
+    public RefreshStatus Status
     {
-        get => _isRefreshing;
+        get => _status;
         set
         {
-            if (_isRefreshing != value)
+            if (_status != value)
             {
-                _isRefreshing = value;
+                _status = value;
                 OnPropertyChanged();
-                OnPropertyChanged(nameof(IsCompleted));
+                OnPropertyChanged(nameof(StatusIcon));
+                OnPropertyChanged(nameof(StatusColor));
+                OnPropertyChanged(nameof(StatusTooltip));
+                OnPropertyChanged(nameof(IsStatusVisible));
             }
         }
     }
 
-    public bool IsCompleted => !IsRefreshing;
+    public string StatusIcon => _status switch
+    {
+        RefreshStatus.Refreshing => "⟳",
+        RefreshStatus.Success => "✓",
+        RefreshStatus.Timeout => "⚠",
+        RefreshStatus.Error => "✗",
+        _ => ""
+    };
+
+    public Color StatusColor => _status switch
+    {
+        RefreshStatus.Refreshing => Colors.Gray,
+        RefreshStatus.Success => Colors.Green,
+        RefreshStatus.Timeout => Colors.Orange,
+        RefreshStatus.Error => Colors.Red,
+        _ => Colors.Gray
+    };
+
+    public string StatusTooltip => _status switch
+    {
+        RefreshStatus.Refreshing => "Refreshing...",
+        RefreshStatus.Success => $"Refreshed in {Repository.RefreshTimeSeconds}s",
+        RefreshStatus.Timeout => Repository.RefreshError ?? "Timed out",
+        RefreshStatus.Error => Repository.RefreshError ?? "Unknown error",
+        _ => ""
+    };
+
+    public bool IsStatusVisible => !IsGroupHeader;
 
     public string DisplayText
     {
@@ -88,7 +118,7 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
         {
             IsGroupHeader = true,
             GroupKey = groupKey,
-            _isRefreshing = false,
+            _status = RefreshStatus.Success,
         };
         node.UpdateDisplayText();
         return node;
@@ -96,7 +126,13 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
 
     public void Update()
     {
-        IsRefreshing = Repository.IsRefreshing;
+        if (Repository.IsRefreshing)
+            Status = RefreshStatus.Refreshing;
+        else if (!string.IsNullOrEmpty(Repository.RefreshError))
+            Status = Repository.RefreshError.Contains("Timed out") ? RefreshStatus.Timeout : RefreshStatus.Error;
+        else
+            Status = RefreshStatus.Success;
+
         UpdateDisplayText();
     }
 
@@ -181,6 +217,14 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
+}
+
+public enum RefreshStatus
+{
+    Refreshing,
+    Success,
+    Timeout,
+    Error
 }
 
 public enum GroupMode

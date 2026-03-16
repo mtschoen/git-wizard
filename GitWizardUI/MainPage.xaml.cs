@@ -20,6 +20,7 @@ public partial class MainPage : ContentPage
         BindingContext = _viewModel;
     }
 
+
     protected override async void OnAppearing()
     {
         base.OnAppearing();

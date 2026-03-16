@@ -30,21 +30,21 @@
         <ScrollView Grid.Row="1" Grid.Column="0" Grid.RowSpan="4">
             <VerticalStackLayout Padding="5,0" Spacing="0">
                 <Label FontSize="16" FontAttributes="Bold" HorizontalTextAlignment="Center" VerticalTextAlignment="Center" Padding="5">Filter by</Label>
-                <Button x:Name="FilterPendingChanges" ToolTipProperties.Text="Repositories with un-staged or pending changes" Text="Pending Changes" FontSize="12" Clicked="FilterButton_Click" IsEnabled="{Binding CanRefresh}" />
-                <Button x:Name="FilterSubmoduleCheckout" ToolTipProperties.Text="Repositories with submodules which are not checked out to project pointer reference" Text="Submodule Checkout" FontSize="12" Clicked="FilterButton_Click" IsEnabled="{Binding CanRefresh}" />
-                <Button x:Name="FilterSubmoduleUninitialized" ToolTipProperties.Text="Repositories submodules which have not been checked out/initialized" Text="Submodule Uninitialized" FontSize="12" Clicked="FilterButton_Click" IsEnabled="{Binding CanRefresh}" />
-                <Button x:Name="FilterSubmoduleConfigIssue" ToolTipProperties.Text="Repositories with submodules which are in .gitmodules but not in the index, or vice versa" Text="Submodule Config Issue" FontSize="12" Clicked="FilterButton_Click" IsEnabled="{Binding CanRefresh}" />
-                <Button x:Name="FilterDetachedHead" ToolTipProperties.Text="Repositories or submodules with detached heads with pending/unstaged changes" Text="Detached Head" FontSize="12" Clicked="FilterButton_Click" IsEnabled="{Binding CanRefresh}" />
-                <Button x:Name="FilterMyRepositories" ToolTipProperties.Text="Repositories that you have committed to (based on email in global git configuration)" Text="My Repositories" FontSize="12" Clicked="FilterButton_Click" IsEnabled="{Binding CanRefresh}" />
+                <Button x:Name="FilterPendingChanges" ToolTipProperties.Text="Repositories with un-staged or pending changes" Text="Pending Changes" FontSize="12" Clicked="FilterButton_Click" />
+                <Button x:Name="FilterSubmoduleCheckout" ToolTipProperties.Text="Repositories with submodules which are not checked out to project pointer reference" Text="Submodule Checkout" FontSize="12" Clicked="FilterButton_Click" />
+                <Button x:Name="FilterSubmoduleUninitialized" ToolTipProperties.Text="Repositories submodules which have not been checked out/initialized" Text="Submodule Uninitialized" FontSize="12" Clicked="FilterButton_Click" />
+                <Button x:Name="FilterSubmoduleConfigIssue" ToolTipProperties.Text="Repositories with submodules which are in .gitmodules but not in the index, or vice versa" Text="Submodule Config Issue" FontSize="12" Clicked="FilterButton_Click" />
+                <Button x:Name="FilterDetachedHead" ToolTipProperties.Text="Repositories or submodules with detached heads with pending/unstaged changes" Text="Detached Head" FontSize="12" Clicked="FilterButton_Click" />
+                <Button x:Name="FilterMyRepositories" ToolTipProperties.Text="Repositories that you have committed to (based on email in global git configuration)" Text="My Repositories" FontSize="12" Clicked="FilterButton_Click" />
 
                 <Label FontSize="16" FontAttributes="Bold" HorizontalTextAlignment="Center" VerticalTextAlignment="Center" Padding="5">Group by</Label>
-                <Button x:Name="GroupByDrive" ToolTipProperties.Text="Group repositories by drive letter / root path" Text="Drive" FontSize="12" Clicked="GroupButton_Click" IsEnabled="{Binding CanRefresh}" />
-                <Button x:Name="GroupByRemoteUrl" ToolTipProperties.Text="Group repositories by remote URL (find duplicates)" Text="Remote URL" FontSize="12" Clicked="GroupButton_Click" IsEnabled="{Binding CanRefresh}" />
+                <Button x:Name="GroupByDrive" ToolTipProperties.Text="Group repositories by drive letter / root path" Text="Drive" FontSize="12" Clicked="GroupButton_Click" />
+                <Button x:Name="GroupByRemoteUrl" ToolTipProperties.Text="Group repositories by remote URL (find duplicates)" Text="Remote URL" FontSize="12" Clicked="GroupButton_Click" />
 
                 <Label FontSize="16" FontAttributes="Bold" HorizontalTextAlignment="Center" VerticalTextAlignment="Center" Padding="5">Sort by</Label>
-                <Button x:Name="SortByWorkingDirectory" ToolTipProperties.Text="Path to working directory, alphabetically" Text="Working Directory" FontSize="12" Clicked="SortButton_Click" IsEnabled="{Binding CanRefresh}" />
-                <Button x:Name="SortByRecentlyUsed" ToolTipProperties.Text="Time of the most recent commit" Text="Recently Used" FontSize="12" Clicked="SortButton_Click" IsEnabled="{Binding CanRefresh}" />
-                <Button x:Name="SortByRemoteUrl" ToolTipProperties.Text="URL of first remote (usually origin)" Text="Remote URL" FontSize="12" Clicked="SortButton_Click" IsEnabled="{Binding CanRefresh}" />
+                <Button x:Name="SortByWorkingDirectory" ToolTipProperties.Text="Path to working directory, alphabetically" Text="Working Directory" FontSize="12" Clicked="SortButton_Click" />
+                <Button x:Name="SortByRecentlyUsed" ToolTipProperties.Text="Time of the most recent commit" Text="Recently Used" FontSize="12" Clicked="SortButton_Click" />
+                <Button x:Name="SortByRemoteUrl" ToolTipProperties.Text="URL of first remote (usually origin)" Text="Remote URL" FontSize="12" Clicked="SortButton_Click" />
             </VerticalStackLayout>
         </ScrollView>
 
@@ -61,27 +61,42 @@
 
             <Label Grid.Row="0" x:Name="Header" HorizontalTextAlignment="Start" VerticalTextAlignment="Center" Margin="10,0,0,0" Text="{Binding HeaderText}" />
 
-            <CollectionView Grid.Row="1" x:Name="RepositoryList" ItemsSource="{Binding Repositories}">
+            <CollectionView Grid.Row="1" x:Name="RepositoryList" ItemsSource="{Binding Repositories}" ItemsUpdatingScrollMode="KeepScrollOffset">
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="viewModels:RepositoryNodeViewModel">
-                        <HorizontalStackLayout Spacing="10" Padding="5">
-                            <HorizontalStackLayout.GestureRecognizers>
+                        <Grid Padding="5,5,20,5" ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="20" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.GestureRecognizers>
                                 <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.OpenInExplorerCommand}" CommandParameter="{Binding .}" />
-                            </HorizontalStackLayout.GestureRecognizers>
-                            <CheckBox IsChecked="{Binding IsCompleted}" IsEnabled="False" VerticalOptions="Center" IsVisible="{Binding IsNotGroupHeader}" />
-                            <Label Text="{Binding DisplayText}"
+                            </Grid.GestureRecognizers>
+                            <Label Grid.Column="0"
+                                   Text="{Binding StatusIcon}"
+                                   TextColor="{Binding StatusColor}"
+                                   FontSize="14"
+                                   HorizontalTextAlignment="Center"
                                    VerticalTextAlignment="Center"
-                                   HorizontalOptions="StartAndExpand"
+                                   ToolTipProperties.Text="{Binding StatusTooltip}"
+                                   IsVisible="{Binding IsStatusVisible}" />
+                            <Label Grid.Column="1"
+                                   Text="{Binding DisplayText}"
+                                   VerticalTextAlignment="Center"
                                    FontAttributes="{Binding GroupHeaderFontAttributes}"
                                    Padding="{Binding ItemPadding}" />
-                            <Button Text="Fork"
+                            <Button Grid.Column="2"
+                                    Text="Fork"
                                     Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.OpenInForkCommand}"
                                     CommandParameter="{Binding .}"
                                     FontSize="12"
                                     Padding="8,4"
                                     VerticalOptions="Center"
                                     IsVisible="{Binding IsNotGroupHeader}" />
-                            <Button Text="&#x21bb;"
+                            <Button Grid.Column="3"
+                                    Text="&#x21bb;"
                                     ToolTipProperties.Text="Deep refresh: fetch remotes and update index (may be slow)"
                                     Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.DeepRefreshCommand}"
                                     CommandParameter="{Binding .}"
@@ -89,7 +104,7 @@
                                     Padding="8,4"
                                     VerticalOptions="Center"
                                     IsVisible="{Binding IsNotGroupHeader}" />
-                        </HorizontalStackLayout>
+                        </Grid>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
             </CollectionView>

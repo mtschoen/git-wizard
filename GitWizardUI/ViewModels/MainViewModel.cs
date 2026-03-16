@@ -14,6 +14,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
     readonly ConcurrentQueue<RepositoryUICommand> _uiCommands = new();
     readonly Stopwatch _stopwatch = new();
     readonly List<RepositoryNodeViewModel> _allRepositories = new();
+    readonly Dictionary<string, RepositoryNodeViewModel> _pendingGroups = new();
 
     string _headerText = "GitWizard";
     double _progressValue;
@@ -152,7 +153,6 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
     }
 
     public Action<RepositoryNodeViewModel>? ScrollToRequest { get; set; }
-
     public ICommand OpenInExplorerCommand { get; }
     public ICommand OpenInForkCommand { get; }
     public ICommand DeepRefreshCommand { get; }
@@ -267,7 +267,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         if (node == null || node.IsGroupHeader)
             return;
 
-        node.IsRefreshing = true;
+        node.Status = RefreshStatus.Refreshing;
         Task.Run(() =>
         {
             var stopwatch = Stopwatch.StartNew();
@@ -316,19 +316,16 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         {
             while (true)
             {
-                await Task.Delay(100);
+                await Task.Delay(250);
 
-                // Process commands in small batches to keep UI responsive
-                const int batchSize = 20;
-                var processed = 0;
-                while (_uiCommands.TryPeek(out _) && processed < batchSize)
+                // Drain all pending commands in one UI dispatch to minimize layout passes
+                if (_uiCommands.TryPeek(out _))
                 {
                     await MainThread.InvokeOnMainThreadAsync(() =>
                     {
-                        for (var i = 0; i < batchSize && _uiCommands.TryDequeue(out var command); i++)
+                        while (_uiCommands.TryDequeue(out var command))
                         {
                             ProcessUICommand(command);
-                            processed++;
                         }
                     });
                 }
@@ -398,6 +395,8 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
 
     void ApplyFilterAndGrouping()
     {
+        _pendingGroups.Clear();
+
         var filtered = _activeFilter == FilterType.None
             ? _allRepositories
             : _allRepositories.Where(r => r.MatchesFilter(_activeFilter)).ToList();
@@ -532,6 +531,79 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         return url.ToLowerInvariant();
     }
 
+    void AddToGroups(RepositoryNodeViewModel node)
+    {
+        var keys = GetGroupKeys(node, _activeGroupMode);
+        var minGroupSize = _activeGroupMode == GroupMode.RemoteUrl ? 2 : 1;
+
+        foreach (var key in keys)
+        {
+            // Find existing group header
+            RepositoryNodeViewModel? header = null;
+            for (var i = 0; i < Repositories.Count; i++)
+            {
+                if (Repositories[i].IsGroupHeader && Repositories[i].GroupKey == key)
+                {
+                    header = Repositories[i];
+                    break;
+                }
+            }
+
+            if (header != null)
+            {
+                header.Children.Add(node);
+                header.UpdateDisplayText();
+
+                // If expanded, insert the node after the last child in the flat list
+                if (header.IsExpanded)
+                {
+                    var headerIndex = Repositories.IndexOf(header);
+                    Repositories.Insert(headerIndex + header.Children.Count, node);
+                }
+            }
+            else
+            {
+                // Create new group header
+                header = RepositoryNodeViewModel.CreateGroupHeader(key);
+                header.Children.Add(node);
+                header.UpdateDisplayText();
+
+                // Only show if meets minimum group size
+                if (header.Children.Count >= minGroupSize)
+                {
+                    Repositories.Add(header);
+                }
+                else
+                {
+                    // Keep track of it — it might qualify later when more repos arrive
+                    // Store it in the collection anyway for remote URL groups so we can
+                    // promote it when a second repo arrives
+                    _pendingGroups[key] = header;
+                }
+            }
+        }
+
+        // Check if any pending groups now meet the minimum size
+        if (_pendingGroups.Count > 0)
+        {
+            var promoted = new List<string>();
+            foreach (var kvp in _pendingGroups)
+            {
+                if (kvp.Value.Children.Count >= minGroupSize)
+                {
+                    kvp.Value.UpdateDisplayText();
+                    Repositories.Add(kvp.Value);
+                    promoted.Add(kvp.Key);
+                }
+            }
+
+            foreach (var key in promoted)
+                _pendingGroups.Remove(key);
+        }
+
+        UpdateHeaderWithFilterInfo();
+    }
+
     void UpdateHeaderWithFilterInfo()
     {
         if (_activeFilter == FilterType.None && _activeGroupMode == GroupMode.None)
@@ -559,10 +631,17 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         _repositoryMap[path] = node;
         _allRepositories.Add(node);
 
-        // When grouping is active, skip adding to flat view — grouping is applied
-        // when the user toggles it or when repos finish refreshing
-        if (_activeGroupMode == GroupMode.None && node.MatchesFilter(_activeFilter))
+        if (!node.MatchesFilter(_activeFilter))
+            return;
+
+        if (_activeGroupMode == GroupMode.None)
+        {
             Repositories.Add(node);
+        }
+        else
+        {
+            AddToGroups(node);
+        }
     }
 
     void AddSubmodule(GitWizardRepository parent, GitWizardRepository submodule)
@@ -620,6 +699,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         Repositories.Clear();
         _allRepositories.Clear();
         _repositoryMap.Clear();
+        _pendingGroups.Clear();
 
         await Task.Run(() =>
         {
@@ -645,8 +725,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         // One more delay to let the last batch of UI commands finish processing
         await Task.Delay(200);
 
-        if (_activeGroupMode != GroupMode.None || _activeSortMode != SortMode.WorkingDirectory)
-            ApplyFilterAndGrouping();
+        ApplyFilterAndGrouping();
 
         if (_activeFilter == FilterType.None && _activeGroupMode == GroupMode.None)
             HeaderText = _lastRefreshMessage ?? $"{_allRepositories.Count} repositories";

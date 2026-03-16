@@ -139,7 +139,18 @@ public class GitWizardRepository
         }
         catch (Exception exception)
         {
+            RefreshError = exception.Message;
             GitWizardLog.LogException(exception, $"Exception thrown trying to refresh {WorkingDirectory}");
+            IsRefreshing = false;
+
+            try
+            {
+                updateHandler?.OnRepositoryRefreshCompleted(this);
+            }
+            catch (Exception callbackException)
+            {
+                GitWizardLog.LogException(callbackException, "Exception thrown by Refresh OnRepositoryRefreshCompleted callback.");
+            }
         }
     }
 
@@ -296,6 +307,21 @@ public class GitWizardRepository
                         $"Exception updating worktrees for {WorkingDirectory}");
                 }
             });
+        }
+    }
+
+    internal void MarkRefreshFailed(string error, IUpdateHandler? updateHandler = null)
+    {
+        RefreshError = error;
+        IsRefreshing = false;
+
+        try
+        {
+            updateHandler?.OnRepositoryRefreshCompleted(this);
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, "Exception thrown by MarkRefreshFailed OnRepositoryRefreshCompleted callback.");
         }
     }
 

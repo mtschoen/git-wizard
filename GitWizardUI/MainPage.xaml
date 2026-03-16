@@ -28,37 +28,31 @@
             <Button Text="Delete All Local Files" x:Name="DeleteAllLocalFilesMenuItem" Clicked="DeleteAllLocalFilesMenuItem_Click" FontSize="12" Padding="10,5" />
         </HorizontalStackLayout>
 
-        <Label Grid.Row="1" Grid.Column="0" FontSize="16" FontAttributes="Bold" HorizontalTextAlignment="Center" VerticalTextAlignment="Center" Padding="5">Filter by</Label>
-        <Grid Grid.Row="2" Grid.Column="0" Padding="5,0">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
-            <Button Grid.Row="0" ToolTipProperties.Text="Repositories with un-staged or pending changes" Text="Pending Changes" FontSize="12" />
-            <Button Grid.Row="1" ToolTipProperties.Text="Repositories with submodules which are not checked out to project pointer reference" Text="Submodule Checkout" FontSize="12" />
-            <Button Grid.Row="2" ToolTipProperties.Text="Repositories submodules which have not been checked out/initialized" Text="Submodule Uninitialized" FontSize="12" />
-            <Button Grid.Row="3" ToolTipProperties.Text="Repositories with submodules which are in .gitmodules but not in the index, or vice versa" Text="Submodule Config Issue" FontSize="12" />
-            <Button Grid.Row="4" ToolTipProperties.Text="Repositories or submodules with detached heads with pending/unstaged changes" Text="Detached Head" FontSize="12" />
-            <Button Grid.Row="5" ToolTipProperties.Text="Repositories that you have committed to (based on email in global git configuration)" Text="My Repositories" FontSize="12" />
-        </Grid>
+        <ScrollView Grid.Row="1" Grid.Column="0" Grid.RowSpan="4">
+            <VerticalStackLayout Padding="5,0" Spacing="0">
+                <Label FontSize="16" FontAttributes="Bold" HorizontalTextAlignment="Center" VerticalTextAlignment="Center" Padding="5">Filter by</Label>
+                <Button x:Name="FilterPendingChanges" ToolTipProperties.Text="Repositories with un-staged or pending changes" Text="Pending Changes" FontSize="12" Clicked="FilterButton_Click" IsEnabled="{Binding CanRefresh}" />
+                <Button x:Name="FilterSubmoduleCheckout" ToolTipProperties.Text="Repositories with submodules which are not checked out to project pointer reference" Text="Submodule Checkout" FontSize="12" Clicked="FilterButton_Click" IsEnabled="{Binding CanRefresh}" />
+                <Button x:Name="FilterSubmoduleUninitialized" ToolTipProperties.Text="Repositories submodules which have not been checked out/initialized" Text="Submodule Uninitialized" FontSize="12" Clicked="FilterButton_Click" IsEnabled="{Binding CanRefresh}" />
+                <Button x:Name="FilterSubmoduleConfigIssue" ToolTipProperties.Text="Repositories with submodules which are in .gitmodules but not in the index, or vice versa" Text="Submodule Config Issue" FontSize="12" Clicked="FilterButton_Click" IsEnabled="{Binding CanRefresh}" />
+                <Button x:Name="FilterDetachedHead" ToolTipProperties.Text="Repositories or submodules with detached heads with pending/unstaged changes" Text="Detached Head" FontSize="12" Clicked="FilterButton_Click" IsEnabled="{Binding CanRefresh}" />
+                <Button x:Name="FilterMyRepositories" ToolTipProperties.Text="Repositories that you have committed to (based on email in global git configuration)" Text="My Repositories" FontSize="12" Clicked="FilterButton_Click" IsEnabled="{Binding CanRefresh}" />
 
-        <Label Grid.Row="3" Grid.Column="0" FontSize="16" FontAttributes="Bold" HorizontalTextAlignment="Center" VerticalTextAlignment="Center" Padding="5">Sort by</Label>
-        <Grid Grid.Row="4" Grid.Column="0" Padding="5,0">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
-            <Button Grid.Row="0" ToolTipProperties.Text="Path to working directory, alphabetically" Text="Working Directory" FontSize="12" />
-            <Button Grid.Row="1" ToolTipProperties.Text="Time of the most recent commit" Text="Recently Used" FontSize="12" />
-            <Button Grid.Row="2" ToolTipProperties.Text="URL of first remote (usually origin)" Text="Remote URL" FontSize="12" />
-        </Grid>
+                <Label FontSize="16" FontAttributes="Bold" HorizontalTextAlignment="Center" VerticalTextAlignment="Center" Padding="5">Group by</Label>
+                <Button x:Name="GroupByDrive" ToolTipProperties.Text="Group repositories by drive letter / root path" Text="Drive" FontSize="12" Clicked="GroupButton_Click" IsEnabled="{Binding CanRefresh}" />
+                <Button x:Name="GroupByRemoteUrl" ToolTipProperties.Text="Group repositories by remote URL (find duplicates)" Text="Remote URL" FontSize="12" Clicked="GroupButton_Click" IsEnabled="{Binding CanRefresh}" />
 
-        <Button Grid.Row="1" Grid.Column="1" x:Name="RefreshButton" Clicked="RefreshButton_Click" Text="Refresh" Margin="0,5"></Button>
+                <Label FontSize="16" FontAttributes="Bold" HorizontalTextAlignment="Center" VerticalTextAlignment="Center" Padding="5">Sort by</Label>
+                <Button x:Name="SortByWorkingDirectory" ToolTipProperties.Text="Path to working directory, alphabetically" Text="Working Directory" FontSize="12" Clicked="SortButton_Click" IsEnabled="{Binding CanRefresh}" />
+                <Button x:Name="SortByRecentlyUsed" ToolTipProperties.Text="Time of the most recent commit" Text="Recently Used" FontSize="12" Clicked="SortButton_Click" IsEnabled="{Binding CanRefresh}" />
+                <Button x:Name="SortByRemoteUrl" ToolTipProperties.Text="URL of first remote (usually origin)" Text="Remote URL" FontSize="12" Clicked="SortButton_Click" IsEnabled="{Binding CanRefresh}" />
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <HorizontalStackLayout Grid.Row="1" Grid.Column="1" Spacing="5" Margin="0,5">
+            <Button x:Name="RefreshButton" Clicked="RefreshButton_Click" Text="Refresh" />
+            <Button x:Name="FetchAndRefreshButton" Clicked="FetchAndRefreshButton_Click" Text="Fetch &amp; Refresh" ToolTipProperties.Text="Fetch all remotes before refreshing status (slower but accurate)" />
+        </HorizontalStackLayout>
         <Grid Grid.Row="2" Grid.Column="1" Grid.RowSpan="3" >
             <Grid.RowDefinitions>
                 <RowDefinition Height="30" />
@@ -68,30 +62,39 @@
 
             <Label Grid.Row="0" x:Name="Header" HorizontalTextAlignment="Start" VerticalTextAlignment="Center" Margin="10,0,0,0" Text="{Binding HeaderText}" />
 
-            <ScrollView Grid.Row="1">
-                <material:TreeView ItemsSource="{Binding Repositories}"
-                                   ChildrenBinding="{Binding Children}"
-                                   IsExpandedPropertyName="IsExpanded">
-                    <material:TreeView.ItemTemplate>
-                        <DataTemplate x:DataType="viewModels:RepositoryNodeViewModel">
-                            <HorizontalStackLayout Spacing="10" Padding="5">
-                                <CheckBox IsChecked="{Binding IsCompleted}" IsEnabled="False" VerticalOptions="Center" />
-                                <Label Text="{Binding DisplayText}" VerticalTextAlignment="Center" HorizontalOptions="Start">
-                                    <Label.GestureRecognizers>
-                                        <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.OpenInExplorerCommand}" CommandParameter="{Binding .}" />
-                                    </Label.GestureRecognizers>
-                                </Label>
-                                <Button Text="Fork"
-                                        Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.OpenInForkCommand}"
-                                        CommandParameter="{Binding .}"
-                                        FontSize="12"
-                                        Padding="8,4"
-                                        VerticalOptions="Center" />
-                            </HorizontalStackLayout>
-                        </DataTemplate>
-                    </material:TreeView.ItemTemplate>
-                </material:TreeView>
-            </ScrollView>
+            <CollectionView Grid.Row="1" ItemsSource="{Binding Repositories}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="viewModels:RepositoryNodeViewModel">
+                        <HorizontalStackLayout Spacing="10" Padding="5">
+                            <CheckBox IsChecked="{Binding IsCompleted}" IsEnabled="False" VerticalOptions="Center" IsVisible="{Binding IsNotGroupHeader}" />
+                            <Label Text="{Binding DisplayText}"
+                                   VerticalTextAlignment="Center"
+                                   HorizontalOptions="Start"
+                                   FontAttributes="{Binding GroupHeaderFontAttributes}"
+                                   Padding="{Binding ItemPadding}">
+                                <Label.GestureRecognizers>
+                                    <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.OpenInExplorerCommand}" CommandParameter="{Binding .}" />
+                                </Label.GestureRecognizers>
+                            </Label>
+                            <Button Text="Fork"
+                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.OpenInForkCommand}"
+                                    CommandParameter="{Binding .}"
+                                    FontSize="12"
+                                    Padding="8,4"
+                                    VerticalOptions="Center"
+                                    IsVisible="{Binding IsNotGroupHeader}" />
+                            <Button Text="&#x21bb;"
+                                    ToolTipProperties.Text="Deep refresh: fetch remotes and update index (may be slow)"
+                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.DeepRefreshCommand}"
+                                    CommandParameter="{Binding .}"
+                                    FontSize="12"
+                                    Padding="8,4"
+                                    VerticalOptions="Center"
+                                    IsVisible="{Binding IsNotGroupHeader}" />
+                        </HorizontalStackLayout>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
 
             <StackLayout Grid.Row="2" IsVisible="{Binding IsProgressVisible}" Padding="5,2" Spacing="2">
                 <ProgressBar Progress="{Binding ProgressValue}" HeightRequest="8" />

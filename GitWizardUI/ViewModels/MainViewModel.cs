@@ -13,12 +13,17 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
     readonly ConcurrentDictionary<string, RepositoryNodeViewModel> _repositoryMap = new();
     readonly ConcurrentQueue<RepositoryUICommand> _uiCommands = new();
     readonly Stopwatch _stopwatch = new();
+    readonly List<RepositoryNodeViewModel> _allRepositories = new();
 
     string _headerText = "GitWizard";
     double _progressValue;
     bool _isProgressVisible;
     string _progressText = string.Empty;
     bool _isRefreshing;
+    FilterType _activeFilter = FilterType.None;
+    GroupMode _activeGroupMode = GroupMode.None;
+    SortMode _activeSortMode = SortMode.WorkingDirectory;
+    string? _lastRefreshMessage;
 
     string? _progressDescription;
     int? _progressTotal;
@@ -94,13 +99,54 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
 
     public bool CanRefresh => !IsRefreshing;
 
+    public FilterType ActiveFilter
+    {
+        get => _activeFilter;
+        private set
+        {
+            if (_activeFilter != value)
+            {
+                _activeFilter = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public GroupMode ActiveGroupMode
+    {
+        get => _activeGroupMode;
+        private set
+        {
+            if (_activeGroupMode != value)
+            {
+                _activeGroupMode = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public SortMode ActiveSortMode
+    {
+        get => _activeSortMode;
+        private set
+        {
+            if (_activeSortMode != value)
+            {
+                _activeSortMode = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public ICommand OpenInExplorerCommand { get; }
     public ICommand OpenInForkCommand { get; }
+    public ICommand DeepRefreshCommand { get; }
 
     public MainViewModel()
     {
         OpenInExplorerCommand = new Command<RepositoryNodeViewModel>(OpenInExplorer);
         OpenInForkCommand = new Command<RepositoryNodeViewModel>(OpenInFork);
+        DeepRefreshCommand = new Command<RepositoryNodeViewModel>(DeepRefreshRepository);
         StartUIUpdateThread();
     }
 
@@ -190,6 +236,21 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         }
     }
 
+    void DeepRefreshRepository(RepositoryNodeViewModel? node)
+    {
+        if (node == null || node.IsGroupHeader)
+            return;
+
+        node.IsRefreshing = true;
+        Task.Run(() =>
+        {
+            var stopwatch = Stopwatch.StartNew();
+            node.Repository.Refresh(this, fetchRemotes: true, deepRefresh: true);
+            stopwatch.Stop();
+            node.Repository.RefreshTimeSeconds = Math.Round(stopwatch.Elapsed.TotalSeconds, 1);
+        });
+    }
+
     void StartUIUpdateThread()
     {
         Task.Run(async () =>
@@ -258,6 +319,172 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         }
     }
 
+    public void ToggleFilter(FilterType filter)
+    {
+        ActiveFilter = ActiveFilter == filter ? FilterType.None : filter;
+        ApplyFilterAndGrouping();
+    }
+
+    public void ToggleGroupMode(GroupMode mode)
+    {
+        ActiveGroupMode = ActiveGroupMode == mode ? GroupMode.None : mode;
+        ApplyFilterAndGrouping();
+    }
+
+    public void SetSortMode(SortMode mode)
+    {
+        ActiveSortMode = mode;
+        ApplyFilterAndGrouping();
+    }
+
+    void ApplyFilterAndGrouping()
+    {
+        var filtered = _activeFilter == FilterType.None
+            ? _allRepositories
+            : _allRepositories.Where(r => r.MatchesFilter(_activeFilter)).ToList();
+
+        var sorted = ApplySort(filtered);
+
+        Repositories.Clear();
+
+        if (_activeGroupMode == GroupMode.None)
+        {
+            foreach (var repo in sorted)
+                Repositories.Add(repo);
+        }
+        else
+        {
+            var groups = GroupRepositories(sorted, _activeGroupMode);
+
+            // For remote URL grouping, only show groups with multiple copies (the duplicates you want to clean up)
+            var minGroupSize = _activeGroupMode == GroupMode.RemoteUrl ? 2 : 1;
+
+            // Flatten groups into the list: header row followed by repo rows
+            foreach (var group in groups.OrderByDescending(g => g.Value.Count))
+            {
+                if (group.Value.Count < minGroupSize)
+                    continue;
+
+                var header = RepositoryNodeViewModel.CreateGroupHeader($"{group.Key} ({group.Value.Count})");
+                Repositories.Add(header);
+                foreach (var repo in group.Value)
+                    Repositories.Add(repo);
+            }
+        }
+
+        UpdateHeaderWithFilterInfo();
+    }
+
+    List<RepositoryNodeViewModel> ApplySort(List<RepositoryNodeViewModel> repos)
+    {
+        return _activeSortMode switch
+        {
+            SortMode.RecentlyUsed => repos
+                .OrderByDescending(r => r.Repository.LastCommitDate ?? DateTimeOffset.MinValue)
+                .ToList(),
+            SortMode.RemoteUrl => repos
+                .OrderBy(r => r.Repository.RemoteUrls.Count > 0
+                    ? NormalizeRemoteUrl(r.Repository.RemoteUrls[0])
+                    : "\uffff") // sort no-remote to end
+                .ToList(),
+            _ => repos // WorkingDirectory — already in insertion order (alphabetical from SortedDictionary)
+        };
+    }
+
+    static Dictionary<string, List<RepositoryNodeViewModel>> GroupRepositories(
+        List<RepositoryNodeViewModel> repos, GroupMode mode)
+    {
+        var groups = new Dictionary<string, List<RepositoryNodeViewModel>>();
+        foreach (var repo in repos)
+        {
+            var keys = GetGroupKeys(repo, mode);
+            foreach (var key in keys)
+            {
+                if (!groups.TryGetValue(key, out var list))
+                {
+                    list = new List<RepositoryNodeViewModel>();
+                    groups[key] = list;
+                }
+
+                list.Add(repo);
+            }
+        }
+
+        return groups;
+    }
+
+    static List<string> GetGroupKeys(RepositoryNodeViewModel repo, GroupMode mode)
+    {
+        if (mode == GroupMode.Drive)
+        {
+            var path = repo.WorkingDirectory;
+            if (string.IsNullOrEmpty(path))
+                return new List<string> { "(unknown)" };
+
+            // Extract drive letter or root path
+            var root = Path.GetPathRoot(path);
+            return new List<string> { string.IsNullOrEmpty(root) ? "(unknown)" : root };
+        }
+
+        if (mode == GroupMode.RemoteUrl)
+        {
+            var urls = repo.Repository.RemoteUrls;
+            if (urls == null || urls.Count == 0)
+                return new List<string> { "(no remote)" };
+
+            // Normalize remote URLs for grouping (strip .git suffix, normalize casing)
+            return urls.Select(NormalizeRemoteUrl).Distinct().ToList();
+        }
+
+        return new List<string> { "(unknown)" };
+    }
+
+    static string NormalizeRemoteUrl(string url)
+    {
+        url = url.Trim();
+        if (url.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
+            url = url[..^4];
+
+        // Normalize SSH URLs (git@github.com:user/repo) to match HTTPS style for grouping
+        if (url.StartsWith("git@", StringComparison.OrdinalIgnoreCase))
+        {
+            var colonIndex = url.IndexOf(':');
+            if (colonIndex > 0)
+            {
+                var host = url[4..colonIndex];
+                var path = url[(colonIndex + 1)..];
+                url = $"{host}/{path}";
+            }
+        }
+        else if (url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            url = url[8..];
+        }
+        else if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+        {
+            url = url[7..];
+        }
+
+        return url.ToLowerInvariant();
+    }
+
+    void UpdateHeaderWithFilterInfo()
+    {
+        if (_activeFilter == FilterType.None && _activeGroupMode == GroupMode.None)
+        {
+            HeaderText = _lastRefreshMessage ?? $"{_allRepositories.Count} repositories";
+        }
+        else if (_activeGroupMode != GroupMode.None)
+        {
+            var groupCount = Repositories.Count;
+            HeaderText = $"{_allRepositories.Count} repositories in {groupCount} groups";
+        }
+        else
+        {
+            HeaderText = $"Showing {Repositories.Count} of {_allRepositories.Count} repositories";
+        }
+    }
+
     void AddRepository(GitWizardRepository repository)
     {
         var path = repository.WorkingDirectory;
@@ -266,7 +493,12 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
 
         var node = new RepositoryNodeViewModel(repository);
         _repositoryMap[path] = node;
-        Repositories.Add(node);
+        _allRepositories.Add(node);
+
+        // When grouping is active, skip adding to flat view — grouping is applied
+        // when the user toggles it or when repos finish refreshing
+        if (_activeGroupMode == GroupMode.None && node.MatchesFilter(_activeFilter))
+            Repositories.Add(node);
     }
 
     void AddSubmodule(GitWizardRepository parent, GitWizardRepository submodule)
@@ -297,16 +529,32 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
             return;
 
         node.Update();
+
+        // For filtering (no grouping): incrementally add/remove without rebuilding
+        if (_activeFilter != FilterType.None && _activeGroupMode == GroupMode.None)
+        {
+            var isShown = Repositories.Contains(node);
+            var shouldShow = node.MatchesFilter(_activeFilter);
+            if (isShown && !shouldShow)
+                Repositories.Remove(node);
+            else if (!isShown && shouldShow)
+                Repositories.Add(node);
+
+            UpdateHeaderWithFilterInfo();
+        }
+        // When grouping is active, nodes are already in group children — just let Update() handle display text.
+        // Full group rebuild only happens on explicit toggle or at end of refresh.
     }
 
-    public async Task RefreshAsync(bool background = false)
+    public async Task RefreshAsync(bool background = false, bool fetchRemotes = false)
     {
         if (IsRefreshing)
             return;
 
         IsRefreshing = true;
-        HeaderText = "Refreshing...";
+        HeaderText = fetchRemotes ? "Fetching remotes and refreshing..." : "Refreshing...";
         Repositories.Clear();
+        _allRepositories.Clear();
         _repositoryMap.Clear();
 
         await Task.Run(() =>
@@ -315,19 +563,33 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
 
             _stopwatch.Restart();
             var configuration = GitWizardConfiguration.GetGlobalConfiguration();
-            var report = GitWizardReport.GenerateReport(configuration, repositoryPaths, this);
+            var report = GitWizardReport.GenerateReport(configuration, repositoryPaths, this, fetchRemotes,
+                deepRefresh: fetchRemotes);
             _stopwatch.Stop();
 
-            MainThread.BeginInvokeOnMainThread(() =>
-            {
-                HeaderText = $"Refresh completed in {(float)_stopwatch.ElapsedMilliseconds / 1000:F2} seconds";
-            });
+            var refreshMsg = $"Refresh completed in {(float)_stopwatch.ElapsedMilliseconds / 1000:F2} seconds";
+            _lastRefreshMessage = refreshMsg;
 
             if (repositoryPaths == null)
                 GitWizardApi.SaveCachedRepositoryPaths(report.GetRepositoryPaths());
-
-            IsRefreshing = false;
         });
+
+        // Wait for the UI command queue to fully drain before applying grouping/sorting
+        while (!_uiCommands.IsEmpty)
+            await Task.Delay(150);
+
+        // One more delay to let the last batch of UI commands finish processing
+        await Task.Delay(200);
+
+        if (_activeGroupMode != GroupMode.None || _activeSortMode != SortMode.WorkingDirectory)
+            ApplyFilterAndGrouping();
+
+        if (_activeFilter == FilterType.None && _activeGroupMode == GroupMode.None)
+            HeaderText = _lastRefreshMessage ?? $"{_allRepositories.Count} repositories";
+        else
+            UpdateHeaderWithFilterInfo();
+
+        IsRefreshing = false;
     }
 
     // IUpdateHandler implementation

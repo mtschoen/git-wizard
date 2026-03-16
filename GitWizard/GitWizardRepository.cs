@@ -17,6 +17,8 @@ public class GitWizardRepository
 
     public bool IsRefreshing { get; private set; }
     public bool LocalOnlyCommits { get; private set; }
+    public List<string> RemoteUrls { get; private set; } = new();
+    public DateTimeOffset? LastCommitDate { get; private set; }
     public double RefreshTimeSeconds { get; set; }
     public string? RefreshError { get; set; }
 
@@ -27,13 +29,17 @@ public class GitWizardRepository
         WorkingDirectory = workingDirectory;
     }
 
-    public void Refresh(IUpdateHandler? updateHandler = null)
+    public void Refresh(IUpdateHandler? updateHandler = null, bool fetchRemotes = false,
+        bool deepRefresh = false)
     {
         if (string.IsNullOrEmpty(WorkingDirectory) || !Directory.Exists(WorkingDirectory))
         {
             GitWizardLog.Log($"Working directory {WorkingDirectory} is invalid.", GitWizardLog.LogType.Error);
             return;
         }
+
+        if (fetchRemotes)
+            FetchAllRemotes(WorkingDirectory);
 
         GitWizardLog.Log($"Refreshing {WorkingDirectory}");
 
@@ -49,11 +55,14 @@ public class GitWizardRepository
 
             CurrentBranch = repository.Head.FriendlyName;
             IsDetachedHead = repository.Head.Reference is not SymbolicReference;
+            LastCommitDate = repository.Head.Tip?.Author.When;
 
             try
             {
-                // Refresh the index to update stale stat data
-                RefreshIndex(repository);
+                // Refresh the index to update stale stat data (slow on large repos / slow drives)
+                // Only run during deep refresh to keep auto-refresh fast
+                if (deepRefresh)
+                    RefreshIndex(repository);
 
                 var status = repository.RetrieveStatus();
                 HasPendingChanges = status.IsDirty;
@@ -81,8 +90,18 @@ public class GitWizardRepository
                 GitWizardLog.LogException(exception, $"Exception retrieving status for {WorkingDirectory}");
             }
 
+            // Collect remote URLs
+            RemoteUrls.Clear();
+            foreach (var remote in repository.Network.Remotes)
+            {
+                if (!string.IsNullOrEmpty(remote.Url))
+                    RemoteUrls.Add(remote.Url);
+            }
+
+            // Reset before re-checking
+            LocalOnlyCommits = false;
+
             // TODO: Enable/disable deep checks
-            // TODO: Include optional fetch
             foreach (var branch in repository.Branches)
             {
                 // Check if this is a local branch (not a remote tracking branch)
@@ -277,6 +296,47 @@ public class GitWizardRepository
                         $"Exception updating worktrees for {WorkingDirectory}");
                 }
             });
+        }
+    }
+
+    static void FetchAllRemotes(string workingDirectory)
+    {
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "git",
+                Arguments = "fetch --all -q",
+                WorkingDirectory = workingDirectory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = System.Diagnostics.Process.Start(psi);
+            if (process != null)
+            {
+                if (!process.WaitForExit(60000))
+                {
+                    GitWizardLog.Log($"git fetch --all timed out for {workingDirectory}", GitWizardLog.LogType.Warning);
+                    process.Kill();
+                    return;
+                }
+
+                if (process.ExitCode != 0)
+                {
+                    var error = process.StandardError.ReadToEnd();
+                    if (!string.IsNullOrEmpty(error))
+                    {
+                        GitWizardLog.Log($"git fetch --all reported: {error}", GitWizardLog.LogType.Warning);
+                    }
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, $"Exception fetching remotes for {workingDirectory}");
         }
     }
 

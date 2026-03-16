@@ -35,6 +35,17 @@ GitWizard stores config and cache in `~/.GitWizard/`:
 - `repositories.txt` — Cached repo list
 - `report.json` — Cached report
 
+## Debugging
+
+.NET diagnostic CLI tools are installed globally:
+- `dotnet-dump collect -p <pid>` — capture a dump of a hung/crashed process
+- `dotnet-dump analyze <dump>` — inspect threads, stacks, exceptions (`pe` for last exception, `clrstack` for managed stacks)
+- `dotnet-stack report -p <pid>` — quick stack trace of all threads without killing the process
+
+Use these to debug crashes/freezes instead of guessing. For the MAUI UI, run the exe in the background, get its PID, and collect a dump if it hangs.
+
+VS2026 is also installed at `C:/Program Files/Microsoft Visual Studio/2022/Community/` for interactive debugging when CLI tools aren't enough.
+
 ## Release process
 
 1. Update `ApplicationDisplayVersion` in `GitWizardUI/GitWizardUI.csproj`

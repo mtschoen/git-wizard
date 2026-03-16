@@ -69,7 +69,8 @@ public class GitWizardReport
     /// <param name="updateHandler">Optional handler for UI updates.</param>
     /// <returns>Task containing the report</returns>
     public static GitWizardReport GenerateReport(GitWizardConfiguration configuration,
-        ICollection<string>? repositoryPaths = null, IUpdateHandler? updateHandler = null)
+        ICollection<string>? repositoryPaths = null, IUpdateHandler? updateHandler = null,
+        bool fetchRemotes = false, bool deepRefresh = false)
     {
         var report = new GitWizardReport(configuration);
         if (repositoryPaths == null)
@@ -78,7 +79,7 @@ public class GitWizardReport
             report.GetRepositoryPaths(repositoryPaths, updateHandler);
         }
 
-        report.Refresh(repositoryPaths, updateHandler);
+        report.Refresh(repositoryPaths, updateHandler, fetchRemotes, deepRefresh);
 
         return report;
     }
@@ -122,7 +123,8 @@ public class GitWizardReport
         });
     }
 
-    public void Refresh(ICollection<string> repositoryPaths, IUpdateHandler? updateHandler = null)
+    public void Refresh(ICollection<string> repositoryPaths, IUpdateHandler? updateHandler = null,
+        bool fetchRemotes = false, bool deepRefresh = false)
     {
         var count = 0;
 
@@ -158,7 +160,7 @@ public class GitWizardReport
             }
 
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-            var refreshTask = Task.Run(() => repository.Refresh(updateHandler));
+            var refreshTask = Task.Run(() => repository.Refresh(updateHandler, fetchRemotes, deepRefresh));
             if (!refreshTask.Wait(TimeSpan.FromMinutes(5)))
             {
                 repository.RefreshError = "Timed out after 5 minutes";

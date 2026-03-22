@@ -1,13 +1,31 @@
+## Review Follow-Ups
+
+- Add a publish/release guard that fails if `GitWizard.csproj` depends on a local `ProjectReference` to `MFTLib`.
+  Problem: local development may temporarily point at unreleased `MFTLib`, but published artifacts must not.
+  Address by adding an MSBuild target on the publish path in `GitWizardUI.csproj` (or a release script check) that errors when `GitWizard.csproj` contains a local `ProjectReference` instead of a package reference.
+
+- Publish and consume a released `MFTLib` version with the new path APIs.
+  Problem: the repo can use a local reference during development, but release builds need a package bump path.
+  Address by publishing a new `MFTLib` package, switching `GitWizard.csproj` back to `PackageReference`, and pinning the released version.
+
+- Review repository refresh concurrency and timeout behavior.
+  Problem: `GitWizardReport.Refresh(...)` still wraps sync refresh work in `Task.Run(...)`, applies a per-repo timeout, and mutates shared state/UI callbacks concurrently.
+  Address by deciding whether refresh should become fully async with cooperative cancellation, or whether current timeouts should remain but with stricter ownership of shared mutable state.
+
+- Review MAUI UI update batching and grouping behavior under refresh churn.
+  Problem: `MainViewModel` still relies on a background queue-drain loop and incremental collection mutation while refreshes are in flight.
+  Address by stress-testing grouping/filtering during refresh and tightening thread-affinity assumptions around repository insertion and update ordering.
+
 ## Next Up
 
 - Update MFT parser to also find `.git` files (not just directories) so worktrees with origins outside search paths are discovered
 - Include deleted and added files in uncommitted changes count
 - Show error log — exceptions are currently just logged to output
 - Context menu
-  - Move open in Fork button to context menu
-  - Clean
-  - Open in Explorer
-  - Copy working directory to clipboard
+- Move open in Fork button to context menu
+- Clean
+- Open in Explorer
+- Copy working directory to clipboard
 
 ## Backlog
 
@@ -16,23 +34,23 @@
 - Check if downstream branches are included in some upstream branch (deleted after merge)
 - Aggregate statuses from submodules
 - Add Windows folder to default exclusions
-- Make Fork.exe path configurable in settings (currently hard-coded to %LocalAppData%\Fork\Fork.exe)
-- Explore CLI argument parsing libraries which can auto-generate manual/help (replace RunConfiguration)
+- Make `Fork.exe` path configurable in settings (currently hard-coded to `%LocalAppData%\Fork\Fork.exe`)
+- Explore CLI argument parsing libraries which can auto-generate manual/help (replace `RunConfiguration`)
 - Explore path handling library for `%USERPROFILE%` and `~` path aliases
 - "Pretty print" in path lists to transform environment variables into their values
 - Define report structure for extensibility
 - Async save/load for cached files (configs and reports)
 - Filtering
-  - Filters should be additive not exclusive
-  - Identify submodules which are not checked out to project pointer reference
-  - Identify submodules which have not been checked out/init
-  - Identify submodules which are in .gitmodules but not in the index, or vice versa
+- Filters should be additive not exclusive
+- Identify submodules which are not checked out to project pointer reference
+- Identify submodules which have not been checked out/init
+- Identify submodules which are in `.gitmodules` but not in the index, or vice versa
 - Button/utility to check out branch head that matches detached head
 - Testing automation
-- Profiling/optimization (am I using await correctly?)
+- Profiling/optimization (am I using `await` correctly?)
 - Progress bar for CLI
 - Show DB size
 - Branches view of github (maybe?)
-  - Active branches
-  - My branches
+- Active branches
+- My branches
 - Undo/Redo for search/ignore list changes

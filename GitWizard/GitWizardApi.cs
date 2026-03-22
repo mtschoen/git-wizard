@@ -41,17 +41,57 @@ public static class GitWizardApi
     /// </summary>
     public static string? ExpandSearchPath(string rootPath)
     {
-        if (rootPath.StartsWith("%"))
-        {
-            var path = Environment.ExpandEnvironmentVariables(rootPath);
-            if (!string.IsNullOrEmpty(path))
-                rootPath = path;
-        }
+        var expandedPath = Environment.ExpandEnvironmentVariables(rootPath);
+        if (!string.IsNullOrEmpty(expandedPath))
+            rootPath = expandedPath;
 
         if (rootPath == "~")
             rootPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
-        return Directory.Exists(rootPath) ? rootPath : null;
+        if (!Directory.Exists(rootPath))
+            return null;
+
+        return NormalizePath(rootPath);
+    }
+
+    static StringComparison PathComparison =>
+        RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+    static string NormalizePath(string path)
+    {
+        var fullPath = Path.GetFullPath(path);
+        if (fullPath.Length > 1)
+            fullPath = fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        return RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? fullPath.ToLowerInvariant()
+            : fullPath;
+    }
+
+    static List<string> ExpandIgnoredPaths(IEnumerable<string> ignoredPaths)
+    {
+        return ignoredPaths
+            .Select(ExpandSearchPath)
+            .Where(path => !string.IsNullOrEmpty(path))
+            .Cast<string>()
+            .ToList();
+    }
+
+    static bool IsSameOrChildPath(string path, string rootPath)
+    {
+        if (string.Equals(path, rootPath, PathComparison))
+            return true;
+
+        if (!path.StartsWith(rootPath, PathComparison))
+            return false;
+
+        if (path.Length == rootPath.Length)
+            return true;
+
+        var nextChar = path[rootPath.Length];
+        return nextChar == Path.DirectorySeparatorChar || nextChar == Path.AltDirectorySeparatorChar;
     }
 
     /// <summary>
@@ -150,7 +190,7 @@ public static class GitWizardApi
 
         rootPath = expanded;
 
-        FindGitRepositoriesRecursively(rootPath, paths, ignoredPaths, updateHandler);
+        FindGitRepositoriesRecursively(rootPath, paths, ExpandIgnoredPaths(ignoredPaths), updateHandler);
 
         try
         {
@@ -174,12 +214,8 @@ public static class GitWizardApi
             updateHandler?.SendUpdateMessage($"Using MFT to search {driveLetter}: drive");
 
             using var volume = MftVolume.Open(driveLetter);
-            var rootPathLower = rootPath.ToLowerInvariant();
-
-            // Expand ignored paths once upfront
-            var expandedIgnoredPaths = ignoredPaths
-                .Select(p => Environment.ExpandEnvironmentVariables(p).ToLowerInvariant())
-                .ToList();
+            var normalizedRootPath = NormalizePath(rootPath);
+            var expandedIgnoredPaths = ExpandIgnoredPaths(ignoredPaths);
 
             // Collect candidates first, then filter out nested repos
             var candidates = new List<string>();
@@ -190,18 +226,18 @@ public static class GitWizardApi
                 if (parentPath == null)
                     continue;
 
-                var parentPathLower = parentPath.ToLowerInvariant();
+                var normalizedParentPath = NormalizePath(parentPath);
 
                 // Must be under the root search path
-                if (!parentPathLower.StartsWith(rootPathLower))
+                if (!IsSameOrChildPath(normalizedParentPath, normalizedRootPath))
                     continue;
 
                 // Skip ignored paths
-                if (expandedIgnoredPaths.Any(ignored => parentPathLower.StartsWith(ignored)))
+                if (expandedIgnoredPaths.Any(ignored => IsSameOrChildPath(normalizedParentPath, ignored)))
                     continue;
 
                 // Skip paths containing hidden/dot directories (matches recursive search behavior)
-                var relativePath = parentPathLower[rootPathLower.Length..];
+                var relativePath = normalizedParentPath[normalizedRootPath.Length..];
                 if (relativePath.Split(Path.DirectorySeparatorChar)
                     .Any(segment => segment.Length > 0 && segment.StartsWith('.')))
                     continue;
@@ -210,7 +246,7 @@ public static class GitWizardApi
                 if (!Directory.Exists(parentPath))
                     continue;
 
-                candidates.Add(parentPathLower);
+                candidates.Add(normalizedParentPath);
             }
 
             // Sort so parent paths come before child paths
@@ -221,7 +257,7 @@ public static class GitWizardApi
             foreach (var candidate in candidates)
             {
                 if (lastAddedRepo != null &&
-                    candidate.StartsWith(lastAddedRepo + Path.DirectorySeparatorChar))
+                    IsSameOrChildPath(candidate, lastAddedRepo))
                     continue;
 
                 lock (paths)
@@ -271,6 +307,7 @@ public static class GitWizardApi
 
             Parallel.ForEach(directories, subDirectory =>
             {
+                var normalizedSubDirectory = NormalizePath(subDirectory);
                 var split = subDirectory.Split(Path.DirectorySeparatorChar);
                 var lastDirectory = split.Last();
 
@@ -278,9 +315,7 @@ public static class GitWizardApi
                 {
                     lock (paths)
                     {
-                        paths.Add(RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-                            ? rootPath.ToLowerInvariant()
-                            : rootPath);
+                        paths.Add(NormalizePath(rootPath));
                     }
 
                     return;
@@ -294,10 +329,10 @@ public static class GitWizardApi
                 if (directoryInfo.Attributes.HasFlag(FileAttributes.Hidden))
                     return;
 
-                if (ignoredPaths.Contains(subDirectory))
+                if (ignoredPaths.Any(ignored => IsSameOrChildPath(normalizedSubDirectory, ignored)))
                     return;
 
-                FindGitRepositoriesRecursively(subDirectory, paths, ignoredPaths, updateHandler);
+                FindGitRepositoriesRecursively(normalizedSubDirectory, paths, ignoredPaths, updateHandler);
             });
         }
         catch (Exception exception)
@@ -360,13 +395,14 @@ public static class GitWizardApi
         if (string.IsNullOrWhiteSpace(paths))
             return null;
 
-        return paths.Split('\n');
+        return paths
+            .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
 
     public static void SaveCachedRepositoryPaths(IEnumerable<string> paths)
     {
         EnsureLocalFolderExists();
         var path = GetCachedRepositoryListPath();
-        File.WriteAllTextAsync(path, string.Join('\n', paths));
+        File.WriteAllText(path, string.Join(Environment.NewLine, paths));
     }
 }

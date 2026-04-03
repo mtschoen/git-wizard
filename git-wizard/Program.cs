@@ -28,6 +28,8 @@ Supported command line arguments (all optional):
   -delete-all-local-files   Delete all files created by GitWizard before running (includes files deleted by -clear-cache;
                             combine with -no-refresh to avoid creating any more local files)
   -setup-defender           Add Windows Defender exclusions for git/dotnet processes and search paths (triggers UAC prompt)
+  -scan-only                Print discovered repository paths (one per line) and exit without refreshing
+  -no-mft                   Skip MFT search and use recursive directory scan instead
 ";
 
         /// <summary>
@@ -54,6 +56,16 @@ Supported command line arguments (all optional):
         /// Add Windows Defender exclusions before running.
         /// </summary>
         public readonly bool SetupDefender = false;
+
+        /// <summary>
+        /// Print discovered repository paths and exit without refreshing.
+        /// </summary>
+        public readonly bool ScanOnly = false;
+
+        /// <summary>
+        /// Skip MFT search and use recursive directory scan instead.
+        /// </summary>
+        public readonly bool NoMft = false;
 
         /// <summary>
         /// Refresh the report based on the latest state (otherwise just print out the cached report).
@@ -112,6 +124,13 @@ Supported command line arguments (all optional):
                         break;
                     case "-setup-defender":
                         SetupDefender = true;
+                        break;
+                    case "-scan-only":
+                        ScanOnly = true;
+                        RebuildRepositoryList = true;
+                        break;
+                    case "-no-mft":
+                        NoMft = true;
                         break;
                     case "-clear-cache":
                         ClearCache = true;
@@ -227,6 +246,21 @@ git-wizard Session Started
             GitWizardLog.Log("Setting up Windows Defender exclusions...");
             WindowsDefenderException.AddExclusions();
         }
+
+        if (runConfiguration.ScanOnly)
+        {
+            var scanReport = new GitWizardReport(configuration);
+            var scanPaths = new SortedSet<string>();
+            scanReport.GetRepositoryPaths(scanPaths, noMft: runConfiguration.NoMft);
+            foreach (var path in scanPaths)
+            {
+                Console.WriteLine(path);
+            }
+
+            Environment.Exit(0);
+            return;
+        }
+
         var repositoryPaths = GetRepositoryPaths(runConfiguration);
         var updateHandler = new UpdateHandler();
         var report = GetReport(runConfiguration, configuration, repositoryPaths, updateHandler);
@@ -296,7 +330,8 @@ git-wizard Session Started
             }
         }
 
-        return GitWizardReport.GenerateReport(configuration, repositoryPaths, updateHandler);
+        return GitWizardReport.GenerateReport(configuration, repositoryPaths, updateHandler,
+            noMft: runConfiguration.NoMft);
     }
 
     static string[]? GetRepositoryPaths(RunConfiguration runConfiguration)

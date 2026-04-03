@@ -62,12 +62,26 @@ public static class GitWizardApi
     static string NormalizePath(string path)
     {
         var fullPath = Path.GetFullPath(path);
-        if (fullPath.Length > 1)
+
+        // Trim trailing separators, but preserve drive root paths (e.g. "C:\")
+        // because "C:" without a trailing slash is a relative path on Windows.
+        var root = Path.GetPathRoot(fullPath);
+        if (fullPath.Length > 1 && fullPath != root)
             fullPath = fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
         return RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
             ? fullPath.ToLowerInvariant()
             : fullPath;
+    }
+
+    static bool IsDriveRoot(string normalizedPath)
+    {
+        // e.g. "c:" on Windows or "/" on Unix
+        var root = Path.GetPathRoot(normalizedPath);
+        return root != null && string.Equals(
+            normalizedPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            PathComparison);
     }
 
     static List<string> ExpandIgnoredPaths(IEnumerable<string> ignoredPaths)
@@ -100,12 +114,12 @@ public static class GitWizardApi
     /// </summary>
     /// <returns>True if MFT search was used successfully.</returns>
     public static bool TryFindAllRepositoriesUsingMft(GitWizardConfiguration configuration,
-        ICollection<string> paths, IUpdateHandler? updateHandler = null)
+        ICollection<string> paths, IUpdateHandler? updateHandler = null, bool noMft = false)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             return false;
 
-        if (Environment.GetEnvironmentVariable("GITWIZARD_NO_MFT") == "1")
+        if (noMft)
             return false;
 
         if (ElevationUtilities.IsElevated())
@@ -193,7 +207,11 @@ public static class GitWizardApi
 
         rootPath = expanded;
 
-        FindGitRepositoriesRecursively(rootPath, paths, ExpandIgnoredPaths(ignoredPaths), updateHandler);
+        // When searching a full drive, skip .git files — submodules/worktrees are found during refresh.
+        // When searching a scoped path, include .git files for worktrees/submodules whose parent
+        // may be outside the search scope.
+        var includeGitFiles = !IsDriveRoot(rootPath);
+        FindGitRepositoriesRecursively(rootPath, paths, ExpandIgnoredPaths(ignoredPaths), includeGitFiles, updateHandler);
 
         try
         {
@@ -219,11 +237,19 @@ public static class GitWizardApi
             using var volume = MftVolume.Open(driveLetter);
             var normalizedRootPath = NormalizePath(rootPath);
             var expandedIgnoredPaths = ExpandIgnoredPaths(ignoredPaths);
+            var isDriveRoot = IsDriveRoot(normalizedRootPath);
 
-            // Collect candidates first, then filter out nested repos
+            // When searching a full drive, only find .git directories — submodules and worktrees
+            // (.git files) will be discovered during refresh of the parent repo.
+            // When searching a scoped path, also find .git files in case the search root itself
+            // is a worktree or submodule whose parent is outside the search scope.
+            var gitEntries = isDriveRoot
+                ? volume.FindDirectories(".git")
+                : volume.FindRecords(".git");
+
             var candidates = new List<string>();
 
-            foreach (var gitDirPath in volume.FindRecords(".git"))
+            foreach (var gitDirPath in gitEntries)
             {
                 var parentPath = Path.GetDirectoryName(gitDirPath);
                 if (parentPath == null)
@@ -272,7 +298,7 @@ public static class GitWizardApi
         }
     }
 
-    static void FindGitRepositoriesRecursively(string rootPath, ICollection<string> paths, ICollection<string> ignoredPaths, IUpdateHandler? updateHandler = null)
+    static void FindGitRepositoriesRecursively(string rootPath, ICollection<string> paths, ICollection<string> ignoredPaths, bool includeGitFiles, IUpdateHandler? updateHandler = null)
     {
         try
         {
@@ -286,7 +312,7 @@ public static class GitWizardApi
             }
 
             // Check for .git file (submodule/worktree pointer) in current directory
-            if (File.Exists(Path.Combine(rootPath, ".git")))
+            if (includeGitFiles && File.Exists(Path.Combine(rootPath, ".git")))
             {
                 lock (paths)
                 {
@@ -335,7 +361,7 @@ public static class GitWizardApi
                     if (ignoredPaths.Any(ignored => IsSameOrChildPath(normalizedSubDirectory, ignored)))
                         return;
 
-                    FindGitRepositoriesRecursively(normalizedSubDirectory, paths, ignoredPaths, updateHandler);
+                    FindGitRepositoriesRecursively(normalizedSubDirectory, paths, ignoredPaths, includeGitFiles, updateHandler);
                 }
                 catch
                 {

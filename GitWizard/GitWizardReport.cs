@@ -79,6 +79,14 @@ public class GitWizardReport
             report.GetRepositoryPaths(repositoryPaths, updateHandler);
         }
 
+        // TEMP: Dump raw discovered paths before refresh
+        var dumpPath = Environment.GetEnvironmentVariable("GITWIZARD_DUMP_PATHS");
+        if (!string.IsNullOrEmpty(dumpPath))
+        {
+            File.WriteAllLines(dumpPath, repositoryPaths);
+            GitWizardLog.Log($"Dumped {repositoryPaths.Count} raw paths to {dumpPath}");
+        }
+
         report.Refresh(repositoryPaths, updateHandler, fetchRemotes, deepRefresh);
 
         return report;

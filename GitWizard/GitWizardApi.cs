@@ -105,7 +105,10 @@ public static class GitWizardApi
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             return false;
 
-        if (ElevatedProcessHelper.IsElevated())
+        if (Environment.GetEnvironmentVariable("GITWIZARD_NO_MFT") == "1")
+            return false;
+
+        if (ElevationUtilities.IsElevated())
         {
             // Already elevated — scan directly
             foreach (var searchPath in configuration.SearchPaths)
@@ -126,7 +129,7 @@ public static class GitWizardApi
 
         try
         {
-            if (!ElevatedProcessHelper.TryRunElevatedMftScan(configPath, outputPath))
+            if (!ElevationUtilities.TryRunElevated($"--elevated-mft --config-path \"{configPath}\" --output \"{outputPath}\"", timeoutMs: 120000))
                 return false;
 
             if (!File.Exists(outputPath))
@@ -220,7 +223,7 @@ public static class GitWizardApi
             // Collect candidates first, then filter out nested repos
             var candidates = new List<string>();
 
-            foreach (var gitDirPath in volume.FindDirectories(".git"))
+            foreach (var gitDirPath in volume.FindRecords(".git"))
             {
                 var parentPath = Path.GetDirectoryName(gitDirPath);
                 if (parentPath == null)
@@ -249,23 +252,12 @@ public static class GitWizardApi
                 candidates.Add(normalizedParentPath);
             }
 
-            // Sort so parent paths come before child paths
-            candidates.Sort(StringComparer.OrdinalIgnoreCase);
-
-            // Filter out paths that are nested inside another found repo
-            string? lastAddedRepo = null;
             foreach (var candidate in candidates)
             {
-                if (lastAddedRepo != null &&
-                    IsSameOrChildPath(candidate, lastAddedRepo))
-                    continue;
-
                 lock (paths)
                 {
                     paths.Add(candidate);
                 }
-
-                lastAddedRepo = candidate;
             }
 
             updateHandler?.SendUpdateMessage($"MFT search found {paths.Count} repositories on {driveLetter}:");
@@ -293,6 +285,15 @@ public static class GitWizardApi
                 GitWizardLog.LogException(nextException, "Exception thrown by GenerateReport onUpdate callback.");
             }
 
+            // Check for .git file (submodule/worktree pointer) in current directory
+            if (File.Exists(Path.Combine(rootPath, ".git")))
+            {
+                lock (paths)
+                {
+                    paths.Add(NormalizePath(rootPath));
+                }
+            }
+
             string[]? directories;
             try
             {
@@ -307,32 +308,39 @@ public static class GitWizardApi
 
             Parallel.ForEach(directories, subDirectory =>
             {
-                var normalizedSubDirectory = NormalizePath(subDirectory);
-                var split = subDirectory.Split(Path.DirectorySeparatorChar);
-                var lastDirectory = split.Last();
-
-                if (lastDirectory == ".git")
+                try
                 {
-                    lock (paths)
+                    var normalizedSubDirectory = NormalizePath(subDirectory);
+                    var split = subDirectory.Split(Path.DirectorySeparatorChar);
+                    var lastDirectory = split.Last();
+
+                    if (lastDirectory == ".git")
                     {
-                        paths.Add(NormalizePath(rootPath));
+                        lock (paths)
+                        {
+                            paths.Add(NormalizePath(rootPath));
+                        }
+
+                        return;
                     }
 
-                    return;
+                    // TODO: Add config setting for ignoring hidden directories
+                    if (split.Last().StartsWith("."))
+                        return;
+
+                    var directoryInfo = new DirectoryInfo(subDirectory);
+                    if (directoryInfo.Attributes.HasFlag(FileAttributes.Hidden))
+                        return;
+
+                    if (ignoredPaths.Any(ignored => IsSameOrChildPath(normalizedSubDirectory, ignored)))
+                        return;
+
+                    FindGitRepositoriesRecursively(normalizedSubDirectory, paths, ignoredPaths, updateHandler);
                 }
-
-                // TODO: Add config setting for ignoring hidden directories
-                if (split.Last().StartsWith("."))
-                    return;
-
-                var directoryInfo = new DirectoryInfo(subDirectory);
-                if (directoryInfo.Attributes.HasFlag(FileAttributes.Hidden))
-                    return;
-
-                if (ignoredPaths.Any(ignored => IsSameOrChildPath(normalizedSubDirectory, ignored)))
-                    return;
-
-                FindGitRepositoriesRecursively(normalizedSubDirectory, paths, ignoredPaths, updateHandler);
+                catch
+                {
+                    // Ignore per-directory exceptions (access denied, etc.)
+                }
             });
         }
         catch (Exception exception)

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using MFTLib;
 
 namespace GitWizard;
 
@@ -14,12 +15,12 @@ public static class WindowsDefenderException
     /// <returns>True if the exclusions were applied successfully.</returns>
     public static bool AddExclusions()
     {
-        if (ElevatedProcessHelper.IsElevated())
+        if (ElevationUtilities.IsElevated())
             return RunDefenderCommands();
 
         // Try self-elevation first (published builds)
-        if (ElevatedProcessHelper.GetExecutablePath() != null)
-            return ElevatedProcessHelper.TryRunElevatedDefender();
+        if (ElevationUtilities.CanSelfElevate())
+            return ElevationUtilities.TryRunElevated("--elevated-defender", timeoutMs: 30000);
 
         // Fall back to elevated PowerShell (dotnet run)
         return RunDefenderCommandsViaElevatedPowerShell();

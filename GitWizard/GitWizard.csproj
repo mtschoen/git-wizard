@@ -8,6 +8,11 @@
 
   <ItemGroup>
     <PackageReference Include="LibGit2Sharp" Version="0.31.0" />
-    <PackageReference Include="MFTLib" Version="0.1.2" />
+    <PackageReference Include="MFTLib" Version="0.2.0" />
   </ItemGroup>
+  <!-- Fail publish if MFTLib is a local ProjectReference instead of a PackageReference -->
+  <Target Name="BlockLocalMFTLibOnPublish" BeforeTargets="Publish">
+    <Error Condition="'%(ProjectReference.Filename)' == 'MFTLib'"
+           Text="Cannot publish with a local ProjectReference to MFTLib. Switch to a PackageReference first." />
+  </Target>
 </Project>

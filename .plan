@@ -1,13 +1,5 @@
 ## Review Follow-Ups
 
-- Add a publish/release guard that fails if `GitWizard.csproj` depends on a local `ProjectReference` to `MFTLib`.
-  Problem: local development may temporarily point at unreleased `MFTLib`, but published artifacts must not.
-  Address by adding an MSBuild target on the publish path in `GitWizardUI.csproj` (or a release script check) that errors when `GitWizard.csproj` contains a local `ProjectReference` instead of a package reference.
-
-- Publish and consume a released `MFTLib` version with the new path APIs.
-  Problem: the repo can use a local reference during development, but release builds need a package bump path.
-  Address by publishing a new `MFTLib` package, switching `GitWizard.csproj` back to `PackageReference`, and pinning the released version.
-
 - Review repository refresh concurrency and timeout behavior.
   Problem: `GitWizardReport.Refresh(...)` still wraps sync refresh work in `Task.Run(...)`, applies a per-repo timeout, and mutates shared state/UI callbacks concurrently.
   Address by deciding whether refresh should become fully async with cooperative cancellation, or whether current timeouts should remain but with stricter ownership of shared mutable state.

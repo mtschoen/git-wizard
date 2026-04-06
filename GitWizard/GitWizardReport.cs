@@ -8,6 +8,7 @@ public class GitWizardReport
 {
     static GitWizardReport? _cachedReport;
 
+    public string SchemaVersion { get; set; } = "1.0";
     public SortedSet<string> SearchPaths { get; set; } = new();
     public SortedSet<string> IgnoredPaths { get; set; } = new();
     public SortedDictionary<string, GitWizardRepository> Repositories { get; set; } = new();

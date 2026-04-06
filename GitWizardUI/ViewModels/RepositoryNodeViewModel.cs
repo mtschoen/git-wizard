@@ -181,6 +181,8 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
             FilterType.SubmoduleConfigIssue => HasSubmoduleConfigIssues(),
             FilterType.DetachedHead => HasDetachedHeadRecursive(),
             FilterType.MyRepositories => IsMyRepository(),
+            FilterType.LocalOnlyCommits => Repository.LocalOnlyCommits,
+            FilterType.Stale => Repository.DaysSinceLastCommit > 30,
             _ => true
         };
     }
@@ -266,5 +268,7 @@ public enum FilterType
     SubmoduleUninitialized,
     SubmoduleConfigIssue,
     DetachedHead,
-    MyRepositories
+    MyRepositories,
+    LocalOnlyCommits,
+    Stale
 }

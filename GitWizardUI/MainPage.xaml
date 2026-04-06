@@ -36,6 +36,8 @@
                 <Button x:Name="FilterSubmoduleConfigIssue" ToolTipProperties.Text="Repositories with submodules which are in .gitmodules but not in the index, or vice versa" Text="Submodule Config Issue" FontSize="12" Clicked="FilterButton_Click" />
                 <Button x:Name="FilterDetachedHead" ToolTipProperties.Text="Repositories or submodules with detached heads with pending/unstaged changes" Text="Detached Head" FontSize="12" Clicked="FilterButton_Click" />
                 <Button x:Name="FilterMyRepositories" ToolTipProperties.Text="Repositories that you have committed to (based on email in global git configuration)" Text="My Repositories" FontSize="12" Clicked="FilterButton_Click" />
+                <Button x:Name="FilterLocalOnlyCommits" ToolTipProperties.Text="Repositories with commits not pushed to any remote" Text="Local Only Commits" FontSize="12" Clicked="FilterButton_Click" />
+                <Button x:Name="FilterStale" ToolTipProperties.Text="Repositories with no commits in the last 30 days" Text="Stale (30+ days)" FontSize="12" Clicked="FilterButton_Click" />
 
                 <Label FontSize="16" FontAttributes="Bold" HorizontalTextAlignment="Center" VerticalTextAlignment="Center" Padding="5">Group by</Label>
                 <Button x:Name="GroupByDrive" ToolTipProperties.Text="Group repositories by drive letter / root path" Text="Drive" FontSize="12" Clicked="GroupButton_Click" />

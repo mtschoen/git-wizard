@@ -30,6 +30,9 @@ Supported command line arguments (all optional):
   -setup-defender           Add Windows Defender exclusions for git/dotnet processes and search paths (triggers UAC prompt)
   -scan-only                Print discovered repository paths (one per line) and exit without refreshing
   -no-mft                   Skip MFT search and use recursive directory scan instead
+  -filter <pattern>         Filter output to repositories whose path contains <pattern> (case-insensitive)
+  -paths <file-or-csv>      Report on specific repo paths (newline-separated file or comma-separated list)
+  -summary                  Output a condensed summary (dirty/unpushed/stale counts + repos needing attention)
 ";
 
         /// <summary>
@@ -66,6 +69,22 @@ Supported command line arguments (all optional):
         /// Skip MFT search and use recursive directory scan instead.
         /// </summary>
         public readonly bool NoMft = false;
+
+        /// <summary>
+        /// Case-insensitive substring filter applied to repository paths in the output.
+        /// </summary>
+        public readonly string? FilterPattern = null;
+
+        /// <summary>
+        /// Explicit list of repository paths to report on, bypassing discovery.
+        /// Can be a file path (newline-separated) or comma-separated inline list.
+        /// </summary>
+        public readonly string? PathsArgument = null;
+
+        /// <summary>
+        /// Output a condensed summary instead of the full report.
+        /// </summary>
+        public readonly bool Summary = false;
 
         /// <summary>
         /// Refresh the report based on the latest state (otherwise just print out the cached report).
@@ -131,6 +150,27 @@ Supported command line arguments (all optional):
                         break;
                     case "-no-mft":
                         NoMft = true;
+                        break;
+                    case "-filter":
+                        if (i + 1 >= length)
+                        {
+                            GitWizardLog.Log("-filter argument passed without a following argument.", GitWizardLog.LogType.Error);
+                            break;
+                        }
+
+                        FilterPattern = arguments[++i];
+                        break;
+                    case "-paths":
+                        if (i + 1 >= length)
+                        {
+                            GitWizardLog.Log("-paths argument passed without a following argument.", GitWizardLog.LogType.Error);
+                            break;
+                        }
+
+                        PathsArgument = arguments[++i];
+                        break;
+                    case "-summary":
+                        Summary = true;
                         break;
                     case "-clear-cache":
                         ClearCache = true;
@@ -261,7 +301,7 @@ git-wizard Session Started
             return;
         }
 
-        var repositoryPaths = GetRepositoryPaths(runConfiguration);
+        var repositoryPaths = GetRepositoryPaths(runConfiguration) ?? ParseExplicitPaths(runConfiguration);
         var updateHandler = new UpdateHandler();
         var report = GetReport(runConfiguration, configuration, repositoryPaths, updateHandler);
         if (report == null)
@@ -282,10 +322,30 @@ git-wizard Session Started
 
         SaveReport(runConfiguration, report);
 
-        var jsonString = SerializeReport(runConfiguration, report);
+        var filteredReport = ApplyFilter(runConfiguration, report);
+        var needsAttention = ReportNeedsAttention(filteredReport);
+
+        string jsonString;
+        if (runConfiguration.Summary)
+        {
+            var summary = GitWizardSummary.FromReport(filteredReport);
+            var options = new JsonSerializerOptions
+            {
+                WriteIndented = !runConfiguration.Minified,
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
+            };
+            jsonString = JsonSerializer.Serialize(summary, options);
+        }
+        else
+        {
+            jsonString = SerializeReport(runConfiguration, filteredReport);
+        }
 
         if (!GitWizardLog.SilentMode)
             Console.WriteLine(jsonString);
+
+        if (needsAttention)
+            Environment.Exit(1);
     }
 
     static void SaveReport(RunConfiguration runConfiguration, GitWizardReport report)
@@ -337,6 +397,60 @@ git-wizard Session Started
     static string[]? GetRepositoryPaths(RunConfiguration runConfiguration)
     {
         return runConfiguration.RebuildRepositoryList ? null : GitWizardApi.GetCachedRepositoryPaths();
+    }
+
+    static GitWizardReport ApplyFilter(RunConfiguration runConfiguration, GitWizardReport report)
+    {
+        if (string.IsNullOrEmpty(runConfiguration.FilterPattern))
+            return report;
+
+        var filtered = new GitWizardReport
+        {
+            SchemaVersion = report.SchemaVersion,
+            SearchPaths = report.SearchPaths,
+            IgnoredPaths = report.IgnoredPaths
+        };
+
+        foreach (var kvp in report.Repositories)
+        {
+            if (kvp.Key.Contains(runConfiguration.FilterPattern, StringComparison.OrdinalIgnoreCase))
+                filtered.Repositories[kvp.Key] = kvp.Value;
+        }
+
+        return filtered;
+    }
+
+    static string[]? ParseExplicitPaths(RunConfiguration runConfiguration)
+    {
+        var argument = runConfiguration.PathsArgument;
+        if (string.IsNullOrEmpty(argument))
+            return null;
+
+        // If it's a file, read lines from it
+        if (File.Exists(argument))
+        {
+            return File.ReadAllLines(argument)
+                .Where(line => !string.IsNullOrWhiteSpace(line))
+                .Select(line => line.Trim())
+                .ToArray();
+        }
+
+        // Otherwise treat as comma-separated
+        return argument.Split(',')
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => p.Trim())
+            .ToArray();
+    }
+
+    static bool ReportNeedsAttention(GitWizardReport report)
+    {
+        foreach (var kvp in report.Repositories)
+        {
+            if (kvp.Value.HasPendingChanges || kvp.Value.LocalOnlyCommits)
+                return true;
+        }
+
+        return false;
     }
 
     static GitWizardConfiguration GetConfiguration(RunConfiguration runConfiguration)

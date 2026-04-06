@@ -170,6 +170,8 @@ public partial class MainPage : ContentPage
         if (button == FilterSubmoduleConfigIssue) return FilterType.SubmoduleConfigIssue;
         if (button == FilterDetachedHead) return FilterType.DetachedHead;
         if (button == FilterMyRepositories) return FilterType.MyRepositories;
+        if (button == FilterLocalOnlyCommits) return FilterType.LocalOnlyCommits;
+        if (button == FilterStale) return FilterType.Stale;
         return FilterType.None;
     }
 }

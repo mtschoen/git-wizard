@@ -43,6 +43,18 @@ public class GitWizardRepositoryTests
         Assert.That(first.AuthorEmail, Is.Not.Empty);
     }
 
+    [Test]
+    public void Refresh_PopulatesDaysSinceLastCommit()
+    {
+        GitWizardLog.SilentMode = true;
+        var repoPath = FindRepoRoot();
+        var repository = new GitWizardRepository(repoPath);
+        repository.Refresh();
+
+        Assert.That(repository.DaysSinceLastCommit, Is.Not.Null);
+        Assert.That(repository.DaysSinceLastCommit, Is.GreaterThanOrEqualTo(0));
+    }
+
     static string FindRepoRoot()
     {
         var directory = Directory.GetCurrentDirectory();

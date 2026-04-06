@@ -23,6 +23,7 @@ public class GitWizardRepository
     public string? RefreshError { get; set; }
     public HashSet<string>? AuthorEmails { get; private set; }
     public List<GitWizardCommitInfo>? RecentCommits { get; private set; }
+    public int? DaysSinceLastCommit { get; private set; }
 
     GitWizardRepository() { }
 
@@ -58,6 +59,8 @@ public class GitWizardRepository
             CurrentBranch = repository.Head.FriendlyName;
             IsDetachedHead = repository.Head.Reference is not SymbolicReference;
             LastCommitDate = repository.Head.Tip?.Author.When;
+            if (LastCommitDate.HasValue)
+                DaysSinceLastCommit = (int)(DateTimeOffset.Now - LastCommitDate.Value).TotalDays;
 
             try
             {

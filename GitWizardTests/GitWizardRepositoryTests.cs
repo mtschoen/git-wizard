@@ -25,6 +25,24 @@ public class GitWizardRepositoryTests
         Assert.That(deserialized.AuthorEmail, Is.EqualTo("dev@example.com"));
     }
 
+    [Test]
+    public void Refresh_PopulatesRecentCommits()
+    {
+        GitWizardLog.SilentMode = true;
+        var repoPath = FindRepoRoot();
+        var repository = new GitWizardRepository(repoPath);
+        repository.Refresh();
+
+        Assert.That(repository.RecentCommits, Is.Not.Null);
+        Assert.That(repository.RecentCommits, Has.Count.GreaterThan(0));
+        Assert.That(repository.RecentCommits!.Count, Is.LessThanOrEqualTo(10));
+
+        var first = repository.RecentCommits[0];
+        Assert.That(first.Hash, Has.Length.EqualTo(7));
+        Assert.That(first.Message, Is.Not.Empty);
+        Assert.That(first.AuthorEmail, Is.Not.Empty);
+    }
+
     static string FindRepoRoot()
     {
         var directory = Directory.GetCurrentDirectory();

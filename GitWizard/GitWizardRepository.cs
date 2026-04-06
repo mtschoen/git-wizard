@@ -22,6 +22,7 @@ public class GitWizardRepository
     public double RefreshTimeSeconds { get; set; }
     public string? RefreshError { get; set; }
     public HashSet<string>? AuthorEmails { get; private set; }
+    public List<GitWizardCommitInfo>? RecentCommits { get; private set; }
 
     GitWizardRepository() { }
 
@@ -139,6 +140,26 @@ public class GitWizardRepository
             catch (Exception exception)
             {
                 GitWizardLog.LogException(exception, $"Exception collecting author emails for {WorkingDirectory}");
+            }
+
+            // Collect recent commits for projdash/LLM consumption
+            try
+            {
+                RecentCommits = new List<GitWizardCommitInfo>();
+                foreach (var commit in repository.Commits.Take(10))
+                {
+                    RecentCommits.Add(new GitWizardCommitInfo
+                    {
+                        Hash = commit.Sha[..7],
+                        Message = commit.MessageShort,
+                        Date = commit.Author.When,
+                        AuthorEmail = commit.Author.Email
+                    });
+                }
+            }
+            catch (Exception exception)
+            {
+                GitWizardLog.LogException(exception, $"Exception collecting recent commits for {WorkingDirectory}");
             }
 
             IsRefreshing = false;

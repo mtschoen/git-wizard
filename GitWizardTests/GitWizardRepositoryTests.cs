@@ -1,5 +1,6 @@
 using System.Text.Json;
 using GitWizard;
+using LibGit2Sharp;
 
 namespace GitWizardTests;
 
@@ -53,6 +54,40 @@ public class GitWizardRepositoryTests
 
         Assert.That(repository.DaysSinceLastCommit, Is.Not.Null);
         Assert.That(repository.DaysSinceLastCommit, Is.GreaterThanOrEqualTo(0));
+    }
+
+    [Test]
+    public void Refresh_CountsUntrackedFilesInPendingChanges()
+    {
+        // Regression: a repo whose only changes are untracked files used to
+        // report HasPendingChanges=true with NumberOfPendingChanges=0. Both
+        // must agree so callers never see "dirty but zero changes".
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        File.WriteAllText(Path.Combine(fixture.Path, "untracked.txt"), "new");
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        Assert.That(repository.HasPendingChanges, Is.True);
+        Assert.That(repository.NumberOfPendingChanges, Is.GreaterThan(0));
+    }
+
+    [Test]
+    public void Refresh_CountsLocalCommitsOnUntrackedBranch()
+    {
+        // Regression: LocalOnlyCommits used to be a bare bool. Consumers need
+        // an actual count so they can show "3 unpushed" instead of "yes/no".
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AppendCommit("second.txt");
+        fixture.AppendCommit("third.txt");
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        Assert.That(repository.LocalOnlyCommits, Is.True);
+        Assert.That(repository.LocalCommitCount, Is.EqualTo(3));
     }
 
     static string FindRepoRoot()

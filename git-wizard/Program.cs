@@ -364,6 +364,9 @@ git-wizard Session Started
 
     static string SerializeReport(RunConfiguration runConfiguration, GitWizardReport report)
     {
+        // Stamp the current schema version so console output never carries
+        // a stale version loaded from an older cache.
+        report.SchemaVersion = GitWizardReport.CurrentSchemaVersion;
         var options = new JsonSerializerOptions
         {
             WriteIndented = !runConfiguration.Minified,

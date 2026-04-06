@@ -1,8 +1,12 @@
 # GitWizard Report JSON Schema
 
-**Current version:** `1.0`
+**Current version:** `1.1`
 
 The `SchemaVersion` field at the top of every report indicates the schema version. Breaking changes will increment this value.
+
+## JSON serialization note
+
+The report is written with `System.Text.Json`'s `DefaultIgnoreCondition = WhenWritingDefault`. **Numeric fields equal to `0`, boolean fields equal to `false`, and reference fields equal to `null` are omitted from the JSON output.** Consumers should treat absent fields as their default value (`0`/`false`/`null`), not as "unknown". Every non-nullable field documented below is guaranteed to be present *in spirit* — the serializer may simply elide it.
 
 ## Top-level fields
 
@@ -20,10 +24,11 @@ The `SchemaVersion` field at the top of every report indicates the schema versio
 | `WorkingDirectory` | `string` | yes | Absolute path to repo working directory |
 | `CurrentBranch` | `string` | yes | Current branch name |
 | `IsDetachedHead` | `bool` | no | Whether HEAD is detached |
-| `HasPendingChanges` | `bool` | no | Whether repo has uncommitted changes |
-| `NumberOfPendingChanges` | `int` | no | Count of modified + staged + removed files |
+| `HasPendingChanges` | `bool` | no | Whether repo has uncommitted changes (matches libgit2's `IsDirty`) |
+| `NumberOfPendingChanges` | `int` | no | Count of modified + staged + removed + added + untracked + renamed files. Always matches `HasPendingChanges` (0 iff false). |
 | `IsWorktree` | `bool` | no | Whether this is a git worktree |
 | `LocalOnlyCommits` | `bool` | no | Whether any local branch has unpushed commits |
+| `LocalCommitCount` | `int` | no | Total unpushed commits across all local branches. Sums `divergence.AheadBy` for tracked branches and all commits on untracked branches. |
 | `LastCommitDate` | `string` (ISO 8601) | yes | Timestamp of most recent commit on HEAD |
 | `DaysSinceLastCommit` | `int` | yes | Days since last commit (computed at refresh time) |
 | `RefreshTimeSeconds` | `float` | no | How long the last refresh took |

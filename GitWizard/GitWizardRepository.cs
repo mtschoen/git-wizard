@@ -17,6 +17,7 @@ public class GitWizardRepository
 
     public bool IsRefreshing { get; private set; }
     public bool LocalOnlyCommits { get; private set; }
+    public int LocalCommitCount { get; private set; }
     public List<string> RemoteUrls { get; private set; } = new();
     public DateTimeOffset? LastCommitDate { get; private set; }
     public double RefreshTimeSeconds { get; set; }
@@ -73,21 +74,18 @@ public class GitWizardRepository
                 HasPendingChanges = status.IsDirty;
                 if (HasPendingChanges)
                 {
+                    // Must match the categories that contribute to status.IsDirty so
+                    // callers never see HasPendingChanges=true with a count of 0.
+                    // LibGit2Sharp's IsDirty includes Modified, Staged, Removed, Added,
+                    // Untracked, RenamedInIndex, and RenamedInWorkDir.
                     NumberOfPendingChanges = 0;
-                    foreach (var _ in status.Modified)
-                    {
-                        NumberOfPendingChanges++;
-                    }
-
-                    foreach (var _ in status.Staged)
-                    {
-                        NumberOfPendingChanges++;
-                    }
-
-                    foreach (var _ in status.Removed)
-                    {
-                        NumberOfPendingChanges++;
-                    }
+                    foreach (var _ in status.Modified) NumberOfPendingChanges++;
+                    foreach (var _ in status.Staged) NumberOfPendingChanges++;
+                    foreach (var _ in status.Removed) NumberOfPendingChanges++;
+                    foreach (var _ in status.Added) NumberOfPendingChanges++;
+                    foreach (var _ in status.Untracked) NumberOfPendingChanges++;
+                    foreach (var _ in status.RenamedInIndex) NumberOfPendingChanges++;
+                    foreach (var _ in status.RenamedInWorkDir) NumberOfPendingChanges++;
                 }
             }
             catch (Exception exception)
@@ -105,6 +103,7 @@ public class GitWizardRepository
 
             // Reset before re-checking
             LocalOnlyCommits = false;
+            LocalCommitCount = 0;
 
             // TODO: Enable/disable deep checks
             foreach (var branch in repository.Branches)
@@ -117,6 +116,15 @@ public class GitWizardRepository
                 if (branch.TrackedBranch == null)
                 {
                     LocalOnlyCommits = true;
+                    try
+                    {
+                        // Every commit on this branch is effectively unpushed.
+                        LocalCommitCount += branch.Commits.Count();
+                    }
+                    catch (Exception exception)
+                    {
+                        GitWizardLog.LogException(exception, $"Exception counting commits on untracked branch {branch.FriendlyName} for {WorkingDirectory}");
+                    }
                     continue;
                 }
 
@@ -127,6 +135,7 @@ public class GitWizardRepository
                     if (divergence.AheadBy > 0)
                     {
                         LocalOnlyCommits = true;
+                        LocalCommitCount += divergence.AheadBy ?? 0;
                     }
                 }
             }

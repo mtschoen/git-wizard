@@ -8,7 +8,14 @@ public class GitWizardReport
 {
     static GitWizardReport? _cachedReport;
 
-    public string SchemaVersion { get; set; } = "1.0";
+    /// <summary>
+    /// The current schema version emitted by this build. Stamped onto every
+    /// report at save time so cached reports from older builds don't
+    /// propagate stale version strings forward.
+    /// </summary>
+    public const string CurrentSchemaVersion = "1.1";
+
+    public string SchemaVersion { get; set; } = CurrentSchemaVersion;
     public SortedSet<string> SearchPaths { get; set; } = new();
     public SortedSet<string> IgnoredPaths { get; set; } = new();
     public SortedDictionary<string, GitWizardRepository> Repositories { get; set; } = new();
@@ -201,6 +208,9 @@ public class GitWizardReport
 
         try
         {
+            // Always stamp the current schema version so reports loaded from
+            // an older cache don't carry their stale version forward.
+            SchemaVersion = CurrentSchemaVersion;
             // TODO: Async config save
             File.WriteAllText(path, JsonSerializer.Serialize(this, new JsonSerializerOptions
             {

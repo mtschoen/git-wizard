@@ -8,7 +8,7 @@ public class GitWizardReportTests
     public void Report_HasSchemaVersion()
     {
         var report = new GitWizardReport();
-        Assert.That(report.SchemaVersion, Is.EqualTo("1.0"));
+        Assert.That(report.SchemaVersion, Is.EqualTo("1.1"));
     }
 
     [Test]
@@ -16,7 +16,7 @@ public class GitWizardReportTests
     {
         var report = new GitWizardReport();
         var json = System.Text.Json.JsonSerializer.Serialize(report);
-        Assert.That(json, Does.Contain("\"SchemaVersion\":\"1.0\""));
+        Assert.That(json, Does.Contain("\"SchemaVersion\":\"1.1\""));
     }
 
     [Test]

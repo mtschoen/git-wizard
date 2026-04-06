@@ -3,7 +3,7 @@ namespace GitWizard;
 [Serializable]
 public class GitWizardSummary
 {
-    public string SchemaVersion { get; set; } = "1.0";
+    public string SchemaVersion { get; set; } = "1.1";
     public int TotalRepositories { get; set; }
     public int Dirty { get; set; }
     public int Unpushed { get; set; }

@@ -16,7 +16,7 @@ public class GitWizardSummaryTests
         var summary = GitWizardSummary.FromReport(report);
 
         Assert.That(summary.TotalRepositories, Is.EqualTo(1));
-        Assert.That(summary.SchemaVersion, Is.EqualTo("1.0"));
+        Assert.That(summary.SchemaVersion, Is.EqualTo("1.1"));
     }
 
     [Test]

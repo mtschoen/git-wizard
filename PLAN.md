@@ -31,6 +31,13 @@ GitWizard already scans 692 repos and caches state in `report.json`. Projdash cu
 
 These tasks live in projdash's PLAN.md but are noted here for cross-reference:
 
-- projdash `GitWizardAdapter` reads `report.json` or calls CLI with `--paths` for its tracked projects
-- projdash `queries.py` gains a `refresh_from_gitwizard()` function to bulk-update git state
-- MCP `get_project` and `list_projects` can use GitWizard data when available (faster, richer)
+- [x] projdash `GitWizardAdapter` reads `report.json` and shells out to the CLI with `-paths` on demand
+- [x] projdash `queries.py` reads the GitWizard report in `_enrich()` with a subprocess fallback (no dedicated `refresh_from_gitwizard` helper — freshness is handled by `refresh_report()` + `projdash scan`/`refresh-git`)
+- [x] MCP `get_project` and `list_projects` use GitWizard data when available, plus `gitwizard_status` exposes cache freshness
+
+### Schema 1.1 fixes (projdash feedback)
+
+- [x] `NumberOfPendingChanges` now counts untracked + added + renamed files so it matches `HasPendingChanges` (was 0 for untracked-only repos)
+- [x] Added `LocalCommitCount` int field so consumers can show real unpushed counts instead of a bool
+- [x] `CurrentSchemaVersion` constant stamped at save time — cached reports from older builds no longer propagate stale version strings
+- [x] Documented `WhenWritingDefault` serializer behavior in `docs/report-schema.md` (absent fields = default values, not "unknown")

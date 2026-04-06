@@ -301,7 +301,7 @@ git-wizard Session Started
             return;
         }
 
-        var repositoryPaths = GetRepositoryPaths(runConfiguration) ?? ParseExplicitPaths(runConfiguration);
+        var repositoryPaths = ParseExplicitPaths(runConfiguration) ?? GetRepositoryPaths(runConfiguration);
         var updateHandler = new UpdateHandler();
         var report = GetReport(runConfiguration, configuration, repositoryPaths, updateHandler);
         if (report == null)

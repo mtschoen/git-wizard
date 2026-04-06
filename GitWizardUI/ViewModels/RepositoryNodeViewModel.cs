@@ -167,6 +167,12 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
             label += " ↑";
         }
 
+        var daysSinceLastCommit = Repository.DaysSinceLastCommit;
+        if (daysSinceLastCommit > 30)
+        {
+            label += $" ({daysSinceLastCommit}d)";
+        }
+
         DisplayText = label;
     }
 

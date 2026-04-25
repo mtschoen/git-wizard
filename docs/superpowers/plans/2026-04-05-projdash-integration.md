@@ -34,7 +34,7 @@
 - Create: `GitWizard/GitWizardCommitInfo.cs`
 - Create: `GitWizardTests/GitWizardRepositoryTests.cs`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 In `GitWizardTests/GitWizardRepositoryTests.cs`:
 
@@ -68,12 +68,12 @@ public class GitWizardRepositoryTests
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `dotnet test GitWizardTests/GitWizardTests.csproj --filter "FullyQualifiedName~GitWizardCommitInfo_RoundTripsJson" -v minimal`
 Expected: Build error — `GitWizardCommitInfo` does not exist.
 
-- [ ] **Step 3: Create `GitWizardCommitInfo`**
+- [x] **Step 3: Create `GitWizardCommitInfo`**
 
 Create `GitWizard/GitWizardCommitInfo.cs`:
 
@@ -90,12 +90,12 @@ public class GitWizardCommitInfo
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `dotnet test GitWizardTests/GitWizardTests.csproj --filter "FullyQualifiedName~GitWizardCommitInfo_RoundTripsJson" -v minimal`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add GitWizard/GitWizardCommitInfo.cs GitWizardTests/GitWizardRepositoryTests.cs
@@ -110,7 +110,7 @@ git commit -m "feat: add GitWizardCommitInfo model with JSON serialization"
 - Modify: `GitWizard/GitWizardRepository.cs` (properties at line ~24, populate in `Refresh()` at line ~130)
 - Modify: `GitWizardTests/GitWizardRepositoryTests.cs`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `GitWizardTests/GitWizardRepositoryTests.cs`:
 
@@ -149,12 +149,12 @@ static string FindRepoRoot()
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `dotnet test GitWizardTests/GitWizardTests.csproj --filter "FullyQualifiedName~Refresh_PopulatesRecentCommits" -v minimal`
 Expected: Build error — `RecentCommits` property does not exist.
 
-- [ ] **Step 3: Add `RecentCommits` property and populate it during `Refresh()`**
+- [x] **Step 3: Add `RecentCommits` property and populate it during `Refresh()`**
 
 In `GitWizard/GitWizardRepository.cs`, add the property near line 24 (after `AuthorEmails`):
 
@@ -186,12 +186,12 @@ catch (Exception exception)
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `dotnet test GitWizardTests/GitWizardTests.csproj --filter "FullyQualifiedName~Refresh_PopulatesRecentCommits" -v minimal`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add GitWizard/GitWizardRepository.cs GitWizardTests/GitWizardRepositoryTests.cs
@@ -206,7 +206,7 @@ git commit -m "feat: populate RecentCommits during repository refresh"
 - Modify: `GitWizard/GitWizardRepository.cs` (add property near line 25)
 - Modify: `GitWizardTests/GitWizardRepositoryTests.cs`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `GitWizardTests/GitWizardRepositoryTests.cs`:
 
@@ -224,12 +224,12 @@ public void Refresh_PopulatesDaysSinceLastCommit()
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `dotnet test GitWizardTests/GitWizardTests.csproj --filter "FullyQualifiedName~Refresh_PopulatesDaysSinceLastCommit" -v minimal`
 Expected: Build error — `DaysSinceLastCommit` does not exist.
 
-- [ ] **Step 3: Add `DaysSinceLastCommit` property and compute it during `Refresh()`**
+- [x] **Step 3: Add `DaysSinceLastCommit` property and compute it during `Refresh()`**
 
 In `GitWizard/GitWizardRepository.cs`, add the property near the other properties:
 
@@ -244,12 +244,12 @@ if (LastCommitDate.HasValue)
     DaysSinceLastCommit = (int)(DateTimeOffset.Now - LastCommitDate.Value).TotalDays;
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `dotnet test GitWizardTests/GitWizardTests.csproj --filter "FullyQualifiedName~Refresh_PopulatesDaysSinceLastCommit" -v minimal`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add GitWizard/GitWizardRepository.cs GitWizardTests/GitWizardRepositoryTests.cs
@@ -264,7 +264,7 @@ git commit -m "feat: add DaysSinceLastCommit computed field"
 - Modify: `GitWizard/GitWizardReport.cs` (add property)
 - Modify: `GitWizardTests/GitWizardReportTests.cs`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `GitWizardTests/GitWizardReportTests.cs`:
 
@@ -285,12 +285,12 @@ public void Report_SchemaVersionSerializesToJson()
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `dotnet test GitWizardTests/GitWizardTests.csproj --filter "FullyQualifiedName~Report_HasSchemaVersion|FullyQualifiedName~Report_SchemaVersionSerializesToJson" -v minimal`
 Expected: Build error — `SchemaVersion` does not exist.
 
-- [ ] **Step 3: Add `SchemaVersion` to `GitWizardReport`**
+- [x] **Step 3: Add `SchemaVersion` to `GitWizardReport`**
 
 In `GitWizard/GitWizardReport.cs`, add as the first property (before `SearchPaths`):
 
@@ -298,12 +298,12 @@ In `GitWizard/GitWizardReport.cs`, add as the first property (before `SearchPath
 public string SchemaVersion { get; set; } = "1.0";
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `dotnet test GitWizardTests/GitWizardTests.csproj --filter "FullyQualifiedName~Report_HasSchemaVersion|FullyQualifiedName~Report_SchemaVersionSerializesToJson" -v minimal`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add GitWizard/GitWizardReport.cs GitWizardTests/GitWizardReportTests.cs
@@ -317,7 +317,7 @@ git commit -m "feat: add SchemaVersion field to GitWizardReport"
 **Files:**
 - Modify: `git-wizard/Program.cs` (add to `RunConfiguration` and use in `Main`)
 
-- [ ] **Step 1: Add `-filter` to `RunConfiguration`**
+- [x] **Step 1: Add `-filter` to `RunConfiguration`**
 
 In the `RunConfiguration` struct in `git-wizard/Program.cs`, add the field after `NoMft`:
 
@@ -348,7 +348,7 @@ case "-filter":
     break;
 ```
 
-- [ ] **Step 2: Apply filter before serialization in `Main()`**
+- [x] **Step 2: Apply filter before serialization in `Main()`**
 
 In `Main()`, after `SaveReport(runConfiguration, report);` and before the `SerializeReport` call, add filtering logic. Replace the block:
 
@@ -399,12 +399,12 @@ static GitWizardReport ApplyFilter(RunConfiguration runConfiguration, GitWizardR
 }
 ```
 
-- [ ] **Step 3: Test manually**
+- [x] **Step 3: Test manually**
 
 Run: `dotnet run --project git-wizard/git-wizard.csproj -- -no-refresh -silent -filter "gitwizard" -print-minified`
 Expected: Only repos with "gitwizard" in their path appear in the output (or empty if no cached report).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add git-wizard/Program.cs
@@ -418,7 +418,7 @@ git commit -m "feat: add -filter CLI flag for path substring matching"
 **Files:**
 - Modify: `git-wizard/Program.cs`
 
-- [ ] **Step 1: Add `-paths` to `RunConfiguration`**
+- [x] **Step 1: Add `-paths` to `RunConfiguration`**
 
 Add the field:
 
@@ -450,7 +450,7 @@ case "-paths":
     break;
 ```
 
-- [ ] **Step 2: Parse paths and override repository discovery in `Main()`**
+- [x] **Step 2: Parse paths and override repository discovery in `Main()`**
 
 Replace the `GetRepositoryPaths` method call in `Main()`. Change:
 
@@ -490,13 +490,13 @@ static string[]? ParseExplicitPaths(RunConfiguration runConfiguration)
 }
 ```
 
-- [ ] **Step 3: Test manually**
+- [x] **Step 3: Test manually**
 
 Create a temp file `test-paths.txt` with one known repo path per line, then:
 Run: `dotnet run --project git-wizard/git-wizard.csproj -- -paths "test-paths.txt" -print-minified -silent`
 Expected: Only the specified repos appear.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add git-wizard/Program.cs
@@ -512,7 +512,7 @@ git commit -m "feat: add -paths CLI flag for targeted repo reporting"
 - Create: `GitWizardTests/GitWizardSummaryTests.cs`
 - Modify: `git-wizard/Program.cs`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `GitWizardTests/GitWizardSummaryTests.cs`:
 
@@ -570,12 +570,12 @@ public class GitWizardSummaryTests
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `dotnet test GitWizardTests/GitWizardTests.csproj --filter "FullyQualifiedName~GitWizardSummaryTests" -v minimal`
 Expected: Build error — `GitWizardSummary` does not exist.
 
-- [ ] **Step 3: Create `GitWizardSummary`**
+- [x] **Step 3: Create `GitWizardSummary`**
 
 Create `GitWizard/GitWizardSummary.cs`:
 
@@ -644,12 +644,12 @@ public class AttentionItem
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `dotnet test GitWizardTests/GitWizardTests.csproj --filter "FullyQualifiedName~GitWizardSummaryTests" -v minimal`
 Expected: PASS
 
-- [ ] **Step 5: Add `-summary` flag to CLI**
+- [x] **Step 5: Add `-summary` flag to CLI**
 
 In `git-wizard/Program.cs`, add to `RunConfiguration`:
 
@@ -705,7 +705,7 @@ if (needsAttention)
     Environment.Exit(1);
 ```
 
-- [ ] **Step 6: Add `ReportNeedsAttention` helper**
+- [x] **Step 6: Add `ReportNeedsAttention` helper**
 
 ```csharp
 static bool ReportNeedsAttention(GitWizardReport report)
@@ -720,7 +720,7 @@ static bool ReportNeedsAttention(GitWizardReport report)
 }
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add GitWizard/GitWizardSummary.cs GitWizardTests/GitWizardSummaryTests.cs git-wizard/Program.cs
@@ -736,11 +736,11 @@ git commit -m "feat: add GitWizardSummary model and -summary CLI flag with exit 
 - Modify: `GitWizardUI/MainPage.xaml` (add two buttons)
 - Modify: `GitWizardUI/MainPage.xaml.cs` (if button click handler needs updating — check if `FilterButton_Click` uses the button name to resolve filter type)
 
-- [ ] **Step 1: Check how `FilterButton_Click` resolves the filter type**
+- [x] **Step 1: Check how `FilterButton_Click` resolves the filter type**
 
 Read `GitWizardUI/MainPage.xaml.cs` to see how the existing filter buttons map to `FilterType` enum values. This determines whether we need to modify the code-behind or if naming convention handles it.
 
-- [ ] **Step 2: Add enum values to `FilterType`**
+- [x] **Step 2: Add enum values to `FilterType`**
 
 In `GitWizardUI/ViewModels/RepositoryNodeViewModel.cs`, add to the `FilterType` enum:
 
@@ -759,7 +759,7 @@ public enum FilterType
 }
 ```
 
-- [ ] **Step 3: Add match logic in `MatchesFilter`**
+- [x] **Step 3: Add match logic in `MatchesFilter`**
 
 In `RepositoryNodeViewModel.MatchesFilter()`, add the new cases:
 
@@ -768,7 +768,7 @@ FilterType.LocalOnlyCommits => Repository.LocalOnlyCommits,
 FilterType.Stale => Repository.DaysSinceLastCommit > 30,
 ```
 
-- [ ] **Step 4: Add sidebar buttons in `MainPage.xaml`**
+- [x] **Step 4: Add sidebar buttons in `MainPage.xaml`**
 
 In `MainPage.xaml`, after the `FilterMyRepositories` button, add:
 
@@ -777,7 +777,7 @@ In `MainPage.xaml`, after the `FilterMyRepositories` button, add:
 <Button x:Name="FilterStale" ToolTipProperties.Text="Repositories with no commits in the last 30 days" Text="Stale (30+ days)" FontSize="12" Clicked="FilterButton_Click" />
 ```
 
-- [ ] **Step 5: Update `GetFilterType` in `MainPage.xaml.cs`**
+- [x] **Step 5: Update `GetFilterType` in `MainPage.xaml.cs`**
 
 In `GitWizardUI/MainPage.xaml.cs`, the `GetFilterType` method (around line 165) maps buttons to filter types via identity comparison. Add the two new cases before the `return FilterType.None;` line:
 
@@ -786,12 +786,12 @@ if (button == FilterLocalOnlyCommits) return FilterType.LocalOnlyCommits;
 if (button == FilterStale) return FilterType.Stale;
 ```
 
-- [ ] **Step 6: Build and verify**
+- [x] **Step 6: Build and verify**
 
 Run: `"C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" GitWizardUI/GitWizardUI.csproj -t:Build -p:Configuration=Debug -nologo -v:minimal`
 Expected: Build succeeds.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add GitWizardUI/ViewModels/RepositoryNodeViewModel.cs GitWizardUI/MainPage.xaml GitWizardUI/MainPage.xaml.cs
@@ -805,7 +805,7 @@ git commit -m "feat: add Local Only Commits and Stale filter buttons to GUI"
 **Files:**
 - Modify: `GitWizardUI/ViewModels/RepositoryNodeViewModel.cs` (`UpdateDisplayText` method, around line 141)
 
-- [ ] **Step 1: Add staleness suffix to `UpdateDisplayText`**
+- [x] **Step 1: Add staleness suffix to `UpdateDisplayText`**
 
 In `RepositoryNodeViewModel.UpdateDisplayText()`, after the existing `localOnlyCommits` arrow-up indicator block, add:
 
@@ -819,12 +819,12 @@ if (daysSinceLastCommit > 30)
 
 This shows e.g. `C:\repos\old-project (45d)` for stale repos.
 
-- [ ] **Step 2: Build and verify**
+- [x] **Step 2: Build and verify**
 
 Run: `"C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" GitWizardUI/GitWizardUI.csproj -t:Build -p:Configuration=Debug -nologo -v:minimal`
 Expected: Build succeeds.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add GitWizardUI/ViewModels/RepositoryNodeViewModel.cs
@@ -838,7 +838,7 @@ git commit -m "feat: show staleness indicator in repo display text for 30+ day i
 **Files:**
 - Create: `docs/report-schema.md`
 
-- [ ] **Step 1: Write schema documentation**
+- [x] **Step 1: Write schema documentation**
 
 Create `docs/report-schema.md`:
 
@@ -914,7 +914,7 @@ The `SchemaVersion` field at the top of every report indicates the schema versio
 | `1` | At least one repo has pending changes or unpushed commits |
 ````
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add docs/report-schema.md
@@ -925,26 +925,26 @@ git commit -m "docs: add report.json schema documentation"
 
 ### Task 11: Run full test suite and update PLAN.md
 
-- [ ] **Step 1: Run all tests**
+- [x] **Step 1: Run all tests**
 
 Run: `dotnet test GitWizardTests/GitWizardTests.csproj -v minimal`
 Expected: All tests pass.
 
-- [ ] **Step 2: Build CLI**
+- [x] **Step 2: Build CLI**
 
 Run: `dotnet build git-wizard/git-wizard.csproj -v minimal`
 Expected: Build succeeds.
 
-- [ ] **Step 3: Build GUI**
+- [x] **Step 3: Build GUI**
 
 Run: `"C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" GitWizardUI/GitWizardUI.csproj -t:Build -p:Configuration=Debug -nologo -v:minimal`
 Expected: Build succeeds.
 
-- [ ] **Step 4: Update PLAN.md — mark projdash integration tasks as complete**
+- [x] **Step 4: Update PLAN.md — mark projdash integration tasks as complete**
 
 Check all boxes in the "Next Up" section of `PLAN.md`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add PLAN.md

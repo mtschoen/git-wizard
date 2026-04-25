@@ -158,7 +158,7 @@ public class GitWizardRepository
             try
             {
                 RecentCommits = new List<GitWizardCommitInfo>();
-                foreach (var commit in repository.Commits.Take(100))
+                foreach (var commit in repository.Commits.Take(10))
                 {
                     RecentCommits.Add(new GitWizardCommitInfo
                     {

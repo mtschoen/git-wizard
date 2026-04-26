@@ -42,6 +42,30 @@ These tasks live in projdash's PLAN.md but are noted here for cross-reference:
 - [x] `CurrentSchemaVersion` constant stamped at save time — cached reports from older builds no longer propagate stale version strings
 - [x] Documented `WhenWritingDefault` serializer behavior in `docs/report-schema.md` (absent fields = default values, not "unknown")
 
+### Single-repo merge refresh (for projdash fallback)
+
+Projdash falls back to per-repo `git` subprocess when the cache misses a repo
+(fresh clones, repos created since the last full scan). On Windows that path
+can hang for tens of minutes when a grandchild process inherits the pipe
+handles — caught a 25-minute wedge in `~/.projdash/mcp.log` on 2026-04-26.
+Projdash now bounds it to ~10s via abandon-on-timeout (projdash commit
+`c72a185`, `scanner/git.py:_run_capture`), but the fallback still produces
+empty git state for the missing repo. A targeted single-repo refresh in
+GitWizard would let projdash skip subprocess git entirely.
+
+- [ ] **CLI `-merge` flag**: when set with `-paths` and `-save-path`, read the
+      existing JSON if present, update/insert entries for the supplied paths,
+      leave other entries intact, write back atomically (temp file + rename).
+      Stamps `SchemaVersion = CurrentSchemaVersion`.
+- [ ] **Document concurrency in `docs/report-schema.md`**: two concurrent
+      callers refreshing disjoint repos — last writer wins for the file as a
+      whole. Acceptable; no lockfile.
+- [ ] **Projdash consumer change** (tracked in projdash's own PLAN): replace
+      the `git` subprocess fallback in `_enrich` with
+      `refresh_report(..., merge=True)` followed by re-reading the cache.
+      Also harden the `subprocess.run` inside `gitwizard.refresh_report` with
+      the same abandon-on-timeout pattern as `scanner/git.py:_run_capture`.
+
 ### CLI polish
 
 - [x] **Honor `--help` / `-h` / `-?`**: currently any unrecognized flag falls through and runs a full scan. Print usage (flags: `-filter`, `-paths`, `-summary`, plus the version banner from `Program.cs`) and exit 0 instead. Skip the elevation hidden args (`--elevated-mft`, `--elevated-defender`) from public help.

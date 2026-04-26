@@ -44,4 +44,4 @@ These tasks live in projdash's PLAN.md but are noted here for cross-reference:
 
 ### CLI polish
 
-- [ ] **Honor `--help` / `-h` / `-?`**: currently any unrecognized flag falls through and runs a full scan. Print usage (flags: `-filter`, `-paths`, `-summary`, plus the version banner from `Program.cs`) and exit 0 instead. Skip the elevation hidden args (`--elevated-mft`, `--elevated-defender`) from public help.
+- [x] **Honor `--help` / `-h` / `-?`**: currently any unrecognized flag falls through and runs a full scan. Print usage (flags: `-filter`, `-paths`, `-summary`, plus the version banner from `Program.cs`) and exit 0 instead. Skip the elevation hidden args (`--elevated-mft`, `--elevated-defender`) from public help.

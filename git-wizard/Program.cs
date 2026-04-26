@@ -13,7 +13,16 @@ public static class Program
     struct RunConfiguration
     {
         const string k_HelpManual = @"GitWizard 0.4.0 Help
-Supported command line arguments (all optional):
+
+Usage: git-wizard [options]
+
+Key options:
+  -filter <pattern>         Filter output to repositories whose path contains <pattern> (case-insensitive)
+  -paths <file-or-csv>      Report on specific repo paths (newline-separated file or comma-separated list)
+  -summary                  Output a condensed summary (dirty/unpushed/stale counts + repos needing attention)
+
+Other options:
+  -h, --help, -?            Print this help message and exit
   -v                        Enable verbose logging.
   -silent                   Do not print to the console
   -rebuild-report           Rebuild the list of repositories (instead of using cache)
@@ -21,8 +30,8 @@ Supported command line arguments (all optional):
   -no-refresh               Do not refresh the report based on the latest state; just print out the cached report
   -rebuild-all              Rebuild the report and list of repositories (instead of using cache)
   -print-minified           Print the output to the console as minified JSON
-  -save-path                Path where the report will be saved to disk (otherwise it is only printed to the console)
-  -config-path              Path to custom configuration file (otherwise global or default configuration is used)
+  -save-path <path>         Path where the report will be saved to disk (otherwise it is only printed to the console)
+  -config-path <path>       Path to custom configuration file (otherwise global or default configuration is used)
   -clear-cache              Delete cached reports and configurations before running
                             (combine with -no-refresh to avoid re-generating the cache)
   -delete-all-local-files   Delete all files created by GitWizard before running (includes files deleted by -clear-cache;
@@ -30,9 +39,6 @@ Supported command line arguments (all optional):
   -setup-defender           Add Windows Defender exclusions for git/dotnet processes and search paths (triggers UAC prompt)
   -scan-only                Print discovered repository paths (one per line) and exit without refreshing
   -no-mft                   Skip MFT search and use recursive directory scan instead
-  -filter <pattern>         Filter output to repositories whose path contains <pattern> (case-insensitive)
-  -paths <file-or-csv>      Report on specific repo paths (newline-separated file or comma-separated list)
-  -summary                  Output a condensed summary (dirty/unpushed/stale counts + repos needing attention)
 ";
 
         /// <summary>
@@ -119,6 +125,8 @@ Supported command line arguments (all optional):
                 switch (argument)
                 {
                     case "-h":
+                    case "--help":
+                    case "-?":
                         Console.WriteLine(k_HelpManual);
                         Environment.Exit(0);
                         break;

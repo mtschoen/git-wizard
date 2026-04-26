@@ -1,12 +1,16 @@
 # git-wizard — handoff
 
-**Status:** Avalonia cross-platform UI plan committed 2026-04-26 (`b5fd0e8`).
-Implementation has **not** started — 18 tasks, 111 unchecked steps. Next session
-picks up at Task 0 (environment verification) and works through the plan
-task-by-task.
+**Status:** Avalonia cross-platform UI implementation **COMPLETE**.
+All 18 tasks committed across 17 commits (c29e7bc → 3ae1953).
 
 **Host:** llamabox (Linux). The plan is Linux-first; MAUI build verification on
 Windows is deferred to a manual pass after Avalonia parity lands.
+
+**Known remaining items:**
+- **Linux runtime smoke test** (Task 16): deferred — headless environment has no display. Needs a human with a GUI session to verify: scan populates, filters work, Settings opens, folder picker works.
+- **Screenshot** (Task 16 step 2): not captured for same reason.
+- **MAUI Windows build verification** (Task 9 step 6): needs Windows build with MSBuild.exe.
+- **macOS testing**: needs Mac hardware.
 
 ## What this is
 

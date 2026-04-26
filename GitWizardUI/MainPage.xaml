@@ -81,8 +81,8 @@
                             </Grid.GestureRecognizers>
                             <!-- Status icon for repos, expand indicator for group headers -->
                             <Label Grid.Column="0"
-                                   Text="{Binding StatusIcon}"
-                                   TextColor="{Binding StatusColor}"
+Text="{Binding StatusIcon}"
+                                    TextColor="{Binding StatusColorHex}"
                                    FontSize="14"
                                    HorizontalTextAlignment="Center"
                                    VerticalTextAlignment="Center"
@@ -97,8 +97,8 @@
                             <Label Grid.Column="1"
                                    Text="{Binding DisplayText}"
                                    VerticalTextAlignment="Center"
-                                   FontAttributes="{Binding GroupHeaderFontAttributes}"
-                                   Padding="{Binding ItemPadding}" />
+FontAttributes="{Binding GroupHeaderFontWeight}"
+                                    Padding="{Binding ItemPaddingString}" />
                             <Button Grid.Column="2"
                                     Text="Fork"
                                     Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.OpenInForkCommand}"

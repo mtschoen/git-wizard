@@ -1,0 +1,71 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:GitWizardUI.ViewModels"
+        x:Class="GitWizardAvalonia.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="GitWizard"
+        Width="1100" Height="700"
+        Loaded="Window_Loaded">
+  <Grid ColumnDefinitions="250,*" RowDefinitions="Auto,*,Auto">
+
+    <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="5" Margin="5">
+      <Button x:Name="SettingsButton" Content="Settings" Click="SettingsMenuItem_Click" FontSize="12" Padding="10,5" />
+      <Button x:Name="DefenderButton" Content="Configure Windows Defender" Click="CheckWindowsDefenderMenuItem_Click" FontSize="12" Padding="10,5" />
+      <Button x:Name="ClearCacheButton" Content="Clear Cache" Click="ClearCacheMenuItem_Click" FontSize="12" Padding="10,5" />
+      <Button x:Name="DeleteAllFilesButton" Content="Delete All Local Files" Click="DeleteAllLocalFilesMenuItem_Click" FontSize="12" Padding="10,5" />
+    </StackPanel>
+
+    <ScrollViewer Grid.Row="1" Grid.Column="0">
+      <StackPanel Margin="5,0" Spacing="0">
+        <TextBlock Text="Filter by" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center" Padding="5" />
+        <Button x:Name="FilterPendingChanges"         ToolTip.Tip="Repositories with un-staged or pending changes"                                                  Content="Pending Changes"        FontSize="12" Click="FilterButton_Click" HorizontalAlignment="Stretch" />
+        <Button x:Name="FilterSubmoduleCheckout"      ToolTip.Tip="Repositories with submodules which are not checked out to project pointer reference"             Content="Submodule Checkout"     FontSize="12" Click="FilterButton_Click" HorizontalAlignment="Stretch" />
+        <Button x:Name="FilterSubmoduleUninitialized" ToolTip.Tip="Repositories submodules which have not been checked out/initialized"                              Content="Submodule Uninitialized" FontSize="12" Click="FilterButton_Click" HorizontalAlignment="Stretch" />
+        <Button x:Name="FilterSubmoduleConfigIssue"   ToolTip.Tip="Repositories with submodules which are in .gitmodules but not in the index, or vice versa"        Content="Submodule Config Issue" FontSize="12" Click="FilterButton_Click" HorizontalAlignment="Stretch" />
+        <Button x:Name="FilterDetachedHead"           ToolTip.Tip="Repositories or submodules with detached heads with pending/unstaged changes"                     Content="Detached Head"          FontSize="12" Click="FilterButton_Click" HorizontalAlignment="Stretch" />
+        <Button x:Name="FilterMyRepositories"         ToolTip.Tip="Repositories that you have committed to (based on email in global git configuration)"             Content="My Repositories"        FontSize="12" Click="FilterButton_Click" HorizontalAlignment="Stretch" />
+        <Button x:Name="FilterLocalOnlyCommits"       ToolTip.Tip="Repositories with commits not pushed to any remote"                                                Content="Local Only Commits"     FontSize="12" Click="FilterButton_Click" HorizontalAlignment="Stretch" />
+        <Button x:Name="FilterStale"                  ToolTip.Tip="Repositories with no commits in the last 30 days"                                                  Content="Stale (30+ days)"       FontSize="12" Click="FilterButton_Click" HorizontalAlignment="Stretch" />
+
+        <TextBlock Text="Group by" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center" Padding="5" />
+        <Button x:Name="GroupByDrive"     ToolTip.Tip="Group repositories by drive letter / root path"   Content="Drive"      FontSize="12" Click="GroupButton_Click" HorizontalAlignment="Stretch" />
+        <Button x:Name="GroupByRemoteUrl" ToolTip.Tip="Group repositories by remote URL (find duplicates)" Content="Remote URL" FontSize="12" Click="GroupButton_Click" HorizontalAlignment="Stretch" />
+
+        <TextBlock Text="Sort by" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center" Padding="5" />
+        <Button x:Name="SortByWorkingDirectory" ToolTip.Tip="Path to working directory, alphabetically" Content="Working Directory" FontSize="12" Click="SortButton_Click" HorizontalAlignment="Stretch" />
+        <Button x:Name="SortByRecentlyUsed"     ToolTip.Tip="Time of the most recent commit"             Content="Recently Used"      FontSize="12" Click="SortButton_Click" HorizontalAlignment="Stretch" />
+        <Button x:Name="SortByRemoteUrl"        ToolTip.Tip="URL of first remote (usually origin)"        Content="Remote URL"         FontSize="12" Click="SortButton_Click" HorizontalAlignment="Stretch" />
+      </StackPanel>
+    </ScrollViewer>
+
+    <Grid Grid.Row="1" Grid.Column="1" RowDefinitions="Auto,30,Auto,*,Auto">
+      <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="5" Margin="0,5">
+        <Button x:Name="RefreshButton" Content="Refresh" Click="RefreshButton_Click" />
+        <Button x:Name="FetchAndRefreshButton" Content="Fetch &amp; Refresh" Click="FetchAndRefreshButton_Click" ToolTip.Tip="Fetch all remotes before refreshing status (slower but accurate)" />
+      </StackPanel>
+
+      <TextBlock Grid.Row="1" Margin="10,0,0,0" VerticalAlignment="Center" Text="{Binding HeaderText}" />
+      <TextBox Grid.Row="2" Margin="10,2" Watermark="Search repositories..." Text="{Binding SearchText, Mode=TwoWay}" />
+
+      <ListBox Grid.Row="3" ItemsSource="{Binding Repositories}">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:RepositoryNodeViewModel">
+            <Grid ColumnDefinitions="20,*,Auto,Auto" Margin="5,5,20,5">
+              <TextBlock Grid.Column="0" Text="{Binding StatusIcon}"      Foreground="{Binding StatusColorHex}" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip.Tip="{Binding StatusTooltip}" IsVisible="{Binding IsStatusVisible}" />
+              <TextBlock Grid.Column="0" Text="{Binding ExpandIndicator}" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding IsGroupHeader}" />
+              <TextBlock Grid.Column="1" Text="{Binding DisplayText}" VerticalAlignment="Center" FontWeight="{Binding GroupHeaderFontWeight}" Padding="{Binding ItemPaddingString}" />
+              <Button   Grid.Column="2" Content="Fork" FontSize="12" Padding="8,4" VerticalAlignment="Center" IsVisible="{Binding IsNotGroupHeader}" Click="ForkButton_Click" Tag="{Binding}" />
+              <Button   Grid.Column="3" Content="&#x21bb;" FontSize="12" Padding="8,4" VerticalAlignment="Center" IsVisible="{Binding IsNotGroupHeader}" Click="DeepRefreshButton_Click" Tag="{Binding}" ToolTip.Tip="Deep refresh: fetch remotes and update index (may be slow)" />
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
+      <StackPanel Grid.Row="4" IsVisible="{Binding IsProgressVisible}" Spacing="2" Margin="5,2">
+        <ProgressBar Value="{Binding ProgressValue}" Minimum="0" Maximum="1" Height="8" />
+        <TextBlock Text="{Binding ProgressText}" FontSize="10" HorizontalAlignment="Center" />
+      </StackPanel>
+    </Grid>
+
+  </Grid>
+</Window>

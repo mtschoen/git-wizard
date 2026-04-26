@@ -58,6 +58,7 @@
 
 	<ItemGroup>
 	  <ProjectReference Include="..\GitWizard\GitWizard.csproj" />
+	  <ProjectReference Include="..\GitWizardUI.ViewModels\GitWizardUI.ViewModels.csproj" />
 	</ItemGroup>
 
 	<Target Name="CleanOldReleases" BeforeTargets="ZipPublishOutput">

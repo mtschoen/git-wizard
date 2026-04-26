@@ -25,8 +25,16 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
     public string GroupKey { get; init; } = string.Empty;
 
     public bool IsNotGroupHeader => !IsGroupHeader;
-    public FontAttributes GroupHeaderFontAttributes => IsGroupHeader ? FontAttributes.Bold : FontAttributes.None;
-    public Thickness ItemPadding => IsGroupHeader ? new Thickness(0, 5, 0, 0) : new Thickness(15, 0, 0, 0);
+    public string GroupHeaderFontWeight => IsGroupHeader ? "Bold" : "Normal";
+    public string ItemPaddingString => IsGroupHeader ? "0,5,0,0" : "15,0,0,0";
+    public string StatusColorHex => _status switch
+    {
+        RefreshStatus.Refreshing => "#808080",
+        RefreshStatus.Success    => "#28A745",
+        RefreshStatus.Timeout    => "#FFA500",
+        RefreshStatus.Error      => "#DC3545",
+        _                         => "#808080",
+    };
 
     public bool IsExpanded
     {
@@ -51,7 +59,7 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
                 _status = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(StatusIcon));
-                OnPropertyChanged(nameof(StatusColor));
+                     OnPropertyChanged(nameof(StatusColorHex));
                 OnPropertyChanged(nameof(StatusTooltip));
                 OnPropertyChanged(nameof(IsStatusVisible));
             }
@@ -65,16 +73,7 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
         RefreshStatus.Timeout => "⚠",
         RefreshStatus.Error => "✗",
         _ => ""
-    };
-
-    public Color StatusColor => _status switch
-    {
-        RefreshStatus.Refreshing => Colors.Gray,
-        RefreshStatus.Success => Colors.Green,
-        RefreshStatus.Timeout => Colors.Orange,
-        RefreshStatus.Error => Colors.Red,
-        _ => Colors.Gray
-    };
+  };
 
     public string StatusTooltip => _status switch
     {
@@ -176,7 +175,7 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
         DisplayText = label;
     }
 
-    public bool MatchesFilter(FilterType filter)
+    public bool MatchesFilter(FilterType filter, string? userEmail = null)
     {
         return filter switch
         {
@@ -186,20 +185,19 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
             FilterType.SubmoduleUninitialized => HasUninitializedSubmodules(),
             FilterType.SubmoduleConfigIssue => HasSubmoduleConfigIssues(),
             FilterType.DetachedHead => HasDetachedHeadRecursive(),
-            FilterType.MyRepositories => IsMyRepository(),
+            FilterType.MyRepositories => IsMyRepository(userEmail),
             FilterType.LocalOnlyCommits => Repository.LocalOnlyCommits,
             FilterType.Stale => Repository.DaysSinceLastCommit > 30,
             _ => true
         };
     }
 
-    bool IsMyRepository()
+    bool IsMyRepository(string? userEmail)
     {
-        var email = MainViewModel.GlobalUserEmail;
-        if (string.IsNullOrEmpty(email) || Repository.AuthorEmails == null)
+        if (string.IsNullOrEmpty(userEmail) || Repository.AuthorEmails == null)
             return false;
 
-        return Repository.AuthorEmails.Contains(email);
+        return Repository.AuthorEmails.Contains(userEmail);
     }
 
     bool HasPendingChangesRecursive()

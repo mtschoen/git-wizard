@@ -1,6 +1,6 @@
 # Avalonia Cross-Platform UI Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Stand up an Avalonia desktop UI alongside the existing MAUI app so GitWizard runs natively on Linux, macOS, and Windows from one shared view-model layer, without breaking the current MAUI Windows build.
 
@@ -62,30 +62,30 @@
 
 **Goal:** Fail fast if the box can't run subsequent tasks. No code changes, no commit — purely a gate.
 
-- [ ] **Step 1: Verify .NET 10 SDK is present**
+- [x] **Step 1: Verify .NET 10 SDK is present**
 
 Run: `dotnet --list-sdks`
 Expected: output contains a line starting with `10.` (e.g. `10.0.104 [/usr/share/dotnet/sdk]`).
 If missing: stop. Surface a PR-comment "blocked: requires .NET 10 SDK" and exit. Do not attempt to install (system-level install needs sudo).
 
-- [ ] **Step 2: Verify git commit identity is configured**
+- [x] **Step 2: Verify git commit identity is configured**
 
 Run: `git config --get user.email && git config --get user.name`
 Expected: both lines non-empty.
 If missing: surface a PR-comment "blocked: agent harness must set git user.email and user.name" and exit.
 
-- [ ] **Step 3: Verify Avalonia templates are installed (idempotent)**
+- [x] **Step 3: Verify Avalonia templates are installed (idempotent)**
 
 Run: `dotnet new install Avalonia.Templates --force`
 Expected: prints "Templates installed" with a list including `avalonia.app`. The `--force` flag makes this safe to re-run; it reinstalls cleanly even if templates already exist.
 
-- [ ] **Step 4: Ensure `~/.GitWizard/config.json` has at least one search path (so smoke tests have repos to find)**
+- [x] **Step 4: Ensure `~/.GitWizard/config.json` has at least one search path (so smoke tests have repos to find)**
 
 Run: `test -f ~/.GitWizard/config.json && grep -q '"SearchPaths"' ~/.GitWizard/config.json || dotnet run --project git-wizard/git-wizard.csproj -- --scan-only 2>&1 | tail -5`
 
 If the file is missing or has no search paths, the CLI's first run creates a default config pointing at `$HOME`. That's adequate for smoke tests (will find a few repos quickly).
 
-- [ ] **Step 5: Note Linux build constraint**
+- [x] **Step 5: Note Linux build constraint**
 
 This step is informational. Confirm that this agent will only run `dotnet build`/`dotnet test` on these specific csproj files:
 - `GitWizard/GitWizard.csproj`
@@ -112,7 +112,7 @@ No commit for this task. Proceed to Task 1.
 - Modify: `GitWizardTests/GitWizardTests.csproj`
 - Modify: `git-wizard.slnx`
 
-- [ ] **Step 1: Create the bare class-library project**
+- [x] **Step 1: Create the bare class-library project**
 
 Write `GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj`:
 
@@ -130,7 +130,7 @@ Write `GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj`:
 </Project>
 ```
 
-- [ ] **Step 2: Add to slnx**
+- [x] **Step 2: Add to slnx**
 
 Edit `git-wizard.slnx`. Insert this line before `</Solution>`:
 
@@ -138,7 +138,7 @@ Edit `git-wizard.slnx`. Insert this line before `</Solution>`:
   <Project Path="GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj" />
 ```
 
-- [ ] **Step 3: Wire the test project to the new lib**
+- [x] **Step 3: Wire the test project to the new lib**
 
 Edit `GitWizardTests/GitWizardTests.csproj`. Inside the existing `<ItemGroup>` that contains the `GitWizard` ProjectReference, add:
 
@@ -146,7 +146,7 @@ Edit `GitWizardTests/GitWizardTests.csproj`. Inside the existing `<ItemGroup>` t
     <ProjectReference Include="..\GitWizardUI.ViewModels\GitWizardUI.ViewModels.csproj" />
 ```
 
-- [ ] **Step 4: Write the failing test**
+- [x] **Step 4: Write the failing test**
 
 Create `GitWizardTests/StubServiceTests.cs`:
 
@@ -187,12 +187,12 @@ public class StubUiDispatcherTests
 }
 ```
 
-- [ ] **Step 5: Run tests; expect compile failure**
+- [x] **Step 5: Run tests; expect compile failure**
 
 Run: `dotnet test GitWizardTests/GitWizardTests.csproj --filter "FullyQualifiedName~StubUiDispatcherTests" --nologo`
 Expected: build error CS0234 — namespace `GitWizardUI.ViewModels.Services` does not exist.
 
-- [ ] **Step 6: Define the interface**
+- [x] **Step 6: Define the interface**
 
 Create `GitWizardUI.ViewModels/Services/IUiDispatcher.cs`:
 
@@ -215,7 +215,7 @@ public interface IUiDispatcher
 }
 ```
 
-- [ ] **Step 7: Implement the stub**
+- [x] **Step 7: Implement the stub**
 
 Create `GitWizardUI.ViewModels/Services/StubUiDispatcher.cs`:
 
@@ -232,12 +232,12 @@ public sealed class StubUiDispatcher : IUiDispatcher
 }
 ```
 
-- [ ] **Step 8: Run tests; expect pass**
+- [x] **Step 8: Run tests; expect pass**
 
 Run: `dotnet test GitWizardTests/GitWizardTests.csproj --filter "FullyQualifiedName~StubUiDispatcherTests" --nologo`
 Expected: 3 passed.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add GitWizardUI.ViewModels/ GitWizardTests/StubServiceTests.cs GitWizardTests/GitWizardTests.csproj git-wizard.slnx
@@ -253,7 +253,7 @@ git commit -m "feat(viewmodels): add IUiDispatcher abstraction with stub impl"
 - Create: `GitWizardUI.ViewModels/Services/StubUserDialogs.cs`
 - Modify: `GitWizardTests/StubServiceTests.cs`
 
-- [ ] **Step 1: Add failing tests**
+- [x] **Step 1: Add failing tests**
 
 Append to `GitWizardTests/StubServiceTests.cs`:
 
@@ -285,12 +285,12 @@ public class StubUserDialogsTests
 }
 ```
 
-- [ ] **Step 2: Run tests; expect compile failure**
+- [x] **Step 2: Run tests; expect compile failure**
 
 Run: `dotnet test GitWizardTests/GitWizardTests.csproj --filter "FullyQualifiedName~StubUserDialogsTests" --nologo`
 Expected: CS0246 — type `StubUserDialogs` not found.
 
-- [ ] **Step 3: Define the interface**
+- [x] **Step 3: Define the interface**
 
 Create `GitWizardUI.ViewModels/Services/IUserDialogs.cs`:
 
@@ -305,7 +305,7 @@ public interface IUserDialogs
 }
 ```
 
-- [ ] **Step 4: Implement the stub**
+- [x] **Step 4: Implement the stub**
 
 Create `GitWizardUI.ViewModels/Services/StubUserDialogs.cs`:
 
@@ -336,12 +336,12 @@ public sealed class StubUserDialogs : IUserDialogs
 }
 ```
 
-- [ ] **Step 5: Run tests; expect pass**
+- [x] **Step 5: Run tests; expect pass**
 
 Run: `dotnet test GitWizardTests/GitWizardTests.csproj --filter "FullyQualifiedName~StubUserDialogsTests" --nologo`
 Expected: 2 passed.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add GitWizardUI.ViewModels/Services/IUserDialogs.cs GitWizardUI.ViewModels/Services/StubUserDialogs.cs GitWizardTests/StubServiceTests.cs
@@ -357,7 +357,7 @@ git commit -m "feat(viewmodels): add IUserDialogs abstraction with stub impl"
 - Create: `GitWizardUI.ViewModels/Services/StubFolderPicker.cs`
 - Modify: `GitWizardTests/StubServiceTests.cs`
 
-- [ ] **Step 1: Add failing tests**
+- [x] **Step 1: Add failing tests**
 
 Append to `GitWizardTests/StubServiceTests.cs`:
 
@@ -387,12 +387,12 @@ public class StubFolderPickerTests
 }
 ```
 
-- [ ] **Step 2: Run tests; expect compile failure**
+- [x] **Step 2: Run tests; expect compile failure**
 
 Run: `dotnet test GitWizardTests/GitWizardTests.csproj --filter "FullyQualifiedName~StubFolderPickerTests" --nologo`
 Expected: CS0246 — type `StubFolderPicker` not found.
 
-- [ ] **Step 3: Define the interface**
+- [x] **Step 3: Define the interface**
 
 Create `GitWizardUI.ViewModels/Services/IFolderPicker.cs`:
 
@@ -406,7 +406,7 @@ public interface IFolderPicker
 }
 ```
 
-- [ ] **Step 4: Implement the stub**
+- [x] **Step 4: Implement the stub**
 
 Create `GitWizardUI.ViewModels/Services/StubFolderPicker.cs`:
 
@@ -427,12 +427,12 @@ public sealed class StubFolderPicker : IFolderPicker
 }
 ```
 
-- [ ] **Step 5: Run tests; expect pass**
+- [x] **Step 5: Run tests; expect pass**
 
 Run: `dotnet test GitWizardTests/GitWizardTests.csproj --filter "FullyQualifiedName~StubFolderPickerTests" --nologo`
 Expected: 2 passed.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add GitWizardUI.ViewModels/Services/IFolderPicker.cs GitWizardUI.ViewModels/Services/StubFolderPicker.cs GitWizardTests/StubServiceTests.cs
@@ -454,7 +454,7 @@ git commit -m "feat(viewmodels): add IFolderPicker abstraction with stub impl"
 
 This task is TDD on the new return types.
 
-- [ ] **Step 1: Write failing tests for the new shapes**
+- [x] **Step 1: Write failing tests for the new shapes**
 
 Create `GitWizardTests/RepositoryNodeViewModelTests.cs`:
 
@@ -506,12 +506,12 @@ public class RepositoryNodeViewModelTests
 
 If `RepositoryNodeViewModel` does not have `CreateGroupHeader` / `CreateForRepoPath` factory methods, use whatever public construction path exists today (parameterless ctor + property setters). The agent must read the current file once and adapt the test setup to whatever construction is supported. The asserts on `GroupHeaderFontWeight`, `ItemPaddingString`, and `StatusColorHex` (the property names being introduced in Step 4 below) are what matter.
 
-- [ ] **Step 2: Run tests; expect compile failure**
+- [x] **Step 2: Run tests; expect compile failure**
 
 Run: `dotnet test GitWizardTests/GitWizardTests.csproj --filter "FullyQualifiedName~RepositoryNodeViewModelTests" --nologo`
 Expected: CS1061 — `RepositoryNodeViewModel` does not contain `GroupHeaderFontWeight` (or `ItemPaddingString` or `StatusColorHex`).
 
-- [ ] **Step 3: Open `GitWizardUI/ViewModels/RepositoryNodeViewModel.cs` and identify the three MAUI-typed properties**
+- [x] **Step 3: Open `GitWizardUI/ViewModels/RepositoryNodeViewModel.cs` and identify the three MAUI-typed properties**
 
 Read lines 28–29 and the `StatusColor` switch (around line 70). The current shape:
 
@@ -526,7 +526,7 @@ public Color StatusColor => _status switch
 };
 ```
 
-- [ ] **Step 4: Replace with neutral-typed siblings**
+- [x] **Step 4: Replace with neutral-typed siblings**
 
 Add these *new* properties next to the existing ones (keep the originals for now — Step 6 deletes them after MAUI XAML is updated):
 
@@ -558,12 +558,12 @@ OnPropertyChanged(nameof(ItemPadding));
 OnPropertyChanged(nameof(ItemPaddingString));         // new
 ```
 
-- [ ] **Step 5: Run the new tests; expect pass**
+- [x] **Step 5: Run the new tests; expect pass**
 
 Run: `dotnet test GitWizardTests/GitWizardTests.csproj --filter "FullyQualifiedName~RepositoryNodeViewModelTests" --nologo`
 Expected: 5 passed.
 
-- [ ] **Step 6: Update `GitWizardUI/MainPage.xaml` bindings to consume the neutral properties**
+- [x] **Step 6: Update `GitWizardUI/MainPage.xaml` bindings to consume the neutral properties**
 
 In `GitWizardUI/MainPage.xaml`, find these three binding paths in the `DataTemplate` (lines ~85–100) and rename them:
 
@@ -575,11 +575,11 @@ In `GitWizardUI/MainPage.xaml`, find these three binding paths in the `DataTempl
 
 MAUI XAML's value converters parse hex strings into `Color`, `"Bold"`/`"Normal"` strings into `FontAttributes`, and `"l,t,r,b"` strings into `Thickness`, so this is a no-op visual change.
 
-- [ ] **Step 7: Delete the old MAUI-typed properties from `RepositoryNodeViewModel.cs`**
+- [x] **Step 7: Delete the old MAUI-typed properties from `RepositoryNodeViewModel.cs`**
 
 Now that nothing binds to them, remove the original `StatusColor`, `GroupHeaderFontAttributes`, and `ItemPadding` properties (and any imports they pulled in — likely `using Microsoft.Maui.Graphics;` etc.). Also remove the `OnPropertyChanged(nameof(StatusColor))` etc. calls for the deleted properties.
 
-- [ ] **Step 8: Build the file in place to confirm it still compiles inside the MAUI project**
+- [x] **Step 8: Build the file in place to confirm it still compiles inside the MAUI project**
 
 Run: `dotnet build GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj --nologo`
 This task hasn't moved the file yet (still under `GitWizardUI/ViewModels/`); the build above won't include it. Instead, on Linux, the only verification we can do is that the rest of the shared lib still builds. The actual MAUI build verification has to happen on Windows (Task 9 step 6).
@@ -589,7 +589,7 @@ Run the test suite to confirm nothing regressed:
 Run: `dotnet test GitWizardTests/GitWizardTests.csproj --nologo`
 Expected: all tests pass, including the new 5.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add GitWizardUI/ViewModels/RepositoryNodeViewModel.cs GitWizardUI/MainPage.xaml GitWizardTests/RepositoryNodeViewModelTests.cs
@@ -606,13 +606,13 @@ git commit -m "refactor(viewmodels): neutralize MAUI types in RepositoryNodeView
 - Move: `GitWizardUI/ViewModels/RepositoryNodeViewModel.cs` → `GitWizardUI.ViewModels/RepositoryNodeViewModel.cs`
 - Modify: `GitWizardUI/GitWizardUI.csproj`
 
-- [ ] **Step 1: Move the file**
+- [x] **Step 1: Move the file**
 
 ```bash
 git mv GitWizardUI/ViewModels/RepositoryNodeViewModel.cs GitWizardUI.ViewModels/RepositoryNodeViewModel.cs
 ```
 
-- [ ] **Step 2: Add ProjectReference to MAUI csproj**
+- [x] **Step 2: Add ProjectReference to MAUI csproj**
 
 Edit `GitWizardUI/GitWizardUI.csproj`. Inside the `<ItemGroup>` that contains the `GitWizard` ProjectReference, add:
 
@@ -620,17 +620,17 @@ Edit `GitWizardUI/GitWizardUI.csproj`. Inside the `<ItemGroup>` that contains th
     <ProjectReference Include="..\GitWizardUI.ViewModels\GitWizardUI.ViewModels.csproj" />
 ```
 
-- [ ] **Step 3: Build the shared lib + test project**
+- [x] **Step 3: Build the shared lib + test project**
 
 Run: `dotnet build GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj GitWizardTests/GitWizardTests.csproj --nologo`
 Expected: 0 errors. (`RepositoryNodeViewModel` has no MAUI dependencies after Task 4.)
 
-- [ ] **Step 4: Run all tests to confirm nothing regressed**
+- [x] **Step 4: Run all tests to confirm nothing regressed**
 
 Run: `dotnet test GitWizardTests/GitWizardTests.csproj --nologo`
 Expected: all existing tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add GitWizardUI/ViewModels/RepositoryNodeViewModel.cs GitWizardUI.ViewModels/RepositoryNodeViewModel.cs GitWizardUI/GitWizardUI.csproj
@@ -646,13 +646,13 @@ git commit -m "refactor(viewmodels): move RepositoryNodeViewModel to shared proj
 - Modify: `GitWizardUI.ViewModels/MainViewModel.cs`
 - Create: `GitWizardTests/MainViewModelTests.cs`
 
-- [ ] **Step 1: Move the file**
+- [x] **Step 1: Move the file**
 
 ```bash
 git mv GitWizardUI/ViewModels/MainViewModel.cs GitWizardUI.ViewModels/MainViewModel.cs
 ```
 
-- [ ] **Step 2: Replace the parameterless constructor with one that takes services**
+- [x] **Step 2: Replace the parameterless constructor with one that takes services**
 
 Edit `GitWizardUI.ViewModels/MainViewModel.cs`. Find the existing `public MainViewModel()` constructor (around line 163). Replace its signature and add fields:
 
@@ -670,7 +670,7 @@ public MainViewModel(IUiDispatcher ui, IUserDialogs dialogs)
 
 Add at the top of the file: `using GitWizardUI.ViewModels.Services;`
 
-- [ ] **Step 3: Replace `MainThread.BeginInvokeOnMainThread(...)` with `_ui.Post(...)`**
+- [x] **Step 3: Replace `MainThread.BeginInvokeOnMainThread(...)` with `_ui.Post(...)`**
 
 Search the file for `MainThread.BeginInvokeOnMainThread(`. There are 13+ occurrences (lines 197, 215, 233, 256, 793, 811, and others). For each:
 
@@ -681,7 +681,7 @@ MainThread.BeginInvokeOnMainThread(action);
 _ui.Post(action);
 ```
 
-- [ ] **Step 4: Replace `MainThread.InvokeOnMainThreadAsync(...)` with `_ui.InvokeAsync(...)`**
+- [x] **Step 4: Replace `MainThread.InvokeOnMainThreadAsync(...)` with `_ui.InvokeAsync(...)`**
 
 Search for `await MainThread.InvokeOnMainThreadAsync(`. There are 2 occurrences (lines 326, 335). For each:
 
@@ -692,7 +692,7 @@ await MainThread.InvokeOnMainThreadAsync(action);
 await _ui.InvokeAsync(action);
 ```
 
-- [ ] **Step 5: Replace `Application.Current.Windows[0].Page.DisplayAlertAsync` blocks with `_dialogs.DisplayAlertAsync`**
+- [x] **Step 5: Replace `Application.Current.Windows[0].Page.DisplayAlertAsync` blocks with `_dialogs.DisplayAlertAsync`**
 
 Find each block matching this pattern (4 occurrences, around lines 197, 215, 233, 256):
 
@@ -714,17 +714,17 @@ _ui.Post(async () => await _dialogs.DisplayAlertAsync("Error", message));
 
 (Note: Step 3 already converted the outer `MainThread.BeginInvokeOnMainThread` to `_ui.Post`; this step also collapses the inner null-check + `DisplayAlertAsync` since the `IUserDialogs` impl handles owner resolution.)
 
-- [ ] **Step 6: Build the shared lib; expect failure if any MAUI references remain**
+- [x] **Step 6: Build the shared lib; expect failure if any MAUI references remain**
 
 Run: `dotnet build GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj --nologo`
 Expected: errors only if Steps 3–5 missed anything. Search the file for any remaining `MainThread`, `Application.Current`, `Microsoft.Maui` and replace per the same pattern.
 
-- [ ] **Step 7: Build clean**
+- [x] **Step 7: Build clean**
 
 Run: `dotnet build GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj --nologo`
 Expected: 0 errors.
 
-- [ ] **Step 8: Add a regression test for construction**
+- [x] **Step 8: Add a regression test for construction**
 
 Create `GitWizardTests/MainViewModelTests.cs`:
 
@@ -750,12 +750,12 @@ public class MainViewModelTests
 }
 ```
 
-- [ ] **Step 9: Run tests; expect pass**
+- [x] **Step 9: Run tests; expect pass**
 
 Run: `dotnet test GitWizardTests/GitWizardTests.csproj --filter "FullyQualifiedName~MainViewModelTests" --nologo`
 Expected: 1 passed.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add GitWizardUI/ViewModels/MainViewModel.cs GitWizardUI.ViewModels/MainViewModel.cs GitWizardTests/MainViewModelTests.cs
@@ -770,13 +770,13 @@ git commit -m "refactor(viewmodels): move MainViewModel and route UI work throug
 - Move: `GitWizardUI/ViewModels/SettingsViewModel.cs` → `GitWizardUI.ViewModels/SettingsViewModel.cs`
 - Modify: `GitWizardUI.ViewModels/SettingsViewModel.cs`
 
-- [ ] **Step 1: Move the file**
+- [x] **Step 1: Move the file**
 
 ```bash
 git mv GitWizardUI/ViewModels/SettingsViewModel.cs GitWizardUI.ViewModels/SettingsViewModel.cs
 ```
 
-- [ ] **Step 2: Replace MAUI imports with abstraction**
+- [x] **Step 2: Replace MAUI imports with abstraction**
 
 Edit `GitWizardUI.ViewModels/SettingsViewModel.cs`. Remove:
 
@@ -791,7 +791,7 @@ Add:
 using GitWizardUI.ViewModels.Services;
 ```
 
-- [ ] **Step 3: Inject `IFolderPicker` via constructor**
+- [x] **Step 3: Inject `IFolderPicker` via constructor**
 
 Add field + constructor at the top of the class:
 
@@ -805,7 +805,7 @@ public SettingsViewModel(IFolderPicker folderPicker)
 }
 ```
 
-- [ ] **Step 4: Replace the WinUI-handle folder picker (around line 96)**
+- [x] **Step 4: Replace the WinUI-handle folder picker (around line 96)**
 
 Find the existing folder-picker method that contains `((MauiWinUIWindow)Application.Current!.Windows[0].Handler!.PlatformView!).WindowHandle`. Replace the entire WinUI-handle block + `Windows.Storage.Pickers.FolderPicker` setup with:
 
@@ -815,17 +815,17 @@ if (path is null) return;
 // ...keep the existing add-to-paths logic that ran after the picker returned
 ```
 
-- [ ] **Step 5: Build**
+- [x] **Step 5: Build**
 
 Run: `dotnet build GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj --nologo`
 Expected: 0 errors.
 
-- [ ] **Step 6: Run all tests**
+- [x] **Step 6: Run all tests**
 
 Run: `dotnet test GitWizardTests/GitWizardTests.csproj --nologo`
 Expected: all pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add GitWizardUI/ViewModels/SettingsViewModel.cs GitWizardUI.ViewModels/SettingsViewModel.cs
@@ -874,13 +874,13 @@ The agent must read each of the four files first to identify current handler bod
 
 If the existing handlers don't exactly match these names, use the most similar handler. If a handler doesn't exist (e.g. there's no separate ignored-path remove button), implement the simplest reasonable version (set property, raise notify, return).
 
-- [ ] **Step 1: Read existing handler bodies**
+- [x] **Step 1: Read existing handler bodies**
 
 Read these files in full and identify each handler's logic:
 - `GitWizardUI/MainPage.xaml.cs`
 - `GitWizardUI/SettingsPage.xaml.cs`
 
-- [ ] **Step 2: Add `MainViewModel` public methods**
+- [x] **Step 2: Add `MainViewModel` public methods**
 
 Add the methods listed above to `GitWizardUI.ViewModels/MainViewModel.cs`. Each method body comes from the corresponding handler. Where the handler accessed `this` (the page), substitute the VM equivalent (e.g. `this.FilterPendingChanges` → use the passed `buttonName` string).
 
@@ -907,7 +907,7 @@ public void ApplyFilter(string buttonName)
 
 `ApplyGroup` and `ApplySort` follow the same pattern with their respective enums.
 
-- [ ] **Step 3: Add `SettingsViewModel` public methods + selected-item properties**
+- [x] **Step 3: Add `SettingsViewModel` public methods + selected-item properties**
 
 Add the methods and properties listed above to `GitWizardUI.ViewModels/SettingsViewModel.cs`. Implement the selected-item properties with backing fields and `OnPropertyChanged` raises so the `ListBox.SelectedItem` two-way binding works.
 
@@ -921,7 +921,7 @@ public string? SelectedSearchPath
 // ditto for SelectedIgnoredPath
 ```
 
-- [ ] **Step 4: Update `MainPage.xaml.cs` handlers to delegate**
+- [x] **Step 4: Update `MainPage.xaml.cs` handlers to delegate**
 
 Each existing `*_Click` handler shrinks to a one-liner (or no-op + delegate). For example:
 
@@ -942,7 +942,7 @@ void FilterButton_Click(object sender, EventArgs e)
 
 Repeat for `GroupButton_Click`, `SortButton_Click`, `SearchBox_TextChanged`, `ClearCacheMenuItem_Click`, `DeleteAllLocalFilesMenuItem_Click`. Leave `CheckWindowsDefenderMenuItem_Click` and `SettingsMenuItem_Click` untouched.
 
-- [ ] **Step 5: Update `SettingsPage.xaml.cs` handlers**
+- [x] **Step 5: Update `SettingsPage.xaml.cs` handlers**
 
 Each handler delegates to the corresponding VM method. For example:
 
@@ -950,17 +950,17 @@ Each handler delegates to the corresponding VM method. For example:
 async void AddSearchPath_Click(object sender, EventArgs e) => await ((SettingsViewModel)BindingContext).AddSearchPathAsync();
 ```
 
-- [ ] **Step 6: Build the shared lib (Linux)**
+- [x] **Step 6: Build the shared lib (Linux)**
 
 Run: `dotnet build GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj --nologo`
 Expected: 0 errors.
 
-- [ ] **Step 7: Run tests**
+- [x] **Step 7: Run tests**
 
 Run: `dotnet test GitWizardTests/GitWizardTests.csproj --nologo`
 Expected: all pass.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add GitWizardUI.ViewModels/MainViewModel.cs GitWizardUI.ViewModels/SettingsViewModel.cs GitWizardUI/MainPage.xaml.cs GitWizardUI/SettingsPage.xaml.cs
@@ -980,7 +980,7 @@ git commit -m "refactor(viewmodels): extract handler logic into VM methods"
 - Modify: `GitWizardUI/MainPage.xaml.cs`
 - Modify: `GitWizardUI/SettingsPage.xaml.cs`
 
-- [ ] **Step 1: Implement `MauiUiDispatcher`**
+- [x] **Step 1: Implement `MauiUiDispatcher`**
 
 Create `GitWizardUI/Services/MauiUiDispatcher.cs`:
 
@@ -999,7 +999,7 @@ public sealed class MauiUiDispatcher : IUiDispatcher
 }
 ```
 
-- [ ] **Step 2: Implement `MauiUserDialogs`**
+- [x] **Step 2: Implement `MauiUserDialogs`**
 
 Create `GitWizardUI/Services/MauiUserDialogs.cs`:
 
@@ -1026,7 +1026,7 @@ public sealed class MauiUserDialogs : IUserDialogs
 }
 ```
 
-- [ ] **Step 3: Implement `MauiFolderPicker`**
+- [x] **Step 3: Implement `MauiFolderPicker`**
 
 Create `GitWizardUI/Services/MauiFolderPicker.cs`. Lift the WinUI-handle logic from the original `SettingsViewModel` (look in git history if needed):
 
@@ -1058,7 +1058,7 @@ public sealed class MauiFolderPicker : IFolderPicker
 }
 ```
 
-- [ ] **Step 4: Wire view-model construction in `MainPage.xaml.cs`**
+- [x] **Step 4: Wire view-model construction in `MainPage.xaml.cs`**
 
 Edit `GitWizardUI/MainPage.xaml.cs`. Replace `_viewModel = new MainViewModel();` (line 16) with:
 
@@ -1068,7 +1068,7 @@ _viewModel = new MainViewModel(new MauiUiDispatcher(), new MauiUserDialogs());
 
 Add at top: `using GitWizardUI.Services;` and `using GitWizardUI.ViewModels;` if not already present.
 
-- [ ] **Step 5: Wire view-model construction in `SettingsPage.xaml.cs`**
+- [x] **Step 5: Wire view-model construction in `SettingsPage.xaml.cs`**
 
 Edit `GitWizardUI/SettingsPage.xaml.cs`. Replace `BindingContext = new SettingsViewModel();` (line 10) with:
 
@@ -1076,7 +1076,7 @@ Edit `GitWizardUI/SettingsPage.xaml.cs`. Replace `BindingContext = new SettingsV
 BindingContext = new SettingsViewModel(new MauiFolderPicker());
 ```
 
-- [ ] **Step 6: Linux fallback for MAUI build verification**
+- [x] **Step 6: Linux fallback for MAUI build verification**
 
 The MAUI csproj cannot build on Linux (Windows TFM). The agent on this box CANNOT run the MAUI build. Instead:
 
@@ -1088,7 +1088,7 @@ The MAUI csproj cannot build on Linux (Windows TFM). The agent on this box CANNO
 
 Do not block on Windows verification. Continue to Task 10.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add GitWizardUI/Services/ GitWizardUI/MainPage.xaml.cs GitWizardUI/SettingsPage.xaml.cs
@@ -1111,12 +1111,12 @@ git commit -m "feat(maui): add MAUI service impls and wire view models through a
 - Create: `GitWizardAvalonia/app.manifest`
 - Modify: `git-wizard.slnx`
 
-- [ ] **Step 1: Scaffold from template**
+- [x] **Step 1: Scaffold from template**
 
 Run: `dotnet new avalonia.app -o GitWizardAvalonia -n GitWizardAvalonia --force`
 Expected: creates `GitWizardAvalonia/` with template files. The `--force` flag overwrites if the directory pre-exists from an earlier failed attempt.
 
-- [ ] **Step 2: Replace the generated csproj**
+- [x] **Step 2: Replace the generated csproj**
 
 Open `GitWizardAvalonia/GitWizardAvalonia.csproj` and overwrite with:
 
@@ -1145,12 +1145,12 @@ Open `GitWizardAvalonia/GitWizardAvalonia.csproj` and overwrite with:
 </Project>
 ```
 
-- [ ] **Step 3: Confirm the template generated `Program.cs`, `App.axaml`, `App.axaml.cs`, `app.manifest`, and a `MainWindow.axaml` + `MainWindow.axaml.cs`**
+- [x] **Step 3: Confirm the template generated `Program.cs`, `App.axaml`, `App.axaml.cs`, `app.manifest`, and a `MainWindow.axaml` + `MainWindow.axaml.cs`**
 
 Run: `ls GitWizardAvalonia/`
 Expected: includes `Program.cs`, `App.axaml`, `App.axaml.cs`, `app.manifest`, `MainWindow.axaml`, `MainWindow.axaml.cs`.
 
-- [ ] **Step 4: Move the generated `MainWindow` files into a `Views/` subdirectory**
+- [x] **Step 4: Move the generated `MainWindow` files into a `Views/` subdirectory**
 
 ```bash
 mkdir -p GitWizardAvalonia/Views
@@ -1158,7 +1158,7 @@ git mv GitWizardAvalonia/MainWindow.axaml GitWizardAvalonia/Views/MainWindow.axa
 git mv GitWizardAvalonia/MainWindow.axaml.cs GitWizardAvalonia/Views/MainWindow.axaml.cs
 ```
 
-- [ ] **Step 5: Update namespace in moved files**
+- [x] **Step 5: Update namespace in moved files**
 
 Edit `GitWizardAvalonia/Views/MainWindow.axaml.cs`:
 
@@ -1174,11 +1174,11 @@ Edit `GitWizardAvalonia/Views/MainWindow.axaml`. The `x:Class` attribute on the 
 x:Class="GitWizardAvalonia.Views.MainWindow"
 ```
 
-- [ ] **Step 6: Update `App.axaml.cs` to point at the moved `MainWindow`**
+- [x] **Step 6: Update `App.axaml.cs` to point at the moved `MainWindow`**
 
 Open `GitWizardAvalonia/App.axaml.cs`. In `OnFrameworkInitializationCompleted`, the line `desktop.MainWindow = new MainWindow();` needs `using GitWizardAvalonia.Views;` at the top (or the line becomes `new Views.MainWindow()`).
 
-- [ ] **Step 7: Add to slnx**
+- [x] **Step 7: Add to slnx**
 
 Edit `git-wizard.slnx`. Insert before `</Solution>`:
 
@@ -1186,18 +1186,18 @@ Edit `git-wizard.slnx`. Insert before `</Solution>`:
   <Project Path="GitWizardAvalonia/GitWizardAvalonia.csproj" />
 ```
 
-- [ ] **Step 8: Build**
+- [x] **Step 8: Build**
 
 Run: `dotnet build GitWizardAvalonia/GitWizardAvalonia.csproj --nologo`
 Expected: 0 errors. First run downloads ~120 MB of NuGet.
 
-- [ ] **Step 9: Smoke-test the empty app**
+- [x] **Step 9: Smoke-test the empty app**
 
 Run: `dotnet run --project GitWizardAvalonia/GitWizardAvalonia.csproj`
 Expected: an empty window opens with the template default content. Close it; the process exits 0.
 If the agent cannot interact (no display): launch with `--no-build` after a successful build, capture stderr/stdout for ~5 seconds via timeout, look for absence of unhandled exceptions. If no GUI is available the agent can verify only that the build succeeded — note in PR.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add GitWizardAvalonia/ git-wizard.slnx
@@ -1213,7 +1213,7 @@ git commit -m "feat(avalonia): scaffold empty Avalonia desktop app"
 - Create: `GitWizardAvalonia/Services/AvaloniaUserDialogs.cs`
 - Create: `GitWizardAvalonia/Services/AvaloniaFolderPicker.cs`
 
-- [ ] **Step 1: Implement `AvaloniaUiDispatcher`**
+- [x] **Step 1: Implement `AvaloniaUiDispatcher`**
 
 Create `GitWizardAvalonia/Services/AvaloniaUiDispatcher.cs`:
 
@@ -1232,7 +1232,7 @@ public sealed class AvaloniaUiDispatcher : IUiDispatcher
 }
 ```
 
-- [ ] **Step 2: Implement `AvaloniaUserDialogs`**
+- [x] **Step 2: Implement `AvaloniaUserDialogs`**
 
 Avalonia has no built-in alert dialog. Compose one from `Window` + `TextBlock` + buttons. Create `GitWizardAvalonia/Services/AvaloniaUserDialogs.cs`:
 
@@ -1294,7 +1294,7 @@ public sealed class AvaloniaUserDialogs : IUserDialogs
 }
 ```
 
-- [ ] **Step 3: Implement `AvaloniaFolderPicker`**
+- [x] **Step 3: Implement `AvaloniaFolderPicker`**
 
 Create `GitWizardAvalonia/Services/AvaloniaFolderPicker.cs`:
 
@@ -1323,12 +1323,12 @@ public sealed class AvaloniaFolderPicker : IFolderPicker
 }
 ```
 
-- [ ] **Step 4: Build**
+- [x] **Step 4: Build**
 
 Run: `dotnet build GitWizardAvalonia/GitWizardAvalonia.csproj --nologo`
 Expected: 0 errors.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add GitWizardAvalonia/Services/
@@ -1362,7 +1362,7 @@ This task ports `GitWizardUI/MainPage.xaml` (133 lines) using these dialect subs
 | `IsVisible` | `IsVisible` (same) |
 | `FontAttributes="Bold"` | `FontWeight="Bold"` |
 
-- [ ] **Step 1: Replace `MainWindow.axaml`**
+- [x] **Step 1: Replace `MainWindow.axaml`**
 
 Overwrite `GitWizardAvalonia/Views/MainWindow.axaml` with:
 
@@ -1439,7 +1439,7 @@ Overwrite `GitWizardAvalonia/Views/MainWindow.axaml` with:
 </Window>
 ```
 
-- [ ] **Step 2: Replace `MainWindow.axaml.cs`**
+- [x] **Step 2: Replace `MainWindow.axaml.cs`**
 
 Overwrite `GitWizardAvalonia/Views/MainWindow.axaml.cs` with:
 
@@ -1513,14 +1513,14 @@ public partial class MainWindow : Window
 
 `RefreshCommand`, `FetchAndRefreshCommand`, `OpenInForkCommand`, `DeepRefreshCommand` are existing `ICommand` properties on `MainViewModel`. If any are named differently, adapt; if any are absent, add them as straightforward `RelayCommand`-style implementations on the VM (no plan needed — they're trivial wrappers).
 
-- [ ] **Step 3: Build**
+- [x] **Step 3: Build**
 
 Run: `dotnet build GitWizardAvalonia/GitWizardAvalonia.csproj --nologo`
 Expected: 0 errors.
 
 If errors mention missing properties on `MainViewModel` (e.g. `SearchText`, `HeaderText`, `IsProgressVisible`, etc.): each is on the existing VM. Read `GitWizardUI.ViewModels/MainViewModel.cs` and confirm — they all exist per the original MAUI XAML bindings.
 
-- [ ] **Step 4: Smoke acceptance**
+- [x] **Step 4: Smoke acceptance**
 
 Run: `dotnet run --project GitWizardAvalonia/GitWizardAvalonia.csproj`
 Acceptance criteria (verify each):
@@ -1531,7 +1531,7 @@ Acceptance criteria (verify each):
 
 If running headless (no display): the agent verifies build success only and notes in PR that runtime smoke needs human run.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add GitWizardAvalonia/Views/MainWindow.axaml GitWizardAvalonia/Views/MainWindow.axaml.cs
@@ -1544,11 +1544,11 @@ git commit -m "feat(avalonia): port MainPage to MainWindow with full sidebar lay
 
 This is a runtime task. Skip the run step if the agent's host has no display.
 
-- [ ] **Step 1: Run the app**
+- [x] **Step 1: Run the app**
 
 Run: `dotnet run --project GitWizardAvalonia/GitWizardAvalonia.csproj`
 
-- [ ] **Step 2: Click Refresh**
+- [x] **Step 2: Click Refresh**
 
 Acceptance:
 - Header text changes to show progress messages.
@@ -1558,15 +1558,15 @@ Acceptance:
 
 If list is empty: confirm `~/.GitWizard/config.json` has at least one search path (Task 0 step 4 handled this; if it fell through, `dotnet run --project git-wizard/git-wizard.csproj` once will fix it).
 
-- [ ] **Step 3: Click a sidebar filter**
+- [x] **Step 3: Click a sidebar filter**
 
 E.g. "Pending Changes" — list filters to subset.
 
-- [ ] **Step 4: Type in search box**
+- [x] **Step 4: Type in search box**
 
 Acceptance: list filters live as the agent simulates typing (or as the human running the smoke does so).
 
-- [ ] **Step 5: Commit (only if fixes were needed)**
+- [x] **Step 5: Commit (only if fixes were needed)**
 
 If any code fixes were needed:
 
@@ -1585,11 +1585,11 @@ Otherwise skip.
 - Create: `GitWizardAvalonia/Views/SettingsWindow.axaml`
 - Create: `GitWizardAvalonia/Views/SettingsWindow.axaml.cs`
 
-- [ ] **Step 1: Read `GitWizardUI/SettingsPage.xaml`**
+- [x] **Step 1: Read `GitWizardUI/SettingsPage.xaml`**
 
 Read the file to understand the exact layout (paths editor, ignored-paths editor, button layout). The skeleton below is conservative; match feature-for-feature.
 
-- [ ] **Step 2: Create `SettingsWindow.axaml`**
+- [x] **Step 2: Create `SettingsWindow.axaml`**
 
 Write `GitWizardAvalonia/Views/SettingsWindow.axaml`:
 
@@ -1622,7 +1622,7 @@ Write `GitWizardAvalonia/Views/SettingsWindow.axaml`:
 
 If the original `SettingsPage.xaml` exposes additional widgets (e.g. a "Save" button, a description label), add them with the same handler-name pattern.
 
-- [ ] **Step 3: Create `SettingsWindow.axaml.cs`**
+- [x] **Step 3: Create `SettingsWindow.axaml.cs`**
 
 ```csharp
 using Avalonia.Controls;
@@ -1657,12 +1657,12 @@ public partial class SettingsWindow : Window
 }
 ```
 
-- [ ] **Step 4: Build**
+- [x] **Step 4: Build**
 
 Run: `dotnet build GitWizardAvalonia/GitWizardAvalonia.csproj --nologo`
 Expected: 0 errors.
 
-- [ ] **Step 5: Smoke acceptance**
+- [x] **Step 5: Smoke acceptance**
 
 Launch the app, click Settings.
 - Settings window opens modally.
@@ -1671,7 +1671,7 @@ Launch the app, click Settings.
 - Selecting a folder adds it to the list.
 - "Remove" deletes the selected path.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add GitWizardAvalonia/Views/SettingsWindow.axaml GitWizardAvalonia/Views/SettingsWindow.axaml.cs
@@ -1687,7 +1687,7 @@ git commit -m "feat(avalonia): port SettingsPage to SettingsWindow with native f
 **Files:**
 - Modify: `GitWizardAvalonia/Views/MainWindow.axaml.cs`
 
-- [ ] **Step 1: Hide the Defender button at runtime on non-Windows**
+- [x] **Step 1: Hide the Defender button at runtime on non-Windows**
 
 In `GitWizardAvalonia/Views/MainWindow.axaml.cs`, at the end of the constructor, add:
 
@@ -1698,12 +1698,12 @@ if (!OperatingSystem.IsWindows())
 
 `OperatingSystem.IsWindows()` is in `System` (auto-imported via implicit usings).
 
-- [ ] **Step 2: Build and smoke-test**
+- [x] **Step 2: Build and smoke-test**
 
 Run on Linux: `dotnet run --project GitWizardAvalonia/GitWizardAvalonia.csproj`
 Acceptance: top toolbar has 3 buttons (Settings, Clear Cache, Delete All Local Files) — no Defender button.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add GitWizardAvalonia/Views/MainWindow.axaml.cs
@@ -1714,7 +1714,7 @@ git commit -m "feat(avalonia): hide Windows-only Defender button on non-Windows"
 
 ### Task 16: Linux end-to-end smoke + screenshot
 
-- [ ] **Step 1: Run the app on Linux, exercise full UI**
+- [x] **Step 1: Run the app on Linux, exercise full UI**
 
 Run: `dotnet run --project GitWizardAvalonia/GitWizardAvalonia.csproj`
 
@@ -1730,7 +1730,7 @@ In the app:
 
 If running headless: skip this task and record in PR that smoke needs human verification.
 
-- [ ] **Step 2: Capture a screenshot**
+- [x] **Step 2: Capture a screenshot**
 
 If a display is available, use a tool that's likely present:
 
@@ -1743,7 +1743,7 @@ gnome-screenshot -w -f /home/schoen/git-wizard/Screenshots/GitWizardAvalonia.png
 
 If no tool works, skip. The screenshot is nice-to-have, not required.
 
-- [ ] **Step 3: Commit screenshot (if captured)**
+- [x] **Step 3: Commit screenshot (if captured)**
 
 ```bash
 git add Screenshots/GitWizardAvalonia.png
@@ -1757,7 +1757,7 @@ git commit -m "docs: add Linux screenshot of Avalonia UI"
 **Files:**
 - Modify: `PLAN.md`
 
-- [ ] **Step 1: Append a section recording the Avalonia work**
+- [x] **Step 1: Append a section recording the Avalonia work**
 
 Append to `PLAN.md`:
 
@@ -1774,7 +1774,7 @@ Append to `PLAN.md`:
 - [x] Verified scan + filter + group + sort on Linux
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add PLAN.md

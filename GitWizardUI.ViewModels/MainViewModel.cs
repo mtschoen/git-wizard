@@ -3,13 +3,15 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Windows.Input;
 using GitWizard;
+using GitWizardUI.ViewModels.Services;
 
 namespace GitWizardUI.ViewModels;
 
 public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
 {
+    readonly IUiDispatcher _ui;
+    readonly IUserDialogs _dialogs;
     readonly ConcurrentDictionary<string, RepositoryNodeViewModel> _repositoryMap = new();
     readonly ConcurrentQueue<RepositoryUICommand> _uiCommands = new();
     readonly Stopwatch _stopwatch = new();
@@ -25,7 +27,20 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
     GroupMode _activeGroupMode = GroupMode.None;
     SortMode _activeSortMode = SortMode.WorkingDirectory;
     string? _lastRefreshMessage;
-    string _searchText = string.Empty;
+  string _searchText = string.Empty;
+    public string SearchText
+    {
+        get => _searchText;
+        set
+        {
+            if (_searchText != value)
+            {
+                _searchText = value;
+                OnPropertyChanged();
+                ApplyFilterAndGrouping();
+            }
+        }
+    }
     public static string? GlobalUserEmail { get; private set; }
 
     string? _progressDescription;
@@ -154,18 +169,24 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         }
     }
 
-    public Action<RepositoryNodeViewModel>? ScrollToRequest { get; set; }
+  public Action<RepositoryNodeViewModel>? ScrollToRequest { get; set; }
     public ICommand OpenInExplorerCommand { get; }
     public ICommand OpenInForkCommand { get; }
     public ICommand DeepRefreshCommand { get; }
     public ICommand ToggleGroupExpandCommand { get; }
+    public ICommand RefreshCommand { get; }
+    public ICommand FetchAndRefreshCommand { get; }
 
-    public MainViewModel()
+    public MainViewModel(IUiDispatcher ui, IUserDialogs dialogs)
     {
-        OpenInExplorerCommand = new Command<RepositoryNodeViewModel>(OpenInExplorer);
-        OpenInForkCommand = new Command<RepositoryNodeViewModel>(OpenInFork);
-        DeepRefreshCommand = new Command<RepositoryNodeViewModel>(DeepRefreshRepository);
-        ToggleGroupExpandCommand = new Command<RepositoryNodeViewModel>(ToggleGroupExpand);
+        _ui = ui;
+        _dialogs = dialogs;
+        OpenInExplorerCommand = new RelayCommand<RepositoryNodeViewModel>(OpenInExplorer);
+        OpenInForkCommand = new RelayCommand<RepositoryNodeViewModel>(OpenInFork);
+        DeepRefreshCommand = new RelayCommand<RepositoryNodeViewModel>(DeepRefreshRepository);
+        ToggleGroupExpandCommand = new RelayCommand<RepositoryNodeViewModel>(ToggleGroupExpand);
+        RefreshCommand = new RelayCommand(async () => await RefreshAsync(background: false));
+        FetchAndRefreshCommand = new RelayCommand(async () => await RefreshAsync(background: false, fetchRemotes: true));
         StartUIUpdateThread();
     }
 
@@ -183,26 +204,19 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         if (string.IsNullOrEmpty(node.WorkingDirectory))
             return;
 
-        try
-        {
-            Process.Start(new ProcessStartInfo
+try
             {
-                FileName = node.WorkingDirectory,
-                UseShellExecute = true,
-                Verb = "open"
-            });
-        }
-        catch (Exception ex)
-        {
-            MainThread.BeginInvokeOnMainThread(async () =>
-            {
-                if (Application.Current?.Windows.Count > 0)
+                Process.Start(new ProcessStartInfo
                 {
-                    await Application.Current.Windows[0].Page?.DisplayAlertAsync("Error",
-                        $"Could not open folder: {ex.Message}", "OK")!;
-                }
-            });
-        }
+                    FileName = node.WorkingDirectory,
+                    UseShellExecute = true,
+                    Verb = "open"
+                });
+            }
+            catch (Exception ex)
+            {
+                _ui.Post(async () => await _dialogs.DisplayAlertAsync("Error", $"Could not open folder: {ex.Message}"));
+            }
     }
 
     void OpenInFork(RepositoryNodeViewModel? node)
@@ -210,16 +224,9 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         if (node == null || string.IsNullOrEmpty(node.WorkingDirectory))
             return;
 
-        if (!Directory.Exists(node.WorkingDirectory))
+   if (!Directory.Exists(node.WorkingDirectory))
         {
-            MainThread.BeginInvokeOnMainThread(async () =>
-            {
-                if (Application.Current?.Windows.Count > 0)
-                {
-                    await Application.Current.Windows[0].Page?.DisplayAlertAsync("Error",
-                        "Invalid repository path", "OK")!;
-                }
-            });
+            _ui.Post(async () => await _dialogs.DisplayAlertAsync("Error", "Invalid repository path"));
             return;
         }
 
@@ -228,16 +235,9 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "Fork", "Fork.exe");
 
-        if (!File.Exists(forkPath))
+ if (!File.Exists(forkPath))
         {
-            MainThread.BeginInvokeOnMainThread(async () =>
-            {
-                if (Application.Current?.Windows.Count > 0)
-                {
-                    await Application.Current.Windows[0].Page?.DisplayAlertAsync("Error",
-                        $"Fork not found at: {forkPath}\n\nPlease ensure Fork is installed.", "OK")!;
-                }
-            });
+            _ui.Post(async () => await _dialogs.DisplayAlertAsync("Error", $"Fork not found at: {forkPath}\n\nPlease ensure Fork is installed."));
             return;
         }
 
@@ -251,16 +251,9 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
                 CreateNoWindow = false
             });
         }
-        catch (Exception ex)
+catch (Exception ex)
         {
-            MainThread.BeginInvokeOnMainThread(async () =>
-            {
-                if (Application.Current?.Windows.Count > 0)
-                {
-                    await Application.Current.Windows[0].Page?.DisplayAlertAsync("Error",
-                        $"Could not launch Fork: {ex.Message}", "OK")!;
-                }
-            });
+            _ui.Post(async () => await _dialogs.DisplayAlertAsync("Error", $"Could not launch Fork: {ex.Message}"));
         }
     }
 
@@ -320,10 +313,10 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
             {
                 await Task.Delay(250);
 
-                // Drain all pending commands in one UI dispatch to minimize layout passes
+  // Drain all pending commands in one UI dispatch to minimize layout passes
                 if (_uiCommands.TryPeek(out _))
                 {
-                    await MainThread.InvokeOnMainThreadAsync(() =>
+                    await _ui.InvokeAsync(() =>
                     {
                         while (_uiCommands.TryDequeue(out var command))
                         {
@@ -332,7 +325,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
                     });
                 }
 
-                await MainThread.InvokeOnMainThreadAsync(() =>
+                await _ui.InvokeAsync(() =>
                 {
                     if (_progressCount.HasValue && _progressTotal.HasValue && _progressTotal.Value > 0)
                     {
@@ -395,10 +388,64 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         ApplyFilterAndGrouping();
     }
 
-    public void SetSearchText(string text)
+   public void SetSearchText(string text)
     {
         _searchText = text;
         ApplyFilterAndGrouping();
+    }
+
+    public void UpdateSearchText(string text) => SetSearchText(text);
+
+    public void ApplyFilter(string buttonName)
+    {
+        _activeFilter = buttonName switch
+        {
+            "FilterPendingChanges" => FilterType.PendingChanges,
+            "FilterSubmoduleCheckout" => FilterType.SubmoduleCheckout,
+            "FilterSubmoduleUninitialized" => FilterType.SubmoduleUninitialized,
+            "FilterSubmoduleConfigIssue" => FilterType.SubmoduleConfigIssue,
+            "FilterDetachedHead" => FilterType.DetachedHead,
+            "FilterMyRepositories" => FilterType.MyRepositories,
+            "FilterLocalOnlyCommits" => FilterType.LocalOnlyCommits,
+            "FilterStale" => FilterType.Stale,
+            _ => FilterType.None,
+        };
+        ApplyFilterAndGrouping();
+    }
+
+    public void ApplyGroup(string buttonName)
+    {
+        _activeGroupMode = buttonName switch
+        {
+            "GroupByDrive" => GroupMode.Drive,
+            "GroupByRemoteUrl" => GroupMode.RemoteUrl,
+            _ => GroupMode.None,
+        };
+        ApplyFilterAndGrouping();
+    }
+
+    public void ApplySort(string buttonName)
+    {
+        _activeSortMode = buttonName switch
+        {
+            "SortByWorkingDirectory" => SortMode.WorkingDirectory,
+            "SortByRecentlyUsed" => SortMode.RecentlyUsed,
+            "SortByRemoteUrl" => SortMode.RemoteUrl,
+            _ => SortMode.WorkingDirectory,
+        };
+        ApplyFilterAndGrouping();
+    }
+
+    public async Task ClearCacheAsync()
+    {
+        GitWizardApi.ClearCache();
+        await _dialogs.DisplayAlertAsync("Cache Cleared", "Repository cache has been cleared");
+    }
+
+    public async Task DeleteAllLocalFilesAsync()
+    {
+        GitWizardApi.DeleteAllLocalFiles();
+        await _dialogs.DisplayAlertAsync("Files Deleted", "All local files have been deleted");
     }
 
     void ApplyFilterAndGrouping()
@@ -407,7 +454,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
 
         var filtered = _activeFilter == FilterType.None
             ? _allRepositories
-            : _allRepositories.Where(r => r.MatchesFilter(_activeFilter)).ToList();
+            : _allRepositories.Where(r => r.MatchesFilter(_activeFilter, GlobalUserEmail)).ToList();
 
         if (!string.IsNullOrWhiteSpace(_searchText))
             filtered = filtered.Where(r => r.WorkingDirectory.Contains(_searchText, StringComparison.OrdinalIgnoreCase)).ToList();
@@ -642,7 +689,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         _repositoryMap[path] = node;
         _allRepositories.Add(node);
 
-        if (!node.MatchesFilter(_activeFilter))
+ if (!node.MatchesFilter(_activeFilter, GlobalUserEmail))
             return;
 
         if (!string.IsNullOrWhiteSpace(_searchText) &&
@@ -692,7 +739,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         if (_activeFilter != FilterType.None && _activeGroupMode == GroupMode.None)
         {
             var isShown = Repositories.Contains(node);
-            var shouldShow = node.MatchesFilter(_activeFilter);
+  var shouldShow = node.MatchesFilter(_activeFilter, GlobalUserEmail);
             if (isShown && !shouldShow)
                 Repositories.Remove(node);
             else if (!isShown && shouldShow)
@@ -785,12 +832,12 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         IsRefreshing = false;
     }
 
-    // IUpdateHandler implementation
+  // IUpdateHandler implementation
     public void SendUpdateMessage(string? message)
     {
         if (message != null)
         {
-            MainThread.BeginInvokeOnMainThread(() => HeaderText = message);
+            _ui.Post(() => HeaderText = message);
         }
     }
 
@@ -803,12 +850,12 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         });
     }
 
-    public void StartProgress(string description, int total)
+public void StartProgress(string description, int total)
     {
         _progressCount = 0;
         _progressDescription = description;
         _progressTotal = total;
-        MainThread.BeginInvokeOnMainThread(() =>
+        _ui.Post(() =>
         {
             IsProgressVisible = true;
             ProgressValue = 0;

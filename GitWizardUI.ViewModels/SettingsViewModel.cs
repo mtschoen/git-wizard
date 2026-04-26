@@ -1,17 +1,14 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using System.Windows.Input;
 using GitWizard;
-#if WINDOWS
-using Microsoft.Maui.Controls;
-using Microsoft.Maui.Platform;
-#endif
+using GitWizardUI.ViewModels.Services;
 
 namespace GitWizardUI.ViewModels;
 
 public class SettingsViewModel : INotifyPropertyChanged
 {
+    readonly IFolderPicker _folderPicker;
     private GitWizardConfiguration _configuration;
 
     public ObservableCollection<string> SearchPaths { get; } = new();
@@ -28,7 +25,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
-    private string _newIgnoredPath = string.Empty;
+   private string _newIgnoredPath = string.Empty;
     public string NewIgnoredPath
     {
         get => _newIgnoredPath;
@@ -39,6 +36,20 @@ public class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
+    private string? _selectedSearchPath;
+    public string? SelectedSearchPath
+    {
+        get => _selectedSearchPath;
+        set { _selectedSearchPath = value; OnPropertyChanged(); }
+    }
+
+    private string? _selectedIgnoredPath;
+    public string? SelectedIgnoredPath
+    {
+        get => _selectedIgnoredPath;
+        set { _selectedIgnoredPath = value; OnPropertyChanged(); }
+    }
+
     public ICommand AddSearchPathCommand { get; }
     public ICommand RemoveSearchPathCommand { get; }
     public ICommand AddIgnoredPathCommand { get; }
@@ -47,8 +58,9 @@ public class SettingsViewModel : INotifyPropertyChanged
     public ICommand BrowseSearchPathCommand { get; }
     public ICommand BrowseIgnoredPathCommand { get; }
 
-    public SettingsViewModel()
+    public SettingsViewModel(IFolderPicker folderPicker)
     {
+        _folderPicker = folderPicker;
         _configuration = GitWizardConfiguration.GetGlobalConfiguration();
 
         // Load current configuration
@@ -58,13 +70,13 @@ public class SettingsViewModel : INotifyPropertyChanged
         foreach (var path in _configuration.IgnoredPaths)
             IgnoredPaths.Add(path);
 
-        AddSearchPathCommand = new Command(AddSearchPath);
-        RemoveSearchPathCommand = new Command<string>(RemoveSearchPath);
-        AddIgnoredPathCommand = new Command(AddIgnoredPath);
-        RemoveIgnoredPathCommand = new Command<string>(RemoveIgnoredPath);
-        SaveCommand = new Command(Save);
-        BrowseSearchPathCommand = new Command(async () => await BrowseSearchPath());
-        BrowseIgnoredPathCommand = new Command(async () => await BrowseIgnoredPath());
+        AddSearchPathCommand = new RelayCommand(AddSearchPath);
+        RemoveSearchPathCommand = new RelayCommand<string>(RemoveSearchPath);
+        AddIgnoredPathCommand = new RelayCommand(AddIgnoredPath);
+        RemoveIgnoredPathCommand = new RelayCommand<string>(RemoveIgnoredPath);
+        SaveCommand = new RelayCommand(Save);
+        BrowseSearchPathCommand = new RelayCommand(async () => await BrowseSearchPath());
+        BrowseIgnoredPathCommand = new RelayCommand(async () => await BrowseIgnoredPath());
     }
 
     private async Task BrowseSearchPath()
@@ -87,24 +99,10 @@ public class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
-    private async Task<string?> PickFolderAsync()
+   private async Task<string?> PickFolderAsync()
     {
-#if WINDOWS
-        var folderPicker = new Windows.Storage.Pickers.FolderPicker();
-
-        // Get the current window handle
-        var hwnd = ((MauiWinUIWindow)Application.Current!.Windows[0].Handler!.PlatformView!).WindowHandle;
-        WinRT.Interop.InitializeWithWindow.Initialize(folderPicker, hwnd);
-
-        folderPicker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.ComputerFolder;
-        folderPicker.FileTypeFilter.Add("*");
-
-        var folder = await folderPicker.PickSingleFolderAsync();
-        return folder?.Path;
-#else
-        await Task.CompletedTask;
-        return null;
-#endif
+        var path = await _folderPicker.PickFolderAsync();
+        return path;
     }
 
     private void AddSearchPath()
@@ -136,11 +134,53 @@ public class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
-    private void RemoveIgnoredPath(string? path)
+ private void RemoveIgnoredPath(string? path)
     {
         if (path != null)
         {
             IgnoredPaths.Remove(path);
+            SaveImmediate();
+        }
+    }
+
+    public async Task AddSearchPathAsync()
+    {
+        var path = await _folderPicker.PickFolderAsync();
+        if (path is null || string.IsNullOrWhiteSpace(path))
+            return;
+        if (!SearchPaths.Contains(path))
+        {
+            SearchPaths.Add(path);
+            SaveImmediate();
+        }
+    }
+
+    public void RemoveSelectedSearchPath()
+    {
+        if (SelectedSearchPath is not null)
+        {
+            SearchPaths.Remove(SelectedSearchPath);
+            SaveImmediate();
+        }
+    }
+
+    public async Task AddIgnoredPathAsync()
+    {
+        var path = await _folderPicker.PickFolderAsync();
+        if (path is null || string.IsNullOrWhiteSpace(path))
+            return;
+        if (!IgnoredPaths.Contains(path))
+        {
+            IgnoredPaths.Add(path);
+            SaveImmediate();
+        }
+    }
+
+    public void RemoveSelectedIgnoredPath()
+    {
+        if (SelectedIgnoredPath is not null)
+        {
+            IgnoredPaths.Remove(SelectedIgnoredPath);
             SaveImmediate();
         }
     }

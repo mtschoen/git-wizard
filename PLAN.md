@@ -41,3 +41,7 @@ These tasks live in projdash's PLAN.md but are noted here for cross-reference:
 - [x] Added `LocalCommitCount` int field so consumers can show real unpushed counts instead of a bool
 - [x] `CurrentSchemaVersion` constant stamped at save time — cached reports from older builds no longer propagate stale version strings
 - [x] Documented `WhenWritingDefault` serializer behavior in `docs/report-schema.md` (absent fields = default values, not "unknown")
+
+### CLI polish
+
+- [ ] **Honor `--help` / `-h` / `-?`**: currently any unrecognized flag falls through and runs a full scan. Print usage (flags: `-filter`, `-paths`, `-summary`, plus the version banner from `Program.cs`) and exit 0 instead. Skip the elevation hidden args (`--elevated-mft`, `--elevated-defender`) from public help.

@@ -10,6 +10,7 @@
 
 ## Next Up
 
+- Implement the Avalonia cross-platform UI. Read `HANDOFF.md` for context, then follow the recommended launch verbatim: "Read docs/superpowers/plans/2026-04-26-avalonia-cross-platform-ui.md and execute it via superpowers:subagent-driven-development with sonnet subagents in parallel worktrees where possible." 18 tasks, 111 unchecked steps; pick up at Task 0 (env verification) and work as far as the per-run budget allows. The plan tracks progress via `- [ ]` checkboxes — commit checked-off boxes as you go.
 - Update MFT parser to also find `.git` files (not just directories) so worktrees with origins outside search paths are discovered
 - Include deleted and added files in uncommitted changes count
 - Show error log — exceptions are currently just logged to output

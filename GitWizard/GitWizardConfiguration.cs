@@ -55,6 +55,7 @@ public class GitWizardConfiguration
         {
             configuration.SearchPaths.Add("%USERPROFILE%");
             configuration.IgnoredPaths.Add("%APPDATA%");
+            configuration.IgnoredPaths.Add("%WINDIR%");
         }
         else
         {

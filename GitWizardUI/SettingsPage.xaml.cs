@@ -1,3 +1,4 @@
+using GitWizardUI.Services;
 using GitWizardUI.ViewModels;
 
 namespace GitWizardUI;
@@ -7,6 +8,6 @@ public partial class SettingsPage : ContentPage
     public SettingsPage()
     {
         InitializeComponent();
-        BindingContext = new SettingsViewModel();
+        BindingContext = new SettingsViewModel(new MauiFolderPicker());
     }
 }

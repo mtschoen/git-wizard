@@ -1,4 +1,5 @@
 ﻿using GitWizard;
+using GitWizardUI.Services;
 using GitWizardUI.ViewModels;
 
 namespace GitWizardUI;
@@ -13,7 +14,7 @@ public partial class MainPage : ContentPage
     public MainPage()
     {
         InitializeComponent();
-        _viewModel = new MainViewModel();
+        _viewModel = new MainViewModel(new MauiUiDispatcher(), new MauiUserDialogs());
         _viewModel.ScrollToRequest = node =>
         {
             RepositoryList.ScrollTo(node, position: ScrollToPosition.MakeVisible, animate: false);

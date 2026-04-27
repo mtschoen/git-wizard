@@ -47,3 +47,8 @@
 - Active branches
 - My branches
 - Undo/Redo for search/ignore list changes
+
+## Re-queue (zombied 2026-04-26)
+
+- "Pretty print" in path lists to transform environment variables into their values (was L33; original WI #19 zombied when its harness died silently during a drain restart — re-enqueueing here for a fresh source_ref).
+- Async save/load for cached files (configs and reports) (was L35; original WI #20 zombied at the same time, re-enqueueing here).

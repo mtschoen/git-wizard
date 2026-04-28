@@ -217,7 +217,7 @@ The `release` job:
 
    ```bash
    curl -fsSL -X POST \
-       -H "Authorization: token ${{ secrets.GITEA_TOKEN }}" \
+       -H "Authorization: token ${{ secrets.CI_GITEA_TOKEN }}" \
        -H "Content-Type: application/json" \
        -d "{\"tag_name\":\"$TAG\",\"name\":\"$TAG\",\"draft\":false,\"prerelease\":$PRE}" \
        "$GITEA_BASE_URL/api/v1/repos/$REPO/releases"
@@ -281,16 +281,16 @@ No `write:user`, no `admin`, no SSH key.
 
 ### 4.4 Secret storage
 
-The PAT is stored as the repo secret **`GITEA_TOKEN`** under
+The PAT is stored as the repo secret **`CI_GITEA_TOKEN`** under
 *Settings → Actions → Secrets and Variables*. The release workflow reads
-it as `${{ secrets.GITEA_TOKEN }}`. The token never appears in any
+it as `${{ secrets.CI_GITEA_TOKEN }}`. The token never appears in any
 committed file.
 
 ### 4.5 Token rotation
 
 If the PAT is revoked or compromised, re-run §4.1's
 `generate-access-token` command and re-paste the new value into the
-`GITEA_TOKEN` secret. No code change needed.
+`CI_GITEA_TOKEN` secret. No code change needed.
 
 ## 5. Defaults and operational details
 
@@ -323,7 +323,7 @@ Before the workflows can run end-to-end:
    runner is online.
 2. `ci-bot` user provisioned on Gitea (§4.1).
 3. `ci-bot` added as collaborator with Write on `schoen/git-wizard` (§4.2).
-4. `GITEA_TOKEN` repo secret set to `ci-bot`'s PAT (§4.4).
+4. `CI_GITEA_TOKEN` repo secret set to `ci-bot`'s PAT (§4.4).
 5. Branch protection configured (§6) — *after* the first successful CI run
    on `main`, so we don't lock ourselves out.
 

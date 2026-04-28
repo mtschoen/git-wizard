@@ -1,0 +1,227 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (without leading v) — used for filenames when run manually'
+        required: true
+        default: '0.0.0-test'
+
+jobs:
+  publish-cross:
+    name: Publish CLI + Avalonia (cross-platform)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        rid: [win-x64, linux-x64, osx-x64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: linux-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            linux-nuget-
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="${{ inputs.version }}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: $VERSION"
+
+      - name: Publish CLI
+        run: |
+          dotnet publish git-wizard/git-wizard.csproj \
+            -c Release \
+            -r ${{ matrix.rid }} \
+            --self-contained \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -o publish/cli/${{ matrix.rid }}
+
+      - name: Publish Avalonia
+        run: |
+          dotnet publish GitWizardAvalonia/GitWizardAvalonia.csproj \
+            -c Release \
+            -r ${{ matrix.rid }} \
+            --self-contained \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -o publish/avalonia/${{ matrix.rid }}
+
+      - name: Zip artifacts
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          mkdir -p artifacts
+          (cd publish/cli/${{ matrix.rid }} && zip -r "../../../artifacts/git-wizard-${VERSION}-${{ matrix.rid }}.zip" .)
+          (cd publish/avalonia/${{ matrix.rid }} && zip -r "../../../artifacts/GitWizardAvalonia-${VERSION}-${{ matrix.rid }}.zip" .)
+          ls -la artifacts/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: cross-${{ matrix.rid }}
+          path: artifacts/*.zip
+          if-no-files-found: error
+
+  publish-maui:
+    name: Publish MAUI (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      NODE_TLS_REJECT_UNAUTHORIZED: 0
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~\.nuget\packages
+          key: windows-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            windows-nuget-
+
+      - name: Cache MAUI workload manifests
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\.dotnet\sdk-manifests
+            ~\.dotnet\workloads
+          key: windows-maui-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            windows-maui-
+
+      - name: Install MAUI workload
+        shell: pwsh
+        run: dotnet workload install maui-windows
+
+      - name: Resolve version
+        id: ver
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq 'push') {
+            $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          } else {
+            $version = '${{ inputs.version }}'
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Host "Resolved version: $version"
+
+      - name: Validate tag matches ApplicationDisplayVersion (push only)
+        if: github.event_name == 'push'
+        shell: pwsh
+        run: |
+          [xml]$csproj = Get-Content GitWizardUI/GitWizardUI.csproj
+          $appVer = ($csproj.Project.PropertyGroup.ApplicationDisplayVersion | Where-Object { $_ }) -as [string]
+          $tagVer = '${{ steps.ver.outputs.version }}'
+          if ($appVer -ne $tagVer) {
+            Write-Error "Tag version '$tagVer' does not match GitWizardUI.csproj ApplicationDisplayVersion '$appVer'. Bump the csproj or move the tag."
+            exit 1
+          }
+          Write-Host "Version match: $tagVer"
+
+      - name: Publish MAUI
+        shell: pwsh
+        run: |
+          dotnet publish GitWizardUI/GitWizardUI.csproj `
+              -f net10.0-windows10.0.19041.0 -c Release
+
+      - name: Upload MAUI zip
+        uses: actions/upload-artifact@v3
+        with:
+          name: maui-windows
+          path: Releases/GitWizardUI-*.zip
+          if-no-files-found: error
+
+  release:
+    name: Create Gitea release
+    runs-on: ubuntu-latest
+    needs: [publish-cross, publish-maui]
+    if: github.event_name == 'push'
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: ver
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: downloaded
+
+      - name: Stage assets
+        run: |
+          mkdir -p assets
+          find downloaded -name '*.zip' -exec cp -v {} assets/ \;
+          ls -la assets/
+
+      - name: Create release
+        id: create
+        env:
+          CI_GITEA_TOKEN: ${{ secrets.CI_GITEA_TOKEN }}
+        run: |
+          BODY=$(jq -nc \
+            --arg tag "$GITHUB_REF_NAME" \
+            --arg name "$GITHUB_REF_NAME" \
+            --argjson pre ${{ steps.ver.outputs.prerelease }} \
+            '{tag_name:$tag, name:$name, draft:false, prerelease:$pre}')
+          RESPONSE=$(curl -fsSL -X POST \
+            -H "Authorization: token $CI_GITEA_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$BODY" \
+            "https://gitea.llamabox.internal/api/v1/repos/${GITHUB_REPOSITORY}/releases")
+          RELEASE_ID=$(echo "$RESPONSE" | jq -r '.id')
+          echo "Release id: $RELEASE_ID"
+          echo "release_id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Upload assets
+        env:
+          CI_GITEA_TOKEN: ${{ secrets.CI_GITEA_TOKEN }}
+          RELEASE_ID: ${{ steps.create.outputs.release_id }}
+        run: |
+          for asset in assets/*.zip; do
+            echo "Uploading $asset"
+            curl -fsSL -X POST \
+              -H "Authorization: token $CI_GITEA_TOKEN" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary "@$asset" \
+              "https://gitea.llamabox.internal/api/v1/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?name=$(basename "$asset")"
+          done

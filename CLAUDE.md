@@ -90,15 +90,13 @@ Screenshots are saved to `Screenshots/GitWizardUI.png`. The test uses Win32 `Pri
 
 ## Release checklist
 
-1. Update `ApplicationDisplayVersion` in `GitWizardUI/GitWizardUI.csproj`
+1. Update `ApplicationDisplayVersion` and `PackageVersion` in `GitWizardUI/GitWizardUI.csproj`
 2. Update version in CLI help text in `git-wizard/Program.cs`
 3. Update screenshot: `dotnet test GitWizardUI.UITests/...` (see above)
-4. Commit version bump, screenshot, and all pending changes
-5. `dotnet publish` creates zip automatically via MSBuild target (also deletes old zip from `Releases/`)
-6. `git add` the new zip AND the deleted old zip, then commit
-7. Tag (e.g., `v0.4.0`)
-8. Push with tag: `git push origin main --tags`
-9. Create GitHub release with `gh release create`, attach the zip
+4. Commit, then `git tag v0.x.y && git push origin main --tags`
+5. CI builds and publishes the release with all artifacts attached. Watch `https://gitea.llamabox.internal/schoen/git-wizard/actions`. The release workflow's first step asserts the tag matches `ApplicationDisplayVersion` and fails fast on drift.
+
+The release attaches: `git-wizard-{ver}-{rid}.zip` and `GitWizardAvalonia-{ver}-{rid}.zip` for `rid in {win-x64, linux-x64, osx-x64}`, plus `GitWizardUI-{ver}.zip` (MAUI Windows). See `.gitea/workflows/release.yml` and `docs/superpowers/specs/2026-04-28-gitea-ci-design.md`.
 
 ## Tips
 

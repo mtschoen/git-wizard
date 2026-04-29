@@ -3,6 +3,14 @@ name: Release
 on:
   push:
     tags: ['v*']
+  pull_request:
+    paths:
+      - '.gitea/workflows/release.yml'
+      - 'GitWizard/GitWizard.csproj'
+      - 'GitWizardUI/GitWizardUI.csproj'
+      - 'GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj'
+      - 'GitWizardAvalonia/GitWizardAvalonia.csproj'
+      - 'git-wizard/git-wizard.csproj'
   workflow_dispatch:
     inputs:
       version:
@@ -41,11 +49,11 @@ jobs:
       - name: Resolve version
         id: ver
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            VERSION="${GITHUB_REF_NAME#v}"
-          else
-            VERSION="${{ inputs.version }}"
-          fi
+          case "${{ github.event_name }}" in
+            push)         VERSION="${GITHUB_REF_NAME#v}" ;;
+            pull_request) VERSION="0.0.0-pr-${GITHUB_SHA:0:7}" ;;
+            *)            VERSION="${{ inputs.version }}" ;;
+          esac
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Resolved version: $VERSION"
 
@@ -126,10 +134,10 @@ jobs:
         id: ver
         shell: pwsh
         run: |
-          if ($env:GITHUB_EVENT_NAME -eq 'push') {
-            $version = $env:GITHUB_REF_NAME -replace '^v', ''
-          } else {
-            $version = '${{ inputs.version }}'
+          switch ($env:GITHUB_EVENT_NAME) {
+            'push'         { $version = $env:GITHUB_REF_NAME -replace '^v', '' }
+            'pull_request' { $version = "0.0.0-pr-$($env:GITHUB_SHA.Substring(0,7))" }
+            default        { $version = '${{ inputs.version }}' }
           }
           "version=$version" >> $env:GITHUB_OUTPUT
           Write-Host "Resolved version: $version"
@@ -164,23 +172,38 @@ jobs:
     name: Create Gitea release
     runs-on: ubuntu-latest
     needs: [publish-cross, publish-maui]
-    if: github.event_name == 'push'
-    timeout-minutes: 10
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Resolve version
+      - name: Resolve release identity
         id: ver
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
-            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="$GITHUB_REF_NAME"
+            NAME="$GITHUB_REF_NAME"
+            DRAFT=false
+            DRY_RUN=false
+            if [[ "$TAG" == *-* ]]; then PRE=true; else PRE=false; fi
           else
-            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            SHA="${GITHUB_SHA:0:7}"
+            TAG="smoke-pr${{ github.event.pull_request.number }}-${SHA}"
+            NAME="smoke pr${{ github.event.pull_request.number }} (${SHA})"
+            DRAFT=true
+            DRY_RUN=true
+            PRE=true
           fi
+          {
+            echo "tag=$TAG"
+            echo "name=$NAME"
+            echo "draft=$DRAFT"
+            echo "prerelease=$PRE"
+            echo "dry_run=$DRY_RUN"
+          } >> "$GITHUB_OUTPUT"
+          echo "Resolved: tag=$TAG name='$NAME' draft=$DRAFT dry_run=$DRY_RUN prerelease=$PRE"
 
       - name: Download all artifacts
         uses: actions/download-artifact@v3
@@ -199,10 +222,17 @@ jobs:
           CI_GITEA_TOKEN: ${{ secrets.CI_GITEA_TOKEN }}
         run: |
           BODY=$(jq -nc \
-            --arg tag "$GITHUB_REF_NAME" \
-            --arg name "$GITHUB_REF_NAME" \
+            --arg tag '${{ steps.ver.outputs.tag }}' \
+            --arg name '${{ steps.ver.outputs.name }}' \
+            --argjson draft ${{ steps.ver.outputs.draft }} \
             --argjson pre ${{ steps.ver.outputs.prerelease }} \
-            '{tag_name:$tag, name:$name, draft:false, prerelease:$pre}')
+            --argjson dryrun ${{ steps.ver.outputs.dry_run }} \
+            --arg target "$GITHUB_SHA" \
+            'if $dryrun then
+               {tag_name:$tag, name:$name, draft:$draft, prerelease:$pre, target_commitish:$target}
+             else
+               {tag_name:$tag, name:$name, draft:$draft, prerelease:$pre}
+             end')
           RESPONSE=$(curl -k -fsSL -X POST \
             -H "Authorization: token $CI_GITEA_TOKEN" \
             -H "Content-Type: application/json" \
@@ -225,3 +255,23 @@ jobs:
               --data-binary "@$asset" \
               "https://gitea.llamabox.internal/api/v1/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?name=$(basename "$asset")"
           done
+
+      - name: Smoke cleanup (PR only)
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        env:
+          CI_GITEA_TOKEN: ${{ secrets.CI_GITEA_TOKEN }}
+          RELEASE_ID: ${{ steps.create.outputs.release_id }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          if [ -n "$RELEASE_ID" ] && [ "$RELEASE_ID" != "null" ]; then
+            echo "Deleting smoke release $RELEASE_ID"
+            curl -k -fsSL -X DELETE \
+              -H "Authorization: token $CI_GITEA_TOKEN" \
+              "https://gitea.llamabox.internal/api/v1/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" || true
+          fi
+          if [ -n "$TAG" ]; then
+            echo "Deleting smoke tag $TAG"
+            curl -k -fsSL -X DELETE \
+              -H "Authorization: token $CI_GITEA_TOKEN" \
+              "https://gitea.llamabox.internal/api/v1/repos/${GITHUB_REPOSITORY}/git/refs/tags/${TAG}" || true
+          fi

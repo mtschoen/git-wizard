@@ -12,7 +12,7 @@ public static class Program
     /// </summary>
     struct RunConfiguration
     {
-        const string k_HelpManual = @"GitWizard 0.4.0 Help
+        const string k_HelpManual = @"GitWizard 0.4.1 Help
 
 Usage: git-wizard [options]
 

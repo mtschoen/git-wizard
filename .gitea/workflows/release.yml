@@ -203,7 +203,7 @@ jobs:
             --arg name "$GITHUB_REF_NAME" \
             --argjson pre ${{ steps.ver.outputs.prerelease }} \
             '{tag_name:$tag, name:$name, draft:false, prerelease:$pre}')
-          RESPONSE=$(curl -fsSL -X POST \
+          RESPONSE=$(curl -k -fsSL -X POST \
             -H "Authorization: token $CI_GITEA_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$BODY" \
@@ -219,7 +219,7 @@ jobs:
         run: |
           for asset in assets/*.zip; do
             echo "Uploading $asset"
-            curl -fsSL -X POST \
+            curl -k -fsSL -X POST \
               -H "Authorization: token $CI_GITEA_TOKEN" \
               -H "Content-Type: application/octet-stream" \
               --data-binary "@$asset" \

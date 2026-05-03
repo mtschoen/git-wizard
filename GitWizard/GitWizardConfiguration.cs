@@ -11,6 +11,12 @@ public class GitWizardConfiguration
     public SortedSet<string> SearchPaths { get; set; } = new();
     public SortedSet<string> IgnoredPaths { get; set; } = new();
 
+    /// <summary>
+    /// Full path to the Fork executable. Null means use the default location.
+    /// </summary>
+    [JsonPropertyName("forkPath")]
+    public string? ForkPath { get; set; }
+
     public static string GetGlobalConfigurationPath()
     {
         return Path.Combine(GitWizardApi.GetLocalFilesPath(), "config.json");

@@ -47,6 +47,15 @@
                 </Grid>
             </VerticalStackLayout>
 
+            <!-- Fork Executable Path Section -->
+            <VerticalStackLayout Spacing="10">
+                <Label Text="Fork Executable Path" FontSize="18" FontAttributes="Bold" />
+                <Label Text="Full path to Fork.exe (leave empty to use default: %LocalAppData%\Fork\Fork.exe)" FontSize="12" TextColor="Gray" />
+                <Entry
+                    Placeholder="C:\Users\YourName\AppData\Local\Fork\Fork.exe"
+                    Text="{Binding ForkPath}" />
+            </VerticalStackLayout>
+
             <!-- Ignored Paths Section -->
             <VerticalStackLayout Spacing="10">
                 <Label Text="Ignored Paths" FontSize="18" FontAttributes="Bold" />

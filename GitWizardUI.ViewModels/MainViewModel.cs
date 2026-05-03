@@ -230,10 +230,15 @@ try
             return;
         }
 
-        // TODO: Make Fork.exe path configurable in settings
-        var forkPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Fork", "Fork.exe");
+        var configuration = GitWizardConfiguration.GetGlobalConfiguration();
+        string? forkPath = configuration.ForkPath;
+
+        if (string.IsNullOrWhiteSpace(forkPath))
+        {
+            forkPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Fork", "Fork.exe");
+        }
 
  if (!File.Exists(forkPath))
         {

@@ -50,6 +50,18 @@ public class SettingsViewModel : INotifyPropertyChanged
         set { _selectedIgnoredPath = value; OnPropertyChanged(); }
     }
 
+    private string _forkPath = string.Empty;
+    public string ForkPath
+    {
+        get => _forkPath;
+        set
+        {
+            _forkPath = value;
+            OnPropertyChanged();
+            SaveImmediate();
+        }
+    }
+
     public ICommand AddSearchPathCommand { get; }
     public ICommand RemoveSearchPathCommand { get; }
     public ICommand AddIgnoredPathCommand { get; }
@@ -69,6 +81,8 @@ public class SettingsViewModel : INotifyPropertyChanged
 
         foreach (var path in _configuration.IgnoredPaths)
             IgnoredPaths.Add(path);
+
+        ForkPath = _configuration.ForkPath ?? string.Empty;
 
         AddSearchPathCommand = new RelayCommand(AddSearchPath);
         RemoveSearchPathCommand = new RelayCommand<string>(RemoveSearchPath);
@@ -194,6 +208,8 @@ public class SettingsViewModel : INotifyPropertyChanged
         _configuration.IgnoredPaths.Clear();
         foreach (var path in IgnoredPaths)
             _configuration.IgnoredPaths.Add(path);
+
+        _configuration.ForkPath = string.IsNullOrWhiteSpace(ForkPath) ? null : ForkPath;
 
         GitWizardConfiguration.SaveGlobalConfiguration(_configuration);
     }

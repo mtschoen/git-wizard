@@ -165,7 +165,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         if (!SearchPaths.Contains(path))
         {
             SearchPaths.Add(path);
-            SaveImmediate();
+            await SaveImmediateAsync();
         }
     }
 
@@ -174,7 +174,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         if (SelectedSearchPath is not null)
         {
             SearchPaths.Remove(SelectedSearchPath);
-            SaveImmediate();
+            _ = SaveImmediateAsync();
         }
     }
 
@@ -186,7 +186,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         if (!IgnoredPaths.Contains(path))
         {
             IgnoredPaths.Add(path);
-            SaveImmediate();
+            await SaveImmediateAsync();
         }
     }
 
@@ -195,8 +195,21 @@ public class SettingsViewModel : INotifyPropertyChanged
         if (SelectedIgnoredPath is not null)
         {
             IgnoredPaths.Remove(SelectedIgnoredPath);
-            SaveImmediate();
+            _ = SaveImmediateAsync();
         }
+    }
+
+    public async Task SaveAsync()
+    {
+        _configuration.SearchPaths.Clear();
+        foreach (var path in SearchPaths)
+            _configuration.SearchPaths.Add(path);
+
+        _configuration.IgnoredPaths.Clear();
+        foreach (var path in IgnoredPaths)
+            _configuration.IgnoredPaths.Add(path);
+
+        await GitWizardConfiguration.SaveGlobalConfigurationAsync(_configuration).ConfigureAwait(false);
     }
 
     public void Save()
@@ -209,14 +222,19 @@ public class SettingsViewModel : INotifyPropertyChanged
         foreach (var path in IgnoredPaths)
             _configuration.IgnoredPaths.Add(path);
 
-        _configuration.ForkPath = string.IsNullOrWhiteSpace(ForkPath) ? null : ForkPath;
+       _configuration.ForkPath = string.IsNullOrWhiteSpace(ForkPath) ? null : ForkPath;
 
-        GitWizardConfiguration.SaveGlobalConfiguration(_configuration);
+        _ = SaveAsync();
     }
 
     private void SaveImmediate()
     {
         Save();
+    }
+
+    private async Task SaveImmediateAsync()
+    {
+        await SaveAsync().ConfigureAwait(false);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

@@ -8,6 +8,7 @@ namespace GitWizard;
 public class GitWizardReport
 {
     static GitWizardReport? _cachedReport;
+    static readonly object s_lock = new();
 
     /// <summary>
     /// The current schema version emitted by this build. Stamped onto every
@@ -29,18 +30,20 @@ public class GitWizardReport
 
     public static GitWizardReport? GetCachedReport()
     {
-        if (_cachedReport != null)
-            return _cachedReport;
+        lock (s_lock)
+        {
+            if (_cachedReport != null)
+                return _cachedReport;
+        }
 
-        var globalConfigurationPath = GetCachedReportPath();
-        if (!File.Exists(globalConfigurationPath))
-            return _cachedReport;
+        var reportPath = GetCachedReportPath();
+        if (!File.Exists(reportPath))
+            return null;
 
-        // TODO: Async config load (file read)
         string jsonText;
         try
         {
-            jsonText = File.ReadAllText(globalConfigurationPath);
+            jsonText = File.ReadAllText(reportPath);
         }
         catch (Exception exception)
         {
@@ -55,7 +58,43 @@ public class GitWizardReport
         catch (Exception exception)
         {
             GitWizardLog.LogException(exception,
-                $"Failed to deserialize cached report.\nYou may need to modify or delete the file at {globalConfigurationPath}.\n");
+                $"Failed to deserialize cached report.\nYou may need to modify or delete the file at {reportPath}.\n");
+        }
+
+        return _cachedReport;
+    }
+
+    public static async Task<GitWizardReport?> GetCachedReportAsync(CancellationToken cancellationToken = default)
+    {
+        lock (s_lock)
+        {
+            if (_cachedReport != null)
+                return _cachedReport;
+        }
+
+        var reportPath = GetCachedReportPath();
+        if (!File.Exists(reportPath))
+            return null;
+
+        string jsonText;
+        try
+        {
+            jsonText = await File.ReadAllTextAsync(reportPath, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, "Failed to get cached report.");
+            return null;
+        }
+
+        try
+        {
+            _cachedReport = JsonSerializer.Deserialize<GitWizardReport>(jsonText);
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception,
+                $"Failed to deserialize cached report.\nYou may need to modify or delete the file at {reportPath}.\n");
         }
 
         return _cachedReport;
@@ -235,15 +274,34 @@ public class GitWizardReport
 
         try
         {
-            // Always stamp the current schema version so reports loaded from
-            // an older cache don't carry their stale version forward.
             SchemaVersion = CurrentSchemaVersion;
-            // TODO: Async config save
             File.WriteAllText(path, JsonSerializer.Serialize(this, new JsonSerializerOptions
             {
                 DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
                 WriteIndented = true
             }));
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, $"Failed to save report to path: {path}.");
+        }
+    }
+
+    public async Task SaveAsync(string path, CancellationToken cancellationToken = default)
+    {
+        var directory = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            Directory.CreateDirectory(directory);
+
+        try
+        {
+            SchemaVersion = CurrentSchemaVersion;
+            var jsonText = JsonSerializer.Serialize(this, new JsonSerializerOptions
+            {
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
+                WriteIndented = true
+            });
+            await File.WriteAllTextAsync(path, jsonText, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception)
         {

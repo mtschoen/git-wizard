@@ -7,6 +7,7 @@ namespace GitWizard;
 public class GitWizardConfiguration
 {
     static GitWizardConfiguration? _globalConfiguration;
+    static readonly object s_lock = new();
 
     public SortedSet<string> SearchPaths { get; set; } = new();
     public SortedSet<string> IgnoredPaths { get; set; } = new();
@@ -24,13 +25,44 @@ public class GitWizardConfiguration
 
     public static GitWizardConfiguration GetGlobalConfiguration()
     {
-        _globalConfiguration ??= GetConfigurationAtPath(GetGlobalConfigurationPath());
-        return _globalConfiguration ??= CreateDefaultConfiguration();
+        lock (s_lock)
+        {
+            if (_globalConfiguration == null)
+            {
+                _globalConfiguration = GetConfigurationAtPath(GetGlobalConfigurationPath())
+                                     ?? CreateDefaultConfiguration();
+            }
+        }
+
+        return _globalConfiguration;
     }
 
     public static void SaveGlobalConfiguration(GitWizardConfiguration configuration)
     {
         configuration.Save(GetGlobalConfigurationPath());
+    }
+
+    public static async Task SaveGlobalConfigurationAsync(GitWizardConfiguration configuration)
+    {
+        await configuration.SaveAsync(GetGlobalConfigurationPath()).ConfigureAwait(false);
+    }
+
+    public static async Task<GitWizardConfiguration?> GetConfigurationAtPathAsync(string path, CancellationToken cancellationToken = default)
+    {
+        if (!File.Exists(path))
+            return null;
+
+        try
+        {
+            var jsonText = await File.ReadAllTextAsync(path, cancellationToken).ConfigureAwait(false);
+            return JsonSerializer.Deserialize<GitWizardConfiguration>(jsonText);
+        }
+        catch
+        {
+            // ignored
+        }
+
+        return null;
     }
 
     public static GitWizardConfiguration? GetConfigurationAtPath(string path)
@@ -40,14 +72,12 @@ public class GitWizardConfiguration
 
         try
         {
-            // TODO: Async file read
             var jsonText = File.ReadAllText(path);
             return JsonSerializer.Deserialize<GitWizardConfiguration>(jsonText);
         }
         catch
         {
             // ignored
-            // TODO: Error feedback
         }
 
         return null;
@@ -79,7 +109,6 @@ public class GitWizardConfiguration
 
         try
         {
-            // TODO: Async config save
             File.WriteAllText(path, JsonSerializer.Serialize(this, new JsonSerializerOptions
             {
                 DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
@@ -90,6 +119,49 @@ public class GitWizardConfiguration
         {
             GitWizardLog.LogException(exception, $"Error: Failed to save configuration to path: {path}.");
         }
+    }
+
+    public async Task SaveAsync(string path, CancellationToken cancellationToken = default)
+    {
+        var directory = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            Directory.CreateDirectory(directory);
+
+        try
+        {
+            var jsonText = JsonSerializer.Serialize(this, new JsonSerializerOptions
+            {
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
+                WriteIndented = true
+            });
+            await File.WriteAllTextAsync(path, jsonText, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, $"Error: Failed to save configuration to path: {path}.");
+        }
+    }
+
+    public static async Task<GitWizardConfiguration> GetGlobalConfigurationAsync(CancellationToken cancellationToken = default)
+    {
+        if (_globalConfiguration != null)
+            return _globalConfiguration;
+
+        lock (s_lock)
+        {
+            if (_globalConfiguration != null)
+                return _globalConfiguration;
+        }
+
+        var config = await LoadConfigurationAsync(cancellationToken).ConfigureAwait(false);
+        _globalConfiguration = config ?? CreateDefaultConfiguration();
+        return _globalConfiguration;
+    }
+
+    static async Task<GitWizardConfiguration?> LoadConfigurationAsync(CancellationToken cancellationToken)
+    {
+        var path = GetGlobalConfigurationPath();
+        return await GetConfigurationAtPathAsync(path, cancellationToken).ConfigureAwait(false);
     }
 
     public void GetRepositoryPaths(ICollection<string> paths, IUpdateHandler? updateHandler = null)

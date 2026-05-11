@@ -228,7 +228,7 @@ Other options:
 git-wizard Session Started
 =======================================================================================================================";
 
-    public static void Main()
+    public static async Task Main()
     {
         // Handle elevated helper modes (launched by self-elevation)
         var args = Environment.GetCommandLineArgs();
@@ -255,7 +255,7 @@ git-wizard Session Started
 
                     if (configPath != null && outputPath != null)
                     {
-                        GitWizardApi.RunElevatedMftScan(configPath, outputPath);
+                        await Task.Run(() => GitWizardApi.RunElevatedMftScan(configPath, outputPath)).ConfigureAwait(false);
                         Environment.Exit(0);
                     }
                     else
@@ -303,7 +303,7 @@ git-wizard Session Started
         }
 
         GitWizardLog.Log(k_SessionStartMessage);
-        var configuration = GetConfiguration(runConfiguration);
+        var configuration = await GetConfigurationAsync(runConfiguration);
 
         if (runConfiguration.SetupDefender)
         {
@@ -325,9 +325,9 @@ git-wizard Session Started
             return;
         }
 
-        var repositoryPaths = ParseExplicitPaths(runConfiguration) ?? GetRepositoryPaths(runConfiguration);
+        var repositoryPaths = ParseExplicitPaths(runConfiguration) ?? await GetRepositoryPathsAsync(runConfiguration);
         var updateHandler = new UpdateHandler();
-        var report = GetReport(runConfiguration, configuration, repositoryPaths, updateHandler);
+        var report = await GetReportAsync(runConfiguration, configuration, repositoryPaths, updateHandler);
         if (report == null)
         {
             // If the user requested to not generate a new report, and no cached report exists, early out
@@ -342,7 +342,7 @@ git-wizard Session Started
         updateHandler.PrintSummary();
 
         if (repositoryPaths == null)
-            GitWizardApi.SaveCachedRepositoryPaths(report.GetRepositoryPaths());
+            await GitWizardApi.SaveCachedRepositoryPathsAsync(report.GetRepositoryPaths());
 
         SaveReport(runConfiguration, report);
 
@@ -372,6 +372,46 @@ git-wizard Session Started
             Environment.Exit(1);
     }
 
+    static async Task<GitWizardConfiguration> GetConfigurationAsync(RunConfiguration runConfiguration)
+    {
+        var customConfigurationPath = runConfiguration.CustomConfigurationPath;
+        if (customConfigurationPath == null)
+            return await GitWizardConfiguration.GetGlobalConfigurationAsync().ConfigureAwait(false);
+
+        var configuration = await GitWizardConfiguration.GetConfigurationAtPathAsync(customConfigurationPath).ConfigureAwait(false);
+        if (configuration != null)
+            return configuration;
+
+        GitWizardLog.Log($"Could not find custom configuration at path: {customConfigurationPath}", GitWizardLog.LogType.Error);
+        Environment.Exit(1);
+        throw new Exception("unreachable");
+    }
+
+    static async Task<string[]?> GetRepositoryPathsAsync(RunConfiguration runConfiguration)
+    {
+        return runConfiguration.RebuildRepositoryList ? null : await GitWizardApi.GetCachedRepositoryPathsAsync().ConfigureAwait(false);
+    }
+
+    static async Task<GitWizardReport?> GetReportAsync(RunConfiguration runConfiguration, GitWizardConfiguration configuration,
+        ICollection<string>? repositoryPaths, UpdateHandler updateHandler)
+    {
+        if (!runConfiguration.RebuildReport)
+        {
+            var cachedReport = await GitWizardReport.GetCachedReportAsync().ConfigureAwait(false);
+            if (!runConfiguration.RefreshReport)
+                return cachedReport;
+
+            if (cachedReport != null && repositoryPaths != null)
+            {
+                cachedReport.Refresh(repositoryPaths, updateHandler);
+                return cachedReport;
+            }
+        }
+
+        return GitWizardReport.GenerateReport(configuration, repositoryPaths, updateHandler,
+            noMft: runConfiguration.NoMft);
+    }
+
     static void SaveReport(RunConfiguration runConfiguration, GitWizardReport report)
     {
         // Always save a cache
@@ -399,31 +439,6 @@ git-wizard Session Started
 
         var jsonString = JsonSerializer.Serialize(report, options);
         return jsonString;
-    }
-
-    static GitWizardReport? GetReport(RunConfiguration runConfiguration, GitWizardConfiguration configuration,
-        ICollection<string>? repositoryPaths, UpdateHandler updateHandler)
-    {
-        if (!runConfiguration.RebuildReport)
-        {
-            var cachedReport = GitWizardReport.GetCachedReport();
-            if (!runConfiguration.RefreshReport)
-                return cachedReport;
-
-            if (cachedReport != null && repositoryPaths != null)
-            {
-                cachedReport.Refresh(repositoryPaths, updateHandler);
-                return cachedReport;
-            }
-        }
-
-        return GitWizardReport.GenerateReport(configuration, repositoryPaths, updateHandler,
-            noMft: runConfiguration.NoMft);
-    }
-
-    static string[]? GetRepositoryPaths(RunConfiguration runConfiguration)
-    {
-        return runConfiguration.RebuildRepositoryList ? null : GitWizardApi.GetCachedRepositoryPaths();
     }
 
     static GitWizardReport ApplyFilter(RunConfiguration runConfiguration, GitWizardReport report)
@@ -479,23 +494,7 @@ git-wizard Session Started
 
         return false;
     }
-
-    static GitWizardConfiguration GetConfiguration(RunConfiguration runConfiguration)
-    {
-        var customConfigurationPath = runConfiguration.CustomConfigurationPath;
-        if (customConfigurationPath == null)
-            return GitWizardConfiguration.GetGlobalConfiguration();
-
-        var configuration = GitWizardConfiguration.GetConfigurationAtPath(customConfigurationPath);
-        if (configuration != null)
-            return configuration;
-
-        GitWizardLog.Log($"Could not find custom configuration at path: {customConfigurationPath}", GitWizardLog.LogType.Error);
-        Environment.Exit(0);
-        return null;
-    }
-
-    static string FormatSize(long bytes)
+   static string FormatSize(long bytes)
     {
         string[] units = { "B", "KB", "MB", "GB", "TB" };
         double size = bytes;

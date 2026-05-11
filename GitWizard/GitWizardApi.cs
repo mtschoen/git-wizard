@@ -418,19 +418,44 @@ public static class GitWizardApi
     /// Get the cached list of repository paths
     /// </summary>
     /// <returns>An array containing the cached paths</returns>
+    public static async Task<string[]?> GetCachedRepositoryPathsAsync(CancellationToken cancellationToken = default)
+    {
+        var fileName = GetCachedRepositoryListPath();
+        if (!File.Exists(fileName))
+            return null;
+
+        var paths = await File.ReadAllTextAsync(fileName, cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(paths))
+            return null;
+
+        return paths
+            .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    }
+
+    /// <summary>
+    /// Get the cached list of repository paths (synchronous)
+    /// </summary>
+    /// <returns>An array containing the cached paths</returns>
     public static string[]? GetCachedRepositoryPaths()
     {
         var fileName = GetCachedRepositoryListPath();
         if (!File.Exists(fileName))
             return null;
 
-        // TODO: Async file reads
         var paths = File.ReadAllText(fileName);
         if (string.IsNullOrWhiteSpace(paths))
             return null;
 
         return paths
             .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    }
+
+    public static async Task SaveCachedRepositoryPathsAsync(IEnumerable<string> paths, CancellationToken cancellationToken = default)
+    {
+        EnsureLocalFolderExists();
+        var path = GetCachedRepositoryListPath();
+        var content = string.Join(Environment.NewLine, paths);
+        await File.WriteAllTextAsync(path, content, cancellationToken).ConfigureAwait(false);
     }
 
     public static void SaveCachedRepositoryPaths(IEnumerable<string> paths)

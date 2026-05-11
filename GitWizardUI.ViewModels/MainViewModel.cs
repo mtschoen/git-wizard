@@ -970,15 +970,18 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         _repositoryMap.Clear();
         _pendingGroups.Clear();
 
+       // Async file I/O for cached repo paths and configuration
+        string[]? repositoryPaths = await GitWizardApi.GetCachedRepositoryPathsAsync().ConfigureAwait(false);
+
+        var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync().ConfigureAwait(false);
+
         HashSet<string> deletedPaths = new();
         HashSet<string> renamedOldPaths = new();
 
+        // Synchronous git scanning (parallel, CPU-bound — runs on thread pool)
         await Task.Run(() =>
         {
-            string[]? repositoryPaths = GitWizardApi.GetCachedRepositoryPaths();
-
             _stopwatch.Restart();
-            var configuration = GitWizardConfiguration.GetGlobalConfiguration();
             var report = GitWizardReport.GenerateReport(configuration, repositoryPaths, this, fetchRemotes,
                 deepRefresh: fetchRemotes);
             _stopwatch.Stop();
@@ -1014,7 +1017,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
 
             if (repositoryPaths == null)
                 GitWizardApi.SaveCachedRepositoryPaths(report.GetRepositoryPaths());
-        });
+        }).ConfigureAwait(false);
 
         // Update cached repository paths: remove deleted and renamed (old path) entries
         var cachedPaths = GitWizardApi.GetCachedRepositoryPaths();
@@ -1042,10 +1045,10 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
 
         // Wait for the UI command queue to fully drain before applying grouping/sorting
         while (!_uiCommands.IsEmpty)
-            await Task.Delay(150);
+            await Task.Delay(150).ConfigureAwait(false);
 
         // One more delay to let the last batch of UI commands finish processing
-        await Task.Delay(200);
+        await Task.Delay(200).ConfigureAwait(false);
 
         ApplyFilterAndGrouping();
 

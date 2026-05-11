@@ -80,3 +80,8 @@ GitWizard would let projdash skip subprocess git entirely.
 - [x] Native folder picker on Linux/macOS via Avalonia `IStorageProvider`
 - [x] Windows-only features (Defender button) gated on `OperatingSystem.IsWindows()`
 - [ ] Verified scan + filter + group + sort on Linux (runtime smoke test deferred — headless environment)
+
+## Infrastructure
+
+- [x] **Gitea Actions CI** — `.gitea/workflows/ci.yml` runs `test-linux` (build + 20 NUnit tests) and `test-windows` (full solution build + tests) on push to `main` and PRs targeting `main`. `.gitea/workflows/release.yml` builds CLI + Avalonia for `win-x64`/`linux-x64`/`osx-x64`, builds the MAUI Windows zip, and creates a Gitea release with all 7 assets attached on `v*` tag pushes. Spec: `docs/superpowers/specs/2026-04-28-gitea-ci-design.md`. Plan: `docs/superpowers/plans/2026-04-28-gitea-ci.md`.
+- [ ] **Trust llamabox cert on the Windows runner** — currently the MAUI publish and test-results upload use `NODE_TLS_REJECT_UNAUTHORIZED=0` to work around Node.js not trusting the self-signed Caddy cert. Install the cert into the runner's Node/system trust store and remove the env override.

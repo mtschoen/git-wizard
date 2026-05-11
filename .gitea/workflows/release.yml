@@ -1,0 +1,277 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    paths:
+      - '.gitea/workflows/release.yml'
+      - 'GitWizard/GitWizard.csproj'
+      - 'GitWizardUI/GitWizardUI.csproj'
+      - 'GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj'
+      - 'GitWizardAvalonia/GitWizardAvalonia.csproj'
+      - 'git-wizard/git-wizard.csproj'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (without leading v) — used for filenames when run manually'
+        required: true
+        default: '0.0.0-test'
+
+jobs:
+  publish-cross:
+    name: Publish CLI + Avalonia (cross-platform)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        rid: [win-x64, linux-x64, osx-x64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: linux-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            linux-nuget-
+
+      - name: Resolve version
+        id: ver
+        run: |
+          case "${{ github.event_name }}" in
+            push)         VERSION="${GITHUB_REF_NAME#v}" ;;
+            pull_request) VERSION="0.0.0-pr-${GITHUB_SHA:0:7}" ;;
+            *)            VERSION="${{ inputs.version }}" ;;
+          esac
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: $VERSION"
+
+      - name: Publish CLI
+        run: |
+          dotnet publish git-wizard/git-wizard.csproj \
+            -c Release \
+            -r ${{ matrix.rid }} \
+            --self-contained \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -o publish/cli/${{ matrix.rid }}
+
+      - name: Publish Avalonia
+        run: |
+          dotnet publish GitWizardAvalonia/GitWizardAvalonia.csproj \
+            -c Release \
+            -r ${{ matrix.rid }} \
+            --self-contained \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -o publish/avalonia/${{ matrix.rid }}
+
+      - name: Zip artifacts
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          mkdir -p artifacts
+          (cd publish/cli/${{ matrix.rid }} && zip -r "../../../artifacts/git-wizard-${VERSION}-${{ matrix.rid }}.zip" .)
+          (cd publish/avalonia/${{ matrix.rid }} && zip -r "../../../artifacts/GitWizardAvalonia-${VERSION}-${{ matrix.rid }}.zip" .)
+          ls -la artifacts/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: cross-${{ matrix.rid }}
+          path: artifacts/*.zip
+          if-no-files-found: error
+
+  publish-maui:
+    name: Publish MAUI (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      NODE_TLS_REJECT_UNAUTHORIZED: 0
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~\.nuget\packages
+          key: windows-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            windows-nuget-
+
+      - name: Cache MAUI workload manifests
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\.dotnet\sdk-manifests
+            ~\.dotnet\workloads
+          key: windows-maui-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            windows-maui-
+
+      - name: Install MAUI workload
+        shell: pwsh
+        run: dotnet workload install maui-windows
+
+      - name: Resolve version
+        id: ver
+        shell: pwsh
+        run: |
+          switch ($env:GITHUB_EVENT_NAME) {
+            'push'         { $version = $env:GITHUB_REF_NAME -replace '^v', '' }
+            'pull_request' { $version = "0.0.0-pr-$($env:GITHUB_SHA.Substring(0,7))" }
+            default        { $version = '${{ inputs.version }}' }
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Host "Resolved version: $version"
+
+      - name: Validate tag matches ApplicationDisplayVersion (push only)
+        if: github.event_name == 'push'
+        shell: pwsh
+        run: |
+          [xml]$csproj = Get-Content GitWizardUI/GitWizardUI.csproj
+          $appVer = ($csproj.Project.PropertyGroup.ApplicationDisplayVersion | Where-Object { $_ }) -as [string]
+          $tagVer = '${{ steps.ver.outputs.version }}'
+          if ($appVer -ne $tagVer) {
+            Write-Error "Tag version '$tagVer' does not match GitWizardUI.csproj ApplicationDisplayVersion '$appVer'. Bump the csproj or move the tag."
+            exit 1
+          }
+          Write-Host "Version match: $tagVer"
+
+      - name: Publish MAUI
+        shell: pwsh
+        run: |
+          dotnet publish GitWizardUI/GitWizardUI.csproj `
+              -f net10.0-windows10.0.19041.0 -c Release
+
+      - name: Upload MAUI zip
+        uses: actions/upload-artifact@v3
+        with:
+          name: maui-windows
+          path: Releases/GitWizardUI-*.zip
+          if-no-files-found: error
+
+  release:
+    name: Create Gitea release
+    runs-on: ubuntu-latest
+    needs: [publish-cross, publish-maui]
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve release identity
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="$GITHUB_REF_NAME"
+            NAME="$GITHUB_REF_NAME"
+            DRAFT=false
+            DRY_RUN=false
+            if [[ "$TAG" == *-* ]]; then PRE=true; else PRE=false; fi
+          else
+            SHA="${GITHUB_SHA:0:7}"
+            TAG="smoke-pr${{ github.event.pull_request.number }}-${SHA}"
+            NAME="smoke pr${{ github.event.pull_request.number }} (${SHA})"
+            DRAFT=true
+            DRY_RUN=true
+            PRE=true
+          fi
+          {
+            echo "tag=$TAG"
+            echo "name=$NAME"
+            echo "draft=$DRAFT"
+            echo "prerelease=$PRE"
+            echo "dry_run=$DRY_RUN"
+          } >> "$GITHUB_OUTPUT"
+          echo "Resolved: tag=$TAG name='$NAME' draft=$DRAFT dry_run=$DRY_RUN prerelease=$PRE"
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: downloaded
+
+      - name: Stage assets
+        run: |
+          mkdir -p assets
+          find downloaded -name '*.zip' -exec cp -v {} assets/ \;
+          ls -la assets/
+
+      - name: Create release
+        id: create
+        env:
+          CI_GITEA_TOKEN: ${{ secrets.CI_GITEA_TOKEN }}
+        run: |
+          BODY=$(jq -nc \
+            --arg tag '${{ steps.ver.outputs.tag }}' \
+            --arg name '${{ steps.ver.outputs.name }}' \
+            --argjson draft ${{ steps.ver.outputs.draft }} \
+            --argjson pre ${{ steps.ver.outputs.prerelease }} \
+            --argjson dryrun ${{ steps.ver.outputs.dry_run }} \
+            --arg target "$GITHUB_SHA" \
+            'if $dryrun then
+               {tag_name:$tag, name:$name, draft:$draft, prerelease:$pre, target_commitish:$target}
+             else
+               {tag_name:$tag, name:$name, draft:$draft, prerelease:$pre}
+             end')
+          RESPONSE=$(curl -k -fsSL -X POST \
+            -H "Authorization: token $CI_GITEA_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$BODY" \
+            "https://gitea.llamabox.internal/api/v1/repos/${GITHUB_REPOSITORY}/releases")
+          RELEASE_ID=$(echo "$RESPONSE" | jq -r '.id')
+          echo "Release id: $RELEASE_ID"
+          echo "release_id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Upload assets
+        env:
+          CI_GITEA_TOKEN: ${{ secrets.CI_GITEA_TOKEN }}
+          RELEASE_ID: ${{ steps.create.outputs.release_id }}
+        run: |
+          for asset in assets/*.zip; do
+            echo "Uploading $asset"
+            curl -k -fsSL -X POST \
+              -H "Authorization: token $CI_GITEA_TOKEN" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary "@$asset" \
+              "https://gitea.llamabox.internal/api/v1/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?name=$(basename "$asset")"
+          done
+
+      - name: Smoke cleanup (PR only)
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        env:
+          CI_GITEA_TOKEN: ${{ secrets.CI_GITEA_TOKEN }}
+          RELEASE_ID: ${{ steps.create.outputs.release_id }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          if [ -n "$RELEASE_ID" ] && [ "$RELEASE_ID" != "null" ]; then
+            echo "Deleting smoke release $RELEASE_ID"
+            curl -k -fsSL -X DELETE \
+              -H "Authorization: token $CI_GITEA_TOKEN" \
+              "https://gitea.llamabox.internal/api/v1/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" || true
+          fi
+          if [ -n "$TAG" ]; then
+            echo "Deleting smoke tag $TAG"
+            curl -k -fsSL -X DELETE \
+              -H "Authorization: token $CI_GITEA_TOKEN" \
+              "https://gitea.llamabox.internal/api/v1/repos/${GITHUB_REPOSITORY}/git/refs/tags/${TAG}" || true
+          fi

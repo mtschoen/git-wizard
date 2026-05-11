@@ -73,7 +73,7 @@ public class GitWizardRepositoryTests
         Assert.That(repository.NumberOfPendingChanges, Is.GreaterThan(0));
     }
 
-    [Test]
+   [Test]
     public void Refresh_CountsLocalCommitsOnUntrackedBranch()
     {
         // Regression: LocalOnlyCommits used to be a bare bool. Consumers need
@@ -88,6 +88,125 @@ public class GitWizardRepositoryTests
 
         Assert.That(repository.LocalOnlyCommits, Is.True);
         Assert.That(repository.LocalCommitCount, Is.EqualTo(3));
+    }
+
+    [Test]
+    public void Refresh_FindsMatchingBranchWhenDetachedAtLocalBranchTip()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AppendCommit("second.txt");
+
+        // Detach HEAD at the current tip; capture the default branch name to
+        // assert against (varies by git's init.defaultBranch: "master" or "main").
+        string defaultBranchName;
+        using (var repo = new Repository(fixture.Path))
+        {
+            defaultBranchName = repo.Head.FriendlyName;
+            var tip = repo.Head.Tip!;
+            Commands.Checkout(repo, tip.Sha);
+        }
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        Assert.That(repository.IsDetachedHead, Is.True);
+        Assert.That(repository.MatchingBranchName, Is.EqualTo(defaultBranchName));
+    }
+
+    [Test]
+    public void Refresh_MatchingBranchNameIsNullWhenNotDetached()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        Assert.That(repository.IsDetachedHead, Is.False);
+        Assert.That(repository.MatchingBranchName, Is.Null.Or.Empty);
+    }
+
+    [Test]
+    public void Refresh_MatchingBranchNameIsNullWhenNoLocalBranchAtTip()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AppendCommit("second.txt");
+
+        // Detach HEAD at a commit that is not the tip of any local branch.
+        // Remove whichever default branch git init produced ("master" or "main").
+        using (var repo = new Repository(fixture.Path))
+        {
+            var defaultBranchName = repo.Head.FriendlyName;
+            var tip = repo.Head.Tip!;
+            Commands.Checkout(repo, tip.Sha);
+            repo.Branches.Remove(defaultBranchName);
+        }
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        Assert.That(repository.IsDetachedHead, Is.True);
+        Assert.That(repository.MatchingBranchName, Is.Null.Or.Empty);
+    }
+
+    [Test]
+    public void Refresh_DetectsDownstreamBranches()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AppendCommit("second.txt");
+
+        using var repo = new LibGit2Sharp.Repository(fixture.Path);
+        repo.Branches.Add("feature/test", repo.Head.Tip);
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        Assert.That(repository.DownstreamBranches, Is.Not.Null);
+        Assert.That(repository.DownstreamBranches, Has.Count.EqualTo(1));
+        Assert.That(repository.DownstreamBranches![0].Name, Is.EqualTo("feature/test"));
+        Assert.That(repository.DownstreamBranches[0].MergedInto, Is.AnyOf("main", "master"));
+    }
+
+    [Test]
+    public void Refresh_DetectsMultipleDownstreamBranches()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AppendCommit("second.txt");
+
+        using var repo = new LibGit2Sharp.Repository(fixture.Path);
+        repo.Branches.Add("feature/a", repo.Head.Tip);
+        repo.Branches.Add("feature/b", repo.Head.Tip);
+        repo.Branches.Add("bugfix/c", repo.Head.Tip);
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        Assert.That(repository.DownstreamBranches, Is.Not.Null);
+        Assert.That(repository.DownstreamBranches, Has.Count.EqualTo(3));
+    }
+
+    [Test]
+    public void Refresh_DoesNotListCurrentBranchAsDownstream()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AppendCommit("second.txt");
+
+        using var repo = new LibGit2Sharp.Repository(fixture.Path);
+        repo.Branches.Add("feature/skip-me", repo.Head.Tip);
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        Assert.That(repository.DownstreamBranches, Is.Not.Null);
+        Assert.That(repository.DownstreamBranches, Has.Count.EqualTo(1));
+        Assert.That(repository.DownstreamBranches![0].Name, Is.EqualTo("feature/skip-me"));
+        Assert.That(repository.DownstreamBranches![0].Name, Is.Not.EqualTo("main"));
+        Assert.That(repository.DownstreamBranches.Any(b => b.Name == "main"), Is.False);
     }
 
     static string FindRepoRoot()

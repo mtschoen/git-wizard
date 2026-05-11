@@ -12,6 +12,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
 {
     readonly IUiDispatcher _ui;
     readonly IUserDialogs _dialogs;
+    readonly IClipboardService _clipboard;
     readonly ConcurrentDictionary<string, RepositoryNodeViewModel> _repositoryMap = new();
     readonly ConcurrentQueue<RepositoryUICommand> _uiCommands = new();
     readonly Stopwatch _stopwatch = new();
@@ -27,7 +28,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
     GroupMode _activeGroupMode = GroupMode.None;
     SortMode _activeSortMode = SortMode.WorkingDirectory;
     string? _lastRefreshMessage;
-  string _searchText = string.Empty;
+    string _searchText = string.Empty;
     public string SearchText
     {
         get => _searchText;
@@ -169,24 +170,31 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         }
     }
 
-  public Action<RepositoryNodeViewModel>? ScrollToRequest { get; set; }
+    public Action<RepositoryNodeViewModel>? ScrollToRequest { get; set; }
     public ICommand OpenInExplorerCommand { get; }
     public ICommand OpenInForkCommand { get; }
+    public ICommand CopyToClipboardCommand { get; }
     public ICommand DeepRefreshCommand { get; }
+    public ICommand CheckoutMatchingBranchCommand { get; }
     public ICommand ToggleGroupExpandCommand { get; }
     public ICommand RefreshCommand { get; }
     public ICommand FetchAndRefreshCommand { get; }
+    public ICommand CleanDownstreamCommand { get; }
 
-    public MainViewModel(IUiDispatcher ui, IUserDialogs dialogs)
+    public MainViewModel(IUiDispatcher ui, IUserDialogs dialogs, IClipboardService clipboard)
     {
         _ui = ui;
         _dialogs = dialogs;
+        _clipboard = clipboard;
         OpenInExplorerCommand = new RelayCommand<RepositoryNodeViewModel>(OpenInExplorer);
         OpenInForkCommand = new RelayCommand<RepositoryNodeViewModel>(OpenInFork);
+        CopyToClipboardCommand = new RelayCommand<RepositoryNodeViewModel>(CopyToClipboard);
         DeepRefreshCommand = new RelayCommand<RepositoryNodeViewModel>(DeepRefreshRepository);
+        CheckoutMatchingBranchCommand = new RelayCommand<RepositoryNodeViewModel>(CheckoutMatchingBranch);
         ToggleGroupExpandCommand = new RelayCommand<RepositoryNodeViewModel>(ToggleGroupExpand);
         RefreshCommand = new RelayCommand(async () => await RefreshAsync(background: false));
         FetchAndRefreshCommand = new RelayCommand(async () => await RefreshAsync(background: false, fetchRemotes: true));
+        CleanDownstreamCommand = new RelayCommand<RepositoryNodeViewModel>(async node => await CleanDownstreamBranchesAsync(node));
         StartUIUpdateThread();
     }
 
@@ -204,38 +212,43 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         if (string.IsNullOrEmpty(node.WorkingDirectory))
             return;
 
-try
+        try
+        {
+            Process.Start(new ProcessStartInfo
             {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = node.WorkingDirectory,
-                    UseShellExecute = true,
-                    Verb = "open"
-                });
-            }
-            catch (Exception ex)
-            {
-                _ui.Post(async () => await _dialogs.DisplayAlertAsync("Error", $"Could not open folder: {ex.Message}"));
-            }
+                FileName = node.WorkingDirectory,
+                UseShellExecute = true,
+                Verb = "open"
+            });
+        }
+        catch (Exception ex)
+        {
+            _ui.Post(async () => await _dialogs.DisplayAlertAsync("Error", $"Could not open folder: {ex.Message}"));
+        }
     }
 
-    void OpenInFork(RepositoryNodeViewModel? node)
+   void OpenInFork(RepositoryNodeViewModel? node)
     {
         if (node == null || string.IsNullOrEmpty(node.WorkingDirectory))
             return;
 
-   if (!Directory.Exists(node.WorkingDirectory))
+        if (!Directory.Exists(node.WorkingDirectory))
         {
             _ui.Post(async () => await _dialogs.DisplayAlertAsync("Error", "Invalid repository path"));
             return;
         }
 
-        // TODO: Make Fork.exe path configurable in settings
-        var forkPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Fork", "Fork.exe");
+        var configuration = GitWizardConfiguration.GetGlobalConfiguration();
+        string? forkPath = configuration.ForkPath;
 
- if (!File.Exists(forkPath))
+        if (string.IsNullOrWhiteSpace(forkPath))
+        {
+            forkPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Fork", "Fork.exe");
+        }
+
+        if (!File.Exists(forkPath))
         {
             _ui.Post(async () => await _dialogs.DisplayAlertAsync("Error", $"Fork not found at: {forkPath}\n\nPlease ensure Fork is installed."));
             return;
@@ -251,10 +264,19 @@ try
                 CreateNoWindow = false
             });
         }
-catch (Exception ex)
+        catch (Exception ex)
         {
             _ui.Post(async () => await _dialogs.DisplayAlertAsync("Error", $"Could not launch Fork: {ex.Message}"));
         }
+    }
+
+    void CopyToClipboard(RepositoryNodeViewModel? node)
+    {
+        if (node == null || string.IsNullOrEmpty(node.WorkingDirectory))
+            return;
+
+        _ = _clipboard.SetPlainTextAsync(node.WorkingDirectory)
+            .ContinueWith(_ => _ui.Post(async () => await _dialogs.DisplayAlertAsync("Copied", "Working directory path copied to clipboard", "OK")), TaskScheduler.Default);
     }
 
     void DeepRefreshRepository(RepositoryNodeViewModel? node)
@@ -269,6 +291,125 @@ catch (Exception ex)
             node.Repository.Refresh(this, fetchRemotes: true, deepRefresh: true);
             stopwatch.Stop();
             node.Repository.RefreshTimeSeconds = Math.Round(stopwatch.Elapsed.TotalSeconds, 1);
+        });
+    }
+
+    void CheckoutMatchingBranch(RepositoryNodeViewModel? node)
+    {
+        if (node == null || node.IsGroupHeader)
+            return;
+
+        if (string.IsNullOrEmpty(node.MatchingBranchName))
+            return;
+
+        Task.Run(() =>
+        {
+            try
+            {
+                node.Repository.CheckoutBranch(node.MatchingBranchName!);
+                _ui.Post(() => node.Update());
+            }
+            catch (Exception ex)
+            {
+                _ui.Post(async () => await _dialogs.DisplayAlertAsync("Checkout Failed", $"Could not check out branch '{node.MatchingBranchName}': {ex.Message}"));
+            }
+        });
+    }
+
+    async Task CleanDownstreamBranchesAsync(RepositoryNodeViewModel? node)
+    {
+        if (node == null || node.IsGroupHeader)
+            return;
+
+        var downstream = node.Repository.DownstreamBranches;
+        if (downstream == null || downstream.Count == 0)
+            return;
+
+        var branchNames = string.Join(", ", downstream.Select(b => $"'{b.Name}'"));
+        var message = $"Delete {downstream.Count} downstream branch(es)?\n\n{branchNames}";
+
+        await _ui.InvokeAsync(async () =>
+        {
+            await _dialogs.DisplayAlertAsync(
+                "Delete Downstream Branches",
+                message + "\n\nClick OK to proceed with deletion.",
+                "Delete");
+
+            // Run git branch -d for each downstream branch
+            var workingDir = node.WorkingDirectory;
+            if (string.IsNullOrEmpty(workingDir) || !Directory.Exists(workingDir))
+            {
+                await _dialogs.DisplayAlertAsync("Error", "Invalid repository path");
+                return;
+            }
+
+            var success = true;
+            var failed = new List<string>();
+
+            foreach (var branch in downstream)
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "git",
+                    Arguments = $"branch -d \"{branch.Name}\"",
+                    WorkingDirectory = workingDir,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                try
+                {
+                    using var process = System.Diagnostics.Process.Start(psi);
+                    if (process != null)
+                    {
+                        if (!process.WaitForExit(15000))
+                        {
+                            process.Kill();
+                            failed.Add(branch.Name);
+                            success = false;
+                        }
+                        else if (process.ExitCode != 0)
+                        {
+                            var error = process.StandardError.ReadToEnd();
+                            if (!string.IsNullOrEmpty(error) && !error.Contains("not fully merged"))
+                            {
+                                GitWizard.GitWizardLog.Log($"git branch -d {branch.Name}: {error}", GitWizard.GitWizardLog.LogType.Warning);
+                            }
+                            if (process.ExitCode != 0)
+                            {
+                                failed.Add(branch.Name);
+                                success = false;
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    GitWizard.GitWizardLog.LogException(ex, $"Exception deleting branch {branch.Name} in {workingDir}");
+                    failed.Add(branch.Name);
+                    success = false;
+                }
+            }
+
+            if (success)
+            {
+                var deletedCount = downstream.Count;
+                downstream.Clear();
+                node.Repository.DownstreamBranches = null;
+                node.UpdateDisplayText();
+                await _dialogs.DisplayAlertAsync("Done", $"Deleted {deletedCount} branch(es)");
+            }
+            else if (failed.Count > 0)
+            {
+                // Remove successfully deleted branches from downstream so UI doesn't show stale data
+                downstream.RemoveAll(b => !failed.Contains(b.Name));
+                var failedList = string.Join(", ", failed);
+                await _dialogs.DisplayAlertAsync(
+                    "Partial Success",
+                    $"Could not delete: {failedList}\n\nThese branches may not be fully merged or are protected.");
+            }
         });
     }
 
@@ -313,7 +454,7 @@ catch (Exception ex)
             {
                 await Task.Delay(250);
 
-  // Drain all pending commands in one UI dispatch to minimize layout passes
+                // Drain all pending commands in one UI dispatch to minimize layout passes
                 if (_uiCommands.TryPeek(out _))
                 {
                     await _ui.InvokeAsync(() =>
@@ -388,7 +529,7 @@ catch (Exception ex)
         ApplyFilterAndGrouping();
     }
 
-   public void SetSearchText(string text)
+    public void SetSearchText(string text)
     {
         _searchText = text;
         ApplyFilterAndGrouping();
@@ -408,6 +549,7 @@ catch (Exception ex)
             "FilterMyRepositories" => FilterType.MyRepositories,
             "FilterLocalOnlyCommits" => FilterType.LocalOnlyCommits,
             "FilterStale" => FilterType.Stale,
+            "FilterDownstreamBranches" => FilterType.DownstreamBranches,
             _ => FilterType.None,
         };
         ApplyFilterAndGrouping();
@@ -431,6 +573,7 @@ catch (Exception ex)
             "SortByWorkingDirectory" => SortMode.WorkingDirectory,
             "SortByRecentlyUsed" => SortMode.RecentlyUsed,
             "SortByRemoteUrl" => SortMode.RemoteUrl,
+            "SortBySizeOnDisk" => SortMode.SizeOnDisk,
             _ => SortMode.WorkingDirectory,
         };
         ApplyFilterAndGrouping();
@@ -507,6 +650,9 @@ catch (Exception ex)
                 .OrderBy(r => r.Repository.RemoteUrls.Count > 0
                     ? NormalizeRemoteUrl(r.Repository.RemoteUrls[0])
                     : "\uffff") // sort no-remote to end
+                .ToList(),
+            SortMode.SizeOnDisk => repos
+                .OrderByDescending(r => r.Repository.SizeOnDisk)
                 .ToList(),
             _ => repos // WorkingDirectory — already in insertion order (alphabetical from SortedDictionary)
         };
@@ -587,6 +733,32 @@ catch (Exception ex)
         }
 
         return url.ToLowerInvariant();
+    }
+
+    static string? FindRenamedRepo(GitWizardRepository erroredRepo, string oldPath,
+        IReadOnlyDictionary<string, GitWizardRepository> healthyRepos)
+    {
+        if (erroredRepo.RemoteUrls == null || erroredRepo.RemoteUrls.Count == 0)
+            return null;
+
+        foreach (var remoteUrl in erroredRepo.RemoteUrls)
+        {
+            var normalizedRemote = NormalizeRemoteUrl(remoteUrl);
+            foreach (var (path, healthyRepo) in healthyRepos)
+            {
+                if (path == oldPath)
+                    continue;
+                if (healthyRepo.RemoteUrls == null)
+                    continue;
+                foreach (var healthyRemote in healthyRepo.RemoteUrls)
+                {
+                    if (NormalizeRemoteUrl(healthyRemote) == normalizedRemote)
+                        return path;
+                }
+            }
+        }
+
+        return null;
     }
 
     void AddToGroups(RepositoryNodeViewModel node)
@@ -689,7 +861,7 @@ catch (Exception ex)
         _repositoryMap[path] = node;
         _allRepositories.Add(node);
 
- if (!node.MatchesFilter(_activeFilter, GlobalUserEmail))
+        if (!node.MatchesFilter(_activeFilter, GlobalUserEmail))
             return;
 
         if (!string.IsNullOrWhiteSpace(_searchText) &&
@@ -739,7 +911,7 @@ catch (Exception ex)
         if (_activeFilter != FilterType.None && _activeGroupMode == GroupMode.None)
         {
             var isShown = Repositories.Contains(node);
-  var shouldShow = node.MatchesFilter(_activeFilter, GlobalUserEmail);
+            var shouldShow = node.MatchesFilter(_activeFilter, GlobalUserEmail);
             if (isShown && !shouldShow)
                 Repositories.Remove(node);
             else if (!isShown && shouldShow)
@@ -798,6 +970,9 @@ catch (Exception ex)
         _repositoryMap.Clear();
         _pendingGroups.Clear();
 
+        HashSet<string> deletedPaths = new();
+        HashSet<string> renamedOldPaths = new();
+
         await Task.Run(() =>
         {
             string[]? repositoryPaths = GitWizardApi.GetCachedRepositoryPaths();
@@ -808,12 +983,62 @@ catch (Exception ex)
                 deepRefresh: fetchRemotes);
             _stopwatch.Stop();
 
+            // Capture deleted paths for cache cleanup on main thread
+            deletedPaths = new HashSet<string>(report.DeletedPaths);
+
+            // Detect renamed repos: find errored repos whose remote URLs
+            // match a newly discovered (non-error) repo at a different path
+            var erroredRepos = report.Repositories
+                .Where(kvp => kvp.Value.RefreshError != null)
+                .ToList();
+            var healthyRepos = report.Repositories
+                .Where(kvp => kvp.Value.RefreshError == null)
+                .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+
+            foreach (var (path, repo) in erroredRepos)
+            {
+                var newHealthyPath = FindRenamedRepo(repo, path, healthyRepos);
+                if (newHealthyPath != null && newHealthyPath != path)
+                {
+                    renamedOldPaths.Add(path);
+                    GitWizardLog.Log($"Repository renamed: {path} -> {newHealthyPath}", GitWizardLog.LogType.Info);
+                }
+            }
+
             var refreshMsg = $"Refresh completed in {(float)_stopwatch.ElapsedMilliseconds / 1000:F2} seconds";
+            if (deletedPaths.Count > 0)
+                refreshMsg += $", {deletedPaths.Count} deleted";
+            if (renamedOldPaths.Count > 0)
+                refreshMsg += $", {renamedOldPaths.Count} renamed";
             _lastRefreshMessage = refreshMsg;
 
             if (repositoryPaths == null)
                 GitWizardApi.SaveCachedRepositoryPaths(report.GetRepositoryPaths());
         });
+
+        // Update cached repository paths: remove deleted and renamed (old path) entries
+        var cachedPaths = GitWizardApi.GetCachedRepositoryPaths();
+        if (cachedPaths != null)
+        {
+            var pathsToRemove = deletedPaths.Union(renamedOldPaths).ToHashSet();
+            if (pathsToRemove.Count > 0)
+            {
+                var updatedPaths = cachedPaths.Where(p => !pathsToRemove.Contains(p)).ToList();
+                GitWizardApi.SaveCachedRepositoryPaths(updatedPaths);
+            }
+        }
+
+        // Remove renamed repos from UI collections (old path entries)
+        if (renamedOldPaths.Count > 0)
+        {
+            var toRemove = _allRepositories.Where(r => renamedOldPaths.Contains(r.WorkingDirectory)).ToList();
+            foreach (var node in toRemove)
+            {
+                _repositoryMap.TryRemove(node.WorkingDirectory!, out _);
+                _allRepositories.Remove(node);
+                Repositories.Remove(node);
+            }
+        }
 
         // Wait for the UI command queue to fully drain before applying grouping/sorting
         while (!_uiCommands.IsEmpty)
@@ -832,7 +1057,7 @@ catch (Exception ex)
         IsRefreshing = false;
     }
 
-  // IUpdateHandler implementation
+    // IUpdateHandler implementation
     public void SendUpdateMessage(string? message)
     {
         if (message != null)
@@ -850,7 +1075,7 @@ catch (Exception ex)
         });
     }
 
-public void StartProgress(string description, int total)
+    public void StartProgress(string description, int total)
     {
         _progressCount = 0;
         _progressDescription = description;

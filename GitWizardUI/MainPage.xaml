@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             xmlns:viewModels="clr-namespace:GitWizardUI.ViewModels"
+             xmlns:viewModels="clr-namespace:GitWizardUI.ViewModels;assembly=GitWizardUI.ViewModels"
              x:DataType="viewModels:MainViewModel"
              x:Class="GitWizardUI.MainPage"
              Shell.NavBarIsVisible="False">
@@ -47,6 +47,7 @@
                 <Button x:Name="SortByWorkingDirectory" ToolTipProperties.Text="Path to working directory, alphabetically" Text="Working Directory" FontSize="12" Clicked="SortButton_Click" />
                 <Button x:Name="SortByRecentlyUsed" ToolTipProperties.Text="Time of the most recent commit" Text="Recently Used" FontSize="12" Clicked="SortButton_Click" />
                 <Button x:Name="SortByRemoteUrl" ToolTipProperties.Text="URL of first remote (usually origin)" Text="Remote URL" FontSize="12" Clicked="SortButton_Click" />
+                <Button x:Name="SortBySizeOnDisk" ToolTipProperties.Text="Size of repository on disk (largest first)" Text="Size On Disk" FontSize="12" Clicked="SortButton_Click" />
             </VerticalStackLayout>
         </ScrollView>
 
@@ -75,8 +76,24 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <Grid.GestureRecognizers>
+                            <FlyoutBase.ContextFlyout>
+                                <MenuFlyout>
+                                    <MenuFlyoutItem Text="Open in Fork"
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.OpenInForkCommand}"
+                                                    CommandParameter="{Binding .}"
+                                                    IsEnabled="{Binding IsNotGroupHeader}" />
+                                    <MenuFlyoutItem Text="Open in Explorer"
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.OpenInExplorerCommand}"
+                                                    CommandParameter="{Binding .}" />
+                                    <MenuFlyoutItem Text="Copy working directory to clipboard"
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.CopyToClipboardCommand}"
+                                                    CommandParameter="{Binding .}"
+                                                    IsEnabled="{Binding IsNotGroupHeader}" />
+                                </MenuFlyout>
+                            </FlyoutBase.ContextFlyout>
+                             <Grid.GestureRecognizers>
                                 <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.OpenInExplorerCommand}" CommandParameter="{Binding .}" />
                             </Grid.GestureRecognizers>
                             <!-- Status icon for repos, expand indicator for group headers -->
@@ -108,14 +125,23 @@ FontAttributes="{Binding GroupHeaderFontWeight}"
                                     VerticalOptions="Center"
                                     IsVisible="{Binding IsNotGroupHeader}" />
                             <Button Grid.Column="3"
-                                    Text="&#x21bb;"
-                                    ToolTipProperties.Text="Deep refresh: fetch remotes and update index (may be slow)"
-                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.DeepRefreshCommand}"
+                                     Text="&#x21bb;"
+                                     ToolTipProperties.Text="Deep refresh: fetch remotes and update index (may be slow)"
+                                     Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.DeepRefreshCommand}"
+                                     CommandParameter="{Binding .}"
+                                     FontSize="12"
+                                     Padding="8,4"
+                                     VerticalOptions="Center"
+                                     IsVisible="{Binding IsNotGroupHeader}" />
+                            <Button Grid.Column="4"
+                                    Text="↪"
+                                    ToolTipProperties.Text="Check out branch whose tip matches the detached HEAD"
+                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.CheckoutMatchingBranchCommand}"
                                     CommandParameter="{Binding .}"
                                     FontSize="12"
                                     Padding="8,4"
                                     VerticalOptions="Center"
-                                    IsVisible="{Binding IsNotGroupHeader}" />
+                                    IsVisible="{Binding HasMatchingBranch}" />
                         </Grid>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>

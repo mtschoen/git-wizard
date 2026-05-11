@@ -1,0 +1,128 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test-linux:
+    name: Build + Test (Linux, cross-platform projects)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: linux-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            linux-nuget-
+
+      - name: Restore (cross-platform projects)
+        run: |
+          for proj in \
+            GitWizard/GitWizard.csproj \
+            git-wizard/git-wizard.csproj \
+            GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj \
+            GitWizardAvalonia/GitWizardAvalonia.csproj \
+            GitWizardTests/GitWizardTests.csproj
+          do
+            dotnet restore "$proj"
+          done
+
+      - name: Build (cross-platform projects)
+        run: |
+          for proj in \
+            GitWizard/GitWizard.csproj \
+            git-wizard/git-wizard.csproj \
+            GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj \
+            GitWizardAvalonia/GitWizardAvalonia.csproj \
+            GitWizardTests/GitWizardTests.csproj
+          do
+            dotnet build "$proj" -c Release --no-restore
+          done
+
+      - name: Test
+        run: |
+          dotnet test GitWizardTests/GitWizardTests.csproj \
+              -c Release --no-build \
+              --logger "trx;LogFileName=TestResults.trx" \
+              --results-directory ./TestResults
+
+  test-windows:
+    name: Build + Test (Windows, full solution)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      NODE_TLS_REJECT_UNAUTHORIZED: 0
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~\.nuget\packages
+          key: windows-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            windows-nuget-
+
+      - name: Cache MAUI workload manifests
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\.dotnet\sdk-manifests
+            ~\.dotnet\workloads
+          key: windows-maui-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            windows-maui-
+
+      - name: Install MAUI workload (Windows-only)
+        shell: pwsh
+        run: dotnet workload install maui-windows
+
+      - name: Restore (full solution)
+        run: dotnet restore git-wizard.slnx
+
+      - name: Restore MAUI runtime pack (win-x64)
+        run: dotnet restore GitWizardUI/GitWizardUI.csproj -r win-x64
+
+      - name: Build (full solution)
+        run: dotnet build git-wizard.slnx -c Release --no-restore
+
+      - name: Test
+        shell: pwsh
+        run: |
+          dotnet test GitWizardTests/GitWizardTests.csproj `
+              -c Release --no-build `
+              --logger "trx;LogFileName=TestResults.trx" `
+              --results-directory ./TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results-windows
+          path: TestResults/*.trx
+          if-no-files-found: warn

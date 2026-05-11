@@ -59,7 +59,7 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
                 _status = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(StatusIcon));
-                     OnPropertyChanged(nameof(StatusColorHex));
+                OnPropertyChanged(nameof(StatusColorHex));
                 OnPropertyChanged(nameof(StatusTooltip));
                 OnPropertyChanged(nameof(IsStatusVisible));
             }
@@ -73,7 +73,7 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
         RefreshStatus.Timeout => "⚠",
         RefreshStatus.Error => "✗",
         _ => ""
-  };
+    };
 
     public string StatusTooltip => _status switch
     {
@@ -102,6 +102,10 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
     }
 
     public string WorkingDirectory => Repository.WorkingDirectory ?? "Unknown";
+
+    public string? MatchingBranchName => Repository.MatchingBranchName;
+
+    public bool HasMatchingBranch => !string.IsNullOrEmpty(MatchingBranchName) && Repository.IsDetachedHead;
 
     public RepositoryNodeViewModel(GitWizardRepository repository)
     {
@@ -172,7 +176,27 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
             label += $" ({daysSinceLastCommit}d)";
         }
 
+        if (Repository.IsDetachedHead && HasMatchingBranch)
+        {
+            label += $" ({MatchingBranchName})";
+        }
+
+        if (Repository.DownstreamBranches != null && Repository.DownstreamBranches.Count > 0)
+        {
+            var count = Repository.DownstreamBranches.Count;
+            label += $" [{count} branch{(count > 1 ? "es" : "")}]";
+        }
+
         DisplayText = label;
+    }
+
+    public void CheckoutMatchingBranch()
+    {
+        if (string.IsNullOrEmpty(MatchingBranchName))
+            return;
+
+        Repository.CheckoutBranch(MatchingBranchName);
+        Update();
     }
 
     public bool MatchesFilter(FilterType filter, string? userEmail = null)
@@ -188,6 +212,7 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
             FilterType.MyRepositories => IsMyRepository(userEmail),
             FilterType.LocalOnlyCommits => Repository.LocalOnlyCommits,
             FilterType.Stale => Repository.DaysSinceLastCommit > 30,
+            FilterType.DownstreamBranches => HasDownstreamBranches(),
             _ => true
         };
     }
@@ -234,6 +259,13 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
         return Children.Any(c => c.HasSubmoduleConfigIssues());
     }
 
+    bool HasDownstreamBranches()
+    {
+        if (Repository.DownstreamBranches == null || Repository.DownstreamBranches.Count == 0)
+            return false;
+        return true;
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -261,7 +293,8 @@ public enum SortMode
 {
     WorkingDirectory,
     RecentlyUsed,
-    RemoteUrl
+    RemoteUrl,
+    SizeOnDisk
 }
 
 public enum FilterType
@@ -274,5 +307,6 @@ public enum FilterType
     DetachedHead,
     MyRepositories,
     LocalOnlyCommits,
-    Stale
+    Stale,
+    DownstreamBranches
 }

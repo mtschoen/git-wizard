@@ -14,18 +14,18 @@
 - Update MFT parser to also find `.git` files (not just directories) so worktrees with origins outside search paths are discovered
 - Include deleted and added files in uncommitted changes count
 - Show error log — exceptions are currently just logged to output
-- Context menu
-- Move open in Fork button to context menu
+- [x] Implement the repo-row context menu (right-click on a repo row in the main list) with the following actions: "Open in Fork", "Open in Explorer", "Copy working directory to clipboard". Use Avalonia menu primitives. Bundles the four context-menu bullets that previously occupied L17/L18/L20/L21.
+- ~~Move open in Fork button to context menu~~ (folded into L17)
 - Clean
-- Open in Explorer
-- Copy working directory to clipboard
+- ~~Open in Explorer~~ (folded into L17)
+- ~~Copy working directory to clipboard~~ (folded into L17)
 
 ## Backlog
 
 - Quick refresh or filesystem watcher to remove UI for deleted or renamed repositories
 - Sort by size on disk
 - Check if downstream branches are included in some upstream branch (deleted after merge)
-- Aggregate statuses from submodules
+- Submodule health checks: aggregate parent repo status from submodule states (a parent repo with any dirty / wrong-ref submodule should reflect that at the top level); also flag submodules checked out at a ref other than the project pointer, submodules that have not been init'd / checked out at all, and submodules listed in `.gitmodules` but not present in the index (or vice versa). Bundles the four submodule bullets that previously occupied L28/L38/L39/L40.
 - Add Windows folder to default exclusions
 - Make `Fork.exe` path configurable in settings (currently hard-coded to `%LocalAppData%\Fork\Fork.exe`)
 - Explore CLI argument parsing libraries which can auto-generate manual/help (replace `RunConfiguration`)
@@ -35,9 +35,9 @@
 - Async save/load for cached files (configs and reports)
 - Filtering
 - Filters should be additive not exclusive
-- Identify submodules which are not checked out to project pointer reference
-- Identify submodules which have not been checked out/init
-- Identify submodules which are in `.gitmodules` but not in the index, or vice versa
+- ~~Identify submodules which are not checked out to project pointer reference~~ (folded into L28)
+- ~~Identify submodules which have not been checked out/init~~ (folded into L28)
+- ~~Identify submodules which are in `.gitmodules` but not in the index, or vice versa~~ (folded into L28)
 - Button/utility to check out branch head that matches detached head
 - Testing automation
 - Profiling/optimization (am I using `await` correctly?)
@@ -47,3 +47,8 @@
 - Active branches
 - My branches
 - Undo/Redo for search/ignore list changes
+
+## Re-queue (zombied 2026-04-26)
+
+- "Pretty print" in path lists to transform environment variables into their values (was L33; original WI #19 zombied when its harness died silently during a drain restart — re-enqueueing here for a fresh source_ref).
+- Async save/load for cached files (configs and reports) (was L35; original WI #20 zombied at the same time, re-enqueueing here).

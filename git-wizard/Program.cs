@@ -12,7 +12,7 @@ public static class Program
     /// </summary>
     struct RunConfiguration
     {
-        const string k_HelpManual = @"GitWizard 0.4.0 Help
+        const string k_HelpManual = @"GitWizard 0.4.1 Help
 
 Usage: git-wizard [options]
 
@@ -39,6 +39,7 @@ Other options:
   -setup-defender           Add Windows Defender exclusions for git/dotnet processes and search paths (triggers UAC prompt)
   -scan-only                Print discovered repository paths (one per line) and exit without refreshing
   -no-mft                   Skip MFT search and use recursive directory scan instead
+  -db-size                  Show the size of the GitWizard local files folder (~/.GitWizard/) and exit
 ";
 
         /// <summary>
@@ -111,6 +112,11 @@ Other options:
         /// Path to custom configuration file (otherwise global or default configuration is used)
         /// </summary>
         public readonly string? CustomConfigurationPath = null;
+
+        /// <summary>
+        /// Show the size of the GitWizard local files folder and exit.
+        /// </summary>
+        public readonly bool DbSize = false;
 
         /// <summary>
         /// Initialize a RunConfiguration using Environment.GetCommandLineArgs
@@ -209,6 +215,9 @@ Other options:
                         // TODO: Validate path
                         CustomConfigurationPath = arguments[i + 1];
                         break;
+                    case "-db-size":
+                        DbSize = true;
+                        break;
                 }
             }
         }
@@ -266,6 +275,13 @@ git-wizard Session Started
         }
 
         var runConfiguration = new RunConfiguration();
+        if (runConfiguration.DbSize)
+        {
+            var sizeBytes = GitWizardApi.GetLocalFilesSize();
+            Console.WriteLine(FormatSize(sizeBytes));
+            Environment.Exit(0);
+        }
+
         if (runConfiguration.DeleteAllLocalFiles)
         {
             GitWizardApi.DeleteAllLocalFiles();
@@ -477,5 +493,18 @@ git-wizard Session Started
         GitWizardLog.Log($"Could not find custom configuration at path: {customConfigurationPath}", GitWizardLog.LogType.Error);
         Environment.Exit(0);
         return null;
+    }
+
+    static string FormatSize(long bytes)
+    {
+        string[] units = { "B", "KB", "MB", "GB", "TB" };
+        double size = bytes;
+        int i = 0;
+        while (size >= 1024 && i < units.Length - 1)
+        {
+            size /= 1024;
+            i++;
+        }
+        return $"{size:0.##} {units[i]}";
     }
 }

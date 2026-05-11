@@ -11,10 +11,11 @@ public partial class MainWindow : Window
 {
     readonly MainViewModel _viewModel;
 
-  public MainWindow()
+ public MainWindow()
     {
         InitializeComponent();
-        _viewModel = new MainViewModel(new AvaloniaUiDispatcher(), new AvaloniaUserDialogs());
+        var clipboard = new AvaloniaClipboardService(this);
+        _viewModel = new MainViewModel(new AvaloniaUiDispatcher(), new AvaloniaUserDialogs(), clipboard);
         DataContext = _viewModel;
         if (!OperatingSystem.IsWindows())
             DefenderButton.IsVisible = false;
@@ -63,5 +64,35 @@ public partial class MainWindow : Window
     {
         if ((sender as Button)?.Tag is RepositoryNodeViewModel node)
             _viewModel.DeepRefreshCommand?.Execute(node);
+    }
+
+    void CheckoutMatchingBranchButton_Click(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Button)?.Tag is RepositoryNodeViewModel node)
+            _viewModel.CheckoutMatchingBranchCommand?.Execute(node);
+    }
+
+    void CleanDownstreamButton_Click(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Button)?.Tag is RepositoryNodeViewModel node)
+            _viewModel.CleanDownstreamCommand?.Execute(node);
+    }
+
+    void OnOpenInExplorerClick(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as MenuItem)?.Tag is RepositoryNodeViewModel node)
+            _viewModel.OpenInExplorerCommand?.Execute(node);
+    }
+
+    void OnOpenInForkClick(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as MenuItem)?.Tag is RepositoryNodeViewModel node)
+            _viewModel.OpenInForkCommand?.Execute(node);
+    }
+
+    void OnCopyToClipboardClick(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as MenuItem)?.Tag is RepositoryNodeViewModel node)
+            _viewModel.CopyToClipboardCommand?.Execute(node);
     }
 }

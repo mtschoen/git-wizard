@@ -8,6 +8,7 @@ public class GitWizardSummary
     public int Dirty { get; set; }
     public int Unpushed { get; set; }
     public int Stale { get; set; }
+    public int DownstreamBranches { get; set; }
     public List<AttentionItem> NeedingAttention { get; set; } = new();
 
     public static GitWizardSummary FromReport(GitWizardReport report)
@@ -38,6 +39,12 @@ public class GitWizardSummary
             if (repository.DaysSinceLastCommit > 30)
             {
                 summary.Stale++;
+            }
+
+            if (repository.DownstreamBranches != null && repository.DownstreamBranches.Count > 0)
+            {
+                summary.DownstreamBranches++;
+                reasons.Add("downstream-branches");
             }
 
             if (reasons.Count > 0)

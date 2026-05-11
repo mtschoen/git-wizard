@@ -1,4 +1,5 @@
 ﻿using LibGit2Sharp;
+using System;
 using System.Runtime.InteropServices;
 
 namespace GitWizard;
@@ -25,6 +26,9 @@ public class GitWizardRepository
     public HashSet<string>? AuthorEmails { get; private set; }
     public List<GitWizardCommitInfo>? RecentCommits { get; private set; }
     public int? DaysSinceLastCommit { get; private set; }
+    public string? MatchingBranchName { get; private set; }
+    public List<DownstreamBranchInfo>? DownstreamBranches { get; set; }
+    public long SizeOnDisk { get; private set; }
 
     GitWizardRepository() { }
 
@@ -59,6 +63,8 @@ public class GitWizardRepository
 
             CurrentBranch = repository.Head.FriendlyName;
             IsDetachedHead = repository.Head.Reference is not SymbolicReference;
+            if (IsDetachedHead)
+                FindMatchingBranch(repository);
             LastCommitDate = repository.Head.Tip?.Author.When;
             if (LastCommitDate.HasValue)
                 DaysSinceLastCommit = (int)(DateTimeOffset.Now - LastCommitDate.Value).TotalDays;
@@ -140,6 +146,18 @@ public class GitWizardRepository
                 }
             }
 
+            // Detect downstream branches (local branches merged into main/master/current branch)
+            try
+            {
+                var downstream = DetectDownstreamBranches(repository);
+                if (downstream.Count > 0)
+                    DownstreamBranches = downstream;
+            }
+            catch (Exception exception)
+            {
+                GitWizardLog.LogException(exception, $"Exception detecting downstream branches for {WorkingDirectory}");
+            }
+
             // Cache author emails for "My Repositories" filter
             try
             {
@@ -172,6 +190,16 @@ public class GitWizardRepository
             catch (Exception exception)
             {
                 GitWizardLog.LogException(exception, $"Exception collecting recent commits for {WorkingDirectory}");
+            }
+
+            // Compute size on disk
+            try
+            {
+                SizeOnDisk = ComputeDirectorySize(WorkingDirectory);
+            }
+            catch (Exception exception)
+            {
+                GitWizardLog.LogException(exception, $"Exception computing size for {WorkingDirectory}");
             }
 
             IsRefreshing = false;
@@ -414,6 +442,124 @@ public class GitWizardRepository
         }
     }
 
+    void FindMatchingBranch(Repository repository)
+    {
+        try
+        {
+            var detachedTip = repository.Head.Tip;
+            if (detachedTip == null)
+                return;
+
+            foreach (var branch in repository.Branches)
+            {
+                if (branch.IsRemote)
+                    continue;
+
+                try
+                {
+                    if (branch.Tip != null && branch.Tip.Sha == detachedTip.Sha)
+                    {
+                        MatchingBranchName = branch.FriendlyName;
+                        return;
+                    }
+                }
+                catch (Exception exception)
+                {
+                    GitWizardLog.LogException(exception, $"Exception checking branch {branch.FriendlyName} for matching detached HEAD in {WorkingDirectory}");
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, $"Exception finding matching branch for detached HEAD in {WorkingDirectory}");
+        }
+    }
+
+    public void CheckoutBranch(string branchName)
+    {
+        if (string.IsNullOrEmpty(WorkingDirectory))
+            throw new InvalidOperationException($"Cannot checkout branch '{branchName}': working directory is not initialized");
+
+        using var repository = new Repository(WorkingDirectory);
+        var branch = repository.Branches[branchName];
+        Commands.Checkout(repository, branch.Tip);
+    }
+
+    List<DownstreamBranchInfo> DetectDownstreamBranches(Repository repository)
+    {
+        var downstream = new List<DownstreamBranchInfo>();
+        var workingDir = repository.Info.WorkingDirectory;
+
+        // Find the merge target: main > master > current branch (if it's a branch)
+        var mergeTarget = "main";
+        var hasMain = repository.Branches.Any(b => b.FriendlyName == "main");
+        var hasMaster = repository.Branches.Any(b => b.FriendlyName == "master");
+        if (!hasMain && hasMaster)
+            mergeTarget = "master";
+        else if (!hasMain && !hasMaster)
+        {
+            // No main or master — use current branch if it's a branch (not detached)
+            if (repository.Head.FriendlyName != null && repository.Head.Reference is SymbolicReference)
+                mergeTarget = repository.Head.FriendlyName;
+            else
+                return downstream; // detached HEAD with no main/master — nothing to merge into
+        }
+
+        // Run 'git branch --merged <target> --no-color' to get all branches merged into target
+        var psi = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = "git",
+            Arguments = $"branch --merged \"{mergeTarget}\" --no-color",
+            WorkingDirectory = workingDir,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var process = System.Diagnostics.Process.Start(psi);
+        if (process == null)
+            return downstream;
+
+        if (!process.WaitForExit(15000))
+        {
+            GitWizardLog.Log($"Detecting downstream branches timed out for {workingDir}", GitWizardLog.LogType.Warning);
+            process.Kill();
+            return downstream;
+        }
+
+        var currentBranch = repository.Head.FriendlyName;
+        var output = process.StandardOutput.ReadToEnd();
+
+        foreach (var line in output.Split('\n', '\r'))
+        {
+            var branchName = line.Trim();
+            if (string.IsNullOrEmpty(branchName))
+                continue;
+
+            // Strip leading markers (* = current branch, + = pushed, ! = local)
+            while (branchName.Length > 0 && "!*+".Contains(branchName[0]))
+                branchName = branchName[1..].TrimStart(' ');
+
+            // Skip the merge target itself and the current branch
+            if (branchName.Equals(mergeTarget, StringComparison.Ordinal) ||
+                branchName.Equals(currentBranch, StringComparison.Ordinal))
+                continue;
+
+            // Skip detached HEAD refs (they appear as "(HEAD detached at ...)")
+            if (branchName.StartsWith("(", StringComparison.Ordinal))
+                continue;
+
+            downstream.Add(new DownstreamBranchInfo
+            {
+                Name = branchName,
+                MergedInto = mergeTarget
+            });
+        }
+
+        return downstream;
+    }
+
     static void RefreshIndex(Repository repository)
     {
         try
@@ -461,5 +607,44 @@ public class GitWizardRepository
         {
             GitWizardLog.LogException(exception, "Exception refreshing index via git CLI");
         }
+    }
+
+    /// <summary>
+    /// Computes the total disk size of all files under <paramref name="path"/> recursively.
+    /// </summary>
+    /// <remarks>
+    /// <para>Callers always pass a validated <see cref="WorkingDirectory"/>, so the path is
+    /// guaranteed to be non-null/empty and exist at the time of the call. The check above
+    /// the caller is already defensive enough — no need to duplicate it here.</para>
+    /// <para>This enumerates ALL files recursively including <c>.git/</c> objects, LFS storage,
+    /// build output, etc. For repos with large git object stores the first full scan may
+    /// take a long time. The existing <see cref="RefreshStatus"/> timeout covers this.</para>
+    /// </remarks>
+    static long ComputeDirectorySize(string path)
+    {
+        long totalSize = 0;
+        try
+        {
+            foreach (var file in new DirectoryInfo(path).EnumerateFiles("*", SearchOption.AllDirectories))
+            {
+                totalSize += file.Length;
+            }
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Some directories may not be accessible (e.g., $Recycle.Bin, System Volume Information)
+        }
+        catch (IOException)
+        {
+            // Handle potential I/O errors on corrupted or networked filesystems
+        }
+        catch (Exception exception)
+        {
+            // Catch-all for unexpected exceptions (PathTooLongException, ArgumentException,
+            // etc.) — log and return partial result rather than crashing the refresh.
+            GitWizardLog.LogException(exception, $"Exception enumerating files for {path}");
+        }
+
+        return totalSize;
     }
 }

@@ -598,6 +598,32 @@ catch (Exception ex)
         return url.ToLowerInvariant();
     }
 
+    static string? FindRenamedRepo(GitWizardRepository erroredRepo, string oldPath,
+        IReadOnlyDictionary<string, GitWizardRepository> healthyRepos)
+    {
+        if (erroredRepo.RemoteUrls == null || erroredRepo.RemoteUrls.Count == 0)
+            return null;
+
+        foreach (var remoteUrl in erroredRepo.RemoteUrls)
+        {
+            var normalizedRemote = NormalizeRemoteUrl(remoteUrl);
+            foreach (var (path, healthyRepo) in healthyRepos)
+            {
+                if (path == oldPath)
+                    continue;
+                if (healthyRepo.RemoteUrls == null)
+                    continue;
+                foreach (var healthyRemote in healthyRepo.RemoteUrls)
+                {
+                    if (NormalizeRemoteUrl(healthyRemote) == normalizedRemote)
+                        return path;
+                }
+            }
+        }
+
+        return null;
+    }
+
     void AddToGroups(RepositoryNodeViewModel node)
     {
         var keys = GetGroupKeys(node, _activeGroupMode);
@@ -807,6 +833,9 @@ catch (Exception ex)
         _repositoryMap.Clear();
         _pendingGroups.Clear();
 
+        HashSet<string> deletedPaths = new();
+        HashSet<string> renamedOldPaths = new();
+
         await Task.Run(() =>
         {
             string[]? repositoryPaths = GitWizardApi.GetCachedRepositoryPaths();
@@ -817,12 +846,62 @@ catch (Exception ex)
                 deepRefresh: fetchRemotes);
             _stopwatch.Stop();
 
+            // Capture deleted paths for cache cleanup on main thread
+            deletedPaths = new HashSet<string>(report.DeletedPaths);
+
+            // Detect renamed repos: find errored repos whose remote URLs
+            // match a newly discovered (non-error) repo at a different path
+            var erroredRepos = report.Repositories
+                .Where(kvp => kvp.Value.RefreshError != null)
+                .ToList();
+            var healthyRepos = report.Repositories
+                .Where(kvp => kvp.Value.RefreshError == null)
+                .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+
+            foreach (var (path, repo) in erroredRepos)
+            {
+                var newHealthyPath = FindRenamedRepo(repo, path, healthyRepos);
+                if (newHealthyPath != null && newHealthyPath != path)
+                {
+                    renamedOldPaths.Add(path);
+                    GitWizardLog.Log($"Repository renamed: {path} -> {newHealthyPath}", GitWizardLog.LogType.Info);
+                }
+            }
+
             var refreshMsg = $"Refresh completed in {(float)_stopwatch.ElapsedMilliseconds / 1000:F2} seconds";
+            if (deletedPaths.Count > 0)
+                refreshMsg += $", {deletedPaths.Count} deleted";
+            if (renamedOldPaths.Count > 0)
+                refreshMsg += $", {renamedOldPaths.Count} renamed";
             _lastRefreshMessage = refreshMsg;
 
             if (repositoryPaths == null)
                 GitWizardApi.SaveCachedRepositoryPaths(report.GetRepositoryPaths());
         });
+
+        // Update cached repository paths: remove deleted and renamed (old path) entries
+        var cachedPaths = GitWizardApi.GetCachedRepositoryPaths();
+        if (cachedPaths != null)
+        {
+            var pathsToRemove = deletedPaths.Union(renamedOldPaths).ToHashSet();
+            if (pathsToRemove.Count > 0)
+            {
+                var updatedPaths = cachedPaths.Where(p => !pathsToRemove.Contains(p)).ToList();
+                GitWizardApi.SaveCachedRepositoryPaths(updatedPaths);
+            }
+        }
+
+        // Remove renamed repos from UI collections (old path entries)
+        if (renamedOldPaths.Count > 0)
+        {
+            var toRemove = _allRepositories.Where(r => renamedOldPaths.Contains(r.WorkingDirectory)).ToList();
+            foreach (var node in toRemove)
+            {
+                _repositoryMap.TryRemove(node.WorkingDirectory!, out _);
+                _allRepositories.Remove(node);
+                Repositories.Remove(node);
+            }
+        }
 
         // Wait for the UI command queue to fully drain before applying grouping/sorting
         while (!_uiCommands.IsEmpty)

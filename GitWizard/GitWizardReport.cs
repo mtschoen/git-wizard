@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Collections.Concurrent;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace GitWizard;
@@ -19,6 +20,7 @@ public class GitWizardReport
     public SortedSet<string> SearchPaths { get; set; } = new();
     public SortedSet<string> IgnoredPaths { get; set; } = new();
     public SortedDictionary<string, GitWizardRepository> Repositories { get; set; } = new();
+    public HashSet<string> DeletedPaths { get; private set; } = new();
 
     public static string GetCachedReportPath()
     {
@@ -135,19 +137,44 @@ public class GitWizardReport
     public void Refresh(ICollection<string> repositoryPaths, IUpdateHandler? updateHandler = null,
         bool fetchRemotes = false, bool deepRefresh = false)
     {
+        var options = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) };
+        var validPaths = new ConcurrentBag<string>();
+        var deletedPaths = new ConcurrentBag<string>();
+
+        // Pre-filter: identify deleted repos (directory no longer exists)
+        foreach (var path in repositoryPaths)
+        {
+            if (Directory.Exists(path))
+                validPaths.Add(path);
+            else
+                deletedPaths.Add(path);
+        }
+
+        DeletedPaths = new HashSet<string>(deletedPaths);
+
+        // Clean up deleted repos from the report's Repositories dictionary
+        foreach (var deleted in DeletedPaths)
+        {
+            Repositories.Remove(deleted);
+        }
+
+        if (DeletedPaths.Count > 0)
+        {
+            GitWizardLog.Log($"Cleaned {DeletedPaths.Count} deleted repository(s) from cache", GitWizardLog.LogType.Info);
+        }
+
         var count = 0;
 
         try
         {
-            updateHandler?.StartProgress("Scanning repositories", repositoryPaths.Count);
+            updateHandler?.StartProgress("Scanning repositories", validPaths.Count);
         }
         catch (Exception exception)
         {
             GitWizardLog.LogException(exception, "Exception thrown by Refresh StartProgress callback.");
         }
 
-        var options = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) };
-        Parallel.ForEach(repositoryPaths, options, path =>
+        Parallel.ForEach(validPaths, options, path =>
         {
             GitWizardRepository? repository;
             lock (Repositories)

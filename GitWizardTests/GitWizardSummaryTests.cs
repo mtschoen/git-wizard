@@ -20,32 +20,25 @@ public class GitWizardSummaryTests
     }
 
     [Test]
-    public void NeedingAttention_IncludesDirtyAndUnpushed()
+    public void FromReport_CountsDownstreamBranches()
     {
         GitWizardLog.SilentMode = true;
         var report = new GitWizardReport();
 
-        var repoPath = FindRepoRoot();
-        var repository = new GitWizardRepository(repoPath);
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        using var libgit = new LibGit2Sharp.Repository(fixture.Path);
+        libgit.Branches.Add("feature/x", libgit.Head.Tip);
+
+        var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh();
-        report.Repositories[repoPath] = repository;
+        report.Repositories[fixture.Path] = repository;
 
         var summary = GitWizardSummary.FromReport(report);
 
         Assert.That(summary.TotalRepositories, Is.EqualTo(1));
-        Assert.That(summary.NeedingAttention, Is.Not.Null);
-    }
-
-    static string FindRepoRoot()
-    {
-        var directory = Directory.GetCurrentDirectory();
-        while (directory != null)
-        {
-            if (Directory.Exists(Path.Combine(directory, ".git")))
-                return directory;
-            directory = Directory.GetParent(directory)?.FullName;
-        }
-
-        throw new DirectoryNotFoundException("Could not find git repo root from working directory");
+        Assert.That(summary.SchemaVersion, Is.EqualTo("1.1"));
+        Assert.That(summary.DownstreamBranches, Is.EqualTo(1));
+        Assert.That(summary.NeedingAttention, Has.Count.EqualTo(1));
+        Assert.That(summary.NeedingAttention[0].Reasons, Contains.Item("downstream-branches"));
     }
 }

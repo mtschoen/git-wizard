@@ -90,6 +90,64 @@ public class GitWizardRepositoryTests
         Assert.That(repository.LocalCommitCount, Is.EqualTo(3));
     }
 
+    [Test]
+    public void Refresh_DetectsDownstreamBranches()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AppendCommit("second.txt");
+
+        using var repo = new LibGit2Sharp.Repository(fixture.Path);
+        repo.Branches.Add("feature/test", repo.Head.Tip);
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        Assert.That(repository.DownstreamBranches, Is.Not.Null);
+        Assert.That(repository.DownstreamBranches, Has.Count.EqualTo(1));
+        Assert.That(repository.DownstreamBranches![0].Name, Is.EqualTo("feature/test"));
+        Assert.That(repository.DownstreamBranches[0].MergedInto, Is.AnyOf("main", "master"));
+    }
+
+    [Test]
+    public void Refresh_DetectsMultipleDownstreamBranches()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AppendCommit("second.txt");
+
+        using var repo = new LibGit2Sharp.Repository(fixture.Path);
+        repo.Branches.Add("feature/a", repo.Head.Tip);
+        repo.Branches.Add("feature/b", repo.Head.Tip);
+        repo.Branches.Add("bugfix/c", repo.Head.Tip);
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        Assert.That(repository.DownstreamBranches, Is.Not.Null);
+        Assert.That(repository.DownstreamBranches, Has.Count.EqualTo(3));
+    }
+
+    [Test]
+    public void Refresh_DoesNotListCurrentBranchAsDownstream()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AppendCommit("second.txt");
+
+        using var repo = new LibGit2Sharp.Repository(fixture.Path);
+        repo.Branches.Add("feature/skip-me", repo.Head.Tip);
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        Assert.That(repository.DownstreamBranches, Is.Not.Null);
+        Assert.That(repository.DownstreamBranches, Has.Count.EqualTo(1));
+        Assert.That(repository.DownstreamBranches![0].Name, Is.EqualTo("feature/skip-me"));
+        Assert.That(repository.DownstreamBranches![0].Name, Is.Not.EqualTo("main"));
+        Assert.That(repository.DownstreamBranches.Any(b => b.Name == "main"), Is.False);
+    }
+
     static string FindRepoRoot()
     {
         var directory = Directory.GetCurrentDirectory();

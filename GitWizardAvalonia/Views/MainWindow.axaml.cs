@@ -11,7 +11,7 @@ public partial class MainWindow : Window
 {
     readonly MainViewModel _viewModel;
 
-  public MainWindow()
+ public MainWindow()
     {
         InitializeComponent();
         var clipboard = new AvaloniaClipboardService(this);
@@ -64,6 +64,12 @@ public partial class MainWindow : Window
     {
         if ((sender as Button)?.Tag is RepositoryNodeViewModel node)
             _viewModel.DeepRefreshCommand?.Execute(node);
+    }
+
+    void CleanDownstreamButton_Click(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Button)?.Tag is RepositoryNodeViewModel node)
+            _viewModel.CleanDownstreamCommand?.Execute(node);
     }
 
     void OnOpenInExplorerClick(object? sender, RoutedEventArgs e)

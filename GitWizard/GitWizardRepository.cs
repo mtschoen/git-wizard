@@ -25,6 +25,7 @@ public class GitWizardRepository
     public HashSet<string>? AuthorEmails { get; private set; }
     public List<GitWizardCommitInfo>? RecentCommits { get; private set; }
     public int? DaysSinceLastCommit { get; private set; }
+    public List<DownstreamBranchInfo>? DownstreamBranches { get; set; }
     public long SizeOnDisk { get; private set; }
 
     GitWizardRepository() { }
@@ -139,6 +140,18 @@ public class GitWizardRepository
                         LocalCommitCount += divergence.AheadBy ?? 0;
                     }
                 }
+            }
+
+            // Detect downstream branches (local branches merged into main/master/current branch)
+            try
+            {
+                var downstream = DetectDownstreamBranches(repository);
+                if (downstream.Count > 0)
+                    DownstreamBranches = downstream;
+            }
+            catch (Exception exception)
+            {
+                GitWizardLog.LogException(exception, $"Exception detecting downstream branches for {WorkingDirectory}");
             }
 
             // Cache author emails for "My Repositories" filter
@@ -423,6 +436,81 @@ public class GitWizardRepository
         {
             GitWizardLog.LogException(exception, $"Exception fetching remotes for {workingDirectory}");
         }
+    }
+
+    List<DownstreamBranchInfo> DetectDownstreamBranches(Repository repository)
+    {
+        var downstream = new List<DownstreamBranchInfo>();
+        var workingDir = repository.Info.WorkingDirectory;
+
+        // Find the merge target: main > master > current branch (if it's a branch)
+        var mergeTarget = "main";
+        var hasMain = repository.Branches.Any(b => b.FriendlyName == "main");
+        var hasMaster = repository.Branches.Any(b => b.FriendlyName == "master");
+        if (!hasMain && hasMaster)
+            mergeTarget = "master";
+        else if (!hasMain && !hasMaster)
+        {
+            // No main or master — use current branch if it's a branch (not detached)
+            if (repository.Head.FriendlyName != null && repository.Head.Reference is SymbolicReference)
+                mergeTarget = repository.Head.FriendlyName;
+            else
+                return downstream; // detached HEAD with no main/master — nothing to merge into
+        }
+
+        // Run 'git branch --merged <target> --no-color' to get all branches merged into target
+        var psi = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = "git",
+            Arguments = $"branch --merged \"{mergeTarget}\" --no-color",
+            WorkingDirectory = workingDir,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var process = System.Diagnostics.Process.Start(psi);
+        if (process == null)
+            return downstream;
+
+        if (!process.WaitForExit(15000))
+        {
+            GitWizardLog.Log($"Detecting downstream branches timed out for {workingDir}", GitWizardLog.LogType.Warning);
+            process.Kill();
+            return downstream;
+        }
+
+        var currentBranch = repository.Head.FriendlyName;
+        var output = process.StandardOutput.ReadToEnd();
+
+        foreach (var line in output.Split('\n', '\r'))
+        {
+            var branchName = line.Trim();
+            if (string.IsNullOrEmpty(branchName))
+                continue;
+
+            // Strip leading markers (* = current branch, + = pushed, ! = local)
+            while (branchName.Length > 0 && "!*+".Contains(branchName[0]))
+                branchName = branchName[1..].TrimStart(' ');
+
+            // Skip the merge target itself and the current branch
+            if (branchName.Equals(mergeTarget, StringComparison.Ordinal) ||
+                branchName.Equals(currentBranch, StringComparison.Ordinal))
+                continue;
+
+            // Skip detached HEAD refs (they appear as "(HEAD detached at ...)")
+            if (branchName.StartsWith("(", StringComparison.Ordinal))
+                continue;
+
+            downstream.Add(new DownstreamBranchInfo
+            {
+                Name = branchName,
+                MergedInto = mergeTarget
+            });
+        }
+
+        return downstream;
     }
 
     static void RefreshIndex(Repository repository)

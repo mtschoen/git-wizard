@@ -77,7 +77,22 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <Grid.GestureRecognizers>
+                            <FlyoutBase.ContextFlyout>
+                                <MenuFlyout>
+                                    <MenuFlyoutItem Text="Open in Fork"
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.OpenInForkCommand}"
+                                                    CommandParameter="{Binding .}"
+                                                    IsEnabled="{Binding IsNotGroupHeader}" />
+                                    <MenuFlyoutItem Text="Open in Explorer"
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.OpenInExplorerCommand}"
+                                                    CommandParameter="{Binding .}" />
+                                    <MenuFlyoutItem Text="Copy working directory to clipboard"
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.CopyToClipboardCommand}"
+                                                    CommandParameter="{Binding .}"
+                                                    IsEnabled="{Binding IsNotGroupHeader}" />
+                                </MenuFlyout>
+                            </FlyoutBase.ContextFlyout>
+                             <Grid.GestureRecognizers>
                                 <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.OpenInExplorerCommand}" CommandParameter="{Binding .}" />
                             </Grid.GestureRecognizers>
                             <!-- Status icon for repos, expand indicator for group headers -->

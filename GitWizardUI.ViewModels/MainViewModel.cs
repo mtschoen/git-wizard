@@ -12,6 +12,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
 {
     readonly IUiDispatcher _ui;
     readonly IUserDialogs _dialogs;
+    readonly IClipboardService _clipboard;
     readonly ConcurrentDictionary<string, RepositoryNodeViewModel> _repositoryMap = new();
     readonly ConcurrentQueue<RepositoryUICommand> _uiCommands = new();
     readonly Stopwatch _stopwatch = new();
@@ -172,17 +173,20 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
   public Action<RepositoryNodeViewModel>? ScrollToRequest { get; set; }
     public ICommand OpenInExplorerCommand { get; }
     public ICommand OpenInForkCommand { get; }
+    public ICommand CopyToClipboardCommand { get; }
     public ICommand DeepRefreshCommand { get; }
     public ICommand ToggleGroupExpandCommand { get; }
     public ICommand RefreshCommand { get; }
     public ICommand FetchAndRefreshCommand { get; }
 
-    public MainViewModel(IUiDispatcher ui, IUserDialogs dialogs)
+    public MainViewModel(IUiDispatcher ui, IUserDialogs dialogs, IClipboardService clipboard)
     {
         _ui = ui;
         _dialogs = dialogs;
+        _clipboard = clipboard;
         OpenInExplorerCommand = new RelayCommand<RepositoryNodeViewModel>(OpenInExplorer);
         OpenInForkCommand = new RelayCommand<RepositoryNodeViewModel>(OpenInFork);
+        CopyToClipboardCommand = new RelayCommand<RepositoryNodeViewModel>(CopyToClipboard);
         DeepRefreshCommand = new RelayCommand<RepositoryNodeViewModel>(DeepRefreshRepository);
         ToggleGroupExpandCommand = new RelayCommand<RepositoryNodeViewModel>(ToggleGroupExpand);
         RefreshCommand = new RelayCommand(async () => await RefreshAsync(background: false));
@@ -219,12 +223,12 @@ try
             }
     }
 
-    void OpenInFork(RepositoryNodeViewModel? node)
+   void OpenInFork(RepositoryNodeViewModel? node)
     {
         if (node == null || string.IsNullOrEmpty(node.WorkingDirectory))
             return;
 
-   if (!Directory.Exists(node.WorkingDirectory))
+        if (!Directory.Exists(node.WorkingDirectory))
         {
             _ui.Post(async () => await _dialogs.DisplayAlertAsync("Error", "Invalid repository path"));
             return;
@@ -240,7 +244,7 @@ try
                 "Fork", "Fork.exe");
         }
 
- if (!File.Exists(forkPath))
+        if (!File.Exists(forkPath))
         {
             _ui.Post(async () => await _dialogs.DisplayAlertAsync("Error", $"Fork not found at: {forkPath}\n\nPlease ensure Fork is installed."));
             return;
@@ -256,10 +260,19 @@ try
                 CreateNoWindow = false
             });
         }
-catch (Exception ex)
+        catch (Exception ex)
         {
             _ui.Post(async () => await _dialogs.DisplayAlertAsync("Error", $"Could not launch Fork: {ex.Message}"));
         }
+    }
+
+    void CopyToClipboard(RepositoryNodeViewModel? node)
+    {
+        if (node == null || string.IsNullOrEmpty(node.WorkingDirectory))
+            return;
+
+        _ = _clipboard.SetPlainTextAsync(node.WorkingDirectory)
+            .ContinueWith(_ => _ui.Post(async () => await _dialogs.DisplayAlertAsync("Copied", "Working directory path copied to clipboard", "OK")), TaskScheduler.Default);
     }
 
     void DeepRefreshRepository(RepositoryNodeViewModel? node)

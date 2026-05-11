@@ -14,7 +14,7 @@ public partial class MainPage : ContentPage
     public MainPage()
     {
         InitializeComponent();
-        _viewModel = new MainViewModel(new MauiUiDispatcher(), new MauiUserDialogs());
+        _viewModel = new MainViewModel(new MauiUiDispatcher(), new MauiUserDialogs(), new MauiClipboardService(new MauiUiDispatcher()));
         _viewModel.ScrollToRequest = node =>
         {
             RepositoryList.ScrollTo(node, position: ScrollToPosition.MakeVisible, animate: false);

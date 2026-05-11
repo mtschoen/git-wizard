@@ -10,8 +10,9 @@ public class MainViewModelTests
     {
         var dispatcher = new StubUiDispatcher();
         var dialogs = new StubUserDialogs();
+        var clipboard = new StubClipboardService();
 
-        var vm = new MainViewModel(dispatcher, dialogs);
+        var vm = new MainViewModel(dispatcher, dialogs, clipboard);
 
         Assert.That(vm, Is.Not.Null);
         Assert.That(vm.HeaderText, Is.EqualTo("GitWizard"));

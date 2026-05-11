@@ -14,7 +14,7 @@
 - Update MFT parser to also find `.git` files (not just directories) so worktrees with origins outside search paths are discovered
 - Include deleted and added files in uncommitted changes count
 - Show error log — exceptions are currently just logged to output
-- Implement the repo-row context menu (right-click on a repo row in the main list) with the following actions: "Open in Fork", "Open in Explorer", "Copy working directory to clipboard". Use Avalonia menu primitives. Bundles the four context-menu bullets that previously occupied L17/L18/L20/L21.
+- [x] Implement the repo-row context menu (right-click on a repo row in the main list) with the following actions: "Open in Fork", "Open in Explorer", "Copy working directory to clipboard". Use Avalonia menu primitives. Bundles the four context-menu bullets that previously occupied L17/L18/L20/L21.
 - ~~Move open in Fork button to context menu~~ (folded into L17)
 - Clean
 - ~~Open in Explorer~~ (folded into L17)

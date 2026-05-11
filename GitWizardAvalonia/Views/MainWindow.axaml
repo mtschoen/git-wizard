@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:GitWizardUI.ViewModels"
+        xmlns:controls="using:Avalonia.Controls"
         x:Class="GitWizardAvalonia.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="GitWizard"
@@ -52,6 +53,13 @@
         <ListBox.ItemTemplate>
           <DataTemplate x:DataType="vm:RepositoryNodeViewModel">
             <Grid ColumnDefinitions="20,*,Auto,Auto" Margin="5,5,20,5">
+              <Grid.ContextMenu>
+                <controls:ContextMenu DataContext="{Binding Path=., RelativeSource={RelativeSource AncestorType={x:Type Window}}}">
+                  <MenuItem Header="Open in Fork"     IsVisible="{Binding IsNotGroupHeader}"  Click="OnOpenInForkClick"       Tag="{Binding .}" />
+                  <MenuItem Header="Open in Explorer" Click="OnOpenInExplorerClick"            Tag="{Binding .}" />
+                  <MenuItem Header="Copy working directory to clipboard" Click="OnCopyToClipboardClick" Tag="{Binding .}" />
+                </controls:ContextMenu>
+              </Grid.ContextMenu>
               <TextBlock Grid.Column="0" Text="{Binding StatusIcon}"      Foreground="{Binding StatusColorHex}" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip.Tip="{Binding StatusTooltip}" IsVisible="{Binding IsStatusVisible}" />
               <TextBlock Grid.Column="0" Text="{Binding ExpandIndicator}" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding IsGroupHeader}" />
               <TextBlock Grid.Column="1" Text="{Binding DisplayText}" VerticalAlignment="Center" FontWeight="{Binding GroupHeaderFontWeight}" Padding="{Binding ItemPaddingString}" />

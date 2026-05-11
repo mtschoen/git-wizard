@@ -47,6 +47,7 @@
                 <Button x:Name="SortByWorkingDirectory" ToolTipProperties.Text="Path to working directory, alphabetically" Text="Working Directory" FontSize="12" Clicked="SortButton_Click" />
                 <Button x:Name="SortByRecentlyUsed" ToolTipProperties.Text="Time of the most recent commit" Text="Recently Used" FontSize="12" Clicked="SortButton_Click" />
                 <Button x:Name="SortByRemoteUrl" ToolTipProperties.Text="URL of first remote (usually origin)" Text="Remote URL" FontSize="12" Clicked="SortButton_Click" />
+                <Button x:Name="SortBySizeOnDisk" ToolTipProperties.Text="Size of repository on disk (largest first)" Text="Size On Disk" FontSize="12" Clicked="SortButton_Click" />
             </VerticalStackLayout>
         </ScrollView>
 

@@ -35,6 +35,7 @@
         <Button x:Name="SortByWorkingDirectory" ToolTip.Tip="Path to working directory, alphabetically" Content="Working Directory" FontSize="12" Click="SortButton_Click" HorizontalAlignment="Stretch" />
         <Button x:Name="SortByRecentlyUsed"     ToolTip.Tip="Time of the most recent commit"             Content="Recently Used"      FontSize="12" Click="SortButton_Click" HorizontalAlignment="Stretch" />
         <Button x:Name="SortByRemoteUrl"        ToolTip.Tip="URL of first remote (usually origin)"        Content="Remote URL"         FontSize="12" Click="SortButton_Click" HorizontalAlignment="Stretch" />
+        <Button x:Name="SortBySizeOnDisk"       ToolTip.Tip="Size of repository on disk (largest first)"  Content="Size On Disk"     FontSize="12" Click="SortButton_Click" HorizontalAlignment="Stretch" />
       </StackPanel>
     </ScrollViewer>
 

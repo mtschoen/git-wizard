@@ -25,6 +25,7 @@ public class GitWizardRepository
     public HashSet<string>? AuthorEmails { get; private set; }
     public List<GitWizardCommitInfo>? RecentCommits { get; private set; }
     public int? DaysSinceLastCommit { get; private set; }
+    public long SizeOnDisk { get; private set; }
 
     GitWizardRepository() { }
 
@@ -172,6 +173,16 @@ public class GitWizardRepository
             catch (Exception exception)
             {
                 GitWizardLog.LogException(exception, $"Exception collecting recent commits for {WorkingDirectory}");
+            }
+
+            // Compute size on disk
+            try
+            {
+                SizeOnDisk = ComputeDirectorySize(WorkingDirectory);
+            }
+            catch (Exception exception)
+            {
+                GitWizardLog.LogException(exception, $"Exception computing size for {WorkingDirectory}");
             }
 
             IsRefreshing = false;
@@ -461,5 +472,44 @@ public class GitWizardRepository
         {
             GitWizardLog.LogException(exception, "Exception refreshing index via git CLI");
         }
+    }
+
+    /// <summary>
+    /// Computes the total disk size of all files under <paramref name="path"/> recursively.
+    /// </summary>
+    /// <remarks>
+    /// <para>Callers always pass a validated <see cref="WorkingDirectory"/>, so the path is
+    /// guaranteed to be non-null/empty and exist at the time of the call. The check above
+    /// the caller is already defensive enough — no need to duplicate it here.</para>
+    /// <para>This enumerates ALL files recursively including <c>.git/</c> objects, LFS storage,
+    /// build output, etc. For repos with large git object stores the first full scan may
+    /// take a long time. The existing <see cref="RefreshStatus"/> timeout covers this.</para>
+    /// </remarks>
+    static long ComputeDirectorySize(string path)
+    {
+        long totalSize = 0;
+        try
+        {
+            foreach (var file in new DirectoryInfo(path).EnumerateFiles("*", SearchOption.AllDirectories))
+            {
+                totalSize += file.Length;
+            }
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Some directories may not be accessible (e.g., $Recycle.Bin, System Volume Information)
+        }
+        catch (IOException)
+        {
+            // Handle potential I/O errors on corrupted or networked filesystems
+        }
+        catch (Exception exception)
+        {
+            // Catch-all for unexpected exceptions (PathTooLongException, ArgumentException,
+            // etc.) — log and return partial result rather than crashing the refresh.
+            GitWizardLog.LogException(exception, $"Exception enumerating files for {path}");
+        }
+
+        return totalSize;
     }
 }

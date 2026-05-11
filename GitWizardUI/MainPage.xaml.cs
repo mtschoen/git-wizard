@@ -134,6 +134,7 @@ public partial class MainPage : ContentPage
         SortByWorkingDirectory.FontAttributes = FontAttributes.None;
         SortByRecentlyUsed.FontAttributes = FontAttributes.None;
         SortByRemoteUrl.FontAttributes = FontAttributes.None;
+        SortBySizeOnDisk.FontAttributes = FontAttributes.None;
         button.FontAttributes = FontAttributes.Bold;
 
         _viewModel.SetSortMode(mode);
@@ -143,6 +144,7 @@ public partial class MainPage : ContentPage
     {
         if (button == SortByRecentlyUsed) return SortMode.RecentlyUsed;
         if (button == SortByRemoteUrl) return SortMode.RemoteUrl;
+        if (button == SortBySizeOnDisk) return SortMode.SizeOnDisk;
         return SortMode.WorkingDirectory;
     }
 

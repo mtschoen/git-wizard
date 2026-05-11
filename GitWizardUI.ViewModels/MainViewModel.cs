@@ -436,6 +436,7 @@ catch (Exception ex)
             "SortByWorkingDirectory" => SortMode.WorkingDirectory,
             "SortByRecentlyUsed" => SortMode.RecentlyUsed,
             "SortByRemoteUrl" => SortMode.RemoteUrl,
+            "SortBySizeOnDisk" => SortMode.SizeOnDisk,
             _ => SortMode.WorkingDirectory,
         };
         ApplyFilterAndGrouping();
@@ -512,6 +513,9 @@ catch (Exception ex)
                 .OrderBy(r => r.Repository.RemoteUrls.Count > 0
                     ? NormalizeRemoteUrl(r.Repository.RemoteUrls[0])
                     : "\uffff") // sort no-remote to end
+                .ToList(),
+            SortMode.SizeOnDisk => repos
+                .OrderByDescending(r => r.Repository.SizeOnDisk)
                 .ToList(),
             _ => repos // WorkingDirectory — already in insertion order (alphabetical from SortedDictionary)
         };

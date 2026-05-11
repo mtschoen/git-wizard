@@ -261,7 +261,8 @@ public enum SortMode
 {
     WorkingDirectory,
     RecentlyUsed,
-    RemoteUrl
+    RemoteUrl,
+    SizeOnDisk
 }
 
 public enum FilterType

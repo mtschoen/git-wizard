@@ -49,17 +49,50 @@ class UpdateHandler : IUpdateHandler
 
     int _progressTotal;
     string? _progressDescription;
+    int _progressCount;
+    readonly object _progressLock = new();
 
     public void StartProgress(string description, int total)
     {
-        _progressDescription = description;
-        _progressTotal = total;
-        GitWizardLog.Log($"{description} (0/{total})");
+        lock (_progressLock)
+        {
+            _progressDescription = description;
+            _progressTotal = total;
+            _progressCount = 0;
+            PrintProgress(0, total, 0);
+        }
     }
 
     public void UpdateProgress(int count)
     {
-        GitWizardLog.Log($"{_progressDescription} ({count}/{_progressTotal})");
+        lock (_progressLock)
+        {
+            PrintProgress(count, _progressTotal, _progressCount);
+            _progressCount = count;
+        }
+    }
+
+    void PrintProgress(int count, int total, int previousCount)
+    {
+        if (total <= 0)
+            return;
+
+        double fraction = (double)count / total;
+        int barWidth = 20;
+        int filled = (int)Math.Round(fraction * barWidth);
+        if (filled > barWidth) filled = barWidth;
+        if (filled < 0) filled = 0;
+
+        var bar = new string('█', filled) + new string('░', barWidth - filled);
+        int percent = (int)Math.Round(fraction * 100);
+        string progressLine = $"\r  [{bar}] {percent,3}%  {_progressDescription}  {count}/{total}  ";
+        Console.Write(progressLine);
+
+        // Print a newline when progress reaches 100%
+        if (count >= total)
+        {
+            Console.WriteLine();
+        }
     }
 
     public void OnSubmoduleCreated(GitWizardRepository parent, GitWizardRepository submodule)
@@ -210,6 +243,7 @@ class UpdateHandler : IUpdateHandler
 
     public void PrintSummary()
     {
+        Console.WriteLine();
         Console.WriteLine($"\n=== Command Processing Summary ===");
         Console.WriteLine($"Total repositories created: {_totalCreated}");
         Console.WriteLine($"Total refresh completed: {_totalCompleted}");

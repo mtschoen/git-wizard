@@ -439,4 +439,50 @@ public static class GitWizardApi
         var path = GetCachedRepositoryListPath();
         File.WriteAllText(path, string.Join(Environment.NewLine, paths));
     }
+
+    /// <summary>
+    /// Get the total size in bytes of the GitWizard local files folder (~/.GitWizard/).
+    /// Returns 0 if the folder does not exist. Includes hidden and system files.
+    /// </summary>
+    public static long GetLocalFilesSize()
+    {
+        var path = GetLocalFilesPath();
+        if (!Directory.Exists(path))
+            return 0;
+
+        return GetDirectorySize(path);
+    }
+
+    /// <summary>
+    /// Recursively calculate total size of all files in <paramref name="path"/>.
+    /// Includes hidden and system files. Skips directories/files that cause access or I/O errors.
+    /// </summary>
+    private static long GetDirectorySize(string path)
+    {
+        long totalSize = 0;
+
+        try
+        {
+            var dirInfo = new DirectoryInfo(path);
+            foreach (var file in dirInfo.GetFiles())
+            {
+                totalSize += file.Length;
+            }
+
+            foreach (var subDir in dirInfo.GetDirectories())
+            {
+                totalSize += GetDirectorySize(subDir.FullName);
+            }
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Directory or file access denied — skip it and continue counting
+        }
+        catch (IOException)
+        {
+            // I/O error reading directory — skip it and continue counting
+        }
+
+        return totalSize;
+    }
 }

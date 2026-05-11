@@ -66,6 +66,12 @@ public partial class MainWindow : Window
             _viewModel.DeepRefreshCommand?.Execute(node);
     }
 
+    void CheckoutMatchingBranchButton_Click(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Button)?.Tag is RepositoryNodeViewModel node)
+            _viewModel.CheckoutMatchingBranchCommand?.Execute(node);
+    }
+
     void CleanDownstreamButton_Click(object? sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is RepositoryNodeViewModel node)

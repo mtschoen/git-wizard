@@ -175,6 +175,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
     public ICommand OpenInForkCommand { get; }
     public ICommand CopyToClipboardCommand { get; }
     public ICommand DeepRefreshCommand { get; }
+    public ICommand CheckoutMatchingBranchCommand { get; }
     public ICommand ToggleGroupExpandCommand { get; }
     public ICommand RefreshCommand { get; }
     public ICommand FetchAndRefreshCommand { get; }
@@ -189,6 +190,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         OpenInForkCommand = new RelayCommand<RepositoryNodeViewModel>(OpenInFork);
         CopyToClipboardCommand = new RelayCommand<RepositoryNodeViewModel>(CopyToClipboard);
         DeepRefreshCommand = new RelayCommand<RepositoryNodeViewModel>(DeepRefreshRepository);
+        CheckoutMatchingBranchCommand = new RelayCommand<RepositoryNodeViewModel>(CheckoutMatchingBranch);
         ToggleGroupExpandCommand = new RelayCommand<RepositoryNodeViewModel>(ToggleGroupExpand);
         RefreshCommand = new RelayCommand(async () => await RefreshAsync(background: false));
         FetchAndRefreshCommand = new RelayCommand(async () => await RefreshAsync(background: false, fetchRemotes: true));
@@ -289,6 +291,28 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
             node.Repository.Refresh(this, fetchRemotes: true, deepRefresh: true);
             stopwatch.Stop();
             node.Repository.RefreshTimeSeconds = Math.Round(stopwatch.Elapsed.TotalSeconds, 1);
+        });
+    }
+
+    void CheckoutMatchingBranch(RepositoryNodeViewModel? node)
+    {
+        if (node == null || node.IsGroupHeader)
+            return;
+
+        if (string.IsNullOrEmpty(node.MatchingBranchName))
+            return;
+
+        Task.Run(() =>
+        {
+            try
+            {
+                node.Repository.CheckoutBranch(node.MatchingBranchName!);
+                _ui.Post(() => node.Update());
+            }
+            catch (Exception ex)
+            {
+                _ui.Post(async () => await _dialogs.DisplayAlertAsync("Checkout Failed", $"Could not check out branch '{node.MatchingBranchName}': {ex.Message}"));
+            }
         });
     }
 

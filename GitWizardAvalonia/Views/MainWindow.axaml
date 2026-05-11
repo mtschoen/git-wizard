@@ -53,7 +53,7 @@
       <ListBox Grid.Row="3" ItemsSource="{Binding Repositories}">
         <ListBox.ItemTemplate>
           <DataTemplate x:DataType="vm:RepositoryNodeViewModel">
-            <Grid ColumnDefinitions="20,*,Auto,Auto,Auto" Margin="5,5,20,5">
+            <Grid ColumnDefinitions="20,*,Auto,Auto,Auto,Auto" Margin="5,5,20,5">
               <Grid.ContextMenu>
                 <controls:ContextMenu DataContext="{Binding Path=., RelativeSource={RelativeSource AncestorType={x:Type Window}}}">
                   <MenuItem Header="Open in Fork"     IsVisible="{Binding IsNotGroupHeader}"  Click="OnOpenInForkClick"       Tag="{Binding .}" />
@@ -66,7 +66,8 @@
               <TextBlock Grid.Column="1" Text="{Binding DisplayText}" VerticalAlignment="Center" FontWeight="{Binding GroupHeaderFontWeight}" Padding="{Binding ItemPaddingString}" />
               <Button   Grid.Column="2" Content="Fork" FontSize="12" Padding="8,4" VerticalAlignment="Center" IsVisible="{Binding IsNotGroupHeader}" Click="ForkButton_Click" Tag="{Binding}" />
               <Button   Grid.Column="3" Content="&#x21bb;" FontSize="12" Padding="8,4" VerticalAlignment="Center" IsVisible="{Binding IsNotGroupHeader}" Click="DeepRefreshButton_Click" Tag="{Binding}" ToolTip.Tip="Deep refresh: fetch remotes and update index (may be slow)" />
-              <Button   Grid.Column="4" Content="Clean" FontSize="12" Padding="8,4" VerticalAlignment="Center" IsVisible="{Binding IsNotGroupHeader}" Click="CleanDownstreamButton_Click" Tag="{Binding}" ToolTip.Tip="Delete local branches that are merged into main/master" />
+              <Button   Grid.Column="4" Content="↪" FontSize="12" Padding="8,4" VerticalAlignment="Center" IsVisible="{Binding HasMatchingBranch}" Click="CheckoutMatchingBranchButton_Click" Tag="{Binding}" ToolTip.Tip="Check out branch whose tip matches the detached HEAD" />
+              <Button   Grid.Column="5" Content="Clean" FontSize="12" Padding="8,4" VerticalAlignment="Center" IsVisible="{Binding IsNotGroupHeader}" Click="CleanDownstreamButton_Click" Tag="{Binding}" ToolTip.Tip="Delete local branches that are merged into main/master" />
             </Grid>
           </DataTemplate>
         </ListBox.ItemTemplate>

@@ -76,6 +76,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <FlyoutBase.ContextFlyout>
                                 <MenuFlyout>
@@ -124,14 +125,23 @@ FontAttributes="{Binding GroupHeaderFontWeight}"
                                     VerticalOptions="Center"
                                     IsVisible="{Binding IsNotGroupHeader}" />
                             <Button Grid.Column="3"
-                                    Text="&#x21bb;"
-                                    ToolTipProperties.Text="Deep refresh: fetch remotes and update index (may be slow)"
-                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.DeepRefreshCommand}"
+                                     Text="&#x21bb;"
+                                     ToolTipProperties.Text="Deep refresh: fetch remotes and update index (may be slow)"
+                                     Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.DeepRefreshCommand}"
+                                     CommandParameter="{Binding .}"
+                                     FontSize="12"
+                                     Padding="8,4"
+                                     VerticalOptions="Center"
+                                     IsVisible="{Binding IsNotGroupHeader}" />
+                            <Button Grid.Column="4"
+                                    Text="↪"
+                                    ToolTipProperties.Text="Check out branch whose tip matches the detached HEAD"
+                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.CheckoutMatchingBranchCommand}"
                                     CommandParameter="{Binding .}"
                                     FontSize="12"
                                     Padding="8,4"
                                     VerticalOptions="Center"
-                                    IsVisible="{Binding IsNotGroupHeader}" />
+                                    IsVisible="{Binding HasMatchingBranch}" />
                         </Grid>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>

@@ -1,4 +1,5 @@
 ﻿using LibGit2Sharp;
+using System;
 using System.Runtime.InteropServices;
 
 namespace GitWizard;
@@ -25,6 +26,7 @@ public class GitWizardRepository
     public HashSet<string>? AuthorEmails { get; private set; }
     public List<GitWizardCommitInfo>? RecentCommits { get; private set; }
     public int? DaysSinceLastCommit { get; private set; }
+    public string? MatchingBranchName { get; private set; }
     public List<DownstreamBranchInfo>? DownstreamBranches { get; set; }
     public long SizeOnDisk { get; private set; }
 
@@ -61,6 +63,8 @@ public class GitWizardRepository
 
             CurrentBranch = repository.Head.FriendlyName;
             IsDetachedHead = repository.Head.Reference is not SymbolicReference;
+            if (IsDetachedHead)
+                FindMatchingBranch(repository);
             LastCommitDate = repository.Head.Tip?.Author.When;
             if (LastCommitDate.HasValue)
                 DaysSinceLastCommit = (int)(DateTimeOffset.Now - LastCommitDate.Value).TotalDays;
@@ -436,6 +440,49 @@ public class GitWizardRepository
         {
             GitWizardLog.LogException(exception, $"Exception fetching remotes for {workingDirectory}");
         }
+    }
+
+    void FindMatchingBranch(Repository repository)
+    {
+        try
+        {
+            var detachedTip = repository.Head.Tip;
+            if (detachedTip == null)
+                return;
+
+            foreach (var branch in repository.Branches)
+            {
+                if (branch.IsRemote)
+                    continue;
+
+                try
+                {
+                    if (branch.Tip != null && branch.Tip.Sha == detachedTip.Sha)
+                    {
+                        MatchingBranchName = branch.FriendlyName;
+                        return;
+                    }
+                }
+                catch (Exception exception)
+                {
+                    GitWizardLog.LogException(exception, $"Exception checking branch {branch.FriendlyName} for matching detached HEAD in {WorkingDirectory}");
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, $"Exception finding matching branch for detached HEAD in {WorkingDirectory}");
+        }
+    }
+
+    public void CheckoutBranch(string branchName)
+    {
+        if (string.IsNullOrEmpty(WorkingDirectory))
+            throw new InvalidOperationException($"Cannot checkout branch '{branchName}': working directory is not initialized");
+
+        using var repository = new Repository(WorkingDirectory);
+        var branch = repository.Branches[branchName];
+        Commands.Checkout(repository, branch.Tip);
     }
 
     List<DownstreamBranchInfo> DetectDownstreamBranches(Repository repository)

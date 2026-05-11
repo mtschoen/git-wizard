@@ -103,6 +103,10 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
 
     public string WorkingDirectory => Repository.WorkingDirectory ?? "Unknown";
 
+    public string? MatchingBranchName => Repository.MatchingBranchName;
+
+    public bool HasMatchingBranch => !string.IsNullOrEmpty(MatchingBranchName) && Repository.IsDetachedHead;
+
     public RepositoryNodeViewModel(GitWizardRepository repository)
     {
         Repository = repository;
@@ -172,6 +176,11 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
             label += $" ({daysSinceLastCommit}d)";
         }
 
+        if (Repository.IsDetachedHead && HasMatchingBranch)
+        {
+            label += $" ({MatchingBranchName})";
+        }
+
         if (Repository.DownstreamBranches != null && Repository.DownstreamBranches.Count > 0)
         {
             var count = Repository.DownstreamBranches.Count;
@@ -179,6 +188,15 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
         }
 
         DisplayText = label;
+    }
+
+    public void CheckoutMatchingBranch()
+    {
+        if (string.IsNullOrEmpty(MatchingBranchName))
+            return;
+
+        Repository.CheckoutBranch(MatchingBranchName);
+        Update();
     }
 
     public bool MatchesFilter(FilterType filter, string? userEmail = null)

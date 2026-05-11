@@ -73,7 +73,7 @@ public class GitWizardRepositoryTests
         Assert.That(repository.NumberOfPendingChanges, Is.GreaterThan(0));
     }
 
-    [Test]
+   [Test]
     public void Refresh_CountsLocalCommitsOnUntrackedBranch()
     {
         // Regression: LocalOnlyCommits used to be a bare bool. Consumers need
@@ -88,6 +88,67 @@ public class GitWizardRepositoryTests
 
         Assert.That(repository.LocalOnlyCommits, Is.True);
         Assert.That(repository.LocalCommitCount, Is.EqualTo(3));
+    }
+
+    [Test]
+    public void Refresh_FindsMatchingBranchWhenDetachedAtLocalBranchTip()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AppendCommit("second.txt");
+
+        // Detach HEAD at the current tip; capture the default branch name to
+        // assert against (varies by git's init.defaultBranch: "master" or "main").
+        string defaultBranchName;
+        using (var repo = new Repository(fixture.Path))
+        {
+            defaultBranchName = repo.Head.FriendlyName;
+            var tip = repo.Head.Tip!;
+            Commands.Checkout(repo, tip.Sha);
+        }
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        Assert.That(repository.IsDetachedHead, Is.True);
+        Assert.That(repository.MatchingBranchName, Is.EqualTo(defaultBranchName));
+    }
+
+    [Test]
+    public void Refresh_MatchingBranchNameIsNullWhenNotDetached()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        Assert.That(repository.IsDetachedHead, Is.False);
+        Assert.That(repository.MatchingBranchName, Is.Null.Or.Empty);
+    }
+
+    [Test]
+    public void Refresh_MatchingBranchNameIsNullWhenNoLocalBranchAtTip()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AppendCommit("second.txt");
+
+        // Detach HEAD at a commit that is not the tip of any local branch.
+        // Remove whichever default branch git init produced ("master" or "main").
+        using (var repo = new Repository(fixture.Path))
+        {
+            var defaultBranchName = repo.Head.FriendlyName;
+            var tip = repo.Head.Tip!;
+            Commands.Checkout(repo, tip.Sha);
+            repo.Branches.Remove(defaultBranchName);
+        }
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        Assert.That(repository.IsDetachedHead, Is.True);
+        Assert.That(repository.MatchingBranchName, Is.Null.Or.Empty);
     }
 
     [Test]

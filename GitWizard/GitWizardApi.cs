@@ -41,17 +41,33 @@ public static class GitWizardApi
     /// </summary>
     public static string? ExpandSearchPath(string rootPath)
     {
-        var expandedPath = Environment.ExpandEnvironmentVariables(rootPath);
-        if (!string.IsNullOrEmpty(expandedPath))
-            rootPath = expandedPath;
+        rootPath = Environment.ExpandEnvironmentVariables(rootPath);
 
-        if (rootPath == "~")
-            rootPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (rootPath.StartsWith("~/"))
+            rootPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + rootPath.Substring(1);
 
         if (!Directory.Exists(rootPath))
             return null;
 
         return NormalizePath(rootPath);
+    }
+
+    /// <summary>
+    /// Expand environment variables and ~ in a path for display purposes only.
+    /// Unlike ExpandSearchPath, this does NOT validate that the directory exists.
+    /// </summary>
+    public static string PrettyPrintPath(string path)
+    {
+        path = Environment.ExpandEnvironmentVariables(path);
+
+        if (path.StartsWith("~/") || path.StartsWith("~\\"))
+        {
+            path = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                path.Substring(2));
+        }
+
+        return path;
     }
 
     static StringComparison PathComparison =>

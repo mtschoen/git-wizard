@@ -1,21 +1,38 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:GitWizardUI.ViewModels"
+        xmlns:converters="using:GitWizardAvalonia.Converters"
+        xmlns:sys="using:System"
         x:Class="GitWizardAvalonia.Views.SettingsWindow"
         x:DataType="vm:SettingsViewModel"
         Title="Settings"
         Width="600" Height="500"
         WindowStartupLocation="CenterOwner">
+  <Window.Resources>
+    <converters:PathPrettyPrintConverter x:Key="PathPrettyPrintConverter" />
+  </Window.Resources>
   <Grid RowDefinitions="Auto,*,Auto,Auto,*,Auto,Auto,Auto,*,Auto" Margin="10">
     <TextBlock Grid.Row="0" Text="Search Paths" FontSize="16" FontWeight="Bold" Margin="0,0,0,5" />
-    <ListBox Grid.Row="1" ItemsSource="{Binding SearchPaths}" SelectedItem="{Binding SelectedSearchPath, Mode=TwoWay}" />
+    <ListBox Grid.Row="1" ItemsSource="{Binding SearchPaths}" SelectedItem="{Binding SelectedSearchPath, Mode=TwoWay}">
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="sys:String">
+          <TextBlock Text="{Binding Converter={StaticResource PathPrettyPrintConverter}}" />
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
     <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="5" Margin="0,5">
       <Button Content="Add..." Click="AddSearchPath_Click" />
       <Button Content="Remove" Click="RemoveSearchPath_Click" />
     </StackPanel>
 
     <TextBlock Grid.Row="3" Text="Ignored Paths" FontSize="16" FontWeight="Bold" Margin="0,15,0,5" />
-    <ListBox Grid.Row="4" ItemsSource="{Binding IgnoredPaths}" SelectedItem="{Binding SelectedIgnoredPath, Mode=TwoWay}" />
+    <ListBox Grid.Row="4" ItemsSource="{Binding IgnoredPaths}" SelectedItem="{Binding SelectedIgnoredPath, Mode=TwoWay}">
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="sys:String">
+          <TextBlock Text="{Binding Converter={StaticResource PathPrettyPrintConverter}}" />
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
     <StackPanel Grid.Row="5" Orientation="Horizontal" Spacing="5" Margin="0,5">
       <Button Content="Add..." Click="AddIgnoredPath_Click" />
       <Button Content="Remove" Click="RemoveIgnoredPath_Click" />

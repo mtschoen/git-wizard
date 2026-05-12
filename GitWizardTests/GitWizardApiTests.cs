@@ -47,6 +47,68 @@ public class GitWizardApiTests
     }
 
     [Test]
+    public void PrettyPrintPath_ExpandsEnvironmentVariables()
+    {
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        Environment.SetEnvironmentVariable("HOME", home);
+        try
+        {
+            var result = GitWizardApi.PrettyPrintPath("%HOME%");
+            Assert.That(result, Is.EqualTo(home));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("HOME", null);
+        }
+    }
+
+    [Test]
+    public void PrettyPrintPath_ExpandsTildePrefix()
+    {
+        var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var result = GitWizardApi.PrettyPrintPath("~/Documents");
+        Assert.That(result, Is.EqualTo(Path.Combine(profile, "Documents")));
+    }
+
+    [Test]
+    public void PrettyPrintPath_PassesThroughStandaloneTilde()
+    {
+        var result = GitWizardApi.PrettyPrintPath("~");
+        Assert.That(result, Is.EqualTo("~"));
+    }
+
+    [Test]
+    public void PrettyPrintPath_PassesThroughPathWithoutEnvVars()
+    {
+        var path = "/some/fixed/path";
+        var result = GitWizardApi.PrettyPrintPath(path);
+        Assert.That(result, Is.EqualTo(path));
+    }
+
+    [Test]
+    public void PrettyPrintPath_ExpandsInMixedPath()
+    {
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        Environment.SetEnvironmentVariable("HOME", home);
+        try
+        {
+            var result = GitWizardApi.PrettyPrintPath("%HOME%/some/subdir");
+            Assert.That(result, Is.EqualTo(home + "/some/subdir"));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("HOME", null);
+        }
+    }
+
+    [Test]
+    public void PrettyPrintPath_DoesNotRequireDirectoryToExist()
+    {
+        var result = GitWizardApi.PrettyPrintPath("%HOME%");
+        Assert.That(result, Is.Not.Null);
+    }
+
+    [Test]
     public void GetRepositoryPaths_DoesNotTreatSharedPrefixAsIgnoredParent()
     {
         var root = Path.Combine(_tempRoot!, "root");

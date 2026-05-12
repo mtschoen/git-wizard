@@ -79,22 +79,27 @@ VS2026 is installed at `C:/Program Files/Microsoft Visual Studio/18/Community/` 
 
 ## Screenshots
 
-The UI test project captures screenshots automatically:
+### CI (recommended for release prep)
+
+Trigger the Gitea Actions workflow manually from the Actions tab or via API:
 
 ```bash
-# Capture a screenshot (builds, launches app, captures window, kills app)
-dotnet test GitWizardUI.UITests/GitWizardUI.UITests.csproj --filter "FullyQualifiedName~CaptureMainWindowScreenshot"
+curl -fsSL -X POST -H "Authorization: token $(cat ~/.gitea-token)" \
+    -H "Content-Type: application/json" \
+    -d '{"ref":"main"}' \
+    "https://gitea.llamabox.internal/api/v1/repos/schoen/git-wizard/actions/workflows/screenshot.yml/dispatches"
 ```
 
-Screenshots are saved to `Screenshots/GitWizardUI.png`. The test uses Win32 `PrintWindow` API for accurate capture including DPI scaling.
+The workflow runs on `windows-latest`, captures the screenshot using Avalonia headless rendering, and uploads `GitWizardAvalonia.png` as a workflow artifact. Download the artifact and commit it to `Screenshots/`.
 
 ## Release checklist
 
 1. Update `ApplicationDisplayVersion` and `PackageVersion` in `GitWizardUI/GitWizardUI.csproj`
 2. Update version in CLI help text in `git-wizard/Program.cs`
-3. Update screenshot: `dotnet test GitWizardUI.UITests/...` (see above)
-4. Commit, then `git tag v0.x.y && git push origin main --tags`
-5. CI builds and publishes the release with all artifacts attached. Watch `https://gitea.llamabox.internal/schoen/git-wizard/actions`. The release workflow's first step asserts the tag matches `ApplicationDisplayVersion` and fails fast on drift.
+3. Update screenshot: trigger CI workflow (see above) or run locally
+4. Commit version bump, screenshot, and all pending changes
+5. `git tag v0.x.y && git push origin main --tags`
+6. CI builds and publishes the release with all artifacts attached. Watch `https://gitea.llamabox.internal/schoen/git-wizard/actions`. The release workflow's first step asserts the tag matches `ApplicationDisplayVersion` and fails fast on drift.
 
 The release attaches: `git-wizard-{ver}-{rid}.zip` and `GitWizardAvalonia-{ver}-{rid}.zip` for `rid in {win-x64, linux-x64, osx-x64}`, plus `GitWizardUI-{ver}.zip` (MAUI Windows). See `.gitea/workflows/release.yml` and `docs/superpowers/specs/2026-04-28-gitea-ci-design.md`.
 

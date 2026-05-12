@@ -1,0 +1,39 @@
+name: Screenshot
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  screenshot:
+    name: Capture Avalonia screenshot
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore git-wizard.slnx
+
+      - name: Build GitWizardAvalonia
+        run: dotnet build GitWizardAvalonia/GitWizardAvalonia.csproj -c Debug --no-restore
+
+      - name: Capture screenshot (Avalonia headless)
+        run: |
+          dotnet restore GitWizardAvalonia.Screenshot/GitWizardAvalonia.Screenshot.csproj
+          dotnet run --project GitWizardAvalonia.Screenshot/GitWizardAvalonia.Screenshot.csproj -c Debug --no-restore
+
+      - name: Upload screenshot artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: GitWizardAvalonia-screenshot
+          path: Screenshots/GitWizardAvalonia.png
+          retention-days: 30

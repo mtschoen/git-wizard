@@ -12,6 +12,7 @@ public partial class SettingsWindow : Window
     public SettingsWindow()
     {
         InitializeComponent();
+        Icon = IconLoader.Load();
         _viewModel = new SettingsViewModel(new AvaloniaFolderPicker());
         DataContext = _viewModel;
     }

@@ -14,6 +14,7 @@ public partial class MainWindow : Window
  public MainWindow()
     {
         InitializeComponent();
+        Icon = IconLoader.Load();
         var clipboard = new AvaloniaClipboardService(this);
         _viewModel = new MainViewModel(new AvaloniaUiDispatcher(), new AvaloniaUserDialogs(), clipboard);
         DataContext = _viewModel;

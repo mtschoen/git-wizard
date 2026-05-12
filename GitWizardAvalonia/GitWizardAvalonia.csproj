@@ -18,6 +18,9 @@
     <PackageReference Include="Tmds.DBus.Protocol" Version="0.92.0" />
   </ItemGroup>
   <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\GitWizard\GitWizard.csproj" />
     <ProjectReference Include="..\GitWizardUI.ViewModels\GitWizardUI.ViewModels.csproj" />
   </ItemGroup>

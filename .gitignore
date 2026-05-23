@@ -357,4 +357,5 @@ MigrationBackup/
 .idea
 
 # Claude Code configuration
-.claude/
+.claude/*
+!.claude/settings.json

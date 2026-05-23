@@ -6,7 +6,7 @@ Multi-project solution for scanning and reporting on git repositories.
 
 - **GitWizard/** — Core class library (cross-platform: Windows, macOS, Linux)
 - **git-wizard/** — CLI tool
-- **GitWizardUI/** — .NET MAUI desktop app (Windows, macOS, Android)
+- **GitWizardUI/** — .NET MAUI desktop app (Windows + macCatalyst)
 
 ## Build
 

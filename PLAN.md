@@ -83,5 +83,5 @@ GitWizard would let projdash skip subprocess git entirely.
 
 ## Infrastructure
 
-- [x] **Gitea Actions CI** — `.gitea/workflows/ci.yml` runs `test-linux` (build + 20 NUnit tests) and `test-windows` (full solution build + tests) on push to `main` and PRs targeting `main`. `.gitea/workflows/release.yml` builds CLI + Avalonia for `win-x64`/`linux-x64`/`osx-x64`, builds the MAUI Windows zip, and creates a Gitea release with all 7 assets attached on `v*` tag pushes. See `CLAUDE.md` § CI infrastructure for runner/bot/branch-protection setup.
+- [x] **Gitea Actions CI** — `.gitea/workflows/ci.yml` runs `test-linux` (build + full NUnit suite with coverage, gated at 33% line via `ci/post-coverage-status.py`) and `test-windows` (full solution build + tests) on push to `main` and PRs targeting `main`. `.gitea/workflows/release.yml` builds CLI + Avalonia for `win-x64`/`linux-x64`/`osx-x64`, builds the MAUI Windows zip, and creates a Gitea release with all 7 assets attached on `v*` tag pushes. See `CLAUDE.md` § CI infrastructure for runner/bot/branch-protection setup.
 - [ ] **Trust llamabox cert on the Windows runner** — currently the MAUI publish and test-results upload use `NODE_TLS_REJECT_UNAUTHORIZED=0` to work around Node.js not trusting the self-signed Caddy cert. Install the cert into the runner's Node/system trust store and remove the env override.

@@ -321,7 +321,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         if (node == null || node.IsGroupHeader)
             return;
 
-        var downstream = node.Repository.DownstreamBranches;
+        var downstream = node.Repository.Branches?.Where(b => b.IsMerged).ToList();
         if (downstream == null || downstream.Count == 0)
             return;
 
@@ -396,15 +396,14 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
             if (success)
             {
                 var deletedCount = downstream.Count;
-                downstream.Clear();
-                node.Repository.DownstreamBranches = null;
+                node.Repository.Branches?.RemoveAll(b => b.IsMerged);
                 node.UpdateDisplayText();
                 await _dialogs.DisplayAlertAsync("Done", $"Deleted {deletedCount} branch(es)");
             }
             else if (failed.Count > 0)
             {
-                // Remove successfully deleted branches from downstream so UI doesn't show stale data
-                downstream.RemoveAll(b => !failed.Contains(b.Name));
+                // Remove successfully deleted branches from Branches so UI doesn't show stale data
+                node.Repository.Branches?.RemoveAll(b => b.IsMerged && !failed.Contains(b.Name));
                 var failedList = string.Join(", ", failed);
                 await _dialogs.DisplayAlertAsync(
                     "Partial Success",

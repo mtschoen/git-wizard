@@ -181,10 +181,10 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
             label += $" ({MatchingBranchName})";
         }
 
-        if (Repository.DownstreamBranches != null && Repository.DownstreamBranches.Count > 0)
+        var mergedCount = Repository.Branches?.Count(b => b.IsMerged) ?? 0;
+        if (mergedCount > 0)
         {
-            var count = Repository.DownstreamBranches.Count;
-            label += $" [{count} branch{(count > 1 ? "es" : "")}]";
+            label += $" [{mergedCount} branch{(mergedCount > 1 ? "es" : "")}]";
         }
 
         DisplayText = label;
@@ -261,9 +261,7 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
 
     bool HasDownstreamBranches()
     {
-        if (Repository.DownstreamBranches == null || Repository.DownstreamBranches.Count == 0)
-            return false;
-        return true;
+        return Repository.Branches?.Any(b => b.IsMerged) == true;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

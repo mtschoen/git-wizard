@@ -27,7 +27,8 @@ public class GitWizardRepository
     public List<GitWizardCommitInfo>? RecentCommits { get; private set; }
     public int? DaysSinceLastCommit { get; private set; }
     public string? MatchingBranchName { get; private set; }
-    public List<DownstreamBranchInfo>? DownstreamBranches { get; set; }
+    public string? DefaultBranch { get; private set; }
+    public List<BranchInfo>? Branches { get; set; }
     public long SizeOnDisk { get; private set; }
 
     GitWizardRepository() { }
@@ -38,7 +39,7 @@ public class GitWizardRepository
     }
 
     public void Refresh(IUpdateHandler? updateHandler = null, bool fetchRemotes = false,
-        bool deepRefresh = false)
+        bool deepRefresh = false, bool allBranches = false)
     {
         if (string.IsNullOrEmpty(WorkingDirectory) || !Directory.Exists(WorkingDirectory))
         {
@@ -146,16 +147,14 @@ public class GitWizardRepository
                 }
             }
 
-            // Detect downstream branches (local branches merged into main/master/current branch)
+            // Collect per-branch divergence from the default branch.
             try
             {
-                var downstream = DetectDownstreamBranches(repository);
-                if (downstream.Count > 0)
-                    DownstreamBranches = downstream;
+                CollectBranches(repository, allBranches);
             }
             catch (Exception exception)
             {
-                GitWizardLog.LogException(exception, $"Exception detecting downstream branches for {WorkingDirectory}");
+                GitWizardLog.LogException(exception, $"Exception collecting branches for {WorkingDirectory}");
             }
 
             // Cache author emails for "My Repositories" filter
@@ -475,6 +474,81 @@ public class GitWizardRepository
         }
     }
 
+    /// <summary>
+    /// Resolve the branch to compare others against: main, then master, then
+    /// develop (first local that exists), falling back to the current branch
+    /// when HEAD is not detached. Returns null only for a detached HEAD with no
+    /// main/master/develop.
+    /// </summary>
+    static Branch? ResolveDefaultBranch(Repository repository)
+    {
+        foreach (var name in new[] { "main", "master", "develop" })
+        {
+            var candidate = repository.Branches[name];
+            if (candidate is { IsRemote: false })
+                return candidate;
+        }
+
+        if (repository.Head.Reference is SymbolicReference)
+            return repository.Head;
+
+        return null;
+    }
+
+    /// <summary>
+    /// Populate <see cref="Branches"/> with local branches' divergence from the
+    /// default branch. Default population is "actionable" only (drops the
+    /// default branch and any branch sitting exactly at its tip); pass
+    /// <paramref name="allBranches"/> to emit the full inventory.
+    /// </summary>
+    void CollectBranches(Repository repository, bool allBranches)
+    {
+        Branches = null;
+        var defaultBranch = ResolveDefaultBranch(repository);
+        DefaultBranch = defaultBranch?.FriendlyName;
+        var defaultTip = defaultBranch?.Tip;
+        if (defaultTip == null)
+            return;
+
+        var collected = new List<BranchInfo>();
+        foreach (var branch in repository.Branches)
+        {
+            try
+            {
+                if (branch.IsRemote || branch.Tip == null)
+                    continue;
+
+                var divergence = repository.ObjectDatabase.CalculateHistoryDivergence(branch.Tip, defaultTip);
+                var ahead = divergence.AheadBy ?? 0;
+                var behind = divergence.BehindBy ?? 0;
+                var isMerged = ahead == 0;
+                var isDefault = branch.FriendlyName == defaultBranch!.FriendlyName;
+
+                // "Boring": the default branch itself, or a branch identical to it.
+                var boring = isDefault || (ahead == 0 && behind == 0);
+                if (!allBranches && boring)
+                    continue;
+
+                collected.Add(new BranchInfo
+                {
+                    Name = branch.FriendlyName,
+                    IsMerged = isMerged,
+                    MergedInto = isMerged && !isDefault ? defaultBranch.FriendlyName : null,
+                    AheadOfDefault = ahead,
+                    BehindDefault = behind,
+                    LastCommitDate = branch.Tip.Author.When,
+                    HasUpstream = branch.TrackedBranch != null,
+                });
+            }
+            catch (Exception exception)
+            {
+                GitWizardLog.LogException(exception, $"Exception collecting branch {branch.FriendlyName} for {WorkingDirectory}");
+            }
+        }
+
+        Branches = collected.Count > 0 ? collected : null;
+    }
+
     public void CheckoutBranch(string branchName)
     {
         if (string.IsNullOrEmpty(WorkingDirectory))
@@ -483,81 +557,6 @@ public class GitWizardRepository
         using var repository = new Repository(WorkingDirectory);
         var branch = repository.Branches[branchName];
         Commands.Checkout(repository, branch.Tip);
-    }
-
-    List<DownstreamBranchInfo> DetectDownstreamBranches(Repository repository)
-    {
-        var downstream = new List<DownstreamBranchInfo>();
-        var workingDir = repository.Info.WorkingDirectory;
-
-        // Find the merge target: main > master > current branch (if it's a branch)
-        var mergeTarget = "main";
-        var hasMain = repository.Branches.Any(b => b.FriendlyName == "main");
-        var hasMaster = repository.Branches.Any(b => b.FriendlyName == "master");
-        if (!hasMain && hasMaster)
-            mergeTarget = "master";
-        else if (!hasMain && !hasMaster)
-        {
-            // No main or master — use current branch if it's a branch (not detached)
-            if (repository.Head.FriendlyName != null && repository.Head.Reference is SymbolicReference)
-                mergeTarget = repository.Head.FriendlyName;
-            else
-                return downstream; // detached HEAD with no main/master — nothing to merge into
-        }
-
-        // Run 'git branch --merged <target> --no-color' to get all branches merged into target
-        var psi = new System.Diagnostics.ProcessStartInfo
-        {
-            FileName = "git",
-            Arguments = $"branch --merged \"{mergeTarget}\" --no-color",
-            WorkingDirectory = workingDir,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
-
-        using var process = System.Diagnostics.Process.Start(psi);
-        if (process == null)
-            return downstream;
-
-        if (!process.WaitForExit(15000))
-        {
-            GitWizardLog.Log($"Detecting downstream branches timed out for {workingDir}", GitWizardLog.LogType.Warning);
-            process.Kill();
-            return downstream;
-        }
-
-        var currentBranch = repository.Head.FriendlyName;
-        var output = process.StandardOutput.ReadToEnd();
-
-        foreach (var line in output.Split('\n', '\r'))
-        {
-            var branchName = line.Trim();
-            if (string.IsNullOrEmpty(branchName))
-                continue;
-
-            // Strip leading markers (* = current branch, + = pushed, ! = local)
-            while (branchName.Length > 0 && "!*+".Contains(branchName[0]))
-                branchName = branchName[1..].TrimStart(' ');
-
-            // Skip the merge target itself and the current branch
-            if (branchName.Equals(mergeTarget, StringComparison.Ordinal) ||
-                branchName.Equals(currentBranch, StringComparison.Ordinal))
-                continue;
-
-            // Skip detached HEAD refs (they appear as "(HEAD detached at ...)")
-            if (branchName.StartsWith("(", StringComparison.Ordinal))
-                continue;
-
-            downstream.Add(new DownstreamBranchInfo
-            {
-                Name = branchName,
-                MergedInto = mergeTarget
-            });
-        }
-
-        return downstream;
     }
 
     static void RefreshIndex(Repository repository)

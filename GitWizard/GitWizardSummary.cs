@@ -3,12 +3,12 @@ namespace GitWizard;
 [Serializable]
 public class GitWizardSummary
 {
-    public string SchemaVersion { get; set; } = "1.1";
+    public string SchemaVersion { get; set; } = GitWizardReport.CurrentSchemaVersion;
     public int TotalRepositories { get; set; }
     public int Dirty { get; set; }
     public int Unpushed { get; set; }
     public int Stale { get; set; }
-    public int DownstreamBranches { get; set; }
+    public int MergedBranches { get; set; }
     public List<AttentionItem> NeedingAttention { get; set; } = new();
 
     public static GitWizardSummary FromReport(GitWizardReport report)
@@ -41,10 +41,10 @@ public class GitWizardSummary
                 summary.Stale++;
             }
 
-            if (repository.DownstreamBranches != null && repository.DownstreamBranches.Count > 0)
+            if (repository.Branches != null && repository.Branches.Any(b => b.IsMerged))
             {
-                summary.DownstreamBranches++;
-                reasons.Add("downstream-branches");
+                summary.MergedBranches++;
+                reasons.Add("merged-branches");
             }
 
             if (reasons.Count > 0)

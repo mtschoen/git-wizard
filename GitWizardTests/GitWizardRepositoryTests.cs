@@ -27,6 +27,31 @@ public class GitWizardRepositoryTests
     }
 
     [Test]
+    public void BranchInfo_RoundTripsJson()
+    {
+        var branch = new BranchInfo
+        {
+            Name = "feature/x",
+            IsMerged = false,
+            MergedInto = null,
+            AheadOfDefault = 4,
+            BehindDefault = 1,
+            LastCommitDate = new DateTimeOffset(2026, 5, 1, 12, 0, 0, TimeSpan.Zero),
+            HasUpstream = true
+        };
+
+        var json = JsonSerializer.Serialize(branch);
+        var deserialized = JsonSerializer.Deserialize<BranchInfo>(json);
+
+        Assert.That(deserialized, Is.Not.Null);
+        Assert.That(deserialized!.Name, Is.EqualTo("feature/x"));
+        Assert.That(deserialized.AheadOfDefault, Is.EqualTo(4));
+        Assert.That(deserialized.BehindDefault, Is.EqualTo(1));
+        Assert.That(deserialized.IsMerged, Is.False);
+        Assert.That(deserialized.HasUpstream, Is.True);
+    }
+
+    [Test]
     public void Refresh_PopulatesRecentCommits()
     {
         GitWizardLog.SilentMode = true;
@@ -152,61 +177,98 @@ public class GitWizardRepositoryTests
     }
 
     [Test]
-    public void Refresh_DetectsDownstreamBranches()
+    public void Refresh_DetectsUnmergedBranch()
     {
         GitWizardLog.SilentMode = true;
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        fixture.AppendCommit("second.txt");
-
-        using var repo = new LibGit2Sharp.Repository(fixture.Path);
-        repo.Branches.Add("feature/test", repo.Head.Tip);
+        fixture.CommitOnNewBranch("feature/ahead", "ahead.txt");
 
         var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh();
 
-        Assert.That(repository.DownstreamBranches, Is.Not.Null);
-        Assert.That(repository.DownstreamBranches, Has.Count.EqualTo(1));
-        Assert.That(repository.DownstreamBranches![0].Name, Is.EqualTo("feature/test"));
-        Assert.That(repository.DownstreamBranches[0].MergedInto, Is.AnyOf("main", "master"));
+        Assert.That(repository.Branches, Is.Not.Null);
+        var feature = repository.Branches!.SingleOrDefault(b => b.Name == "feature/ahead");
+        Assert.That(feature, Is.Not.Null);
+        Assert.That(feature!.IsMerged, Is.False);
+        Assert.That(feature.AheadOfDefault, Is.GreaterThan(0));
+        Assert.That(feature.MergedInto, Is.Null);
     }
 
     [Test]
-    public void Refresh_DetectsMultipleDownstreamBranches()
+    public void Refresh_DetectsMergedButBehindBranchAsSafeToDelete()
     {
         GitWizardLog.SilentMode = true;
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        fixture.AppendCommit("second.txt");
 
-        using var repo = new LibGit2Sharp.Repository(fixture.Path);
-        repo.Branches.Add("feature/a", repo.Head.Tip);
-        repo.Branches.Add("feature/b", repo.Head.Tip);
-        repo.Branches.Add("bugfix/c", repo.Head.Tip);
+        using (var repo = new LibGit2Sharp.Repository(fixture.Path))
+            repo.Branches.Add("old/merged", repo.Head.Tip);
+        fixture.AppendCommit("advance.txt");
 
         var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh();
 
-        Assert.That(repository.DownstreamBranches, Is.Not.Null);
-        Assert.That(repository.DownstreamBranches, Has.Count.EqualTo(3));
+        Assert.That(repository.Branches, Is.Not.Null);
+        var merged = repository.Branches!.SingleOrDefault(b => b.Name == "old/merged");
+        Assert.That(merged, Is.Not.Null);
+        Assert.That(merged!.IsMerged, Is.True);
+        Assert.That(merged.AheadOfDefault, Is.EqualTo(0));
+        Assert.That(merged.BehindDefault, Is.GreaterThan(0));
+        Assert.That(merged.MergedInto, Is.AnyOf("main", "master"));
     }
 
     [Test]
-    public void Refresh_DoesNotListCurrentBranchAsDownstream()
+    public void Refresh_ExcludesDefaultBranchAndBranchesAtDefaultTip()
     {
         GitWizardLog.SilentMode = true;
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        fixture.AppendCommit("second.txt");
 
-        using var repo = new LibGit2Sharp.Repository(fixture.Path);
-        repo.Branches.Add("feature/skip-me", repo.Head.Tip);
+        using (var repo = new LibGit2Sharp.Repository(fixture.Path))
+            repo.Branches.Add("samepoint", repo.Head.Tip);
 
         var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh();
 
-        Assert.That(repository.DownstreamBranches, Is.Not.Null);
-        Assert.That(repository.DownstreamBranches, Has.Count.EqualTo(1));
-        Assert.That(repository.DownstreamBranches![0].Name, Is.EqualTo("feature/skip-me"));
-        Assert.That(repository.DownstreamBranches![0].Name, Is.Not.EqualTo("main"));
-        Assert.That(repository.DownstreamBranches.Any(b => b.Name == "main"), Is.False);
+        Assert.That(repository.Branches, Is.Null);
+        Assert.That(repository.DefaultBranch, Is.AnyOf("main", "master"));
+    }
+
+    [Test]
+    public void Refresh_ClearsBranchesWhenNoneRemainActionable()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.CommitOnNewBranch("feature/ahead", "ahead.txt");
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+        Assert.That(repository.Branches, Is.Not.Null, "precondition: unmerged branch detected");
+
+        // Remove the unmerged branch; a re-refresh must not retain the stale list.
+        using (var repo = new LibGit2Sharp.Repository(fixture.Path))
+            repo.Branches.Remove("feature/ahead");
+        repository.Refresh();
+
+        Assert.That(repository.Branches, Is.Null);
+    }
+
+    [Test]
+    public void Refresh_AllBranchesIncludesDefaultAndBoringBranches()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        using (var repo = new LibGit2Sharp.Repository(fixture.Path))
+            repo.Branches.Add("samepoint", repo.Head.Tip);
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh(allBranches: true);
+
+        Assert.That(repository.Branches, Is.Not.Null);
+        var names = repository.Branches!.Select(b => b.Name).ToList();
+        Assert.That(names, Does.Contain("samepoint"));
+        // default branch is included in full mode but must NOT claim MergedInto=itself
+        var def = repository.Branches!.SingleOrDefault(b => b.Name == repository.DefaultBranch);
+        Assert.That(def, Is.Not.Null);
+        Assert.That(def!.MergedInto, Is.Null);
     }
 
     static string FindRepoRoot()

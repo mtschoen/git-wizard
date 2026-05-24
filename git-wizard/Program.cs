@@ -40,6 +40,7 @@ Other options:
   -scan-only                Print discovered repository paths (one per line) and exit without refreshing
   -no-mft                   Skip MFT search and use recursive directory scan instead
   -db-size                  Show the size of the GitWizard local files folder (~/.GitWizard/) and exit
+  -all-branches             Include all local branches (default + already-merged) in each repo's Branches list, not just actionable ones
 ";
 
         /// <summary>
@@ -117,6 +118,12 @@ Other options:
         /// Show the size of the GitWizard local files folder and exit.
         /// </summary>
         public readonly bool DbSize = false;
+
+        /// <summary>
+        /// Include all branches (default + boring) in the per-repo Branches list,
+        /// not just actionable branches.
+        /// </summary>
+        public readonly bool AllBranches = false;
 
         /// <summary>
         /// Initialize a RunConfiguration using Environment.GetCommandLineArgs
@@ -217,6 +224,9 @@ Other options:
                         break;
                     case "-db-size":
                         DbSize = true;
+                        break;
+                    case "-all-branches":
+                        AllBranches = true;
                         break;
                 }
             }
@@ -403,13 +413,14 @@ git-wizard Session Started
 
             if (cachedReport != null && repositoryPaths != null)
             {
-                cachedReport.Refresh(repositoryPaths, updateHandler);
+                cachedReport.Refresh(repositoryPaths, updateHandler, allBranches: runConfiguration.AllBranches);
+                cachedReport.BranchScope = runConfiguration.AllBranches ? "all" : "actionable";
                 return cachedReport;
             }
         }
 
         return GitWizardReport.GenerateReport(configuration, repositoryPaths, updateHandler,
-            noMft: runConfiguration.NoMft);
+            noMft: runConfiguration.NoMft, allBranches: runConfiguration.AllBranches);
     }
 
     static void SaveReport(RunConfiguration runConfiguration, GitWizardReport report)

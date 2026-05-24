@@ -15,9 +15,18 @@ public class GitWizardReport
     /// report at save time so cached reports from older builds don't
     /// propagate stale version strings forward.
     /// </summary>
-    public const string CurrentSchemaVersion = "1.1";
+    public const string CurrentSchemaVersion = "2.0";
 
     public string SchemaVersion { get; set; } = CurrentSchemaVersion;
+
+    /// <summary>
+    /// Documents what the per-repo <c>Branches</c> lists contain: "actionable"
+    /// (the default — merged-but-behind + unmerged-ahead branches only) or
+    /// "all" (full inventory, via --all-branches). Consumers must not assume
+    /// Branches is exhaustive unless this is "all".
+    /// </summary>
+    public string? BranchScope { get; set; }
+
     public SortedSet<string> SearchPaths { get; set; } = new();
     public SortedSet<string> IgnoredPaths { get; set; } = new();
     public SortedDictionary<string, GitWizardRepository> Repositories { get; set; } = new();
@@ -119,7 +128,8 @@ public class GitWizardReport
     /// <returns>Task containing the report</returns>
     public static GitWizardReport GenerateReport(GitWizardConfiguration configuration,
         ICollection<string>? repositoryPaths = null, IUpdateHandler? updateHandler = null,
-        bool fetchRemotes = false, bool deepRefresh = false, bool noMft = false)
+        bool fetchRemotes = false, bool deepRefresh = false, bool noMft = false,
+        bool allBranches = false)
     {
         var report = new GitWizardReport(configuration);
         if (repositoryPaths == null)
@@ -128,7 +138,8 @@ public class GitWizardReport
             report.GetRepositoryPaths(repositoryPaths, updateHandler, noMft);
         }
 
-        report.Refresh(repositoryPaths, updateHandler, fetchRemotes, deepRefresh);
+        report.Refresh(repositoryPaths, updateHandler, fetchRemotes, deepRefresh, allBranches);
+        report.BranchScope = allBranches ? "all" : "actionable";
 
         return report;
     }
@@ -174,7 +185,7 @@ public class GitWizardReport
     }
 
     public void Refresh(ICollection<string> repositoryPaths, IUpdateHandler? updateHandler = null,
-        bool fetchRemotes = false, bool deepRefresh = false)
+        bool fetchRemotes = false, bool deepRefresh = false, bool allBranches = false)
     {
         var options = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) };
         var validPaths = new ConcurrentBag<string>();
@@ -235,7 +246,7 @@ public class GitWizardReport
             }
 
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-            var refreshTask = Task.Run(() => repository.Refresh(updateHandler, fetchRemotes, deepRefresh));
+            var refreshTask = Task.Run(() => repository.Refresh(updateHandler, fetchRemotes, deepRefresh, allBranches));
             if (!refreshTask.Wait(TimeSpan.FromMinutes(5)))
             {
                 GitWizardLog.Log($"Refresh timed out after 5 minutes for {path}", GitWizardLog.LogType.Warning);

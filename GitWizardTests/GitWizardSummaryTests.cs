@@ -16,29 +16,29 @@ public class GitWizardSummaryTests
         var summary = GitWizardSummary.FromReport(report);
 
         Assert.That(summary.TotalRepositories, Is.EqualTo(1));
-        Assert.That(summary.SchemaVersion, Is.EqualTo("1.1"));
+        Assert.That(summary.SchemaVersion, Is.EqualTo("2.0"));
     }
 
     [Test]
-    public void FromReport_CountsDownstreamBranches()
+    public void FromReport_CountsMergedBranches()
     {
         GitWizardLog.SilentMode = true;
         var report = new GitWizardReport();
 
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        using var libgit = new LibGit2Sharp.Repository(fixture.Path);
-        libgit.Branches.Add("feature/x", libgit.Head.Tip);
 
         var repository = new GitWizardRepository(fixture.Path);
-        repository.Refresh();
+        repository.Branches = new List<BranchInfo>
+        {
+            new BranchInfo { Name = "feature/x", IsMerged = true, MergedInto = "main" }
+        };
         report.Repositories[fixture.Path] = repository;
 
         var summary = GitWizardSummary.FromReport(report);
 
         Assert.That(summary.TotalRepositories, Is.EqualTo(1));
-        Assert.That(summary.SchemaVersion, Is.EqualTo("1.1"));
-        Assert.That(summary.DownstreamBranches, Is.EqualTo(1));
+        Assert.That(summary.MergedBranches, Is.EqualTo(1));
         Assert.That(summary.NeedingAttention, Has.Count.EqualTo(1));
-        Assert.That(summary.NeedingAttention[0].Reasons, Contains.Item("downstream-branches"));
+        Assert.That(summary.NeedingAttention[0].Reasons, Contains.Item("merged-branches"));
     }
 }

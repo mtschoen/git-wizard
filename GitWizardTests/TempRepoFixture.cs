@@ -44,6 +44,26 @@ internal sealed class TempRepoFixture : IDisposable
         repository.Commit($"add {fileName}", Author, Author);
     }
 
+    /// <summary>
+    /// Create <paramref name="branchName"/> off the current HEAD, add one
+    /// commit on it, then switch back to the original branch — leaving the new
+    /// branch one commit ahead of (and unmerged into) the default.
+    /// </summary>
+    public void CommitOnNewBranch(string branchName, string fileName)
+    {
+        using var repository = new Repository(Path);
+        var originalBranch = repository.Head.FriendlyName;
+        var branch = repository.Branches.Add(branchName, repository.Head.Tip);
+        Commands.Checkout(repository, branch);
+
+        var filePath = System.IO.Path.Combine(Path, fileName);
+        File.WriteAllText(filePath, Guid.NewGuid().ToString());
+        Commands.Stage(repository, fileName);
+        repository.Commit($"add {fileName}", Author, Author);
+
+        Commands.Checkout(repository, repository.Branches[originalBranch]);
+    }
+
     public void Dispose()
     {
         try

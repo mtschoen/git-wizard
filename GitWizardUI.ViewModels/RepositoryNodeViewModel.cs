@@ -29,11 +29,12 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
     public string ItemPaddingString => IsGroupHeader ? "0,5,0,0" : "15,0,0,0";
     public string StatusColorHex => _status switch
     {
-        RefreshStatus.Refreshing => "#808080",
-        RefreshStatus.Success    => "#28A745",
-        RefreshStatus.Timeout    => "#FFA500",
-        RefreshStatus.Error      => "#DC3545",
-        _                         => "#808080",
+        RefreshStatus.Refreshing     => "#808080",
+        RefreshStatus.Success        => "#28A745",
+        RefreshStatus.Timeout        => "#FFA500",
+        RefreshStatus.Error          => "#DC3545",
+        RefreshStatus.SubmoduleIssue => "#8E44AD",
+        _                            => "#808080",
     };
 
     public bool IsExpanded
@@ -72,6 +73,7 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
         RefreshStatus.Success => "✓",
         RefreshStatus.Timeout => "⚠",
         RefreshStatus.Error => "✗",
+        RefreshStatus.SubmoduleIssue => "⚑",
         _ => ""
     };
 
@@ -81,8 +83,25 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
         RefreshStatus.Success => $"Refreshed in {Repository.RefreshTimeSeconds}s",
         RefreshStatus.Timeout => Repository.RefreshError ?? "Timed out",
         RefreshStatus.Error => Repository.RefreshError ?? "Unknown error",
+        RefreshStatus.SubmoduleIssue => SubmoduleIssueTooltip,
         _ => ""
     };
+
+    /// <summary>
+    /// Human-readable summary of every unhealthy submodule on this repository, used as
+    /// the tooltip for <see cref="RefreshStatus.SubmoduleIssue"/>.
+    /// </summary>
+    string SubmoduleIssueTooltip
+    {
+        get
+        {
+            if (Repository.SubmoduleHealth is not { Count: > 0 })
+                return "Submodule issue";
+
+            var issues = Repository.SubmoduleHealth.Values.SelectMany(health => health.Issues);
+            return "Submodule issues:\n" + string.Join("\n", issues);
+        }
+    }
 
     public bool IsStatusVisible => !IsGroupHeader;
 
@@ -135,6 +154,8 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
             Status = RefreshStatus.Refreshing;
         else if (!string.IsNullOrEmpty(Repository.RefreshError))
             Status = Repository.RefreshError.Contains("Timed out") ? RefreshStatus.Timeout : RefreshStatus.Error;
+        else if (Repository.HasSubmoduleIssues)
+            Status = RefreshStatus.SubmoduleIssue;
         else
             Status = RefreshStatus.Success;
 
@@ -146,7 +167,7 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
         if (IsGroupHeader)
         {
             var errorCount = Children.Count(c => c.Status == RefreshStatus.Error);
-            var warningCount = Children.Count(c => c.Status == RefreshStatus.Timeout);
+            var warningCount = Children.Count(c => c.Status is RefreshStatus.Timeout or RefreshStatus.SubmoduleIssue);
             var suffix = "";
             if (errorCount > 0) suffix += $" {errorCount} error{(errorCount > 1 ? "s" : "")}";
             if (warningCount > 0) suffix += $" {warningCount} warning{(warningCount > 1 ? "s" : "")}";
@@ -185,6 +206,12 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
         if (mergedCount > 0)
         {
             label += $" [{mergedCount} branch{(mergedCount > 1 ? "es" : "")}]";
+        }
+
+        if (Repository.HasSubmoduleIssues)
+        {
+            var issueCount = Repository.SubmoduleHealth?.Count ?? 0;
+            label += issueCount == 1 ? " [submodule issue]" : $" [{issueCount} submodule issues]";
         }
 
         DisplayText = label;
@@ -277,7 +304,8 @@ public enum RefreshStatus
     Refreshing,
     Success,
     Timeout,
-    Error
+    Error,
+    SubmoduleIssue
 }
 
 public enum GroupMode

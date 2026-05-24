@@ -271,6 +271,84 @@ public class GitWizardRepositoryTests
         Assert.That(def!.MergedInto, Is.Null);
     }
 
+    [Test]
+    public void Refresh_FlagsSubmoduleDeclaredButMissingFromIndex()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AddOrphanedGitmodulesEntry("libfoo", "external/libfoo");
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        Assert.That(repository.HasSubmoduleIssues, Is.True);
+        Assert.That(repository.SubmoduleHealth, Does.ContainKey("external/libfoo"));
+        Assert.That(repository.SubmoduleHealth["external/libfoo"].Status,
+            Is.EqualTo(SubmoduleHealthStatus.MissingFromIndex));
+        Assert.That(repository.SubmoduleHealth["external/libfoo"].Issues, Is.Not.Empty);
+    }
+
+    [Test]
+    public void Refresh_FlagsGitlinkMissingFromGitmodules()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AddGitlinkWithoutGitmodules("orphan/libbar");
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        Assert.That(repository.HasSubmoduleIssues, Is.True);
+        Assert.That(repository.SubmoduleHealth["orphan/libbar"].Status,
+            Is.EqualTo(SubmoduleHealthStatus.MissingFromGitmodules));
+    }
+
+    [Test]
+    public void Refresh_FlagsUninitializedSubmodule()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AddUninitializedSubmodule("external/libfoo");
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        Assert.That(repository.HasSubmoduleIssues, Is.True);
+        Assert.That(repository.SubmoduleHealth["external/libfoo"].Status,
+            Is.EqualTo(SubmoduleHealthStatus.Uninitialized));
+    }
+
+    [Test]
+    public void Refresh_FlagsSubmoduleAtWrongRef()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AddSubmoduleAtWrongRef("external/libfoo");
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        Assert.That(repository.HasSubmoduleIssues, Is.True);
+        var health = repository.SubmoduleHealth["external/libfoo"];
+        Assert.That(health.Status, Is.EqualTo(SubmoduleHealthStatus.WrongRef));
+        Assert.That(health.ExpectedCommitSha, Is.Not.Null);
+        Assert.That(health.ActualCommitSha, Is.Not.Null);
+        Assert.That(health.ActualCommitSha, Is.Not.EqualTo(health.ExpectedCommitSha));
+    }
+
+    [Test]
+    public void Refresh_HealthyRepoReportsNoSubmoduleIssues()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        Assert.That(repository.HasSubmoduleIssues, Is.False);
+        Assert.That(repository.SubmoduleHealth, Is.Empty);
+    }
+
     static string FindRepoRoot()
     {
         var directory = Directory.GetCurrentDirectory();

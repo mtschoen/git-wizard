@@ -13,7 +13,7 @@ Scan, organize, and manage all the git repositories on your machine. Find duplic
 - **Sort** by path, last commit date, or remote URL
 - **Search** to quickly find repos by path
 - **Deep refresh** per repo with remote fetch and index update
-- **Cross-platform core** — library and CLI work on Windows, macOS, and Linux; MAUI desktop app for Windows, macOS, and Android
+- **Cross-platform desktop** — Avalonia app runs natively on Windows, macOS, and Linux; .NET MAUI app for Windows; library and CLI run everywhere
 
 ## Getting Started
 
@@ -22,6 +22,9 @@ Download the latest release from the [Releases](https://github.com/mtschoen/git-
 ```bash
 # CLI
 dotnet build git-wizard/git-wizard.csproj
+
+# Avalonia desktop (Windows / macOS / Linux)
+dotnet build GitWizardAvalonia/GitWizardAvalonia.csproj
 
 # MAUI UI (Windows)
 dotnet build GitWizardUI/GitWizardUI.csproj -f net10.0-windows10.0.19041.0
@@ -35,7 +38,9 @@ On first run, configure your search paths in Settings. GitWizard will scan those
 |---------|-------------|
 | **GitWizard/** | Core class library (cross-platform) |
 | **git-wizard/** | CLI tool |
-| **GitWizardUI/** | .NET MAUI desktop app |
+| **GitWizardUI.ViewModels/** | Shared view models for both desktop apps |
+| **GitWizardAvalonia/** | Avalonia desktop app (Windows, macOS, Linux) |
+| **GitWizardUI/** | .NET MAUI desktop app (Windows) |
 
 ## License
 

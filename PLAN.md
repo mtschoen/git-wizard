@@ -42,7 +42,7 @@ These tasks live in projdash's PLAN.md but are noted here for cross-reference:
 - [x] `CurrentSchemaVersion` constant stamped at save time — cached reports from older builds no longer propagate stale version strings
 - [x] Documented `WhenWritingDefault` serializer behavior in `docs/report-schema.md` (absent fields = default values, not "unknown")
 
-### Single-repo merge refresh (for projdash fallback)
+### Single-repo merge refresh (for projdash fallback) — tracked as [#42](https://gitea.llamabox.internal/schoen/git-wizard/issues/42)
 
 Projdash falls back to per-repo `git` subprocess when the cache misses a repo
 (fresh clones, repos created since the last full scan). On Windows that path
@@ -79,9 +79,9 @@ GitWizard would let projdash skip subprocess git entirely.
 - [x] Avalonia desktop project (`GitWizardAvalonia/`) ports MainPage and SettingsPage
 - [x] Native folder picker on Linux/macOS via Avalonia `IStorageProvider`
 - [x] Windows-only features (Defender button) gated on `OperatingSystem.IsWindows()`
-- [ ] Verified scan + filter + group + sort on Linux (runtime smoke test deferred — headless environment)
+- [x] Verified scan + filter + group + sort on Linux and Windows (runtime smoke test, 2026-05-23)
 
 ## Infrastructure
 
-- [x] **Gitea Actions CI** — `.gitea/workflows/ci.yml` runs `test-linux` (build + 20 NUnit tests) and `test-windows` (full solution build + tests) on push to `main` and PRs targeting `main`. `.gitea/workflows/release.yml` builds CLI + Avalonia for `win-x64`/`linux-x64`/`osx-x64`, builds the MAUI Windows zip, and creates a Gitea release with all 7 assets attached on `v*` tag pushes. Spec: `docs/superpowers/specs/2026-04-28-gitea-ci-design.md`. Plan: `docs/superpowers/plans/2026-04-28-gitea-ci.md`.
+- [x] **Gitea Actions CI** — `.gitea/workflows/ci.yml` runs `test-linux` (build + 20 NUnit tests) and `test-windows` (full solution build + tests) on push to `main` and PRs targeting `main`. `.gitea/workflows/release.yml` builds CLI + Avalonia for `win-x64`/`linux-x64`/`osx-x64`, builds the MAUI Windows zip, and creates a Gitea release with all 7 assets attached on `v*` tag pushes. See `CLAUDE.md` § CI infrastructure for runner/bot/branch-protection setup.
 - [ ] **Trust llamabox cert on the Windows runner** — currently the MAUI publish and test-results upload use `NODE_TLS_REJECT_UNAUTHORIZED=0` to work around Node.js not trusting the self-signed Caddy cert. Install the cert into the runner's Node/system trust store and remove the env override.

@@ -6,7 +6,11 @@ Multi-project solution for scanning and reporting on git repositories.
 
 - **GitWizard/** — Core class library (cross-platform: Windows, macOS, Linux)
 - **git-wizard/** — CLI tool
+- **GitWizardUI.ViewModels/** — Shared view models behind `IUiDispatcher` / `IUserDialogs` / `IFolderPicker`, consumed by both desktop apps
+- **GitWizardAvalonia/** — Avalonia cross-platform desktop app (Windows, macOS, Linux)
+- **GitWizardAvalonia.Screenshot/** — Headless Avalonia screenshot tool (used by CI)
 - **GitWizardUI/** — .NET MAUI desktop app (Windows + macCatalyst)
+- **GitWizardTests/**, **GitWizardUI.UITests/** — NUnit test projects
 
 ## Build
 
@@ -15,6 +19,10 @@ Use VS2026's MSBuild (not `dotnet build`) when building projects that depend on 
 ```bash
 # CLI (via MSBuild — required when using MFTLib ProjectReference)
 "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" git-wizard/git-wizard.csproj -t:Build -p:Configuration=Debug -nologo -v:minimal
+
+# Avalonia desktop (cross-platform — builds with plain `dotnet` on Linux/macOS/Windows
+# via the MFTLib NuGet PackageReference; no MSBuild/native toolset needed)
+dotnet build GitWizardAvalonia/GitWizardAvalonia.csproj
 
 # MAUI UI (via MSBuild)
 "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" GitWizardUI/GitWizardUI.csproj -t:Build -p:Configuration=Debug -nologo -v:minimal
@@ -101,7 +109,23 @@ The workflow runs on `windows-latest`, captures the screenshot using Avalonia he
 5. `git tag v0.x.y && git push origin main --tags`
 6. CI builds and publishes the release with all artifacts attached. Watch `https://gitea.llamabox.internal/schoen/git-wizard/actions`. The release workflow's first step asserts the tag matches `ApplicationDisplayVersion` and fails fast on drift.
 
-The release attaches: `git-wizard-{ver}-{rid}.zip` and `GitWizardAvalonia-{ver}-{rid}.zip` for `rid in {win-x64, linux-x64, osx-x64}`, plus `GitWizardUI-{ver}.zip` (MAUI Windows). See `.gitea/workflows/release.yml` and `docs/superpowers/specs/2026-04-28-gitea-ci-design.md`.
+The release attaches: `git-wizard-{ver}-{rid}.zip` and `GitWizardAvalonia-{ver}-{rid}.zip` for `rid in {win-x64, linux-x64, osx-x64}`, plus `GitWizardUI-{ver}.zip` (MAUI Windows). See `.gitea/workflows/release.yml` and the **CI infrastructure** section below.
+
+## CI infrastructure
+
+Workflows live in `.gitea/workflows/` (`ci.yml`, `release.yml`) — the YAML is the source of truth for jobs and steps. Operational setup that is *not* in the YAML:
+
+- **Runners:** `ci.yml` splits across two self-hosted Gitea runners — `llamabox-ubuntu` (label `ubuntu-latest`, cross-platform build, no tests) and `llamabox-windows` (label `windows-latest`, full-solution build + all NUnit tests + MAUI workload). Tests run only on Windows.
+- **`ci-bot` identity:** the release workflow authenticates as a dedicated Gitea user `ci-bot` (reusable across personal repos). Provision on the Gitea host:
+  ```bash
+  sudo -u git gitea admin user create --username ci-bot --email ci-bot@llamabox.internal --random-password --must-change-password=false
+  sudo -u git gitea admin user generate-access-token --username ci-bot --token-name git-wizard-ci --scopes write:repository --raw
+  ```
+  Add `ci-bot` as a **Write** collaborator on `schoen/git-wizard` (needed to create releases + upload assets). `write:repository` is the only scope required.
+- **Secret:** store `ci-bot`'s PAT as the repo secret **`CI_GITEA_TOKEN`** (Settings → Actions → Secrets). `release.yml` reads `${{ secrets.CI_GITEA_TOKEN }}`. To rotate: re-run `generate-access-token` and re-paste the value — no code change.
+- **Branch protection** (`main`, configured in the Gitea UI, not in any file): require status checks `build-linux` + `test-windows`, require up-to-date branches, restrict force-pushes. Configure *after* the first green CI run so you don't lock yourself out.
+- **Deliberate non-goals:** no binary signing, no code-coverage gate, no MAUI macOS/Android build (no macOS runner — Avalonia covers cross-platform desktop), and `GitWizardUI.UITests` is not run in CI (needs an interactive desktop — it's the manual screenshot tool).
+- **Cert workaround:** both workflows set `NODE_TLS_REJECT_UNAUTHORIZED=0` because the Windows runner's Node doesn't trust the self-signed llamabox Caddy cert. Tracked for removal in `PLAN.md` → Infrastructure.
 
 ## Tips
 

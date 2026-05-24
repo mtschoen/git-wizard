@@ -115,7 +115,8 @@ The release attaches: `git-wizard-{ver}-{rid}.zip` and `GitWizardAvalonia-{ver}-
 
 Workflows live in `.gitea/workflows/` (`ci.yml`, `release.yml`) — the YAML is the source of truth for jobs and steps. Operational setup that is *not* in the YAML:
 
-- **Runners:** `ci.yml` splits across two self-hosted Gitea runners — `llamabox-ubuntu` (label `ubuntu-latest`, cross-platform build, no tests) and `llamabox-windows` (label `windows-latest`, full-solution build + all NUnit tests + MAUI workload). Tests run only on Windows.
+- **Runners:** `ci.yml` splits across two self-hosted Gitea runners — `llamabox-ubuntu` (label `ubuntu-latest`, cross-platform build + the NUnit suite with coverage) and `llamabox-windows` (label `windows-latest`, full-solution build + all NUnit tests + MAUI workload). Both runners run the test suite; only the Linux job collects coverage.
+- **Coverage gate:** the Linux job runs `ci/post-coverage-status.py`, which (a) posts the informational `pr-crew/coverage` commit status, (b) writes a line/branch table to the job summary, and (c) **fails the job when line coverage drops below `--gate-line` (currently 33%)**. The threshold starts at the current baseline and is meant to ratchet up as the ViewModel test backfill lands (issue #36). The Cobertura XML is also uploaded as the `coverage-cobertura` artifact.
 - **`ci-bot` identity:** the release workflow authenticates as a dedicated Gitea user `ci-bot` (reusable across personal repos). Provision on the Gitea host:
   ```bash
   sudo -u git gitea admin user create --username ci-bot --email ci-bot@llamabox.internal --random-password --must-change-password=false
@@ -124,7 +125,7 @@ Workflows live in `.gitea/workflows/` (`ci.yml`, `release.yml`) — the YAML is 
   Add `ci-bot` as a **Write** collaborator on `schoen/git-wizard` (needed to create releases + upload assets). `write:repository` is the only scope required.
 - **Secret:** store `ci-bot`'s PAT as the repo secret **`CI_GITEA_TOKEN`** (Settings → Actions → Secrets). `release.yml` reads `${{ secrets.CI_GITEA_TOKEN }}`. To rotate: re-run `generate-access-token` and re-paste the value — no code change.
 - **Branch protection** (`main`, configured in the Gitea UI, not in any file): require status checks `build-linux` + `test-windows`, require up-to-date branches, restrict force-pushes. Configure *after* the first green CI run so you don't lock yourself out.
-- **Deliberate non-goals:** no binary signing, no code-coverage gate, no MAUI macOS/Android build (no macOS runner — Avalonia covers cross-platform desktop), and `GitWizardUI.UITests` is not run in CI (needs an interactive desktop — it's the manual screenshot tool).
+- **Deliberate non-goals:** no binary signing, no MAUI macOS/Android build (no macOS runner — Avalonia covers cross-platform desktop), and `GitWizardUI.UITests` is not run in CI (needs an interactive desktop — it's the manual screenshot tool).
 - **Cert workaround:** both workflows set `NODE_TLS_REJECT_UNAUTHORIZED=0` because the Windows runner's Node doesn't trust the self-signed llamabox Caddy cert. Tracked for removal in `PLAN.md` → Infrastructure.
 
 ## Tips

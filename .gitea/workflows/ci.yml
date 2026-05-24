@@ -71,6 +71,24 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 ci/post-coverage-status.py --cobertura "TestResults/**/coverage.cobertura.xml"
 
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-cobertura
+          path: TestResults/**/coverage.cobertura.xml
+          if-no-files-found: warn
+
+      # Gate the build on line coverage and write a line/branch table to the job
+      # summary. Threshold starts at the current baseline and ratchets up as the
+      # ViewModel test backfill (issue #36) lands. Runs after the always() steps
+      # above so the status + artifact are recorded even when the gate trips.
+      - name: Coverage gate
+        run: |
+          python3 ci/post-coverage-status.py \
+              --cobertura "TestResults/**/coverage.cobertura.xml" \
+              --gate-line 33 --summary --skip-post
+
   test-windows:
     name: Build + Test (Windows, full solution)
     runs-on: windows-latest

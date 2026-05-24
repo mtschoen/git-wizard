@@ -62,7 +62,14 @@ jobs:
           dotnet test GitWizardTests/GitWizardTests.csproj \
               -c Release --no-build \
               --logger "trx;LogFileName=TestResults.trx" \
-              --results-directory ./TestResults
+              --results-directory ./TestResults \
+              --collect:"XPlat Code Coverage"
+
+      - name: Post coverage status
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 ci/post-coverage-status.py --cobertura "TestResults/**/coverage.cobertura.xml"
 
   test-windows:
     name: Build + Test (Windows, full solution)

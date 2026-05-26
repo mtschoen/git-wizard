@@ -10,50 +10,6 @@
 
 ---
 
-## Phase 4: Rename the Screenshot project
-
-### Task 4: GitWizardAvalonia.Screenshot → GitWizardUI.Screenshot
-
-**Files:**
-- Rename: `GitWizardAvalonia.Screenshot/` → `GitWizardUI.Screenshot/`; its csproj likewise
-- Modify: `git-wizard.slnx`
-
-- [x] **Step 1: Move the folder and csproj**
-
-```bash
-git mv GitWizardAvalonia.Screenshot GitWizardUI.Screenshot
-git mv GitWizardUI.Screenshot/GitWizardAvalonia.Screenshot.csproj GitWizardUI.Screenshot/GitWizardUI.Screenshot.csproj
-```
-
-- [x] **Step 2: Update the solution entry**
-
-In `git-wizard.slnx`, change:
-```xml
-  <Project Path="GitWizardAvalonia.Screenshot/GitWizardAvalonia.Screenshot.csproj" />
-```
-to:
-```xml
-  <Project Path="GitWizardUI.Screenshot/GitWizardUI.Screenshot.csproj" />
-```
-
-- [x] **Step 3: Build the solution**
-
-```bash
-dotnet build git-wizard.slnx -c Debug
-```
-Expected: `Build succeeded`, 0 errors. (The Screenshot project's `ProjectReference` to `..\GitWizardUI\GitWizardUI.csproj` and its `GitWizardUI.App` usage were already fixed in Phase 2.)
-
-- [x] **Step 4: Commit**
-
-```bash
-git add -A
-git commit -m "refactor: rename GitWizardAvalonia.Screenshot to GitWizardUI.Screenshot
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
-```
-
----
-
 ## Phase 5: CI, release, screenshot workflows + coverage re-baseline
 
 ### Task 5: Update `ci.yml`
@@ -61,7 +17,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 **Files:**
 - Modify: `.gitea/workflows/ci.yml`
 
-- [ ] **Step 1: Update the Linux job's project lists (rename + fold)**
+- [x] **Step 1: Update the Linux job's project lists (rename + fold)**
 
 In BOTH the `Restore (cross-platform projects)` and `Build (cross-platform projects)` steps, replace the two lines:
 ```
@@ -74,7 +30,7 @@ with the single line:
 ```
 So each loop lists: `GitWizard`, `git-wizard`, `GitWizardUI`, `GitWizardTests`.
 
-- [ ] **Step 2: Remove the three MAUI-only steps from the `test-windows` job**
+- [x] **Step 2: Remove the three MAUI-only steps from the `test-windows` job**
 
 Delete the `Cache MAUI workload manifests` step (lines 116–124), the `Install MAUI workload (Windows-only)` step (126–128), and the `Restore MAUI runtime pack (win-x64)` step (133–134). The `test-windows` steps go straight from `Cache NuGet packages` → `Restore (full solution)` → `Build (full solution)` → `Test`:
 
@@ -104,7 +60,7 @@ Delete the `Cache MAUI workload manifests` step (lines 116–124), the `Install 
 
 (With MAUI gone from the slnx, `dotnet restore/build git-wizard.slnx` needs no workload.)
 
-- [ ] **Step 3: Re-baseline the coverage gate — measure first**
+- [x] **Step 3: Re-baseline the coverage gate — measure first**
 
 Run the Linux-style coverage locally to read the new line %:
 ```bash
@@ -115,7 +71,7 @@ python3 ci/post-coverage-status.py \
 ```
 Read the reported line % (now including the whole `GitWizardUI` assembly with its uncovered Views/App/Program). Pick the new threshold = floor(reported %) − 2 (a small buffer against run-to-run jitter). Record the measured % and chosen threshold in the eventual PR description.
 
-- [ ] **Step 4: Set the new `--gate-line` in `ci.yml`**
+- [x] **Step 4: Set the new `--gate-line` in `ci.yml`**
 
 In the `Coverage gate` step, change `--gate-line 33` to the threshold from Step 3, and update the explanatory comment above it to read:
 
@@ -126,7 +82,7 @@ In the `Coverage gate` step, change `--gate-line 33` to the threshold from Step 
       # sits in coverage scope. Ratchet up as ViewModel coverage grows (issue #36).
 ```
 
-- [ ] **Step 5: Lint and confirm no MAUI/old-name refs remain**
+- [x] **Step 5: Lint and confirm no MAUI/old-name refs remain**
 
 ```bash
 python3 -c "import yaml; yaml.safe_load(open('.gitea/workflows/ci.yml')); print('ok')"
@@ -134,7 +90,7 @@ grep -n -i 'maui\|GitWizardAvalonia\|GitWizardUI.ViewModels' .gitea/workflows/ci
 ```
 Expected: `ok` then `clean`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add .gitea/workflows/ci.yml

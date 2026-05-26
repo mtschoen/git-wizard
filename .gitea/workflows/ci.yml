@@ -38,8 +38,7 @@ jobs:
           for proj in \
             GitWizard/GitWizard.csproj \
             git-wizard/git-wizard.csproj \
-            GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj \
-            GitWizardAvalonia/GitWizardAvalonia.csproj \
+            GitWizardUI/GitWizardUI.csproj \
             GitWizardTests/GitWizardTests.csproj
           do
             dotnet restore "$proj"
@@ -50,8 +49,7 @@ jobs:
           for proj in \
             GitWizard/GitWizard.csproj \
             git-wizard/git-wizard.csproj \
-            GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj \
-            GitWizardAvalonia/GitWizardAvalonia.csproj \
+            GitWizardUI/GitWizardUI.csproj \
             GitWizardTests/GitWizardTests.csproj
           do
             dotnet build "$proj" -c Release --no-restore
@@ -80,14 +78,14 @@ jobs:
           if-no-files-found: warn
 
       # Gate the build on line coverage and write a line/branch table to the job
-      # summary. Threshold starts at the current baseline and ratchets up as the
-      # ViewModel test backfill (issue #36) lands. Runs after the always() steps
-      # above so the status + artifact are recorded even when the gate trips.
+      # summary. Re-baselined to the whole GitWizardUI assembly after the VM fold
+      # (2026-05-26) — the app's untestable Avalonia glue (Views/App/Program) now
+      # sits in coverage scope. Ratchet up as ViewModel coverage grows (issue #36).
       - name: Coverage gate
         run: |
           python3 ci/post-coverage-status.py \
               --cobertura "TestResults/**/coverage.cobertura.xml" \
-              --gate-line 33 --summary --skip-post
+              --gate-line 35 --summary --skip-post
 
   test-windows:
     name: Build + Test (Windows, full solution)
@@ -113,25 +111,8 @@ jobs:
           restore-keys: |
             windows-nuget-
 
-      - name: Cache MAUI workload manifests
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~\.dotnet\sdk-manifests
-            ~\.dotnet\workloads
-          key: windows-maui-${{ hashFiles('**/*.csproj') }}
-          restore-keys: |
-            windows-maui-
-
-      - name: Install MAUI workload (Windows-only)
-        shell: pwsh
-        run: dotnet workload install maui-windows
-
       - name: Restore (full solution)
         run: dotnet restore git-wizard.slnx
-
-      - name: Restore MAUI runtime pack (win-x64)
-        run: dotnet restore GitWizardUI/GitWizardUI.csproj -r win-x64
 
       - name: Build (full solution)
         run: dotnet build git-wizard.slnx -c Release --no-restore

@@ -9,13 +9,11 @@ All major workstreams are merged on `main`:
 
 - **Core library + CLI** — cross-platform repo scanning, JSON batch reports,
   projdash integration. Latest release: **v0.4.1**.
-- **Avalonia desktop UI** (`GitWizardAvalonia/`) — runs natively on
-  Windows/macOS/Linux, built on the shared view models in
-  `GitWizardUI.ViewModels/`. The migration plan is fully executed.
-- **MAUI desktop UI** (`GitWizardUI/`) — Windows app, kept building alongside
-  Avalonia (shares the same view models).
+- **Desktop UI** (`GitWizardUI/`) — Avalonia app, runs natively on
+  Windows/macOS/Linux; view models live under `GitWizardUI/ViewModels/`.
+  (MAUI retired 2026-05-26 — Avalonia is now the sole GUI.)
 - **Gitea Actions CI** — `ci.yml` (Linux build + tests, Windows full build +
-  tests) and `release.yml` (cross-platform CLI + Avalonia + MAUI artifacts on
+  tests) and `release.yml` (cross-platform CLI + GitWizardUI artifacts on
   `v*` tags). Complete.
 - **Per-branch divergence** — report schema 2.0, `--all-branches` flag (#41).
 
@@ -44,7 +42,7 @@ This file is now just a pointer. Active work lives in **PLAN.md** and in
 - `dotnet build` works on Linux/macOS via the MFTLib NuGet PackageReference.
   Swapping MFTLib to a local ProjectReference requires VS2026 MSBuild on
   Windows — see `CLAUDE.md`.
-- Keep MAUI building — Windows users depend on it; Avalonia and MAUI share
-  `GitWizardUI.ViewModels/`.
+- The desktop GUI is `GitWizardUI/` (Avalonia); its view models live under
+  `GitWizardUI/ViewModels/`. (MAUI retired 2026-05-26.)
 - Local config/cache lives in `~/.GitWizard/` (`config.json`,
   `repositories.txt`, `report.json`).

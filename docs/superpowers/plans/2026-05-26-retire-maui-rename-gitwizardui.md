@@ -10,205 +10,6 @@
 
 ---
 
-## Phase 5: CI, release, screenshot workflows + coverage re-baseline
-
-### Task 5: Update `ci.yml`
-
-**Files:**
-- Modify: `.gitea/workflows/ci.yml`
-
-- [x] **Step 1: Update the Linux job's project lists (rename + fold)**
-
-In BOTH the `Restore (cross-platform projects)` and `Build (cross-platform projects)` steps, replace the two lines:
-```
-            GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj \
-            GitWizardAvalonia/GitWizardAvalonia.csproj \
-```
-with the single line:
-```
-            GitWizardUI/GitWizardUI.csproj \
-```
-So each loop lists: `GitWizard`, `git-wizard`, `GitWizardUI`, `GitWizardTests`.
-
-- [x] **Step 2: Remove the three MAUI-only steps from the `test-windows` job**
-
-Delete the `Cache MAUI workload manifests` step (lines 116–124), the `Install MAUI workload (Windows-only)` step (126–128), and the `Restore MAUI runtime pack (win-x64)` step (133–134). The `test-windows` steps go straight from `Cache NuGet packages` → `Restore (full solution)` → `Build (full solution)` → `Test`:
-
-```yaml
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: ~\.nuget\packages
-          key: windows-nuget-${{ hashFiles('**/*.csproj') }}
-          restore-keys: |
-            windows-nuget-
-
-      - name: Restore (full solution)
-        run: dotnet restore git-wizard.slnx
-
-      - name: Build (full solution)
-        run: dotnet build git-wizard.slnx -c Release --no-restore
-
-      - name: Test
-        shell: pwsh
-        run: |
-          dotnet test GitWizardTests/GitWizardTests.csproj `
-              -c Release --no-build `
-              --logger "trx;LogFileName=TestResults.trx" `
-              --results-directory ./TestResults
-```
-
-(With MAUI gone from the slnx, `dotnet restore/build git-wizard.slnx` needs no workload.)
-
-- [x] **Step 3: Re-baseline the coverage gate — measure first**
-
-Run the Linux-style coverage locally to read the new line %:
-```bash
-dotnet test GitWizardTests/GitWizardTests.csproj -c Release \
-    --collect:"XPlat Code Coverage" --results-directory ./TestResults
-python3 ci/post-coverage-status.py \
-    --cobertura "TestResults/**/coverage.cobertura.xml" --gate-line 0 --summary --skip-post
-```
-Read the reported line % (now including the whole `GitWizardUI` assembly with its uncovered Views/App/Program). Pick the new threshold = floor(reported %) − 2 (a small buffer against run-to-run jitter). Record the measured % and chosen threshold in the eventual PR description.
-
-- [x] **Step 4: Set the new `--gate-line` in `ci.yml`**
-
-In the `Coverage gate` step, change `--gate-line 33` to the threshold from Step 3, and update the explanatory comment above it to read:
-
-```yaml
-      # Gate the build on line coverage and write a line/branch table to the job
-      # summary. Re-baselined to the whole GitWizardUI assembly after the VM fold
-      # (2026-05-26) — the app's untestable Avalonia glue (Views/App/Program) now
-      # sits in coverage scope. Ratchet up as ViewModel coverage grows (issue #36).
-```
-
-- [x] **Step 5: Lint and confirm no MAUI/old-name refs remain**
-
-```bash
-python3 -c "import yaml; yaml.safe_load(open('.gitea/workflows/ci.yml')); print('ok')"
-grep -n -i 'maui\|GitWizardAvalonia\|GitWizardUI.ViewModels' .gitea/workflows/ci.yml || echo "clean"
-```
-Expected: `ok` then `clean`.
-
-- [x] **Step 6: Commit**
-
-```bash
-git add .gitea/workflows/ci.yml
-git commit -m "ci: drop MAUI steps, rename project list, re-baseline coverage gate
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
-```
-
-### Task 6: Update `release.yml`
-
-**Files:**
-- Modify: `.gitea/workflows/release.yml`
-
-- [x] **Step 1: Fix the `pull_request` paths trigger**
-
-Replace the three csproj path lines (10–12):
-```yaml
-      - 'GitWizardUI/GitWizardUI.csproj'
-      - 'GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj'
-      - 'GitWizardAvalonia/GitWizardAvalonia.csproj'
-```
-with the single line:
-```yaml
-      - 'GitWizardUI/GitWizardUI.csproj'
-```
-
-- [x] **Step 2: Rename the publish step + zip and add the tag-version assertion in `publish-cross`**
-
-Rename the `Publish Avalonia` step to `Publish GUI (GitWizardUI)` and point it at `GitWizardUI/GitWizardUI.csproj` with output `publish/gui/${{ matrix.rid }}`:
-```yaml
-      - name: Publish GUI (GitWizardUI)
-        run: |
-          dotnet publish GitWizardUI/GitWizardUI.csproj \
-            -c Release \
-            -r ${{ matrix.rid }} \
-            --self-contained \
-            -p:PublishSingleFile=true \
-            -p:IncludeNativeLibrariesForSelfExtract=true \
-            -o publish/gui/${{ matrix.rid }}
-```
-In the `Zip artifacts` step, change the Avalonia zip line:
-```bash
-          (cd publish/avalonia/${{ matrix.rid }} && zip -r "../../../artifacts/GitWizardAvalonia-${VERSION}-${{ matrix.rid }}.zip" .)
-```
-to:
-```bash
-          (cd publish/gui/${{ matrix.rid }} && zip -r "../../../artifacts/GitWizardUI-${VERSION}-${{ matrix.rid }}.zip" .)
-```
-Immediately AFTER the `Resolve version` step (`id: ver`) and BEFORE `Publish CLI`, insert the tag assertion (bash, since this job is ubuntu):
-```yaml
-      - name: Validate tag matches GitWizardUI <Version> (push only)
-        if: github.event_name == 'push'
-        run: |
-          appVer=$(grep -oP '(?<=<Version>)[^<]+' GitWizardUI/GitWizardUI.csproj)
-          tagVer="${{ steps.ver.outputs.version }}"
-          if [ "$appVer" != "$tagVer" ]; then
-            echo "Tag version '$tagVer' does not match GitWizardUI.csproj <Version> '$appVer'. Bump the csproj or move the tag." >&2
-            exit 1
-          fi
-          echo "Version match: $tagVer"
-```
-
-- [x] **Step 3: Delete the entire `publish-maui` job**
-
-Remove the whole `publish-maui:` job (lines 95–169), from `  publish-maui:` through its `Upload MAUI zip` step's `if-no-files-found: error`. (Its old `Validate tag matches ApplicationDisplayVersion` step is replaced by the `publish-cross` assertion added in Step 2.)
-
-- [x] **Step 4: Drop `publish-maui` from the release job's `needs`**
-
-Change `    needs: [publish-cross, publish-maui]` to `    needs: [publish-cross]`.
-
-- [x] **Step 5: Lint and confirm no MAUI/old-name refs remain**
-
-```bash
-python3 -c "import yaml; yaml.safe_load(open('.gitea/workflows/release.yml')); print('ok')"
-grep -n -i 'maui\|GitWizardAvalonia\|GitWizardUI.ViewModels\|ApplicationDisplayVersion\|publish/avalonia' .gitea/workflows/release.yml || echo "clean"
-```
-Expected: `ok` then `clean`.
-
-- [x] **Step 6: Commit**
-
-```bash
-git add .gitea/workflows/release.yml
-git commit -m "ci(release): drop MAUI publish job, ship GitWizardUI zips, anchor tag-assert on <Version>
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
-```
-
-### Task 7: Update `screenshot.yml`
-
-**Files:**
-- Modify: `.gitea/workflows/screenshot.yml`
-
-- [x] **Step 1: Rewrite the build/run/artifact references**
-
-Apply these edits:
-- `Build GitWizardAvalonia` step → name `Build GitWizardUI`; command `dotnet build GitWizardUI/GitWizardUI.csproj -c Debug --no-restore`.
-- `Capture screenshot` step: `dotnet restore GitWizardUI.Screenshot/GitWizardUI.Screenshot.csproj` and `dotnet run --project GitWizardUI.Screenshot/GitWizardUI.Screenshot.csproj -c Debug --no-restore`.
-- `Upload screenshot artifact` step: `name: GitWizardUI-screenshot`; `path: Screenshots/GitWizardUI.png`.
-
-- [x] **Step 2: Lint and confirm clean**
-
-```bash
-python3 -c "import yaml; yaml.safe_load(open('.gitea/workflows/screenshot.yml')); print('ok')"
-grep -n -i 'GitWizardAvalonia' .gitea/workflows/screenshot.yml || echo "clean"
-```
-Expected: `ok` then `clean`.
-
-- [x] **Step 3: Commit**
-
-```bash
-git add .gitea/workflows/screenshot.yml
-git commit -m "ci(screenshot): point at renamed GitWizardUI + GitWizardUI.Screenshot
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
-```
-
----
-
 ## Phase 6: Documentation
 
 ### Task 8: Update CLAUDE.md and other docs
@@ -217,7 +18,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 - Modify: `CLAUDE.md`, `README.md`, `HANDOFF.md`, `PLAN.md`
 - Delete: `docs/superpowers/plans/2026-05-24-retire-maui.md` (superseded)
 
-- [ ] **Step 1: Rewrite `CLAUDE.md` to the single-GUI reality**
+- [x] **Step 1: Rewrite `CLAUDE.md` to the single-GUI reality**
 
 Make these edits:
 - **Projects list:** drop the MAUI `GitWizardUI/` and `GitWizardUI.UITests/` bullets and the separate `GitWizardUI.ViewModels/` bullet; describe `GitWizardUI/` as "Avalonia cross-platform desktop app (Windows/macOS/Linux); contains the view models under `ViewModels/`"; rename the `GitWizardAvalonia.Screenshot/` bullet to `GitWizardUI.Screenshot/`; drop `GitWizardUI.UITests` from the test-projects line.
@@ -227,14 +28,14 @@ Make these edits:
 - **CI infrastructure:** drop the MAUI workload mention and the `publish-maui` reference; update the coverage-gate bullet to note the re-baselined threshold + whole-assembly scope; update the "Deliberate non-goals" MAUI bullet to "no MAUI (retired 2026-05-26; GitWizardUI is the Avalonia app)".
 - **Tips:** delete the `taskkill /IM GitWizardUI.exe` Git-Bash tip and the MAUI `CollectionView`/`IsEnabled` tips; keep the Avalonia-specific tips (custom `ICommand`, `StringToThicknessConverter`, scroll-anchor, etc.) — they now describe `GitWizardUI`.
 
-- [ ] **Step 2: Sweep README/HANDOFF/PLAN for stale names**
+- [x] **Step 2: Sweep README/HANDOFF/PLAN for stale names**
 
 ```bash
 grep -n -i 'GitWizardAvalonia\|GitWizardUI\.ViewModels\|maui' README.md HANDOFF.md PLAN.md
 ```
 For each hit, update prose to the new names (Avalonia app = `GitWizardUI`; VMs live in `GitWizardUI/ViewModels/`; MAUI retired). Make the edits.
 
-- [ ] **Step 3: Delete the superseded plan**
+- [x] **Step 3: Delete the superseded plan**
 
 ```bash
 git diff docs/superpowers/plans/2026-05-24-retire-maui.md   # review the pending working-tree edit
@@ -244,7 +45,7 @@ Phase 1 of that plan is merged (PR #47) and its outcome lives in code + CLAUDE.m
 git rm -f docs/superpowers/plans/2026-05-24-retire-maui.md
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add -A

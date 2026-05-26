@@ -6,32 +6,27 @@ Multi-project solution for scanning and reporting on git repositories.
 
 - **GitWizard/** — Core class library (cross-platform: Windows, macOS, Linux)
 - **git-wizard/** — CLI tool
-- **GitWizardUI.ViewModels/** — Shared view models behind `IUiDispatcher` / `IUserDialogs` / `IFolderPicker`, consumed by both desktop apps
-- **GitWizardAvalonia/** — Avalonia cross-platform desktop app (Windows, macOS, Linux)
-- **GitWizardAvalonia.Screenshot/** — Headless Avalonia screenshot tool (used by CI)
-- **GitWizardUI/** — .NET MAUI desktop app (Windows + macCatalyst)
-- **GitWizardTests/**, **GitWizardUI.UITests/** — NUnit test projects
+- **GitWizardUI/** — Avalonia cross-platform desktop app (Windows/macOS/Linux); contains the view models under `ViewModels/` (behind `IUiDispatcher` / `IUserDialogs` / `IFolderPicker`)
+- **GitWizardUI.Screenshot/** — Headless Avalonia screenshot tool (used by CI)
+- **GitWizardTests/** — NUnit test project
 
 ## Build
 
-Use VS2026's MSBuild (not `dotnet build`) when building projects that depend on MFTLib, because MFTLib includes a native C++ project that requires the v145 platform toolset:
+Plain `dotnet build` is the norm and works on Windows/macOS/Linux, because MFTLib is a NuGet **PackageReference** whose native DLL (`MFTLibNative.dll`) ships pre-built in the package:
 
 ```bash
-# CLI (via MSBuild — required when using MFTLib ProjectReference)
-"C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" git-wizard/git-wizard.csproj -t:Build -p:Configuration=Debug -nologo -v:minimal
+# Whole solution
+dotnet build git-wizard.slnx
 
-# Avalonia desktop (cross-platform — builds with plain `dotnet` on Linux/macOS/Windows
-# via the MFTLib NuGet PackageReference; no MSBuild/native toolset needed)
-dotnet build GitWizardAvalonia/GitWizardAvalonia.csproj
-
-# MAUI UI (via MSBuild)
-"C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" GitWizardUI/GitWizardUI.csproj -t:Build -p:Configuration=Debug -nologo -v:minimal
-
-# Publish MAUI (creates Releases/GitWizardUI-{version}.zip automatically)
-dotnet publish GitWizardUI/GitWizardUI.csproj -f net10.0-windows10.0.19041.0 -c Release
+# GUI desktop app
+dotnet build GitWizardUI/GitWizardUI.csproj
 ```
 
-`dotnet build` works when MFTLib is a NuGet PackageReference (the native DLL comes pre-built in the package), but fails when using a local ProjectReference because `dotnet` CLI can't build the MFTLibNative.vcxproj C++ project.
+The only time you need VS2026's MSBuild is when MFTLib is swapped to a local **ProjectReference** (MFTLib local dev — see below): the `dotnet` CLI can't build MFTLib's native `MFTLibNative.vcxproj` (it needs the v145 platform toolset). In that mode only:
+
+```bash
+"C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" git-wizard/git-wizard.csproj -t:Build -p:Configuration=Debug -nologo -v:minimal
+```
 
 ## MFTLib Local Development
 
@@ -60,9 +55,8 @@ The native DLL (MFTLibNative.dll) is handled by a `None Include` item in the csp
 
 - **MFTLib** — Used on Windows for fast .git discovery via NTFS MFT parsing. Requires elevation; the app self-elevates via UAC when needed.
 - **MFTLib.ElevationUtilities** — Elevation helpers from MFTLib: `IsElevated()`, `CanSelfElevate()`, `TryRunElevated(args, timeoutMs)`. Used by GitWizardApi for MFT scanning and WindowsDefenderException for adding exclusions.
-- **Self-elevation** — Both CLI and MAUI handle `--elevated-mft` and `--elevated-defender` hidden args for child process elevation.
-- **IUpdateHandler** — Interface for progress reporting, used by both CLI (UpdateHandler) and MAUI (MainViewModel).
-- **CollectionView** — UI uses MAUI CollectionView (not TreeView/UraniumUI) with `ItemsUpdatingScrollMode="KeepScrollOffset"` to prevent scroll reset during refresh. Group expand/collapse is simulated by inserting/removing children in a flat list.
+- **Self-elevation** — Both CLI and GitWizardUI handle `--elevated-mft` and `--elevated-defender` hidden args for child process elevation.
+- **IUpdateHandler** — Interface for progress reporting, used by both CLI (UpdateHandler) and GitWizardUI (MainViewModel).
 - **Collection swap pattern** — `ApplyFilterAndGrouping()` builds a new `ObservableCollection` off-screen and swaps it in one shot to avoid per-item layout updates with 700+ repos.
 - **UI command queue** — Background refresh threads enqueue `RepositoryUICommand` structs; a UI update thread drains them in batches on the main thread every 250ms.
 - **RefreshStatus enum** — Per-repo status (Refreshing/Success/Timeout/Error) drives the status icon in column 0. `MarkRefreshFailed()` on `GitWizardRepository` handles timeout/error paths.
@@ -81,7 +75,7 @@ GitWizard stores config and cache in `~/.GitWizard/`:
 - `dotnet-dump analyze <dump>` — inspect threads, stacks, exceptions (`pe` for last exception, `clrstack` for managed stacks)
 - `dotnet-stack report -p <pid>` — quick stack trace of all threads without killing the process
 
-Use these to debug crashes/freezes instead of guessing. For the MAUI UI, run the exe in the background, get its PID, and collect a dump if it hangs.
+Use these to debug crashes/freezes instead of guessing. For the GUI app, run the exe in the background, get its PID, and collect a dump if it hangs.
 
 VS2026 is installed at `C:/Program Files/Microsoft Visual Studio/18/Community/` for interactive debugging when CLI tools aren't enough.
 
@@ -98,25 +92,25 @@ curl -fsSL -X POST -H "Authorization: token $(cat ~/.gitea-token)" \
     "https://gitea.llamabox.internal/api/v1/repos/schoen/git-wizard/actions/workflows/screenshot.yml/dispatches"
 ```
 
-The workflow runs on `windows-latest`, captures the screenshot using Avalonia headless rendering, and uploads `GitWizardAvalonia.png` as a workflow artifact. Download the artifact and commit it to `Screenshots/`.
+The workflow runs on `windows-latest`, captures the screenshot using Avalonia headless rendering, and uploads `GitWizardUI.png` as a workflow artifact. Download the artifact and commit it to `Screenshots/`.
 
 ## Release checklist
 
-1. Update `ApplicationDisplayVersion` and `PackageVersion` in `GitWizardUI/GitWizardUI.csproj`
+1. Update `<Version>` in `GitWizardUI/GitWizardUI.csproj`
 2. Update version in CLI help text in `git-wizard/Program.cs`
 3. Update screenshot: trigger CI workflow (see above) or run locally
 4. Commit version bump, screenshot, and all pending changes
 5. `git tag v0.x.y && git push origin main --tags`
-6. CI builds and publishes the release with all artifacts attached. Watch `https://gitea.llamabox.internal/schoen/git-wizard/actions`. The release workflow's first step asserts the tag matches `ApplicationDisplayVersion` and fails fast on drift.
+6. CI builds and publishes the release with all artifacts attached. Watch `https://gitea.llamabox.internal/schoen/git-wizard/actions`. The release workflow's `publish-cross` job asserts the tag matches the csproj `<Version>` and fails fast on drift.
 
-The release attaches: `git-wizard-{ver}-{rid}.zip` and `GitWizardAvalonia-{ver}-{rid}.zip` for `rid in {win-x64, linux-x64, osx-x64}`, plus `GitWizardUI-{ver}.zip` (MAUI Windows). See `.gitea/workflows/release.yml` and the **CI infrastructure** section below.
+The release attaches: `git-wizard-{ver}-{rid}.zip` and `GitWizardUI-{ver}-{rid}.zip` for `rid in {win-x64, linux-x64, osx-x64}`. See `.gitea/workflows/release.yml` and the **CI infrastructure** section below.
 
 ## CI infrastructure
 
 Workflows live in `.gitea/workflows/` (`ci.yml`, `release.yml`) — the YAML is the source of truth for jobs and steps. Operational setup that is *not* in the YAML:
 
-- **Runners:** `ci.yml` splits across two self-hosted Gitea runners — `llamabox-ubuntu` (label `ubuntu-latest`, cross-platform build + the NUnit suite with coverage) and `llamabox-windows` (label `windows-latest`, full-solution build + all NUnit tests + MAUI workload). Both runners run the test suite; only the Linux job collects coverage.
-- **Coverage gate:** the Linux job runs `ci/post-coverage-status.py`, which (a) posts the informational `pr-crew/coverage` commit status, (b) writes a line/branch table to the job summary, and (c) **fails the job when line coverage drops below `--gate-line` (currently 33%)**. The threshold starts at the current baseline and is meant to ratchet up as the ViewModel test backfill lands (issue #36). The Cobertura XML is also uploaded as the `coverage-cobertura` artifact.
+- **Runners:** `ci.yml` splits across two self-hosted Gitea runners — `llamabox-ubuntu` (label `ubuntu-latest`, cross-platform build + the NUnit suite with coverage) and `llamabox-windows` (label `windows-latest`, full-solution build + all NUnit tests). Both runners run the test suite; only the Linux job collects coverage.
+- **Coverage gate:** the Linux job runs `ci/post-coverage-status.py`, which (a) posts the informational `pr-crew/coverage` commit status, (b) writes a line/branch table to the job summary, and (c) **fails the job when line coverage drops below `--gate-line` (currently 35%)**. Re-baselined to the whole `GitWizardUI` assembly after the VM fold (2026-05-26) — the app's untestable Avalonia glue (Views/App/Program) now sits in coverage scope; ratchets up as ViewModel coverage grows (issue #36). The Cobertura XML is also uploaded as the `coverage-cobertura` artifact.
 - **`ci-bot` identity:** the release workflow authenticates as a dedicated Gitea user `ci-bot` (reusable across personal repos). Provision on the Gitea host:
   ```bash
   sudo -u git gitea admin user create --username ci-bot --email ci-bot@llamabox.internal --random-password --must-change-password=false
@@ -125,17 +119,14 @@ Workflows live in `.gitea/workflows/` (`ci.yml`, `release.yml`) — the YAML is 
   Add `ci-bot` as a **Write** collaborator on `schoen/git-wizard` (needed to create releases + upload assets). `write:repository` is the only scope required.
 - **Secret:** store `ci-bot`'s PAT as the repo secret **`CI_GITEA_TOKEN`** (Settings → Actions → Secrets). `release.yml` reads `${{ secrets.CI_GITEA_TOKEN }}`. To rotate: re-run `generate-access-token` and re-paste the value — no code change.
 - **Branch protection** (`main`, configured in the Gitea UI, not in any file): require status checks `build-linux` + `test-windows`, require up-to-date branches, restrict force-pushes. Configure *after* the first green CI run so you don't lock yourself out.
-- **Deliberate non-goals:** no binary signing, no MAUI macOS/Android build (no macOS runner — Avalonia covers cross-platform desktop), and `GitWizardUI.UITests` is not run in CI (needs an interactive desktop — it's the manual screenshot tool).
+- **Deliberate non-goals:** no binary signing, no MAUI (retired 2026-05-26 — GitWizardUI is the Avalonia app, covering cross-platform desktop), and no macOS CI runner.
 - **Cert workaround:** both workflows set `NODE_TLS_REJECT_UNAUTHORIZED=0` because the Windows runner's Node doesn't trust the self-signed llamabox Caddy cert. Tracked for removal in `PLAN.md` → Infrastructure.
 
 ## Tips
 
-- To kill GitWizardUI from bash (Git Bash mangles `/IM`): `cmd.exe //c "taskkill /IM GitWizardUI.exe /F"`
-- MAUI CollectionView scroll fix: `ItemsUpdatingScrollMode="KeepScrollOffset"` — without this, adding items resets scroll to top
-- Avoid `IsEnabled` binding on sidebar buttons during refresh — CollectionView handles concurrent updates fine now
 - `deepRefresh` parameter skips expensive `git update-index --refresh` during auto-refresh; per-repo ↻ button triggers it on demand
-- **Avalonia commands:** the view models expose a *custom* `GitWizardUI.ViewModels.ICommand` (not `System.Windows.Input.ICommand`), so Avalonia `Button.Command="{Binding ...}"` silently ghosts/disables the button. Wire Avalonia buttons with `Click=` handlers that call `command.Execute(null)` — the whole Avalonia app follows this convention (MAUI binds `Command=` fine because its `Button.Command` adapts).
-- **Avalonia bindings don't apply the target property's `TypeConverter`** (MAUI's binding engine did): binding a *string* to a `Thickness` property — e.g. `RepositoryNodeViewModel.ItemPaddingString` → `Padding` — throws `InvalidCastException` on every realized row during scroll. Avalonia's default converter *does* handle string→primitive, string→enum (`FontWeight`), and string→`IBrush` (`StatusColorHex`→`Foreground`), but NOT `Thickness`. Use an explicit `IValueConverter` (`StringToThicknessConverter`) and keep the VM framework-agnostic (string in, convert in the view).
+- **Avalonia commands:** the view models expose a *custom* `GitWizardUI.ViewModels.ICommand` (not `System.Windows.Input.ICommand`), so Avalonia `Button.Command="{Binding ...}"` silently ghosts/disables the button. Wire Avalonia buttons with `Click=` handlers that call `command.Execute(null)` — the whole app follows this convention.
+- **Avalonia bindings don't apply the target property's `TypeConverter`** — binding a *string* to a `Thickness` property — e.g. `RepositoryNodeViewModel.ItemPaddingString` → `Padding` — throws `InvalidCastException` on every realized row during scroll. Avalonia's default converter *does* handle string→primitive, string→enum (`FontWeight`), and string→`IBrush` (`StatusColorHex`→`Foreground`), but NOT `Thickness`. Use an explicit `IValueConverter` (`StringToThicknessConverter`) and keep the VM framework-agnostic (string in, convert in the view).
 - **`LibGit2Sharp.Repository.IsValid(path)` is not fully non-throwing:** it returns `false` for a plain non-repo directory, but *throws* `LibGit2SharpException` for other conditions — notably git's "repository path ... is not owned by current user" ownership protection. `GitWizardRepository.Refresh` guards `new Repository(...)` with `IsValid` to skip stale/non-repo cache entries without spamming first-chance `RepositoryNotFoundException`, but that check lives **inside** the existing try so ownership/other errors still fall through to the catch as a normal refresh error (`RefreshConcurrencyTest` covers this). Don't hoist the `IsValid` call outside the try.
 - **Refresh vs discovery/UAC:** a normal GUI Refresh re-checks the cached repo list (`~/.GitWizard/repositories.txt`) and never runs MFT discovery or self-elevates. MFT discovery (and the UAC prompt) fire only when the cache is absent. Shift+click Refresh = hard refresh (clear cache + rediscover) is the GUI's way to force discovery/UAC.
 - **Avalonia UI updates:** `MainViewModel.SendUpdateMessage` coalesces status posts (at most one UI update in flight) so a large/recursive scan can't flood the dispatcher and wedge the window ("Not Responding"). Don't revert it to `_ui.Post` per message.

@@ -72,21 +72,21 @@ GitWizard would let projdash skip subprocess git entirely.
 
 ### Avalonia cross-platform UI
 
-- [x] Extracted view models into `GitWizardUI.ViewModels` shared project behind `IUiDispatcher` / `IUserDialogs` / `IFolderPicker`
+- [x] Extracted view models behind `IUiDispatcher` / `IUserDialogs` / `IFolderPicker` (a separate shared project at the time; since folded into `GitWizardUI/ViewModels/`)
 - [x] Neutralized MAUI types in `RepositoryNodeViewModel` (color/padding/font as strings)
 - [x] Extracted handler logic from MAUI page code-behind into VM methods (`ApplyFilter`/`ApplyGroup`/`ApplySort` etc.)
 - [x] MAUI app refactored to consume shared VMs via `MauiUiDispatcher` etc. — manual Windows verification pending
-- [x] Avalonia desktop project (`GitWizardAvalonia/`) ports MainPage and SettingsPage
+- [x] Avalonia desktop project (now `GitWizardUI/`) ports MainPage and SettingsPage
 - [x] Native folder picker on Linux/macOS via Avalonia `IStorageProvider`
 - [x] Windows-only features (Defender button) gated on `OperatingSystem.IsWindows()`
 - [x] Verified scan + filter + group + sort on Linux and Windows (runtime smoke test, 2026-05-23)
 
 ### Avalonia → MAUI parity & retirement
 
-Full capability-parity audit (2026-05-26): every MAUI (`GitWizardUI/`) feature is present in
-Avalonia, which also has extras (Downstream Branches filter, Clean button, progress bar). **MAUI can
-be retired without losing user-facing capability.** Remaining items are cosmetic/convenience polish —
-none blocks retirement.
+Full capability-parity audit (2026-05-26): every MAUI feature was present in
+Avalonia, which also has extras (Downstream Branches filter, Clean button, progress bar). **MAUI retired
+2026-05-26** — the Avalonia app was renamed `GitWizardUI`, the view models folded into
+`GitWizardUI/ViewModels/`, and the MAUI + UITests projects deleted (no user-facing capability lost).
 
 - [x] Scroll position restored across refresh — closed-loop offset correction in
       `MainWindow.RestoreScrollAnchor` (commit `ea6f2ce`); the during-refresh jump-to-top is an
@@ -115,5 +115,5 @@ none blocks retirement.
 
 ## Infrastructure
 
-- [x] **Gitea Actions CI** — `.gitea/workflows/ci.yml` runs `test-linux` (build + full NUnit suite with coverage, gated at 33% line via `ci/post-coverage-status.py`) and `test-windows` (full solution build + tests) on push to `main` and PRs targeting `main`. `.gitea/workflows/release.yml` builds CLI + Avalonia for `win-x64`/`linux-x64`/`osx-x64`, builds the MAUI Windows zip, and creates a Gitea release with all 7 assets attached on `v*` tag pushes. See `CLAUDE.md` § CI infrastructure for runner/bot/branch-protection setup.
-- [ ] **Trust llamabox cert on the Windows runner** — currently the MAUI publish and test-results upload use `NODE_TLS_REJECT_UNAUTHORIZED=0` to work around Node.js not trusting the self-signed Caddy cert. Install the cert into the runner's Node/system trust store and remove the env override.
+- [x] **Gitea Actions CI** — `.gitea/workflows/ci.yml` runs `test-linux` (build + full NUnit suite with coverage, gated at 35% line via `ci/post-coverage-status.py`) and `test-windows` (full solution build + tests) on push to `main` and PRs targeting `main`. `.gitea/workflows/release.yml` builds CLI + GitWizardUI for `win-x64`/`linux-x64`/`osx-x64` and creates a Gitea release with all 6 assets attached on `v*` tag pushes. See `CLAUDE.md` § CI infrastructure for runner/bot/branch-protection setup.
+- [ ] **Trust llamabox cert on the Windows runner** — currently the release publish and test-results upload use `NODE_TLS_REJECT_UNAUTHORIZED=0` to work around Node.js not trusting the self-signed Caddy cert. Install the cert into the runner's Node/system trust store and remove the env override.

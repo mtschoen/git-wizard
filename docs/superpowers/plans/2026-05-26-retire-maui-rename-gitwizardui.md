@@ -21,7 +21,7 @@
 - Delete: `GitWizardUI.UITests/` (entire directory)
 - Modify: `git-wizard.slnx`
 
-- [ ] **Step 1: Remove the two MAUI entries from `git-wizard.slnx`**
+- [x] **Step 1: Remove the two MAUI entries from `git-wizard.slnx`**
 
 Delete these two lines:
 
@@ -42,20 +42,20 @@ Delete these two lines:
 </Solution>
 ```
 
-- [ ] **Step 2: Delete the MAUI directories**
+- [x] **Step 2: Delete the MAUI directories**
 
 ```bash
 git rm -r GitWizardUI GitWizardUI.UITests
 ```
 
-- [ ] **Step 3: Build the cross-platform set to confirm nothing dangles**
+- [x] **Step 3: Build the cross-platform set to confirm nothing dangles**
 
 ```bash
 dotnet build GitWizardAvalonia/GitWizardAvalonia.csproj -c Debug
 ```
 Expected: `Build succeeded`, 0 errors. (Nothing references the MAUI project except the now-removed slnx entries.)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add git-wizard.slnx

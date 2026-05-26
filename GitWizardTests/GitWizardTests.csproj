@@ -21,7 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\GitWizard\GitWizard.csproj" />
-    <ProjectReference Include="..\GitWizardUI.ViewModels\GitWizardUI.ViewModels.csproj" />
+    <ProjectReference Include="..\GitWizardUI\GitWizardUI.csproj" />
   </ItemGroup>
 
   <ItemGroup>

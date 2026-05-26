@@ -2,6 +2,5 @@
   <Project Path="git-wizard/git-wizard.csproj" />
   <Project Path="GitWizard/GitWizard.csproj" />
   <Project Path="GitWizardTests/GitWizardTests.csproj" />
-  <Project Path="GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj" />
   <Project Path="GitWizardUI/GitWizardUI.csproj" />
 </Solution>

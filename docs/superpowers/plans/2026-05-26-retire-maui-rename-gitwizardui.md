@@ -1,0 +1,596 @@
+# Retire MAUI, rename Avalonia → GitWizardUI, fold in the ViewModels — Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Make the Avalonia app the sole desktop GUI, renamed `GitWizardUI`, with the `GitWizardUI.ViewModels` project folded into it (no separate VM project). End state: five projects (`git-wizard`, `GitWizard`, `GitWizardUI`, `GitWizardUI.Screenshot`, `GitWizardTests`) instead of seven.
+
+**Architecture:** A pure structural refactor — no production behavior change. Delete the MAUI `GitWizardUI` + `GitWizardUI.UITests`; rename `GitWizardAvalonia/` → `GitWizardUI/` (folder, csproj, `RootNamespace`); move `GitWizardUI.ViewModels/*.cs` into `GitWizardUI/ViewModels/` keeping their existing `namespace GitWizardUI.ViewModels` (nests cleanly under the new root, so VM source is untouched); rename `GitWizardAvalonia.Screenshot` → `GitWizardUI.Screenshot`. `GitWizardTests` references the new `GitWizardUI` project. The coverage gate is **re-baselined to the whole `GitWizardUI` assembly** (the app's untestable Avalonia glue now sits in scope and lowers the line %). Done as one PR; each phase leaves `dotnet build git-wizard.slnx` green. Supersedes Phase 2 of `2026-05-24-retire-maui.md` (Phase 1 — Avalonia Windows parity — already merged in PR #47).
+
+**Tech Stack:** C# / .NET 10, Avalonia 11.2, NUnit 4, coverlet, Gitea Actions (`ci.yml`, `release.yml`, `screenshot.yml`), `ci/post-coverage-status.py`.
+
+---
+
+## Phase 1: Delete the MAUI projects
+
+> Branch `retire-maui-rename-ui` already exists (created during brainstorming, holds the spec→plan commits). Work continues on it.
+
+### Task 1: Remove MAUI + UITests from the solution and tree
+
+**Files:**
+- Delete: `GitWizardUI/` (entire MAUI directory)
+- Delete: `GitWizardUI.UITests/` (entire directory)
+- Modify: `git-wizard.slnx`
+
+- [ ] **Step 1: Remove the two MAUI entries from `git-wizard.slnx`**
+
+Delete these two lines:
+
+```xml
+  <Project Path="GitWizardUI.UITests/GitWizardUI.UITests.csproj" />
+  <Project Path="GitWizardUI/GitWizardUI.csproj" />
+```
+
+`git-wizard.slnx` should then read exactly:
+
+```xml
+<Solution>
+  <Project Path="git-wizard/git-wizard.csproj" />
+  <Project Path="GitWizard/GitWizard.csproj" />
+  <Project Path="GitWizardTests/GitWizardTests.csproj" />
+  <Project Path="GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj" />
+  <Project Path="GitWizardAvalonia/GitWizardAvalonia.csproj" />
+</Solution>
+```
+
+- [ ] **Step 2: Delete the MAUI directories**
+
+```bash
+git rm -r GitWizardUI GitWizardUI.UITests
+```
+
+- [ ] **Step 3: Build the cross-platform set to confirm nothing dangles**
+
+```bash
+dotnet build GitWizardAvalonia/GitWizardAvalonia.csproj -c Debug
+```
+Expected: `Build succeeded`, 0 errors. (Nothing references the MAUI project except the now-removed slnx entries.)
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add git-wizard.slnx
+git commit -m "chore: delete MAUI (GitWizardUI) + UITests projects
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
+```
+
+---
+
+## Phase 2: Rename GitWizardAvalonia → GitWizardUI
+
+The MAUI `GitWizardUI` is gone (Phase 1), so its name is free. Rename the Avalonia app folder, csproj, `RootNamespace`, and every `GitWizardAvalonia` namespace/using/`x:Class`/xmlns token to `GitWizardUI`. The VM project stays separate this phase (folded in Phase 3); the app keeps referencing it. The `vm` XAML alias (`using:GitWizardUI.ViewModels`) is already correct and must NOT change.
+
+### Task 2: Rename the project files and references
+
+**Files:**
+- Rename: `GitWizardAvalonia/` → `GitWizardUI/`; `GitWizardAvalonia/GitWizardAvalonia.csproj` → `GitWizardUI/GitWizardUI.csproj`
+- Modify: `git-wizard.slnx`, `GitWizardAvalonia.Screenshot/GitWizardAvalonia.Screenshot.csproj`
+
+- [ ] **Step 1: Move the folder and csproj**
+
+```bash
+git mv GitWizardAvalonia GitWizardUI
+git mv GitWizardUI/GitWizardAvalonia.csproj GitWizardUI/GitWizardUI.csproj
+```
+
+- [ ] **Step 2: Point the solution and Screenshot project at the new path**
+
+In `git-wizard.slnx`, change:
+```xml
+  <Project Path="GitWizardAvalonia/GitWizardAvalonia.csproj" />
+```
+to:
+```xml
+  <Project Path="GitWizardUI/GitWizardUI.csproj" />
+```
+
+In `GitWizardAvalonia.Screenshot/GitWizardAvalonia.Screenshot.csproj`, change:
+```xml
+    <ProjectReference Include="..\GitWizardAvalonia\GitWizardAvalonia.csproj" />
+```
+to:
+```xml
+    <ProjectReference Include="..\GitWizardUI\GitWizardUI.csproj" />
+```
+
+- [ ] **Step 3: Set `RootNamespace` and add the version anchor in `GitWizardUI/GitWizardUI.csproj`**
+
+Change `<RootNamespace>GitWizardAvalonia</RootNamespace>` to `<RootNamespace>GitWizardUI</RootNamespace>`, and add a `<Version>` line directly after it (carries 0.4.1 forward from the deleted MAUI `ApplicationDisplayVersion`):
+
+```xml
+    <RootNamespace>GitWizardUI</RootNamespace>
+    <Version>0.4.1</Version>
+```
+
+(Leave the `ProjectReference` to `..\GitWizardUI.ViewModels\GitWizardUI.ViewModels.csproj` in place — it is removed in Phase 3.)
+
+- [ ] **Step 4: Rewrite the `GitWizardAvalonia` token to `GitWizardUI` in app sources**
+
+`GitWizardAvalonia` appears only as the app's own namespace/using/`x:Class`/`xmlns:converters` — never inside `GitWizardUI.ViewModels`, so a blanket replace is safe:
+
+```bash
+grep -rl 'GitWizardAvalonia' GitWizardUI --include='*.cs' --include='*.axaml' --include='*.manifest' | xargs sed -i 's/GitWizardAvalonia/GitWizardUI/g'
+```
+
+This updates: `App.axaml` (`x:Class="GitWizardUI.App"`), `App.axaml.cs` (`namespace GitWizardUI;`, `using GitWizardUI.Views;`), `Program.cs` (`namespace GitWizardUI;`), `Converters/*.cs` (`namespace GitWizardUI.Converters;`), `Services/*.cs` (`namespace GitWizardUI.Services;`), `Views/MainWindow.axaml` + `SettingsWindow.axaml` (`x:Class="GitWizardUI.Views.…"`, `xmlns:converters="using:GitWizardUI.Converters"`), their `.axaml.cs` (`namespace GitWizardUI.Views;`, `using GitWizardUI.Services;`), and `app.manifest` (`<assemblyIdentity … name="GitWizardUI.Desktop"/>`). (No explicit `<AssemblyName>` exists in the csproj, so the assembly name auto-follows the renamed `GitWizardUI.csproj`.)
+
+- [ ] **Step 5: Fix the Screenshot project's reference to the app type**
+
+The Screenshot tool instantiates the app class and writes a PNG named after it. Replace both in `GitWizardAvalonia.Screenshot/Program.cs`:
+
+```bash
+sed -i 's/GitWizardAvalonia/GitWizardUI/g' GitWizardAvalonia.Screenshot/Program.cs
+```
+
+This turns `AppBuilder.Configure<GitWizardAvalonia.App>()` → `Configure<GitWizardUI.App>()`, `Application.Current as GitWizardAvalonia.App` → `as GitWizardUI.App`, and the output path `Screenshots/GitWizardAvalonia.png` → `Screenshots/GitWizardUI.png` (matching the already-committed `Screenshots/GitWizardUI.png`).
+
+- [ ] **Step 6: Build the full solution**
+
+```bash
+dotnet build git-wizard.slnx -c Debug
+```
+Expected: `Build succeeded`, 0 errors. (Compiled XAML resolves because `RootNamespace`, `x:Class`, and the `converters` xmlns now all say `GitWizardUI`; the `vm` alias still says `GitWizardUI.ViewModels`, which still exists as its own project.)
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add -A
+git commit -m "refactor: rename GitWizardAvalonia project to GitWizardUI
+
+Folder, csproj, RootNamespace, and all GitWizardAvalonia namespaces/
+x:Class/xmlns tokens become GitWizardUI. Adds <Version>0.4.1</Version>.
+GitWizardUI.ViewModels stays a separate project for now (folded in next).
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
+```
+
+---
+
+## Phase 3: Fold GitWizardUI.ViewModels into GitWizardUI
+
+Move the VM source into `GitWizardUI/ViewModels/`, delete the VM project, and repoint the two consumers (`GitWizardUI` itself — drop the now-internal project reference; `GitWizardTests` — reference `GitWizardUI`). The VM files keep `namespace GitWizardUI.ViewModels` unchanged.
+
+### Task 3: Move VM sources and delete the VM project
+
+**Files:**
+- Move: `GitWizardUI.ViewModels/*.cs` → `GitWizardUI/ViewModels/` (preserving the `Services/` subfolder)
+- Delete: `GitWizardUI.ViewModels/` (incl. its csproj)
+- Modify: `git-wizard.slnx`, `GitWizardUI/GitWizardUI.csproj`, `GitWizardTests/GitWizardTests.csproj`
+
+- [ ] **Step 1: Move the VM source files into the app project**
+
+```bash
+mkdir -p GitWizardUI/ViewModels/Services
+git mv GitWizardUI.ViewModels/MainViewModel.cs            GitWizardUI/ViewModels/MainViewModel.cs
+git mv GitWizardUI.ViewModels/RelayCommand.cs             GitWizardUI/ViewModels/RelayCommand.cs
+git mv GitWizardUI.ViewModels/RepositoryNodeViewModel.cs  GitWizardUI/ViewModels/RepositoryNodeViewModel.cs
+git mv GitWizardUI.ViewModels/SettingsViewModel.cs        GitWizardUI/ViewModels/SettingsViewModel.cs
+git mv GitWizardUI.ViewModels/Services/IClipboardService.cs    GitWizardUI/ViewModels/Services/IClipboardService.cs
+git mv GitWizardUI.ViewModels/Services/IFolderPicker.cs        GitWizardUI/ViewModels/Services/IFolderPicker.cs
+git mv GitWizardUI.ViewModels/Services/IUiDispatcher.cs        GitWizardUI/ViewModels/Services/IUiDispatcher.cs
+git mv GitWizardUI.ViewModels/Services/IUserDialogs.cs         GitWizardUI/ViewModels/Services/IUserDialogs.cs
+git mv GitWizardUI.ViewModels/Services/StubClipboardService.cs GitWizardUI/ViewModels/Services/StubClipboardService.cs
+git mv GitWizardUI.ViewModels/Services/StubFolderPicker.cs     GitWizardUI/ViewModels/Services/StubFolderPicker.cs
+git mv GitWizardUI.ViewModels/Services/StubUiDispatcher.cs     GitWizardUI/ViewModels/Services/StubUiDispatcher.cs
+git mv GitWizardUI.ViewModels/Services/StubUserDialogs.cs      GitWizardUI/ViewModels/Services/StubUserDialogs.cs
+```
+
+(The files keep `namespace GitWizardUI.ViewModels[.Services]` — no edit needed. `GitWizard` SDK-style projects auto-include `**/*.cs`, so no csproj item entries are required.)
+
+- [ ] **Step 2: Delete the now-empty VM project**
+
+```bash
+git rm GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj
+rmdir GitWizardUI.ViewModels/Services GitWizardUI.ViewModels 2>/dev/null || true
+```
+
+- [ ] **Step 3: Remove the VM project from the solution**
+
+In `git-wizard.slnx`, delete the line:
+```xml
+  <Project Path="GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj" />
+```
+
+`git-wizard.slnx` should then read exactly:
+```xml
+<Solution>
+  <Project Path="git-wizard/git-wizard.csproj" />
+  <Project Path="GitWizard/GitWizard.csproj" />
+  <Project Path="GitWizardTests/GitWizardTests.csproj" />
+  <Project Path="GitWizardUI/GitWizardUI.csproj" />
+  <Project Path="GitWizardAvalonia.Screenshot/GitWizardAvalonia.Screenshot.csproj" />
+</Solution>
+```
+
+- [ ] **Step 4: Drop the VM project reference from `GitWizardUI/GitWizardUI.csproj`**
+
+Delete the line (the VMs are now in-project):
+```xml
+    <ProjectReference Include="..\GitWizardUI.ViewModels\GitWizardUI.ViewModels.csproj" />
+```
+Leave the `..\GitWizard\GitWizard.csproj` reference.
+
+- [ ] **Step 5: Repoint `GitWizardTests` from the VM project to `GitWizardUI`**
+
+In `GitWizardTests/GitWizardTests.csproj`, replace:
+```xml
+    <ProjectReference Include="..\GitWizardUI.ViewModels\GitWizardUI.ViewModels.csproj" />
+```
+with:
+```xml
+    <ProjectReference Include="..\GitWizardUI\GitWizardUI.csproj" />
+```
+(Keep the `..\GitWizard\GitWizard.csproj` reference. The test files' `using GitWizardUI.ViewModels;` lines are unaffected — the namespace is unchanged, only its assembly moved.)
+
+- [ ] **Step 6: Build the solution and run the tests**
+
+```bash
+dotnet build git-wizard.slnx -c Debug
+dotnet test GitWizardTests/GitWizardTests.csproj -c Debug
+```
+Expected: build succeeds; tests pass (the same VM tests now compile against the VMs living in `GitWizardUI`; `GitWizardTests` transitively pulls Avalonia but never starts the app). The two `Refresh_*` `FindRepoRoot` tests pass here because this is a normal checkout, not a worktree.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add -A
+git commit -m "refactor: fold GitWizardUI.ViewModels into the GitWizardUI app project
+
+VM sources move to GitWizardUI/ViewModels/ (namespace unchanged); the
+separate VM project is deleted. GitWizardTests now references GitWizardUI.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
+```
+
+---
+
+## Phase 4: Rename the Screenshot project
+
+### Task 4: GitWizardAvalonia.Screenshot → GitWizardUI.Screenshot
+
+**Files:**
+- Rename: `GitWizardAvalonia.Screenshot/` → `GitWizardUI.Screenshot/`; its csproj likewise
+- Modify: `git-wizard.slnx`
+
+- [ ] **Step 1: Move the folder and csproj**
+
+```bash
+git mv GitWizardAvalonia.Screenshot GitWizardUI.Screenshot
+git mv GitWizardUI.Screenshot/GitWizardAvalonia.Screenshot.csproj GitWizardUI.Screenshot/GitWizardUI.Screenshot.csproj
+```
+
+- [ ] **Step 2: Update the solution entry**
+
+In `git-wizard.slnx`, change:
+```xml
+  <Project Path="GitWizardAvalonia.Screenshot/GitWizardAvalonia.Screenshot.csproj" />
+```
+to:
+```xml
+  <Project Path="GitWizardUI.Screenshot/GitWizardUI.Screenshot.csproj" />
+```
+
+- [ ] **Step 3: Build the solution**
+
+```bash
+dotnet build git-wizard.slnx -c Debug
+```
+Expected: `Build succeeded`, 0 errors. (The Screenshot project's `ProjectReference` to `..\GitWizardUI\GitWizardUI.csproj` and its `GitWizardUI.App` usage were already fixed in Phase 2.)
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add -A
+git commit -m "refactor: rename GitWizardAvalonia.Screenshot to GitWizardUI.Screenshot
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
+```
+
+---
+
+## Phase 5: CI, release, screenshot workflows + coverage re-baseline
+
+### Task 5: Update `ci.yml`
+
+**Files:**
+- Modify: `.gitea/workflows/ci.yml`
+
+- [ ] **Step 1: Update the Linux job's project lists (rename + fold)**
+
+In BOTH the `Restore (cross-platform projects)` and `Build (cross-platform projects)` steps, replace the two lines:
+```
+            GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj \
+            GitWizardAvalonia/GitWizardAvalonia.csproj \
+```
+with the single line:
+```
+            GitWizardUI/GitWizardUI.csproj \
+```
+So each loop lists: `GitWizard`, `git-wizard`, `GitWizardUI`, `GitWizardTests`.
+
+- [ ] **Step 2: Remove the three MAUI-only steps from the `test-windows` job**
+
+Delete the `Cache MAUI workload manifests` step (lines 116–124), the `Install MAUI workload (Windows-only)` step (126–128), and the `Restore MAUI runtime pack (win-x64)` step (133–134). The `test-windows` steps go straight from `Cache NuGet packages` → `Restore (full solution)` → `Build (full solution)` → `Test`:
+
+```yaml
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~\.nuget\packages
+          key: windows-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            windows-nuget-
+
+      - name: Restore (full solution)
+        run: dotnet restore git-wizard.slnx
+
+      - name: Build (full solution)
+        run: dotnet build git-wizard.slnx -c Release --no-restore
+
+      - name: Test
+        shell: pwsh
+        run: |
+          dotnet test GitWizardTests/GitWizardTests.csproj `
+              -c Release --no-build `
+              --logger "trx;LogFileName=TestResults.trx" `
+              --results-directory ./TestResults
+```
+
+(With MAUI gone from the slnx, `dotnet restore/build git-wizard.slnx` needs no workload.)
+
+- [ ] **Step 3: Re-baseline the coverage gate — measure first**
+
+Run the Linux-style coverage locally to read the new line %:
+```bash
+dotnet test GitWizardTests/GitWizardTests.csproj -c Release \
+    --collect:"XPlat Code Coverage" --results-directory ./TestResults
+python3 ci/post-coverage-status.py \
+    --cobertura "TestResults/**/coverage.cobertura.xml" --gate-line 0 --summary --skip-post
+```
+Read the reported line % (now including the whole `GitWizardUI` assembly with its uncovered Views/App/Program). Pick the new threshold = floor(reported %) − 2 (a small buffer against run-to-run jitter). Record the measured % and chosen threshold in the eventual PR description.
+
+- [ ] **Step 4: Set the new `--gate-line` in `ci.yml`**
+
+In the `Coverage gate` step, change `--gate-line 33` to the threshold from Step 3, and update the explanatory comment above it to read:
+
+```yaml
+      # Gate the build on line coverage and write a line/branch table to the job
+      # summary. Re-baselined to the whole GitWizardUI assembly after the VM fold
+      # (2026-05-26) — the app's untestable Avalonia glue (Views/App/Program) now
+      # sits in coverage scope. Ratchet up as ViewModel coverage grows (issue #36).
+```
+
+- [ ] **Step 5: Lint and confirm no MAUI/old-name refs remain**
+
+```bash
+python3 -c "import yaml; yaml.safe_load(open('.gitea/workflows/ci.yml')); print('ok')"
+grep -n -i 'maui\|GitWizardAvalonia\|GitWizardUI.ViewModels' .gitea/workflows/ci.yml || echo "clean"
+```
+Expected: `ok` then `clean`.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add .gitea/workflows/ci.yml
+git commit -m "ci: drop MAUI steps, rename project list, re-baseline coverage gate
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
+```
+
+### Task 6: Update `release.yml`
+
+**Files:**
+- Modify: `.gitea/workflows/release.yml`
+
+- [ ] **Step 1: Fix the `pull_request` paths trigger**
+
+Replace the three csproj path lines (10–12):
+```yaml
+      - 'GitWizardUI/GitWizardUI.csproj'
+      - 'GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj'
+      - 'GitWizardAvalonia/GitWizardAvalonia.csproj'
+```
+with the single line:
+```yaml
+      - 'GitWizardUI/GitWizardUI.csproj'
+```
+
+- [ ] **Step 2: Rename the publish step + zip and add the tag-version assertion in `publish-cross`**
+
+Rename the `Publish Avalonia` step to `Publish GUI (GitWizardUI)` and point it at `GitWizardUI/GitWizardUI.csproj` with output `publish/gui/${{ matrix.rid }}`:
+```yaml
+      - name: Publish GUI (GitWizardUI)
+        run: |
+          dotnet publish GitWizardUI/GitWizardUI.csproj \
+            -c Release \
+            -r ${{ matrix.rid }} \
+            --self-contained \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -o publish/gui/${{ matrix.rid }}
+```
+In the `Zip artifacts` step, change the Avalonia zip line:
+```bash
+          (cd publish/avalonia/${{ matrix.rid }} && zip -r "../../../artifacts/GitWizardAvalonia-${VERSION}-${{ matrix.rid }}.zip" .)
+```
+to:
+```bash
+          (cd publish/gui/${{ matrix.rid }} && zip -r "../../../artifacts/GitWizardUI-${VERSION}-${{ matrix.rid }}.zip" .)
+```
+Immediately AFTER the `Resolve version` step (`id: ver`) and BEFORE `Publish CLI`, insert the tag assertion (bash, since this job is ubuntu):
+```yaml
+      - name: Validate tag matches GitWizardUI <Version> (push only)
+        if: github.event_name == 'push'
+        run: |
+          appVer=$(grep -oP '(?<=<Version>)[^<]+' GitWizardUI/GitWizardUI.csproj)
+          tagVer="${{ steps.ver.outputs.version }}"
+          if [ "$appVer" != "$tagVer" ]; then
+            echo "Tag version '$tagVer' does not match GitWizardUI.csproj <Version> '$appVer'. Bump the csproj or move the tag." >&2
+            exit 1
+          fi
+          echo "Version match: $tagVer"
+```
+
+- [ ] **Step 3: Delete the entire `publish-maui` job**
+
+Remove the whole `publish-maui:` job (lines 95–169), from `  publish-maui:` through its `Upload MAUI zip` step's `if-no-files-found: error`. (Its old `Validate tag matches ApplicationDisplayVersion` step is replaced by the `publish-cross` assertion added in Step 2.)
+
+- [ ] **Step 4: Drop `publish-maui` from the release job's `needs`**
+
+Change `    needs: [publish-cross, publish-maui]` to `    needs: [publish-cross]`.
+
+- [ ] **Step 5: Lint and confirm no MAUI/old-name refs remain**
+
+```bash
+python3 -c "import yaml; yaml.safe_load(open('.gitea/workflows/release.yml')); print('ok')"
+grep -n -i 'maui\|GitWizardAvalonia\|GitWizardUI.ViewModels\|ApplicationDisplayVersion\|publish/avalonia' .gitea/workflows/release.yml || echo "clean"
+```
+Expected: `ok` then `clean`.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add .gitea/workflows/release.yml
+git commit -m "ci(release): drop MAUI publish job, ship GitWizardUI zips, anchor tag-assert on <Version>
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
+```
+
+### Task 7: Update `screenshot.yml`
+
+**Files:**
+- Modify: `.gitea/workflows/screenshot.yml`
+
+- [ ] **Step 1: Rewrite the build/run/artifact references**
+
+Apply these edits:
+- `Build GitWizardAvalonia` step → name `Build GitWizardUI`; command `dotnet build GitWizardUI/GitWizardUI.csproj -c Debug --no-restore`.
+- `Capture screenshot` step: `dotnet restore GitWizardUI.Screenshot/GitWizardUI.Screenshot.csproj` and `dotnet run --project GitWizardUI.Screenshot/GitWizardUI.Screenshot.csproj -c Debug --no-restore`.
+- `Upload screenshot artifact` step: `name: GitWizardUI-screenshot`; `path: Screenshots/GitWizardUI.png`.
+
+- [ ] **Step 2: Lint and confirm clean**
+
+```bash
+python3 -c "import yaml; yaml.safe_load(open('.gitea/workflows/screenshot.yml')); print('ok')"
+grep -n -i 'GitWizardAvalonia' .gitea/workflows/screenshot.yml || echo "clean"
+```
+Expected: `ok` then `clean`.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add .gitea/workflows/screenshot.yml
+git commit -m "ci(screenshot): point at renamed GitWizardUI + GitWizardUI.Screenshot
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
+```
+
+---
+
+## Phase 6: Documentation
+
+### Task 8: Update CLAUDE.md and other docs
+
+**Files:**
+- Modify: `CLAUDE.md`, `README.md`, `HANDOFF.md`, `PLAN.md`
+- Delete: `docs/superpowers/plans/2026-05-24-retire-maui.md` (superseded)
+
+- [ ] **Step 1: Rewrite `CLAUDE.md` to the single-GUI reality**
+
+Make these edits:
+- **Projects list:** drop the MAUI `GitWizardUI/` and `GitWizardUI.UITests/` bullets and the separate `GitWizardUI.ViewModels/` bullet; describe `GitWizardUI/` as "Avalonia cross-platform desktop app (Windows/macOS/Linux); contains the view models under `ViewModels/`"; rename the `GitWizardAvalonia.Screenshot/` bullet to `GitWizardUI.Screenshot/`; drop `GitWizardUI.UITests` from the test-projects line.
+- **Build section:** delete the MAUI build + "Publish MAUI" blocks; reframe the intro so plain `dotnet build` is the norm and the VS2026-MSBuild guidance applies ONLY to MFTLib **local ProjectReference** dev; change the Avalonia build command to `dotnet build GitWizardUI/GitWizardUI.csproj`.
+- **Key Architecture:** change `Self-elevation`/`IUpdateHandler` "CLI and MAUI" → "CLI and GitWizardUI"; delete the MAUI `CollectionView` bullet.
+- **Release checklist:** step 1 becomes "Update `<Version>` in `GitWizardUI/GitWizardUI.csproj`"; drop `GitWizardUI-{ver}.zip` (MAUI) from the artifacts list (the cross-platform `GitWizardUI-*` zips now cover it).
+- **CI infrastructure:** drop the MAUI workload mention and the `publish-maui` reference; update the coverage-gate bullet to note the re-baselined threshold + whole-assembly scope; update the "Deliberate non-goals" MAUI bullet to "no MAUI (retired 2026-05-26; GitWizardUI is the Avalonia app)".
+- **Tips:** delete the `taskkill /IM GitWizardUI.exe` Git-Bash tip and the MAUI `CollectionView`/`IsEnabled` tips; keep the Avalonia-specific tips (custom `ICommand`, `StringToThicknessConverter`, scroll-anchor, etc.) — they now describe `GitWizardUI`.
+
+- [ ] **Step 2: Sweep README/HANDOFF/PLAN for stale names**
+
+```bash
+grep -n -i 'GitWizardAvalonia\|GitWizardUI\.ViewModels\|maui' README.md HANDOFF.md PLAN.md
+```
+For each hit, update prose to the new names (Avalonia app = `GitWizardUI`; VMs live in `GitWizardUI/ViewModels/`; MAUI retired). Make the edits.
+
+- [ ] **Step 3: Delete the superseded plan**
+
+```bash
+git diff docs/superpowers/plans/2026-05-24-retire-maui.md   # review the pending working-tree edit
+```
+Phase 1 of that plan is merged (PR #47) and its outcome lives in code + CLAUDE.md; Phase 2 is replaced by this plan. Fold the still-open carry-forward (the `--elevated-mft` routing check) into this plan's Phase 7 verification (Step it references is already present), then remove it:
+```bash
+git rm -f docs/superpowers/plans/2026-05-24-retire-maui.md
+```
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add -A
+git commit -m "docs: update CLAUDE.md + README/HANDOFF/PLAN for GitWizardUI rename; drop superseded plan
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
+```
+
+---
+
+## Phase 7: Verify, PR, smoke release, merge
+
+### Task 9: Final verification and landing
+
+**Files:** none (verification + PR + memory).
+
+- [ ] **Step 1: Dangling-reference sweep**
+
+```bash
+grep -rn -i 'GitWizardAvalonia\|GitWizardUI\.ViewModels\|\bmaui\b\|ApplicationDisplayVersion' . \
+  --include='*.cs' --include='*.axaml' --include='*.csproj' --include='*.slnx' \
+  --include='*.yml' --include='*.md' --include='*.manifest' \
+  | grep -v 'docs/superpowers/plans/2026-05-26-retire-maui-rename-gitwizardui.md'
+```
+Expected: no output. Investigate and fix anything that prints.
+
+- [ ] **Step 2: Clean full build + tests**
+
+```bash
+dotnet build git-wizard.slnx -c Release
+dotnet test GitWizardTests/GitWizardTests.csproj -c Release --no-build
+```
+Expected: build succeeds; all tests pass.
+
+- [ ] **Step 3: Push and open the PR**
+
+```bash
+git push -u gitea retire-maui-rename-ui
+```
+Title: `refactor: retire MAUI, rename Avalonia → GitWizardUI, fold in ViewModels`
+Body: summarize the restructure (5 projects from 7); state the measured post-fold coverage % and the new `--gate-line` (from Task 5 Step 3); note this supersedes the 2026-05-24 plan's Phase 2.
+
+- [ ] **Step 4: Wait for CI green on both runners**
+
+Watch `https://gitea.llamabox.internal/schoen/git-wizard/actions`. Expected: `CI / Build + Test (Linux…)` and `(Windows…)` both pass; the re-baselined coverage gate passes. (Required check context names are unchanged, so branch protection needs no reconfig.)
+
+- [ ] **Step 5: Smoke-test the release workflow**
+
+The PR triggers `release.yml` in draft/dry-run mode (self-cleaning). Confirm on the Actions page: builds CLI + `GitWizardUI` zips for all 3 RIDs, NO `publish-maui` job, the tag-assert step present in `publish-cross`, the draft release + tag deleted by `Smoke cleanup`. Expected assets: `git-wizard-*-{win,linux,osx}-x64.zip` and `GitWizardUI-*-{win,linux,osx}-x64.zip` only.
+
+- [ ] **Step 6: Windows manual check (carry-forward from the old plan)**
+
+On the Windows host, run the published `GitWizardUI` non-elevated and force a fresh discovery (delete `%USERPROFILE%\.GitWizard\repositories.txt`, then Refresh). Expected: a UAC prompt, MFT scan completes in seconds (not a ~120 s fallback hang), no second window — confirming the `--elevated-mft` routing in `Program.cs` is live, not dead code. Then **Check Windows Defender** → UAC → "Defender Exclusions Added" (verify via `Get-MpPreference | Select -Expand ExclusionProcess`). Record results in the PR.
+
+- [ ] **Step 7: Merge**
+
+Merge once CI is green, the smoke release is correct, and Windows verification passes (branch protection requires 1 approval — request it).
+
+- [ ] **Step 8: Update project memory**
+
+Update `project_maui_retirement.md` (and its `MEMORY.md` pointer): MAUI retired 2026-05-26; Avalonia app renamed `GitWizardUI` with VMs folded in; coverage gate re-baselined to `<measured %>`/whole assembly. Note issue #36's ratchet continues against the new baseline.

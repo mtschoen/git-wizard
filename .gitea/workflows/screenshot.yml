@@ -22,18 +22,18 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore git-wizard.slnx
 
-      - name: Build GitWizardAvalonia
-        run: dotnet build GitWizardAvalonia/GitWizardAvalonia.csproj -c Debug --no-restore
+      - name: Build GitWizardUI
+        run: dotnet build GitWizardUI/GitWizardUI.csproj -c Debug --no-restore
 
       - name: Capture screenshot (Avalonia headless)
         run: |
-          dotnet restore GitWizardAvalonia.Screenshot/GitWizardAvalonia.Screenshot.csproj
-          dotnet run --project GitWizardAvalonia.Screenshot/GitWizardAvalonia.Screenshot.csproj -c Debug --no-restore
+          dotnet restore GitWizardUI.Screenshot/GitWizardUI.Screenshot.csproj
+          dotnet run --project GitWizardUI.Screenshot/GitWizardUI.Screenshot.csproj -c Debug --no-restore
 
       - name: Upload screenshot artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: GitWizardAvalonia-screenshot
-          path: Screenshots/GitWizardAvalonia.png
+          name: GitWizardUI-screenshot
+          path: Screenshots/GitWizardUI.png
           retention-days: 30

@@ -183,14 +183,14 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 **Files:**
 - Modify: `.gitea/workflows/screenshot.yml`
 
-- [ ] **Step 1: Rewrite the build/run/artifact references**
+- [x] **Step 1: Rewrite the build/run/artifact references**
 
 Apply these edits:
 - `Build GitWizardAvalonia` step → name `Build GitWizardUI`; command `dotnet build GitWizardUI/GitWizardUI.csproj -c Debug --no-restore`.
 - `Capture screenshot` step: `dotnet restore GitWizardUI.Screenshot/GitWizardUI.Screenshot.csproj` and `dotnet run --project GitWizardUI.Screenshot/GitWizardUI.Screenshot.csproj -c Debug --no-restore`.
 - `Upload screenshot artifact` step: `name: GitWizardUI-screenshot`; `path: Screenshots/GitWizardUI.png`.
 
-- [ ] **Step 2: Lint and confirm clean**
+- [x] **Step 2: Lint and confirm clean**
 
 ```bash
 python3 -c "import yaml; yaml.safe_load(open('.gitea/workflows/screenshot.yml')); print('ok')"
@@ -198,7 +198,7 @@ grep -n -i 'GitWizardAvalonia' .gitea/workflows/screenshot.yml || echo "clean"
 ```
 Expected: `ok` then `clean`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add .gitea/workflows/screenshot.yml

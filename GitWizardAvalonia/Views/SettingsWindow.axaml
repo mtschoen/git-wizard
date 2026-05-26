@@ -12,7 +12,10 @@
     <converters:PathPrettyPrintConverter x:Key="PathPrettyPrintConverter" />
   </Window.Resources>
   <Grid RowDefinitions="Auto,*,Auto,Auto,*,Auto,Auto,Auto,*,Auto" Margin="10">
-    <TextBlock Grid.Row="0" Text="Search Paths" FontSize="16" FontWeight="Bold" Margin="0,0,0,5" />
+    <StackPanel Grid.Row="0" Margin="0,0,0,5">
+      <TextBlock Text="Search Paths" FontSize="16" FontWeight="Bold" />
+      <TextBlock Text="Directories to search for Git repositories" FontSize="12" Foreground="Gray" />
+    </StackPanel>
     <ListBox Grid.Row="1" ItemsSource="{Binding SearchPaths}" SelectedItem="{Binding SelectedSearchPath, Mode=TwoWay}">
       <ListBox.ItemTemplate>
         <DataTemplate x:DataType="sys:String">
@@ -21,11 +24,16 @@
       </ListBox.ItemTemplate>
     </ListBox>
     <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="5" Margin="0,5">
-      <Button Content="Add..." Click="AddSearchPath_Click" />
+      <Button Content="Add..." Click="AddSearchPath_Click" ToolTip.Tip="Browse for a folder" />
       <Button Content="Remove" Click="RemoveSearchPath_Click" />
+      <TextBox Width="260" Watermark="Or type a path (e.g. %USERPROFILE%\git)" Text="{Binding NewSearchPath, Mode=TwoWay}" KeyDown="SearchPath_KeyDown" />
+      <Button Content="Add" Click="AddTypedSearchPath_Click" ToolTip.Tip="Add the typed path (supports environment variables)" />
     </StackPanel>
 
-    <TextBlock Grid.Row="3" Text="Ignored Paths" FontSize="16" FontWeight="Bold" Margin="0,15,0,5" />
+    <StackPanel Grid.Row="3" Margin="0,15,0,5">
+      <TextBlock Text="Ignored Paths" FontSize="16" FontWeight="Bold" />
+      <TextBlock Text="Directories to exclude from search" FontSize="12" Foreground="Gray" />
+    </StackPanel>
     <ListBox Grid.Row="4" ItemsSource="{Binding IgnoredPaths}" SelectedItem="{Binding SelectedIgnoredPath, Mode=TwoWay}">
       <ListBox.ItemTemplate>
         <DataTemplate x:DataType="sys:String">
@@ -34,11 +42,23 @@
       </ListBox.ItemTemplate>
     </ListBox>
     <StackPanel Grid.Row="5" Orientation="Horizontal" Spacing="5" Margin="0,5">
-      <Button Content="Add..." Click="AddIgnoredPath_Click" />
+      <Button Content="Add..." Click="AddIgnoredPath_Click" ToolTip.Tip="Browse for a folder" />
       <Button Content="Remove" Click="RemoveIgnoredPath_Click" />
+      <TextBox Width="260" Watermark="Or type a path (e.g. %APPDATA%)" Text="{Binding NewIgnoredPath, Mode=TwoWay}" KeyDown="IgnoredPath_KeyDown" />
+      <Button Content="Add" Click="AddTypedIgnoredPath_Click" ToolTip.Tip="Add the typed path (supports environment variables)" />
     </StackPanel>
 
-    <TextBlock Grid.Row="6" Text="Fork Executable Path" FontSize="16" FontWeight="Bold" Margin="0,15,0,5" />
+    <StackPanel Grid.Row="6" Margin="0,15,0,5">
+      <TextBlock Text="Fork Executable Path" FontSize="16" FontWeight="Bold" />
+      <TextBlock Text="Full path to Fork.exe (leave empty to use default: %LocalAppData%\Fork\Fork.exe)" FontSize="12" Foreground="Gray" />
+    </StackPanel>
     <TextBox Grid.Row="7" Text="{Binding ForkPath}" Watermark="C:\Users\YourName\AppData\Local\Fork\Fork.exe" />
+
+    <StackPanel Grid.Row="9" Spacing="3" Margin="0,10,0,0">
+      <TextBlock Text="Tips:" FontWeight="Bold" FontSize="14" />
+      <TextBlock Text="• Use environment variables like %USERPROFILE% or %APPDATA%" FontSize="12" />
+      <TextBlock Text="• Changes are saved automatically" FontSize="12" />
+      <TextBlock Text="• Refresh the main view to see changes" FontSize="12" />
+    </StackPanel>
   </Grid>
 </Window>

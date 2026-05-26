@@ -76,6 +76,20 @@ public class GitWizardRepository
 
         try
         {
+            // Probe with IsValid before constructing Repository: a cached path whose .git is gone makes
+            // the Repository ctor throw RepositoryNotFoundException on every refresh (first-chance
+            // exception spam in the log). IsValid returns false for that case without throwing, so we
+            // skip it cleanly. IsValid CAN still throw for other libgit2 errors (e.g. git's "not owned
+            // by current user" ownership protection) -- those fall through to the catch below and
+            // surface as a normal refresh error, exactly as before. Hence the check lives inside the
+            // try. (Pruning stale cache entries is tracked separately.)
+            if (!Repository.IsValid(WorkingDirectory))
+            {
+                GitWizardLog.Log($"Working directory {WorkingDirectory} is not a git repository; skipping refresh.", GitWizardLog.LogType.Warning);
+                MarkRefreshFailed("Not a git repository", updateHandler);
+                return;
+            }
+
             var repository = new Repository(WorkingDirectory);
             IsRefreshing = true;
             RefreshSubmodules(updateHandler, repository, WorkingDirectory);

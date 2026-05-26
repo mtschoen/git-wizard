@@ -24,10 +24,13 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
     bool _isProgressVisible;
     string _progressText = string.Empty;
     bool _isRefreshing;
+    bool _isScanning;
     FilterType _activeFilter = FilterType.None;
     GroupMode _activeGroupMode = GroupMode.None;
     SortMode _activeSortMode = SortMode.WorkingDirectory;
     string? _lastRefreshMessage;
+    const int SearchDebounceMilliseconds = 200;
+    CancellationTokenSource? _searchDebounceCts;
     string _searchText = string.Empty;
     public string SearchText
     {
@@ -38,7 +41,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
             {
                 _searchText = value;
                 OnPropertyChanged();
-                ApplyFilterAndGrouping();
+                DebounceSearch();
             }
         }
     }
@@ -131,6 +134,25 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
 
     public bool CanRefresh => !IsRefreshing;
 
+    /// <summary>
+    /// True from the moment a refresh starts until the first repository surfaces (or the
+    /// determinate progress bar takes over). Drives an indeterminate "Scanning…" indicator that
+    /// fills the otherwise-empty list during the initial discovery/cache-read gap, which can run
+    /// 15-20s on a cold start. Parity with the retired MAUI UI's startup feedback.
+    /// </summary>
+    public bool IsScanning
+    {
+        get => _isScanning;
+        set
+        {
+            if (_isScanning != value)
+            {
+                _isScanning = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public FilterType ActiveFilter
     {
         get => _activeFilter;
@@ -171,6 +193,15 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
     }
 
     public Action<RepositoryNodeViewModel>? ScrollToRequest { get; set; }
+
+    /// <summary>
+    /// Optional view hook invoked (on the UI thread) immediately after the <see cref="Repositories"/>
+    /// collection is swapped, so a desktop shell can restore the user's scroll position after a
+    /// refresh rebuilds the list. Avalonia's ListBox resets scroll to the top when its ItemsSource
+    /// is replaced (AvaloniaUI/Avalonia#5651) and has no KeepScrollOffset equivalent; MAUI preserves
+    /// offset declaratively and leaves this null.
+    /// </summary>
+    public Action? AfterRepositoriesSwap { get; set; }
     public ICommand OpenInExplorerCommand { get; }
     public ICommand OpenInForkCommand { get; }
     public ICommand CopyToClipboardCommand { get; }
@@ -536,47 +567,71 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
 
     public void UpdateSearchText(string text) => SetSearchText(text);
 
-    public void ApplyFilter(string buttonName)
+    // Debounce search-driven filtering. The SearchText setter (bound two-way to the search box)
+    // fires per keystroke, and ApplyFilterAndGrouping does a full off-screen rebuild + collection
+    // swap — costly with 700+ repos. Coalesce rapid keystrokes into a single filter pass, mirroring
+    // the 200ms debounce the retired MAUI UI did in its SearchBox_TextChanged code-behind. The
+    // immediate SetSearchText path is left untouched for programmatic/test callers.
+    void DebounceSearch()
     {
-        _activeFilter = buttonName switch
+        var previous = _searchDebounceCts;
+        var cts = new CancellationTokenSource();
+        _searchDebounceCts = cts;
+        previous?.Cancel();
+        previous?.Dispose();
+        _ = RunSearchDebounceAsync(cts.Token);
+    }
+
+    async Task RunSearchDebounceAsync(CancellationToken token)
+    {
+        try
         {
-            "FilterPendingChanges" => FilterType.PendingChanges,
-            "FilterSubmoduleCheckout" => FilterType.SubmoduleCheckout,
-            "FilterSubmoduleUninitialized" => FilterType.SubmoduleUninitialized,
-            "FilterSubmoduleConfigIssue" => FilterType.SubmoduleConfigIssue,
-            "FilterDetachedHead" => FilterType.DetachedHead,
-            "FilterMyRepositories" => FilterType.MyRepositories,
-            "FilterLocalOnlyCommits" => FilterType.LocalOnlyCommits,
-            "FilterStale" => FilterType.Stale,
-            "FilterDownstreamBranches" => FilterType.DownstreamBranches,
-            _ => FilterType.None,
-        };
+            await Task.Delay(SearchDebounceMilliseconds, token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a later keystroke; that one owns the pending filter pass.
+            return;
+        }
+
+        // ApplyFilterAndGrouping builds off-thread and marshals its UI swap internally, so it is
+        // safe to invoke from this thread-pool continuation.
         ApplyFilterAndGrouping();
     }
 
-    public void ApplyGroup(string buttonName)
+    // The Avalonia sidebar dispatches by button name; route each through the same
+    // Toggle*/SetSortMode entry points the MAUI UI used so behavior matches exactly — clicking the
+    // active Filter/Group button clears it, Sort always keeps one active — and so the notifying
+    // Active* properties update (the sidebar binds its `.active` highlight class to them).
+    public void ApplyFilter(string buttonName) => ToggleFilter(buttonName switch
     {
-        _activeGroupMode = buttonName switch
-        {
-            "GroupByDrive" => GroupMode.Drive,
-            "GroupByRemoteUrl" => GroupMode.RemoteUrl,
-            _ => GroupMode.None,
-        };
-        ApplyFilterAndGrouping();
-    }
+        "FilterPendingChanges" => FilterType.PendingChanges,
+        "FilterSubmoduleCheckout" => FilterType.SubmoduleCheckout,
+        "FilterSubmoduleUninitialized" => FilterType.SubmoduleUninitialized,
+        "FilterSubmoduleConfigIssue" => FilterType.SubmoduleConfigIssue,
+        "FilterDetachedHead" => FilterType.DetachedHead,
+        "FilterMyRepositories" => FilterType.MyRepositories,
+        "FilterLocalOnlyCommits" => FilterType.LocalOnlyCommits,
+        "FilterStale" => FilterType.Stale,
+        "FilterDownstreamBranches" => FilterType.DownstreamBranches,
+        _ => FilterType.None,
+    });
 
-    public void ApplySort(string buttonName)
+    public void ApplyGroup(string buttonName) => ToggleGroupMode(buttonName switch
     {
-        _activeSortMode = buttonName switch
-        {
-            "SortByWorkingDirectory" => SortMode.WorkingDirectory,
-            "SortByRecentlyUsed" => SortMode.RecentlyUsed,
-            "SortByRemoteUrl" => SortMode.RemoteUrl,
-            "SortBySizeOnDisk" => SortMode.SizeOnDisk,
-            _ => SortMode.WorkingDirectory,
-        };
-        ApplyFilterAndGrouping();
-    }
+        "GroupByDrive" => GroupMode.Drive,
+        "GroupByRemoteUrl" => GroupMode.RemoteUrl,
+        _ => GroupMode.None,
+    });
+
+    public void ApplySort(string buttonName) => SetSortMode(buttonName switch
+    {
+        "SortByWorkingDirectory" => SortMode.WorkingDirectory,
+        "SortByRecentlyUsed" => SortMode.RecentlyUsed,
+        "SortByRemoteUrl" => SortMode.RemoteUrl,
+        "SortBySizeOnDisk" => SortMode.SizeOnDisk,
+        _ => SortMode.WorkingDirectory,
+    });
 
     public async Task ClearCacheAsync()
     {
@@ -634,7 +689,22 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
             }
         }
 
-        Repositories = newCollection;
+        // Swap the collection on the UI thread. The view hooks snapshot/restore the ListBox
+        // ScrollViewer offset (whose getter enforces UI-thread affinity), and RefreshAsync reaches
+        // this method on a thread-pool thread via its ConfigureAwait(false) continuation — so an
+        // inline swap there throws "Call from invalid thread". The build above stays off-thread;
+        // only the swap is marshaled, preserving the off-screen-build perf intent.
+        void SwapInRepositories()
+        {
+            Repositories = newCollection;
+            AfterRepositoriesSwap?.Invoke();
+        }
+
+        if (_ui.IsOnUiThread)
+            SwapInRepositories();
+        else
+            _ui.Post(SwapInRepositories);
+
         UpdateHeaderWithFilterInfo();
     }
 
@@ -852,6 +922,9 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
 
     void AddRepository(GitWizardRepository repository)
     {
+        // The first repository to surface ends the "Scanning…" gap; rows now stream into the list.
+        IsScanning = false;
+
         var path = repository.WorkingDirectory;
         if (string.IsNullOrEmpty(path))
             return;
@@ -932,12 +1005,27 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         }
     }
 
+    /// <summary>
+    /// Hard refresh: clear the cached repository list and report, then refresh.
+    /// With no cache present, the refresh runs a full MFT discovery scan, which
+    /// self-elevates via UAC on Windows. Bound to Shift+click on the Refresh button.
+    /// </summary>
+    public async Task HardRefreshAsync()
+    {
+        if (IsRefreshing)
+            return;
+
+        GitWizardApi.ClearCache();
+        await RefreshAsync(background: false);
+    }
+
     public async Task RefreshAsync(bool background = false, bool fetchRemotes = false)
     {
         if (IsRefreshing)
             return;
 
         IsRefreshing = true;
+        IsScanning = true;
         HeaderText = fetchRemotes ? "Fetching remotes and refreshing..." : "Refreshing...";
 
         // Read global git user email for "My Repositories" filter
@@ -1056,15 +1144,36 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         else
             UpdateHeaderWithFilterInfo();
 
+        IsScanning = false;
         IsRefreshing = false;
     }
 
     // IUpdateHandler implementation
+
+    // Coalesce a burst of status messages into one UI update. A heavy scan (the
+    // recursive walk posts per directory) or refresh can fire thousands of these;
+    // posting each one floods the dispatcher and starves UI input ("Not Responding").
+    // Instead we keep only the latest message and allow at most one post in flight —
+    // many updates batch into a single HeaderText write, event-driven (no polling).
+    string? _latestStatusMessage;
+    int _statusUpdateScheduled;
+
     public void SendUpdateMessage(string? message)
     {
-        if (message != null)
+        if (message == null)
+            return;
+
+        _latestStatusMessage = message;
+
+        // Schedule a post only if none is pending; the pending post applies whatever
+        // the most recent message is by the time it runs on the UI thread.
+        if (Interlocked.CompareExchange(ref _statusUpdateScheduled, 1, 0) == 0)
         {
-            _ui.Post(() => HeaderText = message);
+            _ui.Post(() =>
+            {
+                Interlocked.Exchange(ref _statusUpdateScheduled, 0);
+                HeaderText = _latestStatusMessage;
+            });
         }
     }
 
@@ -1084,6 +1193,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         _progressTotal = total;
         _ui.Post(() =>
         {
+            IsScanning = false;
             IsProgressVisible = true;
             ProgressValue = 0;
             ProgressText = $"{description} 0 / {total}";

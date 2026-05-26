@@ -81,6 +81,38 @@ GitWizard would let projdash skip subprocess git entirely.
 - [x] Windows-only features (Defender button) gated on `OperatingSystem.IsWindows()`
 - [x] Verified scan + filter + group + sort on Linux and Windows (runtime smoke test, 2026-05-23)
 
+### Avalonia → MAUI parity & retirement
+
+Full capability-parity audit (2026-05-26): every MAUI (`GitWizardUI/`) feature is present in
+Avalonia, which also has extras (Downstream Branches filter, Clean button, progress bar). **MAUI can
+be retired without losing user-facing capability.** Remaining items are cosmetic/convenience polish —
+none blocks retirement.
+
+- [x] Scroll position restored across refresh — closed-loop offset correction in
+      `MainWindow.RestoreScrollAnchor` (commit `ea6f2ce`); the during-refresh jump-to-top is an
+      accepted UX (see CLAUDE.md). Validated by the `avalonia-vsp-scroll-top` spike.
+- [x] **Settings: Tips footer + section description labels** — restored the MAUI-only "Tips" block and
+      the per-section gray description labels in `SettingsWindow` (commit `ec5a17a`).
+- [x] **Fix: `Padding`/`Thickness` binding spam** — Avalonia bindings don't apply the target
+      `TypeConverter` (MAUI did), so `ItemPaddingString` (string) → `Padding` threw `InvalidCastException`
+      per row on scroll. Added `StringToThicknessConverter` (commit `ec5a17a`). See CLAUDE.md tips.
+- [x] **Fix: `RepositoryNotFoundException` spam on refresh** — guarded `Refresh` with `Repository.IsValid`
+      so stale/non-repo cache entries skip cleanly (commit `b7a0321`). Cache-pruning follow-up tracked as
+      [#48](https://gitea.llamabox.internal/schoen/git-wizard/issues/48).
+- [x] **Debounce search** — 200ms debounce in the `MainViewModel.SearchText` setter coalesces rapid
+      keystrokes into a single `ApplyFilterAndGrouping` pass (commit `ec5a17a`); the immediate
+      `SetSearchText` path is unchanged. Covered by a coalescing regression test.
+- [x] **Active filter/group/sort highlight** — the active sidebar button is now bold. `ApplyFilter`/
+      `ApplyGroup`/`ApplySort` route through the notifying `Active{Filter,GroupMode,SortMode}`
+      properties (and pick up MAUI's re-click-to-clear toggle for Filter/Group); each button binds
+      `Classes.active` via `EnumEqualsConverter` to a `Button.active { FontWeight=Bold }` style.
+- [x] **Settings: Enter-to-add typed path** — `KeyDown` handlers on the typed search/ignored path
+      TextBoxes fire the Add commands on Enter (commit `ec5a17a`).
+- [x] **Immediate "Scanning…" indicator** — an `IsScanning` flag (set at refresh start; cleared when
+      the first repo surfaces, the determinate progress bar starts, or the refresh ends) drives an
+      indeterminate "Scanning for repositories…" overlay on the empty list, filling the cold-start
+      discovery gap. The `2026-05-24` parity spec doc is now fully implemented and can be deleted.
+
 ## Infrastructure
 
 - [x] **Gitea Actions CI** — `.gitea/workflows/ci.yml` runs `test-linux` (build + full NUnit suite with coverage, gated at 33% line via `ci/post-coverage-status.py`) and `test-windows` (full solution build + tests) on push to `main` and PRs targeting `main`. `.gitea/workflows/release.yml` builds CLI + Avalonia for `win-x64`/`linux-x64`/`osx-x64`, builds the MAUI Windows zip, and creates a Gitea release with all 7 assets attached on `v*` tag pushes. See `CLAUDE.md` § CI infrastructure for runner/bot/branch-protection setup.

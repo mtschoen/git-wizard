@@ -9,6 +9,6 @@
     <PackageReference Include="Avalonia.Headless" Version="11.2.*" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\GitWizardAvalonia\GitWizardAvalonia.csproj" />
+    <ProjectReference Include="..\GitWizardUI\GitWizardUI.csproj" />
   </ItemGroup>
 </Project>

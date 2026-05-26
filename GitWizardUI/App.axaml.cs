@@ -1,9 +1,9 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
-using GitWizardAvalonia.Views;
+using GitWizardUI.Views;
 
-namespace GitWizardAvalonia;
+namespace GitWizardUI;
 
 public partial class App : Application
 {

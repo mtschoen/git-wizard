@@ -7,7 +7,8 @@
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
-    <RootNamespace>GitWizardAvalonia</RootNamespace>
+    <RootNamespace>GitWizardUI</RootNamespace>
+    <Version>0.4.1</Version>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.2.*" />

@@ -6,7 +6,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using GitWizardUI.ViewModels.Services;
 
-namespace GitWizardAvalonia.Services;
+namespace GitWizardUI.Services;
 
 public sealed class AvaloniaUserDialogs : IUserDialogs
 {

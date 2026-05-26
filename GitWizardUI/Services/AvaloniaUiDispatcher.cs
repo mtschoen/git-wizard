@@ -2,7 +2,7 @@ using System;
 using Avalonia.Threading;
 using GitWizardUI.ViewModels.Services;
 
-namespace GitWizardAvalonia.Services;
+namespace GitWizardUI.Services;
 
 public sealed class AvaloniaUiDispatcher : IUiDispatcher
 {

@@ -2,7 +2,7 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Data.Converters;
 
-namespace GitWizardAvalonia.Converters;
+namespace GitWizardUI.Converters;
 
 /// <summary>
 /// Converts a "left,top,right,bottom" string (as produced by the framework-agnostic

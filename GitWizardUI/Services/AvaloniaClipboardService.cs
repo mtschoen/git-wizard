@@ -1,7 +1,7 @@
 using Avalonia.Controls;
 using GitWizardUI.ViewModels.Services;
 
-namespace GitWizardAvalonia.Services;
+namespace GitWizardUI.Services;
 
 public class AvaloniaClipboardService : IClipboardService
 {

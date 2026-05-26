@@ -3,5 +3,5 @@
   <Project Path="GitWizard/GitWizard.csproj" />
   <Project Path="GitWizardTests/GitWizardTests.csproj" />
   <Project Path="GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj" />
-  <Project Path="GitWizardAvalonia/GitWizardAvalonia.csproj" />
+  <Project Path="GitWizardUI/GitWizardUI.csproj" />
 </Solution>

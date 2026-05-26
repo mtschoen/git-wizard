@@ -2,7 +2,7 @@ using System.Globalization;
 using Avalonia.Data.Converters;
 using GitWizard;
 
-namespace GitWizardAvalonia.Converters;
+namespace GitWizardUI.Converters;
 
 public class PathPrettyPrintConverter : IValueConverter
 {

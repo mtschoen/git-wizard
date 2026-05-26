@@ -10,62 +10,6 @@
 
 ---
 
-## Phase 1: Delete the MAUI projects
-
-> Branch `retire-maui-rename-ui` already exists (created during brainstorming, holds the spec→plan commits). Work continues on it.
-
-### Task 1: Remove MAUI + UITests from the solution and tree
-
-**Files:**
-- Delete: `GitWizardUI/` (entire MAUI directory)
-- Delete: `GitWizardUI.UITests/` (entire directory)
-- Modify: `git-wizard.slnx`
-
-- [x] **Step 1: Remove the two MAUI entries from `git-wizard.slnx`**
-
-Delete these two lines:
-
-```xml
-  <Project Path="GitWizardUI.UITests/GitWizardUI.UITests.csproj" />
-  <Project Path="GitWizardUI/GitWizardUI.csproj" />
-```
-
-`git-wizard.slnx` should then read exactly:
-
-```xml
-<Solution>
-  <Project Path="git-wizard/git-wizard.csproj" />
-  <Project Path="GitWizard/GitWizard.csproj" />
-  <Project Path="GitWizardTests/GitWizardTests.csproj" />
-  <Project Path="GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj" />
-  <Project Path="GitWizardAvalonia/GitWizardAvalonia.csproj" />
-</Solution>
-```
-
-- [x] **Step 2: Delete the MAUI directories**
-
-```bash
-git rm -r GitWizardUI GitWizardUI.UITests
-```
-
-- [x] **Step 3: Build the cross-platform set to confirm nothing dangles**
-
-```bash
-dotnet build GitWizardAvalonia/GitWizardAvalonia.csproj -c Debug
-```
-Expected: `Build succeeded`, 0 errors. (Nothing references the MAUI project except the now-removed slnx entries.)
-
-- [x] **Step 4: Commit**
-
-```bash
-git add git-wizard.slnx
-git commit -m "chore: delete MAUI (GitWizardUI) + UITests projects
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
-```
-
----
-
 ## Phase 2: Rename GitWizardAvalonia → GitWizardUI
 
 The MAUI `GitWizardUI` is gone (Phase 1), so its name is free. Rename the Avalonia app folder, csproj, `RootNamespace`, and every `GitWizardAvalonia` namespace/using/`x:Class`/xmlns token to `GitWizardUI`. The VM project stays separate this phase (folded in Phase 3); the app keeps referencing it. The `vm` XAML alias (`using:GitWizardUI.ViewModels`) is already correct and must NOT change.
@@ -76,14 +20,14 @@ The MAUI `GitWizardUI` is gone (Phase 1), so its name is free. Rename the Avalon
 - Rename: `GitWizardAvalonia/` → `GitWizardUI/`; `GitWizardAvalonia/GitWizardAvalonia.csproj` → `GitWizardUI/GitWizardUI.csproj`
 - Modify: `git-wizard.slnx`, `GitWizardAvalonia.Screenshot/GitWizardAvalonia.Screenshot.csproj`
 
-- [ ] **Step 1: Move the folder and csproj**
+- [x] **Step 1: Move the folder and csproj**
 
 ```bash
 git mv GitWizardAvalonia GitWizardUI
 git mv GitWizardUI/GitWizardAvalonia.csproj GitWizardUI/GitWizardUI.csproj
 ```
 
-- [ ] **Step 2: Point the solution and Screenshot project at the new path**
+- [x] **Step 2: Point the solution and Screenshot project at the new path**
 
 In `git-wizard.slnx`, change:
 ```xml
@@ -103,7 +47,7 @@ to:
     <ProjectReference Include="..\GitWizardUI\GitWizardUI.csproj" />
 ```
 
-- [ ] **Step 3: Set `RootNamespace` and add the version anchor in `GitWizardUI/GitWizardUI.csproj`**
+- [x] **Step 3: Set `RootNamespace` and add the version anchor in `GitWizardUI/GitWizardUI.csproj`**
 
 Change `<RootNamespace>GitWizardAvalonia</RootNamespace>` to `<RootNamespace>GitWizardUI</RootNamespace>`, and add a `<Version>` line directly after it (carries 0.4.1 forward from the deleted MAUI `ApplicationDisplayVersion`):
 
@@ -114,7 +58,7 @@ Change `<RootNamespace>GitWizardAvalonia</RootNamespace>` to `<RootNamespace>Git
 
 (Leave the `ProjectReference` to `..\GitWizardUI.ViewModels\GitWizardUI.ViewModels.csproj` in place — it is removed in Phase 3.)
 
-- [ ] **Step 4: Rewrite the `GitWizardAvalonia` token to `GitWizardUI` in app sources**
+- [x] **Step 4: Rewrite the `GitWizardAvalonia` token to `GitWizardUI` in app sources**
 
 `GitWizardAvalonia` appears only as the app's own namespace/using/`x:Class`/`xmlns:converters` — never inside `GitWizardUI.ViewModels`, so a blanket replace is safe:
 
@@ -124,7 +68,7 @@ grep -rl 'GitWizardAvalonia' GitWizardUI --include='*.cs' --include='*.axaml' --
 
 This updates: `App.axaml` (`x:Class="GitWizardUI.App"`), `App.axaml.cs` (`namespace GitWizardUI;`, `using GitWizardUI.Views;`), `Program.cs` (`namespace GitWizardUI;`), `Converters/*.cs` (`namespace GitWizardUI.Converters;`), `Services/*.cs` (`namespace GitWizardUI.Services;`), `Views/MainWindow.axaml` + `SettingsWindow.axaml` (`x:Class="GitWizardUI.Views.…"`, `xmlns:converters="using:GitWizardUI.Converters"`), their `.axaml.cs` (`namespace GitWizardUI.Views;`, `using GitWizardUI.Services;`), and `app.manifest` (`<assemblyIdentity … name="GitWizardUI.Desktop"/>`). (No explicit `<AssemblyName>` exists in the csproj, so the assembly name auto-follows the renamed `GitWizardUI.csproj`.)
 
-- [ ] **Step 5: Fix the Screenshot project's reference to the app type**
+- [x] **Step 5: Fix the Screenshot project's reference to the app type**
 
 The Screenshot tool instantiates the app class and writes a PNG named after it. Replace both in `GitWizardAvalonia.Screenshot/Program.cs`:
 
@@ -134,14 +78,14 @@ sed -i 's/GitWizardAvalonia/GitWizardUI/g' GitWizardAvalonia.Screenshot/Program.
 
 This turns `AppBuilder.Configure<GitWizardAvalonia.App>()` → `Configure<GitWizardUI.App>()`, `Application.Current as GitWizardAvalonia.App` → `as GitWizardUI.App`, and the output path `Screenshots/GitWizardAvalonia.png` → `Screenshots/GitWizardUI.png` (matching the already-committed `Screenshots/GitWizardUI.png`).
 
-- [ ] **Step 6: Build the full solution**
+- [x] **Step 6: Build the full solution**
 
 ```bash
 dotnet build git-wizard.slnx -c Debug
 ```
 Expected: `Build succeeded`, 0 errors. (Compiled XAML resolves because `RootNamespace`, `x:Class`, and the `converters` xmlns now all say `GitWizardUI`; the `vm` alias still says `GitWizardUI.ViewModels`, which still exists as its own project.)
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A

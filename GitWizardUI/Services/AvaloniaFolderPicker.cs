@@ -4,7 +4,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
 using GitWizardUI.ViewModels.Services;
 
-namespace GitWizardAvalonia.Services;
+namespace GitWizardUI.Services;
 
 public sealed class AvaloniaFolderPicker : IFolderPicker
 {

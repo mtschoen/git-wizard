@@ -1,7 +1,7 @@
 using System.Globalization;
 using Avalonia.Data.Converters;
 
-namespace GitWizardAvalonia.Converters;
+namespace GitWizardUI.Converters;
 
 /// <summary>
 /// Returns <c>true</c> when the bound value's string form equals the ConverterParameter. Used to

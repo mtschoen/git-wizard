@@ -2,7 +2,7 @@ using Avalonia;
 using GitWizard;
 using System;
 
-namespace GitWizardAvalonia;
+namespace GitWizardUI;
 
 class Program
 {

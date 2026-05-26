@@ -1,10 +1,10 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using GitWizardAvalonia.Services;
+using GitWizardUI.Services;
 using GitWizardUI.ViewModels;
 
-namespace GitWizardAvalonia.Views;
+namespace GitWizardUI.Views;
 
 public partial class SettingsWindow : Window
 {

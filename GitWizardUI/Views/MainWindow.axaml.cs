@@ -7,10 +7,10 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using GitWizard;
-using GitWizardAvalonia.Services;
+using GitWizardUI.Services;
 using GitWizardUI.ViewModels;
 
-namespace GitWizardAvalonia.Views;
+namespace GitWizardUI.Views;
 
 public partial class MainWindow : Window
 {

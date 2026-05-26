@@ -16,13 +16,13 @@ class Program
     {
         try
         {
-            var builder = AppBuilder.Configure<GitWizardAvalonia.App>()
+            var builder = AppBuilder.Configure<GitWizardUI.App>()
                 .UseHeadless(new AvaloniaHeadlessPlatformOptions())
                 .StartWithClassicDesktopLifetime(args);
 
             await Task.Delay(2000);
 
-            var app = Application.Current as GitWizardAvalonia.App;
+            var app = Application.Current as GitWizardUI.App;
             var lifetime = app?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime;
             var window = lifetime?.MainWindow;
 
@@ -33,7 +33,7 @@ class Program
             }
 
             var screenshotPath = Path.GetFullPath(
-                Path.Combine("Screenshots", "GitWizardAvalonia.png"));
+                Path.Combine("Screenshots", "GitWizardUI.png"));
             var screenshotDir = Path.GetDirectoryName(screenshotPath);
             if (!string.IsNullOrEmpty(screenshotDir) && !Directory.Exists(screenshotDir))
                 Directory.CreateDirectory(screenshotDir);

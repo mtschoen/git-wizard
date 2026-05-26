@@ -85,7 +85,7 @@ jobs:
         run: |
           python3 ci/post-coverage-status.py \
               --cobertura "TestResults/**/coverage.cobertura.xml" \
-              --gate-line 35 --summary --skip-post
+              --gate-line 45 --summary --skip-post
 
   test-windows:
     name: Build + Test (Windows, full solution)

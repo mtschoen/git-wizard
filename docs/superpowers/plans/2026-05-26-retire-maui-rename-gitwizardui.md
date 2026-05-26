@@ -104,7 +104,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 **Files:**
 - Modify: `.gitea/workflows/release.yml`
 
-- [ ] **Step 1: Fix the `pull_request` paths trigger**
+- [x] **Step 1: Fix the `pull_request` paths trigger**
 
 Replace the three csproj path lines (10–12):
 ```yaml
@@ -117,7 +117,7 @@ with the single line:
       - 'GitWizardUI/GitWizardUI.csproj'
 ```
 
-- [ ] **Step 2: Rename the publish step + zip and add the tag-version assertion in `publish-cross`**
+- [x] **Step 2: Rename the publish step + zip and add the tag-version assertion in `publish-cross`**
 
 Rename the `Publish Avalonia` step to `Publish GUI (GitWizardUI)` and point it at `GitWizardUI/GitWizardUI.csproj` with output `publish/gui/${{ matrix.rid }}`:
 ```yaml
@@ -153,15 +153,15 @@ Immediately AFTER the `Resolve version` step (`id: ver`) and BEFORE `Publish CLI
           echo "Version match: $tagVer"
 ```
 
-- [ ] **Step 3: Delete the entire `publish-maui` job**
+- [x] **Step 3: Delete the entire `publish-maui` job**
 
 Remove the whole `publish-maui:` job (lines 95–169), from `  publish-maui:` through its `Upload MAUI zip` step's `if-no-files-found: error`. (Its old `Validate tag matches ApplicationDisplayVersion` step is replaced by the `publish-cross` assertion added in Step 2.)
 
-- [ ] **Step 4: Drop `publish-maui` from the release job's `needs`**
+- [x] **Step 4: Drop `publish-maui` from the release job's `needs`**
 
 Change `    needs: [publish-cross, publish-maui]` to `    needs: [publish-cross]`.
 
-- [ ] **Step 5: Lint and confirm no MAUI/old-name refs remain**
+- [x] **Step 5: Lint and confirm no MAUI/old-name refs remain**
 
 ```bash
 python3 -c "import yaml; yaml.safe_load(open('.gitea/workflows/release.yml')); print('ok')"
@@ -169,7 +169,7 @@ grep -n -i 'maui\|GitWizardAvalonia\|GitWizardUI.ViewModels\|ApplicationDisplayV
 ```
 Expected: `ok` then `clean`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add .gitea/workflows/release.yml

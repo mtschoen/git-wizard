@@ -10,104 +10,6 @@
 
 ---
 
-## Phase 3: Fold GitWizardUI.ViewModels into GitWizardUI
-
-Move the VM source into `GitWizardUI/ViewModels/`, delete the VM project, and repoint the two consumers (`GitWizardUI` itself — drop the now-internal project reference; `GitWizardTests` — reference `GitWizardUI`). The VM files keep `namespace GitWizardUI.ViewModels` unchanged.
-
-### Task 3: Move VM sources and delete the VM project
-
-**Files:**
-- Move: `GitWizardUI.ViewModels/*.cs` → `GitWizardUI/ViewModels/` (preserving the `Services/` subfolder)
-- Delete: `GitWizardUI.ViewModels/` (incl. its csproj)
-- Modify: `git-wizard.slnx`, `GitWizardUI/GitWizardUI.csproj`, `GitWizardTests/GitWizardTests.csproj`
-
-- [x] **Step 1: Move the VM source files into the app project**
-
-```bash
-mkdir -p GitWizardUI/ViewModels/Services
-git mv GitWizardUI.ViewModels/MainViewModel.cs            GitWizardUI/ViewModels/MainViewModel.cs
-git mv GitWizardUI.ViewModels/RelayCommand.cs             GitWizardUI/ViewModels/RelayCommand.cs
-git mv GitWizardUI.ViewModels/RepositoryNodeViewModel.cs  GitWizardUI/ViewModels/RepositoryNodeViewModel.cs
-git mv GitWizardUI.ViewModels/SettingsViewModel.cs        GitWizardUI/ViewModels/SettingsViewModel.cs
-git mv GitWizardUI.ViewModels/Services/IClipboardService.cs    GitWizardUI/ViewModels/Services/IClipboardService.cs
-git mv GitWizardUI.ViewModels/Services/IFolderPicker.cs        GitWizardUI/ViewModels/Services/IFolderPicker.cs
-git mv GitWizardUI.ViewModels/Services/IUiDispatcher.cs        GitWizardUI/ViewModels/Services/IUiDispatcher.cs
-git mv GitWizardUI.ViewModels/Services/IUserDialogs.cs         GitWizardUI/ViewModels/Services/IUserDialogs.cs
-git mv GitWizardUI.ViewModels/Services/StubClipboardService.cs GitWizardUI/ViewModels/Services/StubClipboardService.cs
-git mv GitWizardUI.ViewModels/Services/StubFolderPicker.cs     GitWizardUI/ViewModels/Services/StubFolderPicker.cs
-git mv GitWizardUI.ViewModels/Services/StubUiDispatcher.cs     GitWizardUI/ViewModels/Services/StubUiDispatcher.cs
-git mv GitWizardUI.ViewModels/Services/StubUserDialogs.cs      GitWizardUI/ViewModels/Services/StubUserDialogs.cs
-```
-
-(The files keep `namespace GitWizardUI.ViewModels[.Services]` — no edit needed. `GitWizard` SDK-style projects auto-include `**/*.cs`, so no csproj item entries are required.)
-
-- [x] **Step 2: Delete the now-empty VM project**
-
-```bash
-git rm GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj
-rmdir GitWizardUI.ViewModels/Services GitWizardUI.ViewModels 2>/dev/null || true
-```
-
-- [x] **Step 3: Remove the VM project from the solution**
-
-In `git-wizard.slnx`, delete the line:
-```xml
-  <Project Path="GitWizardUI.ViewModels/GitWizardUI.ViewModels.csproj" />
-```
-
-`git-wizard.slnx` should then read exactly:
-```xml
-<Solution>
-  <Project Path="git-wizard/git-wizard.csproj" />
-  <Project Path="GitWizard/GitWizard.csproj" />
-  <Project Path="GitWizardTests/GitWizardTests.csproj" />
-  <Project Path="GitWizardUI/GitWizardUI.csproj" />
-  <Project Path="GitWizardAvalonia.Screenshot/GitWizardAvalonia.Screenshot.csproj" />
-</Solution>
-```
-
-- [x] **Step 4: Drop the VM project reference from `GitWizardUI/GitWizardUI.csproj`**
-
-Delete the line (the VMs are now in-project):
-```xml
-    <ProjectReference Include="..\GitWizardUI.ViewModels\GitWizardUI.ViewModels.csproj" />
-```
-Leave the `..\GitWizard\GitWizard.csproj` reference.
-
-- [x] **Step 5: Repoint `GitWizardTests` from the VM project to `GitWizardUI`**
-
-In `GitWizardTests/GitWizardTests.csproj`, replace:
-```xml
-    <ProjectReference Include="..\GitWizardUI.ViewModels\GitWizardUI.ViewModels.csproj" />
-```
-with:
-```xml
-    <ProjectReference Include="..\GitWizardUI\GitWizardUI.csproj" />
-```
-(Keep the `..\GitWizard\GitWizard.csproj` reference. The test files' `using GitWizardUI.ViewModels;` lines are unaffected — the namespace is unchanged, only its assembly moved.)
-
-- [x] **Step 6: Build the solution and run the tests**
-
-```bash
-dotnet build git-wizard.slnx -c Debug
-dotnet test GitWizardTests/GitWizardTests.csproj -c Debug
-```
-Expected: build succeeds; tests pass (the same VM tests now compile against the VMs living in `GitWizardUI`; `GitWizardTests` transitively pulls Avalonia but never starts the app). The two `Refresh_*` `FindRepoRoot` tests pass here because this is a normal checkout, not a worktree.
-
-- [x] **Step 7: Commit**
-
-```bash
-git add -A
-git commit -m "refactor: fold GitWizardUI.ViewModels into the GitWizardUI app project
-
-VM sources move to GitWizardUI/ViewModels/ (namespace unchanged); the
-separate VM project is deleted. GitWizardTests now references GitWizardUI.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
-```
-
----
-
 ## Phase 4: Rename the Screenshot project
 
 ### Task 4: GitWizardAvalonia.Screenshot → GitWizardUI.Screenshot
@@ -116,14 +18,14 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 - Rename: `GitWizardAvalonia.Screenshot/` → `GitWizardUI.Screenshot/`; its csproj likewise
 - Modify: `git-wizard.slnx`
 
-- [ ] **Step 1: Move the folder and csproj**
+- [x] **Step 1: Move the folder and csproj**
 
 ```bash
 git mv GitWizardAvalonia.Screenshot GitWizardUI.Screenshot
 git mv GitWizardUI.Screenshot/GitWizardAvalonia.Screenshot.csproj GitWizardUI.Screenshot/GitWizardUI.Screenshot.csproj
 ```
 
-- [ ] **Step 2: Update the solution entry**
+- [x] **Step 2: Update the solution entry**
 
 In `git-wizard.slnx`, change:
 ```xml
@@ -134,14 +36,14 @@ to:
   <Project Path="GitWizardUI.Screenshot/GitWizardUI.Screenshot.csproj" />
 ```
 
-- [ ] **Step 3: Build the solution**
+- [x] **Step 3: Build the solution**
 
 ```bash
 dotnet build git-wizard.slnx -c Debug
 ```
 Expected: `Build succeeded`, 0 errors. (The Screenshot project's `ProjectReference` to `..\GitWizardUI\GitWizardUI.csproj` and its `GitWizardUI.App` usage were already fixed in Phase 2.)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add -A

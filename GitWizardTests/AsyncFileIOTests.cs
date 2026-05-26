@@ -13,7 +13,7 @@ public class AsyncFileIOTests
         _tempRoot = Path.Combine(Path.GetTempPath(), "GitWizardAsyncTests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_tempRoot);
 
-        // Reset static caches to ensure test isolation
+        // Reset static caches and delete cached files for full isolation
         ResetStaticCaches();
     }
 
@@ -23,33 +23,26 @@ public class AsyncFileIOTests
         if (!string.IsNullOrEmpty(_tempRoot) && Directory.Exists(_tempRoot))
             Directory.Delete(_tempRoot, recursive: true);
 
-        // Reset static caches after each test
+        // Reset static caches and delete cached files after each test
         ResetStaticCaches();
     }
 
     static void ResetStaticCaches()
     {
-        // Use reflection to reset private static fields
-        var reportType = typeof(GitWizardReport);
-        var reportField = reportType.GetField("_cachedReport", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-        reportField?.SetValue(null, null);
+        TestUtilities.ResetStaticCaches();
 
-        var configType = typeof(GitWizardConfiguration);
-        var configField = configType.GetField("_globalConfiguration", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-        configField?.SetValue(null, null);
-
-        // Clean up cached repo list file if it exists from previous runs
+        // Clean up cached repo list file
         var localPath = GitWizardApi.GetLocalFilesPath();
         var repoListPath = Path.Combine(localPath, "repositories.txt");
         if (File.Exists(repoListPath))
             File.Delete(repoListPath);
 
-        // Clean up cached report file if it exists from previous runs
+        // Clean up cached report file
         var reportPath = GitWizardReport.GetCachedReportPath();
         if (File.Exists(reportPath))
             File.Delete(reportPath);
 
-        // Clean up config file if it exists from previous runs
+        // Clean up config file
         var configPath = GitWizardConfiguration.GetGlobalConfigurationPath();
         if (File.Exists(configPath))
             File.Delete(configPath);
@@ -70,7 +63,7 @@ public class AsyncFileIOTests
 
         var loaded = await GitWizardConfiguration.GetConfigurationAtPathAsync(configPath);
 
-       Assert.That(loaded, Is.Not.Null);
+        Assert.That(loaded, Is.Not.Null);
         Assert.That(loaded!.SearchPaths, Has.Count.EqualTo(2));
         Assert.That(loaded.SearchPaths, Does.Contain("/path/one"));
         Assert.That(loaded.SearchPaths, Does.Contain("/path/two"));
@@ -166,7 +159,7 @@ public class AsyncFileIOTests
         var paths = new[] { "/test/repo" };
         await GitWizardApi.SaveCachedRepositoryPathsAsync(paths);
 
-         var loaded = await GitWizardApi.GetCachedRepositoryPathsAsync();
+        var loaded = await GitWizardApi.GetCachedRepositoryPathsAsync();
         Assert.That(loaded, Is.Not.Null);
         Assert.That(loaded!, Has.Length.EqualTo(1));
     }
@@ -194,8 +187,8 @@ public class AsyncFileIOTests
 
         var loaded = await GitWizardApi.GetCachedRepositoryPathsAsync();
 
-         Assert.That(loaded, Is.Not.Null);
-        Assert.That(loaded!, Has.Length.EqualTo(2));
+        Assert.That(loaded, Is.Not.Null);
+         Assert.That(loaded!, Has.Length.EqualTo(2));
     }
 
     [Test]

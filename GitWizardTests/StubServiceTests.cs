@@ -1,8 +1,13 @@
+using GitWizard;
 using GitWizardUI.ViewModels.Services;
 
 namespace GitWizardTests;
 
-public class StubUiDispatcherTests
+/// <summary>
+/// Tests for the StubClipboardService and StubUiDispatcher stubs.
+/// These are small helper classes that need coverage too.
+/// </summary>
+public class StubServiceTests
 {
     [Test]
     public void Post_InvokesActionSynchronously()
@@ -31,10 +36,18 @@ public class StubUiDispatcherTests
     {
         Assert.That(new StubUiDispatcher().IsOnUiThread, Is.True);
     }
-}
 
-public class StubUserDialogsTests
-{
+    [Test]
+    public async Task InvokeAsync_AsyncAction_RunsAndCompletes()
+    {
+        var dispatcher = new StubUiDispatcher();
+        var called = false;
+
+        await dispatcher.InvokeAsync(async () => { await Task.Delay(0); called = true; });
+
+        Assert.That(called, Is.True);
+    }
+
     [Test]
     public async Task DisplayAlertAsync_RecordsCall()
     {
@@ -57,10 +70,7 @@ public class StubUserDialogsTests
         Assert.That(result, Is.True);
         Assert.That(dialogs.ConfirmCalls, Has.Count.EqualTo(1));
     }
-}
 
-public class StubFolderPickerTests
-{
     [Test]
     public async Task PickFolderAsync_ReturnsScriptedPath()
     {
@@ -80,5 +90,60 @@ public class StubFolderPickerTests
         var result = await picker.PickFolderAsync();
 
         Assert.That(result, Is.Null);
+    }
+}
+
+/// <summary>
+/// Tests for the StubClipboardService.
+/// </summary>
+public class StubClipboardServiceTests
+{
+    [Test]
+    public async Task SetPlainTextAsync_AppendsToWrites()
+    {
+        var clipboard = new StubClipboardService();
+
+        await clipboard.SetPlainTextAsync("test content");
+
+        Assert.That(clipboard.Writes, Has.Count.EqualTo(1));
+        Assert.That(clipboard.Writes[0], Is.EqualTo("test content"));
+    }
+
+    [Test]
+    public async Task SetPlainTextAsync_AccumulatesWrites()
+    {
+        var clipboard = new StubClipboardService();
+
+        await clipboard.SetPlainTextAsync("first");
+        await clipboard.SetPlainTextAsync("second");
+        await clipboard.SetPlainTextAsync("third");
+
+        Assert.That(clipboard.Writes, Has.Count.EqualTo(3));
+        Assert.That(clipboard.Writes, Is.EqualTo(new[] { "first", "second", "third" }));
+    }
+
+    [Test]
+    public async Task SetPlainTextAsync_ReturnsCompletedTask()
+    {
+        var clipboard = new StubClipboardService();
+        var task = clipboard.SetPlainTextAsync("content");
+
+        Assert.That(task.IsCompleted, Is.True);
+        Assert.That(task.IsFaulted, Is.False);
+        Assert.That(task.IsCanceled, Is.False);
+    }
+
+    [Test]
+    public void Writes_Collection_IsNotNull()
+    {
+        var clipboard = new StubClipboardService();
+        Assert.That(clipboard.Writes, Is.Not.Null);
+    }
+
+    [Test]
+    public void Writes_Collection_IsInitiallyEmpty()
+    {
+        var clipboard = new StubClipboardService();
+        Assert.That(clipboard.Writes, Is.Empty);
     }
 }

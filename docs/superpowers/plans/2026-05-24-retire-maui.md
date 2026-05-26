@@ -12,60 +12,38 @@
 
 ---
 
-## Phase 1: PR1 — Avalonia Windows parity
+## Phase 1: PR1 — Avalonia Windows parity ✅ COMPLETE
 
-> ## 🤝 HANDOFF 2026-05-24 (llamabox → chonkers)
+> ## ✅ STATUS 2026-05-26 — Phase 1 merged
 >
-> **State:** Branch `retire-maui` pushed; **PR #47** open & mergeable
-> (`https://gitea.llamabox.internal/schoen/git-wizard/pulls/47`). Commits:
-> `0dead0c` (PR1 code: Tasks 1 & 2) + `17d9d3e` (plan status). Avalonia builds
-> clean on Linux (0 warnings/errors). Tasks 1 & 2 are **done**.
+> **PR #47 squash-merged to `main`** (`ccb230b`, 2026-05-26). All of Phase 1 is
+> done — Task 1 (`Program.cs` elevated-mode handler), Task 2 (Defender menu wired),
+> Task 3 (PR opened, CI green, merged). The parity-polish follow-ups (active
+> sidebar highlight + scanning indicator) also landed in the same PR.
 >
-> **To resume:** `git fetch && git checkout retire-maui`, then continue **Task 3
-> (Windows verification)** below — needs a Windows host (the app + UAC can't be
-> exercised on Linux). After it passes, merge PR #47; Phase 2 stays gated on that.
+> **Do NOT re-run Tasks 1–3 below** (retained for history). **Phase 2 (Tasks 4–8)
+> is now unblocked** — start there: `git switch main && git pull`, then
+> `git switch -c retire-maui-delete`.
 >
-> **⚠️ In-progress finding — "refresh didn't prompt for admin":** Almost certainly
-> NOT a bug in the PR1 code, but a test-setup artifact: the GUI's **Refresh**
-> uses the cached repo list (`%USERPROFILE%\.GitWizard\repositories.txt`), so it
-> re-refreshes *known* repos and never runs an MFT **discovery** scan — and the
-> elevation/UAC path (`GitWizardApi.TryFindAllRepositoriesUsingMft` →
-> `ElevationUtilities.TryRunElevated("--elevated-mft …")`) only fires during
-> **discovery**. The app.manifest is `asInvoker` (no forced elevation), so the
-> app runs non-elevated and *should* prompt during a real discovery scan.
->
-> **How to actually exercise it on Windows:**
-> 1. Force a fresh discovery scan — in the GUI: **Clear Cache** menu → **Refresh**;
->    or delete `%USERPROFILE%\.GitWizard\repositories.txt` then Refresh; or run
->    the CLI `git-wizard -rebuild-repo-list` (or `-rebuild-all`).
-> 2. On a **non-elevated** launch, discovery should pop a UAC prompt (the
->    `--elevated-mft` child). Approve → scan completes in seconds, **no second GUI
->    window** appears, repos populate. (If you launched *already elevated*, no
->    prompt is expected — `IsElevated()` scans directly; relaunch non-elevated to
->    see the UAC path.)
-> 3. **Logs:** `%USERPROFILE%\.GitWizard\Logs\` — a line `MFT search failed,
->    falling back to directory scan: …` means MFT was attempted but failed
->    (investigate the error). **No** MFT log lines at all ⇒ MFT was never
->    attempted (still a cached refresh, or `-no-mft`, or discovery didn't run).
-> 4. **Defender:** click **Check Windows Defender** → expect UAC, then "Defender
->    Exclusions Added"; confirm with `Get-MpPreference | Select -Expand ExclusionProcess`
->    (should list dotnet / git / git-lfs / git-wizard).
->
-> **⚠️ Open question chonkers must close:** confirm the GUI's discovery scan
-> actually *routes through* the elevated path. There are two MFT entry points —
+> **⚠️ Carry-forward verification — NOT confirmed before merge:** confirm the GUI's
+> discovery scan actually *routes through* the elevated path, so the `Program.cs`
+> `--elevated-mft` handler isn't dead code on `main`. Two MFT entry points exist —
 > `TryFindAllRepositoriesUsingMft` (all-paths, has the `TryRunElevated` branch at
-> `GitWizardApi.cs:162`) and the per-path `GetRepositoryPaths` →
+> `GitWizardApi.cs:162`) vs. the per-path `GetRepositoryPaths` →
 > `TryFindGitRepositoriesUsingMft` (no self-elevation). Trace which one
-> `GitWizardReport.GenerateReport(...)` calls for a full scan from the GUI. If the
-> GUI discovery never reaches `TryRunElevated`, that's a **real gap to fix in
-> PR1**, not just a test artifact — the Program.cs handler would then be dead code
-> on the GUI path. (The CLI's `-rebuild-repo-list` exercising MFT is a good
-> cross-check that the core path works at all.)
+> `GitWizardReport.GenerateReport(...)` calls for a full GUI scan; if discovery
+> never reaches `TryRunElevated`, that's a real gap to fix (not a test artifact).
+> **Exercise on Windows, non-elevated:** force a fresh discovery (GUI **Clear Cache**
+> → **Refresh**, or delete `%USERPROFILE%\.GitWizard\repositories.txt`, or CLI
+> `git-wizard -rebuild-repo-list`) → expect a UAC prompt, scan finishes in seconds,
+> no second GUI window, repos populate. Logs at `%USERPROFILE%\.GitWizard\Logs\`
+> (`MFT search failed, falling back…` = MFT attempted but failed; **no** MFT lines =
+> never attempted). Defender: **Check Windows Defender** → UAC → "Exclusions Added"
+> (confirm via `Get-MpPreference | Select -Expand ExclusionProcess`).
 >
-> **Also paused:** issue #36 ViewModel test backfill (we pivoted to the MAUI
-> retirement before starting it).
+> **Also still paused:** issue #36 ViewModel test backfill.
 
-Branch: `retire-maui` (already created off `main`). This phase's only automated check is that Avalonia still **builds**; the elevation and Defender code paths require Windows + UAC and are verified manually (Task 3). Do NOT proceed to Phase 2 until Task 3's Windows verification passes and PR1 is merged.
+The Phase 1 tasks below are retained for reference; Phase 2 may now proceed.
 
 ### Task 1: Add the elevated-mode startup handler to Avalonia
 

@@ -18,7 +18,7 @@ Tooling persists in `.claude/scripts/` (gitignored): `parse-jb-report.py <report
 Run: `~/.dotnet/tools/jb.exe inspectcode git-wizard.slnx -o="$TEMP/gitwizard-jb-report.xml" --severity=WARNING --no-updates`.
 
 ⚠️ **Rider confirm still pending** (can't verify via the CLI): reopen the solution in Rider and confirm the 10 naming warnings clear (Rider honors the solution-shared `.DotSettings`; jb does not).
-⚠️ **GUI smoke-test still pending** (carry-forward from the prior session): the committed context-menu `DataContext` fix (`MainWindow.axaml` → `{Binding $self.PlacementTarget.DataContext}` + `x:DataType`) was never validated in a running window. In a `--headed` GitWizardUI, open a repo's context menu and confirm "Open in Fork" / "Open in Explorer" / "Copy" work, and "Open in Fork" hides on group headers.
+✅ **GUI smoke-test DONE (2026-05-27)** — and it caught two real bugs the committed "fix" had: the context-menu `{Binding $self.PlacementTarget.DataContext}` was **broken** (`PlacementTarget` is always null, Avalonia#16344) and a latent clipboard crash (`dynamic` can't see `IClipboard.SetTextAsync`). Both fixed + re-verified in a `--headed` window (Fork/Explorer/Copy all work, "Open in Fork" hides on group headers). See `docs/handoff-context-menu-clipboard-copy-icon.md`.
 
 ## UAC prompts during `dotnet test` — DESIGNED (cross-repo, MFTLib 0.3); implementation deferred to fresh sessions
 

@@ -44,3 +44,21 @@ Local `main` is now **gitea/main (`2b26b92`) + 4 elevation/docs commits + this s
 ## Coverage gap — CLOSED (2026-05-27)
 
 `AvaloniaClipboardService` (the real `IClipboard` path) is now covered by `GitWizardTests/AvaloniaClipboardServiceTests.cs`: a headless `[AvaloniaTest]` (new `Avalonia.Headless.NUnit` package + `TestAppBuilder` / `[assembly: AvaloniaTestApplication]`) builds a real `TopLevel`, writes through `AvaloniaClipboardService.SetPlainTextAsync`, and reads the value back from `TopLevel.Clipboard` — i.e. it exercises the exact `SetTextAsync` path the `dynamic` crash hit, which `StubClipboardService` couldn't. Non-admin line coverage 41.45% → 42.35%. Remaining: the `?? Task.CompletedTask` null-clipboard branch is a defensive guard not reachable via a headless `TopLevel` (whose `Clipboard` is non-null) — left as-is, single line is covered.
+
+## Whole-row right-click (DONE 2026-05-27, with a trade-off)
+
+Right-click only worked on the row label/buttons — empty row space missed the menu, because `ContextRequested` was on the inner `Grid`, which didn't fill the row (its `Margin` left a gap and the `ListBoxItem` didn't stretch its content). `ContextRequested` bubbles **up** to the `ListBox` from the clicked element; it never reaches a `Grid` the cursor isn't over.
+
+**Fix:** wrap each row in a `Border` (`Background="Transparent"`, `Padding="5,5,20,5"` — `Grid` has **no** `Padding` property in Avalonia, `AVLN2000`) carrying the `ContextMenu` + `ContextRequested`, plus a `ListBox.Styles` `Style Selector="ListBoxItem"` setting `HorizontalContentAlignment="Stretch"` + `Padding="0"` so the Border fills the whole row. Right-click now works anywhere on the row.
+
+**Trade-off (open follow-up):** zeroing `ListBoxItem.Padding` made rows visibly tighter (user noticed). To restore row padding **and** keep whole-row hit-testing, attach the context menu at the **`ListBoxItem` container level** (an `ItemContainerTheme`/`Style` `ContextMenu` setter, or a `ListBox`-level `ContextRequested` handler that walks `e.Source` up to the `ListBoxItem`) instead of zeroing padding. Accepted as-is this session. See `~/.claude/notes/idioms_avalonia.md`.
+
+## Data-loss incident (FIXED 2026-05-27)
+
+Running the test suite this session **deleted the user's real `~/.GitWizard/config.json`** (lost the `G:\Documents` search path). Root cause: `GitWizardApiAdditionalTests` calls `GitWizardApi.DeleteAllLocalFiles()` without redirecting `GITWIZARD_HOME`, so `GetLocalFilesPath()` resolved to the real `~/.GitWizard` and `Directory.Delete` wiped it; the next GUI launch wrote a default config (search paths gone). The per-class opt-in redirect had now leaked twice (Part D's `GitWizardConfigurationTests`, then this).
+
+**Fix:** `GitWizardTests/GlobalTestSetup.cs` — an assembly-wide `[SetUpFixture]` points `GITWIZARD_HOME` at a temp dir (under the user profile) for the whole run, so isolation is the default; `TestUtilities.ClearLocalFilesRedirect` restores that default instead of nulling; regression guard `GitWizardApiAdditionalTests.GetLocalFilesPath_NeverResolvesToTheRealGitWizardDirectoryDuringTests`. Verified: a sentinel written to the real config survives a full run; config intact. The user's config was restored from `%TEMP%\gitwizard-config-backup-…json`. Full detail in project memory `test-isolation-gitwizard-home`. (Like the earlier leaky-test fix, this depends on Part D's `GITWIZARD_HOME` infra, so it lives only on held `main`.)
+
+## Push state (2026-05-27)
+
+This session added **5 commits** to held local `main` (`45711eb` test-isolation → `f77a395` Settings height); local `main` is now **12 ahead of `gitea/main`**, still held — the push gate above is unchanged (MFTLib local `ProjectReference`, publish-gated on MFTLib 0.3.0). User chose to **hold the push**. After the config restore, the cached `repositories.txt` is stale (it holds the default-config scan) → **Shift+click Refresh** (hard refresh) to rediscover with the real search paths.

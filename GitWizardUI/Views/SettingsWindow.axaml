@@ -6,7 +6,7 @@
         x:Class="GitWizardUI.Views.SettingsWindow"
         x:DataType="vm:SettingsViewModel"
         Title="Settings"
-        Width="600" Height="500"
+        Width="600" Height="600"
         WindowStartupLocation="CenterOwner">
   <Window.Resources>
     <converters:PathPrettyPrintConverter x:Key="PathPrettyPrintConverter" />

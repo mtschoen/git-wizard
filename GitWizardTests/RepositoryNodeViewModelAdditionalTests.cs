@@ -22,16 +22,6 @@ public class RepositoryNodeViewModelAdditionalTests
         prop.SetValue(obj, value);
     }
 
-    // Helper to set fields via reflection
-    static void SetField(object obj, string fieldName, object? value)
-    {
-        var field = obj.GetType().GetField(fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-        if (field == null)
-            throw new InvalidOperationException($"Field '{fieldName}' not found on type '{obj.GetType().FullName}'.");
-
-        field.SetValue(obj, value);
-    }
-
     [Test]
     public void CreateGroupHeader_CreatesGroupNode()
     {

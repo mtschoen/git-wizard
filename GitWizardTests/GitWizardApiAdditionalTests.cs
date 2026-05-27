@@ -183,7 +183,6 @@ public class GitWizardApiAdditionalTests
     [Test]
     public void DeleteAllLocalFiles_DoesNotThrow()
     {
-        var localPath = GitWizardApi.GetLocalFilesPath();
         GitWizardApi.DeleteAllLocalFiles();
         Assert.Pass();
     }
@@ -369,22 +368,11 @@ public class GitWizardApiAdditionalTests
 
 public class TestUpdateHandler : IUpdateHandler
 {
-    public string? LastMessage { get; private set; }
+    public void StartProgress(string message, int maxCount) { }
 
-    public void StartProgress(string message, int maxCount)
-    {
-        LastMessage = message;
-    }
+    public void UpdateProgress(int count) { }
 
-    public void UpdateProgress(int count)
-    {
-        LastMessage = $"Progress: {count}";
-    }
-
-    public void SendUpdateMessage(string? message)
-    {
-        LastMessage = message;
-    }
+    public void SendUpdateMessage(string? message) { }
 
     public void OnRepositoryCreated(GitWizardRepository repository) { }
     public void OnRepositoryRefreshCompleted(GitWizardRepository repository) { }

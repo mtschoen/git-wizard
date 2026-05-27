@@ -40,7 +40,7 @@ public partial class MainWindow : Window
     }
 
     void Window_Loaded(object? sender, RoutedEventArgs e)
-        => _viewModel.RefreshCommand?.Execute(null);
+        => _viewModel.RefreshCommand.Execute(null);
 
     void SettingsMenuItem_Click(object? sender, RoutedEventArgs e)
         => new SettingsWindow().ShowDialog(this);
@@ -90,14 +90,14 @@ public partial class MainWindow : Window
         if (hardRefresh)
             _ = _viewModel.HardRefreshAsync();
         else
-            _viewModel.RefreshCommand?.Execute(null);
+            _viewModel.RefreshCommand.Execute(null);
     }
 
     void RepositoryList_DoubleTapped(object? sender, TappedEventArgs e)
     {
         // OpenInExplorer decides what to do: toggle a group header, or open a repo.
         if ((e.Source as Control)?.DataContext is RepositoryNodeViewModel node)
-            _viewModel.OpenInExplorerCommand?.Execute(node);
+            _viewModel.OpenInExplorerCommand.Execute(node);
     }
 
     // Scroll anchoring across a refresh. RefreshAsync clears the Repositories collection at the
@@ -122,14 +122,14 @@ public partial class MainWindow : Window
         {
             // The first realized row intersecting the viewport top is the one the user sees at the
             // top; virtualized (off-screen) rows have no container.
-            if (RepositoryList.ContainerFromIndex(i) is Control container && container.IsVisible
+            if (RepositoryList.ContainerFromIndex(i) is { } container && container.IsVisible
                 && container.TranslatePoint(default, RepositoryList) is { } point
                 && point.Y + container.Bounds.Height > 0)
             {
                 _anchorPath = (container.DataContext as RepositoryNodeViewModel)?.WorkingDirectory;
                 _anchorAbove = Math.Max(0, -point.Y);
                 if (GitWizardLog.VerboseMode)
-                    GitWizardLog.Log($"[scroll] captured anchor index={i} above={_anchorAbove:F0} path={_anchorPath}", GitWizardLog.LogType.Info);
+                    GitWizardLog.Log($"[scroll] captured anchor index={i} above={_anchorAbove:F0} path={_anchorPath}");
                 break;
             }
         }
@@ -161,7 +161,7 @@ public partial class MainWindow : Window
             if (index < 0)
             {
                 if (GitWizardLog.VerboseMode)
-                    GitWizardLog.Log($"[scroll] restore skipped: path not found {path}", GitWizardLog.LogType.Info);
+                    GitWizardLog.Log($"[scroll] restore skipped: path not found {path}");
                 return;
             }
             if (RepositoryList.Items[index] is not { } anchorItem)
@@ -185,7 +185,7 @@ public partial class MainWindow : Window
                         return;
 
                     // If the anchor virtualized away between passes, re-materialize and retry.
-                    if (RepositoryList.ContainerFromIndex(index) is not Control container
+                    if (RepositoryList.ContainerFromIndex(index) is not { } container
                         || container.TranslatePoint(default, RepositoryList) is not { } point)
                     {
                         RepositoryList.ScrollIntoView(anchorItem);
@@ -198,14 +198,14 @@ public partial class MainWindow : Window
                         _scrollRestoreTimer?.Stop();
                         _scrollRestoreTimer = null;
                         if (GitWizardLog.VerboseMode)
-                            GitWizardLog.Log($"[scroll] restored index={index} above={above:F0} in {pass} pass(es)", GitWizardLog.LogType.Info);
+                            GitWizardLog.Log($"[scroll] restored index={index} above={above:F0} in {pass} pass(es)");
                         return;
                     }
 
                     var targetOffsetY = Math.Max(0, scrollViewer.Offset.Y + delta);
                     scrollViewer.Offset = scrollViewer.Offset.WithY(targetOffsetY);
                     if (GitWizardLog.VerboseMode)
-                        GitWizardLog.Log($"[scroll] pass {pass} index={index} containerY={point.Y:F0} delta={delta:F0} -> offsetY={targetOffsetY:F0}", GitWizardLog.LogType.Info);
+                        GitWizardLog.Log($"[scroll] pass {pass} index={index} containerY={point.Y:F0} delta={delta:F0} -> offsetY={targetOffsetY:F0}");
                 });
             _scrollRestoreTimer.Start();
         }, DispatcherPriority.Background);
@@ -223,48 +223,48 @@ public partial class MainWindow : Window
     void FetchAndRefreshButton_Click(object? sender, RoutedEventArgs e)
     {
         CaptureScrollAnchor();
-        _viewModel.FetchAndRefreshCommand?.Execute(null);
+        _viewModel.FetchAndRefreshCommand.Execute(null);
     }
 
     void ForkButton_Click(object? sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is RepositoryNodeViewModel node)
-            _viewModel.OpenInForkCommand?.Execute(node);
+            _viewModel.OpenInForkCommand.Execute(node);
     }
 
     void DeepRefreshButton_Click(object? sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is RepositoryNodeViewModel node)
-            _viewModel.DeepRefreshCommand?.Execute(node);
+            _viewModel.DeepRefreshCommand.Execute(node);
     }
 
     void CheckoutMatchingBranchButton_Click(object? sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is RepositoryNodeViewModel node)
-            _viewModel.CheckoutMatchingBranchCommand?.Execute(node);
+            _viewModel.CheckoutMatchingBranchCommand.Execute(node);
     }
 
     void CleanDownstreamButton_Click(object? sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is RepositoryNodeViewModel node)
-            _viewModel.CleanDownstreamCommand?.Execute(node);
+            _viewModel.CleanDownstreamCommand.Execute(node);
     }
 
     void OnOpenInExplorerClick(object? sender, RoutedEventArgs e)
     {
         if ((sender as MenuItem)?.Tag is RepositoryNodeViewModel node)
-            _viewModel.OpenInExplorerCommand?.Execute(node);
+            _viewModel.OpenInExplorerCommand.Execute(node);
     }
 
     void OnOpenInForkClick(object? sender, RoutedEventArgs e)
     {
         if ((sender as MenuItem)?.Tag is RepositoryNodeViewModel node)
-            _viewModel.OpenInForkCommand?.Execute(node);
+            _viewModel.OpenInForkCommand.Execute(node);
     }
 
     void OnCopyToClipboardClick(object? sender, RoutedEventArgs e)
     {
         if ((sender as MenuItem)?.Tag is RepositoryNodeViewModel node)
-            _viewModel.CopyToClipboardCommand?.Execute(node);
+            _viewModel.CopyToClipboardCommand.Execute(node);
     }
 }

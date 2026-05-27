@@ -100,7 +100,7 @@ public class SettingsViewModelTests
         var vm = new SettingsViewModel(picker);
         var propertyChangedFired = false;
 
-        vm.PropertyChanged += (_, e) =>
+        vm.PropertyChanged += (_, _) =>
         {
             propertyChangedFired = true;
         };
@@ -184,7 +184,7 @@ public class SettingsViewModelTests
         var vm = new SettingsViewModel(picker);
 
         var initialCount = vm.SearchPaths.Count;
-        vm.RemoveSearchPathCommand.Execute((string?)null);
+        vm.RemoveSearchPathCommand.Execute(null);
 
         Assert.That(vm.SearchPaths, Has.Count.EqualTo(initialCount));
     }
@@ -236,7 +236,7 @@ public class SettingsViewModelTests
         var vm = new SettingsViewModel(picker);
 
         var initialCount = vm.IgnoredPaths.Count;
-        vm.RemoveIgnoredPathCommand.Execute((string?)null);
+        vm.RemoveIgnoredPathCommand.Execute(null);
 
         Assert.That(vm.IgnoredPaths, Has.Count.EqualTo(initialCount));
     }
@@ -353,7 +353,6 @@ public class SettingsViewModelTests
         var picker = new StubFolderPicker();
         var vm = new SettingsViewModel(picker);
 
-        var initialCount = vm.SearchPaths.Count;
         vm.SearchPaths.Add("/new/search");
         vm.ForkPath = "/usr/local/bin/fork";
 

@@ -57,7 +57,7 @@ public class GitWizardReportTests
         Assert.That(report.Repositories.ContainsKey(tempRepo.Path), Is.True);
 
         // Delete the repo directory
-        tempRepo.Dispose();
+        tempRepo.DeleteNow();
 
         // Refresh with the deleted path
         report.Repositories.Clear();
@@ -73,7 +73,7 @@ public class GitWizardReportTests
     {
         GitWizardLog.SilentMode = true;
         using var validRepo = TempRepoFixture.CreateWithInitialCommit();
-        var deletedPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "nonexistent-repo-" + Guid.NewGuid());
+        var deletedPath = Path.Combine(Path.GetTempPath(), "nonexistent-repo-" + Guid.NewGuid());
 
         var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
         var report = new GitWizardReport(configuration);
@@ -115,7 +115,7 @@ public class GitWizardReportTests
         Assert.That(report.Repositories.ContainsKey(tempRepo.Path), Is.True);
 
         // Delete the repo
-        tempRepo.Dispose();
+        tempRepo.DeleteNow();
 
         // Refresh again
         report.Refresh(paths);

@@ -200,7 +200,7 @@ public class GitWizardRepositoryTests
         GitWizardLog.SilentMode = true;
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
 
-        using (var repo = new LibGit2Sharp.Repository(fixture.Path))
+        using (var repo = new Repository(fixture.Path))
             repo.Branches.Add("old/merged", repo.Head.Tip);
         fixture.AppendCommit("advance.txt");
 
@@ -222,7 +222,7 @@ public class GitWizardRepositoryTests
         GitWizardLog.SilentMode = true;
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
 
-        using (var repo = new LibGit2Sharp.Repository(fixture.Path))
+        using (var repo = new Repository(fixture.Path))
             repo.Branches.Add("samepoint", repo.Head.Tip);
 
         var repository = new GitWizardRepository(fixture.Path);
@@ -244,7 +244,7 @@ public class GitWizardRepositoryTests
         Assert.That(repository.Branches, Is.Not.Null, "precondition: unmerged branch detected");
 
         // Remove the unmerged branch; a re-refresh must not retain the stale list.
-        using (var repo = new LibGit2Sharp.Repository(fixture.Path))
+        using (var repo = new Repository(fixture.Path))
             repo.Branches.Remove("feature/ahead");
         repository.Refresh();
 
@@ -256,7 +256,7 @@ public class GitWizardRepositoryTests
     {
         GitWizardLog.SilentMode = true;
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        using (var repo = new LibGit2Sharp.Repository(fixture.Path))
+        using (var repo = new Repository(fixture.Path))
             repo.Branches.Add("samepoint", repo.Head.Tip);
 
         var repository = new GitWizardRepository(fixture.Path);

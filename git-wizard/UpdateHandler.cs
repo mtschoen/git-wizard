@@ -18,14 +18,13 @@ class UpdateHandler : IUpdateHandler
         public CommandType Type;
         public GitWizardRepository? Repository;
         public GitWizardRepository? ParentRepository;
-        public string? SubmodulePath;
     }
 
     readonly ConcurrentQueue<Command> _commands = new();
     readonly HashSet<string> _createdPaths = new();
-    int _totalCreated = 0;
-    int _totalCompleted = 0;
-    int _skippedCommands = 0;
+    int _totalCreated;
+    int _totalCompleted;
+    int _skippedCommands;
 
     public void SendUpdateMessage(string? message)
     {
@@ -49,7 +48,6 @@ class UpdateHandler : IUpdateHandler
 
     int _progressTotal;
     string? _progressDescription;
-    int _progressCount;
     readonly object _progressLock = new();
 
     public void StartProgress(string description, int total)
@@ -58,8 +56,7 @@ class UpdateHandler : IUpdateHandler
         {
             _progressDescription = description;
             _progressTotal = total;
-            _progressCount = 0;
-            PrintProgress(0, total, 0);
+            PrintProgress(0, total);
         }
     }
 
@@ -67,12 +64,11 @@ class UpdateHandler : IUpdateHandler
     {
         lock (_progressLock)
         {
-            PrintProgress(count, _progressTotal, _progressCount);
-            _progressCount = count;
+            PrintProgress(count, _progressTotal);
         }
     }
 
-    void PrintProgress(int count, int total, int previousCount)
+    void PrintProgress(int count, int total)
     {
         if (total <= 0)
             return;
@@ -119,8 +115,7 @@ class UpdateHandler : IUpdateHandler
         _commands.Enqueue(new Command
         {
             Type = CommandType.UninitializedSubmoduleCreated,
-            ParentRepository = parent,
-            SubmodulePath = submodulePath
+            ParentRepository = parent
         });
     }
 
@@ -167,14 +162,14 @@ class UpdateHandler : IUpdateHandler
                     if (string.IsNullOrEmpty(parentPath))
                     {
                         _skippedCommands++;
-                        GitWizardLog.Log($"[SKIPPED] Submodule parent has null path", GitWizardLog.LogType.Info);
+                        GitWizardLog.Log($"[SKIPPED] Submodule parent has null path");
                         return;
                     }
 
                     if (!_createdPaths.Contains(parentPath))
                     {
                         _skippedCommands++;
-                        GitWizardLog.Log($"[SKIPPED] Submodule parent not created yet: {parentPath}", GitWizardLog.LogType.Info);
+                        GitWizardLog.Log($"[SKIPPED] Submodule parent not created yet: {parentPath}");
                         return;
                     }
 
@@ -211,8 +206,7 @@ class UpdateHandler : IUpdateHandler
                     if (!_createdPaths.Contains(parentPath))
                     {
                         _skippedCommands++;
-                        GitWizardLog.Log($"[SKIPPED] Uninitialized submodule parent not created yet: {parentPath}", GitWizardLog.LogType.Info);
-                        return;
+                        GitWizardLog.Log($"[SKIPPED] Uninitialized submodule parent not created yet: {parentPath}");
                     }
                 }
                 break;
@@ -230,7 +224,7 @@ class UpdateHandler : IUpdateHandler
                     if (!_createdPaths.Contains(path))
                     {
                         _skippedCommands++;
-                        GitWizardLog.Log($"[MISSING] Refresh completed but item not created: {path} (IsRefreshing={command.Repository.IsRefreshing})", GitWizardLog.LogType.Info);
+                        GitWizardLog.Log($"[MISSING] Refresh completed but item not created: {path} (IsRefreshing={command.Repository.IsRefreshing})");
                         return;
                     }
 

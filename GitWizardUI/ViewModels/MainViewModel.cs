@@ -396,7 +396,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
 
             foreach (var branch in downstream)
             {
-                var psi = new System.Diagnostics.ProcessStartInfo
+                var psi = new ProcessStartInfo
                 {
                     FileName = "git",
                     Arguments = $"branch -d \"{branch.Name}\"",
@@ -409,7 +409,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
 
                 try
                 {
-                    using var process = System.Diagnostics.Process.Start(psi);
+                    using var process = Process.Start(psi);
                     if (process != null)
                     {
                         if (!process.WaitForExit(15000))
@@ -423,7 +423,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
                             var error = process.StandardError.ReadToEnd();
                             if (!string.IsNullOrEmpty(error) && !error.Contains("not fully merged"))
                             {
-                                GitWizard.GitWizardLog.Log($"git branch -d {branch.Name}: {error}", GitWizard.GitWizardLog.LogType.Warning);
+                                GitWizardLog.Log($"git branch -d {branch.Name}: {error}", GitWizardLog.LogType.Warning);
                             }
                             if (process.ExitCode != 0)
                             {
@@ -435,7 +435,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
                 }
                 catch (Exception ex)
                 {
-                    GitWizard.GitWizardLog.LogException(ex, $"Exception deleting branch {branch.Name} in {workingDir}");
+                    GitWizardLog.LogException(ex, $"Exception deleting branch {branch.Name} in {workingDir}");
                     failed.Add(branch.Name);
                     success = false;
                 }
@@ -495,6 +495,9 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
 
     void StartUIUpdateThread()
     {
+        // Daemon loop for the app's lifetime: drains the UI command queue every 250ms and pushes
+        // progress updates onto the UI thread. Never returns by design — it ends with the process.
+        // ReSharper disable once FunctionNeverReturns
         Task.Run(async () =>
         {
             while (true)
@@ -984,8 +987,10 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
 
     void AddUninitializedSubmodule(GitWizardRepository parent, string submodulePath)
     {
-        // For now, we'll skip uninitialized submodules in the tree view
-        // Could be added as a special node type in the future
+        // Uninitialized submodules are intentionally not shown in the tree view yet; they could be
+        // added as a special node type in the future. Record the skip for verbose diagnostics.
+        GitWizardLog.Log($"Skipping uninitialized submodule {submodulePath} under {parent.WorkingDirectory}",
+            GitWizardLog.LogType.Verbose);
     }
 
     void UpdateCompletedRepository(GitWizardRepository repository)
@@ -1108,7 +1113,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
                 if (newHealthyPath != null && newHealthyPath != path)
                 {
                     renamedOldPaths.Add(path);
-                    GitWizardLog.Log($"Repository renamed: {path} -> {newHealthyPath}", GitWizardLog.LogType.Info);
+                    GitWizardLog.Log($"Repository renamed: {path} -> {newHealthyPath}");
                 }
             }
 
@@ -1141,7 +1146,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
             var toRemove = _allRepositories.Where(r => renamedOldPaths.Contains(r.WorkingDirectory)).ToList();
             foreach (var node in toRemove)
             {
-                _repositoryMap.TryRemove(node.WorkingDirectory!, out _);
+                _repositoryMap.TryRemove(node.WorkingDirectory, out _);
                 _allRepositories.Remove(node);
                 Repositories.Remove(node);
             }

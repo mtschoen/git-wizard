@@ -9,7 +9,7 @@ public class AvaloniaClipboardService : IClipboardService
 
     public AvaloniaClipboardService(TopLevel topLevel)
     {
-        _clipboard = topLevel?.Clipboard;
+        _clipboard = topLevel.Clipboard;
     }
 
     public Task SetPlainTextAsync(string text)

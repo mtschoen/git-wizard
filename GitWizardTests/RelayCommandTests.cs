@@ -51,7 +51,7 @@ public class RelayCommandTests
     [Test]
     public void RelayCommand_ThrowsOnNullAction()
     {
-        Assert.Throws<ArgumentNullException>(() => new RelayCommand(null!));
+        Assert.Throws<ArgumentNullException>(() => _ = new RelayCommand(null!));
     }
 
     [Test]
@@ -68,21 +68,21 @@ public class RelayCommandTests
     [Test]
     public void ExecuteParameterized_CanExecute_WithTruePredicate()
     {
-        var command = new RelayCommand<string>(p => { }, p => true);
+        var command = new RelayCommand<string>(_ => { }, _ => true);
         Assert.That(command.CanExecute("param"), Is.True);
     }
 
     [Test]
     public void ExecuteParameterized_CanExecute_WithFalsePredicate()
     {
-        var command = new RelayCommand<string>(p => { }, p => false);
+        var command = new RelayCommand<string>(_ => { }, _ => false);
         Assert.That(command.CanExecute("param"), Is.False);
     }
 
     [Test]
     public void ExecuteParameterized_CanExecute_WithTypeMismatch_DoesNotThrow()
     {
-        var command = new RelayCommand<string>(p => { });
+        var command = new RelayCommand<string>(_ => { });
         // Passing non-string parameter should use default! without throwing
         Assert.DoesNotThrow(() => command.CanExecute(42));
     }
@@ -91,7 +91,7 @@ public class RelayCommandTests
     public void ExecuteParameterized_RaiseCanExecuteChanged_FiresEvent()
     {
         var fired = false;
-        var command = new RelayCommand<string>(p => { });
+        var command = new RelayCommand<string>(_ => { });
         command.CanExecuteChanged += (_, _) => fired = true;
 
         command.RaiseCanExecuteChanged();
@@ -102,7 +102,7 @@ public class RelayCommandTests
     [Test]
     public void ExecuteParameterized_ThrowsOnNullAction()
     {
-        Assert.Throws<ArgumentNullException>(() => new RelayCommand<string>((Action<string>)null!));
+        Assert.Throws<ArgumentNullException>(() => _ = new RelayCommand<string>(null!));
     }
 
     [Test]

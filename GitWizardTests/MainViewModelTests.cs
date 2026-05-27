@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using GitWizardUI.ViewModels;
 using GitWizardUI.ViewModels.Services;
 
@@ -31,8 +32,11 @@ public class MainViewModelTests
         using var dispatcher = new PumpUiDispatcher();
         var vm = new MainViewModel(dispatcher, new StubUserDialogs(), new StubClipboardService());
 
+        // Capture the UI thread's id as a value, not the disposable dispatcher, so the swap callback
+        // can assert it ran on that thread without capturing a variable the using scope disposes.
+        var uiThreadId = dispatcher.UiThreadId;
         bool? swapRanOnUiThread = null;
-        vm.AfterRepositoriesSwap = () => swapRanOnUiThread = dispatcher.IsOnUiThread;
+        vm.AfterRepositoriesSwap = () => swapRanOnUiThread = Environment.CurrentManagedThreadId == uiThreadId;
 
         // Trigger the swap from a thread-pool thread, mirroring RefreshAsync's continuation.
         await Task.Run(() => vm.SetSearchText("anything"));
@@ -54,8 +58,11 @@ public class MainViewModelTests
         using var dispatcher = new PumpUiDispatcher();
         var vm = new MainViewModel(dispatcher, new StubUserDialogs(), new StubClipboardService());
 
-        int swapCount = 0;
-        vm.AfterRepositoriesSwap = () => Interlocked.Increment(ref swapCount);
+        // Hold the count in a StrongBox so the captured variable (the box) is never reassigned —
+        // only its contents mutate — which sidesteps AccessToModifiedClosure while the callback
+        // still increments a single shared counter.
+        var swapCount = new StrongBox<int>(0);
+        vm.AfterRepositoriesSwap = () => Interlocked.Increment(ref swapCount.Value);
 
         // Three distinct values, each fires the setter — but they arrive within the debounce window.
         vm.SearchText = "a";
@@ -63,7 +70,7 @@ public class MainViewModelTests
         vm.SearchText = "abc";
 
         // Deferred, not immediate: the synchronous sets must not have run a filter pass yet.
-        Assert.That(Volatile.Read(ref swapCount), Is.EqualTo(0),
+        Assert.That(Volatile.Read(ref swapCount.Value), Is.EqualTo(0),
             "Filtering must be deferred during the debounce window, not run per keystroke.");
 
         // Wait past the 200ms debounce window, then drain the pump so the swap has executed.
@@ -72,7 +79,7 @@ public class MainViewModelTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(swapCount, Is.EqualTo(1),
+            Assert.That(swapCount.Value, Is.EqualTo(1),
                 "Rapid keystrokes must coalesce into a single filter/grouping pass.");
             Assert.That(vm.SearchText, Is.EqualTo("abc"));
         });
@@ -171,6 +178,8 @@ public class MainViewModelTests
         }
 
         public bool IsOnUiThread => Thread.CurrentThread == _uiThread;
+
+        public int UiThreadId => _uiThread.ManagedThreadId;
 
         public void Post(Action action)
         {

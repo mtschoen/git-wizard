@@ -126,7 +126,7 @@ public class GitWizardLogTests
         var outputs = new List<string>();
         GitWizardLog.LogMethod = msg => { if (msg is not null) outputs.Add(msg); };
 
-        var inner = new ArgumentNullException("param", "Inner detail");
+        var inner = new InvalidOperationException("Inner detail");
         var outer = new AggregateException("Outer", inner);
         GitWizardLog.LogException(outer);
 

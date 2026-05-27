@@ -192,7 +192,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         foreach (var path in IgnoredPaths)
             _configuration.IgnoredPaths.Add(path);
 
-       _configuration.ForkPath = string.IsNullOrWhiteSpace(ForkPath) ? null : ForkPath;
+        _configuration.ForkPath = string.IsNullOrWhiteSpace(ForkPath) ? null : ForkPath;
 
         _ = SaveAsync();
     }

@@ -181,6 +181,12 @@ internal sealed class TempRepoFixture : IDisposable
         return standardOutput;
     }
 
+    /// <summary>
+    /// Delete the repository directory immediately — e.g. to simulate an external deletion
+    /// mid-test. Idempotent with <see cref="Dispose"/>, which still runs at scope end.
+    /// </summary>
+    public void DeleteNow() => DeleteTree(Path);
+
     public void Dispose()
     {
         DeleteTree(Path);

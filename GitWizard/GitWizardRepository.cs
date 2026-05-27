@@ -14,6 +14,9 @@ public enum SubmoduleHealthStatus
 
 public class SubmoduleHealthInfo
 {
+    // Serialized to report.json as part of SubmoduleHealth; the getter is exercised by
+    // System.Text.Json, which ReSharper's usage analysis doesn't account for.
+    // ReSharper disable once UnusedAutoPropertyAccessor.Global
     public string Path { get; set; } = string.Empty;
     public string? ExpectedCommitSha { get; set; }
     public string? ActualCommitSha { get; set; }
@@ -778,7 +781,7 @@ public class GitWizardRepository
     /// the caller is already defensive enough — no need to duplicate it here.</para>
     /// <para>This enumerates ALL files recursively including <c>.git/</c> objects, LFS storage,
     /// build output, etc. For repos with large git object stores the first full scan may
-    /// take a long time. The existing <see cref="RefreshStatus"/> timeout covers this.</para>
+    /// take a long time. The existing <c>RefreshStatus</c> timeout covers this.</para>
     /// </remarks>
     static long ComputeDirectorySize(string path)
     {

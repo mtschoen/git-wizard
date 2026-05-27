@@ -68,6 +68,8 @@ public class StubServiceTests
 
         Assert.That(result, Is.True);
         Assert.That(dialogs.ConfirmCalls, Has.Count.EqualTo(1));
+        Assert.That(dialogs.ConfirmCalls[0].Title, Is.EqualTo("Are you sure?"));
+        Assert.That(dialogs.ConfirmCalls[0].Message, Is.EqualTo("Really?"));
     }
 
     [Test]

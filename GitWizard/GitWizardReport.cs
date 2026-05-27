@@ -131,7 +131,11 @@ public class GitWizardReport
     /// <param name="configuration">The configuration to use for this report.</param>
     /// <param name="repositoryPaths">The repository paths to include in the report.</param>
     /// <param name="updateHandler">Optional handler for UI updates.</param>
-    /// <returns>Task containing the report</returns>
+    /// <param name="fetchRemotes">When true, fetch from each repository's remotes before computing ahead/behind state.</param>
+    /// <param name="deepRefresh">When true, run the expensive <c>git update-index --refresh</c> on each repository.</param>
+    /// <param name="noMft">When true, skip MFT-based discovery and walk the filesystem directly.</param>
+    /// <param name="allBranches">When true, include the default branch and branches sitting at the default tip.</param>
+    /// <returns>The generated report.</returns>
     public static GitWizardReport GenerateReport(GitWizardConfiguration configuration,
         ICollection<string>? repositoryPaths = null, IUpdateHandler? updateHandler = null,
         bool fetchRemotes = false, bool deepRefresh = false, bool noMft = false,
@@ -216,7 +220,7 @@ public class GitWizardReport
 
         if (DeletedPaths.Count > 0)
         {
-            GitWizardLog.Log($"Cleaned {DeletedPaths.Count} deleted repository(s) from cache", GitWizardLog.LogType.Info);
+            GitWizardLog.Log($"Cleaned {DeletedPaths.Count} deleted repository(s) from cache");
         }
 
         var count = 0;

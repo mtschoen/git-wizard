@@ -130,7 +130,8 @@ public static class GitWizardApi
     /// </summary>
     /// <returns>True if MFT search was used successfully.</returns>
     public static bool TryFindAllRepositoriesUsingMft(GitWizardConfiguration configuration,
-        ICollection<string> paths, IUpdateHandler? updateHandler = null, bool noMft = false)
+        ICollection<string> paths, IUpdateHandler? updateHandler = null, bool noMft = false,
+        IElevationProvider? elevation = null)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             return false;
@@ -138,7 +139,9 @@ public static class GitWizardApi
         if (noMft)
             return false;
 
-        if (ElevationUtilities.IsElevated())
+        elevation ??= ElevationUtilities.DefaultProvider;
+
+        if (elevation.IsElevated())
         {
             // Already elevated — scan directly
             foreach (var searchPath in configuration.SearchPaths)
@@ -159,7 +162,7 @@ public static class GitWizardApi
 
         try
         {
-            if (!ElevationUtilities.TryRunElevated($"--elevated-mft --config-path \"{configPath}\" --output \"{outputPath}\"", timeoutMs: 120000))
+            if (!elevation.TryRunElevated($"--elevated-mft --config-path \"{configPath}\" --output \"{outputPath}\"", timeoutMs: 120000))
                 return false;
 
             if (!File.Exists(outputPath))

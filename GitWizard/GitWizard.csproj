@@ -8,7 +8,9 @@
 
   <ItemGroup>
     <PackageReference Include="LibGit2Sharp" Version="0.31.0" />
-    <PackageReference Include="MFTLib" Version="0.2.0" />
+    <!-- LOCAL DEV ONLY: validating MFTLib 0.3 IElevationProvider before publish.
+         Swap back to <PackageReference Include="MFTLib" Version="0.3.0" /> before committing/publishing. -->
+    <ProjectReference Include="..\..\MFTLib\MFTLib\MFTLib.csproj" SetPlatform="Platform=x64" />
   </ItemGroup>
   <!-- Fail publish if MFTLib is a local ProjectReference instead of a PackageReference -->
   <Target Name="BlockLocalMFTLibOnPublish" BeforeTargets="Publish">

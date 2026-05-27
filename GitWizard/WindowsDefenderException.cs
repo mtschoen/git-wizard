@@ -13,14 +13,16 @@ public static class WindowsDefenderException
     /// Falls back to elevated PowerShell if self-elevation is not available (e.g., dotnet run).
     /// </summary>
     /// <returns>True if the exclusions were applied successfully.</returns>
-    public static bool AddExclusions()
+    public static bool AddExclusions(IElevationProvider? elevation = null)
     {
-        if (ElevationUtilities.IsElevated())
+        elevation ??= ElevationUtilities.DefaultProvider;
+
+        if (elevation.IsElevated())
             return RunDefenderCommands();
 
         // Try self-elevation first (published builds)
-        if (ElevationUtilities.CanSelfElevate())
-            return ElevationUtilities.TryRunElevated("--elevated-defender", timeoutMs: 30000);
+        if (elevation.CanSelfElevate())
+            return elevation.TryRunElevated("--elevated-defender", timeoutMs: 30000);
 
         // Fall back to elevated PowerShell (dotnet run)
         return RunDefenderCommandsViaElevatedPowerShell();

@@ -218,7 +218,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         _clipboard = clipboard;
         OpenInExplorerCommand = new RelayCommand<RepositoryNodeViewModel>(OpenInExplorer);
         OpenInForkCommand = new RelayCommand<RepositoryNodeViewModel>(OpenInFork);
-        CopyToClipboardCommand = new RelayCommand<RepositoryNodeViewModel>(CopyToClipboard);
+        CopyToClipboardCommand = new AsyncRelayCommand<RepositoryNodeViewModel>(CopyToClipboardAsync);
         DeepRefreshCommand = new RelayCommand<RepositoryNodeViewModel>(DeepRefreshRepository);
         CheckoutMatchingBranchCommand = new RelayCommand<RepositoryNodeViewModel>(CheckoutMatchingBranch);
         RefreshCommand = new AsyncRelayCommand(() => RefreshAsync(background: false));
@@ -318,13 +318,27 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         }
     }
 
-    void CopyToClipboard(RepositoryNodeViewModel? node)
+    // How long the per-row "✓ Copied" indicator stays lit after a copy before it clears.
+    const int CopiedIndicatorMilliseconds = 1500;
+
+    /// <summary>
+    /// Copies the node's working directory to the clipboard, then lights the row's transient "copied"
+    /// indicator for <see cref="CopiedIndicatorMilliseconds"/> ms before clearing it (this replaced
+    /// the old modal "Copied" alert). Wired as the target of an <see cref="AsyncRelayCommand{T}"/>, so
+    /// a clipboard failure is logged by that wrapper rather than going unobserved; on failure the
+    /// indicator is never lit because the awaited write throws before it is set. Public so the
+    /// behavior is awaitable in tests. The indicator flag lives on the VM node, so it is set/reset on
+    /// the UI thread via <c>_ui.Post</c>.
+    /// </summary>
+    public async Task CopyToClipboardAsync(RepositoryNodeViewModel node)
     {
         if (node == null || string.IsNullOrEmpty(node.WorkingDirectory))
             return;
 
-        _ = _clipboard.SetPlainTextAsync(node.WorkingDirectory)
-            .ContinueWith(_ => ShowAlert("Copied", "Working directory path copied to clipboard"), TaskScheduler.Default);
+        await _clipboard.SetPlainTextAsync(node.WorkingDirectory).ConfigureAwait(false);
+        _ui.Post(() => node.JustCopied = true);
+        await Task.Delay(CopiedIndicatorMilliseconds).ConfigureAwait(false);
+        _ui.Post(() => node.JustCopied = false);
     }
 
     void DeepRefreshRepository(RepositoryNodeViewModel? node)

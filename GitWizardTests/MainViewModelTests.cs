@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
+using GitWizard;
 using GitWizardUI.ViewModels;
 using GitWizardUI.ViewModels.Services;
 
@@ -149,6 +150,78 @@ public class MainViewModelTests
         var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
 
         Assert.That(vm.IsScanning, Is.False);
+    }
+
+    static RepositoryNodeViewModel RepoNode(string workingDirectory)
+        => new(new GitWizardRepository(workingDirectory));
+
+    [Test]
+    public void CopyToClipboard_CopiesWorkingDirectoryToClipboard()
+    {
+        var clipboard = new StubClipboardService();
+        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), clipboard);
+
+        vm.CopyToClipboardCommand.Execute(RepoNode("C:/projects/widget"));
+
+        Assert.That(clipboard.Writes, Does.Contain("C:/projects/widget"));
+    }
+
+    // The "Copied" modal dialog was replaced with a per-row indicator: copying must light a transient
+    // flag on the node (which the view binds an icon to), not pop a dialog.
+    [Test]
+    public void CopyToClipboard_LightsTheRowCopiedIndicator()
+    {
+        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+        var node = RepoNode("C:/projects/widget");
+
+        vm.CopyToClipboardCommand.Execute(node);
+
+        // The stub clipboard completes synchronously and the stub dispatcher posts inline, so the
+        // indicator is already lit when the fire-and-forget command returns — before the reset delay.
+        Assert.That(node.JustCopied, Is.True);
+    }
+
+    // The indicator is transient: it lights on copy, then clears itself after the reset delay.
+    [Test]
+    public async Task CopyToClipboardAsync_ClearsTheCopiedIndicatorAfterTheDelay()
+    {
+        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+        var node = RepoNode("C:/projects/widget");
+
+        var copy = vm.CopyToClipboardAsync(node);
+        Assert.That(node.JustCopied, Is.True, "Indicator must light as soon as the copy completes.");
+
+        await copy;
+        Assert.That(node.JustCopied, Is.False, "Indicator must clear after the reset delay.");
+    }
+
+    [Test]
+    public void CopyToClipboard_DoesNothingForNullOrGroupHeaderNodes()
+    {
+        var clipboard = new StubClipboardService();
+        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), clipboard);
+
+        vm.CopyToClipboardCommand.Execute(null);
+        vm.CopyToClipboardCommand.Execute(RepositoryNodeViewModel.CreateGroupHeader("C:"));
+
+        Assert.That(clipboard.Writes, Is.Empty, "A null node and a group header (no working directory) must not copy.");
+    }
+
+    // A clipboard failure must propagate (so the AsyncRelayCommand wrapper logs it instead of leaving
+    // it unobserved) and must not light a false "copied" indicator.
+    [Test]
+    public void CopyToClipboardAsync_FailsWithoutLightingIndicatorWhenClipboardThrows()
+    {
+        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new ThrowingClipboardService());
+        var node = RepoNode("C:/projects/widget");
+
+        Assert.ThrowsAsync<InvalidOperationException>(() => vm.CopyToClipboardAsync(node));
+        Assert.That(node.JustCopied, Is.False, "A failed clipboard write must not light the copied indicator.");
+    }
+
+    sealed class ThrowingClipboardService : IClipboardService
+    {
+        public Task SetPlainTextAsync(string text) => throw new InvalidOperationException("clipboard unavailable");
     }
 
     /// <summary>

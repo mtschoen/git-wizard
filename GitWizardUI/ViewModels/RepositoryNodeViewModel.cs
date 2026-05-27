@@ -120,6 +120,27 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
         }
     }
 
+    bool _justCopied;
+
+    /// <summary>
+    /// Transient flag set true immediately after this row's working directory is copied to the
+    /// clipboard, then cleared after a short delay. Drives the row's "✓ Copied" indicator: the view
+    /// binds the indicator's visibility to it, while the VM owns the set/reset timing (see
+    /// <c>MainViewModel.CopyToClipboardAsync</c>). Kept framework-agnostic per the app convention.
+    /// </summary>
+    public bool JustCopied
+    {
+        get => _justCopied;
+        set
+        {
+            if (_justCopied != value)
+            {
+                _justCopied = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public string WorkingDirectory => Repository.WorkingDirectory ?? "Unknown";
 
     public string? MatchingBranchName => Repository.MatchingBranchName;

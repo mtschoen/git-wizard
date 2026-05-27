@@ -63,10 +63,23 @@
       <TextBox Grid.Row="2" Margin="10,2" Watermark="Search repositories..." Text="{Binding SearchText, Mode=TwoWay}" />
 
       <ListBox Grid.Row="3" x:Name="RepositoryList" ItemsSource="{Binding Repositories}" DoubleTapped="RepositoryList_DoubleTapped">
+        <ListBox.Styles>
+          <!-- Stretch each row container to full width and drop its own padding so the row's Grid
+               fills the entire item. Without this the Grid is only as wide as its content, leaving
+               the rest of the row as dead space for right-click (ContextRequested bubbles up to the
+               ListBox and never reaches a Grid the cursor isn't over). -->
+          <Style Selector="ListBoxItem">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="0" />
+          </Style>
+        </ListBox.Styles>
         <ListBox.ItemTemplate>
           <DataTemplate x:DataType="vm:RepositoryNodeViewModel">
-            <Grid ColumnDefinitions="20,*,Auto,Auto,Auto,Auto" Margin="5,5,20,5" ContextRequested="OnRepositoryContextRequested">
-              <Grid.ContextMenu>
+            <!-- A Border (Grid has no Padding property) fills the stretched row container and is
+                 hit-testable everywhere via Background="Transparent", so right-click hits the WHOLE
+                 row, not just the label. Padding insets content; the ContextMenu + handler live here. -->
+            <Border Background="Transparent" Padding="5,5,20,5" ContextRequested="OnRepositoryContextRequested">
+              <Border.ContextMenu>
                 <!-- DataContext is set in code-behind (OnRepositoryContextRequested). ContextMenu.PlacementTarget
                      is always null in Avalonia 11 (AvaloniaUI/Avalonia#16344), so the old
                      DataContext="{Binding $self.PlacementTarget.DataContext}" failed at bind time (null) and
@@ -76,15 +89,19 @@
                   <MenuItem Header="Open in Explorer" Click="OnOpenInExplorerClick"            Tag="{Binding .}" />
                   <MenuItem Header="Copy working directory to clipboard" Click="OnCopyToClipboardClick" Tag="{Binding .}" />
                 </controls:ContextMenu>
-              </Grid.ContextMenu>
+              </Border.ContextMenu>
+              <Grid ColumnDefinitions="20,*,Auto,Auto,Auto,Auto">
               <TextBlock Grid.Column="0" Text="{Binding StatusIcon}"      Foreground="{Binding StatusColorHex}" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip.Tip="{Binding StatusTooltip}" IsVisible="{Binding IsStatusVisible}" />
               <TextBlock Grid.Column="0" Text="{Binding ExpandIndicator}" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding IsGroupHeader}" />
               <TextBlock Grid.Column="1" Text="{Binding DisplayText}" VerticalAlignment="Center" FontWeight="{Binding GroupHeaderFontWeight}" Padding="{Binding ItemPaddingString, Converter={StaticResource StringToThicknessConverter}}" />
+              <!-- Transient "copied" indicator: lights briefly when this row's path is copied (replaces the old modal "Copied" dialog). Right-aligned in the text column so it never shifts the action buttons. -->
+              <TextBlock Grid.Column="1" Text="✓ Copied" Foreground="#28A745" FontSize="12" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0" IsVisible="{Binding JustCopied}" />
               <Button   Grid.Column="2" Content="Fork" FontSize="12" Padding="8,4" VerticalAlignment="Center" IsVisible="{Binding IsNotGroupHeader}" Click="ForkButton_Click" Tag="{Binding}" />
               <Button   Grid.Column="3" Content="&#x21bb;" FontSize="12" Padding="8,4" VerticalAlignment="Center" IsVisible="{Binding IsNotGroupHeader}" Click="DeepRefreshButton_Click" Tag="{Binding}" ToolTip.Tip="Deep refresh: fetch remotes and update index (may be slow)" />
               <Button   Grid.Column="4" Content="↪" FontSize="12" Padding="8,4" VerticalAlignment="Center" IsVisible="{Binding HasMatchingBranch}" Click="CheckoutMatchingBranchButton_Click" Tag="{Binding}" ToolTip.Tip="Check out branch whose tip matches the detached HEAD" />
               <Button   Grid.Column="5" Content="Clean" FontSize="12" Padding="8,4" VerticalAlignment="Center" IsVisible="{Binding IsNotGroupHeader}" Click="CleanDownstreamButton_Click" Tag="{Binding}" ToolTip.Tip="Delete local branches that are merged into main/master" />
-            </Grid>
+              </Grid>
+            </Border>
           </DataTemplate>
         </ListBox.ItemTemplate>
       </ListBox>

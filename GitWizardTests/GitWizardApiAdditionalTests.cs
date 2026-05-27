@@ -187,6 +187,18 @@ public class GitWizardApiAdditionalTests
         Assert.Pass();
     }
 
+    // Regression guard for the data-loss incident: this class calls DeleteAllLocalFiles()/ClearCache()
+    // without a per-class redirect, so without the assembly-wide GITWIZARD_HOME net (GlobalTestSetup)
+    // GetLocalFilesPath() resolves to the real ~/.GitWizard and DeleteAllLocalFiles wipes the user's
+    // config. This fails loudly if that net is ever removed.
+    [Test]
+    public void GetLocalFilesPath_NeverResolvesToTheRealGitWizardDirectoryDuringTests()
+    {
+        var real = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".GitWizard");
+        Assert.That(GitWizardApi.GetLocalFilesPath(), Is.Not.EqualTo(real),
+            "Tests must resolve local files to an isolated temp home — a real-dir DeleteAllLocalFiles wipes the user's config.");
+    }
+
     [Test]
     public void GetRepositoryPaths_HandlesNonExistentRootPath()
     {

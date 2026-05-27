@@ -39,13 +39,23 @@ public static class TestUtilities
     }
 
     /// <summary>
+    /// The assembly-wide fallback GITWIZARD_HOME set by <see cref="GlobalTestSetup"/>. Clearing a
+    /// per-class redirect restores this instead of null, so a later test that forgets to redirect
+    /// still lands on an isolated temp dir — never the real ~/.GitWizard.
+    /// </summary>
+    public static string? DefaultHome { get; set; }
+
+    /// <summary>
     /// Clears the GITWIZARD_HOME redirect set by <see cref="RedirectLocalFilesToTemp"/> and
     /// deletes the temp dir. Safe to call with a null/missing path. NUnit runs TearDown even
     /// after a failing test, so the env var never leaks into the next test.
     /// </summary>
     public static void ClearLocalFilesRedirect(string? temp)
     {
-        Environment.SetEnvironmentVariable("GITWIZARD_HOME", null);
+        // Restore the assembly-wide isolated home, NOT null. A null here would re-expose the real
+        // ~/.GitWizard to any later test that forgets to redirect — and a DeleteAllLocalFiles there
+        // wipes the user's real config (search paths and all). GlobalTestSetup sets DefaultHome.
+        Environment.SetEnvironmentVariable("GITWIZARD_HOME", DefaultHome);
         if (!string.IsNullOrEmpty(temp) && Directory.Exists(temp))
             Directory.Delete(temp, recursive: true);
     }

@@ -1,4 +1,4 @@
-# Handoff — context-menu + clipboard fixes (done) and the copy-icon UX change (TODO)
+# Handoff — context-menu + clipboard fixes, copy-icon UX change, and clipboard coverage (all done)
 
 **Date:** 2026-05-27. **Branch:** `main` (local, held — see "Push gate" below).
 
@@ -14,9 +14,11 @@ All three were found by finally smoke-testing the GUI in a real `--headed` windo
 
 3. **Leaky test destroyed the real `~/.GitWizard/config.json`.** `GitWizardConfigurationTests` was the one config-touching test class Part D's `GITWIZARD_HOME` redirect missed; `SaveGlobalConfiguration_SavesConfiguration` wrote `/global/test` to the user's real config on every `dotnet test`. **Fix:** SetUp now calls `TestUtilities.RedirectLocalFilesToTemp()` / TearDown `ClearLocalFilesRedirect` (mirrors the 4 sibling classes). File: `GitWizardTests/GitWizardConfigurationTests.cs`. Verified: 25/25 pass, real config byte-identical before/after a run. (A backup of the real config sits at `%TEMP%\gitwizard-config-backup-20260527-031422.json` in case it's wanted.)
 
-## TODO — replace the "Copied" dialog with a row icon (the user's ask)
+## DONE (2026-05-27) — replaced the "Copied" dialog with a row icon (the user's ask)
 
-**Current behavior:** `MainViewModel.CopyToClipboard(node)` (≈ line 321) does:
+**Implemented as sketched below.** `RepositoryNodeViewModel.JustCopied` (transient, notifying) drives a right-aligned green "✓ Copied" in the row's text column (`MainWindow.axaml`, `IsVisible="{Binding JustCopied}"`, no layout shift). `MainViewModel.CopyToClipboardAsync` sets it on the UI thread (`_ui.Post`) after the clipboard write and clears it after `CopiedIndicatorMilliseconds` (1500). The command is now an `AsyncRelayCommand`, so a clipboard failure is logged by that wrapper instead of going unobserved — and the indicator is never lit on failure (the awaited write throws first). Tests: four `MainViewModelTests` (lights / clears-after-delay / null+group-header guard / fails-without-lighting) all TDD'd red→green. The original behavior, for reference:
+
+**Old behavior:** `MainViewModel.CopyToClipboard(node)` (≈ line 321) did:
 ```csharp
 _ = _clipboard.SetPlainTextAsync(node.WorkingDirectory)
     .ContinueWith(_ => ShowAlert("Copied", "Working directory path copied to clipboard"), TaskScheduler.Default);
@@ -39,6 +41,6 @@ Local `main` is now **gitea/main (`2b26b92`) + 4 elevation/docs commits + this s
 - **(a) Wait for the MFTLib publish** — publish 0.3.0, flip csproj to `<PackageReference Include="MFTLib" Version="0.3.0" />`, push `main`; CI builds green and everything ships together. (Matches `docs/handoff-mftlib-0.3-elevation-integration.md`.)
 - **(b) Ship the GUI fixes now, separately** — the **context-menu (#1) and clipboard (#2) fixes are independent of the elevation work** and build against gitea/main's `PackageReference 0.2.0`. They can be cherry-picked onto a branch off `gitea/main` and PR'd to ship today (CI green). **The leaky-test fix (#3) depends on Part D infra (`GITWIZARD_HOME`/`TestUtilities`) which only exists on held `main`**, so it can't go to gitea/main without Part D — leave it on held `main`. (The session's commit keeps #1+#2 together where possible to ease this extraction — check `git log`.)
 
-## Coverage gap to close
+## Coverage gap — CLOSED (2026-05-27)
 
-`AvaloniaClipboardService` (the real `IClipboard` path) has **no test coverage** — tests inject `StubClipboardService`, which is why the `dynamic` crash shipped latent. Consider a headless smoke test that exercises the real service, or at minimum the VM-level `JustCopied` test above.
+`AvaloniaClipboardService` (the real `IClipboard` path) is now covered by `GitWizardTests/AvaloniaClipboardServiceTests.cs`: a headless `[AvaloniaTest]` (new `Avalonia.Headless.NUnit` package + `TestAppBuilder` / `[assembly: AvaloniaTestApplication]`) builds a real `TopLevel`, writes through `AvaloniaClipboardService.SetPlainTextAsync`, and reads the value back from `TopLevel.Clipboard` — i.e. it exercises the exact `SetTextAsync` path the `dynamic` crash hit, which `StubClipboardService` couldn't. Non-admin line coverage 41.45% → 42.35%. Remaining: the `?? Task.CompletedTask` null-clipboard branch is a defensive guard not reachable via a headless `TopLevel` (whose `Clipboard` is non-null) — left as-is, single line is covered.

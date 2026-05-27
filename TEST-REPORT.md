@@ -1,24 +1,29 @@
 # Test & Coverage Report — git-wizard
 
-**Branch:** `validate/mftlib-0.3-elevation` (Parts C–E of the MFTLib 0.3 elevation integration)
-**Last measured:** 2026-05-27, Windows, `Debug`, MFTLib via local `ProjectReference`. Full **self-elevating** run (non-admin tier + elevated `RequiresAdmin` tier).
-**Command:** `scripts/run-coverage.ps1 -NoBuild` (self-elevates once for the `RequiresAdmin` tier)
+**Branch:** `main` (held MFTLib 0.3 elevation work + the context-menu / clipboard / copy-icon GUI fixes)
+**Last measured:** 2026-05-27, Windows, `Debug`, MFTLib via local `ProjectReference`. **Non-admin tier re-run this session** (after the copy-icon UX + `AvaloniaClipboardService` coverage work). The elevated `RequiresAdmin` tier was **not** re-run — its privileged MFT/elevation code is unchanged, so its contribution is carried forward from the prior full run.
+**Command:** `scripts/run-coverage.ps1 -Configuration Debug -NoBuild -NonInteractive` (non-admin tier, no UAC; for the full merged figure drop `-NonInteractive` to self-elevate once)
+**Git:** `0f6f1fe` + uncommitted copy-icon/clipboard changes
 
 ## Results
 
 | Metric | Value |
 | --- | --- |
-| Tests passed (non-admin tier) | 296 |
-| Tests passed (`RequiresAdmin` tier, elevated) | 2 |
+| Tests passed (non-admin tier) | 303 (+7: copy-icon VM tests, a clipboard-failure test, a real-clipboard headless test, and a test-isolation regression guard) |
+| Tests passed (`RequiresAdmin` tier, elevated) | 2 (carried forward — not re-run this session) |
 | Failed | 0 |
 | Unix-only (skipped on Windows) | 1 |
-| **Line coverage (merged: non-admin + elevated)** | **44.24%** |
-| Branch coverage (non-admin report) | 36.64% |
+| **Line coverage (non-admin tier, this session)** | **42.35%** (was 41.45% before this work) |
+| Line coverage (merged: non-admin + elevated, prior full run) | 44.24% |
+| Branch coverage (non-admin report) | 37.43% (was 36.64%) |
 | `[ExcludeFromCodeCoverage]` annotations | 0 |
 
 > **Line coverage is correctly merged** across the two runs (`ci/post-coverage-status.py` ORs line hits
-> across every `coverage.cobertura.xml`): the elevated tier lifts it 41.45% → **44.24%** by covering the
-> genuinely-privileged code (`MftVolume.Open` raw scan in `TryFindGitRepositoriesUsingMft`, `RunElevatedMftScan`).
+> across every `coverage.cobertura.xml`): in the prior full run the elevated tier lifted the non-admin
+> baseline 41.45% → **44.24%** by covering the genuinely-privileged code (`MftVolume.Open` raw scan in
+> `TryFindGitRepositoriesUsingMft`, `RunElevatedMftScan`). This session raised the **non-admin baseline to
+> 42.35%** (copy-icon VM paths + a real-`IClipboard` headless test for `AvaloniaClipboardService`); a fresh
+> self-elevating run would merge to ~45%, but the elevated tier wasn't re-run (unchanged privileged code).
 >
 > **Branch coverage is NOT reliably merged by that script** — it averages each report's root `branch-rate`
 > (the script's own docstring flags this as an approximation for the multi-report case). With the full run

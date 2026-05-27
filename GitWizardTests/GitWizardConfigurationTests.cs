@@ -10,8 +10,14 @@ public class GitWizardConfigurationTests
     public void SetUp()
     {
         GitWizardLog.SilentMode = true;
-        _tempRoot = Path.Combine(Path.GetTempPath(), "GitWizardConfigTests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_tempRoot);
+
+        // Redirect the data dir to a temp folder so GetGlobalConfigurationPath() resolves there,
+        // NOT the real ~/.GitWizard. Without this, SaveGlobalConfiguration_SavesConfiguration writes
+        // "/global/test" to the user's real config.json (and the Get*GlobalConfiguration tests read
+        // it). Mirrors the sibling classes (SettingsViewModelTests, AsyncFileIOTests,
+        // GitWizardReportAdditionalTests). RedirectLocalFilesToTemp creates the temp dir, so it also
+        // serves as _tempRoot for the explicit-path Save_* tests.
+        _tempRoot = TestUtilities.RedirectLocalFilesToTemp();
 
         TestUtilities.ResetStaticCaches();
     }
@@ -19,8 +25,7 @@ public class GitWizardConfigurationTests
     [TearDown]
     public void TearDown()
     {
-        if (!string.IsNullOrEmpty(_tempRoot) && Directory.Exists(_tempRoot))
-            Directory.Delete(_tempRoot, recursive: true);
+        TestUtilities.ClearLocalFilesRedirect(_tempRoot);
 
         TestUtilities.ResetStaticCaches();
     }

@@ -11,6 +11,13 @@ public static class GitWizardApi
 
     public static string GetLocalFilesPath()
     {
+        // A non-empty GITWIZARD_HOME env var redirects the data dir. Tests use it to isolate
+        // off the real ~/.GitWizard (see TestUtilities.RedirectLocalFilesToTemp); it also makes
+        // the config relocatable for any user who wants it elsewhere.
+        var overridePath = Environment.GetEnvironmentVariable("GITWIZARD_HOME");
+        if (!string.IsNullOrEmpty(overridePath))
+            return overridePath;
+
         var homeFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         return Path.Combine(homeFolder, k_GitWizardFolder);
     }

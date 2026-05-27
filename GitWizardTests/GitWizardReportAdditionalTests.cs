@@ -10,19 +10,18 @@ public class GitWizardReportAdditionalTests
     public void SetUp()
     {
         GitWizardLog.SilentMode = true;
-        _tempRoot = Path.Combine(Path.GetTempPath(), "GitWizardReportAdditionalTests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_tempRoot);
-
+        // Redirect the data dir to temp: the GetCachedReport* / InvalidJson tests write to
+        // GetCachedReportPath() (the real ~/.GitWizard/report.json without this). _tempRoot
+        // doubles as the scratch dir for the ad-hoc Save_* paths below.
+        _tempRoot = TestUtilities.RedirectLocalFilesToTemp();
         TestUtilities.ResetStaticCaches();
     }
 
     [TearDown]
     public void TearDown()
     {
-        if (!string.IsNullOrEmpty(_tempRoot) && Directory.Exists(_tempRoot))
-            Directory.Delete(_tempRoot, recursive: true);
-
         TestUtilities.ResetStaticCaches();
+        TestUtilities.ClearLocalFilesRedirect(_tempRoot);
     }
 
     [Test]
@@ -95,7 +94,8 @@ public class GitWizardReportAdditionalTests
     {
         var report = new GitWizardReport();
         var paths = new SortedSet<string>();
-        report.GetRepositoryPaths(paths);
+        // noMft: true skips MFT discovery (no UAC on Windows); empty config finds nothing either way.
+        report.GetRepositoryPaths(paths, noMft: true);
         Assert.That(paths, Is.Empty);
     }
 
@@ -198,7 +198,9 @@ public class GitWizardReportAdditionalTests
         report.SearchPaths.Add("/nonexistent/search/path");
 
         var paths = new SortedSet<string>();
-        report.GetRepositoryPaths(paths);
+        // noMft: true skips MFT discovery (no UAC on Windows); the nonexistent path yields nothing
+        // from the recursive fallback, so the assertion is unchanged.
+        report.GetRepositoryPaths(paths, noMft: true);
 
         Assert.That(paths, Is.Empty);
     }

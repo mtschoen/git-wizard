@@ -10,42 +10,17 @@ public class AsyncFileIOTests
     public void SetUp()
     {
         GitWizardLog.SilentMode = true;
-        _tempRoot = Path.Combine(Path.GetTempPath(), "GitWizardAsyncTests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_tempRoot);
-
-        // Reset static caches and delete cached files for full isolation
-        ResetStaticCaches();
+        // Redirect the data dir to temp so cache/config/report I/O is fully isolated. This
+        // replaces the old hack of deleting the real ~/.GitWizard cache files in teardown.
+        _tempRoot = TestUtilities.RedirectLocalFilesToTemp();
+        TestUtilities.ResetStaticCaches();
     }
 
     [TearDown]
     public void TearDown()
     {
-        if (!string.IsNullOrEmpty(_tempRoot) && Directory.Exists(_tempRoot))
-            Directory.Delete(_tempRoot, recursive: true);
-
-        // Reset static caches and delete cached files after each test
-        ResetStaticCaches();
-    }
-
-    static void ResetStaticCaches()
-    {
         TestUtilities.ResetStaticCaches();
-
-        // Clean up cached repo list file
-        var localPath = GitWizardApi.GetLocalFilesPath();
-        var repoListPath = Path.Combine(localPath, "repositories.txt");
-        if (File.Exists(repoListPath))
-            File.Delete(repoListPath);
-
-        // Clean up cached report file
-        var reportPath = GitWizardReport.GetCachedReportPath();
-        if (File.Exists(reportPath))
-            File.Delete(reportPath);
-
-        // Clean up config file
-        var configPath = GitWizardConfiguration.GetGlobalConfigurationPath();
-        if (File.Exists(configPath))
-            File.Delete(configPath);
+        TestUtilities.ClearLocalFilesRedirect(_tempRoot);
     }
 
     [Test]

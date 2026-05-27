@@ -13,19 +13,18 @@ public class SettingsViewModelTests
     public void SetUp()
     {
         GitWizardLog.SilentMode = true;
-        _tempRoot = Path.Combine(Path.GetTempPath(), "SettingsViewModelTests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_tempRoot);
-
+        // Redirect the data dir to temp: these tests construct SettingsViewModel (which loads
+        // config) and SaveAsync/SaveCommand write it back. Without the redirect they read/write
+        // the real ~/.GitWizard/config.json, which caused order-dependent failures.
+        _tempRoot = TestUtilities.RedirectLocalFilesToTemp();
         TestUtilities.ResetStaticCaches();
     }
 
     [TearDown]
     public void TearDown()
     {
-        if (!string.IsNullOrEmpty(_tempRoot) && Directory.Exists(_tempRoot))
-            Directory.Delete(_tempRoot, recursive: true);
-
         TestUtilities.ResetStaticCaches();
+        TestUtilities.ClearLocalFilesRedirect(_tempRoot);
     }
 
     [Test]

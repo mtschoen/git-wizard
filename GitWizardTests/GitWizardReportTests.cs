@@ -35,10 +35,16 @@ public class GitWizardReportTests
     public void RefreshConcurrencyTest()
     {
         GitWizardLog.SilentMode = true;
+        using var repoA = TempRepoFixture.CreateWithInitialCommit();
+        using var repoB = TempRepoFixture.CreateWithInitialCommit();
+
         var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
-        var repositoryPaths = new SortedSet<string>();
         var report = new GitWizardReport(configuration);
-        report.GetRepositoryPaths(repositoryPaths);
+
+        // Seed paths directly from temp repos (like the sibling Refresh_* tests) instead of
+        // running discovery — discovery would trigger MFT/UAC on Windows, and the subject under
+        // test here is parallel Refresh, not discovery.
+        var repositoryPaths = new SortedSet<string> { repoA.Path, repoB.Path };
         Parallel.For(0, 10, _ => { report.Refresh(repositoryPaths); });
     }
 
@@ -173,7 +179,9 @@ public class GitWizardReportTests
         var report = new GitWizardReport();
         var paths = new SortedSet<string>();
 
-        report.GetRepositoryPaths(paths);
+        // noMft: true skips MFT discovery so the test pops no UAC on Windows; with empty search
+        // paths the recursive fallback is a no-op, so the assertion is unchanged.
+        report.GetRepositoryPaths(paths, noMft: true);
 
         Assert.That(paths, Is.Empty);
     }

@@ -198,12 +198,14 @@ public class MainViewModelTests
                 return Task.CompletedTask;
 
             var completion = new TaskCompletionSource();
-            _queue.Add(async () =>
-            {
-                try { await action(); completion.SetResult(); }
-                catch (Exception exception) { completion.SetException(exception); }
-            });
+            _queue.Add(() => _ = RunAndSignalAsync(action, completion));
             return completion.Task;
+        }
+
+        static async Task RunAndSignalAsync(Func<Task> action, TaskCompletionSource completion)
+        {
+            try { await action(); completion.SetResult(); }
+            catch (Exception exception) { completion.SetException(exception); }
         }
 
         public void Dispose() => _queue.CompleteAdding();

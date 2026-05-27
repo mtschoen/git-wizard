@@ -67,7 +67,8 @@
           <DataTemplate x:DataType="vm:RepositoryNodeViewModel">
             <Grid ColumnDefinitions="20,*,Auto,Auto,Auto,Auto" Margin="5,5,20,5">
               <Grid.ContextMenu>
-                <controls:ContextMenu DataContext="{Binding Path=., RelativeSource={RelativeSource AncestorType={x:Type Window}}}">
+                <controls:ContextMenu x:DataType="vm:RepositoryNodeViewModel"
+                                      DataContext="{Binding $self.PlacementTarget.DataContext}">
                   <MenuItem Header="Open in Fork"     IsVisible="{Binding IsNotGroupHeader}"  Click="OnOpenInForkClick"       Tag="{Binding .}" />
                   <MenuItem Header="Open in Explorer" Click="OnOpenInExplorerClick"            Tag="{Binding .}" />
                   <MenuItem Header="Copy working directory to clipboard" Click="OnCopyToClipboardClick" Tag="{Binding .}" />

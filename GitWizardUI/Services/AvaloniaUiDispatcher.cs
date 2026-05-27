@@ -1,4 +1,3 @@
-using System;
 using Avalonia.Threading;
 using GitWizardUI.ViewModels.Services;
 
@@ -16,8 +15,21 @@ public sealed class AvaloniaUiDispatcher : IUiDispatcher
     }
     public Task InvokeAsync(Func<Task> action)
     {
-        var tcs = new TaskCompletionSource();
-        Dispatcher.UIThread.Post(async () => { await action(); tcs.SetResult(); });
-        return tcs.Task;
+        var completion = new TaskCompletionSource();
+        Dispatcher.UIThread.Post(() => _ = AwaitAndSignalAsync(action, completion));
+        return completion.Task;
+    }
+
+    static async Task AwaitAndSignalAsync(Func<Task> action, TaskCompletionSource completion)
+    {
+        try
+        {
+            await action();
+            completion.SetResult();
+        }
+        catch (Exception exception)
+        {
+            completion.SetException(exception);
+        }
     }
 }

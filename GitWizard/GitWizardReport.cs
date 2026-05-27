@@ -62,7 +62,9 @@ public class GitWizardReport
 
         try
         {
-            _cachedReport = JsonSerializer.Deserialize<GitWizardReport>(jsonText);
+            var report = JsonSerializer.Deserialize<GitWizardReport>(jsonText);
+            lock (s_lock)
+                _cachedReport = report;
         }
         catch (Exception exception)
         {
@@ -70,7 +72,8 @@ public class GitWizardReport
                 $"Failed to deserialize cached report.\nYou may need to modify or delete the file at {reportPath}.\n");
         }
 
-        return _cachedReport;
+        lock (s_lock)
+            return _cachedReport;
     }
 
     public static async Task<GitWizardReport?> GetCachedReportAsync(CancellationToken cancellationToken = default)
@@ -98,7 +101,9 @@ public class GitWizardReport
 
         try
         {
-            _cachedReport = JsonSerializer.Deserialize<GitWizardReport>(jsonText);
+            var report = JsonSerializer.Deserialize<GitWizardReport>(jsonText);
+            lock (s_lock)
+                _cachedReport = report;
         }
         catch (Exception exception)
         {
@@ -106,7 +111,8 @@ public class GitWizardReport
                 $"Failed to deserialize cached report.\nYou may need to modify or delete the file at {reportPath}.\n");
         }
 
-        return _cachedReport;
+        lock (s_lock)
+            return _cachedReport;
     }
 
     public GitWizardReport()

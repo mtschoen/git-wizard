@@ -1,5 +1,4 @@
 using GitWizard;
-using GitWizardUI.ViewModels.Services;
 
 namespace GitWizardTests;
 

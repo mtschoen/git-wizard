@@ -207,7 +207,6 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
     public ICommand CopyToClipboardCommand { get; }
     public ICommand DeepRefreshCommand { get; }
     public ICommand CheckoutMatchingBranchCommand { get; }
-    public ICommand ToggleGroupExpandCommand { get; }
     public ICommand RefreshCommand { get; }
     public ICommand FetchAndRefreshCommand { get; }
     public ICommand CleanDownstreamCommand { get; }
@@ -222,11 +221,29 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         CopyToClipboardCommand = new RelayCommand<RepositoryNodeViewModel>(CopyToClipboard);
         DeepRefreshCommand = new RelayCommand<RepositoryNodeViewModel>(DeepRefreshRepository);
         CheckoutMatchingBranchCommand = new RelayCommand<RepositoryNodeViewModel>(CheckoutMatchingBranch);
-        ToggleGroupExpandCommand = new RelayCommand<RepositoryNodeViewModel>(ToggleGroupExpand);
-        RefreshCommand = new RelayCommand(async () => await RefreshAsync(background: false));
-        FetchAndRefreshCommand = new RelayCommand(async () => await RefreshAsync(background: false, fetchRemotes: true));
-        CleanDownstreamCommand = new RelayCommand<RepositoryNodeViewModel>(async node => await CleanDownstreamBranchesAsync(node));
+        RefreshCommand = new AsyncRelayCommand(() => RefreshAsync(background: false));
+        FetchAndRefreshCommand = new AsyncRelayCommand(() => RefreshAsync(background: false, fetchRemotes: true));
+        CleanDownstreamCommand = new AsyncRelayCommand<RepositoryNodeViewModel>(node => CleanDownstreamBranchesAsync(node));
         StartUIUpdateThread();
+    }
+
+    /// <summary>
+    /// Marshal a user-facing alert onto the UI thread, logging (not propagating) any dialog
+    /// failure so a fire-and-forget alert can't crash the process.
+    /// </summary>
+    void ShowAlert(string title, string message)
+        => _ui.Post(() => _ = DisplayAlertSafeAsync(title, message));
+
+    async Task DisplayAlertSafeAsync(string title, string message)
+    {
+        try
+        {
+            await _dialogs.DisplayAlertAsync(title, message);
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, "Failed to display alert dialog.");
+        }
     }
 
     void OpenInExplorer(RepositoryNodeViewModel? node)
@@ -254,7 +271,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         }
         catch (Exception ex)
         {
-            _ui.Post(async () => await _dialogs.DisplayAlertAsync("Error", $"Could not open folder: {ex.Message}"));
+            ShowAlert("Error", $"Could not open folder: {ex.Message}");
         }
     }
 
@@ -265,7 +282,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
 
         if (!Directory.Exists(node.WorkingDirectory))
         {
-            _ui.Post(async () => await _dialogs.DisplayAlertAsync("Error", "Invalid repository path"));
+            ShowAlert("Error", "Invalid repository path");
             return;
         }
 
@@ -281,7 +298,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
 
         if (!File.Exists(forkPath))
         {
-            _ui.Post(async () => await _dialogs.DisplayAlertAsync("Error", $"Fork not found at: {forkPath}\n\nPlease ensure Fork is installed."));
+            ShowAlert("Error", $"Fork not found at: {forkPath}\n\nPlease ensure Fork is installed.");
             return;
         }
 
@@ -297,7 +314,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         }
         catch (Exception ex)
         {
-            _ui.Post(async () => await _dialogs.DisplayAlertAsync("Error", $"Could not launch Fork: {ex.Message}"));
+            ShowAlert("Error", $"Could not launch Fork: {ex.Message}");
         }
     }
 
@@ -307,7 +324,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
             return;
 
         _ = _clipboard.SetPlainTextAsync(node.WorkingDirectory)
-            .ContinueWith(_ => _ui.Post(async () => await _dialogs.DisplayAlertAsync("Copied", "Working directory path copied to clipboard", "OK")), TaskScheduler.Default);
+            .ContinueWith(_ => ShowAlert("Copied", "Working directory path copied to clipboard"), TaskScheduler.Default);
     }
 
     void DeepRefreshRepository(RepositoryNodeViewModel? node)
@@ -342,7 +359,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
             }
             catch (Exception ex)
             {
-                _ui.Post(async () => await _dialogs.DisplayAlertAsync("Checkout Failed", $"Could not check out branch '{node.MatchingBranchName}': {ex.Message}"));
+                ShowAlert("Checkout Failed", $"Could not check out branch '{node.MatchingBranchName}': {ex.Message}");
             }
         });
     }

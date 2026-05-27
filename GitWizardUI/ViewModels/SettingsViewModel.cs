@@ -67,8 +67,6 @@ public class SettingsViewModel : INotifyPropertyChanged
     public ICommand AddIgnoredPathCommand { get; }
     public ICommand RemoveIgnoredPathCommand { get; }
     public ICommand SaveCommand { get; }
-    public ICommand BrowseSearchPathCommand { get; }
-    public ICommand BrowseIgnoredPathCommand { get; }
 
     public SettingsViewModel(IFolderPicker folderPicker)
     {
@@ -89,34 +87,6 @@ public class SettingsViewModel : INotifyPropertyChanged
         AddIgnoredPathCommand = new RelayCommand(AddIgnoredPath);
         RemoveIgnoredPathCommand = new RelayCommand<string>(RemoveIgnoredPath);
         SaveCommand = new RelayCommand(Save);
-        BrowseSearchPathCommand = new RelayCommand(async () => await BrowseSearchPath());
-        BrowseIgnoredPathCommand = new RelayCommand(async () => await BrowseIgnoredPath());
-    }
-
-    private async Task BrowseSearchPath()
-    {
-        var folder = await PickFolderAsync();
-        if (!string.IsNullOrEmpty(folder))
-        {
-            NewSearchPath = folder;
-            AddSearchPath();
-        }
-    }
-
-    private async Task BrowseIgnoredPath()
-    {
-        var folder = await PickFolderAsync();
-        if (!string.IsNullOrEmpty(folder))
-        {
-            NewIgnoredPath = folder;
-            AddIgnoredPath();
-        }
-    }
-
-   private async Task<string?> PickFolderAsync()
-    {
-        var path = await _folderPicker.PickFolderAsync();
-        return path;
     }
 
     private void AddSearchPath()

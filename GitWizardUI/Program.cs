@@ -1,6 +1,5 @@
 using Avalonia;
 using GitWizard;
-using System;
 
 namespace GitWizardUI;
 

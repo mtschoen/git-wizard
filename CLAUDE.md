@@ -30,19 +30,19 @@ The only time you need VS2026's MSBuild is when MFTLib is swapped to a local **P
 
 ## MFTLib Local Development
 
-MFTLib source lives at `C:\Users\mtsch\source\repos\MFTLib`. To iterate on MFTLib changes locally without publishing a new NuGet package, swap the PackageReference to a ProjectReference in `GitWizard/GitWizard.csproj`:
+MFTLib source lives at `C:\Users\mtsch\MFTLib`. To iterate on MFTLib changes locally without publishing a new NuGet package, swap the PackageReference to a ProjectReference in `GitWizard/GitWizard.csproj`:
 
 ```xml
 <!-- NuGet (normal — use for commits and publishing) -->
 <PackageReference Include="MFTLib" Version="0.2.0" />
 
 <!-- Local development (swap in to test MFTLib changes) -->
-<ProjectReference Include="..\..\..\source\repos\MFTLib\MFTLib\MFTLib.csproj" SetPlatform="Platform=x64" />
+<ProjectReference Include="..\..\MFTLib\MFTLib\MFTLib.csproj" SetPlatform="Platform=x64" />
 ```
 
 **SetPlatform="Platform=x64"** is required because MFTLib only defines x64/x86 platforms, while git-wizard projects use AnyCPU. Without it, MSBuild looks for MFTLib's ref assembly at the wrong obj path and fails with "Metadata file could not be found."
 
-The native DLL (MFTLibNative.dll) is handled by a `None Include` item in the csproj that copies it from MFTLib's build output. This only activates when the DLL exists at `../../../source/repos/MFTLib/x64/$(Configuration)/MFTLibNative.dll`, so it's harmless when using the NuGet package.
+The native DLL (MFTLibNative.dll) is handled by a `None Include` item in the csproj that copies it from MFTLib's build output. This only activates when the DLL exists at `../../MFTLib/x64/$(Configuration)/MFTLibNative.dll`, so it's harmless when using the NuGet package.
 
 **Important:** The csproj has a `BlockLocalMFTLibOnPublish` target that errors if you try to `dotnet publish` with a ProjectReference to MFTLib. Always swap back to the PackageReference before publishing.
 

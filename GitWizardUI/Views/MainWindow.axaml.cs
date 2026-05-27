@@ -267,4 +267,14 @@ public partial class MainWindow : Window
         if ((sender as MenuItem)?.Tag is RepositoryNodeViewModel node)
             _viewModel.CopyToClipboardCommand.Execute(node);
     }
+
+    // ContextMenu.PlacementTarget is always null in Avalonia 11 (AvaloniaUI/Avalonia#16344), so the
+    // menu can't reach this row's view model via {Binding $self.PlacementTarget.DataContext}. The
+    // owning control's DataContext IS the RepositoryNodeViewModel for the row, so copy it onto the
+    // menu when the context menu is requested; the items' Tag/IsVisible bindings then resolve.
+    void OnRepositoryContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (sender is Control control && control.ContextMenu is { } menu)
+            menu.DataContext = control.DataContext;
+    }
 }

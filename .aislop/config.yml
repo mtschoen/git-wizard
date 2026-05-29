@@ -1,0 +1,9 @@
+# aislop quality gate config — https://github.com/scanaislop/aislop
+#
+# `aislop ci` produces a whole-repo score (0-100); the Gitea Actions gate
+# (.gitea/workflows/aislop.yml) fails the build when the score is below
+# failBelow. git-wizard is mostly C# — which aislop does not analyze — so the
+# score reflects the Python tooling under ci/. Current score: 91. Starting the
+# gate at 80 to catch real regressions with a little headroom; raise over time.
+ci:
+  failBelow: 80

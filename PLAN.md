@@ -10,6 +10,17 @@
 - [x] Windows Defender exclusion setup
 - [x] Cached report.json at ~/.GitWizard/
 
+## Inbox
+
+- [ ] **aislop quality gate follow-ups** — gate merged 2026-05-29 (PR #54,
+      `.gitea/workflows/aislop.yml`, `failBelow: 80`). It scores only ONE file in this C#
+      repo (`ci/post-coverage-status.py`); decide whether the single-file gate earns its
+      keep or should be scoped/dropped. Deferred fleet-wide aislop extras (not
+      git-wizard-specific): per-edit Claude Code hook (`aislop hook install --claude`, pin
+      the binary, no `@latest`) + fix global `npm i -g aislop` (needs root). See
+      `~/.claude/notes/reference_aislop.md`.
+      (NB: `main` C# CI being red is EXPECTED until MFTLib 0.3 ships — not a bug, don't chase it.)
+
 ## Next Up
 
 ### Projdash integration — batch git reports for LLM consumption

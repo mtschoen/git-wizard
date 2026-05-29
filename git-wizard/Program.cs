@@ -19,6 +19,9 @@ Usage: git-wizard [options]
 Key options:
   -filter <pattern>         Filter output to repositories whose path contains <pattern> (case-insensitive)
   -paths <file-or-csv>      Report on specific repo paths (newline-separated file or comma-separated list)
+  -merge                    Targeted single-repo refresh: merge the repos named by -paths into the existing
+                            report at -save-path (insert/update those entries, leave all others intact),
+                            then write back atomically. Requires -paths and -save-path.
   -summary                  Output a condensed summary (dirty/unpushed/stale counts + repos needing attention)
 
 Other options:
@@ -93,6 +96,13 @@ Other options:
         /// Output a condensed summary instead of the full report.
         /// </summary>
         public readonly bool Summary = false;
+
+        /// <summary>
+        /// Targeted single-repo merge refresh: merge the repos named by -paths into the
+        /// existing report at -save-path, leaving other entries intact. Requires -paths
+        /// and -save-path.
+        /// </summary>
+        public readonly bool Merge = false;
 
         /// <summary>
         /// Refresh the report based on the latest state (otherwise just print out the cached report).
@@ -192,6 +202,9 @@ Other options:
                         break;
                     case "-summary":
                         Summary = true;
+                        break;
+                    case "-merge":
+                        Merge = true;
                         break;
                     case "-clear-cache":
                         ClearCache = true;
@@ -321,6 +334,13 @@ git-wizard Session Started
             WindowsDefenderException.AddExclusions();
         }
 
+        if (runConfiguration.Merge)
+        {
+            RunMerge(runConfiguration, configuration);
+            Environment.Exit(0);
+            return;
+        }
+
         if (runConfiguration.ScanOnly)
         {
             var scanReport = new GitWizardReport(configuration);
@@ -421,6 +441,32 @@ git-wizard Session Started
 
         return GitWizardReport.GenerateReport(configuration, repositoryPaths, updateHandler,
             noMft: runConfiguration.NoMft, allBranches: runConfiguration.AllBranches);
+    }
+
+    /// <summary>
+    /// Handle the -merge flag: validate required args, refresh the supplied repos, and merge
+    /// them into the existing report at -save-path (atomic write, other entries preserved).
+    /// </summary>
+    static void RunMerge(RunConfiguration runConfiguration, GitWizardConfiguration configuration)
+    {
+        var savePath = runConfiguration.SavePath;
+        var explicitPaths = ParseExplicitPaths(runConfiguration);
+
+        if (explicitPaths == null || explicitPaths.Length == 0 || string.IsNullOrEmpty(savePath))
+        {
+            GitWizardLog.Log(
+                "-merge requires both -paths (repos to refresh) and -save-path (report to merge into).",
+                GitWizardLog.LogType.Error);
+            Environment.Exit(2);
+            return;
+        }
+
+        GitWizardLog.Log($"Merging {explicitPaths.Length} repo(s) into {savePath}");
+        var updateHandler = new UpdateHandler();
+        GitWizardReport.MergeIntoFile(savePath, configuration, explicitPaths, updateHandler,
+            allBranches: runConfiguration.AllBranches);
+        updateHandler.ProcessCommands();
+        updateHandler.PrintSummary();
     }
 
     static void SaveReport(RunConfiguration runConfiguration, GitWizardReport report)

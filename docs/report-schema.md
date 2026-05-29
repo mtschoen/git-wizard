@@ -14,6 +14,24 @@ The `SchemaVersion` field at the top of every report indicates the schema versio
 
 The report is written with `System.Text.Json`'s `DefaultIgnoreCondition = WhenWritingDefault`. **Numeric fields equal to `0`, boolean fields equal to `false`, and reference fields equal to `null` are omitted from the JSON output.** Consumers should treat absent fields as their default value (`0`/`false`/`null`), not as "unknown". Every non-nullable field documented below is guaranteed to be present *in spirit* — the serializer may simply elide it. (Empty non-null collections are still written, e.g. `[]`.)
 
+## Concurrency
+
+The report file has **no lockfile**. Writes are atomic at the file level — the CLI's
+`-merge` flag (and the underlying `GitWizardReport.SaveAtomic`) writes to a temp file in
+the same directory and renames it over the destination, so a concurrent reader always sees
+either the complete old file or the complete new file, never a half-written one.
+
+There is **no protection against concurrent writers**, however. If two callers refresh
+**disjoint** sets of repos at the same time (e.g. projdash issuing a targeted `-merge` for
+a freshly-cloned repo while a full rescan is also in flight), each one reads the report,
+applies its own changes to that snapshot, and writes the whole file back. **Last writer
+wins for the file as a whole** — the later write replaces the file produced by the earlier
+write, so the earlier writer's entries can be lost even though the two callers touched
+different repos. This is an accepted trade-off: the merge use case (projdash filling in a
+cache miss) is low-frequency and self-correcting on the next full scan, and a lockfile would
+add cross-process coordination complexity for little benefit. Callers that need a guaranteed
+merge of disjoint updates must serialize their writes externally.
+
 ## Top-level fields
 
 | Field | Type | Description |

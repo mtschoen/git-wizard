@@ -28,6 +28,14 @@ The only time you need VS2026's MSBuild is when MFTLib is swapped to a local **P
 "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" git-wizard/git-wizard.csproj -t:Build -p:Configuration=Debug -nologo -v:minimal
 ```
 
+To **run the NUnit suite** in ProjectReference mode, build with MSBuild first, then run tests with `--no-build` — a plain `dotnet test` re-invokes the dotnet build and fails on the native `.vcxproj`. The pre-built native DLL only ships for **Release** (`C:\Users\mtsch\MFTLib\x64\Release\MFTLibNative.dll`), so build Release:
+
+```bash
+"C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" GitWizardTests/GitWizardTests.csproj -t:Restore -p:Configuration=Release -nologo -v:minimal
+"C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" GitWizardTests/GitWizardTests.csproj -t:Build    -p:Configuration=Release -nologo -v:minimal
+dotnet test GitWizardTests/GitWizardTests.csproj --no-build -c Release --nologo
+```
+
 ## MFTLib Local Development
 
 MFTLib source lives at `C:\Users\mtsch\MFTLib`. To iterate on MFTLib changes locally without publishing a new NuGet package, swap the PackageReference to a ProjectReference in `GitWizard/GitWizard.csproj`:

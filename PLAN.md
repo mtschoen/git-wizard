@@ -19,7 +19,7 @@
       git-wizard-specific): per-edit Claude Code hook (`aislop hook install --claude`, pin
       the binary, no `@latest`) + fix global `npm i -g aislop` (needs root). See
       `~/.claude/notes/reference_aislop.md`.
-      (NB: `main` C# CI being red is EXPECTED until MFTLib 0.3 ships — not a bug, don't chase it.)
+      (NB: as of 2026-05-29 a TEMPORARY vendored MFTLib 0.3.0 bridge — `lib/MFTLib/` + `Directory.Build.targets` — unblocks CI so it builds with plain `dotnet build`. Retire it when MFTLib 0.3 ships to NuGet; see `lib/MFTLib/README.md`.)
 
 ## Next Up
 
@@ -128,3 +128,4 @@ Avalonia, which also has extras (Downstream Branches filter, Clean button, progr
 
 - [x] **Gitea Actions CI** — `.gitea/workflows/ci.yml` runs `test-linux` (build + full NUnit suite with coverage, gated at 45% line via `ci/post-coverage-status.py`) and `test-windows` (full solution build + tests) on push to `main` and PRs targeting `main`. `.gitea/workflows/release.yml` builds CLI + GitWizardUI for `win-x64`/`linux-x64`/`osx-x64` and creates a Gitea release with all 6 assets attached on `v*` tag pushes. See `CLAUDE.md` § CI infrastructure for runner/bot/branch-protection setup.
 - [ ] **Trust llamabox cert on the Windows runner** — currently the release publish and test-results upload use `NODE_TLS_REJECT_UNAUTHORIZED=0` to work around Node.js not trusting the self-signed Caddy cert. Install the cert into the runner's Node/system trust store and remove the env override.
+- [ ] **Retire the vendored MFTLib bridge** — `lib/MFTLib/` (prebuilt 0.3.0 DLLs) + repo-root `Directory.Build.targets` are a TEMPORARY checked-in bridge that unblocks CI while MFTLib 0.3.0 is unpublished. When 0.3.0 ships to NuGet: delete both, add `<PackageReference Include="MFTLib" Version="0.3.0" />` to `GitWizard/GitWizard.csproj`, and confirm CI stays green. Steps in `lib/MFTLib/README.md`.

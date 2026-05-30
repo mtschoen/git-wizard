@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -9,11 +9,11 @@ namespace GitWizard;
 public class GitWizardReport
 {
     static GitWizardReport? _cachedReport;
-    static readonly object s_lock = new();
+    static readonly object ReportLock = new();
 
     /// <summary>Shared serializer options for report (de)serialization and the
     /// DOM-level merge. Matches the inline options used by <see cref="Save"/>.</summary>
-    static readonly JsonSerializerOptions s_serializerOptions = new()
+    static readonly JsonSerializerOptions SerializerOptions = new()
     {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
         WriteIndented = true,
@@ -48,7 +48,7 @@ public class GitWizardReport
 
     public static GitWizardReport? GetCachedReport()
     {
-        lock (s_lock)
+        lock (ReportLock)
         {
             if (_cachedReport != null)
                 return _cachedReport;
@@ -72,7 +72,7 @@ public class GitWizardReport
         try
         {
             var report = JsonSerializer.Deserialize<GitWizardReport>(jsonText);
-            lock (s_lock)
+            lock (ReportLock)
                 _cachedReport = report;
         }
         catch (Exception exception)
@@ -81,13 +81,13 @@ public class GitWizardReport
                 $"Failed to deserialize cached report.\nYou may need to modify or delete the file at {reportPath}.\n");
         }
 
-        lock (s_lock)
+        lock (ReportLock)
             return _cachedReport;
     }
 
     public static async Task<GitWizardReport?> GetCachedReportAsync(CancellationToken cancellationToken = default)
     {
-        lock (s_lock)
+        lock (ReportLock)
         {
             if (_cachedReport != null)
                 return _cachedReport;
@@ -111,7 +111,7 @@ public class GitWizardReport
         try
         {
             var report = JsonSerializer.Deserialize<GitWizardReport>(jsonText);
-            lock (s_lock)
+            lock (ReportLock)
                 _cachedReport = report;
         }
         catch (Exception exception)
@@ -120,7 +120,7 @@ public class GitWizardReport
                 $"Failed to deserialize cached report.\nYou may need to modify or delete the file at {reportPath}.\n");
         }
 
-        lock (s_lock)
+        lock (ReportLock)
             return _cachedReport;
     }
 
@@ -305,11 +305,7 @@ public class GitWizardReport
         try
         {
             SchemaVersion = CurrentSchemaVersion;
-            File.WriteAllText(path, JsonSerializer.Serialize(this, new JsonSerializerOptions
-            {
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
-                WriteIndented = true
-            }));
+            File.WriteAllText(path, JsonSerializer.Serialize(this, SerializerOptions));
         }
         catch (Exception exception)
         {
@@ -326,11 +322,7 @@ public class GitWizardReport
         try
         {
             SchemaVersion = CurrentSchemaVersion;
-            var jsonText = JsonSerializer.Serialize(this, new JsonSerializerOptions
-            {
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
-                WriteIndented = true
-            });
+            var jsonText = JsonSerializer.Serialize(this, SerializerOptions);
             await File.WriteAllTextAsync(path, jsonText, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception)
@@ -376,19 +368,19 @@ public class GitWizardReport
         // Keeping untouched entries as their original JsonNode preserves them byte-for-byte.
         var root = ReadJsonObjectFromFile(savePath) ?? new JsonObject();
 
-        if (root["Repositories"] is not JsonObject repositories)
+        if (root[nameof(Repositories)] is not JsonObject repositories)
         {
             repositories = new JsonObject();
-            root["Repositories"] = repositories;
+            root[nameof(Repositories)] = repositories;
         }
 
         // Upsert ONLY the refreshed repos by path key; every other entry's JsonNode is untouched.
         foreach (var kvp in refreshed.Repositories)
-            repositories[kvp.Key] = JsonSerializer.SerializeToNode(kvp.Value, s_serializerOptions);
+            repositories[kvp.Key] = JsonSerializer.SerializeToNode(kvp.Value, SerializerOptions);
 
-        root["SchemaVersion"] = CurrentSchemaVersion;
+        root[nameof(SchemaVersion)] = CurrentSchemaVersion;
 
-        var jsonText = root.ToJsonString(s_serializerOptions);
+        var jsonText = root.ToJsonString(SerializerOptions);
         WriteAtomic(savePath, jsonText);
 
         // Build the returned view: deserialize the merged DOM (gives every entry, though
@@ -429,7 +421,7 @@ public class GitWizardReport
     public void SaveAtomic(string path)
     {
         SchemaVersion = CurrentSchemaVersion;
-        WriteAtomic(path, JsonSerializer.Serialize(this, s_serializerOptions));
+        WriteAtomic(path, JsonSerializer.Serialize(this, SerializerOptions));
     }
 
     /// <summary>

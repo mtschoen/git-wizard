@@ -98,7 +98,7 @@ public class GitWizardRepositoryTests
         Assert.That(repository.NumberOfPendingChanges, Is.GreaterThan(0));
     }
 
-   [Test]
+    [Test]
     public void Refresh_CountsLocalCommitsOnUntrackedBranch()
     {
         // Regression: LocalOnlyCommits used to be a bare bool. Consumers need

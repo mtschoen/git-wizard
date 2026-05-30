@@ -9,11 +9,11 @@ using GitWizardUI.Services;
 namespace GitWizardTests;
 
 /// <summary>
-/// Headless Avalonia app used by <see cref="AvaloniaTestApplication"/> to give [AvaloniaTest]
+/// Headless Avalonia app used by the <c>[AvaloniaTestApplication]</c> attribute to give [AvaloniaTest]
 /// methods a real UI thread + platform. Reuses the production <see cref="GitWizardUI.App"/>, which
 /// only opens MainWindow under a classic-desktop lifetime — absent here — so no window/refresh runs.
 /// </summary>
-public class TestAppBuilder
+public static class TestAppBuilder
 {
     public static AppBuilder BuildAvaloniaApp()
         => AppBuilder.Configure<GitWizardUI.App>().UseHeadless(new AvaloniaHeadlessPlatformOptions());

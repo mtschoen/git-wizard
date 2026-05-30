@@ -25,7 +25,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
-   private string _newIgnoredPath = string.Empty;
+    private string _newIgnoredPath = string.Empty;
     public string NewIgnoredPath
     {
         get => _newIgnoredPath;
@@ -50,7 +50,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         set { _selectedIgnoredPath = value; OnPropertyChanged(); }
     }
 
-    private string _forkPath = string.Empty;
+    private string _forkPath;
     public string ForkPath
     {
         get => _forkPath;
@@ -80,7 +80,10 @@ public class SettingsViewModel : INotifyPropertyChanged
         foreach (var path in _configuration.IgnoredPaths)
             IgnoredPaths.Add(path);
 
-        ForkPath = _configuration.ForkPath ?? string.Empty;
+        // Load into the backing field, not the property: the setter calls SaveImmediate(), so
+        // assigning ForkPath here would write config.json (a fire-and-forget async save) on every
+        // construction — a redundant no-op write of just-loaded data that also races test teardown.
+        _forkPath = _configuration.ForkPath ?? string.Empty;
 
         AddSearchPathCommand = new RelayCommand(AddSearchPath);
         RemoveSearchPathCommand = new RelayCommand<string>(RemoveSearchPath);
@@ -118,7 +121,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
- private void RemoveIgnoredPath(string? path)
+    private void RemoveIgnoredPath(string? path)
     {
         if (path != null)
         {

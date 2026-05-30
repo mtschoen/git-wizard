@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Text;
+
 namespace GitWizard;
 
 /// <summary>
@@ -14,7 +17,8 @@ public static class GitWizardLog
         Error
     }
 
-    const string k_LogFileNameFormat = "GitWizardLog_{0:yyyy-MM-dd}.log";
+    const string LogFileNameFormat = "GitWizardLog_{0:yyyy-MM-dd}.log";
+    static readonly CompositeFormat LogFileNameCompositeFormat = CompositeFormat.Parse(LogFileNameFormat);
 
     /// <summary>
     /// Format string for log messages
@@ -22,7 +26,8 @@ public static class GitWizardLog
     /// 1 - Type
     /// 2 - Message
     /// </summary>
-    const string k_LogMessageFormat = "[{0:yyyy-MM-dd|HH:mm:ss.ffff}] - {1}: {2}";
+    const string LogMessageFormat = "[{0:yyyy-MM-dd|HH:mm:ss.ffff}] - {1}: {2}";
+    static readonly CompositeFormat LogMessageCompositeFormat = CompositeFormat.Parse(LogMessageFormat);
 
     /// <summary>
     /// Set VerboseMode to true to enable logging verbose messages
@@ -40,8 +45,8 @@ public static class GitWizardLog
     /// </summary>
     public static Action<string?> LogMethod { get; set; } = Console.WriteLine;
 
-    static readonly object k_LogFileLock = new();
-    static readonly TimeSpan k_LogFileLifetime = TimeSpan.FromDays(30);
+    static readonly object LogFileLock = new();
+    static readonly TimeSpan LogFileLifetime = TimeSpan.FromDays(30);
     static bool _createLogFileFailed;
     static StreamWriter? _currentLogFile;
 
@@ -63,7 +68,7 @@ public static class GitWizardLog
         if (type == LogType.Verbose && !VerboseMode)
             return;
 
-        var formattedMessage = string.Format(k_LogMessageFormat, DateTime.UtcNow, type, message);
+        var formattedMessage = string.Format(CultureInfo.InvariantCulture, LogMessageCompositeFormat, DateTime.UtcNow, type, message);
         LogMethod(formattedMessage);
         LogToFile(formattedMessage);
     }
@@ -86,7 +91,7 @@ public static class GitWizardLog
 
     public static void CloseCurrentLogFile()
     {
-        lock (k_LogFileLock)
+        lock (LogFileLock)
         {
             if (_currentLogFile == null)
                 return;
@@ -106,7 +111,7 @@ public static class GitWizardLog
 
         try
         {
-            var fileName = string.Format(k_LogFileNameFormat, DateTime.UtcNow);
+            var fileName = string.Format(CultureInfo.InvariantCulture, LogFileNameCompositeFormat, DateTime.UtcNow);
             var logFolderPath = GitWizardApi.GetLogFolderPath();
             if (!Directory.Exists(logFolderPath))
                 Directory.CreateDirectory(logFolderPath);
@@ -138,7 +143,7 @@ public static class GitWizardLog
         if (_createLogFileFailed)
             return;
 
-        lock (k_LogFileLock)
+        lock (LogFileLock)
         {
             _currentLogFile ??= GetOrCreateLogFile();
             if (_currentLogFile == null)
@@ -159,7 +164,7 @@ public static class GitWizardLog
             var now = DateTime.UtcNow;
             Parallel.ForEach(Directory.EnumerateFiles(logFolder), path =>
             {
-                if (now - File.GetCreationTimeUtc(path) > k_LogFileLifetime)
+                if (now - File.GetCreationTimeUtc(path) > LogFileLifetime)
                     File.Delete(path);
             });
         }).Start();

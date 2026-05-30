@@ -14,7 +14,7 @@ public partial class MainWindow : Window
 {
     readonly MainViewModel _viewModel;
 
- public MainWindow()
+    public MainWindow()
     {
         InitializeComponent();
         Icon = IconLoader.Load();
@@ -49,7 +49,7 @@ public partial class MainWindow : Window
     {
         if (!OperatingSystem.IsWindows()) return;
 
-        var success = await Task.Run(() => WindowsDefenderException.AddExclusions());
+        var success = await Task.Run(() => WindowsDefender.AddExclusions());
         await new AvaloniaUserDialogs().DisplayAlertAsync(
             success ? "Defender Exclusions Added" : "Defender Setup Failed",
             success

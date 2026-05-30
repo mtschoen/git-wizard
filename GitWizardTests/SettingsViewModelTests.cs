@@ -221,6 +221,9 @@ public class SettingsViewModelTests
     {
         var picker = new StubFolderPicker();
         var vm = new SettingsViewModel(picker);
+        // Default IgnoredPaths are platform-specific (Windows seeds %APPDATA%/%WINDIR%, Linux/macOS
+        // seed none), so seed one to make this cross-platform-deterministic instead of indexing [0].
+        vm.IgnoredPaths.Add("/seed/ignored");
 
         var pathToRemove = vm.IgnoredPaths[0];
         vm.RemoveIgnoredPathCommand.Execute(pathToRemove);
@@ -323,6 +326,9 @@ public class SettingsViewModelTests
     {
         var picker = new StubFolderPicker();
         var vm = new SettingsViewModel(picker);
+        // Default IgnoredPaths are platform-specific (none on Linux/macOS); seed one so this is
+        // cross-platform-deterministic rather than indexing [0] on a possibly-empty collection.
+        vm.IgnoredPaths.Add("/seed/ignored");
 
         vm.SelectedIgnoredPath = vm.IgnoredPaths[0];
         var initialCount = vm.IgnoredPaths.Count;

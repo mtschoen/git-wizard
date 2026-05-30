@@ -1,4 +1,4 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -7,7 +7,15 @@ namespace GitWizard;
 public class GitWizardConfiguration
 {
     static GitWizardConfiguration? _globalConfiguration;
-    static readonly object s_lock = new();
+    static readonly object ConfigurationLock = new();
+
+    // Cached options reused across serialization (CA1869: avoid allocating a new
+    // JsonSerializerOptions per call).
+    static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
+        WriteIndented = true
+    };
 
     public SortedSet<string> SearchPaths { get; set; } = new();
     public SortedSet<string> IgnoredPaths { get; set; } = new();
@@ -25,7 +33,7 @@ public class GitWizardConfiguration
 
     public static GitWizardConfiguration GetGlobalConfiguration()
     {
-        lock (s_lock)
+        lock (ConfigurationLock)
         {
             if (_globalConfiguration == null)
             {
@@ -109,11 +117,7 @@ public class GitWizardConfiguration
 
         try
         {
-            File.WriteAllText(path, JsonSerializer.Serialize(this, new JsonSerializerOptions
-            {
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
-                WriteIndented = true
-            }));
+            File.WriteAllText(path, JsonSerializer.Serialize(this, SerializerOptions));
         }
         catch (Exception exception)
         {
@@ -129,11 +133,7 @@ public class GitWizardConfiguration
 
         try
         {
-            var jsonText = JsonSerializer.Serialize(this, new JsonSerializerOptions
-            {
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
-                WriteIndented = true
-            });
+            var jsonText = JsonSerializer.Serialize(this, SerializerOptions);
             await File.WriteAllTextAsync(path, jsonText, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception)
@@ -147,7 +147,7 @@ public class GitWizardConfiguration
         if (_globalConfiguration != null)
             return _globalConfiguration;
 
-        lock (s_lock)
+        lock (ConfigurationLock)
         {
             if (_globalConfiguration != null)
                 return _globalConfiguration;

@@ -1,8 +1,8 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 
 namespace GitWizard.CLI;
 
-class UpdateHandler : IUpdateHandler
+sealed class UpdateHandler : IUpdateHandler
 {
     enum CommandType
     {

@@ -1,5 +1,5 @@
-﻿using LibGit2Sharp;
 using System.Runtime.InteropServices;
+using LibGit2Sharp;
 
 namespace GitWizard;
 
@@ -334,7 +334,7 @@ public class GitWizardRepository
                             }
                             else
                             {
-                                GitWizardLog.LogException(new Exception(), $"Unknown submodule state for {path}");
+                                GitWizardLog.LogException(new InvalidOperationException("Submodule in unknown state"), $"Unknown submodule state for {path}");
                             }
                         }
                         catch (Exception exception)
@@ -513,7 +513,7 @@ public class GitWizardRepository
                     {
                         if (Repository.IsValid(path))
                         {
-                            worktreeRepository = new GitWizardRepository(path) {IsWorktree = true};
+                            worktreeRepository = new GitWizardRepository(path) { IsWorktree = true };
                             lock (Worktrees)
                             {
                                 Worktrees[path] = worktreeRepository;
@@ -531,7 +531,7 @@ public class GitWizardRepository
                         }
                         else
                         {
-                            GitWizardLog.LogException(new Exception(), $"Unknown worktree state for {path}");
+                            GitWizardLog.LogException(new InvalidOperationException("Worktree in unknown state"), $"Unknown worktree state for {path}");
                         }
                     }
 

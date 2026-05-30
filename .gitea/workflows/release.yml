@@ -3,12 +3,17 @@ name: Release
 on:
   push:
     tags: ['v*']
-  pull_request:
-    paths:
-      - '.gitea/workflows/release.yml'
-      - 'GitWizard/GitWizard.csproj'
-      - 'GitWizardUI/GitWizardUI.csproj'
-      - 'git-wizard/git-wizard.csproj'
+  # PR publish-smoke is TEMPORARILY DISABLED during the vendored-MFTLib bridge era
+  # (lib/MFTLib/). `dotnet publish` is blocked by BlockVendoredMFTLibOnPublish, and
+  # the Ubuntu release runner can't bundle the Windows-only native MFTLibNative.dll
+  # for the win-x64 RID anyway. Restore this block when MFTLib 0.3.0 ships to NuGet
+  # and the vendored bridge is retired (see lib/MFTLib/README.md).
+  # pull_request:
+  #   paths:
+  #     - '.gitea/workflows/release.yml'
+  #     - 'GitWizard/GitWizard.csproj'
+  #     - 'GitWizardUI/GitWizardUI.csproj'
+  #     - 'git-wizard/git-wizard.csproj'
   workflow_dispatch:
     inputs:
       version:

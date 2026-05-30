@@ -12,7 +12,7 @@ Multi-project solution for scanning and reporting on git repositories.
 
 ## Build
 
-Plain `dotnet build` is the norm and works on Windows/macOS/Linux, because MFTLib is a NuGet **PackageReference** whose native DLL (`MFTLibNative.dll`) ships pre-built in the package:
+Plain `dotnet build` is the norm and works on Windows/macOS/Linux. **Currently** that works via a **TEMPORARY vendored MFTLib** bridge: prebuilt MFTLib `0.3.0` DLLs are checked in at `lib/MFTLib/` and referenced centrally in the repo-root `Directory.Build.targets` (managed `<Reference>` for all projects + a Windows native-DLL copy). This exists because MFTLib `0.3.0` isn't on NuGet yet; it's retired (swap to a `PackageReference`, delete `lib/MFTLib/` + `Directory.Build.targets`) when `0.3.0` ships — see `lib/MFTLib/README.md` and the **MFTLib Local Development** section. (Once it's a NuGet **PackageReference**, plain `dotnet build` keeps working because the package ships the native `MFTLibNative.dll` pre-built.)
 
 ```bash
 # Whole solution
@@ -36,28 +36,30 @@ To **run the NUnit suite** in ProjectReference mode, build with MSBuild first, t
 dotnet test GitWizardTests/GitWizardTests.csproj --no-build -c Release --nologo
 ```
 
+## Linting / lint gate
+
+The bar is **0 findings** across every configured analyzer (see `TEST-REPORT.md` → Lint gate). Three tiers:
+
+- **Analyzers + naming (CA*/IDE*/RCS*)** — `Directory.Build.props` sets `EnableNETAnalyzers`, `AnalysisLevel=latest-Recommended`, `EnforceCodeStyleInBuild`, and **`TreatWarningsAsErrors`**, so a normal `dotnet build`/MSBuild build *is* the gate (Roslynator 4.15.0 included). `EnforceCodeStyleInBuild` also turns the `.editorconfig` naming ruleset (IDE1006, at `warning`) into a **build error** — so the editorconfig is the **authoritative naming gate**, not just an IDE hint. MFTLib (outside this tree) does not inherit these.
+- **Formatting + naming** — `.editorconfig` is the canonical fleet C# standard (source of truth: `~/.claude/notes/idioms_csharp_naming.md`): **utf-8 (no BOM)**, CRLF, 4-space, and the full naming ruleset at `warning` → build error (PascalCase types/members/const/static-readonly; `_camelCase` **all** private/internal fields incl. mutable static; camelCase params/locals; no `m_`/`k_`/`s_`). Formatting/charset check: `dotnet format git-wizard.slnx --verify-no-changes`; apply: `dotnet format git-wizard.slnx`. A local on-save hook (`.claude/scripts/format-on-save.ps1`, wired in `settings.local.json`) runs whitespace formatting per edit. (`dotnet format` fixes charset/whitespace/style but **cannot** auto-fix IDE1006 naming — rename via Rider/`jb cleanupcode`.)
+- **Deep inspection** — `~/.dotnet/tools/jb.exe inspectcode git-wizard.slnx -o="$TEMP/jb.xml" --severity=WARNING --no-updates`, gated by `ci/parse-jb-report.py` (exits non-zero on any finding). Now a *supplementary* deep pass — the editorconfig (above) is the primary naming gate. **jb-CLI binds `InconsistentNaming` to the machine's *global* ReSharper config, not the solution `.DotSettings`** — the global config here is aligned to the canonical convention; Rider uses the solution `.DotSettings` (which has the ExtraRules jb-CLI ignores).
+- **aislop** (AI-slop gate) — a thin live gate already exists (PR #54): `.gitea/workflows/aislop.yml` runs `aislop ci` against `.aislop/config.yml` (`failBelow: 80`), currently scoring only the Python `ci/` tooling (~91). aislop does not analyze C# yet, so the C# code becomes gateable once aislop's C# engine ships.
+
+CI wires all three (`.gitea/workflows/ci.yml`). It is now **active**: the TEMPORARY vendored MFTLib bridge (`lib/MFTLib/` + `Directory.Build.targets`, see the **Build** section) lets the runners build the solution with plain `dotnet build` — no MFTLib source or native toolchain needed. Both jobs (Linux + Windows) restore/build/test/format-check green locally with the `dotnet` CLI. (Before vendoring, CI was dormant/red-by-design because the committed local `ProjectReference` to a sibling MFTLib checkout couldn't be restored on the runners.)
+
 ## MFTLib Local Development
 
-MFTLib source lives at `C:\Users\mtsch\MFTLib`. To iterate on MFTLib changes locally without publishing a new NuGet package, swap the PackageReference to a ProjectReference in `GitWizard/GitWizard.csproj`:
+MFTLib source lives at `C:\Users\mtsch\MFTLib`. git-wizard depends on MFTLib `0.3.0` (the `IElevationProvider` API), which is **not on NuGet yet**. There are **three reference modes**:
 
-```xml
-<!-- NuGet (normal — use for commits and publishing) -->
-<PackageReference Include="MFTLib" Version="0.2.0" />
+1. **VENDORED (committed default).** Prebuilt MFTLib `0.3.0` DLLs are checked in at `lib/MFTLib/` and referenced centrally by the repo-root `Directory.Build.targets` — a managed `<Reference>` for every project (a raw assembly reference is non-transitive, and the CLI/UI expose `IElevationProvider` through GitWizard API signatures, so they'd hit CS0012 without it) plus a Windows native-DLL copy into each output. Plain `dotnet build`/`dotnet test` work everywhere; **this is what CI uses and what you commit.** TEMPORARY — retire when `0.3.0` ships (see `lib/MFTLib/README.md`).
 
-<!-- Local development (swap in to test MFTLib changes) -->
-<ProjectReference Include="..\..\MFTLib\MFTLib\MFTLib.csproj" SetPlatform="Platform=x64" />
-```
+2. **PUBLISH (`PackageReference`).** When MFTLib `0.3.0` ships to NuGet: delete `lib/MFTLib/` + `Directory.Build.targets`, add `<PackageReference Include="MFTLib" Version="0.3.0" />` to `GitWizard/GitWizard.csproj` (flows transitively; the package ships the native DLL). The `BlockVendoredMFTLibOnPublish` target in `Directory.Build.targets` errors on any `dotnet publish` while the vendored reference is active, to stop a vendored DLL shipping in a release.
 
-**SetPlatform="Platform=x64"** is required because MFTLib only defines x64/x86 platforms, while git-wizard projects use AnyCPU. Without it, MSBuild looks for MFTLib's ref assembly at the wrong obj path and fails with "Metadata file could not be found."
-
-The native DLL (MFTLibNative.dll) is handled by a `None Include` item in the csproj that copies it from MFTLib's build output. This only activates when the DLL exists at `../../MFTLib/x64/$(Configuration)/MFTLibNative.dll`, so it's harmless when using the NuGet package.
-
-**Important:** The csproj has a `BlockLocalMFTLibOnPublish` target that errors if you try to `dotnet publish` with a ProjectReference to MFTLib. Always swap back to the PackageReference before publishing.
-
-**Swap checklist:**
-1. Change the reference in `GitWizard/GitWizard.csproj` (comment one, uncomment the other)
-2. Build with VS2026 MSBuild (see Build section above)
-3. Swap back to PackageReference before committing
+3. **LOCAL MFTLib DEV (`ProjectReference`).** To iterate on MFTLib source: in `Directory.Build.targets` comment out the vendored `<Reference>`, and add to `GitWizard/GitWizard.csproj`:
+   ```xml
+   <ProjectReference Include="..\..\MFTLib\MFTLib\MFTLib.csproj" SetPlatform="Platform=x64" />
+   ```
+   **`SetPlatform="Platform=x64"`** is required (MFTLib defines only x64/x86; git-wizard is AnyCPU — without it MSBuild looks for the ref assembly at the wrong obj path: "Metadata file could not be found"). This mode needs **VS2026 MSBuild** (the `dotnet` CLI can't build the native `.vcxproj`); build Release and `dotnet test --no-build` (see the Build section). To re-vendor after MFTLib changes: rebuild MFTLib Release (`-p:Platform=x64`) and copy `MFTLib/bin/x64/Release/net8.0/MFTLib.dll` + `MFTLibNative/x64/Release/MFTLibNative.dll` into `lib/MFTLib/` (+ `win-x64/`). **Swap back to mode 1 before committing.**
 
 ## Key Architecture
 

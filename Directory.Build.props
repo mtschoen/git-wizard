@@ -1,0 +1,32 @@
+<Project>
+
+  <!-- Repo-wide analyzer + code-style baseline for the git-wizard solution.
+       Applies to every project under this directory (the 4 git-wizard projects
+       + tests). MFTLib lives outside this tree and is unaffected.
+
+       Rollout note: <TreatWarningsAsErrors> is intentionally NOT set here yet.
+       It is enabled once the analyzer findings are driven to zero so the
+       -warnaserror build (local MSBuild + CI) becomes the gate. -->
+
+  <PropertyGroup>
+    <!-- Make the SDK (CA*/IDE*) analyzer set explicit and pick up the full
+         recommended ruleset rather than the SDK default subset. -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest-Recommended</AnalysisLevel>
+    <!-- Enforce .editorconfig code-style (IDE* rules) as build diagnostics. -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- Findings are at zero, so the build is now the gate. MFTLib (outside this
+         tree) does not inherit this and keeps its warnings as warnings. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 200+ additional Roslyn rules (RCS*); runs as part of the normal build.
+         Complements jb inspectcode. Pinned for reproducibility. -->
+    <PackageReference Include="Roslynator.Analyzers" Version="4.15.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>

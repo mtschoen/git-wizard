@@ -275,7 +275,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         }
     }
 
-   void OpenInFork(RepositoryNodeViewModel? node)
+    void OpenInFork(RepositoryNodeViewModel? node)
     {
         if (node == null || string.IsNullOrEmpty(node.WorkingDirectory))
             return;
@@ -332,7 +332,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
     /// </summary>
     public async Task CopyToClipboardAsync(RepositoryNodeViewModel node)
     {
-        if (node == null || string.IsNullOrEmpty(node.WorkingDirectory))
+        if (string.IsNullOrEmpty(node.WorkingDirectory))
             return;
 
         await _clipboard.SetPlainTextAsync(node.WorkingDirectory).ConfigureAwait(false);
@@ -799,7 +799,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         if (mode == GroupMode.RemoteUrl)
         {
             var urls = repo.Repository.RemoteUrls;
-            if (urls == null || urls.Count == 0)
+            if (urls.Count == 0)
                 return new List<string> { "(no remote)" };
 
             // Normalize remote URLs for grouping (strip .git suffix, normalize casing)
@@ -841,7 +841,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
     static string? FindRenamedRepo(GitWizardRepository erroredRepo, string oldPath,
         IReadOnlyDictionary<string, GitWizardRepository> healthyRepos)
     {
-        if (erroredRepo.RemoteUrls == null || erroredRepo.RemoteUrls.Count == 0)
+        if (erroredRepo.RemoteUrls.Count == 0)
             return null;
 
         foreach (var remoteUrl in erroredRepo.RemoteUrls)
@@ -850,8 +850,6 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
             foreach (var (path, healthyRepo) in healthyRepos)
             {
                 if (path == oldPath)
-                    continue;
-                if (healthyRepo.RemoteUrls == null)
                     continue;
                 foreach (var healthyRemote in healthyRepo.RemoteUrls)
                 {
@@ -999,7 +997,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         parentNode.Children.Add(submoduleNode);
     }
 
-    void AddUninitializedSubmodule(GitWizardRepository parent, string submodulePath)
+    static void AddUninitializedSubmodule(GitWizardRepository parent, string submodulePath)
     {
         // Uninitialized submodules are intentionally not shown in the tree view yet; they could be
         // added as a special node type in the future. Record the skip for verbose diagnostics.
@@ -1093,7 +1091,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         _repositoryMap.Clear();
         _pendingGroups.Clear();
 
-       // Async file I/O for cached repo paths and configuration
+        // Async file I/O for cached repo paths and configuration
         string[]? repositoryPaths = await GitWizardApi.GetCachedRepositoryPathsAsync().ConfigureAwait(false);
 
         var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync().ConfigureAwait(false);
@@ -1213,12 +1211,12 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         }
     }
 
-    public void OnRepositoryCreated(GitWizardRepository repository)
+    public void OnRepositoryCreated(GitWizardRepository gitWizardRepository)
     {
         _uiCommands.Enqueue(new RepositoryUICommand
         {
             Type = RepositoryUICommandType.RepositoryCreated,
-            Repository = repository
+            Repository = gitWizardRepository
         });
     }
 
@@ -1270,12 +1268,12 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         });
     }
 
-    public void OnRepositoryRefreshCompleted(GitWizardRepository repository)
+    public void OnRepositoryRefreshCompleted(GitWizardRepository gitWizardRepository)
     {
         _uiCommands.Enqueue(new RepositoryUICommand
         {
             Type = RepositoryUICommandType.RefreshCompleted,
-            Repository = repository
+            Repository = gitWizardRepository
         });
     }
 

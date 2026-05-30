@@ -37,7 +37,7 @@ public class ElevationDecisionTests
     {
         var fake = new FakeElevationProvider { Elevated = false, SelfElevatable = true, RunElevatedResult = true };
 
-        var result = WindowsDefenderException.AddExclusions(fake);
+        var result = WindowsDefender.AddExclusions(fake);
 
         Assert.That(result, Is.True);
         Assert.That(fake.RunElevatedCalls, Has.Count.EqualTo(1));

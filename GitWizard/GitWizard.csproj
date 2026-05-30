@@ -8,13 +8,8 @@
 
   <ItemGroup>
     <PackageReference Include="LibGit2Sharp" Version="0.31.0" />
-    <!-- LOCAL DEV ONLY: validating MFTLib 0.3 IElevationProvider before publish.
-         Swap back to <PackageReference Include="MFTLib" Version="0.3.0" /> before committing/publishing. -->
-    <ProjectReference Include="..\..\MFTLib\MFTLib\MFTLib.csproj" SetPlatform="Platform=x64" />
+    <!-- MFTLib (0.3.0) is referenced centrally for the whole tree in the repo-root
+         Directory.Build.targets — a TEMPORARY vendored bridge while 0.3.0 is unpublished.
+         To publish, or to do local MFTLib source dev, see lib/MFTLib/README.md. -->
   </ItemGroup>
-  <!-- Fail publish if MFTLib is a local ProjectReference instead of a PackageReference -->
-  <Target Name="BlockLocalMFTLibOnPublish" BeforeTargets="Publish">
-    <Error Condition="'%(ProjectReference.Filename)' == 'MFTLib'"
-           Text="Cannot publish with a local ProjectReference to MFTLib. Switch to a PackageReference first." />
-  </Target>
 </Project>

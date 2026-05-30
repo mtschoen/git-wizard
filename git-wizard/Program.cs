@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 // ReSharper disable once CheckNamespace
@@ -6,13 +6,27 @@ namespace GitWizard.CLI;
 
 public static class Program
 {
+    // Cached serializer options (CA1869): WriteIndented depends on the -minified flag,
+    // so two presets are kept rather than allocating a JsonSerializerOptions per call.
+    static readonly JsonSerializerOptions IndentedSerializerOptions = new()
+    {
+        WriteIndented = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
+    };
+
+    static readonly JsonSerializerOptions CompactSerializerOptions = new()
+    {
+        WriteIndented = false,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
+    };
+
     /// <summary>
     /// Struct containing configuration details specified in command line arguments
     /// TODO: use a library for parsing CLI args that can also generate a -h manual
     /// </summary>
     struct RunConfiguration
     {
-        const string k_HelpManual = @"GitWizard 0.4.1 Help
+        const string HelpManual = @"GitWizard 0.4.1 Help
 
 Usage: git-wizard [options]
 
@@ -150,7 +164,7 @@ Other options:
                     case "-h":
                     case "--help":
                     case "-?":
-                        Console.WriteLine(k_HelpManual);
+                        Console.WriteLine(HelpManual);
                         Environment.Exit(0);
                         break;
                     case "-v":
@@ -246,7 +260,7 @@ Other options:
         }
     }
 
-    const string k_SessionStartMessage = @"Session Start Message
+    const string SessionStartMessage = @"Session Start Message
 =======================================================================================================================
 git-wizard Session Started
 =======================================================================================================================";
@@ -260,40 +274,40 @@ git-wizard Session Started
             switch (args[i])
             {
                 case "--elevated-mft":
-                {
-                    string? configPath = null;
-                    string? outputPath = null;
-                    for (var j = i + 1; j < args.Length; j++)
                     {
-                        switch (args[j])
+                        string? configPath = null;
+                        string? outputPath = null;
+                        for (var j = i + 1; j < args.Length; j++)
                         {
-                            case "--config-path":
-                                if (j + 1 < args.Length) configPath = args[++j];
-                                break;
-                            case "--output":
-                                if (j + 1 < args.Length) outputPath = args[++j];
-                                break;
+                            switch (args[j])
+                            {
+                                case "--config-path":
+                                    if (j + 1 < args.Length) configPath = args[++j];
+                                    break;
+                                case "--output":
+                                    if (j + 1 < args.Length) outputPath = args[++j];
+                                    break;
+                            }
                         }
-                    }
 
-                    if (configPath != null && outputPath != null)
-                    {
-                        await Task.Run(() => GitWizardApi.RunElevatedMftScan(configPath, outputPath)).ConfigureAwait(false);
-                        Environment.Exit(0);
-                    }
-                    else
-                    {
-                        Environment.Exit(1);
-                    }
+                        if (configPath != null && outputPath != null)
+                        {
+                            await Task.Run(() => GitWizardApi.RunElevatedMftScan(configPath, outputPath)).ConfigureAwait(false);
+                            Environment.Exit(0);
+                        }
+                        else
+                        {
+                            Environment.Exit(1);
+                        }
 
-                    return;
-                }
+                        return;
+                    }
                 case "--elevated-defender":
-                {
-                    var success = WindowsDefenderException.RunDefenderCommands();
-                    Environment.Exit(success ? 0 : 1);
-                    return;
-                }
+                    {
+                        var success = WindowsDefender.RunDefenderCommands();
+                        Environment.Exit(success ? 0 : 1);
+                        return;
+                    }
             }
         }
 
@@ -325,13 +339,13 @@ git-wizard Session Started
             }
         }
 
-        GitWizardLog.Log(k_SessionStartMessage);
+        GitWizardLog.Log(SessionStartMessage);
         var configuration = await GetConfigurationAsync(runConfiguration);
 
         if (runConfiguration.SetupDefender)
         {
             GitWizardLog.Log("Setting up Windows Defender exclusions...");
-            WindowsDefenderException.AddExclusions();
+            WindowsDefender.AddExclusions();
         }
 
         if (runConfiguration.Merge)
@@ -383,11 +397,7 @@ git-wizard Session Started
         if (runConfiguration.Summary)
         {
             var summary = GitWizardSummary.FromReport(filteredReport);
-            var options = new JsonSerializerOptions
-            {
-                WriteIndented = !runConfiguration.Minified,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
-            };
+            var options = runConfiguration.Minified ? CompactSerializerOptions : IndentedSerializerOptions;
             jsonString = JsonSerializer.Serialize(summary, options);
         }
         else
@@ -414,7 +424,7 @@ git-wizard Session Started
 
         GitWizardLog.Log($"Could not find custom configuration at path: {customConfigurationPath}", GitWizardLog.LogType.Error);
         Environment.Exit(1);
-        throw new Exception("unreachable");
+        throw new InvalidOperationException("unreachable");
     }
 
     static async Task<string[]?> GetRepositoryPathsAsync(RunConfiguration runConfiguration)
@@ -488,11 +498,7 @@ git-wizard Session Started
         // Stamp the current schema version so console output never carries
         // a stale version loaded from an older cache.
         report.SchemaVersion = GitWizardReport.CurrentSchemaVersion;
-        var options = new JsonSerializerOptions
-        {
-            WriteIndented = !runConfiguration.Minified,
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
-        };
+        var options = runConfiguration.Minified ? CompactSerializerOptions : IndentedSerializerOptions;
 
         var jsonString = JsonSerializer.Serialize(report, options);
         return jsonString;
@@ -551,7 +557,7 @@ git-wizard Session Started
 
         return false;
     }
-   static string FormatSize(long bytes)
+    static string FormatSize(long bytes)
     {
         string[] units = { "B", "KB", "MB", "GB", "TB" };
         double size = bytes;

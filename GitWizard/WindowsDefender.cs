@@ -3,7 +3,7 @@ using MFTLib;
 
 namespace GitWizard;
 
-public static class WindowsDefenderException
+public static class WindowsDefender
 {
     static readonly string[] ProcessExclusions = ["dotnet.exe", "git.exe", "git-lfs.exe", "git-wizard.exe"];
 

@@ -380,14 +380,14 @@ public class GitWizardApiAdditionalTests
 
 public class TestUpdateHandler : IUpdateHandler
 {
-    public void StartProgress(string message, int maxCount) { }
+    public void StartProgress(string description, int total) { }
 
     public void UpdateProgress(int count) { }
 
     public void SendUpdateMessage(string? message) { }
 
-    public void OnRepositoryCreated(GitWizardRepository repository) { }
-    public void OnRepositoryRefreshCompleted(GitWizardRepository repository) { }
+    public void OnRepositoryCreated(GitWizardRepository gitWizardRepository) { }
+    public void OnRepositoryRefreshCompleted(GitWizardRepository gitWizardRepository) { }
     public void OnUninitializedSubmoduleCreated(GitWizardRepository parent, string submodulePath) { }
     public void OnSubmoduleCreated(GitWizardRepository parent, GitWizardRepository submodule) { }
     public void OnWorktreeCreated(GitWizardRepository worktree) { }

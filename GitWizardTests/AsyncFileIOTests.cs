@@ -163,7 +163,7 @@ public class AsyncFileIOTests
         var loaded = await GitWizardApi.GetCachedRepositoryPathsAsync();
 
         Assert.That(loaded, Is.Not.Null);
-         Assert.That(loaded!, Has.Length.EqualTo(2));
+        Assert.That(loaded!, Has.Length.EqualTo(2));
     }
 
     [Test]

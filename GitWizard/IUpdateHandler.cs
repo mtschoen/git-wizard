@@ -1,4 +1,4 @@
-﻿namespace GitWizard;
+namespace GitWizard;
 
 public interface IUpdateHandler
 {

@@ -29,12 +29,12 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
     public string ItemPaddingString => IsGroupHeader ? "0,5,0,0" : "15,0,0,0";
     public string StatusColorHex => _status switch
     {
-        RefreshStatus.Refreshing     => "#808080",
-        RefreshStatus.Success        => "#28A745",
-        RefreshStatus.Timeout        => "#FFA500",
-        RefreshStatus.Error          => "#DC3545",
+        RefreshStatus.Refreshing => "#808080",
+        RefreshStatus.Success => "#28A745",
+        RefreshStatus.Timeout => "#FFA500",
+        RefreshStatus.Error => "#DC3545",
         RefreshStatus.SubmoduleIssue => "#8E44AD",
-        _                            => "#808080",
+        _ => "#808080",
     };
 
     public bool IsExpanded
@@ -231,7 +231,7 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
 
         if (Repository.HasSubmoduleIssues)
         {
-            var issueCount = Repository.SubmoduleHealth?.Count ?? 0;
+            var issueCount = Repository.SubmoduleHealth.Count;
             label += issueCount == 1 ? " [submodule issue]" : $" [{issueCount} submodule issues]";
         }
 

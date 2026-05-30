@@ -158,7 +158,7 @@ internal sealed class TempRepoFixture : IDisposable
         return upstream.Replace('\\', '/');
     }
 
-    static string RunGit(string workingDirectory, params string[] arguments)
+    static void RunGit(string workingDirectory, params string[] arguments)
     {
         var startInfo = new ProcessStartInfo("git")
         {
@@ -172,13 +172,13 @@ internal sealed class TempRepoFixture : IDisposable
 
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Failed to start git");
-        var standardOutput = process.StandardOutput.ReadToEnd();
+        // Drain stdout so a full pipe can't deadlock the child; the content is unused.
+        _ = process.StandardOutput.ReadToEnd();
         var standardError = process.StandardError.ReadToEnd();
         process.WaitForExit();
         if (process.ExitCode != 0)
             throw new InvalidOperationException(
                 $"git {string.Join(' ', arguments)} failed (exit {process.ExitCode}): {standardError}");
-        return standardOutput;
     }
 
     /// <summary>
@@ -206,7 +206,7 @@ internal sealed class TempRepoFixture : IDisposable
             }
             Directory.Delete(directory, recursive: true);
         }
-        catch (Exception)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             // Best-effort cleanup; ignore if the OS is still holding locks.
         }

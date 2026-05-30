@@ -44,7 +44,15 @@ jobs:
             dotnet restore "$proj"
           done
 
+      - name: Format check (dotnet format --verify-no-changes)
+        # Same tool as the on-save hook, in check mode: fails on any whitespace/
+        # style drift from .editorconfig. MFTLib (outside this repo) fails to load
+        # on Linux and is skipped; the git-wizard projects are still verified.
+        run: dotnet format git-wizard.slnx --verify-no-changes
+
       - name: Build (cross-platform projects)
+        # TreatWarningsAsErrors (Directory.Build.props) makes this the analyzer
+        # gate: any CA*/IDE*/RCS* warning on a git-wizard project fails the build.
         run: |
           for proj in \
             GitWizard/GitWizard.csproj \
@@ -71,6 +79,13 @@ jobs:
 
       - name: Upload coverage report
         if: always()
+        # Supplementary artifact only — the coverage GATE runs in "Post coverage status" /
+        # "Coverage gate" above (which read the cobertura file directly). The upload to gitea's
+        # artifact backend currently fails TLS verification on the runner (the mkcert CA isn't
+        # trusted by the runner's Node — NODE_EXTRA_CA_CERTS path is broken; tracked in PLAN.md).
+        # Don't red CI over a cert-blocked nice-to-have upload; keep TLS verification on rather
+        # than spreading NODE_TLS_REJECT_UNAUTHORIZED=0.
+        continue-on-error: true
         uses: actions/upload-artifact@v3
         with:
           name: coverage-cobertura
@@ -115,7 +130,40 @@ jobs:
         run: dotnet restore git-wizard.slnx
 
       - name: Build (full solution)
+        # TreatWarningsAsErrors (Directory.Build.props) gates analyzer warnings here.
         run: dotnet build git-wizard.slnx -c Release --no-restore
+
+      - name: JetBrains InspectCode (deep lint gate)
+        shell: pwsh
+        # Deep ReSharper inspection; the gate's bar is zero findings
+        # (ci/parse-jb-report.py exits non-zero otherwise).
+        # NOTE: jb-CLI binds naming inspections to the runner's global ReSharper
+        # config, not the solution-shared git-wizard.slnx.DotSettings (passed via
+        # --settings but not honored for naming UserRules). A fresh runner's
+        # defaults are idiomatic .NET, matching our canonical naming, so the repo
+        # should pass. The format + warnaserror gates above are config-independent
+        # and deterministic.
+        run: |
+          dotnet tool install -g JetBrains.ReSharper.GlobalTools 2>$null
+          # jb takes option VALUES with '=' (like -o= above). Space-separated
+          # `-s <path>` is rejected as "Invalid option 's'", so use --settings=.
+          jb inspectcode git-wizard.slnx -o="$env:RUNNER_TEMP\jb-report.xml" `
+            --settings="git-wizard.slnx.DotSettings" --severity=WARNING --no-updates
+          # Gate inline in PowerShell — mirrors ci/parse-jb-report.py (kept for local
+          # use). The SYSTEM-account Windows runner has no `python` on PATH (the
+          # user's Store Python is per-user), so we don't shell out to it here.
+          # jb writes SARIF JSON despite the .xml extension.
+          $report = Get-Content "$env:RUNNER_TEMP\jb-report.xml" -Raw | ConvertFrom-Json
+          $results = @($report.runs[0].results)
+          Write-Host "jb inspectcode: $($results.Count) finding(s)"
+          $results | Group-Object ruleId | Sort-Object Count -Descending | ForEach-Object {
+            Write-Host ("  {0,4}  {1}" -f $_.Count, $_.Name)
+          }
+          if ($results.Count -gt 0) {
+            Write-Host "::error::jb inspectcode reported $($results.Count) finding(s); the gate allows 0."
+            exit 1
+          }
+          Write-Host "jb inspectcode gate passed (0 findings)."
 
       - name: Test
         shell: pwsh

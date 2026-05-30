@@ -215,7 +215,7 @@ public class GitWizardConfigurationTests
         Assert.That(second, Is.SameAs(first));
     }
 
-      [Test]
+    [Test]
     public async Task GetGlobalConfigurationAsync_DoesNotBlock_WhenAlreadyLoaded()
     {
         var _ = await GitWizardConfiguration.GetGlobalConfigurationAsync();

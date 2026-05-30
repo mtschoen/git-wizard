@@ -56,7 +56,28 @@ public static class TestUtilities
         // ~/.GitWizard to any later test that forgets to redirect — and a DeleteAllLocalFiles there
         // wipes the user's real config (search paths and all). GlobalTestSetup sets DefaultHome.
         Environment.SetEnvironmentVariable("GITWIZARD_HOME", DefaultHome);
-        if (!string.IsNullOrEmpty(temp) && Directory.Exists(temp))
-            Directory.Delete(temp, recursive: true);
+        if (string.IsNullOrEmpty(temp))
+            return;
+
+        // A fire-and-forget config write can still be in flight when the test ends: e.g.
+        // SettingsViewModel mutations (and its constructor) call SaveImmediate(), which runs
+        // GitWizardConfiguration.SaveGlobalConfigurationAsync -> File.WriteAllTextAsync(config.json)
+        // without being awaited. Deleting the temp home while that write holds config.json throws
+        // IOException "the process cannot access the file ... because it is being used by another
+        // process" — flaky under CI timing, never reproduced locally. Retry briefly so the async
+        // write finishes, then give up (a throwaway temp dir must not red CI; %TEMP% is reclaimed).
+        for (var attempt = 0; attempt < 40; attempt++)
+        {
+            try
+            {
+                if (Directory.Exists(temp))
+                    Directory.Delete(temp, recursive: true);
+                return;
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                Thread.Sleep(25);
+            }
+        }
     }
 }

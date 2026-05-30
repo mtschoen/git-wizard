@@ -1,13 +1,17 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using MFTLib;
 
 namespace GitWizard;
 
 public static class GitWizardApi
 {
-    const string k_GitWizardFolder = ".GitWizard";
-    const string k_RepositoryPathListFileName = "repositories.txt";
-    const string k_LogFolder = "Logs";
+    const string GitWizardFolder = ".GitWizard";
+    const string RepositoryPathListFileName = "repositories.txt";
+    const string LogFolder = "Logs";
+
+    // Reused line separators for splitting the cached repository-path file
+    // (CA1861: avoid allocating the array on every call).
+    static readonly string[] LineSeparators = ["\r\n", "\n"];
 
     public static string GetLocalFilesPath()
     {
@@ -19,12 +23,12 @@ public static class GitWizardApi
             return overridePath;
 
         var homeFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        return Path.Combine(homeFolder, k_GitWizardFolder);
+        return Path.Combine(homeFolder, GitWizardFolder);
     }
 
     public static string GetLogFolderPath()
     {
-        return Path.Combine(GetLocalFilesPath(), k_LogFolder);
+        return Path.Combine(GetLocalFilesPath(), LogFolder);
     }
 
     public static void EnsureLocalFolderExists()
@@ -40,7 +44,7 @@ public static class GitWizardApi
     /// <returns>The path to the file where cached repository paths are stored.</returns>
     public static string GetCachedRepositoryListPath()
     {
-        return Path.Combine(GetLocalFilesPath(), k_RepositoryPathListFileName);
+        return Path.Combine(GetLocalFilesPath(), RepositoryPathListFileName);
     }
 
     /// <summary>
@@ -50,8 +54,8 @@ public static class GitWizardApi
     {
         rootPath = Environment.ExpandEnvironmentVariables(rootPath);
 
-        if (rootPath.StartsWith("~/"))
-            rootPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + rootPath.Substring(1);
+        if (rootPath.StartsWith("~/", StringComparison.Ordinal))
+            rootPath = string.Concat(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), rootPath.AsSpan(1));
 
         if (!Directory.Exists(rootPath))
             return null;
@@ -67,7 +71,7 @@ public static class GitWizardApi
     {
         path = Environment.ExpandEnvironmentVariables(path);
 
-        if (path.StartsWith("~/") || path.StartsWith("~\\"))
+        if (path.StartsWith("~/", StringComparison.Ordinal) || path.StartsWith("~\\", StringComparison.Ordinal))
         {
             path = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
@@ -157,7 +161,7 @@ public static class GitWizardApi
                 if (expanded == null)
                     continue;
 
-                TryFindGitRepositoriesUsingMft(expanded, paths, configuration.IgnoredPaths, updateHandler);
+                FindGitRepositoriesUsingMft(expanded, paths, configuration.IgnoredPaths, updateHandler);
             }
 
             return paths.Count > 0;
@@ -208,7 +212,7 @@ public static class GitWizardApi
             if (expanded == null)
                 continue;
 
-            TryFindGitRepositoriesUsingMft(expanded, paths, configuration.IgnoredPaths);
+            FindGitRepositoriesUsingMft(expanded, paths, configuration.IgnoredPaths);
         }
 
         File.WriteAllLines(outputPath, paths);
@@ -249,14 +253,14 @@ public static class GitWizardApi
         }
     }
 
-    static bool TryFindGitRepositoriesUsingMft(string rootPath, ICollection<string> paths,
+    static void FindGitRepositoriesUsingMft(string rootPath, ICollection<string> paths,
         ICollection<string> ignoredPaths, IUpdateHandler? updateHandler = null)
     {
         try
         {
             var driveLetter = Path.GetPathRoot(rootPath)?[..1];
             if (driveLetter == null)
-                return false;
+                return;
 
             updateHandler?.SendUpdateMessage($"Using MFT to search {driveLetter}: drive");
 
@@ -313,14 +317,11 @@ public static class GitWizardApi
             }
 
             updateHandler?.SendUpdateMessage($"MFT search found {paths.Count} repositories on {driveLetter}:");
-
-            return true;
         }
         catch (Exception exception)
         {
             GitWizardLog.Log($"MFT search failed, falling back to directory scan: {exception.Message}",
                 GitWizardLog.LogType.Warning);
-            return false;
         }
     }
 
@@ -377,7 +378,7 @@ public static class GitWizardApi
                     }
 
                     // TODO: Add config setting for ignoring hidden directories
-                    if (split.Last().StartsWith("."))
+                    if (split.Last().StartsWith('.'))
                         return;
 
                     var directoryInfo = new DirectoryInfo(subDirectory);
@@ -455,7 +456,7 @@ public static class GitWizardApi
             return null;
 
         return paths
-            .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            .Split(LineSeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
 
     /// <summary>
@@ -473,7 +474,7 @@ public static class GitWizardApi
             return null;
 
         return paths
-            .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            .Split(LineSeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
 
     public static async Task SaveCachedRepositoryPathsAsync(IEnumerable<string> paths, CancellationToken cancellationToken = default)

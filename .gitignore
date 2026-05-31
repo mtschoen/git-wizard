@@ -361,3 +361,4 @@ MigrationBackup/
 !.claude/settings.json
 
 .maintenance.json
+.qwen/

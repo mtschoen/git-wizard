@@ -12,7 +12,7 @@ public static class TestUtilities
     /// <summary>
     /// Resets static caches in GitWizardReport and GitWizardConfiguration.
     /// Call in SetUp and TearDown to ensure test isolation.
-    /// Does NOT delete cached files — use AsyncFileIOTests.ResetStaticCaches for full cleanup.
+    /// Does NOT delete cached files - use AsyncFileIOTests.ResetStaticCaches for full cleanup.
     /// </summary>
     public static void ResetStaticCaches()
     {
@@ -41,7 +41,7 @@ public static class TestUtilities
     /// <summary>
     /// The assembly-wide fallback GITWIZARD_HOME set by <see cref="GlobalTestSetup"/>. Clearing a
     /// per-class redirect restores this instead of null, so a later test that forgets to redirect
-    /// still lands on an isolated temp dir — never the real ~/.GitWizard.
+    /// still lands on an isolated temp dir - never the real ~/.GitWizard.
     /// </summary>
     public static string? DefaultHome { get; set; }
 
@@ -53,7 +53,7 @@ public static class TestUtilities
     public static void ClearLocalFilesRedirect(string? temp)
     {
         // Restore the assembly-wide isolated home, NOT null. A null here would re-expose the real
-        // ~/.GitWizard to any later test that forgets to redirect — and a DeleteAllLocalFiles there
+        // ~/.GitWizard to any later test that forgets to redirect - and a DeleteAllLocalFiles there
         // wipes the user's real config (search paths and all). GlobalTestSetup sets DefaultHome.
         Environment.SetEnvironmentVariable("GITWIZARD_HOME", DefaultHome);
         if (string.IsNullOrEmpty(temp))
@@ -64,7 +64,7 @@ public static class TestUtilities
         // GitWizardConfiguration.SaveGlobalConfigurationAsync -> File.WriteAllTextAsync(config.json)
         // without being awaited. Deleting the temp home while that write holds config.json throws
         // IOException "the process cannot access the file ... because it is being used by another
-        // process" — flaky under CI timing, never reproduced locally. Retry briefly so the async
+        // process" - flaky under CI timing, never reproduced locally. Retry briefly so the async
         // write finishes, then give up (a throwaway temp dir must not red CI; %TEMP% is reclaimed).
         for (var attempt = 0; attempt < 40; attempt++)
         {

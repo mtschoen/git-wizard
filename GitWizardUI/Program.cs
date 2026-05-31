@@ -65,7 +65,7 @@ static class Program
         return false;
     }
 
-    // Avalonia configuration, don't remove; also used by visual designer.
+    // Required by the Avalonia visual designer - do not remove.
     public static AppBuilder BuildAvaloniaApp()
         => AppBuilder.Configure<App>()
             .UsePlatformDetect()

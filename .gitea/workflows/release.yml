@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version (without leading v) — used for filenames when run manually'
+        description: 'Version (without leading v) - used for filenames when run manually'
         required: true
         default: '0.0.0-test'
 

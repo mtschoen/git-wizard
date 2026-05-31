@@ -73,7 +73,6 @@ public class SettingsViewModel : INotifyPropertyChanged
         _folderPicker = folderPicker;
         _configuration = GitWizardConfiguration.GetGlobalConfiguration();
 
-        // Load current configuration
         foreach (var path in _configuration.SearchPaths)
             SearchPaths.Add(path);
 
@@ -82,7 +81,7 @@ public class SettingsViewModel : INotifyPropertyChanged
 
         // Load into the backing field, not the property: the setter calls SaveImmediate(), so
         // assigning ForkPath here would write config.json (a fire-and-forget async save) on every
-        // construction — a redundant no-op write of just-loaded data that also races test teardown.
+        // construction - a redundant no-op write of just-loaded data that also races test teardown.
         _forkPath = _configuration.ForkPath ?? string.Empty;
 
         AddSearchPathCommand = new RelayCommand(AddSearchPath);
@@ -172,7 +171,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
-    public async Task SaveAsync()
+    public Task SaveAsync()
     {
         _configuration.SearchPaths.Clear();
         foreach (var path in SearchPaths)
@@ -182,7 +181,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         foreach (var path in IgnoredPaths)
             _configuration.IgnoredPaths.Add(path);
 
-        await GitWizardConfiguration.SaveGlobalConfigurationAsync(_configuration).ConfigureAwait(false);
+        return GitWizardConfiguration.SaveGlobalConfigurationAsync(_configuration);
     }
 
     public void Save()
@@ -205,9 +204,9 @@ public class SettingsViewModel : INotifyPropertyChanged
         Save();
     }
 
-    private async Task SaveImmediateAsync()
+    private Task SaveImmediateAsync()
     {
-        await SaveAsync().ConfigureAwait(false);
+        return SaveAsync();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

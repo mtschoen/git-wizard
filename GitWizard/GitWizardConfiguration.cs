@@ -50,9 +50,9 @@ public class GitWizardConfiguration
         configuration.Save(GetGlobalConfigurationPath());
     }
 
-    public static async Task SaveGlobalConfigurationAsync(GitWizardConfiguration configuration)
+    public static Task SaveGlobalConfigurationAsync(GitWizardConfiguration configuration)
     {
-        await configuration.SaveAsync(GetGlobalConfigurationPath()).ConfigureAwait(false);
+        return configuration.SaveAsync(GetGlobalConfigurationPath());
     }
 
     public static async Task<GitWizardConfiguration?> GetConfigurationAtPathAsync(string path, CancellationToken cancellationToken = default)
@@ -65,9 +65,9 @@ public class GitWizardConfiguration
             var jsonText = await File.ReadAllTextAsync(path, cancellationToken).ConfigureAwait(false);
             return JsonSerializer.Deserialize<GitWizardConfiguration>(jsonText);
         }
-        catch
+        catch (Exception exception)
         {
-            // ignored
+            GitWizardLog.LogException(exception, $"Failed to read configuration at {path}.");
         }
 
         return null;
@@ -83,9 +83,9 @@ public class GitWizardConfiguration
             var jsonText = File.ReadAllText(path);
             return JsonSerializer.Deserialize<GitWizardConfiguration>(jsonText);
         }
-        catch
+        catch (Exception exception)
         {
-            // ignored
+            GitWizardLog.LogException(exception, $"Failed to read configuration at {path}.");
         }
 
         return null;
@@ -158,10 +158,10 @@ public class GitWizardConfiguration
         return _globalConfiguration;
     }
 
-    static async Task<GitWizardConfiguration?> LoadConfigurationAsync(CancellationToken cancellationToken)
+    static Task<GitWizardConfiguration?> LoadConfigurationAsync(CancellationToken cancellationToken)
     {
         var path = GetGlobalConfigurationPath();
-        return await GetConfigurationAtPathAsync(path, cancellationToken).ConfigureAwait(false);
+        return GetConfigurationAtPathAsync(path, cancellationToken);
     }
 
     public void GetRepositoryPaths(ICollection<string> paths, IUpdateHandler? updateHandler = null)

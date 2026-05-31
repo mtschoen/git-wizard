@@ -1,11 +1,22 @@
 name: aislop
 # Quality gate for AI-generated slop patterns (https://github.com/scanaislop/aislop).
 # `aislop ci` scores the whole repo (0-100) and exits non-zero when the score
-# drops below ci.failBelow in .aislop/config.yml — gating the PR/push.
+# drops below ci.failBelow (100) in .aislop/config.yml - gating the PR/push.
+#
+# The C# engine lives ONLY in the personal fork github.com/mtschoen/aislop (the
+# public npm `aislop` scores just the Python ci/ tooling), so we clone + build
+# that fork at a PINNED commit and run the built CLI. The C# lint engine shells
+# out to the `roslynator` dotnet global tool, so dotnet + roslynator are set up
+# here too. Bump AISLOP_FORK_COMMIT deliberately; do not track the moving branch.
 on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
+
+env:
+  # github.com/mtschoen/aislop @ schoen/main (assembled C# engine + fixes).
+  AISLOP_FORK_COMMIT: e8d78bc45b64f43a5e32cab0b49a580ccc5f86f4
 
 jobs:
   quality-gate:
@@ -15,5 +26,26 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Install roslynator CLI (C# lint engine dependency)
+        run: |
+          dotnet tool install -g roslynator.dotnet.cli
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+      - name: Build C#-capable aislop (pinned fork commit)
+        # Cloned outside the workspace so aislop does not scan the fork's own source.
+        run: |
+          git clone https://github.com/mtschoen/aislop.git "$RUNNER_TEMP/aislop"
+          git -C "$RUNNER_TEMP/aislop" checkout "$AISLOP_FORK_COMMIT"
+          (cd "$RUNNER_TEMP/aislop" && npm install --no-audit --no-fund)
       - name: aislop quality gate
-        run: npx --yes aislop@0.9.4 ci .
+        # Sanity-fail if the C# engine did not actually analyze the .cs tree (avoid a
+        # silent Python-only pass): require a healthy file count alongside the score gate.
+        run: |
+          REPORT="$RUNNER_TEMP/aislop-report.json"
+          node "$RUNNER_TEMP/aislop/dist/cli.js" ci . --json > "$REPORT" || GATE_FAILED=1
+          node -e "const r=require(process.env.REPORT); const f=r.summary?.files??0; console.log('aislop score',r.score,'over',f,'files'); if(f<10){console.error('aislop only scanned '+f+' files - the C# engine did not run');process.exit(1);}"
+          if [ -n "$GATE_FAILED" ]; then echo "aislop score below failBelow"; exit 1; fi
+        env:
+          REPORT: ${{ runner.temp }}/aislop-report.json

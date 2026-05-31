@@ -5,7 +5,7 @@ namespace GitWizardTests;
 /// <summary>
 /// Assembly-wide safety net: redirects GitWizard's data dir (config/cache/report) to an isolated
 /// temp home for the ENTIRE test run via GITWIZARD_HOME, so no test ever reads or writes the real
-/// ~/.GitWizard — even one that forgets to call <see cref="TestUtilities.RedirectLocalFilesToTemp"/>.
+/// ~/.GitWizard - even one that forgets to call <see cref="TestUtilities.RedirectLocalFilesToTemp"/>.
 ///
 /// This exists because the per-class opt-in redirect pattern leaked twice: GitWizardConfigurationTests
 /// wrote to the real config, and GitWizardApiAdditionalTests called GitWizardApi.DeleteAllLocalFiles()

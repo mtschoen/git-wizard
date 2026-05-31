@@ -5,7 +5,6 @@ namespace GitWizard;
 
 /// <summary>
 /// Logging class for GitWizard
-/// TODO: Make file logging async
 /// </summary>
 public static class GitWizardLog
 {

@@ -6,14 +6,14 @@ Scan, organize, and manage all the git repositories on your machine. Find duplic
 
 ## Features
 
-- **Fast repository discovery** — uses NTFS MFT parsing on Windows for near-instant scanning across all drives
-- **Status at a glance** — see pending changes, unpushed commits, and errors per repo
+- **Fast repository discovery** - uses NTFS MFT parsing on Windows for near-instant scanning across all drives
+- **Status at a glance** - see pending changes, unpushed commits, and errors per repo
 - **Filter** by pending changes, detached heads, submodule issues, or repos you've committed to
 - **Group** by drive or remote URL to find duplicate clones
 - **Sort** by path, last commit date, or remote URL
 - **Search** to quickly find repos by path
 - **Deep refresh** per repo with remote fetch and index update
-- **Cross-platform desktop** — Avalonia app runs natively on Windows, macOS, and Linux; library and CLI run everywhere
+- **Cross-platform desktop** - Avalonia app runs natively on Windows, macOS, and Linux; library and CLI run everywhere
 
 ## Getting Started
 

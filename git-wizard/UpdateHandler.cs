@@ -141,98 +141,114 @@ sealed class UpdateHandler : IUpdateHandler
         switch (command.Type)
         {
             case CommandType.RepositoryCreated:
-                if (command.Repository != null)
-                {
-                    var path = command.Repository.WorkingDirectory;
-                    if (!string.IsNullOrEmpty(path))
-                    {
-                        _createdPaths.Add(path);
-                        _totalCreated++;
-                        GitWizardLog.Log($"[CREATED] {path}", GitWizardLog.LogType.Verbose);
-                    }
-                }
+                HandleRepositoryCreated(command);
                 break;
-
             case CommandType.SubmoduleCreated:
-                if (command.ParentRepository != null && command.Repository != null)
-                {
-                    var parentPath = command.ParentRepository.WorkingDirectory;
-                    var submodulePath = command.Repository.WorkingDirectory;
-
-                    if (string.IsNullOrEmpty(parentPath))
-                    {
-                        _skippedCommands++;
-                        GitWizardLog.Log($"[SKIPPED] Submodule parent has null path");
-                        return;
-                    }
-
-                    if (!_createdPaths.Contains(parentPath))
-                    {
-                        _skippedCommands++;
-                        GitWizardLog.Log($"[SKIPPED] Submodule parent not created yet: {parentPath}");
-                        return;
-                    }
-
-                    if (!string.IsNullOrEmpty(submodulePath))
-                    {
-                        _createdPaths.Add(submodulePath);
-                        _totalCreated++;
-                    }
-                }
+                HandleSubmoduleCreated(command);
                 break;
-
             case CommandType.WorktreeCreated:
-                if (command.Repository != null)
-                {
-                    var path = command.Repository.WorkingDirectory;
-                    if (!string.IsNullOrEmpty(path))
-                    {
-                        _createdPaths.Add(path);
-                        _totalCreated++;
-                    }
-                }
+                HandleWorktreeCreated(command);
                 break;
-
             case CommandType.UninitializedSubmoduleCreated:
-                if (command.ParentRepository != null)
-                {
-                    var parentPath = command.ParentRepository.WorkingDirectory;
-                    if (string.IsNullOrEmpty(parentPath))
-                    {
-                        _skippedCommands++;
-                        return;
-                    }
-
-                    if (!_createdPaths.Contains(parentPath))
-                    {
-                        _skippedCommands++;
-                        GitWizardLog.Log($"[SKIPPED] Uninitialized submodule parent not created yet: {parentPath}");
-                    }
-                }
+                HandleUninitializedSubmoduleCreated(command);
                 break;
-
             case CommandType.RefreshCompleted:
-                if (command.Repository != null)
-                {
-                    var path = command.Repository.WorkingDirectory;
-                    if (string.IsNullOrEmpty(path))
-                    {
-                        _skippedCommands++;
-                        return;
-                    }
-
-                    if (!_createdPaths.Contains(path))
-                    {
-                        _skippedCommands++;
-                        GitWizardLog.Log($"[MISSING] Refresh completed but item not created: {path} (IsRefreshing={command.Repository.IsRefreshing})");
-                        return;
-                    }
-
-                    _totalCompleted++;
-                    GitWizardLog.Log($"[COMPLETED] {path} (IsRefreshing={command.Repository.IsRefreshing})", GitWizardLog.LogType.Verbose);
-                }
+                HandleRefreshCompleted(command);
                 break;
         }
+    }
+
+    void HandleRepositoryCreated(Command command)
+    {
+        var path = command.Repository?.WorkingDirectory;
+        if (string.IsNullOrEmpty(path))
+            return;
+
+        _createdPaths.Add(path);
+        _totalCreated++;
+        GitWizardLog.Log($"[CREATED] {path}", GitWizardLog.LogType.Verbose);
+    }
+
+    void HandleSubmoduleCreated(Command command)
+    {
+        if (command.ParentRepository == null || command.Repository == null)
+            return;
+
+        var parentPath = command.ParentRepository.WorkingDirectory;
+        var submodulePath = command.Repository.WorkingDirectory;
+
+        if (string.IsNullOrEmpty(parentPath))
+        {
+            _skippedCommands++;
+            GitWizardLog.Log("[SKIPPED] Submodule parent has null path");
+            return;
+        }
+
+        if (!_createdPaths.Contains(parentPath))
+        {
+            _skippedCommands++;
+            GitWizardLog.Log($"[SKIPPED] Submodule parent not created yet: {parentPath}");
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(submodulePath))
+        {
+            _createdPaths.Add(submodulePath);
+            _totalCreated++;
+        }
+    }
+
+    void HandleWorktreeCreated(Command command)
+    {
+        var path = command.Repository?.WorkingDirectory;
+        if (string.IsNullOrEmpty(path))
+            return;
+
+        _createdPaths.Add(path);
+        _totalCreated++;
+    }
+
+    void HandleUninitializedSubmoduleCreated(Command command)
+    {
+        if (command.ParentRepository == null)
+            return;
+
+        var parentPath = command.ParentRepository.WorkingDirectory;
+        if (string.IsNullOrEmpty(parentPath))
+        {
+            _skippedCommands++;
+            return;
+        }
+
+        if (!_createdPaths.Contains(parentPath))
+        {
+            _skippedCommands++;
+            GitWizardLog.Log($"[SKIPPED] Uninitialized submodule parent not created yet: {parentPath}");
+        }
+    }
+
+    void HandleRefreshCompleted(Command command)
+    {
+        var repository = command.Repository;
+        if (repository == null)
+            return;
+
+        var path = repository.WorkingDirectory;
+        if (string.IsNullOrEmpty(path))
+        {
+            _skippedCommands++;
+            return;
+        }
+
+        if (!_createdPaths.Contains(path))
+        {
+            _skippedCommands++;
+            GitWizardLog.Log($"[MISSING] Refresh completed but item not created: {path} (IsRefreshing={repository.IsRefreshing})");
+            return;
+        }
+
+        _totalCompleted++;
+        GitWizardLog.Log($"[COMPLETED] {path} (IsRefreshing={repository.IsRefreshing})", GitWizardLog.LogType.Verbose);
     }
 
     public void PrintSummary()

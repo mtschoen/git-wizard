@@ -5,8 +5,8 @@ namespace GitWizardTests;
 
 /// <summary>
 /// Validates that git-wizard's self-elevation decision logic is testable through
-/// MFTLib's public <see cref="IElevationProvider"/> — including the already-elevated
-/// branch — without triggering real UAC. The fake controls every elevation answer.
+/// MFTLib's public <see cref="IElevationProvider"/> - including the already-elevated
+/// branch - without triggering real UAC. The fake controls every elevation answer.
 /// </summary>
 public class ElevationDecisionTests
 {
@@ -69,7 +69,7 @@ public class ElevationDecisionTests
     {
         // Already-elevated branch: scans directly. Empty search paths ⇒ no real MftVolume.Open,
         // and TryRunElevated must never be called. This branch is unreachable via the internal
-        // Func seams alone (IsElevated does a real token check) — it needs the injected provider.
+        // Func seams alone (IsElevated does a real token check) - it needs the injected provider.
         var fake = new FakeElevationProvider { Elevated = true };
         var paths = new SortedSet<string>();
 

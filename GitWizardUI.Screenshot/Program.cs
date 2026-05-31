@@ -55,7 +55,6 @@ class Program
             var pixelData = new byte[locked.RowBytes * locked.Size.Height];
             System.Runtime.InteropServices.Marshal.Copy(locked.Address, pixelData, 0, pixelData.Length);
 
-            // Create SKBitmap from pixel data and save as PNG
             var info = new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Premul);
             var skBitmap = new SKBitmap(info);
             var address = System.Runtime.InteropServices.Marshal.AllocHGlobal(pixelData.Length);

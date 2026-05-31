@@ -59,13 +59,13 @@ public class MainViewModelTests
         using var dispatcher = new PumpUiDispatcher();
         var vm = new MainViewModel(dispatcher, new StubUserDialogs(), new StubClipboardService());
 
-        // Hold the count in a StrongBox so the captured variable (the box) is never reassigned —
-        // only its contents mutate — which sidesteps AccessToModifiedClosure while the callback
+        // Hold the count in a StrongBox so the captured variable (the box) is never reassigned -
+        // only its contents mutate - which sidesteps AccessToModifiedClosure while the callback
         // still increments a single shared counter.
         var swapCount = new StrongBox<int>(0);
         vm.AfterRepositoriesSwap = () => Interlocked.Increment(ref swapCount.Value);
 
-        // Three distinct values, each fires the setter — but they arrive within the debounce window.
+        // Three distinct values, each fires the setter - but they arrive within the debounce window.
         vm.SearchText = "a";
         vm.SearchText = "ab";
         vm.SearchText = "abc";
@@ -117,7 +117,7 @@ public class MainViewModelTests
         Assert.That(vm.ActiveGroupMode, Is.EqualTo(GroupMode.None), "Re-clicking the active group must clear it.");
     }
 
-    // Sort, unlike Filter/Group, has no "off" state — one mode is always active — so a repeat click
+    // Sort, unlike Filter/Group, has no "off" state - one mode is always active - so a repeat click
     // must keep it selected (matching the MAUI UI, which never cleared the sort highlight).
     [Test]
     public void ApplySort_SetsModeAndDoesNotToggleOff()
@@ -177,7 +177,7 @@ public class MainViewModelTests
         vm.CopyToClipboardCommand.Execute(node);
 
         // The stub clipboard completes synchronously and the stub dispatcher posts inline, so the
-        // indicator is already lit when the fire-and-forget command returns — before the reset delay.
+        // indicator is already lit when the fire-and-forget command returns - before the reset delay.
         Assert.That(node.JustCopied, Is.True);
     }
 

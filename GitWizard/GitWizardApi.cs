@@ -154,7 +154,7 @@ public static class GitWizardApi
 
         if (elevation.IsElevated())
         {
-            // Already elevated — scan directly
+            // Already elevated - scan directly
             foreach (var searchPath in configuration.SearchPaths)
             {
                 var expanded = ExpandSearchPath(searchPath);
@@ -167,7 +167,7 @@ public static class GitWizardApi
             return paths.Count > 0;
         }
 
-        // Not elevated — try launching an elevated helper
+        // Not elevated - try launching an elevated helper
         var configPath = GitWizardConfiguration.GetGlobalConfigurationPath();
         var outputPath = Path.Combine(Path.GetTempPath(), $"gitwizard-mft-{Guid.NewGuid()}.txt");
 
@@ -237,7 +237,7 @@ public static class GitWizardApi
 
         rootPath = expanded;
 
-        // When searching a full drive, skip .git files — submodules/worktrees are found during refresh.
+        // When searching a full drive, skip .git files - submodules/worktrees are found during refresh.
         // When searching a scoped path, include .git files for worktrees/submodules whose parent
         // may be outside the search scope.
         var includeGitFiles = !IsDriveRoot(rootPath);
@@ -269,7 +269,7 @@ public static class GitWizardApi
             var expandedIgnoredPaths = ExpandIgnoredPaths(ignoredPaths);
             var isDriveRoot = IsDriveRoot(normalizedRootPath);
 
-            // When searching a full drive, only find .git directories — submodules and worktrees
+            // When searching a full drive, only find .git directories - submodules and worktrees
             // (.git files) will be discovered during refresh of the parent repo.
             // When searching a scoped path, also find .git files in case the search root itself
             // is a worktree or submodule whose parent is outside the search scope.

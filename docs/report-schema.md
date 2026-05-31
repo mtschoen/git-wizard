@@ -6,17 +6,17 @@ The `SchemaVersion` field at the top of every report indicates the schema versio
 
 ## Version history
 
-- **2.0** — Per-branch divergence. Added repository `Branches` (`BranchInfo[]`) and top-level `BranchScope`, plus repository `DefaultBranch`, `MatchingBranchName`, and `SizeOnDisk`, and summary `MergedBranches` / the `"merged-branches"` attention reason.
-- **1.1** — `NumberOfPendingChanges` counts untracked + added + renamed files (matches `HasPendingChanges`); added `LocalCommitCount`.
-- **1.0** — Initial schema.
+- **2.0** - Per-branch divergence. Added repository `Branches` (`BranchInfo[]`) and top-level `BranchScope`, plus repository `DefaultBranch`, `MatchingBranchName`, and `SizeOnDisk`, and summary `MergedBranches` / the `"merged-branches"` attention reason.
+- **1.1** - `NumberOfPendingChanges` counts untracked + added + renamed files (matches `HasPendingChanges`); added `LocalCommitCount`.
+- **1.0** - Initial schema.
 
 ## JSON serialization note
 
-The report is written with `System.Text.Json`'s `DefaultIgnoreCondition = WhenWritingDefault`. **Numeric fields equal to `0`, boolean fields equal to `false`, and reference fields equal to `null` are omitted from the JSON output.** Consumers should treat absent fields as their default value (`0`/`false`/`null`), not as "unknown". Every non-nullable field documented below is guaranteed to be present *in spirit* — the serializer may simply elide it. (Empty non-null collections are still written, e.g. `[]`.)
+The report is written with `System.Text.Json`'s `DefaultIgnoreCondition = WhenWritingDefault`. **Numeric fields equal to `0`, boolean fields equal to `false`, and reference fields equal to `null` are omitted from the JSON output.** Consumers should treat absent fields as their default value (`0`/`false`/`null`), not as "unknown". Every non-nullable field documented below is guaranteed to be present *in spirit* - the serializer may simply elide it. (Empty non-null collections are still written, e.g. `[]`.)
 
 ## Concurrency
 
-The report file has **no lockfile**. Writes are atomic at the file level — the CLI's
+The report file has **no lockfile**. Writes are atomic at the file level - the CLI's
 `-merge` flag (and the underlying `GitWizardReport.SaveAtomic`) writes to a temp file in
 the same directory and renames it over the destination, so a concurrent reader always sees
 either the complete old file or the complete new file, never a half-written one.
@@ -25,7 +25,7 @@ There is **no protection against concurrent writers**, however. If two callers r
 **disjoint** sets of repos at the same time (e.g. projdash issuing a targeted `-merge` for
 a freshly-cloned repo while a full rescan is also in flight), each one reads the report,
 applies its own changes to that snapshot, and writes the whole file back. **Last writer
-wins for the file as a whole** — the later write replaces the file produced by the earlier
+wins for the file as a whole** - the later write replaces the file produced by the earlier
 write, so the earlier writer's entries can be lost even though the two callers touched
 different repos. This is an accepted trade-off: the merge use case (projdash filling in a
 cache miss) is low-frequency and self-correcting on the next full scan, and a lockfile would
@@ -71,12 +71,12 @@ merge of disjoint updates must serialize their writes externally.
 
 ## BranchInfo object
 
-A local branch's relationship to the repository's default branch. By default the `Branches` list is filtered to "actionable" branches (see `BranchScope`) — it is not a complete inventory unless the report was produced with `--all-branches`.
+A local branch's relationship to the repository's default branch. By default the `Branches` list is filtered to "actionable" branches (see `BranchScope`) - it is not a complete inventory unless the report was produced with `--all-branches`.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `Name` | `string` | Branch short name (e.g. `feature/x`) |
-| `IsMerged` | `bool` | True when fully merged into the default branch (`AheadOfDefault == 0`) — safe to delete |
+| `IsMerged` | `bool` | True when fully merged into the default branch (`AheadOfDefault == 0`) - safe to delete |
 | `MergedInto` | `string` | Default branch name when merged (safe to delete), else null |
 | `AheadOfDefault` | `int` | Commits on this branch not reachable from the default branch |
 | `BehindDefault` | `int` | Commits in the default branch not reachable from this branch |

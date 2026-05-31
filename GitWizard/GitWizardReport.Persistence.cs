@@ -9,13 +9,13 @@ public partial class GitWizardReport
     /// Targeted single-repo merge refresh used by the CLI <c>-merge</c> flag (issue #42).
     /// Reads the existing report at <paramref name="savePath"/> if present (otherwise starts
     /// from an empty report), refreshes only the supplied <paramref name="repositoryPaths"/>,
-    /// upserts those entries into the existing report's repository collection by path key —
-    /// leaving every other entry intact — stamps <see cref="CurrentSchemaVersion"/> on the
+    /// upserts those entries into the existing report's repository collection by path key -
+    /// leaving every other entry intact - stamps <see cref="CurrentSchemaVersion"/> on the
     /// whole report, and writes it back atomically (temp file in the same directory followed
     /// by an overwriting rename) so a concurrent reader never observes a half-written file.
     /// </summary>
     /// <remarks>
-    /// Concurrency: two callers merging disjoint repos race on the file as a whole — last
+    /// Concurrency: two callers merging disjoint repos race on the file as a whole - last
     /// writer wins (a merge that started from a now-stale snapshot will clobber the other
     /// caller's entries). This is acceptable for the projdash fallback use case; there is no
     /// lockfile. See <c>docs/report-schema.md</c>.
@@ -31,14 +31,14 @@ public partial class GitWizardReport
     {
         // Refresh just the supplied repos in an isolated report so we get fresh entries for them
         // without disturbing anything else (Refresh prunes deleted paths and would otherwise
-        // touch the whole collection, so it must run on a throwaway report — not the on-disk one).
+        // touch the whole collection, so it must run on a throwaway report - not the on-disk one).
         var refreshed = new GitWizardReport(configuration);
         if (repositoryPaths.Count > 0)
             refreshed.Refresh(repositoryPaths, updateHandler, allBranches: allBranches);
 
         // Read the existing report as a JSON DOM rather than deserializing into GitWizardReport.
         // Deserialize-then-reserialize would drop every `private set` field (e.g. CurrentBranch)
-        // on the UNTOUCHED entries — defeating the "leave other entries intact" contract (#42).
+        // on the UNTOUCHED entries - defeating the "leave other entries intact" contract (#42).
         // Keeping untouched entries as their original JsonNode preserves them byte-for-byte.
         var root = ReadJsonObjectFromFile(savePath) ?? new JsonObject();
 
@@ -58,7 +58,7 @@ public partial class GitWizardReport
         WriteAtomic(savePath, jsonText);
 
         // Build the returned view: deserialize the merged DOM (gives every entry, though
-        // private-set fields on the UNTOUCHED entries read back null — a pre-existing limitation
+        // private-set fields on the UNTOUCHED entries read back null - a pre-existing limitation
         // of reading a report into typed objects), then overlay the freshly-refreshed repos so
         // the RETURNED target entries carry their full in-memory state (e.g. CurrentBranch). The
         // ON-DISK file (the #42 contract surface) still preserved untouched entries verbatim.
@@ -89,7 +89,7 @@ public partial class GitWizardReport
     /// <summary>
     /// Write the report to <paramref name="path"/> atomically: serialize to a temp file in the
     /// same directory, then rename it over the destination. The rename is atomic on a single
-    /// volume, so a concurrent reader sees either the old file or the new one — never a
+    /// volume, so a concurrent reader sees either the old file or the new one - never a
     /// partially-written file. Stamps <see cref="CurrentSchemaVersion"/> before writing.
     /// </summary>
     public void SaveAtomic(string path)
@@ -101,7 +101,7 @@ public partial class GitWizardReport
     /// <summary>
     /// Write <paramref name="jsonText"/> to <paramref name="path"/> atomically: serialize to a
     /// temp file in the same directory, then rename it over the destination. The rename is atomic
-    /// on a single volume, so a concurrent reader sees either the old file or the new one — never
+    /// on a single volume, so a concurrent reader sees either the old file or the new one - never
     /// a partially-written file. Shared by <see cref="SaveAtomic"/> and <see cref="MergeIntoFile"/>.
     /// </summary>
     static void WriteAtomic(string path, string jsonText)

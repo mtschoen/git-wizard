@@ -6,7 +6,7 @@ namespace GitWizard;
 /// </summary>
 /// <remarks>
 /// By default the <c>Branches</c> list is filtered to "actionable" branches
-/// (see <c>GitWizardReport.BranchScope</c>) — it is NOT necessarily a complete
+/// (see <c>GitWizardReport.BranchScope</c>) - it is NOT necessarily a complete
 /// branch inventory. Pass <c>--all-branches</c> to emit every branch.
 /// </remarks>
 public class BranchInfo

@@ -510,7 +510,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
     void StartUIUpdateThread()
     {
         // Daemon loop for the app's lifetime: drains the UI command queue every 250ms and pushes
-        // progress updates onto the UI thread. Never returns by design — it ends with the process.
+        // progress updates onto the UI thread. Never returns by design - it ends with the process.
         // ReSharper disable once FunctionNeverReturns
         Task.Run(async () =>
         {
@@ -603,7 +603,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
 
     // Debounce search-driven filtering. The SearchText setter (bound two-way to the search box)
     // fires per keystroke, and ApplyFilterAndGrouping does a full off-screen rebuild + collection
-    // swap — costly with 700+ repos. Coalesce rapid keystrokes into a single filter pass, mirroring
+    // swap - costly with 700+ repos. Coalesce rapid keystrokes into a single filter pass, mirroring
     // the 200ms debounce the retired MAUI UI did in its SearchBox_TextChanged code-behind. The
     // immediate SetSearchText path is left untouched for programmatic/test callers.
     void DebounceSearch()
@@ -634,8 +634,8 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
     }
 
     // The Avalonia sidebar dispatches by button name; route each through the same
-    // Toggle*/SetSortMode entry points the MAUI UI used so behavior matches exactly — clicking the
-    // active Filter/Group button clears it, Sort always keeps one active — and so the notifying
+    // Toggle*/SetSortMode entry points the MAUI UI used so behavior matches exactly - clicking the
+    // active Filter/Group button clears it, Sort always keeps one active - and so the notifying
     // Active* properties update (the sidebar binds its `.active` highlight class to them).
     public void ApplyFilter(string buttonName) => ToggleFilter(buttonName switch
     {
@@ -757,7 +757,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
             SortMode.SizeOnDisk => repos
                 .OrderByDescending(r => r.Repository.SizeOnDisk)
                 .ToList(),
-            _ => repos // WorkingDirectory — already in insertion order (alphabetical from SortedDictionary)
+            _ => repos // WorkingDirectory - already in insertion order (alphabetical from SortedDictionary)
         };
     }
 
@@ -904,7 +904,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
                 }
                 else
                 {
-                    // Keep track of it — it might qualify later when more repos arrive
+                    // Keep track of it - it might qualify later when more repos arrive
                     // Store it in the collection anyway for remote URL groups so we can
                     // promote it when a second repo arrives
                     _pendingGroups[key] = header;
@@ -1098,7 +1098,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         HashSet<string> deletedPaths = new();
         HashSet<string> renamedOldPaths = new();
 
-        // Synchronous git scanning (parallel, CPU-bound — runs on thread pool)
+        // Synchronous git scanning (parallel, CPU-bound - runs on thread pool)
         await Task.Run(() =>
         {
             _stopwatch.Restart();
@@ -1186,7 +1186,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
     // Coalesce a burst of status messages into one UI update. A heavy scan (the
     // recursive walk posts per directory) or refresh can fire thousands of these;
     // posting each one floods the dispatcher and starves UI input ("Not Responding").
-    // Instead we keep only the latest message and allow at most one post in flight —
+    // Instead we keep only the latest message and allow at most one post in flight -
     // many updates batch into a single HeaderText write, event-driven (no polling).
     string? _latestStatusMessage;
     int _statusUpdateScheduled;

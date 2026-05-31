@@ -81,7 +81,7 @@ public class SettingsViewModel : INotifyPropertyChanged
 
         // Load into the backing field, not the property: the setter calls SaveImmediate(), so
         // assigning ForkPath here would write config.json (a fire-and-forget async save) on every
-        // construction — a redundant no-op write of just-loaded data that also races test teardown.
+        // construction - a redundant no-op write of just-loaded data that also races test teardown.
         _forkPath = _configuration.ForkPath ?? string.Empty;
 
         AddSearchPathCommand = new RelayCommand(AddSearchPath);

@@ -196,7 +196,7 @@ public class GitWizardApiAdditionalTests
     {
         var real = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".GitWizard");
         Assert.That(GitWizardApi.GetLocalFilesPath(), Is.Not.EqualTo(real),
-            "Tests must resolve local files to an isolated temp home — a real-dir DeleteAllLocalFiles wipes the user's config.");
+            "Tests must resolve local files to an isolated temp home - a real-dir DeleteAllLocalFiles wipes the user's config.");
     }
 
     [Test]

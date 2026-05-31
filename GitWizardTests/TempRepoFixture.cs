@@ -63,7 +63,7 @@ internal sealed class TempRepoFixture : IDisposable
 
     /// <summary>
     /// Create <paramref name="branchName"/> off the current HEAD, add one
-    /// commit on it, then switch back to the original branch — leaving the new
+    /// commit on it, then switch back to the original branch - leaving the new
     /// branch one commit ahead of (and unmerged into) the default.
     /// </summary>
     public void CommitOnNewBranch(string branchName, string fileName)
@@ -84,7 +84,7 @@ internal sealed class TempRepoFixture : IDisposable
     /// <summary>
     /// Commit a <c>.gitmodules</c> entry pointing at <paramref name="path"/> WITHOUT
     /// adding a matching gitlink to the index. The superproject then declares a
-    /// submodule that has no index entry — modelling the "declared in .gitmodules
+    /// submodule that has no index entry - modelling the "declared in .gitmodules
     /// but missing from the index" health issue (e.g. a submodule removed with a
     /// plain <c>rm -r</c> instead of <c>git submodule deinit</c>).
     /// </summary>
@@ -115,7 +115,7 @@ internal sealed class TempRepoFixture : IDisposable
 
     /// <summary>
     /// Add a submodule then deinitialize it, leaving the gitlink in the index and the
-    /// entry in .gitmodules but no working-tree checkout — the state of a superproject
+    /// entry in .gitmodules but no working-tree checkout - the state of a superproject
     /// cloned without <c>--recursive</c>.
     /// </summary>
     public void AddUninitializedSubmodule(string path)
@@ -126,7 +126,7 @@ internal sealed class TempRepoFixture : IDisposable
 
     /// <summary>
     /// Add a submodule, then advance the submodule's own HEAD with a fresh commit
-    /// WITHOUT updating the superproject's gitlink — so the checked-out commit no
+    /// WITHOUT updating the superproject's gitlink - so the checked-out commit no
     /// longer matches the ref the superproject records.
     /// </summary>
     public void AddSubmoduleAtWrongRef(string path)
@@ -139,7 +139,7 @@ internal sealed class TempRepoFixture : IDisposable
 
     /// <summary>
     /// Stage a gitlink at <paramref name="path"/> (pointing at the current HEAD) and
-    /// commit it WITHOUT a matching .gitmodules entry — an index that records a
+    /// commit it WITHOUT a matching .gitmodules entry - an index that records a
     /// submodule the .gitmodules file knows nothing about.
     /// </summary>
     public void AddGitlinkWithoutGitmodules(string path)
@@ -194,7 +194,7 @@ internal sealed class TempRepoFixture : IDisposable
     }
 
     /// <summary>
-    /// Delete the repository directory immediately — e.g. to simulate an external deletion
+    /// Delete the repository directory immediately - e.g. to simulate an external deletion
     /// mid-test. Idempotent with <see cref="Dispose"/>, which still runs at scope end.
     /// </summary>
     public void DeleteNow() => DeleteTree(Path);

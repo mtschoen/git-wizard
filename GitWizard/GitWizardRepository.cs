@@ -779,7 +779,7 @@ public class GitWizardRepository
     /// <remarks>
     /// <para>Callers always pass a validated <see cref="WorkingDirectory"/>, so the path is
     /// guaranteed to be non-null/empty and exist at the time of the call. The check above
-    /// the caller is already defensive enough — no need to duplicate it here.</para>
+    /// the caller is already defensive enough - no need to duplicate it here.</para>
     /// <para>This enumerates ALL files recursively including <c>.git/</c> objects, LFS storage,
     /// build output, etc. For repos with large git object stores the first full scan may
     /// take a long time. The existing <c>RefreshStatus</c> timeout covers this.</para>
@@ -807,7 +807,7 @@ public class GitWizardRepository
         catch (Exception exception)
         {
             // Catch-all for unexpected exceptions (PathTooLongException, ArgumentException,
-            // etc.) — log and return partial result rather than crashing the refresh.
+            // etc.) - log and return partial result rather than crashing the refresh.
             GitWizardLog.LogException(exception, $"Exception enumerating files for {path}");
         }
 

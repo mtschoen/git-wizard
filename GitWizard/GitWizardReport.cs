@@ -29,7 +29,7 @@ public partial class GitWizardReport
 
     /// <summary>
     /// Documents what the per-repo <c>Branches</c> lists contain: "actionable"
-    /// (the default — merged-but-behind + unmerged-ahead branches only) or
+    /// (the default - merged-but-behind + unmerged-ahead branches only) or
     /// "all" (full inventory, via --all-branches). Consumers must not assume
     /// Branches is exhaustive unless this is "all".
     /// </summary>
@@ -165,7 +165,7 @@ public partial class GitWizardReport
     public void GetRepositoryPaths(ICollection<string> repositoryPaths, IUpdateHandler? updateHandler = null,
         bool noMft = false)
     {
-        // Try MFT scan first (Windows only) — handles elevation automatically
+        // Try MFT scan first (Windows only) - handles elevation automatically
         var configuration = new GitWizardConfiguration
         {
             SearchPaths = SearchPaths,

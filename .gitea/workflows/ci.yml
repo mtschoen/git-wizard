@@ -79,10 +79,10 @@ jobs:
 
       - name: Upload coverage report
         if: always()
-        # Supplementary artifact only — the coverage GATE runs in "Post coverage status" /
+        # Supplementary artifact only - the coverage GATE runs in "Post coverage status" /
         # "Coverage gate" above (which read the cobertura file directly). The upload to gitea's
         # artifact backend currently fails TLS verification on the runner (the mkcert CA isn't
-        # trusted by the runner's Node — NODE_EXTRA_CA_CERTS path is broken; tracked in PLAN.md).
+        # trusted by the runner's Node - NODE_EXTRA_CA_CERTS path is broken; tracked in PLAN.md).
         # Don't red CI over a cert-blocked nice-to-have upload; keep TLS verification on rather
         # than spreading NODE_TLS_REJECT_UNAUTHORIZED=0.
         continue-on-error: true
@@ -94,7 +94,7 @@ jobs:
 
       # Gate the build on line coverage and write a line/branch table to the job
       # summary. Re-baselined to the whole GitWizardUI assembly after the VM fold
-      # (2026-05-26) — the app's untestable Avalonia glue (Views/App/Program) now
+      # (2026-05-26) - the app's untestable Avalonia glue (Views/App/Program) now
       # sits in coverage scope. Ratchet up as ViewModel coverage grows (issue #36).
       - name: Coverage gate
         run: |
@@ -149,7 +149,7 @@ jobs:
           # `-s <path>` is rejected as "Invalid option 's'", so use --settings=.
           jb inspectcode git-wizard.slnx -o="$env:RUNNER_TEMP\jb-report.xml" `
             --settings="git-wizard.slnx.DotSettings" --severity=WARNING --no-updates
-          # Gate inline in PowerShell — mirrors ci/parse-jb-report.py (kept for local
+          # Gate inline in PowerShell - mirrors ci/parse-jb-report.py (kept for local
           # use). The SYSTEM-account Windows runner has no `python` on PATH (the
           # user's Store Python is per-user), so we don't shell out to it here.
           # jb writes SARIF JSON despite the .xml extension.

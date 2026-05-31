@@ -192,7 +192,7 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
             var suffix = "";
             if (errorCount > 0) suffix += $" {errorCount} error{(errorCount > 1 ? "s" : "")}";
             if (warningCount > 0) suffix += $" {warningCount} warning{(warningCount > 1 ? "s" : "")}";
-            if (suffix.Length > 0) suffix = " —" + suffix;
+            if (suffix.Length > 0) suffix = " -" + suffix;
             DisplayText = $"{GroupKey} ({Children.Count}){suffix}";
             OnPropertyChanged(nameof(ExpandIndicator));
             return;

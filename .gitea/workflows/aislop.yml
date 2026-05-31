@@ -1,7 +1,7 @@
 name: aislop
 # Quality gate for AI-generated slop patterns (https://github.com/scanaislop/aislop).
 # `aislop ci` scores the whole repo (0-100) and exits non-zero when the score
-# drops below ci.failBelow in .aislop/config.yml — gating the PR/push.
+# drops below ci.failBelow in .aislop/config.yml - gating the PR/push.
 on:
   pull_request:
   push:

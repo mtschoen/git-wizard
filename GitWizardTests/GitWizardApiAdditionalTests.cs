@@ -376,6 +376,77 @@ public class GitWizardApiAdditionalTests
 
         Assert.That(paths, Has.Count.EqualTo(1));
     }
+
+    [Test]
+    public void TryFindAllRepositoriesUsingMft_ReturnsFalse_WhenNoMftFlagDisablesScan()
+    {
+        var found = GitWizardApi.TryFindAllRepositoriesUsingMft(
+            new GitWizardConfiguration(), new SortedSet<string>(), noMft: true);
+
+        Assert.That(found, Is.False);
+    }
+
+    [Test]
+    public void TryFindAllRepositoriesUsingMft_ReturnsFalse_OnNonWindows()
+    {
+        if (OperatingSystem.IsWindows())
+            Assert.Ignore("MFT scanning is Windows-only; the non-Windows early-return is only reachable off Windows.");
+
+        var found = GitWizardApi.TryFindAllRepositoriesUsingMft(
+            new GitWizardConfiguration(), new SortedSet<string>());
+
+        Assert.That(found, Is.False);
+    }
+
+    [Test]
+    public void GetRepositoryPaths_FindsArbitrarilyNestedDotGitDirectories()
+    {
+        var root = Path.Combine(_tempRoot!, "root");
+        Directory.CreateDirectory(Path.Combine(root, "a", "b", "c", ".git"));
+        Directory.CreateDirectory(Path.Combine(root, "x", ".git"));
+
+        var paths = new SortedSet<string>();
+        GitWizardApi.GetRepositoryPaths(root, paths, Array.Empty<string>());
+
+        Assert.That(paths, Has.Count.EqualTo(2));
+    }
+
+    [Test]
+    public void GetRepositoryPaths_FindsEverySiblingRepo()
+    {
+        var root = Path.Combine(_tempRoot!, "root");
+        for (var i = 0; i < 10; i++)
+            Directory.CreateDirectory(Path.Combine(root, $"repo{i}", ".git"));
+
+        var paths = new SortedSet<string>();
+        GitWizardApi.GetRepositoryPaths(root, paths, Array.Empty<string>());
+
+        Assert.That(paths, Has.Count.EqualTo(10));
+    }
+
+    [Test]
+    public void ClearCache_DeletesCachedRepositoryListAndReport()
+    {
+        GitWizardApi.EnsureLocalFolderExists();
+        File.WriteAllText(GitWizardApi.GetCachedRepositoryListPath(), "path1\npath2");
+        File.WriteAllText(GitWizardReport.GetCachedReportPath(), "{}");
+
+        GitWizardApi.ClearCache();
+
+        Assert.That(File.Exists(GitWizardApi.GetCachedRepositoryListPath()), Is.False);
+        Assert.That(File.Exists(GitWizardReport.GetCachedReportPath()), Is.False);
+    }
+
+    [Test]
+    public async Task SaveCachedRepositoryPathsAsync_RoundTripsThroughGetCachedPaths()
+    {
+        await GitWizardApi.SaveCachedRepositoryPathsAsync(new[] { "/async/repo/1", "/async/repo/2" });
+
+        var reloaded = await GitWizardApi.GetCachedRepositoryPathsAsync();
+
+        Assert.That(reloaded, Is.Not.Null);
+        Assert.That(reloaded!, Has.Length.EqualTo(2));
+    }
 }
 
 public class TestUpdateHandler : IUpdateHandler

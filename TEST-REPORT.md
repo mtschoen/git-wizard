@@ -1,31 +1,32 @@
 # Test & Coverage Report — git-wizard
 
-**Status:** PASS — 311 tests pass, **0 lint findings** (see Lint gate below).
-**Mode:** lint = maintain (held the gate at 0 through the C# naming-convergence conformance pass); coverage = best-effort (behavior preserved, no tests removed).
-**Branch:** `chore/linter-rollout` (linter rollout + naming-convergence pilot + vendored MFTLib CI unblock; off `main`)
-**Last measured:** 2026-05-29, Windows, `Release` (MSBuild — required while MFTLib is a local `ProjectReference`), non-admin tier. Re-measured after the naming-convergence conformance pass (adopted the canonical fleet `.editorconfig`: charset utf-8-bom → **utf-8**, naming ruleset promoted from `suggestion` to `warning` → build error). Build stayed green with **0** git-wizard findings; 311/311 non-admin tests still pass. The elevated `RequiresAdmin` tier was **not** re-run — its privileged MFT/elevation code is unchanged, so its contribution is carried forward.
-**Command:** `dotnet test GitWizardTests --no-build -c Release --collect:"XPlat Code Coverage"` then `ci/post-coverage-status.py` (non-admin tier, no UAC).
-**Git:** `4e1ef55`
+**Status:** PASS — 340 non-admin tests pass (+~30 salvaged/reworked from PR #57), **0 lint findings** (build + `dotnet format` + jb inspectcode all re-verified clean this session).
+**Mode:** coverage = close-the-gap (raising coverage from the PR #57 salvage is the task); lint = maintain (held the gate at 0 — the added tests pass analyzers/format/jb).
+**Branch:** `tests/coverage-from-pr57` (genuine coverage cherry-picked + reworked from the pr-crew dump in PR #57; **test-only, no production changes**; off `main` @ `ed21997`)
+**Last measured:** 2026-05-31, Windows, `Debug`, non-admin tier (vendored MFTLib → plain `dotnet build`/`dotnet test`). Baseline re-measured on `main` @ `ed21997` in the same config for an honest delta. The elevated `RequiresAdmin` tier was **not** re-run — its privileged MFT/elevation code is unchanged, so its contribution is carried forward.
+**Command:** `dotnet build git-wizard.slnx` (analyzer gate) · `dotnet format git-wizard.slnx --verify-no-changes` · `jb inspectcode … | ci/parse-jb-report.py` · `scripts/run-coverage.ps1 -Configuration Debug -NoBuild -NonInteractive`.
+**Git:** `ed21997` + this branch's test-only additions (~30 tests)
 
 ## Results
 
 | Metric | Value |
 | --- | --- |
-| Tests passed (non-admin tier) | 311 |
+| Tests passed (non-admin tier) | 340 (+~30 vs main's 311: salvaged/reworked API, repository, MainViewModel, GitWizardSummary coverage) |
 | Tests passed (`RequiresAdmin` tier, elevated) | 2 (carried forward — not re-run this session) |
 | Failed | 0 |
-| Skipped (RequiresAdmin / Unix-only on Windows) | 1 |
-| **Line coverage (non-admin tier, this session)** | **41.95%** (`Release`; prior `Debug` non-admin was 42.35% — flat, no tests removed; the delta is Debug-vs-Release measurement + removal of dead always-false branches) |
-| Line coverage (merged: non-admin + elevated, prior full run) | 44.24% (carried forward) |
-| Branch coverage (non-admin report) | 37.43% (carried forward) |
+| Skipped on Windows (Unix-only + non-Windows MFT guard) | 2 |
+| **Line coverage (non-admin, `Debug`)** | **53.06%** (was 49.56% on `main` @ `ed21997`, same config this session — **+3.50**) |
+| **Branch coverage (non-admin, `Debug`)** | **48.05%** (was 42.48% — **+5.57**) |
+| Line coverage (merged: non-admin + elevated, prior full run) | 44.24% (carried forward — re-run self-elevating for a fresh merge) |
 | `[ExcludeFromCodeCoverage]` annotations | 0 |
 
 > **Line coverage is correctly merged** across the two runs (`ci/post-coverage-status.py` ORs line hits
 > across every `coverage.cobertura.xml`): in the prior full run the elevated tier lifted the non-admin
 > baseline 41.45% → **44.24%** by covering the genuinely-privileged code (`MftVolume.Open` raw scan in
-> `TryFindGitRepositoriesUsingMft`, `RunElevatedMftScan`). This session raised the **non-admin baseline to
-> 42.35%** (copy-icon VM paths + a real-`IClipboard` headless test for `AvaloniaClipboardService`); a fresh
-> self-elevating run would merge to ~45%, but the elevated tier wasn't re-run (unchanged privileged code).
+> `TryFindGitRepositoriesUsingMft`, `RunElevatedMftScan`). This PR raised the **non-admin line baseline
+> 49.56% → 53.06%** (Debug, measured against `main` @ `ed21997` in the same config) by salvaging genuine
+> API / repository / `MainViewModel` / `GitWizardSummary` coverage from PR #57; a fresh self-elevating run
+> would merge higher, but the elevated tier wasn't re-run (unchanged privileged code).
 >
 > **Branch coverage is NOT reliably merged by that script** — it averages each report's root `branch-rate`
 > (the script's own docstring flags this as an approximation for the multi-report case). With the full run
@@ -45,6 +46,7 @@ The linter rollout drove every configured analyzer/inspection to **zero** and ba
 | jb inspectcode (deep ReSharper) | **0** | `jb inspectcode … --severity=WARNING` gated by `ci/parse-jb-report.py` (CI Windows job). |
 | aislop (AI-slop) | thin live gate (PR #54) | `.gitea/workflows/aislop.yml` runs `aislop ci` (failBelow 80); scores ~91 on the Python `ci/` files — aislop does not analyze C# yet, so it contributes nothing until aislop's C# engine ships. |
 
+- **This PR's added tests (2026-05-31) pass all three gates with 0 new findings** — the build's analyzer/naming gate caught a real CA1725 (handler override param names had to match `IUpdateHandler`'s `gitWizardRepository`) and an RCS1139 (a `<param>` doc comment needed a `<summary>`); both fixed, then `dotnet format --verify-no-changes` and `jb inspectcode` (0 findings) re-verified clean.
 - Went **364 Roslyn warnings → 0** and **20 jb findings → 0**. Naming modernized to idiomatic .NET (dropped Unity-style `k_`/`s_` prefixes → PascalCase; `_camelCase` instance fields); the local + solution ReSharper naming config was aligned so `InconsistentNaming` stays active.
 - **Naming-convergence conformance (2026-05-29):** adopted the canonical fleet `.editorconfig` (source of truth `~/.claude/notes/idioms_csharp_naming.md`) as the **authoritative naming gate**: charset utf-8-bom → **utf-8** (BOM stripped from all 51 `.cs` via `dotnet format`), and the naming ruleset promoted from `suggestion` to `warning` so `EnforceCodeStyleInBuild` + `TreatWarningsAsErrors` makes IDE1006 a **build error** (covers const/static-readonly→PascalCase and all private/internal fields→`_camelCase`). The MSBuild `-warnaserror` build stayed at **0** git-wizard findings — the code already conformed, so no hand-renames were needed; this validated the canonical editorconfig's naming-rule *order* (const/static-readonly before the general private-field rule) against a real build. jb's prior 0 carries forward (it binds to the global ReSharper config, not `.editorconfig`, and the only code change was BOM stripping).
 - **Per-case code suppressions: 0.** Test-project scope-offs in `.editorconfig`: `CA1707` (NUnit `Method_Scenario_Expected` underscores) and `CA1861` (constant-array-arg perf) — both irrelevant to test code; all other rules still apply to tests.

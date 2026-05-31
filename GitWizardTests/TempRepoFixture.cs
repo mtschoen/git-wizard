@@ -23,18 +23,30 @@ internal sealed class TempRepoFixture : IDisposable
         Path = path;
     }
 
-    public static TempRepoFixture CreateWithInitialCommit()
+    /// <summary>
+    /// Create a throwaway repository with a single initial commit (a staged README.md).
+    /// </summary>
+    /// <param name="commitTime">
+    /// Optional author/committer timestamp for the initial commit. Pass a past value to model a
+    /// stale repository (e.g. <c>DateTimeOffset.Now.AddDays(-60)</c>) without poking the
+    /// computed <c>DaysSinceLastCommit</c> via reflection. Defaults to "now".
+    /// </param>
+    public static TempRepoFixture CreateWithInitialCommit(DateTimeOffset? commitTime = null)
     {
         var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gw-test-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(path);
         Repository.Init(path);
+
+        var signature = commitTime is { } when
+            ? new Signature("Test", "test@example.com", when)
+            : Author;
 
         using (var repository = new Repository(path))
         {
             var readmePath = System.IO.Path.Combine(path, "README.md");
             File.WriteAllText(readmePath, "initial");
             Commands.Stage(repository, "README.md");
-            repository.Commit("initial", Author, Author);
+            repository.Commit("initial", signature, signature);
         }
 
         return new TempRepoFixture(path);

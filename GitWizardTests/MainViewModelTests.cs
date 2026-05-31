@@ -219,6 +219,183 @@ public class MainViewModelTests
         Assert.That(node.JustCopied, Is.False, "A failed clipboard write must not light the copied indicator.");
     }
 
+    static MainViewModel CreateViewModel() =>
+        new(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+
+    [Test]
+    public void Commands_AreAllWired()
+    {
+        var vm = CreateViewModel();
+
+        Assert.That(vm.OpenInExplorerCommand, Is.Not.Null);
+        Assert.That(vm.OpenInForkCommand, Is.Not.Null);
+        Assert.That(vm.CopyToClipboardCommand, Is.Not.Null);
+        Assert.That(vm.DeepRefreshCommand, Is.Not.Null);
+        Assert.That(vm.CheckoutMatchingBranchCommand, Is.Not.Null);
+        Assert.That(vm.RefreshCommand, Is.Not.Null);
+        Assert.That(vm.FetchAndRefreshCommand, Is.Not.Null);
+        Assert.That(vm.CleanDownstreamCommand, Is.Not.Null);
+    }
+
+    [Test]
+    public void CopyToClipboard_DoesNothing_ForNodeWithoutWorkingDirectory()
+    {
+        var clipboard = new StubClipboardService();
+        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), clipboard);
+        var node = new RepositoryNodeViewModel(new GitWizardRepository(""));
+
+        vm.CopyToClipboardCommand.Execute(node);
+
+        Assert.That(clipboard.Writes, Is.Empty);
+    }
+
+    [Test]
+    public void CanRefresh_IsFalse_WhileRefreshing()
+    {
+        var vm = CreateViewModel();
+        Assert.That(vm.CanRefresh, Is.True);
+
+        vm.IsRefreshing = true;
+
+        Assert.That(vm.CanRefresh, Is.False);
+    }
+
+    [Test]
+    public void Repositories_StartEmpty()
+    {
+        var vm = CreateViewModel();
+        Assert.That(vm.Repositories, Is.Empty);
+    }
+
+    [Test]
+    public void AfterRepositoriesSwap_InvokesTheAssignedAction()
+    {
+        var vm = CreateViewModel();
+        var invoked = false;
+        vm.AfterRepositoriesSwap = () => invoked = true;
+
+        vm.AfterRepositoriesSwap!();
+
+        Assert.That(invoked, Is.True);
+    }
+
+    [Test]
+    public void SendUpdateMessage_UpdatesHeaderText()
+    {
+        var vm = CreateViewModel();
+
+        vm.SendUpdateMessage("Scanning...");
+
+        Assert.That(vm.HeaderText, Is.EqualTo("Scanning..."));
+    }
+
+    [Test]
+    public void SendUpdateMessage_Null_LeavesHeaderTextUnchanged()
+    {
+        var vm = CreateViewModel();
+        vm.SendUpdateMessage("original");
+
+        vm.SendUpdateMessage(null);
+
+        Assert.That(vm.HeaderText, Is.EqualTo("original"));
+    }
+
+    [Test]
+    public void StartProgress_MakesProgressVisible()
+    {
+        var vm = CreateViewModel();
+
+        vm.StartProgress("scanning", 10);
+
+        Assert.That(vm.IsProgressVisible, Is.True);
+        Assert.That(vm.ProgressText, Does.Contain("scanning"));
+    }
+
+    [Test]
+    public void ApplyFilter_UnknownButton_LeavesFilterNone()
+    {
+        var vm = CreateViewModel();
+
+        vm.ApplyFilter("NotARealButton");
+
+        Assert.That(vm.ActiveFilter, Is.EqualTo(FilterType.None));
+    }
+
+    [Test]
+    public void ApplyGroup_UnknownButton_LeavesGroupNone()
+    {
+        var vm = CreateViewModel();
+
+        vm.ApplyGroup("NotARealButton");
+
+        Assert.That(vm.ActiveGroupMode, Is.EqualTo(GroupMode.None));
+    }
+
+    [Test]
+    public void ApplySort_UnknownButton_FallsBackToWorkingDirectory()
+    {
+        var vm = CreateViewModel();
+
+        vm.ApplySort("NotARealButton");
+
+        Assert.That(vm.ActiveSortMode, Is.EqualTo(SortMode.WorkingDirectory));
+    }
+
+    [Test]
+    public void ApplyFilter_MapsEveryButtonNameToItsFilterType()
+    {
+        var vm = CreateViewModel();
+        var cases = new (string Button, FilterType Expected)[]
+        {
+            ("FilterPendingChanges", FilterType.PendingChanges),
+            ("FilterSubmoduleCheckout", FilterType.SubmoduleCheckout),
+            ("FilterSubmoduleUninitialized", FilterType.SubmoduleUninitialized),
+            ("FilterSubmoduleConfigIssue", FilterType.SubmoduleConfigIssue),
+            ("FilterDetachedHead", FilterType.DetachedHead),
+            ("FilterMyRepositories", FilterType.MyRepositories),
+            ("FilterLocalOnlyCommits", FilterType.LocalOnlyCommits),
+            ("FilterStale", FilterType.Stale),
+            ("FilterDownstreamBranches", FilterType.DownstreamBranches),
+        };
+
+        foreach (var (button, expected) in cases)
+        {
+            // Each button differs from the previously active filter, so ToggleFilter sets (never clears) it.
+            vm.ApplyFilter(button);
+            Assert.That(vm.ActiveFilter, Is.EqualTo(expected), $"button {button}");
+        }
+    }
+
+    [Test]
+    public void ApplyGroup_MapsEveryButtonNameToItsGroupMode()
+    {
+        var vm = CreateViewModel();
+
+        vm.ApplyGroup("GroupByDrive");
+        Assert.That(vm.ActiveGroupMode, Is.EqualTo(GroupMode.Drive));
+
+        vm.ApplyGroup("GroupByRemoteUrl");
+        Assert.That(vm.ActiveGroupMode, Is.EqualTo(GroupMode.RemoteUrl));
+    }
+
+    [Test]
+    public void ApplySort_MapsEveryButtonNameToItsSortMode()
+    {
+        var vm = CreateViewModel();
+
+        vm.ApplySort("SortByRecentlyUsed");
+        Assert.That(vm.ActiveSortMode, Is.EqualTo(SortMode.RecentlyUsed));
+
+        vm.ApplySort("SortByRemoteUrl");
+        Assert.That(vm.ActiveSortMode, Is.EqualTo(SortMode.RemoteUrl));
+
+        vm.ApplySort("SortBySizeOnDisk");
+        Assert.That(vm.ActiveSortMode, Is.EqualTo(SortMode.SizeOnDisk));
+
+        vm.ApplySort("SortByWorkingDirectory");
+        Assert.That(vm.ActiveSortMode, Is.EqualTo(SortMode.WorkingDirectory));
+    }
+
     sealed class ThrowingClipboardService : IClipboardService
     {
         public Task SetPlainTextAsync(string text) => throw new InvalidOperationException("clipboard unavailable");

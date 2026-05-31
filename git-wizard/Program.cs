@@ -380,7 +380,6 @@ git-wizard Session Started
             return;
         }
 
-        // Process any queued commands
         GitWizardLog.Log("Processing queued commands...");
         updateHandler.ProcessCommands();
         updateHandler.PrintSummary();

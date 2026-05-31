@@ -83,7 +83,7 @@ public class RelayCommandTests
     public void ExecuteParameterized_CanExecute_WithTypeMismatch_DoesNotThrow()
     {
         var command = new RelayCommand<string>(_ => { });
-        // Passing non-string parameter should use default! without throwing
+        // A non-string parameter no longer matches T, so CanExecute returns true (no predicate) without throwing
         Assert.DoesNotThrow(() => command.CanExecute(42));
     }
 

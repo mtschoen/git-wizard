@@ -398,7 +398,6 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
                 message + "\n\nClick OK to proceed with deletion.",
                 "Delete");
 
-            // Run git branch -d for each downstream branch
             var workingDir = node.WorkingDirectory;
             if (string.IsNullOrEmpty(workingDir) || !Directory.Exists(workingDir))
             {
@@ -726,7 +725,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
 
         // Swap the collection on the UI thread. The view hooks snapshot/restore the ListBox
         // ScrollViewer offset (whose getter enforces UI-thread affinity), and RefreshAsync reaches
-        // this method on a thread-pool thread via its ConfigureAwait(false) continuation — so an
+        // this method on a thread-pool thread via its ConfigureAwait(false) continuation - so an
         // inline swap there throws "Call from invalid thread". The build above stays off-thread;
         // only the swap is marshaled, preserving the off-screen-build perf intent.
         void SwapInRepositories()
@@ -792,7 +791,6 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
             if (string.IsNullOrEmpty(path))
                 return new List<string> { "(unknown)" };
 
-            // Extract drive letter or root path
             var root = Path.GetPathRoot(path);
             return new List<string> { string.IsNullOrEmpty(root) ? "(unknown)" : root };
         }
@@ -895,7 +893,6 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
             }
             else
             {
-                // Create new group header
                 header = RepositoryNodeViewModel.CreateGroupHeader(key);
                 header.Children.Add(node);
                 header.UpdateDisplayText();

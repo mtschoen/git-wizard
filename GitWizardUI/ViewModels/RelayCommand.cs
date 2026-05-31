@@ -45,9 +45,13 @@ public sealed class RelayCommand<T> : ICommand
 
     public event EventHandler? CanExecuteChanged;
 
-    public bool CanExecute(object? parameter) => _canExecute?.Invoke(parameter is T t ? t : default!) ?? true;
+    public bool CanExecute(object? parameter) => _canExecute is null || (parameter is T t && _canExecute(t));
 
-    public void Execute(object? parameter) => _execute(parameter is T t ? t : default!);
+    public void Execute(object? parameter)
+    {
+        if (parameter is T t)
+            _execute(t);
+    }
 
     public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
 }
@@ -103,9 +107,13 @@ public sealed class AsyncRelayCommand<T> : ICommand
 
     public event EventHandler? CanExecuteChanged;
 
-    public bool CanExecute(object? parameter) => _canExecute?.Invoke(parameter is T t ? t : default!) ?? true;
+    public bool CanExecute(object? parameter) => _canExecute is null || (parameter is T t && _canExecute(t));
 
-    public void Execute(object? parameter) => _ = ExecuteAsync(parameter is T t ? t : default!);
+    public void Execute(object? parameter)
+    {
+        if (parameter is T t)
+            _ = ExecuteAsync(t);
+    }
 
     public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
 

@@ -18,6 +18,7 @@ an `if: always()` step does not double-fail the job; but when --gate-line is
 set, an unreadable report is treated as a gate failure (exit 1). A POST/network
 failure DOES raise.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -54,7 +55,9 @@ def _percent_from_cobertura(patterns: list[str]) -> float:
             filename = class_node.get("filename", "")
             for line_node in class_node.iter("line"):
                 key = (filename, line_node.get("number", ""))
-                lines[key] = lines.get(key, False) or int(line_node.get("hits", "0")) > 0
+                lines[key] = (
+                    lines.get(key, False) or int(line_node.get("hits", "0")) > 0
+                )
     if not lines:
         raise ValueError("no source lines in Cobertura XML")
     return 100.0 * sum(1 for covered in lines.values() if covered) / len(lines)
@@ -90,12 +93,14 @@ def _post(state: str, description: str) -> None:
     repository = os.environ["GITHUB_REPOSITORY"]
     sha = os.environ["GITHUB_SHA"]
     run_id = os.environ.get("GITHUB_RUN_ID", "")
-    body = json.dumps({
-        "context": "pr-crew/coverage",
-        "state": state,
-        "description": description,
-        "target_url": f"{server}/{repository}/actions/runs/{run_id}",
-    }).encode()
+    body = json.dumps(
+        {
+            "context": "pr-crew/coverage",
+            "state": state,
+            "description": description,
+            "target_url": f"{server}/{repository}/actions/runs/{run_id}",
+        }
+    ).encode()
     request = urllib.request.Request(
         f"{server}/api/v1/repos/{repository}/statuses/{sha}",
         data=body,
@@ -115,12 +120,22 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--coverage-json", default="coverage.json")
     parser.add_argument("--cobertura", nargs="+")
-    parser.add_argument("--gate-line", type=float, default=None,
-                        help="fail (exit 1) when line coverage is below this percent")
-    parser.add_argument("--summary", action="store_true",
-                        help="write a line/branch coverage table to $GITHUB_STEP_SUMMARY")
-    parser.add_argument("--skip-post", action="store_true",
-                        help="do not POST the commit status (e.g. for the dedicated gate step)")
+    parser.add_argument(
+        "--gate-line",
+        type=float,
+        default=None,
+        help="fail (exit 1) when line coverage is below this percent",
+    )
+    parser.add_argument(
+        "--summary",
+        action="store_true",
+        help="write a line/branch coverage table to $GITHUB_STEP_SUMMARY",
+    )
+    parser.add_argument(
+        "--skip-post",
+        action="store_true",
+        help="do not POST the commit status (e.g. for the dedicated gate step)",
+    )
     arguments = parser.parse_args(argv[1:])
 
     try:
@@ -143,16 +158,23 @@ def main(argv: list[str]) -> int:
         print(f"posted pr-crew/coverage success: {percent}% line coverage")
 
     if arguments.summary:
-        branch_percent = round(_branch_percent_from_cobertura(arguments.cobertura), 2) \
-            if arguments.cobertura else 0.0
+        branch_percent = (
+            round(_branch_percent_from_cobertura(arguments.cobertura), 2)
+            if arguments.cobertura
+            else 0.0
+        )
         _write_summary(percent, branch_percent)
 
     if arguments.gate_line is not None:
         if percent < arguments.gate_line:
-            print(f"coverage gate FAILED: {percent}% line < {arguments.gate_line}% threshold",
-                  file=sys.stderr)
+            print(
+                f"coverage gate FAILED: {percent}% line < {arguments.gate_line}% threshold",
+                file=sys.stderr,
+            )
             return 1
-        print(f"coverage gate passed: {percent}% line >= {arguments.gate_line}% threshold")
+        print(
+            f"coverage gate passed: {percent}% line >= {arguments.gate_line}% threshold"
+        )
 
     return 0
 

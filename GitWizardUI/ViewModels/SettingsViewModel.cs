@@ -73,7 +73,6 @@ public class SettingsViewModel : INotifyPropertyChanged
         _folderPicker = folderPicker;
         _configuration = GitWizardConfiguration.GetGlobalConfiguration();
 
-        // Load current configuration
         foreach (var path in _configuration.SearchPaths)
             SearchPaths.Add(path);
 

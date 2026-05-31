@@ -8,6 +8,7 @@ allowed maximum. The lint gate's bar is zero, so --max defaults to 0.
 Usage:
     python3 ci/parse-jb-report.py <report.xml> [--max N]
 """
+
 import argparse
 import collections
 import json
@@ -17,8 +18,12 @@ import sys
 def main() -> int:
     parser = argparse.ArgumentParser(description="Gate CI on jb inspectcode findings.")
     parser.add_argument("report", help="Path to the jb inspectcode SARIF report.")
-    parser.add_argument("--max", type=int, default=0,
-                        help="Maximum allowed findings before failing (default: 0).")
+    parser.add_argument(
+        "--max",
+        type=int,
+        default=0,
+        help="Maximum allowed findings before failing (default: 0).",
+    )
     arguments = parser.parse_args()
 
     try:
@@ -39,12 +44,15 @@ def main() -> int:
                 continue
             location = result["locations"][0]["physicalLocation"]
             uri = location["artifactLocation"]["uri"]
-            line = location.get("region", {}).get("startLine", "?")
+            region = location.get("region")
+            line = region.get("startLine", "?") if region else "?"
             print(f"          {uri}:{line}")
 
     if len(results) > arguments.max:
-        print(f"::error::jb inspectcode reported {len(results)} finding(s); "
-              f"the gate allows at most {arguments.max}.")
+        print(
+            f"::error::jb inspectcode reported {len(results)} finding(s); "
+            f"the gate allows at most {arguments.max}."
+        )
         return 1
 
     print(f"jb inspectcode gate passed ({len(results)} <= {arguments.max}).")

@@ -1,11 +1,11 @@
 # Test & Coverage Report — git-wizard
 
-**Status:** PASS — 340 non-admin tests pass (+~30 salvaged/reworked from PR #57), **0 lint findings** (build + `dotnet format` + jb inspectcode all re-verified clean this session).
-**Mode:** coverage = close-the-gap (raising coverage from the PR #57 salvage is the task); lint = maintain (held the gate at 0 — the added tests pass analyzers/format/jb).
-**Branch:** `tests/coverage-from-pr57` (genuine coverage cherry-picked + reworked from the pr-crew dump in PR #57; **test-only, no production changes**; off `main` @ `ed21997`)
-**Last measured:** 2026-05-31, Windows, `Debug`, non-admin tier (vendored MFTLib → plain `dotnet build`/`dotnet test`). Baseline re-measured on `main` @ `ed21997` in the same config for an honest delta. The elevated `RequiresAdmin` tier was **not** re-run — its privileged MFT/elevation code is unchanged, so its contribution is carried forward.
-**Command:** `dotnet build git-wizard.slnx` (analyzer gate) · `dotnet format git-wizard.slnx --verify-no-changes` · `jb inspectcode … | ci/parse-jb-report.py` · `scripts/run-coverage.ps1 -Configuration Debug -NoBuild -NonInteractive`.
-**Git:** `ed21997` + this branch's test-only additions (~30 tests)
+**Status:** PASS — 341 non-admin tests pass, **0 build/analyzer findings** (analyzer gate + `dotnet format` + jb inspectcode clean). aislop C# gate score raised **13 → 45** by clearing all 8 error-level findings (swallowed-exception) + the async findings.
+**Mode:** coverage = best-effort (the task is the aislop C# cleanup + refactor, not a coverage push — baseline held within 0.07%); lint/analyzers = maintain (build gate held at 0); aislop = close-the-gap (driving the C# findings down toward a real `failBelow`).
+**Branch:** `chore/aislop-csharp-cleanup` (off `main`) — aislop C# triage: swallowed-exception → logged, AsyncFixer01/02 → fixed, null-forgiving → restructured to remove `!`.
+**Last measured:** 2026-05-31, Windows, `Debug`, non-admin tier (vendored MFTLib → plain `dotnet build`/`dotnet test`). Elevated `RequiresAdmin` tier not re-run (unchanged privileged code, carried forward).
+**Command:** `dotnet build git-wizard.slnx` (analyzer gate) · `dotnet test git-wizard.slnx` · `aislop ci .` (C# AI-slop gate) · `scripts/run-coverage.ps1 -Configuration Debug -NoBuild -NonInteractive`.
+**Git:** `chore/aislop-csharp-cleanup`
 
 ## Results
 
@@ -15,8 +15,8 @@
 | Tests passed (`RequiresAdmin` tier, elevated) | 2 (carried forward — not re-run this session) |
 | Failed | 0 |
 | Skipped on Windows (Unix-only + non-Windows MFT guard) | 2 |
-| **Line coverage (non-admin, `Debug`)** | **53.06%** (was 49.56% on `main` @ `ed21997`, same config this session — **+3.50**) |
-| **Branch coverage (non-admin, `Debug`)** | **48.05%** (was 42.48% — **+5.57**) |
+| **Line coverage (non-admin, `Debug`)** | **52.99%** (was 53.06% on `main`; **-0.07** — added log lines in hard-to-test recursive-IO/Process error catches; far above the 45% CI gate) |
+| **Branch coverage (non-admin, `Debug`)** | **48.13%** (was 48.05%; **+0.08**) |
 | Line coverage (merged: non-admin + elevated, prior full run) | 44.24% (carried forward — re-run self-elevating for a fresh merge) |
 | `[ExcludeFromCodeCoverage]` annotations | 0 |
 
@@ -44,7 +44,7 @@ The linter rollout drove every configured analyzer/inspection to **zero** and ba
 | Roslyn analyzers (CA*/IDE*) + Roslynator 4.15.0 | **0** | `Directory.Build.props`: `EnableNETAnalyzers`, `AnalysisLevel=latest-Recommended`, `EnforceCodeStyleInBuild`, `TreatWarningsAsErrors` → the Release build **is** the gate. |
 | `dotnet format` (`.editorconfig`) | **0** | `dotnet format git-wizard.slnx --verify-no-changes` (CI Linux job) + an on-save PostToolUse hook (local, `.claude/`). |
 | jb inspectcode (deep ReSharper) | **0** | `jb inspectcode … --severity=WARNING` gated by `ci/parse-jb-report.py` (CI Windows job). |
-| aislop (AI-slop) | thin live gate (PR #54) | `.gitea/workflows/aislop.yml` runs `aislop ci` (failBelow 80); scores ~91 on the Python `ci/` files — aislop does not analyze C# yet, so it contributes nothing until aislop's C# engine ships. |
+| aislop (AI-slop, C#-enabled fork) | score 45 (in progress) | `.gitea/workflows/aislop.yml` runs `aislop ci` against `.aislop/config.yml` (now csharp.yml shape, `maxFileLoc: 400`, `failBelow: 60`). The C#-enabled fork analyzes the `.cs` code: this branch cleared all error-level findings (13 → 45); remaining are 8 complexity warnings (file/function-too-large — refactor pending), comment/todo warnings, and 4 accepted idiomatic `csharp-null-forgiving` in RelayCommand. `failBelow` to be raised once the refactor lands. |
 
 - **This PR's added tests (2026-05-31) pass all three gates with 0 new findings** — the build's analyzer/naming gate caught a real CA1725 (handler override param names had to match `IUpdateHandler`'s `gitWizardRepository`) and an RCS1139 (a `<param>` doc comment needed a `<summary>`); both fixed, then `dotnet format --verify-no-changes` and `jb inspectcode` (0 findings) re-verified clean.
 - Went **364 Roslyn warnings → 0** and **20 jb findings → 0**. Naming modernized to idiomatic .NET (dropped Unity-style `k_`/`s_` prefixes → PascalCase; `_camelCase` instance fields); the local + solution ReSharper naming config was aligned so `InconsistentNaming` stays active.

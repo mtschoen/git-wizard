@@ -260,7 +260,7 @@ public class GitWizardReportAdditionalTests
     public async Task GetCachedReportAsync_InvalidJson_ReturnsNull()
     {
         var jsonPath = GitWizardReport.GetCachedReportPath();
-        File.WriteAllText(jsonPath, "not valid json");
+        await File.WriteAllTextAsync(jsonPath, "not valid json");
 
         TestUtilities.ResetStaticCaches();
         var report = await GitWizardReport.GetCachedReportAsync();

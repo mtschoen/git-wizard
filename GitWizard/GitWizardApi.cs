@@ -390,9 +390,10 @@ public static class GitWizardApi
 
                     FindGitRepositoriesRecursively(normalizedSubDirectory, paths, ignoredPaths, includeGitFiles, updateHandler);
                 }
-                catch
+                catch (Exception exception)
                 {
-                    // Ignore per-directory exceptions (access denied, etc.)
+                    // Ignore per-directory exceptions (access denied, etc.) and continue the walk.
+                    GitWizardLog.Log($"Skipping directory during scan: {exception.Message}", GitWizardLog.LogType.Verbose);
                 }
             });
         }
@@ -477,12 +478,12 @@ public static class GitWizardApi
             .Split(LineSeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
 
-    public static async Task SaveCachedRepositoryPathsAsync(IEnumerable<string> paths, CancellationToken cancellationToken = default)
+    public static Task SaveCachedRepositoryPathsAsync(IEnumerable<string> paths, CancellationToken cancellationToken = default)
     {
         EnsureLocalFolderExists();
         var path = GetCachedRepositoryListPath();
         var content = string.Join(Environment.NewLine, paths);
-        await File.WriteAllTextAsync(path, content, cancellationToken).ConfigureAwait(false);
+        return File.WriteAllTextAsync(path, content, cancellationToken);
     }
 
     public static void SaveCachedRepositoryPaths(IEnumerable<string> paths)
@@ -526,13 +527,15 @@ public static class GitWizardApi
                 totalSize += GetDirectorySize(subDir.FullName);
             }
         }
-        catch (UnauthorizedAccessException)
+        catch (UnauthorizedAccessException exception)
         {
-            // Directory or file access denied — skip it and continue counting
+            // Directory or file access denied: skip it and continue counting.
+            GitWizardLog.Log($"GetDirectorySize: skipping inaccessible path: {exception.Message}", GitWizardLog.LogType.Verbose);
         }
-        catch (IOException)
+        catch (IOException exception)
         {
-            // I/O error reading directory — skip it and continue counting
+            // I/O error reading directory: skip it and continue counting.
+            GitWizardLog.Log($"GetDirectorySize: I/O error, skipping: {exception.Message}", GitWizardLog.LogType.Verbose);
         }
 
         return totalSize;

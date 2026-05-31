@@ -1,9 +1,53 @@
-# aislop quality gate config — https://github.com/scanaislop/aislop
+# aislop quality gate config - https://github.com/scanaislop/aislop
 #
 # `aislop ci` produces a whole-repo score (0-100); the Gitea Actions gate
 # (.gitea/workflows/aislop.yml) fails the build when the score is below
-# failBelow. git-wizard is mostly C# — which aislop does not analyze — so the
-# score reflects the Python tooling under ci/. Current score: 91. Starting the
-# gate at 80 to catch real regressions with a little headroom; raise over time.
+# failBelow. aislop now analyzes the C# code (via the C#-enabled fork), not
+# just the Python tooling under ci/, so this config follows the conventional
+# C# baseline (examples/csharp.yml from the fork).
+#
+# quality.maxFileLoc is held at aislop's default 400 (NOT the example's 500):
+# we conform to the widely-accepted default rather than git-wizard's looser
+# CLAUDE.md soft guideline. Oversized files are treated as real findings.
+#
+# Known accepted warnings (intentionally NOT muted, kept visible):
+#   - ai-slop/csharp-null-forgiving x4 in GitWizardUI/ViewModels/RelayCommand.cs
+#     are the idiomatic `parameter is T t ? t : default!` generic-ICommand
+#     boilerplate. The high-recall rule over-catches this by design; restructuring
+#     risks changing command semantics, so they remain as low-weight warnings.
+
+version: 1
+
+engines:
+  format: true
+  lint: true
+  code-quality: true
+  ai-slop: true
+  architecture: false
+  security: true
+
+quality:
+  maxFunctionLoc: 80
+  maxFileLoc: 400
+  maxNesting: 5
+  maxParams: 6
+
+security:
+  audit: false
+  auditTimeout: 30000
+
+scoring:
+  weights:
+    format: 0.5
+    lint: 1.0
+    code-quality: 1.5
+    ai-slop: 1.0
+    architecture: 1.0
+    security: 2.5
+  thresholds:
+    good: 75
+    ok: 50
+
 ci:
-  failBelow: 80
+  failBelow: 60
+  format: json

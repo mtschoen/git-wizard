@@ -364,11 +364,12 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         if (string.IsNullOrEmpty(node.MatchingBranchName))
             return;
 
+        var branchName = node.MatchingBranchName;
         Task.Run(() =>
         {
             try
             {
-                node.Repository.CheckoutBranch(node.MatchingBranchName!);
+                node.Repository.CheckoutBranch(branchName);
                 _ui.Post(() => node.Update());
             }
             catch (Exception ex)
@@ -434,7 +435,7 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
                         }
                         else if (process.ExitCode != 0)
                         {
-                            var error = process.StandardError.ReadToEnd();
+                            var error = await process.StandardError.ReadToEndAsync();
                             if (!string.IsNullOrEmpty(error) && !error.Contains("not fully merged"))
                             {
                                 GitWizardLog.Log($"git branch -d {branch.Name}: {error}", GitWizardLog.LogType.Warning);
@@ -667,16 +668,16 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         _ => SortMode.WorkingDirectory,
     });
 
-    public async Task ClearCacheAsync()
+    public Task ClearCacheAsync()
     {
         GitWizardApi.ClearCache();
-        await _dialogs.DisplayAlertAsync("Cache Cleared", "Repository cache has been cleared");
+        return _dialogs.DisplayAlertAsync("Cache Cleared", "Repository cache has been cleared");
     }
 
-    public async Task DeleteAllLocalFilesAsync()
+    public Task DeleteAllLocalFilesAsync()
     {
         GitWizardApi.DeleteAllLocalFiles();
-        await _dialogs.DisplayAlertAsync("Files Deleted", "All local files have been deleted");
+        return _dialogs.DisplayAlertAsync("Files Deleted", "All local files have been deleted");
     }
 
     void ApplyFilterAndGrouping()
@@ -1081,9 +1082,10 @@ public class MainViewModel : INotifyPropertyChanged, IUpdateHandler
                     GlobalUserEmail = (await process.StandardOutput.ReadToEndAsync()).Trim();
                 }
             }
-            catch
+            catch (Exception exception)
             {
-                // Ignore — filter will just not match anything
+                // Could not read global git user.email; the email filter just will not match.
+                GitWizardLog.Log($"Could not read global git user.email: {exception.Message}", GitWizardLog.LogType.Verbose);
             }
         }
         Repositories.Clear();

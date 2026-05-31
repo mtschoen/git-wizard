@@ -172,7 +172,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
-    public async Task SaveAsync()
+    public Task SaveAsync()
     {
         _configuration.SearchPaths.Clear();
         foreach (var path in SearchPaths)
@@ -182,7 +182,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         foreach (var path in IgnoredPaths)
             _configuration.IgnoredPaths.Add(path);
 
-        await GitWizardConfiguration.SaveGlobalConfigurationAsync(_configuration).ConfigureAwait(false);
+        return GitWizardConfiguration.SaveGlobalConfigurationAsync(_configuration);
     }
 
     public void Save()
@@ -205,9 +205,9 @@ public class SettingsViewModel : INotifyPropertyChanged
         Save();
     }
 
-    private async Task SaveImmediateAsync()
+    private Task SaveImmediateAsync()
     {
-        await SaveAsync().ConfigureAwait(false);
+        return SaveAsync();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

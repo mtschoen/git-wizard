@@ -401,9 +401,9 @@ public class GitWizardRepository
                     info.Status = SubmoduleHealthStatus.MissingFromGitmodules;
                     info.Issues.Add($"'{path}' is recorded in the index but missing from .gitmodules");
                 }
-                else
+                else if (!string.IsNullOrEmpty(name))
                 {
-                    EvaluateCheckedOutSubmodule(repository, name!, path, info);
+                    EvaluateCheckedOutSubmodule(repository, name, path, info);
                 }
 
                 if (info.Status != SubmoduleHealthStatus.Healthy)
@@ -440,7 +440,7 @@ public class GitWizardRepository
         {
             info.Status = SubmoduleHealthStatus.WrongRef;
             info.Issues.Add(
-                $"'{path}' is checked out at {Shorten(info.ActualCommitSha)} but the superproject expects {Shorten(info.ExpectedCommitSha!)}");
+                $"'{path}' is checked out at {Shorten(info.ActualCommitSha)} but the superproject expects {Shorten(indexCommit.Sha)}");
         }
     }
 
@@ -670,9 +670,10 @@ public class GitWizardRepository
         Branches = null;
         var defaultBranch = ResolveDefaultBranch(repository);
         DefaultBranch = defaultBranch?.FriendlyName;
-        var defaultTip = defaultBranch?.Tip;
-        if (defaultTip == null)
+        if (defaultBranch?.Tip == null)
             return;
+
+        var defaultTip = defaultBranch.Tip;
 
         var collected = new List<BranchInfo>();
         foreach (var branch in repository.Branches)
@@ -686,7 +687,7 @@ public class GitWizardRepository
                 var ahead = divergence.AheadBy ?? 0;
                 var behind = divergence.BehindBy ?? 0;
                 var isMerged = ahead == 0;
-                var isDefault = branch.FriendlyName == defaultBranch!.FriendlyName;
+                var isDefault = branch.FriendlyName == defaultBranch.FriendlyName;
 
                 // "Boring": the default branch itself, or a branch identical to it.
                 var boring = isDefault || (ahead == 0 && behind == 0);
@@ -793,13 +794,15 @@ public class GitWizardRepository
                 totalSize += file.Length;
             }
         }
-        catch (UnauthorizedAccessException)
+        catch (UnauthorizedAccessException exception)
         {
-            // Some directories may not be accessible (e.g., $Recycle.Bin, System Volume Information)
+            // Some directories may not be accessible (e.g., $Recycle.Bin, System Volume Information).
+            GitWizardLog.Log($"ComputeDirectorySize: skipping inaccessible path: {exception.Message}", GitWizardLog.LogType.Verbose);
         }
-        catch (IOException)
+        catch (IOException exception)
         {
-            // Handle potential I/O errors on corrupted or networked filesystems
+            // Potential I/O errors on corrupted or networked filesystems; skip and continue.
+            GitWizardLog.Log($"ComputeDirectorySize: I/O error, skipping: {exception.Message}", GitWizardLog.LogType.Verbose);
         }
         catch (Exception exception)
         {

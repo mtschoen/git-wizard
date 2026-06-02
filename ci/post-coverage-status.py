@@ -88,6 +88,29 @@ def _write_summary(line_percent: float, branch_percent: float) -> None:
         handle.write(f"| Branch | {branch_percent}% |\n")
 
 
+def _ssl_context() -> ssl.SSLContext:
+    """SSL context that VERIFIES Gitea's mkcert-signed cert (never disables it).
+
+    gitea.llamabox.internal serves a self-signed mkcert cert the runner image's
+    default roots don't trust. The runner container mounts the mkcert root CA and
+    exposes its path via CURL_CA_BUNDLE / NODE_EXTRA_CA_CERTS / GIT_SSL_CAINFO
+    (see local-ci runner config). We ADD that CA on top of the system roots, so
+    verification stays ON: public TLS (github, pypi) still verifies against the
+    Mozilla roots while Gitea verifies against the mkcert CA. No host-specific
+    path is hard-coded; the CA location comes from the runner's env. Outside that
+    container (no var set / file absent) we fall back to the plain default
+    context -- still verifying -- so a misconfigured host fails loudly rather
+    than silently skipping verification. (#33; replaces the old ssl.CERT_NONE.)
+    """
+    context = ssl.create_default_context()
+    for var in ("CURL_CA_BUNDLE", "NODE_EXTRA_CA_CERTS", "GIT_SSL_CAINFO"):
+        ca = os.environ.get(var)
+        if ca and os.path.exists(ca):
+            context.load_verify_locations(cafile=ca)
+            break
+    return context
+
+
 def _post(state: str, description: str) -> None:
     server = os.environ["GITHUB_SERVER_URL"]
     repository = os.environ["GITHUB_REPOSITORY"]
@@ -110,10 +133,7 @@ def _post(state: str, description: str) -> None:
             "Content-Type": "application/json",
         },
     )
-    context = ssl.create_default_context()
-    context.check_hostname = False
-    context.verify_mode = ssl.CERT_NONE  # Gitea uses a self-signed mkcert cert
-    urllib.request.urlopen(request, context=context).read()
+    urllib.request.urlopen(request, context=_ssl_context()).read()
 
 
 def main(argv: list[str]) -> int:

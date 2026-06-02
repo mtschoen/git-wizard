@@ -107,7 +107,9 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     env:
-      NODE_TLS_REJECT_UNAUTHORIZED: 0
+      # Node ignores the Windows cert store, so JS actions need the mkcert CA
+      # staged on the runner; keeps TLS verification ON (local-ci #33).
+      NODE_EXTRA_CA_CERTS: C:\actions-runner\mkcert-ca.pem
 
     steps:
       - name: Checkout

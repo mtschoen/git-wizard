@@ -116,6 +116,28 @@ public class GitWizardRepositoryTests
     }
 
     [Test]
+    public void Refresh_DoesNotCountPushedHistoryOnUntrackedBranch()
+    {
+        // Regression (phantom unpushed): an untracked local branch used to have
+        // its ENTIRE history counted as unpushed - including commits already on a
+        // remote - and the per-branch sum could exceed the repo's total commit
+        // count. Here mainline (3 commits) is fully pushed and one extra commit
+        // sits on an untracked feature branch, so exactly 1 commit is unpushed.
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AppendCommit("second.txt");
+        fixture.AppendCommit("third.txt");
+        fixture.AddOriginRemoteAndPush();
+        fixture.CommitOnNewBranch("feature/x", "feature.txt");
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        Assert.That(repository.LocalCommitCount, Is.EqualTo(1));
+        Assert.That(repository.LocalOnlyCommits, Is.True);
+    }
+
+    [Test]
     public void Refresh_FindsMatchingBranchWhenDetachedAtLocalBranchTip()
     {
         GitWizardLog.SilentMode = true;

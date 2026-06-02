@@ -70,6 +70,28 @@ internal sealed class TempRepoFixture : IDisposable
     }
 
     /// <summary>
+    /// Create a bare "origin" remote and push the current branch to it, setting
+    /// upstream tracking. After this the pushed commits live on
+    /// <c>refs/remotes/origin/&lt;branch&gt;</c> and are no longer local-only -
+    /// modelling the realistic case where mainline history is already on a remote.
+    /// </summary>
+    public void AddOriginRemoteAndPush()
+    {
+        var upstream = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gw-origin-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(upstream);
+        Repository.Init(upstream, isBare: true);
+        _extraCleanupDirs.Add(upstream);
+
+        string branch;
+        using (var repository = new Repository(Path))
+            branch = repository.Head.FriendlyName;
+
+        // git wants forward slashes in the remote URL, even on Windows.
+        RunGit(Path, "remote", "add", "origin", upstream.Replace('\\', '/'));
+        RunGit(Path, "push", "-u", "origin", branch);
+    }
+
+    /// <summary>
     /// Commit a <c>.gitmodules</c> entry pointing at <paramref name="path"/> WITHOUT
     /// adding a matching gitlink to the index. The superproject then declares a
     /// submodule that has no index entry — modelling the "declared in .gitmodules

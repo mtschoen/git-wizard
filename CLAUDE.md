@@ -99,7 +99,7 @@ Trigger the Gitea Actions workflow manually from the Actions tab or via API:
 curl -fsSL -X POST -H "Authorization: token $(cat ~/.gitea-token)" \
     -H "Content-Type: application/json" \
     -d '{"ref":"main"}' \
-    "https://gitea.llamabox.internal/api/v1/repos/schoen/git-wizard/actions/workflows/screenshot.yml/dispatches"
+    "https://gitea.llamabox.sticktoitive.net/api/v1/repos/schoen/git-wizard/actions/workflows/screenshot.yml/dispatches"
 ```
 
 The workflow runs on `windows-latest`, captures the screenshot using Avalonia headless rendering, and uploads `GitWizardUI.png` as a workflow artifact. Download the artifact and commit it to `Screenshots/`.
@@ -111,7 +111,7 @@ The workflow runs on `windows-latest`, captures the screenshot using Avalonia he
 3. Update screenshot: trigger CI workflow (see above) or run locally
 4. Commit version bump, screenshot, and all pending changes
 5. `git tag v0.x.y && git push origin main --tags`
-6. CI builds and publishes the release with all artifacts attached. Watch `https://gitea.llamabox.internal/schoen/git-wizard/actions`. The release workflow's `publish-cross` job asserts the tag matches the csproj `<Version>` and fails fast on drift.
+6. CI builds and publishes the release with all artifacts attached. Watch `https://gitea.llamabox.sticktoitive.net/schoen/git-wizard/actions`. The release workflow's `publish-cross` job asserts the tag matches the csproj `<Version>` and fails fast on drift.
 
 The release attaches: `git-wizard-{ver}-{rid}.zip` and `GitWizardUI-{ver}-{rid}.zip` for `rid in {win-x64, linux-x64, osx-x64}`. See `.gitea/workflows/release.yml` and the **CI infrastructure** section below.
 

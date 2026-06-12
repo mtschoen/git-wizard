@@ -60,7 +60,7 @@ These tasks live in projdash's PLAN.md but are noted here for cross-reference:
 - [x] `CurrentSchemaVersion` constant stamped at save time - cached reports from older builds no longer propagate stale version strings
 - [x] Documented `WhenWritingDefault` serializer behavior in `docs/report-schema.md` (absent fields = default values, not "unknown")
 
-### Single-repo merge refresh (for projdash fallback) - tracked as [#42](https://gitea.llamabox.internal/schoen/git-wizard/issues/42)
+### Single-repo merge refresh (for projdash fallback) - tracked as [#42](https://gitea.llamabox.sticktoitive.net/schoen/git-wizard/issues/42)
 
 Projdash falls back to per-repo `git` subprocess when the cache misses a repo
 (fresh clones, repos created since the last full scan). On Windows that path
@@ -116,7 +116,7 @@ Avalonia, which also has extras (Downstream Branches filter, Clean button, progr
       per row on scroll. Added `StringToThicknessConverter` (commit `ec5a17a`). See CLAUDE.md tips.
 - [x] **Fix: `RepositoryNotFoundException` spam on refresh** - guarded `Refresh` with `Repository.IsValid`
       so stale/non-repo cache entries skip cleanly (commit `b7a0321`). Cache-pruning follow-up tracked as
-      [#48](https://gitea.llamabox.internal/schoen/git-wizard/issues/48).
+      [#48](https://gitea.llamabox.sticktoitive.net/schoen/git-wizard/issues/48).
 - [x] **Debounce search** - 200ms debounce in the `MainViewModel.SearchText` setter coalesces rapid
       keystrokes into a single `ApplyFilterAndGrouping` pass (commit `ec5a17a`); the immediate
       `SetSearchText` path is unchanged. Covered by a coalescing regression test.

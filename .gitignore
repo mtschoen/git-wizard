@@ -362,3 +362,7 @@ MigrationBackup/
 
 .maintenance.json
 .qwen/
+
+# aislop runtime artifacts (keep only .aislop/config.yml)
+.aislop/
+!.aislop/config.yml

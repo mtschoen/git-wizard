@@ -129,38 +129,40 @@ public partial class GitWizardRepository
             LocalOnlyCommits = false;
             LocalCommitCount = 0;
 
-            foreach (var branch in repository.Branches)
+            // Count commits reachable from any LOCAL branch but not from any
+            // remote-tracking branch - genuinely unpushed commits, counted once
+            // across all local branches. The old per-branch approach counted an
+            // untracked branch's ENTIRE history as unpushed, so already-pushed
+            // mainline commits were multiply-counted and the total could exceed
+            // the repo's commit count. With no remotes, nothing is excluded and
+            // every local commit counts (a brand-new repo is all-local).
+            try
             {
-                // Check if this is a local branch (not a remote tracking branch)
-                if (branch.IsRemote)
-                    continue;
+                var localTips = repository.Branches
+                    .Where(branch => !branch.IsRemote)
+                    .Select(branch => branch.Tip)
+                    .Where(tip => tip != null)
+                    .ToList();
 
-                // Case 1: Local branch not tracking any remote
-                if (branch.TrackedBranch == null)
+                if (localTips.Count > 0)
                 {
-                    LocalOnlyCommits = true;
-                    try
-                    {
-                        // Every commit on this branch is effectively unpushed.
-                        LocalCommitCount += branch.Commits.Count();
-                    }
-                    catch (Exception exception)
-                    {
-                        GitWizardLog.LogException(exception, $"Exception counting commits on untracked branch {branch.FriendlyName} for {WorkingDirectory}");
-                    }
-                    continue;
-                }
+                    var filter = new CommitFilter { IncludeReachableFrom = localTips };
 
-                // Case 2: Local branch is ahead of its remote tracking branch
-                if (branch.Tip != null && branch.TrackedBranch.Tip != null && branch.Tip != branch.TrackedBranch.Tip)
-                {
-                    var divergence = repository.ObjectDatabase.CalculateHistoryDivergence(branch.Tip, branch.TrackedBranch.Tip);
-                    if (divergence.AheadBy > 0)
-                    {
-                        LocalOnlyCommits = true;
-                        LocalCommitCount += divergence.AheadBy ?? 0;
-                    }
+                    var remoteTips = repository.Branches
+                        .Where(branch => branch.IsRemote)
+                        .Select(branch => branch.Tip)
+                        .Where(tip => tip != null)
+                        .ToList();
+                    if (remoteTips.Count > 0)
+                        filter.ExcludeReachableFrom = remoteTips;
+
+                    LocalCommitCount = repository.Commits.QueryBy(filter).Count();
+                    LocalOnlyCommits = LocalCommitCount > 0;
                 }
+            }
+            catch (Exception exception)
+            {
+                GitWizardLog.LogException(exception, $"Exception counting local-only commits for {WorkingDirectory}");
             }
 
             // Collect per-branch divergence from the default branch.

@@ -141,7 +141,7 @@ public partial class GitWizardRepository
                 var localTips = repository.Branches
                     .Where(branch => !branch.IsRemote)
                     .Select(branch => branch.Tip)
-                    .OfType<Commit>()
+                    .Where(tip => tip != null)
                     .ToList();
 
                 if (localTips.Count > 0)
@@ -151,7 +151,7 @@ public partial class GitWizardRepository
                     var remoteTips = repository.Branches
                         .Where(branch => branch.IsRemote)
                         .Select(branch => branch.Tip)
-                        .OfType<Commit>()
+                        .Where(tip => tip != null)
                         .ToList();
                     if (remoteTips.Count > 0)
                         filter.ExcludeReachableFrom = remoteTips;

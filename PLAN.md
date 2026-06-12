@@ -1,4 +1,4 @@
-# GitWizard — Plan
+# GitWizard - Plan
 
 ## Completed
 
@@ -10,9 +10,27 @@
 - [x] Windows Defender exclusion setup
 - [x] Cached report.json at ~/.GitWizard/
 
+## Inbox
+
+- [ ] **aislop -> 100/100** - gate is LIVE and GREEN at 65/100 (`.aislop/config.yml`
+      `failBelow: 60`; aislop now scores C#, not just the Python `ci/` tooling). Done so far
+      (branch `chore/aislop-csharp-cleanup`, pushed): cleared 4 null-forgiving + 1 python
+      chained-get, split `GitWizardReport.cs` into a `.Persistence.cs` partial, swept all
+      em/en dashes to ASCII. **Remaining for 100:** split 4 oversized files
+      (`MainViewModel.cs` ~1313, `GitWizardRepository.cs` ~817, `Program.cs` ~573,
+      `GitWizardApi.cs` ~544 - partial classes; do the block removal in small chunks, NOT one
+      giant Edit, see `~/.claude/notes/gotcha_giant_exact_match_edits_fragile.md`), extract 3
+      long functions, relocate 7 inline TODO comments into this PLAN, and decide on the 2
+      narrative-comment findings (the Avalonia "don't remove BuildAvaloniaApp" note + the
+      off-UI-thread swap explanation - deliberately kept; deleting them reaches 100 but the
+      knowledge also lives in CLAUDE.md). Fleet-wide aislop extras (per-edit Claude Code hook
+      `aislop hook install --claude` pinned, no `@latest`; fix global `npm i -g aislop`, needs
+      root) still deferred. See `~/.claude/notes/reference_aislop.md`.
+      (NB: as of 2026-05-29 a TEMPORARY vendored MFTLib 0.3.0 bridge - `lib/MFTLib/` + `Directory.Build.targets` - unblocks CI so it builds with plain `dotnet build`. Retire it when MFTLib 0.3 ships to NuGet; see `lib/MFTLib/README.md`.)
+
 ## Next Up
 
-### Projdash integration — batch git reports for LLM consumption
+### Projdash integration - batch git reports for LLM consumption
 
 GitWizard already scans 692 repos and caches state in `report.json`. Projdash currently shells out to `git` per-repo (slow, one at a time). The goal: GitWizard produces structured batch reports that projdash (and LLMs via MCP) can consume efficiently.
 
@@ -32,22 +50,22 @@ GitWizard already scans 692 repos and caches state in `report.json`. Projdash cu
 These tasks live in projdash's PLAN.md but are noted here for cross-reference:
 
 - [x] projdash `GitWizardAdapter` reads `report.json` and shells out to the CLI with `-paths` on demand
-- [x] projdash `queries.py` reads the GitWizard report in `_enrich()` with a subprocess fallback (no dedicated `refresh_from_gitwizard` helper — freshness is handled by `refresh_report()` + `projdash scan`/`refresh-git`)
+- [x] projdash `queries.py` reads the GitWizard report in `_enrich()` with a subprocess fallback (no dedicated `refresh_from_gitwizard` helper - freshness is handled by `refresh_report()` + `projdash scan`/`refresh-git`)
 - [x] MCP `get_project` and `list_projects` use GitWizard data when available, plus `gitwizard_status` exposes cache freshness
 
 ### Schema 1.1 fixes (projdash feedback)
 
 - [x] `NumberOfPendingChanges` now counts untracked + added + renamed files so it matches `HasPendingChanges` (was 0 for untracked-only repos)
 - [x] Added `LocalCommitCount` int field so consumers can show real unpushed counts instead of a bool
-- [x] `CurrentSchemaVersion` constant stamped at save time — cached reports from older builds no longer propagate stale version strings
+- [x] `CurrentSchemaVersion` constant stamped at save time - cached reports from older builds no longer propagate stale version strings
 - [x] Documented `WhenWritingDefault` serializer behavior in `docs/report-schema.md` (absent fields = default values, not "unknown")
 
-### Single-repo merge refresh (for projdash fallback) — tracked as [#42](https://gitea.llamabox.internal/schoen/git-wizard/issues/42)
+### Single-repo merge refresh (for projdash fallback) - tracked as [#42](https://gitea.llamabox.internal/schoen/git-wizard/issues/42)
 
 Projdash falls back to per-repo `git` subprocess when the cache misses a repo
 (fresh clones, repos created since the last full scan). On Windows that path
 can hang for tens of minutes when a grandchild process inherits the pipe
-handles — caught a 25-minute wedge in `~/.projdash/mcp.log` on 2026-04-26.
+handles - caught a 25-minute wedge in `~/.projdash/mcp.log` on 2026-04-26.
 Projdash now bounds it to ~10s via abandon-on-timeout (projdash commit
 `c72a185`, `scanner/git.py:_run_capture`), but the fallback still produces
 empty git state for the missing repo. A targeted single-repo refresh in
@@ -58,7 +76,7 @@ GitWizard would let projdash skip subprocess git entirely.
       leave other entries intact, write back atomically (temp file + rename).
       Stamps `SchemaVersion = CurrentSchemaVersion`.
 - [ ] **Document concurrency in `docs/report-schema.md`**: two concurrent
-      callers refreshing disjoint repos — last writer wins for the file as a
+      callers refreshing disjoint repos - last writer wins for the file as a
       whole. Acceptable; no lockfile.
 - [ ] **Projdash consumer change** (tracked in projdash's own PLAN): replace
       the `git` subprocess fallback in `_enrich` with
@@ -75,7 +93,7 @@ GitWizard would let projdash skip subprocess git entirely.
 - [x] Extracted view models behind `IUiDispatcher` / `IUserDialogs` / `IFolderPicker` (a separate shared project at the time; since folded into `GitWizardUI/ViewModels/`)
 - [x] Neutralized MAUI types in `RepositoryNodeViewModel` (color/padding/font as strings)
 - [x] Extracted handler logic from MAUI page code-behind into VM methods (`ApplyFilter`/`ApplyGroup`/`ApplySort` etc.)
-- [x] MAUI app refactored to consume shared VMs via `MauiUiDispatcher` etc. — manual Windows verification pending
+- [x] MAUI app refactored to consume shared VMs via `MauiUiDispatcher` etc. - manual Windows verification pending
 - [x] Avalonia desktop project (now `GitWizardUI/`) ports MainPage and SettingsPage
 - [x] Native folder picker on Linux/macOS via Avalonia `IStorageProvider`
 - [x] Windows-only features (Defender button) gated on `OperatingSystem.IsWindows()`
@@ -85,35 +103,36 @@ GitWizard would let projdash skip subprocess git entirely.
 
 Full capability-parity audit (2026-05-26): every MAUI feature was present in
 Avalonia, which also has extras (Downstream Branches filter, Clean button, progress bar). **MAUI retired
-2026-05-26** — the Avalonia app was renamed `GitWizardUI`, the view models folded into
+2026-05-26** - the Avalonia app was renamed `GitWizardUI`, the view models folded into
 `GitWizardUI/ViewModels/`, and the MAUI + UITests projects deleted (no user-facing capability lost).
 
-- [x] Scroll position restored across refresh — closed-loop offset correction in
+- [x] Scroll position restored across refresh - closed-loop offset correction in
       `MainWindow.RestoreScrollAnchor` (commit `ea6f2ce`); the during-refresh jump-to-top is an
       accepted UX (see CLAUDE.md). Validated by the `avalonia-vsp-scroll-top` spike.
-- [x] **Settings: Tips footer + section description labels** — restored the MAUI-only "Tips" block and
+- [x] **Settings: Tips footer + section description labels** - restored the MAUI-only "Tips" block and
       the per-section gray description labels in `SettingsWindow` (commit `ec5a17a`).
-- [x] **Fix: `Padding`/`Thickness` binding spam** — Avalonia bindings don't apply the target
+- [x] **Fix: `Padding`/`Thickness` binding spam** - Avalonia bindings don't apply the target
       `TypeConverter` (MAUI did), so `ItemPaddingString` (string) → `Padding` threw `InvalidCastException`
       per row on scroll. Added `StringToThicknessConverter` (commit `ec5a17a`). See CLAUDE.md tips.
-- [x] **Fix: `RepositoryNotFoundException` spam on refresh** — guarded `Refresh` with `Repository.IsValid`
+- [x] **Fix: `RepositoryNotFoundException` spam on refresh** - guarded `Refresh` with `Repository.IsValid`
       so stale/non-repo cache entries skip cleanly (commit `b7a0321`). Cache-pruning follow-up tracked as
       [#48](https://gitea.llamabox.internal/schoen/git-wizard/issues/48).
-- [x] **Debounce search** — 200ms debounce in the `MainViewModel.SearchText` setter coalesces rapid
+- [x] **Debounce search** - 200ms debounce in the `MainViewModel.SearchText` setter coalesces rapid
       keystrokes into a single `ApplyFilterAndGrouping` pass (commit `ec5a17a`); the immediate
       `SetSearchText` path is unchanged. Covered by a coalescing regression test.
-- [x] **Active filter/group/sort highlight** — the active sidebar button is now bold. `ApplyFilter`/
+- [x] **Active filter/group/sort highlight** - the active sidebar button is now bold. `ApplyFilter`/
       `ApplyGroup`/`ApplySort` route through the notifying `Active{Filter,GroupMode,SortMode}`
       properties (and pick up MAUI's re-click-to-clear toggle for Filter/Group); each button binds
       `Classes.active` via `EnumEqualsConverter` to a `Button.active { FontWeight=Bold }` style.
-- [x] **Settings: Enter-to-add typed path** — `KeyDown` handlers on the typed search/ignored path
+- [x] **Settings: Enter-to-add typed path** - `KeyDown` handlers on the typed search/ignored path
       TextBoxes fire the Add commands on Enter (commit `ec5a17a`).
-- [x] **Immediate "Scanning…" indicator** — an `IsScanning` flag (set at refresh start; cleared when
+- [x] **Immediate "Scanning…" indicator** - an `IsScanning` flag (set at refresh start; cleared when
       the first repo surfaces, the determinate progress bar starts, or the refresh ends) drives an
       indeterminate "Scanning for repositories…" overlay on the empty list, filling the cold-start
       discovery gap. The `2026-05-24` parity spec doc is now fully implemented and can be deleted.
 
 ## Infrastructure
 
-- [x] **Gitea Actions CI** — `.gitea/workflows/ci.yml` runs `test-linux` (build + full NUnit suite with coverage, gated at 45% line via `ci/post-coverage-status.py`) and `test-windows` (full solution build + tests) on push to `main` and PRs targeting `main`. `.gitea/workflows/release.yml` builds CLI + GitWizardUI for `win-x64`/`linux-x64`/`osx-x64` and creates a Gitea release with all 6 assets attached on `v*` tag pushes. See `CLAUDE.md` § CI infrastructure for runner/bot/branch-protection setup.
-- [ ] **Trust llamabox cert on the Windows runner** — currently the release publish and test-results upload use `NODE_TLS_REJECT_UNAUTHORIZED=0` to work around Node.js not trusting the self-signed Caddy cert. Install the cert into the runner's Node/system trust store and remove the env override.
+- [x] **Gitea Actions CI** - `.gitea/workflows/ci.yml` runs `test-linux` (build + full NUnit suite with coverage, gated at 45% line via `ci/post-coverage-status.py`) and `test-windows` (full solution build + tests) on push to `main` and PRs targeting `main`. `.gitea/workflows/release.yml` builds CLI + GitWizardUI for `win-x64`/`linux-x64`/`osx-x64` and creates a Gitea release with all 6 assets attached on `v*` tag pushes. See `CLAUDE.md` § CI infrastructure for runner/bot/branch-protection setup.
+- [ ] **Trust llamabox cert on the Windows runner** - currently the release publish and test-results upload use `NODE_TLS_REJECT_UNAUTHORIZED=0` to work around Node.js not trusting the self-signed Caddy cert. Install the cert into the runner's Node/system trust store and remove the env override.
+- [ ] **Retire the vendored MFTLib bridge** - `lib/MFTLib/` (prebuilt 0.3.0 DLLs) + repo-root `Directory.Build.targets` are a TEMPORARY checked-in bridge that unblocks CI while MFTLib 0.3.0 is unpublished. When 0.3.0 ships to NuGet: delete both, add `<PackageReference Include="MFTLib" Version="0.3.0" />` to `GitWizard/GitWizard.csproj`, and confirm CI stays green. Steps in `lib/MFTLib/README.md`.

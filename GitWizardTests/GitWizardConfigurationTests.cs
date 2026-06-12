@@ -184,6 +184,16 @@ public class GitWizardConfigurationTests
     }
 
     [Test]
+    public async Task GetConfigurationAtPathAsync_ReturnsNull_ForInvalidJson()
+    {
+        var invalidPath = Path.Combine(_tempRoot!, "invalid-async.json");
+        await File.WriteAllTextAsync(invalidPath, "not json {{{");
+
+        var result = await GitWizardConfiguration.GetConfigurationAtPathAsync(invalidPath);
+        Assert.That(result, Is.Null);
+    }
+
+    [Test]
     public void SaveGlobalConfiguration_SavesConfiguration()
     {
         var config = new GitWizardConfiguration
@@ -215,7 +225,7 @@ public class GitWizardConfigurationTests
         Assert.That(second, Is.SameAs(first));
     }
 
-      [Test]
+    [Test]
     public async Task GetGlobalConfigurationAsync_DoesNotBlock_WhenAlreadyLoaded()
     {
         var _ = await GitWizardConfiguration.GetGlobalConfigurationAsync();

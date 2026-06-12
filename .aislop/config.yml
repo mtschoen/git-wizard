@@ -1,0 +1,53 @@
+# aislop quality gate config - https://github.com/scanaislop/aislop
+#
+# `aislop ci` produces a whole-repo score (0-100); the Gitea Actions gate
+# (.gitea/workflows/aislop.yml) fails the build when the score is below
+# failBelow. The C# engine lives in the personal fork github.com/mtschoen/aislop
+# (the public npm aislop is Python-only); the workflow builds that fork at a
+# pinned commit. This config follows the conventional C# baseline (csharp.yml).
+#
+# quality.maxFileLoc is held at aislop's default 400 (NOT the example's 500):
+# we conform to the widely-accepted default rather than git-wizard's looser
+# CLAUDE.md soft guideline. Oversized files are treated as real findings and
+# split into partial-class files along real domain boundaries.
+#
+# The whole repo currently scores 100 (0 findings across every engine), so
+# failBelow is set to 100 to match the repo's 0-findings lint bar: any new
+# finding (a narrative comment, a TODO marker, an oversized file/function)
+# red-lights the gate. Lower it only with a documented reason.
+
+version: 1
+
+engines:
+  format: true
+  lint: true
+  code-quality: true
+  ai-slop: true
+  architecture: false
+  security: true
+
+quality:
+  maxFunctionLoc: 80
+  maxFileLoc: 400
+  maxNesting: 5
+  maxParams: 6
+
+security:
+  audit: false
+  auditTimeout: 30000
+
+scoring:
+  weights:
+    format: 0.5
+    lint: 1.0
+    code-quality: 1.5
+    ai-slop: 1.0
+    architecture: 1.0
+    security: 2.5
+  thresholds:
+    good: 75
+    ok: 50
+
+ci:
+  failBelow: 100
+  format: json

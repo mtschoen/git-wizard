@@ -4,6 +4,22 @@
 * text=auto
 
 ###############################################################################
+# Force CRLF on checkout (ALL platforms) for C# source, XAML, and MSBuild
+# project files, to match .editorconfig (end_of_line = crlf). Without this,
+# `* text=auto` checks these out as LF on Linux, and the Linux CI job's
+# `dotnet format --verify-no-changes` fails with ENDOFLINE on every line.
+# Scripts (*.sh, *.py, *.yml) are deliberately left to text=auto (LF on Linux)
+# so they execute correctly on the runners.
+###############################################################################
+*.cs       text eol=crlf
+*.axaml    text eol=crlf
+*.xaml     text eol=crlf
+*.csproj   text eol=crlf
+*.props    text eol=crlf
+*.targets  text eol=crlf
+*.slnx     text eol=crlf
+
+###############################################################################
 # Set default behavior for command prompt diff.
 #
 # This is need for earlier builds of msysgit that does not have it on by

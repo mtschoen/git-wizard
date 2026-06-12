@@ -19,7 +19,7 @@ namespace GitWizardTests;
 /// the body run against the real provider and fire UAC. (Assume.That in SetUp would also work, but
 /// the body-level guard keeps the intent obvious.)
 ///
-/// Windows-only (MFT is NTFS-specific), so they contribute nothing to the Linux CI coverage gate —
+/// Windows-only (MFT is NTFS-specific), so they contribute nothing to the Linux CI coverage gate -
 /// that gate is the cheap cross-platform regression floor; the real-privilege truth comes from the
 /// self-elevating run.
 /// </summary>
@@ -46,7 +46,7 @@ public class ElevationCoverageTests
         // Guard FIRST, in the body (NUnit does not reliably skip the body from a SetUp guard).
         if (!ElevationUtilities.IsElevated()) { Assert.Inconclusive("Requires admin"); return; }
 
-        // A config with no search paths scans nothing and writes an empty output file — covering
+        // A config with no search paths scans nothing and writes an empty output file - covering
         // RunElevatedMftScan's read-config / write-output path without a slow full-volume scan.
         var configPath = Path.Combine(_tempRoot, "config.json");
         new GitWizardConfiguration().Save(configPath);

@@ -1,0 +1,52 @@
+<Project>
+
+  <!-- ============================================================================
+       TEMPORARY — vendored MFTLib 0.3.0 bridge (see lib/MFTLib/README.md).
+
+       git-wizard needs MFTLib 0.3.0 (the IElevationProvider elevation API), which is not yet
+       on NuGet. Instead of a local ProjectReference to a sibling MFTLib checkout (which the CI
+       runners don't have, and whose native .vcxproj `dotnet` can't build), we reference a
+       prebuilt MFTLib.dll checked in under lib/MFTLib/ so a plain `dotnet build` works.
+
+       This lives in Directory.Build.targets (imported by EVERY project in the tree) on purpose:
+       - The managed <Reference> must be on all four consuming projects — GitWizard plus the CLI
+         and UI (which expose IElevationProvider through GitWizard API signatures, so they hit
+         CS0012 without their own reference) and the test project. A raw assembly <Reference>
+         does NOT flow transitively like a ProjectReference, so it can't live in GitWizard alone.
+       - A project-local native-DLL copy doesn't propagate to dependents either, so MFTLibNative.dll
+         is copied here too.
+
+       RETIRE when MFTLib 0.3.0 ships to NuGet: delete this file and lib/MFTLib/, then add
+       `<PackageReference Include="MFTLib" Version="0.3.0" />` to GitWizard/GitWizard.csproj (it
+       flows transitively, restoring the original clean design; its buildTransitive targets place
+       the native DLL automatically).
+       ============================================================================ -->
+
+  <!-- (1) Managed reference — all platforms (needed to compile against MFTLib types, incl. the
+       Linux CI job). $(MSBuildThisFileDirectory) anchors to the repo root regardless of project. -->
+  <ItemGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'">
+    <Reference Include="MFTLib">
+      <HintPath>$(MSBuildThisFileDirectory)lib\MFTLib\MFTLib.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- (2) Windows native lib — copied into every project's output so MFTLib's P/Invoke resolves
+       it at runtime. Linux: condition is false (git-wizard only invokes MFT on Windows; the Linux
+       CI job builds against the managed assembly and skips MFT tests), so no native lib is needed. -->
+  <ItemGroup Condition="'$(MSBuildProjectExtension)' == '.csproj' And $([MSBuild]::IsOSPlatform('Windows'))">
+    <None Include="$(MSBuildThisFileDirectory)lib\MFTLib\win-x64\MFTLibNative.dll">
+      <Link>MFTLibNative.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Visible>false</Visible>
+    </None>
+  </ItemGroup>
+
+  <!-- (3) Guard: never `dotnet publish` with the vendored DLL — it would ship an unversioned
+       MFTLib. Swap to the real PackageReference first (see retire note above). -->
+  <Target Name="BlockVendoredMFTLibOnPublish" BeforeTargets="Publish">
+    <Error Condition="'%(Reference.Filename)' == 'MFTLib'"
+           Text="Cannot publish with the vendored lib/MFTLib/MFTLib.dll. Switch to the MFTLib 0.3.0 PackageReference first (see lib/MFTLib/README.md)." />
+  </Target>
+
+</Project>

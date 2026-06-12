@@ -1,252 +1,26 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 // ReSharper disable once CheckNamespace
 namespace GitWizard.CLI;
 
-public static class Program
+public static partial class Program
 {
-    /// <summary>
-    /// Struct containing configuration details specified in command line arguments
-    /// TODO: use a library for parsing CLI args that can also generate a -h manual
-    /// </summary>
-    struct RunConfiguration
+    // Cached serializer options (CA1869): WriteIndented depends on the -minified flag,
+    // so two presets are kept rather than allocating a JsonSerializerOptions per call.
+    static readonly JsonSerializerOptions IndentedSerializerOptions = new()
     {
-        const string k_HelpManual = @"GitWizard 0.4.1 Help
+        WriteIndented = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
+    };
 
-Usage: git-wizard [options]
+    static readonly JsonSerializerOptions CompactSerializerOptions = new()
+    {
+        WriteIndented = false,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
+    };
 
-Key options:
-  -filter <pattern>         Filter output to repositories whose path contains <pattern> (case-insensitive)
-  -paths <file-or-csv>      Report on specific repo paths (newline-separated file or comma-separated list)
-  -merge                    Targeted single-repo refresh: merge the repos named by -paths into the existing
-                            report at -save-path (insert/update those entries, leave all others intact),
-                            then write back atomically. Requires -paths and -save-path.
-  -summary                  Output a condensed summary (dirty/unpushed/stale counts + repos needing attention)
-
-Other options:
-  -h, --help, -?            Print this help message and exit
-  -v                        Enable verbose logging.
-  -silent                   Do not print to the console
-  -rebuild-report           Rebuild the list of repositories (instead of using cache)
-  -rebuild-repo-list        Rebuild the report from scratch (instead of using cache)
-  -no-refresh               Do not refresh the report based on the latest state; just print out the cached report
-  -rebuild-all              Rebuild the report and list of repositories (instead of using cache)
-  -print-minified           Print the output to the console as minified JSON
-  -save-path <path>         Path where the report will be saved to disk (otherwise it is only printed to the console)
-  -config-path <path>       Path to custom configuration file (otherwise global or default configuration is used)
-  -clear-cache              Delete cached reports and configurations before running
-                            (combine with -no-refresh to avoid re-generating the cache)
-  -delete-all-local-files   Delete all files created by GitWizard before running (includes files deleted by -clear-cache;
-                            combine with -no-refresh to avoid creating any more local files)
-  -setup-defender           Add Windows Defender exclusions for git/dotnet processes and search paths (triggers UAC prompt)
-  -scan-only                Print discovered repository paths (one per line) and exit without refreshing
-  -no-mft                   Skip MFT search and use recursive directory scan instead
-  -db-size                  Show the size of the GitWizard local files folder (~/.GitWizard/) and exit
-  -all-branches             Include all local branches (default + already-merged) in each repo's Branches list, not just actionable ones
-";
-
-        /// <summary>
-        /// Rebuild the list of repositories (instead of using cache).
-        /// </summary>
-        public readonly bool RebuildRepositoryList = false;
-
-        /// <summary>
-        /// Rebuild the report from scratch (instead of using cache).
-        /// </summary>
-        public readonly bool RebuildReport = false;
-
-        /// <summary>
-        /// Delete cached reports and configurations before doing anything else.
-        /// </summary>
-        public readonly bool ClearCache = false;
-
-        /// <summary>
-        /// Delete all local files before doing anything else.
-        /// </summary>
-        public readonly bool DeleteAllLocalFiles = false;
-
-        /// <summary>
-        /// Add Windows Defender exclusions before running.
-        /// </summary>
-        public readonly bool SetupDefender = false;
-
-        /// <summary>
-        /// Print discovered repository paths and exit without refreshing.
-        /// </summary>
-        public readonly bool ScanOnly = false;
-
-        /// <summary>
-        /// Skip MFT search and use recursive directory scan instead.
-        /// </summary>
-        public readonly bool NoMft = false;
-
-        /// <summary>
-        /// Case-insensitive substring filter applied to repository paths in the output.
-        /// </summary>
-        public readonly string? FilterPattern = null;
-
-        /// <summary>
-        /// Explicit list of repository paths to report on, bypassing discovery.
-        /// Can be a file path (newline-separated) or comma-separated inline list.
-        /// </summary>
-        public readonly string? PathsArgument = null;
-
-        /// <summary>
-        /// Output a condensed summary instead of the full report.
-        /// </summary>
-        public readonly bool Summary = false;
-
-        /// <summary>
-        /// Targeted single-repo merge refresh: merge the repos named by -paths into the
-        /// existing report at -save-path, leaving other entries intact. Requires -paths
-        /// and -save-path.
-        /// </summary>
-        public readonly bool Merge = false;
-
-        /// <summary>
-        /// Refresh the report based on the latest state (otherwise just print out the cached report).
-        /// </summary>
-        public readonly bool RefreshReport = true;
-
-        /// <summary>
-        /// Print/save the report as minified JSON.
-        /// </summary>
-        public readonly bool Minified = false;
-
-        /// <summary>
-        /// Path where the report will be saved to disk (otherwise it is only printed to the console).
-        /// </summary>
-        public readonly string? SavePath = null;
-
-        /// <summary>
-        /// Path to custom configuration file (otherwise global or default configuration is used)
-        /// </summary>
-        public readonly string? CustomConfigurationPath = null;
-
-        /// <summary>
-        /// Show the size of the GitWizard local files folder and exit.
-        /// </summary>
-        public readonly bool DbSize = false;
-
-        /// <summary>
-        /// Include all branches (default + boring) in the per-repo Branches list,
-        /// not just actionable branches.
-        /// </summary>
-        public readonly bool AllBranches = false;
-
-        /// <summary>
-        /// Initialize a RunConfiguration using Environment.GetCommandLineArgs
-        /// </summary>
-        public RunConfiguration()
-        {
-            var arguments = Environment.GetCommandLineArgs();
-            var length = arguments.Length;
-            for (var i = 0; i < length; i++)
-            {
-                var argument = arguments[i];
-                switch (argument)
-                {
-                    case "-h":
-                    case "--help":
-                    case "-?":
-                        Console.WriteLine(k_HelpManual);
-                        Environment.Exit(0);
-                        break;
-                    case "-v":
-                        GitWizardLog.VerboseMode = true;
-                        break;
-                    case "-silent":
-                        GitWizardLog.SilentMode = true;
-                        break;
-                    case "-rebuild-report":
-                        RebuildReport = true;
-                        break;
-                    case "-no-refresh":
-                        RefreshReport = false;
-                        break;
-                    case "-rebuild-repo-list":
-                        RebuildRepositoryList = true;
-                        break;
-                    case "-rebuild-all":
-                        RebuildReport = true;
-                        RebuildRepositoryList = true;
-                        break;
-                    case "-setup-defender":
-                        SetupDefender = true;
-                        break;
-                    case "-scan-only":
-                        ScanOnly = true;
-                        RebuildRepositoryList = true;
-                        break;
-                    case "-no-mft":
-                        NoMft = true;
-                        break;
-                    case "-filter":
-                        if (i + 1 >= length)
-                        {
-                            GitWizardLog.Log("-filter argument passed without a following argument.", GitWizardLog.LogType.Error);
-                            break;
-                        }
-
-                        FilterPattern = arguments[++i];
-                        break;
-                    case "-paths":
-                        if (i + 1 >= length)
-                        {
-                            GitWizardLog.Log("-paths argument passed without a following argument.", GitWizardLog.LogType.Error);
-                            break;
-                        }
-
-                        PathsArgument = arguments[++i];
-                        break;
-                    case "-summary":
-                        Summary = true;
-                        break;
-                    case "-merge":
-                        Merge = true;
-                        break;
-                    case "-clear-cache":
-                        ClearCache = true;
-                        break;
-                    case "-delete-all-local-files":
-                        DeleteAllLocalFiles = true;
-                        break;
-                    case "-print-minified":
-                        Minified = true;
-                        break;
-                    case "-save-path":
-                        if (i >= length)
-                        {
-                            GitWizardLog.Log("-save-path argument passed without a following argument.", GitWizardLog.LogType.Error);
-                            break;
-                        }
-
-                        // TODO: Validate path
-                        SavePath = arguments[i + 1];
-                        break;
-                    case "-config-path":
-                        if (i >= length)
-                        {
-                            GitWizardLog.Log("-config-path argument passed without a following argument.", GitWizardLog.LogType.Error);
-                            break;
-                        }
-
-                        // TODO: Validate path
-                        CustomConfigurationPath = arguments[i + 1];
-                        break;
-                    case "-db-size":
-                        DbSize = true;
-                        break;
-                    case "-all-branches":
-                        AllBranches = true;
-                        break;
-                }
-            }
-        }
-    }
-
-    const string k_SessionStartMessage = @"Session Start Message
+    const string SessionStartMessage = @"Session Start Message
 =======================================================================================================================
 git-wizard Session Started
 =======================================================================================================================";
@@ -260,40 +34,40 @@ git-wizard Session Started
             switch (args[i])
             {
                 case "--elevated-mft":
-                {
-                    string? configPath = null;
-                    string? outputPath = null;
-                    for (var j = i + 1; j < args.Length; j++)
                     {
-                        switch (args[j])
+                        string? configPath = null;
+                        string? outputPath = null;
+                        for (var j = i + 1; j < args.Length; j++)
                         {
-                            case "--config-path":
-                                if (j + 1 < args.Length) configPath = args[++j];
-                                break;
-                            case "--output":
-                                if (j + 1 < args.Length) outputPath = args[++j];
-                                break;
+                            switch (args[j])
+                            {
+                                case "--config-path":
+                                    if (j + 1 < args.Length) configPath = args[++j];
+                                    break;
+                                case "--output":
+                                    if (j + 1 < args.Length) outputPath = args[++j];
+                                    break;
+                            }
                         }
-                    }
 
-                    if (configPath != null && outputPath != null)
-                    {
-                        await Task.Run(() => GitWizardApi.RunElevatedMftScan(configPath, outputPath)).ConfigureAwait(false);
-                        Environment.Exit(0);
-                    }
-                    else
-                    {
-                        Environment.Exit(1);
-                    }
+                        if (configPath != null && outputPath != null)
+                        {
+                            await Task.Run(() => GitWizardApi.RunElevatedMftScan(configPath, outputPath)).ConfigureAwait(false);
+                            Environment.Exit(0);
+                        }
+                        else
+                        {
+                            Environment.Exit(1);
+                        }
 
-                    return;
-                }
+                        return;
+                    }
                 case "--elevated-defender":
-                {
-                    var success = WindowsDefenderException.RunDefenderCommands();
-                    Environment.Exit(success ? 0 : 1);
-                    return;
-                }
+                    {
+                        var success = WindowsDefender.RunDefenderCommands();
+                        Environment.Exit(success ? 0 : 1);
+                        return;
+                    }
             }
         }
 
@@ -325,13 +99,13 @@ git-wizard Session Started
             }
         }
 
-        GitWizardLog.Log(k_SessionStartMessage);
+        GitWizardLog.Log(SessionStartMessage);
         var configuration = await GetConfigurationAsync(runConfiguration);
 
         if (runConfiguration.SetupDefender)
         {
             GitWizardLog.Log("Setting up Windows Defender exclusions...");
-            WindowsDefenderException.AddExclusions();
+            WindowsDefender.AddExclusions();
         }
 
         if (runConfiguration.Merge)
@@ -366,7 +140,6 @@ git-wizard Session Started
             return;
         }
 
-        // Process any queued commands
         GitWizardLog.Log("Processing queued commands...");
         updateHandler.ProcessCommands();
         updateHandler.PrintSummary();
@@ -383,11 +156,7 @@ git-wizard Session Started
         if (runConfiguration.Summary)
         {
             var summary = GitWizardSummary.FromReport(filteredReport);
-            var options = new JsonSerializerOptions
-            {
-                WriteIndented = !runConfiguration.Minified,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
-            };
+            var options = runConfiguration.Minified ? CompactSerializerOptions : IndentedSerializerOptions;
             jsonString = JsonSerializer.Serialize(summary, options);
         }
         else
@@ -414,7 +183,7 @@ git-wizard Session Started
 
         GitWizardLog.Log($"Could not find custom configuration at path: {customConfigurationPath}", GitWizardLog.LogType.Error);
         Environment.Exit(1);
-        throw new Exception("unreachable");
+        throw new InvalidOperationException("unreachable");
     }
 
     static async Task<string[]?> GetRepositoryPathsAsync(RunConfiguration runConfiguration)
@@ -488,11 +257,7 @@ git-wizard Session Started
         // Stamp the current schema version so console output never carries
         // a stale version loaded from an older cache.
         report.SchemaVersion = GitWizardReport.CurrentSchemaVersion;
-        var options = new JsonSerializerOptions
-        {
-            WriteIndented = !runConfiguration.Minified,
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
-        };
+        var options = runConfiguration.Minified ? CompactSerializerOptions : IndentedSerializerOptions;
 
         var jsonString = JsonSerializer.Serialize(report, options);
         return jsonString;
@@ -551,7 +316,7 @@ git-wizard Session Started
 
         return false;
     }
-   static string FormatSize(long bytes)
+    static string FormatSize(long bytes)
     {
         string[] units = { "B", "KB", "MB", "GB", "TB" };
         double size = bytes;

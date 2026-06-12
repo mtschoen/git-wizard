@@ -139,8 +139,8 @@ public class GitWizardLogTests
         var outputs = new List<string>();
         GitWizardLog.LogMethod = msg => { if (msg is not null) outputs.Add(msg); };
 
-        var inner = new Exception("Inner exception text");
-        var outer = new Exception("Outer exception", inner);
+        var inner = new InvalidOperationException("Inner exception text");
+        var outer = new InvalidOperationException("Outer exception", inner);
         GitWizardLog.LogException(outer);
 
         Assert.That(outputs, Does.Contain("Inner exception:"));
@@ -234,7 +234,7 @@ public class GitWizardLogTests
         var output = string.Empty;
         GitWizardLog.LogMethod = msg => { output = msg!; };
 
-        GitWizardLog.Log("Info", GitWizardLog.LogType.Info);
+        GitWizardLog.Log("Info");
         Assert.That(output, Is.Empty);
 
         GitWizardLog.Log("Error", GitWizardLog.LogType.Error);

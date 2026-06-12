@@ -41,4 +41,52 @@ public class GitWizardSummaryTests
         Assert.That(summary.NeedingAttention, Has.Count.EqualTo(1));
         Assert.That(summary.NeedingAttention[0].Reasons, Contains.Item("merged-branches"));
     }
+
+    [Test]
+    public void FromReport_EmptyReport_HasNoRepositoriesAndNoAttention()
+    {
+        var summary = GitWizardSummary.FromReport(new GitWizardReport());
+
+        Assert.That(summary.TotalRepositories, Is.EqualTo(0));
+        Assert.That(summary.NeedingAttention, Is.Empty);
+    }
+
+    [Test]
+    public void FromReport_DirtyRepo_CountsItAndRecordsTheReasons()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        File.WriteAllText(Path.Combine(fixture.Path, "uncommitted.txt"), "dirty");
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        var report = new GitWizardReport();
+        report.Repositories[fixture.Path] = repository;
+
+        var summary = GitWizardSummary.FromReport(report);
+
+        Assert.That(summary.Dirty, Is.EqualTo(1));
+        // A throwaway local repo has no remote, so every commit also counts as unpushed.
+        Assert.That(summary.Unpushed, Is.EqualTo(1));
+        Assert.That(summary.NeedingAttention, Has.Count.EqualTo(1));
+        Assert.That(summary.NeedingAttention[0].Path, Is.EqualTo(fixture.Path));
+        Assert.That(summary.NeedingAttention[0].Reasons, Does.Contain("dirty"));
+        Assert.That(summary.NeedingAttention[0].Reasons, Does.Contain("unpushed"));
+    }
+
+    [Test]
+    public void FromReport_StaleRepo_CountsItAsStale()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit(DateTimeOffset.Now.AddDays(-60));
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        var report = new GitWizardReport();
+        report.Repositories[fixture.Path] = repository;
+
+        var summary = GitWizardSummary.FromReport(report);
+
+        Assert.That(summary.Stale, Is.EqualTo(1));
+    }
 }

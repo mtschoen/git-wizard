@@ -14,7 +14,7 @@ public partial class MainWindow : Window
 {
     readonly MainViewModel _viewModel;
 
- public MainWindow()
+    public MainWindow()
     {
         InitializeComponent();
         Icon = IconLoader.Load();
@@ -49,7 +49,7 @@ public partial class MainWindow : Window
     {
         if (!OperatingSystem.IsWindows()) return;
 
-        var success = await Task.Run(() => WindowsDefenderException.AddExclusions());
+        var success = await Task.Run(() => WindowsDefender.AddExclusions());
         await new AvaloniaUserDialogs().DisplayAlertAsync(
             success ? "Defender Exclusions Added" : "Defender Setup Failed",
             success
@@ -102,7 +102,7 @@ public partial class MainWindow : Window
 
     // Scroll anchoring across a refresh. RefreshAsync clears the Repositories collection at the
     // start of the refresh (resetting scroll to the top) and rebuilds it with fresh node
-    // instances, so the anchor is the repo's stable working-directory path — captured before the
+    // instances, so the anchor is the repo's stable working-directory path - captured before the
     // refresh, re-applied after the final collection swap.
     string? _anchorPath;
     double _anchorAbove;   // px the anchored row was scrolled above the viewport top
@@ -148,7 +148,7 @@ public partial class MainWindow : Window
 
         // The rebuilt rows are not laid out at swap time, and the VirtualizingStackPanel's
         // scrollable extent is an *estimate* that is wrong until layout settles
-        // (AvaloniaUI/Avalonia#17460/#17848) — so a single Offset set lands against a stale
+        // (AvaloniaUI/Avalonia#17460/#17848) - so a single Offset set lands against a stale
         // extent and is silently clamped (the old approach: scroll did nothing). Materialize the
         // anchor with ScrollIntoView once, then run a closed loop over successive layout passes:
         // measure where the row actually sits and correct the offset by exactly that delta until

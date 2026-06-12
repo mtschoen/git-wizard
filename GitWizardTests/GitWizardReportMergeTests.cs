@@ -227,7 +227,7 @@ public class GitWizardReportMergeTests
     {
         // Regression for the #42 fidelity flaw: the original merge deserialized the whole report
         // into GitWizardReport and re-serialized it, which dropped `private set` fields (e.g.
-        // CurrentBranch) on UNTOUCHED entries — System.Text.Json won't populate private setters on
+        // CurrentBranch) on UNTOUCHED entries - System.Text.Json won't populate private setters on
         // read, so they round-tripped to null and were omitted on write. The DOM-level merge keeps
         // untouched entries as their original JsonNode, so such fields must survive verbatim.
         GitWizardLog.SilentMode = true;

@@ -212,18 +212,122 @@ public class GitWizardRepositoryMoreTests
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         var repo = new GitWizardRepository(fixture.Path);
 
-        repo.Refresh(null);
+        repo.Refresh();
         Assert.That(repo.RefreshError, Is.Null);
+    }
+
+    [Test]
+    public void Refresh_NonGitDirectory_SetsNotARepositoryError()
+    {
+        var directory = CreateNonGitDirectory();
+        try
+        {
+            File.WriteAllText(Path.Combine(directory, "file.txt"), "content");
+            var repo = new GitWizardRepository(directory);
+
+            repo.Refresh();
+
+            Assert.That(repo.RefreshError, Does.Contain("not a git repository").IgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Test]
+    public void Refresh_InvokesRefreshCompletedCallbackExactlyOnce()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var handler = new CountingUpdateHandler();
+        var repo = new GitWizardRepository(fixture.Path);
+
+        repo.Refresh(handler);
+
+        Assert.That(handler.RefreshCompletedCount, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void Refresh_SwallowsAThrowingRefreshCompletedCallback()
+    {
+        var directory = CreateNonGitDirectory();
+        try
+        {
+            var repo = new GitWizardRepository(directory);
+
+            // The handler throws from OnRepositoryRefreshCompleted; Refresh must neither propagate it
+            // nor lose the original failure reason.
+            repo.Refresh(new FailingUpdateHandler());
+
+            Assert.That(repo.RefreshError, Does.Contain("not a git repository").IgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Test]
+    public void Refresh_SetsLastCommitDate()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var repo = new GitWizardRepository(fixture.Path);
+
+        repo.Refresh();
+
+        Assert.That(repo.LastCommitDate, Is.Not.Null);
+    }
+
+    [Test]
+    public void Refresh_AuthorEmails_ContainTheCommitterEmail()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var repo = new GitWizardRepository(fixture.Path);
+
+        repo.Refresh();
+
+        Assert.That(repo.AuthorEmails, Is.Not.Null);
+        Assert.That(repo.AuthorEmails, Does.Contain("test@example.com"));
+    }
+
+    [Test]
+    public void Refresh_RemoteUrls_AreEmpty_ForRepoWithoutRemotes()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var repo = new GitWizardRepository(fixture.Path);
+
+        repo.Refresh();
+
+        Assert.That(repo.RemoteUrls, Is.Empty);
+    }
+
+    [Test]
+    public void Refresh_CleanRepo_HasNoPendingChanges()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var repo = new GitWizardRepository(fixture.Path);
+
+        repo.Refresh();
+
+        Assert.That(repo.HasPendingChanges, Is.False);
+        Assert.That(repo.NumberOfPendingChanges, Is.EqualTo(0));
+    }
+
+    static string CreateNonGitDirectory()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "gw-nongit-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        return directory;
     }
 }
 
 public class NullUpdateHandler : IUpdateHandler
 {
-    public void StartProgress(string message, int maxCount) { }
+    public void StartProgress(string description, int total) { }
     public void UpdateProgress(int count) { }
     public void SendUpdateMessage(string? message) { }
-    public void OnRepositoryCreated(GitWizardRepository repository) { }
-    public void OnRepositoryRefreshCompleted(GitWizardRepository repository) { }
+    public void OnRepositoryCreated(GitWizardRepository gitWizardRepository) { }
+    public void OnRepositoryRefreshCompleted(GitWizardRepository gitWizardRepository) { }
     public void OnUninitializedSubmoduleCreated(GitWizardRepository parent, string submodulePath) { }
     public void OnSubmoduleCreated(GitWizardRepository parent, GitWizardRepository submodule) { }
     public void OnWorktreeCreated(GitWizardRepository worktree) { }

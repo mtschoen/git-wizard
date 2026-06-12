@@ -3,16 +3,21 @@ name: Release
 on:
   push:
     tags: ['v*']
-  pull_request:
-    paths:
-      - '.gitea/workflows/release.yml'
-      - 'GitWizard/GitWizard.csproj'
-      - 'GitWizardUI/GitWizardUI.csproj'
-      - 'git-wizard/git-wizard.csproj'
+  # PR publish-smoke is TEMPORARILY DISABLED during the vendored-MFTLib bridge era
+  # (lib/MFTLib/). `dotnet publish` is blocked by BlockVendoredMFTLibOnPublish, and
+  # the Ubuntu release runner can't bundle the Windows-only native MFTLibNative.dll
+  # for the win-x64 RID anyway. Restore this block when MFTLib 0.3.0 ships to NuGet
+  # and the vendored bridge is retired (see lib/MFTLib/README.md).
+  # pull_request:
+  #   paths:
+  #     - '.gitea/workflows/release.yml'
+  #     - 'GitWizard/GitWizard.csproj'
+  #     - 'GitWizardUI/GitWizardUI.csproj'
+  #     - 'git-wizard/git-wizard.csproj'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version (without leading v) — used for filenames when run manually'
+        description: 'Version (without leading v) - used for filenames when run manually'
         required: true
         default: '0.0.0-test'
 
@@ -166,7 +171,7 @@ jobs:
              else
                {tag_name:$tag, name:$name, draft:$draft, prerelease:$pre}
              end')
-          RESPONSE=$(curl -k -fsSL -X POST \
+          RESPONSE=$(curl -fsSL -X POST \
             -H "Authorization: token $CI_GITEA_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$BODY" \
@@ -182,7 +187,7 @@ jobs:
         run: |
           for asset in assets/*.zip; do
             echo "Uploading $asset"
-            curl -k -fsSL -X POST \
+            curl -fsSL -X POST \
               -H "Authorization: token $CI_GITEA_TOKEN" \
               -H "Content-Type: application/octet-stream" \
               --data-binary "@$asset" \
@@ -198,13 +203,13 @@ jobs:
         run: |
           if [ -n "$RELEASE_ID" ] && [ "$RELEASE_ID" != "null" ]; then
             echo "Deleting smoke release $RELEASE_ID"
-            curl -k -fsSL -X DELETE \
+            curl -fsSL -X DELETE \
               -H "Authorization: token $CI_GITEA_TOKEN" \
               "https://gitea.llamabox.internal/api/v1/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" || true
           fi
           if [ -n "$TAG" ]; then
             echo "Deleting smoke tag $TAG"
-            curl -k -fsSL -X DELETE \
+            curl -fsSL -X DELETE \
               -H "Authorization: token $CI_GITEA_TOKEN" \
               "https://gitea.llamabox.internal/api/v1/repos/${GITHUB_REPOSITORY}/git/refs/tags/${TAG}" || true
           fi

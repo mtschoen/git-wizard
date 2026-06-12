@@ -23,18 +23,30 @@ internal sealed class TempRepoFixture : IDisposable
         Path = path;
     }
 
-    public static TempRepoFixture CreateWithInitialCommit()
+    /// <summary>
+    /// Create a throwaway repository with a single initial commit (a staged README.md).
+    /// </summary>
+    /// <param name="commitTime">
+    /// Optional author/committer timestamp for the initial commit. Pass a past value to model a
+    /// stale repository (e.g. <c>DateTimeOffset.Now.AddDays(-60)</c>) without poking the
+    /// computed <c>DaysSinceLastCommit</c> via reflection. Defaults to "now".
+    /// </param>
+    public static TempRepoFixture CreateWithInitialCommit(DateTimeOffset? commitTime = null)
     {
         var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gw-test-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(path);
         Repository.Init(path);
+
+        var signature = commitTime is { } when
+            ? new Signature("Test", "test@example.com", when)
+            : Author;
 
         using (var repository = new Repository(path))
         {
             var readmePath = System.IO.Path.Combine(path, "README.md");
             File.WriteAllText(readmePath, "initial");
             Commands.Stage(repository, "README.md");
-            repository.Commit("initial", Author, Author);
+            repository.Commit("initial", signature, signature);
         }
 
         return new TempRepoFixture(path);
@@ -51,7 +63,7 @@ internal sealed class TempRepoFixture : IDisposable
 
     /// <summary>
     /// Create <paramref name="branchName"/> off the current HEAD, add one
-    /// commit on it, then switch back to the original branch — leaving the new
+    /// commit on it, then switch back to the original branch - leaving the new
     /// branch one commit ahead of (and unmerged into) the default.
     /// </summary>
     public void CommitOnNewBranch(string branchName, string fileName)
@@ -94,7 +106,7 @@ internal sealed class TempRepoFixture : IDisposable
     /// <summary>
     /// Commit a <c>.gitmodules</c> entry pointing at <paramref name="path"/> WITHOUT
     /// adding a matching gitlink to the index. The superproject then declares a
-    /// submodule that has no index entry — modelling the "declared in .gitmodules
+    /// submodule that has no index entry - modelling the "declared in .gitmodules
     /// but missing from the index" health issue (e.g. a submodule removed with a
     /// plain <c>rm -r</c> instead of <c>git submodule deinit</c>).
     /// </summary>
@@ -125,7 +137,7 @@ internal sealed class TempRepoFixture : IDisposable
 
     /// <summary>
     /// Add a submodule then deinitialize it, leaving the gitlink in the index and the
-    /// entry in .gitmodules but no working-tree checkout — the state of a superproject
+    /// entry in .gitmodules but no working-tree checkout - the state of a superproject
     /// cloned without <c>--recursive</c>.
     /// </summary>
     public void AddUninitializedSubmodule(string path)
@@ -136,7 +148,7 @@ internal sealed class TempRepoFixture : IDisposable
 
     /// <summary>
     /// Add a submodule, then advance the submodule's own HEAD with a fresh commit
-    /// WITHOUT updating the superproject's gitlink — so the checked-out commit no
+    /// WITHOUT updating the superproject's gitlink - so the checked-out commit no
     /// longer matches the ref the superproject records.
     /// </summary>
     public void AddSubmoduleAtWrongRef(string path)
@@ -149,7 +161,7 @@ internal sealed class TempRepoFixture : IDisposable
 
     /// <summary>
     /// Stage a gitlink at <paramref name="path"/> (pointing at the current HEAD) and
-    /// commit it WITHOUT a matching .gitmodules entry — an index that records a
+    /// commit it WITHOUT a matching .gitmodules entry - an index that records a
     /// submodule the .gitmodules file knows nothing about.
     /// </summary>
     public void AddGitlinkWithoutGitmodules(string path)
@@ -180,7 +192,7 @@ internal sealed class TempRepoFixture : IDisposable
         return upstream.Replace('\\', '/');
     }
 
-    static string RunGit(string workingDirectory, params string[] arguments)
+    static void RunGit(string workingDirectory, params string[] arguments)
     {
         var startInfo = new ProcessStartInfo("git")
         {
@@ -194,17 +206,17 @@ internal sealed class TempRepoFixture : IDisposable
 
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Failed to start git");
-        var standardOutput = process.StandardOutput.ReadToEnd();
+        // Drain stdout so a full pipe can't deadlock the child; the content is unused.
+        _ = process.StandardOutput.ReadToEnd();
         var standardError = process.StandardError.ReadToEnd();
         process.WaitForExit();
         if (process.ExitCode != 0)
             throw new InvalidOperationException(
                 $"git {string.Join(' ', arguments)} failed (exit {process.ExitCode}): {standardError}");
-        return standardOutput;
     }
 
     /// <summary>
-    /// Delete the repository directory immediately — e.g. to simulate an external deletion
+    /// Delete the repository directory immediately - e.g. to simulate an external deletion
     /// mid-test. Idempotent with <see cref="Dispose"/>, which still runs at scope end.
     /// </summary>
     public void DeleteNow() => DeleteTree(Path);
@@ -228,7 +240,7 @@ internal sealed class TempRepoFixture : IDisposable
             }
             Directory.Delete(directory, recursive: true);
         }
-        catch (Exception)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             // Best-effort cleanup; ignore if the OS is still holding locks.
         }

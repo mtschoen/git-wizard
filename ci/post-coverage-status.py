@@ -18,6 +18,7 @@ an `if: always()` step does not double-fail the job; but when --gate-line is
 set, an unreadable report is treated as a gate failure (exit 1). A POST/network
 failure DOES raise.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -54,7 +55,9 @@ def _percent_from_cobertura(patterns: list[str]) -> float:
             filename = class_node.get("filename", "")
             for line_node in class_node.iter("line"):
                 key = (filename, line_node.get("number", ""))
-                lines[key] = lines.get(key, False) or int(line_node.get("hits", "0")) > 0
+                lines[key] = (
+                    lines.get(key, False) or int(line_node.get("hits", "0")) > 0
+                )
     if not lines:
         raise ValueError("no source lines in Cobertura XML")
     return 100.0 * sum(1 for covered in lines.values() if covered) / len(lines)
@@ -85,17 +88,42 @@ def _write_summary(line_percent: float, branch_percent: float) -> None:
         handle.write(f"| Branch | {branch_percent}% |\n")
 
 
+def _ssl_context() -> ssl.SSLContext:
+    """SSL context that VERIFIES Gitea's mkcert-signed cert (never disables it).
+
+    gitea.llamabox.internal serves a self-signed mkcert cert the runner image's
+    default roots don't trust. The runner container mounts the mkcert root CA and
+    exposes its path via CURL_CA_BUNDLE / NODE_EXTRA_CA_CERTS / GIT_SSL_CAINFO
+    (see local-ci runner config). We ADD that CA on top of the system roots, so
+    verification stays ON: public TLS (github, pypi) still verifies against the
+    Mozilla roots while Gitea verifies against the mkcert CA. No host-specific
+    path is hard-coded; the CA location comes from the runner's env. Outside that
+    container (no var set / file absent) we fall back to the plain default
+    context -- still verifying -- so a misconfigured host fails loudly rather
+    than silently skipping verification. (#33; replaces the old ssl.CERT_NONE.)
+    """
+    context = ssl.create_default_context()
+    for var in ("CURL_CA_BUNDLE", "NODE_EXTRA_CA_CERTS", "GIT_SSL_CAINFO"):
+        ca = os.environ.get(var)
+        if ca and os.path.exists(ca):
+            context.load_verify_locations(cafile=ca)
+            break
+    return context
+
+
 def _post(state: str, description: str) -> None:
     server = os.environ["GITHUB_SERVER_URL"]
     repository = os.environ["GITHUB_REPOSITORY"]
     sha = os.environ["GITHUB_SHA"]
     run_id = os.environ.get("GITHUB_RUN_ID", "")
-    body = json.dumps({
-        "context": "pr-crew/coverage",
-        "state": state,
-        "description": description,
-        "target_url": f"{server}/{repository}/actions/runs/{run_id}",
-    }).encode()
+    body = json.dumps(
+        {
+            "context": "pr-crew/coverage",
+            "state": state,
+            "description": description,
+            "target_url": f"{server}/{repository}/actions/runs/{run_id}",
+        }
+    ).encode()
     request = urllib.request.Request(
         f"{server}/api/v1/repos/{repository}/statuses/{sha}",
         data=body,
@@ -105,22 +133,29 @@ def _post(state: str, description: str) -> None:
             "Content-Type": "application/json",
         },
     )
-    context = ssl.create_default_context()
-    context.check_hostname = False
-    context.verify_mode = ssl.CERT_NONE  # Gitea uses a self-signed mkcert cert
-    urllib.request.urlopen(request, context=context).read()
+    urllib.request.urlopen(request, context=_ssl_context()).read()
 
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--coverage-json", default="coverage.json")
     parser.add_argument("--cobertura", nargs="+")
-    parser.add_argument("--gate-line", type=float, default=None,
-                        help="fail (exit 1) when line coverage is below this percent")
-    parser.add_argument("--summary", action="store_true",
-                        help="write a line/branch coverage table to $GITHUB_STEP_SUMMARY")
-    parser.add_argument("--skip-post", action="store_true",
-                        help="do not POST the commit status (e.g. for the dedicated gate step)")
+    parser.add_argument(
+        "--gate-line",
+        type=float,
+        default=None,
+        help="fail (exit 1) when line coverage is below this percent",
+    )
+    parser.add_argument(
+        "--summary",
+        action="store_true",
+        help="write a line/branch coverage table to $GITHUB_STEP_SUMMARY",
+    )
+    parser.add_argument(
+        "--skip-post",
+        action="store_true",
+        help="do not POST the commit status (e.g. for the dedicated gate step)",
+    )
     arguments = parser.parse_args(argv[1:])
 
     try:
@@ -143,16 +178,23 @@ def main(argv: list[str]) -> int:
         print(f"posted pr-crew/coverage success: {percent}% line coverage")
 
     if arguments.summary:
-        branch_percent = round(_branch_percent_from_cobertura(arguments.cobertura), 2) \
-            if arguments.cobertura else 0.0
+        branch_percent = (
+            round(_branch_percent_from_cobertura(arguments.cobertura), 2)
+            if arguments.cobertura
+            else 0.0
+        )
         _write_summary(percent, branch_percent)
 
     if arguments.gate_line is not None:
         if percent < arguments.gate_line:
-            print(f"coverage gate FAILED: {percent}% line < {arguments.gate_line}% threshold",
-                  file=sys.stderr)
+            print(
+                f"coverage gate FAILED: {percent}% line < {arguments.gate_line}% threshold",
+                file=sys.stderr,
+            )
             return 1
-        print(f"coverage gate passed: {percent}% line >= {arguments.gate_line}% threshold")
+        print(
+            f"coverage gate passed: {percent}% line >= {arguments.gate_line}% threshold"
+        )
 
     return 0
 

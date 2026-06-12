@@ -359,3 +359,6 @@ MigrationBackup/
 # Claude Code configuration
 .claude/*
 !.claude/settings.json
+
+.maintenance.json
+.qwen/

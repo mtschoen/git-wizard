@@ -320,7 +320,7 @@ public class RepositoryNodeViewModelAdditionalTests
         var repo = new GitWizardRepository(fixture.Path);
         var node = new RepositoryNodeViewModel(repo);
 
-        Assert.That(node.MatchesFilter(FilterType.MyRepositories, null), Is.False);
+        Assert.That(node.MatchesFilter(FilterType.MyRepositories), Is.False);
     }
 
     [Test]

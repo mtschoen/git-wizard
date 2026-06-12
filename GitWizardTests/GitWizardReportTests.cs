@@ -42,7 +42,7 @@ public class GitWizardReportTests
         var report = new GitWizardReport(configuration);
 
         // Seed paths directly from temp repos (like the sibling Refresh_* tests) instead of
-        // running discovery — discovery would trigger MFT/UAC on Windows, and the subject under
+        // running discovery - discovery would trigger MFT/UAC on Windows, and the subject under
         // test here is parallel Refresh, not discovery.
         var repositoryPaths = new SortedSet<string> { repoA.Path, repoB.Path };
         Parallel.For(0, 10, _ => { report.Refresh(repositoryPaths); });

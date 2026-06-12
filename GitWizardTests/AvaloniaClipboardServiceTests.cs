@@ -9,11 +9,11 @@ using GitWizardUI.Services;
 namespace GitWizardTests;
 
 /// <summary>
-/// Headless Avalonia app used by <see cref="AvaloniaTestApplication"/> to give [AvaloniaTest]
+/// Headless Avalonia app used by the <c>[AvaloniaTestApplication]</c> attribute to give [AvaloniaTest]
 /// methods a real UI thread + platform. Reuses the production <see cref="GitWizardUI.App"/>, which
-/// only opens MainWindow under a classic-desktop lifetime — absent here — so no window/refresh runs.
+/// only opens MainWindow under a classic-desktop lifetime - absent here - so no window/refresh runs.
 /// </summary>
-public class TestAppBuilder
+public static class TestAppBuilder
 {
     public static AppBuilder BuildAvaloniaApp()
         => AppBuilder.Configure<GitWizardUI.App>().UseHeadless(new AvaloniaHeadlessPlatformOptions());
@@ -24,7 +24,7 @@ public class AvaloniaClipboardServiceTests
     // Regression guard for the crash that shipped latent: AvaloniaClipboardService._clipboard was
     // typed `dynamic`, so SetTextAsync (an explicitly-implemented IClipboard member) threw
     // RuntimeBinderException at runtime and took down the whole app. The StubClipboardService used by
-    // the view-model tests cannot catch that class of bug — this exercises the REAL Avalonia
+    // the view-model tests cannot catch that class of bug - this exercises the REAL Avalonia
     // IClipboard via a headless TopLevel, which is the exact path that broke.
     [AvaloniaTest]
     public async Task SetPlainTextAsync_WritesThroughToTheRealClipboard()

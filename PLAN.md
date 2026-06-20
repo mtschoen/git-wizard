@@ -12,21 +12,13 @@
 
 ## Inbox
 
-- [ ] **aislop -> 100/100** - gate is LIVE and GREEN at 65/100 (`.aislop/config.yml`
-      `failBelow: 60`; aislop now scores C#, not just the Python `ci/` tooling). Done so far
-      (branch `chore/aislop-csharp-cleanup`, pushed): cleared 4 null-forgiving + 1 python
-      chained-get, split `GitWizardReport.cs` into a `.Persistence.cs` partial, swept all
-      em/en dashes to ASCII. **Remaining for 100:** split 4 oversized files
-      (`MainViewModel.cs` ~1313, `GitWizardRepository.cs` ~817, `Program.cs` ~573,
-      `GitWizardApi.cs` ~544 - partial classes; do the block removal in small chunks, NOT one
-      giant Edit, see `~/.claude/notes/gotcha_giant_exact_match_edits_fragile.md`), extract 3
-      long functions, relocate 7 inline TODO comments into this PLAN, and decide on the 2
-      narrative-comment findings (the Avalonia "don't remove BuildAvaloniaApp" note + the
-      off-UI-thread swap explanation - deliberately kept; deleting them reaches 100 but the
-      knowledge also lives in AGENTS.md). Fleet-wide aislop extras (per-edit Claude Code hook
-      `aislop hook install --claude` pinned, no `@latest`; fix global `npm i -g aislop`, needs
-      root) still deferred. See `~/.claude/notes/reference_aislop.md`.
-      (NB: as of 2026-05-29 a TEMPORARY vendored MFTLib 0.3.0 bridge - `lib/MFTLib/` + `Directory.Build.targets` - unblocks CI so it builds with plain `dotnet build`. Retire it when MFTLib 0.3 ships to NuGet; see `lib/MFTLib/README.md`.)
+- [x] **aislop -> 100/100** - C# gate driven to 100/100 and wired into CI via PR #65
+      (`98ed176`); `.aislop/config.yml` now gates at `failBelow: 100` (0 findings across every
+      engine). Oversized files split into partials, long functions extracted, narrative
+      comments kept (knowledge also lives in AGENTS.md). Deferred fleet-wide extra: the
+      per-edit Claude Code aislop hook (pinned, no `@latest`) is not installed in this repo -
+      see `~/.claude/notes/reference_aislop.md`. (The early WIP branch
+      `chore/aislop-csharp-cleanup` was superseded by #65 and deleted.)
 
 ## Next Up
 

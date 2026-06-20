@@ -136,3 +136,31 @@ Avalonia, which also has extras (Downstream Branches filter, Clean button, progr
 - [x] **Gitea Actions CI** - `.gitea/workflows/ci.yml` runs `test-linux` (build + full NUnit suite with coverage, gated at 45% line via `ci/post-coverage-status.py`) and `test-windows` (full solution build + tests) on push to `main` and PRs targeting `main`. `.gitea/workflows/release.yml` builds CLI + GitWizardUI for `win-x64`/`linux-x64`/`osx-x64` and creates a Gitea release with all 6 assets attached on `v*` tag pushes. See `AGENTS.md` § CI infrastructure for runner/bot/branch-protection setup.
 - [ ] **Trust llamabox cert on the Windows runner** - currently the release publish and test-results upload use `NODE_TLS_REJECT_UNAUTHORIZED=0` to work around Node.js not trusting the self-signed Caddy cert. Install the cert into the runner's Node/system trust store and remove the env override.
 - [ ] **Retire the vendored MFTLib bridge** - `lib/MFTLib/` (prebuilt 0.3.0 DLLs) + repo-root `Directory.Build.targets` are a TEMPORARY checked-in bridge that unblocks CI while MFTLib 0.3.0 is unpublished. When 0.3.0 ships to NuGet: delete both, add `<PackageReference Include="MFTLib" Version="0.3.0" />` to `GitWizard/GitWizard.csproj`, and confirm CI stays green. Steps in `lib/MFTLib/README.md`.
+
+## Backlog
+
+Still-live ideas migrated from the legacy `.plan` (2026-06-19) when that pre-Avalonia
+file was retired. Not yet scheduled; promote to Next Up / a Gitea issue when picked up.
+
+- [ ] **MFT parser also finds `.git` files (not just directories)** so worktrees whose
+      origin lives outside the search paths are discovered.
+- [ ] **Include deleted files in the uncommitted-changes count** (untracked/added/renamed
+      are already counted per Schema 1.1; verify deletions are too).
+- [ ] **Show an error log in the UI** - exceptions are currently only written to output.
+- [ ] **Quick refresh / filesystem watcher** to drop deleted-or-renamed repos from the UI.
+- [ ] **Sort by size on disk.**
+- [ ] **Submodule health checks** - aggregate parent-repo status from submodule states; flag
+      submodules at a non-pointer ref, not init'd/checked out, or in `.gitmodules` but not the
+      index (or vice versa). (Verify against the current `SubmoduleHealth` coverage first.)
+- [ ] **Add the Windows folder to default exclusions.**
+- [ ] **Make the `Fork.exe` path configurable in settings** (currently hard-coded to
+      `%LocalAppData%\Fork\Fork.exe`).
+- [ ] **Explore a CLI arg-parsing library with auto-generated help** (replace `RunConfiguration`).
+- [ ] **Explore a path-handling library** for `%USERPROFILE%` / `~` aliases.
+- [ ] **"Pretty print" path lists** - show environment-variable values inline.
+- [ ] **Async save/load for cached files** (configs and reports).
+- [ ] **Make filters additive rather than mutually exclusive.**
+- [ ] **Review refresh concurrency/timeout** - `GitWizardReport.Refresh` still wraps sync work
+      in `Task.Run` with a per-repo timeout while mutating shared state/UI callbacks concurrently.
+      Decide between fully-async-with-cooperative-cancellation vs stricter ownership of shared
+      mutable state.

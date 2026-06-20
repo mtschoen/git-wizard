@@ -7,7 +7,7 @@
 # same parser the CI gate uses, so local and CI numbers stay comparable.
 #
 # Build note: while MFTLib is referenced as a local ProjectReference (pre-0.3.0-publish; see
-# CLAUDE.md -> "MFTLib Local Development"), `dotnet build` cannot build MFTLib's native vcxproj.
+# AGENTS.md -> "MFTLib Local Development"), `dotnet build` cannot build MFTLib's native vcxproj.
 # In that mode, build first with VS MSBuild (Platform=x64) and pass -NoBuild here. Once MFTLib
 # 0.3.0 is a PackageReference again, plain `dotnet` works and -NoBuild is unnecessary.
 #

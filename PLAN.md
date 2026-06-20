@@ -23,7 +23,7 @@
       long functions, relocate 7 inline TODO comments into this PLAN, and decide on the 2
       narrative-comment findings (the Avalonia "don't remove BuildAvaloniaApp" note + the
       off-UI-thread swap explanation - deliberately kept; deleting them reaches 100 but the
-      knowledge also lives in CLAUDE.md). Fleet-wide aislop extras (per-edit Claude Code hook
+      knowledge also lives in AGENTS.md). Fleet-wide aislop extras (per-edit Claude Code hook
       `aislop hook install --claude` pinned, no `@latest`; fix global `npm i -g aislop`, needs
       root) still deferred. See `~/.claude/notes/reference_aislop.md`.
       (NB: as of 2026-05-29 a TEMPORARY vendored MFTLib 0.3.0 bridge - `lib/MFTLib/` + `Directory.Build.targets` - unblocks CI so it builds with plain `dotnet build`. Retire it when MFTLib 0.3 ships to NuGet; see `lib/MFTLib/README.md`.)
@@ -108,12 +108,12 @@ Avalonia, which also has extras (Downstream Branches filter, Clean button, progr
 
 - [x] Scroll position restored across refresh - closed-loop offset correction in
       `MainWindow.RestoreScrollAnchor` (commit `ea6f2ce`); the during-refresh jump-to-top is an
-      accepted UX (see CLAUDE.md). Validated by the `avalonia-vsp-scroll-top` spike.
+      accepted UX (see AGENTS.md). Validated by the `avalonia-vsp-scroll-top` spike.
 - [x] **Settings: Tips footer + section description labels** - restored the MAUI-only "Tips" block and
       the per-section gray description labels in `SettingsWindow` (commit `ec5a17a`).
 - [x] **Fix: `Padding`/`Thickness` binding spam** - Avalonia bindings don't apply the target
       `TypeConverter` (MAUI did), so `ItemPaddingString` (string) → `Padding` threw `InvalidCastException`
-      per row on scroll. Added `StringToThicknessConverter` (commit `ec5a17a`). See CLAUDE.md tips.
+      per row on scroll. Added `StringToThicknessConverter` (commit `ec5a17a`). See AGENTS.md tips.
 - [x] **Fix: `RepositoryNotFoundException` spam on refresh** - guarded `Refresh` with `Repository.IsValid`
       so stale/non-repo cache entries skip cleanly (commit `b7a0321`). Cache-pruning follow-up tracked as
       [#48](https://gitea.llamabox.sticktoitive.net/schoen/git-wizard/issues/48).
@@ -133,6 +133,6 @@ Avalonia, which also has extras (Downstream Branches filter, Clean button, progr
 
 ## Infrastructure
 
-- [x] **Gitea Actions CI** - `.gitea/workflows/ci.yml` runs `test-linux` (build + full NUnit suite with coverage, gated at 45% line via `ci/post-coverage-status.py`) and `test-windows` (full solution build + tests) on push to `main` and PRs targeting `main`. `.gitea/workflows/release.yml` builds CLI + GitWizardUI for `win-x64`/`linux-x64`/`osx-x64` and creates a Gitea release with all 6 assets attached on `v*` tag pushes. See `CLAUDE.md` § CI infrastructure for runner/bot/branch-protection setup.
+- [x] **Gitea Actions CI** - `.gitea/workflows/ci.yml` runs `test-linux` (build + full NUnit suite with coverage, gated at 45% line via `ci/post-coverage-status.py`) and `test-windows` (full solution build + tests) on push to `main` and PRs targeting `main`. `.gitea/workflows/release.yml` builds CLI + GitWizardUI for `win-x64`/`linux-x64`/`osx-x64` and creates a Gitea release with all 6 assets attached on `v*` tag pushes. See `AGENTS.md` § CI infrastructure for runner/bot/branch-protection setup.
 - [ ] **Trust llamabox cert on the Windows runner** - currently the release publish and test-results upload use `NODE_TLS_REJECT_UNAUTHORIZED=0` to work around Node.js not trusting the self-signed Caddy cert. Install the cert into the runner's Node/system trust store and remove the env override.
 - [ ] **Retire the vendored MFTLib bridge** - `lib/MFTLib/` (prebuilt 0.3.0 DLLs) + repo-root `Directory.Build.targets` are a TEMPORARY checked-in bridge that unblocks CI while MFTLib 0.3.0 is unpublished. When 0.3.0 ships to NuGet: delete both, add `<PackageReference Include="MFTLib" Version="0.3.0" />` to `GitWizard/GitWizard.csproj`, and confirm CI stays green. Steps in `lib/MFTLib/README.md`.

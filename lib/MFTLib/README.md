@@ -49,4 +49,4 @@ NOTE: the `.gitattributes` force-CRLF block (`*.cs … text eol=crlf`) is **NOT*
 retirement — it's a permanent fix for the canonical `.editorconfig` (`end_of_line = crlf`) vs
 Linux LF-checkout conflict, independent of MFTLib. Leave it.
 
-Tracked in `PLAN.md` → Infrastructure and `CLAUDE.md` → MFTLib Local Development.
+Tracked in `PLAN.md` → Infrastructure and `AGENTS.md` → MFTLib Local Development.

@@ -17,6 +17,9 @@ On a measurement failure it posts state=error (so pr-crew reads the gate as
 an `if: always()` step does not double-fail the job; but when --gate-line is
 set, an unreadable report is treated as a gate failure (exit 1). A POST/network
 failure DOES raise.
+
+TLS: gitea.llamabox.sticktoitive.net uses a Let's Encrypt cert that Python's
+default ssl context verifies natively - no custom CA needed.
 """
 
 from __future__ import annotations
@@ -25,7 +28,6 @@ import argparse
 import glob
 import json
 import os
-import ssl
 import sys
 import urllib.request
 import xml.etree.ElementTree as ElementTree
@@ -88,29 +90,6 @@ def _write_summary(line_percent: float, branch_percent: float) -> None:
         handle.write(f"| Branch | {branch_percent}% |\n")
 
 
-def _ssl_context() -> ssl.SSLContext:
-    """SSL context that VERIFIES Gitea's mkcert-signed cert (never disables it).
-
-    gitea.llamabox.internal serves a self-signed mkcert cert the runner image's
-    default roots don't trust. The runner container mounts the mkcert root CA and
-    exposes its path via CURL_CA_BUNDLE / NODE_EXTRA_CA_CERTS / GIT_SSL_CAINFO
-    (see local-ci runner config). We ADD that CA on top of the system roots, so
-    verification stays ON: public TLS (github, pypi) still verifies against the
-    Mozilla roots while Gitea verifies against the mkcert CA. No host-specific
-    path is hard-coded; the CA location comes from the runner's env. Outside that
-    container (no var set / file absent) we fall back to the plain default
-    context -- still verifying -- so a misconfigured host fails loudly rather
-    than silently skipping verification. (#33; replaces the old ssl.CERT_NONE.)
-    """
-    context = ssl.create_default_context()
-    for var in ("CURL_CA_BUNDLE", "NODE_EXTRA_CA_CERTS", "GIT_SSL_CAINFO"):
-        ca = os.environ.get(var)
-        if ca and os.path.exists(ca):
-            context.load_verify_locations(cafile=ca)
-            break
-    return context
-
-
 def _post(state: str, description: str) -> None:
     server = os.environ["GITHUB_SERVER_URL"]
     repository = os.environ["GITHUB_REPOSITORY"]
@@ -133,7 +112,7 @@ def _post(state: str, description: str) -> None:
             "Content-Type": "application/json",
         },
     )
-    urllib.request.urlopen(request, context=_ssl_context()).read()
+    urllib.request.urlopen(request).read()
 
 
 def main(argv: list[str]) -> int:

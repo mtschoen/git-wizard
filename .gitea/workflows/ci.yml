@@ -106,10 +106,6 @@ jobs:
     name: Build + Test (Windows, full solution)
     runs-on: windows-latest
     timeout-minutes: 30
-    env:
-      # Node ignores the Windows cert store, so JS actions need the mkcert CA
-      # staged on the runner; keeps TLS verification ON (local-ci #33).
-      NODE_EXTRA_CA_CERTS: C:\actions-runner\mkcert-ca.pem
 
     steps:
       - name: Checkout

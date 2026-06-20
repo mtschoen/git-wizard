@@ -175,7 +175,7 @@ jobs:
             -H "Authorization: token $CI_GITEA_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$BODY" \
-            "https://gitea.llamabox.internal/api/v1/repos/${GITHUB_REPOSITORY}/releases")
+            "https://gitea.llamabox.sticktoitive.net/api/v1/repos/${GITHUB_REPOSITORY}/releases")
           RELEASE_ID=$(echo "$RESPONSE" | jq -r '.id')
           echo "Release id: $RELEASE_ID"
           echo "release_id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
@@ -191,7 +191,7 @@ jobs:
               -H "Authorization: token $CI_GITEA_TOKEN" \
               -H "Content-Type: application/octet-stream" \
               --data-binary "@$asset" \
-              "https://gitea.llamabox.internal/api/v1/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?name=$(basename "$asset")"
+              "https://gitea.llamabox.sticktoitive.net/api/v1/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?name=$(basename "$asset")"
           done
 
       - name: Smoke cleanup (PR only)
@@ -205,11 +205,11 @@ jobs:
             echo "Deleting smoke release $RELEASE_ID"
             curl -fsSL -X DELETE \
               -H "Authorization: token $CI_GITEA_TOKEN" \
-              "https://gitea.llamabox.internal/api/v1/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" || true
+              "https://gitea.llamabox.sticktoitive.net/api/v1/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" || true
           fi
           if [ -n "$TAG" ]; then
             echo "Deleting smoke tag $TAG"
             curl -fsSL -X DELETE \
               -H "Authorization: token $CI_GITEA_TOKEN" \
-              "https://gitea.llamabox.internal/api/v1/repos/${GITHUB_REPOSITORY}/git/refs/tags/${TAG}" || true
+              "https://gitea.llamabox.sticktoitive.net/api/v1/repos/${GITHUB_REPOSITORY}/git/refs/tags/${TAG}" || true
           fi

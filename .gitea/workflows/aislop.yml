@@ -16,8 +16,10 @@ on:
   workflow_dispatch:
 
 env:
-  # github.com/mtschoen/aislop @ schoen/main (assembled C# engine + fixes).
-  AISLOP_FORK_COMMIT: d45d1b08df29cc9e31dec20ef7b6ceefbc2945ba
+  # github.com/mtschoen/aislop @ v0.12.3 (release tag dcc986c): C# jb/dotnet
+  # fixes, the system-bundled-tool preference fix, and the typecheck .gitignore
+  # discovery fix on top of the assembled C# engine.
+  AISLOP_FORK_COMMIT: dcc986c010495b9eeb53c617907f14255adb49bf
 
 jobs:
   quality-gate:

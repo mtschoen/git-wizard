@@ -300,11 +300,11 @@ public partial class MainViewModel
         {
             // Find existing group header
             RepositoryNodeViewModel? header = null;
-            for (var i = 0; i < Repositories.Count; i++)
+            foreach (var candidate in Repositories)
             {
-                if (Repositories[i].IsGroupHeader && Repositories[i].GroupKey == key)
+                if (candidate.IsGroupHeader && candidate.GroupKey == key)
                 {
-                    header = Repositories[i];
+                    header = candidate;
                     break;
                 }
             }

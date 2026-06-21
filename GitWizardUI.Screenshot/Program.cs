@@ -39,7 +39,7 @@ class Program
                 Directory.CreateDirectory(screenshotDir);
 
             // Trigger rendering and capture the rendered frame
-            var bitmap = window.CaptureRenderedFrame();
+            using var bitmap = window.CaptureRenderedFrame();
 
             if (bitmap == null)
             {
@@ -56,7 +56,7 @@ class Program
             System.Runtime.InteropServices.Marshal.Copy(locked.Address, pixelData, 0, pixelData.Length);
 
             var info = new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Premul);
-            var skBitmap = new SKBitmap(info);
+            using var skBitmap = new SKBitmap(info);
             var address = System.Runtime.InteropServices.Marshal.AllocHGlobal(pixelData.Length);
             try
             {

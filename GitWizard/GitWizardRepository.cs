@@ -70,7 +70,7 @@ public partial class GitWizardRepository
                 return;
             }
 
-            var repository = new Repository(WorkingDirectory);
+            using var repository = new Repository(WorkingDirectory);
             IsRefreshing = true;
             RefreshSubmodules(updateHandler, repository, WorkingDirectory);
             CheckSubmoduleHealth(repository, WorkingDirectory);

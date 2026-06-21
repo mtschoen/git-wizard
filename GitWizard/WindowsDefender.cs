@@ -47,7 +47,7 @@ public static class WindowsDefender
                 CreateNoWindow = true
             };
 
-            var process = Process.Start(startInfo);
+            using var process = Process.Start(startInfo);
             if (process == null)
                 return false;
 
@@ -87,7 +87,7 @@ public static class WindowsDefender
                 CreateNoWindow = true
             };
 
-            var process = Process.Start(startInfo);
+            using var process = Process.Start(startInfo);
             if (process == null)
                 return false;
 

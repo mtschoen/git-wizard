@@ -6,8 +6,9 @@ name: aislop
 # The C# engine lives ONLY in the personal fork github.com/mtschoen/aislop (the
 # public npm `aislop` scores just the Python ci/ tooling), so we clone + build
 # that fork at a PINNED commit and run the built CLI. The C# lint engine shells
-# out to the `roslynator` dotnet global tool, so dotnet + roslynator are set up
-# here too. Bump AISLOP_FORK_COMMIT deliberately; do not track the moving branch.
+# out to the `roslynator` and `jb` (ReSharper CLT) dotnet global tools, so dotnet,
+# roslynator, and jb are set up here, and the solution is restored so jb inspectcode
+# can build it. Bump AISLOP_FORK_COMMIT deliberately; do not track the moving branch.
 on:
   pull_request:
   push:
@@ -16,7 +17,7 @@ on:
 
 env:
   # github.com/mtschoen/aislop @ schoen/main (assembled C# engine + fixes).
-  AISLOP_FORK_COMMIT: e8d78bc45b64f43a5e32cab0b49a580ccc5f86f4
+  AISLOP_FORK_COMMIT: d45d1b08df29cc9e31dec20ef7b6ceefbc2945ba
 
 jobs:
   quality-gate:
@@ -29,9 +30,10 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-      - name: Install roslynator CLI (C# lint engine dependency)
+      - name: Install C# lint engines (roslynator + jb / ReSharper CLT)
         run: |
           dotnet tool install -g roslynator.dotnet.cli
+          dotnet tool install -g JetBrains.ReSharper.GlobalTools
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
       - name: Build C#-capable aislop (pinned fork commit)
         # Cloned outside the workspace so aislop does not scan the fork's own source.
@@ -39,6 +41,8 @@ jobs:
           git clone https://github.com/mtschoen/aislop.git "$RUNNER_TEMP/aislop"
           git -C "$RUNNER_TEMP/aislop" checkout "$AISLOP_FORK_COMMIT"
           (cd "$RUNNER_TEMP/aislop" && npm install --no-audit --no-fund)
+      - name: Restore git-wizard (jb inspectcode builds the solution it targets)
+        run: dotnet restore git-wizard.slnx
       - name: aislop quality gate
         # Sanity-fail if the C# engine did not actually analyze the .cs tree (avoid a
         # silent Python-only pass): require a healthy file count alongside the score gate.

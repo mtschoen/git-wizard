@@ -175,6 +175,50 @@ internal sealed class TempRepoFixture : IDisposable
             "commit", "-m", $"orphan gitlink {path}");
     }
 
+    /// <summary>
+    /// Detach HEAD at <paramref name="reference"/> (default current HEAD), modelling a repository
+    /// checked out at a specific commit rather than on a branch. Advice output is suppressed so the
+    /// detach doesn't write to stderr.
+    /// </summary>
+    public void DetachHead(string reference = "HEAD")
+        => RunGit(Path, "-c", "advice.detachedHead=false", "checkout", "--detach", reference);
+
+    /// <summary>
+    /// Create <paramref name="name"/> at the current HEAD WITHOUT adding any commit, leaving it at
+    /// exactly the default branch's tip - a "boring" branch the actionable view drops but the full
+    /// inventory keeps.
+    /// </summary>
+    public void AddBranchAtHead(string name) => RunGit(Path, "branch", name);
+
+    /// <summary>
+    /// Merge <paramref name="name"/> into the current branch with an explicit merge commit
+    /// (<c>--no-ff</c>), leaving the merged branch fully contained in - but no longer at the tip of -
+    /// the default branch. The branch then reads as merged/downstream.
+    /// </summary>
+    public void MergeBranchNoFastForward(string name)
+        => RunGit(Path, "-c", "user.email=test@example.com", "-c", "user.name=Test",
+            "merge", "--no-ff", "-m", $"merge {name}", name);
+
+    /// <summary>
+    /// Stage an untracked file so the working tree reports pending changes on the next refresh.
+    /// </summary>
+    public void AddUntrackedFile(string fileName)
+        => File.WriteAllText(System.IO.Path.Combine(Path, fileName), Guid.NewGuid().ToString());
+
+    /// <summary>
+    /// Add a linked worktree (on a fresh branch <paramref name="branchName"/>) in a sibling temp
+    /// directory and return its absolute path. The directory is cleaned up on dispose.
+    /// </summary>
+    public string AddWorktree(string branchName)
+    {
+        var worktreePath = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(), "gw-wt-" + Guid.NewGuid().ToString("N"));
+        // git creates the directory; it must not exist beforehand.
+        RunGit(Path, "worktree", "add", worktreePath, "-b", branchName);
+        _extraCleanupDirs.Add(worktreePath);
+        return worktreePath;
+    }
+
     string CreateUpstreamRepo()
     {
         var upstream = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gw-upstream-" + Guid.NewGuid().ToString("N"));

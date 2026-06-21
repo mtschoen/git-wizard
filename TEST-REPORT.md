@@ -1,22 +1,23 @@
 # Test & Coverage Report - git-wizard
 
-**Status:** PASS - 341 non-admin tests pass, **0 build/analyzer findings** (analyzer gate + `dotnet format` + jb inspectcode clean), and **aislop now scores 100/100 (0 findings across every engine)**. The C# cleanup is complete: error-level findings (swallowed-exception, async), null-forgiving, todo-stub, narrative-comment, and the file/function-too-large complexity findings are all cleared.
-**Mode:** coverage = best-effort (the task is the aislop C# cleanup + refactor, not a coverage push - baseline held within 0.07%); lint/analyzers = maintain (build gate held at 0); aislop = close-the-gap **reached 100** (gate `failBelow` raised 60 → 100 to lock it in).
-**Branch:** `chore/aislop-csharp-cleanup` (off `main`) - aislop C# triage end-to-end: swallowed-exception → logged, AsyncFixer01/02 → fixed, null-forgiving → restructured to remove `!`, TODOs → gitea issues #60-64, narrative comments → reworded, oversized files → split into partials, long functions → extracted.
-**Last measured:** 2026-05-31, Windows, `Debug`, non-admin tier (vendored MFTLib → plain `dotnet build`/`dotnet test`). Elevated `RequiresAdmin` tier not re-run (unchanged privileged code, carried forward).
-**Command:** `dotnet build git-wizard.slnx` (analyzer gate) · `dotnet test git-wizard.slnx` · `aislop ci .` (C# AI-slop gate) · `scripts/run-coverage.ps1 -Configuration Debug -NoBuild -NonInteractive`.
-**Git:** `chore/aislop-csharp-cleanup`
+**Status:** PASS - 381 non-admin tests pass, **0 build/analyzer findings** (analyzer gate + `dotnet format` + jb inspectcode clean), and **aislop scores 100/100 (0 findings across every engine)**.
+**Mode:** coverage = close-the-gap (the task IS a coverage push - new tests cover code, baseline ratcheted **up** 52.80% → 57.47% line); lint/analyzers = maintain (build gate held at 0); aislop = maintain (100).
+**Branch:** `test/coverage-bump` (off `main`) - +39 tests across six new files targeting the largest testable gaps. Batch 1: `GitWizardRepository.BranchesAndWorktrees` (detached-HEAD matching, worktree discovery, checkout, full-inventory + deep-refresh), `RepositoryNodeViewModel` (pending/stale/detached/merged display + filter predicates + submodule tooltip), `GitWizardReport` (throwing-handler catches + Save/SaveAsync error paths). Batch 2: `AsyncRelayCommand`/`AsyncRelayCommand<T>` (run/swallow/CanExecute/raise → RelayCommand 100%), `GitWizardConfiguration` (Save/SaveAsync error paths + instance scan), `GitWizardApi` recursive-scan edges (throwing handler, hidden-attr dir skip), and submodule callback-throw swallowing. Plus `TempRepoFixture` builders (detach HEAD, branch-at-head, no-ff merge, add worktree, untracked file).
+**Last measured:** 2026-06-21, Windows, `Debug`, non-admin tier (vendored MFTLib → plain `dotnet build`/`dotnet test`). Elevated `RequiresAdmin` tier not re-run (unchanged privileged code, carried forward).
+**Command:** `dotnet build git-wizard.slnx` (analyzer gate) · `dotnet test git-wizard.slnx --collect:"XPlat Code Coverage"` · `dotnet format git-wizard.slnx --verify-no-changes` · `aislop ci .` (C# AI-slop gate).
+**Git:** `test/coverage-bump` (off `041f677`)
 
 ## Results
 
 | Metric | Value |
 | --- | --- |
-| Tests passed (non-admin tier) | 340 (+~30 vs main's 311: salvaged/reworked API, repository, MainViewModel, GitWizardSummary coverage) |
+| Tests passed (non-admin tier) | 381 (+39 vs the prior 342: branch/worktree, node-state, report/config/discovery error paths, async commands, submodule callbacks) |
 | Tests passed (`RequiresAdmin` tier, elevated) | 2 (carried forward - not re-run this session) |
 | Failed | 0 |
 | Skipped on Windows (Unix-only + non-Windows MFT guard) | 2 |
-| **Line coverage (non-admin, `Debug`)** | **52.99%** (was 53.06% on `main`; **-0.07** - added log lines in hard-to-test recursive-IO/Process error catches; far above the 45% CI gate) |
-| **Branch coverage (non-admin, `Debug`)** | **48.13%** (was 48.05%; **+0.08**) |
+| **Line coverage (non-admin, `Debug`)** | **57.47%** (was 52.80%; **+4.67** - far above the 45% CI gate) |
+| **Branch coverage (non-admin, `Debug`)** | **52.67%** (was 48.04%; **+4.63**) |
+| Per-file lift | `RelayCommand` 67.9% → 100%, `GitWizardConfiguration` 84.1% → 96.5%, `RepositoryNodeViewModel` 79.2% → 95.7%, `GitWizardRepository.Submodules` 85.0% → 90.6%, `GitWizardReport` 77.4% → 85.9%, `GitWizardRepository.BranchesAndWorktrees` 50.8% → 71.0% |
 | Line coverage (merged: non-admin + elevated, prior full run) | 44.24% (carried forward - re-run self-elevating for a fresh merge) |
 | `[ExcludeFromCodeCoverage]` annotations | 0 |
 

@@ -10,7 +10,7 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 
-class Program
+static class Program
 {
     static async Task<int> Main(string[] args)
     {

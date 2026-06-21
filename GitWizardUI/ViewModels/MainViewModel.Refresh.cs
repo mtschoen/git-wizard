@@ -5,7 +5,7 @@ namespace GitWizardUI.ViewModels;
 
 public partial class MainViewModel
 {
-    void AddRepository(GitWizardRepository repository)
+    internal void AddRepository(GitWizardRepository repository)
     {
         // The first repository to surface ends the "Scanning…" gap; rows now stream into the list.
         IsScanning = false;
@@ -58,7 +58,7 @@ public partial class MainViewModel
             GitWizardLog.LogType.Verbose);
     }
 
-    void UpdateCompletedRepository(GitWizardRepository repository)
+    internal void UpdateCompletedRepository(GitWizardRepository repository)
     {
         var path = repository.WorkingDirectory;
         if (string.IsNullOrEmpty(path) || !_repositoryMap.TryGetValue(path, out var node))

@@ -1,7 +1,7 @@
 # Test & Coverage Report - git-wizard
 
-**Status:** PASS - 381 non-admin tests pass, **0 build/analyzer findings** (analyzer gate + `dotnet format` + jb inspectcode clean), and **aislop scores 100/100 (0 findings across every engine)**.
-**Mode:** coverage = close-the-gap (the task IS a coverage push - new tests cover code, baseline ratcheted **up** 52.80% → 57.47% line); lint/analyzers = maintain (build gate held at 0); aislop = maintain (100).
+**Status:** PASS - 392 non-admin tests pass, **0 build/analyzer findings** (analyzer gate + `dotnet format` + jb inspectcode clean), and **aislop scores 100/100 (0 findings across every engine)**.
+**Mode:** coverage = close-the-gap (the task IS a coverage push - new tests cover code, baseline ratcheted **up** 52.80% → 62.86% line); lint/analyzers = maintain (build gate held at 0); aislop = maintain (100). One minimal **production** change enables the view-model batch: `GitWizardUI` grants `InternalsVisibleTo("GitWizardTests")` and four `MainViewModel` methods (`AddRepository`, `UpdateCompletedRepository`, `ToggleGroupExpand`, `CleanDownstreamBranchesAsync`) widened `private` → `internal` so the grouping/command logic is testable without driving the async UI command queue.
 **Branch:** `test/coverage-bump` (off `main`) - +39 tests across six new files targeting the largest testable gaps. Batch 1: `GitWizardRepository.BranchesAndWorktrees` (detached-HEAD matching, worktree discovery, checkout, full-inventory + deep-refresh), `RepositoryNodeViewModel` (pending/stale/detached/merged display + filter predicates + submodule tooltip), `GitWizardReport` (throwing-handler catches + Save/SaveAsync error paths). Batch 2: `AsyncRelayCommand`/`AsyncRelayCommand<T>` (run/swallow/CanExecute/raise → RelayCommand 100%), `GitWizardConfiguration` (Save/SaveAsync error paths + instance scan), `GitWizardApi` recursive-scan edges (throwing handler, hidden-attr dir skip), and submodule callback-throw swallowing. Plus `TempRepoFixture` builders (detach HEAD, branch-at-head, no-ff merge, add worktree, untracked file).
 **Last measured:** 2026-06-21, Windows, `Debug`, non-admin tier (vendored MFTLib → plain `dotnet build`/`dotnet test`). Elevated `RequiresAdmin` tier not re-run (unchanged privileged code, carried forward).
 **Command:** `dotnet build git-wizard.slnx` (analyzer gate) · `dotnet test git-wizard.slnx --collect:"XPlat Code Coverage"` · `dotnet format git-wizard.slnx --verify-no-changes` · `aislop ci .` (C# AI-slop gate).
@@ -11,13 +11,13 @@
 
 | Metric | Value |
 | --- | --- |
-| Tests passed (non-admin tier) | 381 (+39 vs the prior 342: branch/worktree, node-state, report/config/discovery error paths, async commands, submodule callbacks) |
+| Tests passed (non-admin tier) | 392 (+50 vs the prior 342: branch/worktree, node-state, report/config/discovery error paths, async commands, submodule callbacks, view-model grouping/commands) |
 | Tests passed (`RequiresAdmin` tier, elevated) | 2 (carried forward - not re-run this session) |
 | Failed | 0 |
 | Skipped on Windows (Unix-only + non-Windows MFT guard) | 2 |
-| **Line coverage (non-admin, `Debug`)** | **57.47%** (was 52.80%; **+4.67** - far above the 45% CI gate) |
-| **Branch coverage (non-admin, `Debug`)** | **52.67%** (was 48.04%; **+4.63**) |
-| Per-file lift | `RelayCommand` 67.9% → 100%, `GitWizardConfiguration` 84.1% → 96.5%, `RepositoryNodeViewModel` 79.2% → 95.7%, `GitWizardRepository.Submodules` 85.0% → 90.6%, `GitWizardReport` 77.4% → 85.9%, `GitWizardRepository.BranchesAndWorktrees` 50.8% → 71.0% |
+| **Line coverage (non-admin, `Debug`)** | **62.86%** (was 52.80%; **+10.06** - far above the 45% CI gate) |
+| **Branch coverage (non-admin, `Debug`)** | **59.29%** (was 48.04%; **+11.25**) |
+| Per-file lift | `RelayCommand` 67.9% → 100%, `GitWizardConfiguration` 84.1% → 96.5%, `RepositoryNodeViewModel` 79.2% → 95.7%, `GitWizardRepository.Submodules` 85.0% → 90.6%, `GitWizardReport` 77.4% → 85.9%, `GitWizardRepository.BranchesAndWorktrees` 50.8% → 71.0%, `MainViewModel.Grouping` 44.4% → 64.3%, `MainViewModel.Commands` ~12% → 46.5% |
 | Line coverage (merged: non-admin + elevated, prior full run) | 44.24% (carried forward - re-run self-elevating for a fresh merge) |
 | `[ExcludeFromCodeCoverage]` annotations | 0 |
 

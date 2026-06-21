@@ -24,4 +24,11 @@
   <ItemGroup>
     <ProjectReference Include="..\GitWizard\GitWizard.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Expose internal seams (AddRepository, UpdateCompletedRepository, ToggleGroupExpand,
+         CleanDownstreamBranchesAsync) to the test project so the view-model's grouping/filtering
+         and command logic can be exercised deterministically without driving the async UI command
+         queue. -->
+    <InternalsVisibleTo Include="GitWizardTests" />
+  </ItemGroup>
 </Project>

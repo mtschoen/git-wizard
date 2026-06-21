@@ -138,7 +138,7 @@ public partial class MainViewModel
         });
     }
 
-    async Task CleanDownstreamBranchesAsync(RepositoryNodeViewModel? node)
+    internal async Task CleanDownstreamBranchesAsync(RepositoryNodeViewModel? node)
     {
         if (node == null || node.IsGroupHeader)
             return;
@@ -233,7 +233,7 @@ public partial class MainViewModel
         });
     }
 
-    void ToggleGroupExpand(RepositoryNodeViewModel? node)
+    internal void ToggleGroupExpand(RepositoryNodeViewModel? node)
     {
         if (node == null || !node.IsGroupHeader)
             return;

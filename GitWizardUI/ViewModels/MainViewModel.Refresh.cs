@@ -187,8 +187,8 @@ public partial class MainViewModel
         await Task.Run(() =>
         {
             _stopwatch.Restart();
-            var report = GitWizardReport.GenerateReport(configuration, repositoryPaths, this, fetchRemotes,
-                deepRefresh: fetchRemotes);
+            var report = GitWizardReport.GenerateReport(configuration, repositoryPaths, this,
+                new GitWizardReportOptions { FetchRemotes = fetchRemotes, DeepRefresh = fetchRemotes });
             _stopwatch.Stop();
 
             // Capture deleted paths for cache cleanup on main thread

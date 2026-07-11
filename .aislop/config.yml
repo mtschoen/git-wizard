@@ -48,6 +48,10 @@ scoring:
     good: 75
     ok: 50
 
+exclude:
+  - "external/MFTLib/**" # vendored submodule - has its own repo and rules
+  - ".claude/**"         # gitignored local scratch (e.g. .claude/spikes) - absent on CI checkouts
+
 ci:
   failBelow: 100
   format: json

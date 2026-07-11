@@ -16,16 +16,20 @@ on:
   workflow_dispatch:
 
 env:
-  # github.com/mtschoen/aislop @ v0.12.3 (release tag dcc986c): C# jb/dotnet
-  # fixes, the system-bundled-tool preference fix, and the typecheck .gitignore
-  # discovery fix on top of the assembled C# engine.
-  AISLOP_FORK_COMMIT: dcc986c010495b9eeb53c617907f14255adb49bf
+  # github.com/mtschoen/aislop @ schoen/main 2026-07-11: central exclude
+  # post-filter (build-backed C#/C++ engines previously bypassed config
+  # excludes, so the external/MFTLib submodule leaked into the scan),
+  # depth-aware countParams, record param counting. Pinned by commit, not a
+  # published version - the registry publish route is retired.
+  AISLOP_FORK_COMMIT: 58baba50e6f61a8808bbd2b897bd134e841904ee
 
 jobs:
   quality-gate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -43,6 +47,10 @@ jobs:
           git clone https://github.com/mtschoen/aislop.git "$RUNNER_TEMP/aislop"
           git -C "$RUNNER_TEMP/aislop" checkout "$AISLOP_FORK_COMMIT"
           (cd "$RUNNER_TEMP/aislop" && npm install --no-audit --no-fund)
+      # MFTLib types must resolve for jb/roslynator to load the solution; managed-only
+      # is enough for analysis (no native build here - the copy target only warns).
+      - name: Build MFTLib managed (HintPath for analysis)
+        run: dotnet build external/MFTLib/MFTLib/MFTLib.csproj -c Release -p:Platform=x64
       - name: Restore git-wizard (jb inspectcode builds the solution it targets)
         run: dotnet restore git-wizard.slnx
       - name: aislop quality gate

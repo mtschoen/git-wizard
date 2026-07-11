@@ -13,11 +13,24 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+        with:
+          msbuild-architecture: x64
+
+      - name: Build MFTLib (native + managed)
+        shell: pwsh
+        run: |
+          msbuild external\MFTLib\MFTLibNative\MFTLibNative.vcxproj -t:Build -p:Configuration=Debug -p:Platform=x64 -nologo -v:minimal
+          dotnet build external\MFTLib\MFTLib\MFTLib.csproj -c Debug -p:Platform=x64
 
       - name: Restore dependencies
         run: dotnet restore git-wizard.slnx

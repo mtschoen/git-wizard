@@ -1,52 +1,105 @@
 <Project>
 
   <!-- ============================================================================
-       TEMPORARY — vendored MFTLib 0.3.0 bridge (see lib/MFTLib/README.md).
+       TEMPORARY - MFTLib 0.3.0 bridge (git submodule at external/MFTLib).
 
-       git-wizard needs MFTLib 0.3.0 (the IElevationProvider elevation API), which is not yet
-       on NuGet. Instead of a local ProjectReference to a sibling MFTLib checkout (which the CI
-       runners don't have, and whose native .vcxproj `dotnet` can't build), we reference a
-       prebuilt MFTLib.dll checked in under lib/MFTLib/ so a plain `dotnet build` works.
+       git-wizard needs MFTLib 0.3.0 (IElevationProvider), which is not yet on NuGet. MFTLib is a
+       git submodule pinned at external/MFTLib and built FROM SOURCE on each platform:
+         - native: MSVC vcxproj on Windows / CMake into external/MFTLib/build-linux on Linux
+         - managed: `dotnet build external/MFTLib/MFTLib/MFTLib.csproj -p:Platform=x64`
+       Every git-wizard project consumes MFTLib as a built ASSEMBLY (HintPath <Reference>); a
+       ProjectReference would drag the native vcxproj into every consumer's build graph, which
+       `dotnet` cannot load (MSB4278). Publishing against the source-built submodule is fine (the
+       old vendored-dll publish guard is gone with the vendored dlls).
 
-       This lives in Directory.Build.targets (imported by EVERY project in the tree) on purpose:
-       - The managed <Reference> must be on all four consuming projects — GitWizard plus the CLI
-         and UI (which expose IElevationProvider through GitWizard API signatures, so they hit
-         CS0012 without their own reference) and the test project. A raw assembly <Reference>
-         does NOT flow transitively like a ProjectReference, so it can't live in GitWizard alone.
-       - A project-local native-DLL copy doesn't propagate to dependents either, so MFTLibNative.dll
-         is copied here too.
-
-       RETIRE when MFTLib 0.3.0 ships to NuGet: delete this file and lib/MFTLib/, then add
-       `<PackageReference Include="MFTLib" Version="0.3.0" />` to GitWizard/GitWizard.csproj (it
-       flows transitively, restoring the original clean design; its buildTransitive targets place
-       the native DLL automatically).
+       RETIRE when MFTLib 0.3.0 ships to NuGet: delete this file and the external/MFTLib
+       submodule, then add `<PackageReference Include="MFTLib" Version="0.3.0" />` to
+       GitWizard/GitWizard.csproj (it flows transitively and its buildTransitive targets place the
+       native library automatically).
        ============================================================================ -->
 
-  <!-- (1) Managed reference — all platforms (needed to compile against MFTLib types, incl. the
-       Linux CI job). $(MSBuildThisFileDirectory) anchors to the repo root regardless of project. -->
-  <ItemGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'">
+  <!-- external/MFTLib is inside the repo, so MSBuild imports THIS file when MFTLib itself is
+       built. Flag those projects so nothing below applies to MFTLib's own build. -->
+  <PropertyGroup>
+    <IsMFTLibSubmodule Condition="$(MSBuildProjectFullPath.Contains('external\MFTLib')) Or $(MSBuildProjectFullPath.Contains('external/MFTLib'))">true</IsMFTLibSubmodule>
+  </PropertyGroup>
+
+  <!-- Let `dotnet` build the managed MFTLib.csproj: drop its ProjectReference to the native
+       MFTLibNative.vcxproj, which the .NET CLI cannot load (MSB4278). The managed dll only
+       P/Invokes the native at runtime, where the separately built library is supplied by the
+       copy targets below. -->
+  <ItemGroup Condition="'$(IsMFTLibSubmodule)' == 'true' And '$(MSBuildProjectExtension)' == '.csproj'">
+    <ProjectReference Remove="..\MFTLibNative\MFTLibNative.vcxproj" />
+  </ItemGroup>
+
+  <!-- (1) Managed reference - the MFTLib.dll built from the submodule. Prefer the active
+       configuration but fall back to whichever is actually built: `dotnet format` loads projects
+       in Debug even when CI built only Release; without the fallback it cannot resolve MFTLib's
+       types (CS0246) and the lint step fails (file-wizard precedent). -->
+  <PropertyGroup Condition="'$(IsMFTLibSubmodule)' != 'true' And '$(MSBuildProjectExtension)' == '.csproj'">
+    <_MFTLibBin>$(MSBuildThisFileDirectory)external\MFTLib\MFTLib\bin\x64</_MFTLibBin>
+    <_MFTLibDll>$(_MFTLibBin)\$(Configuration)\net8.0\MFTLib.dll</_MFTLibDll>
+    <_MFTLibDll Condition="!Exists('$(_MFTLibDll)') And Exists('$(_MFTLibBin)\Release\net8.0\MFTLib.dll')">$(_MFTLibBin)\Release\net8.0\MFTLib.dll</_MFTLibDll>
+    <_MFTLibDll Condition="!Exists('$(_MFTLibDll)') And Exists('$(_MFTLibBin)\Debug\net8.0\MFTLib.dll')">$(_MFTLibBin)\Debug\net8.0\MFTLib.dll</_MFTLibDll>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(IsMFTLibSubmodule)' != 'true' And '$(MSBuildProjectExtension)' == '.csproj'">
     <Reference Include="MFTLib">
-      <HintPath>$(MSBuildThisFileDirectory)lib\MFTLib\MFTLib.dll</HintPath>
+      <HintPath>$(_MFTLibDll)</HintPath>
       <Private>true</Private>
     </Reference>
   </ItemGroup>
 
-  <!-- (2) Windows native lib — copied into every project's output so MFTLib's P/Invoke resolves
-       it at runtime. Linux: condition is false (git-wizard only invokes MFT on Windows; the Linux
-       CI job builds against the managed assembly and skips MFT tests), so no native lib is needed. -->
-  <ItemGroup Condition="'$(MSBuildProjectExtension)' == '.csproj' And $([MSBuild]::IsOSPlatform('Windows'))">
-    <None Include="$(MSBuildThisFileDirectory)lib\MFTLib\win-x64\MFTLibNative.dll">
-      <Link>MFTLibNative.dll</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <Visible>false</Visible>
-    </None>
-  </ItemGroup>
+  <!-- (2a) Windows native lib - copied into each project's output so MFTLib's P/Invoke resolves
+       it at runtime. Glob for the vcxproj-built DLL under the submodule, scoped to the active
+       Configuration, excluding obj copies. -->
+  <Target Name="CopyMFTLibNativeWindows" AfterTargets="Build"
+          Condition="'$(IsMFTLibSubmodule)' != 'true' And '$(MSBuildProjectExtension)' == '.csproj' And '$(TargetFramework)' != '' And $([MSBuild]::IsOSPlatform('Windows'))">
+    <ItemGroup>
+      <_MFTLibNativeDll Include="$(MSBuildThisFileDirectory)external\MFTLib\**\$(Configuration)\MFTLibNative.dll"
+                        Exclude="$(MSBuildThisFileDirectory)external\MFTLib\**\obj\**" />
+    </ItemGroup>
+    <Error Condition="'@(_MFTLibNativeDll)' == ''"
+           Text="MFTLibNative.dll ($(Configuration)) not found under external/MFTLib. Build it first with VS MSBuild: msbuild external\MFTLib\MFTLibNative\MFTLibNative.vcxproj -t:Build -p:Configuration=$(Configuration) -p:Platform=x64. Also ensure the submodule is checked out (git submodule update --init)." />
+    <Copy SourceFiles="@(_MFTLibNativeDll)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
 
-  <!-- (3) Guard: never `dotnet publish` with the vendored DLL — it would ship an unversioned
-       MFTLib. Swap to the real PackageReference first (see retire note above). -->
-  <Target Name="BlockVendoredMFTLibOnPublish" BeforeTargets="Publish">
-    <Error Condition="'%(Reference.Filename)' == 'MFTLib'"
-           Text="Cannot publish with the vendored lib/MFTLib/MFTLib.dll. Switch to the MFTLib 0.3.0 PackageReference first (see lib/MFTLib/README.md)." />
+  <!-- (2b) Linux native lib - same idea, from the fixed CMake binary dir. Missing .so is a
+       WARNING, not an error: the managed-only build (and the whole test suite) runs fine without
+       native on Linux, exactly as it did in the vendored era (which shipped no Linux native at
+       all). Steps that need the runtime native (publish artifacts, preview) build it first. -->
+  <Target Name="CopyMFTLibNativeLinux" AfterTargets="Build"
+          Condition="'$(IsMFTLibSubmodule)' != 'true' And '$(MSBuildProjectExtension)' == '.csproj' And '$(TargetFramework)' != '' And $([MSBuild]::IsOSPlatform('Linux'))">
+    <ItemGroup>
+      <_MFTLibNativeSo Include="$(MSBuildThisFileDirectory)external/MFTLib/build-linux/libMFTLibNative.so" />
+    </ItemGroup>
+    <Warning Condition="!Exists('$(MSBuildThisFileDirectory)external/MFTLib/build-linux/libMFTLibNative.so')"
+             Text="libMFTLibNative.so not found (external/MFTLib/build-linux). Managed-only build proceeds; to build the native: cmake -S external/MFTLib/MFTLibNative -B external/MFTLib/build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release &amp;&amp; cmake --build external/MFTLib/build-linux" />
+    <Copy SourceFiles="@(_MFTLibNativeSo)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true"
+          Condition="Exists('$(MSBuildThisFileDirectory)external/MFTLib/build-linux/libMFTLibNative.so')" />
+  </Target>
+
+  <!-- (2c/2d) Publish participation - the AfterTargets="Build" copies above populate $(OutDir),
+       but publish computes its own file list; register the native there explicitly. -->
+  <Target Name="PublishMFTLibNativeWindows" BeforeTargets="ComputeFilesToPublish"
+          Condition="'$(IsMFTLibSubmodule)' != 'true' And '$(MSBuildProjectExtension)' == '.csproj' And $([MSBuild]::IsOSPlatform('Windows'))">
+    <ItemGroup>
+      <_MFTLibNativeDllPub Include="$(MSBuildThisFileDirectory)external\MFTLib\**\$(Configuration)\MFTLibNative.dll"
+                           Exclude="$(MSBuildThisFileDirectory)external\MFTLib\**\obj\**" />
+      <ResolvedFileToPublish Include="@(_MFTLibNativeDllPub)">
+        <RelativePath>MFTLibNative.dll</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="PublishMFTLibNativeLinux" BeforeTargets="ComputeFilesToPublish"
+          Condition="'$(IsMFTLibSubmodule)' != 'true' And '$(MSBuildProjectExtension)' == '.csproj' And $([MSBuild]::IsOSPlatform('Linux')) And Exists('$(MSBuildThisFileDirectory)external/MFTLib/build-linux/libMFTLibNative.so')">
+    <ItemGroup>
+      <ResolvedFileToPublish Include="$(MSBuildThisFileDirectory)external/MFTLib/build-linux/libMFTLibNative.so">
+        <RelativePath>libMFTLibNative.so</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
   </Target>
 
 </Project>

@@ -1,7 +1,0 @@
-# Vendored MFTLib bridge: store these DLLs directly in git as plain binary, NOT in
-# Git LFS (the repo root .gitattributes routes *.dll through LFS). CI's
-# actions/checkout does not pull LFS, so an LFS-tracked DLL would arrive as a
-# pointer file and break the build. These are small (~84 KB total) and temporary.
-# `-filter` disables the LFS filter; `-diff -merge -text` treats them as binary
-# (no CRLF normalization). This whole file is removed when lib/MFTLib/ is retired.
-*.dll -filter -diff -merge -text

@@ -1,0 +1,3 @@
+[submodule "external/MFTLib"]
+	path = external/MFTLib
+	url = ../MFTLib.git

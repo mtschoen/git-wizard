@@ -79,171 +79,196 @@ public partial class GitWizardRepository
             if (!IsWorktree)
                 RefreshWorktrees(updateHandler, repository);
 
-            CurrentBranch = repository.Head.FriendlyName;
-            IsDetachedHead = repository.Head.Reference is not SymbolicReference;
-            if (IsDetachedHead)
-                FindMatchingBranch(repository);
-            LastCommitDate = repository.Head.Tip?.Author.When;
-            if (LastCommitDate.HasValue)
-                DaysSinceLastCommit = (int)(DateTimeOffset.Now - LastCommitDate.Value).TotalDays;
-
-            try
-            {
-                // Refresh the index to update stale stat data (slow on large repos / slow drives)
-                // Only run during deep refresh to keep auto-refresh fast
-                if (deepRefresh)
-                    RefreshIndex(repository);
-
-                var status = repository.RetrieveStatus();
-                HasPendingChanges = status.IsDirty;
-                if (HasPendingChanges)
-                {
-                    // Must match the categories that contribute to status.IsDirty so
-                    // callers never see HasPendingChanges=true with a count of 0.
-                    // LibGit2Sharp's IsDirty includes Modified, Staged, Removed, Added,
-                    // Untracked, RenamedInIndex, and RenamedInWorkDir.
-                    NumberOfPendingChanges = 0;
-                    foreach (var _ in status.Modified) NumberOfPendingChanges++;
-                    foreach (var _ in status.Staged) NumberOfPendingChanges++;
-                    foreach (var _ in status.Removed) NumberOfPendingChanges++;
-                    foreach (var _ in status.Added) NumberOfPendingChanges++;
-                    foreach (var _ in status.Untracked) NumberOfPendingChanges++;
-                    foreach (var _ in status.RenamedInIndex) NumberOfPendingChanges++;
-                    foreach (var _ in status.RenamedInWorkDir) NumberOfPendingChanges++;
-                }
-            }
-            catch (Exception exception)
-            {
-                GitWizardLog.LogException(exception, $"Exception retrieving status for {WorkingDirectory}");
-            }
-
-            // Collect remote URLs
-            RemoteUrls.Clear();
-            foreach (var remote in repository.Network.Remotes)
-            {
-                if (!string.IsNullOrEmpty(remote.Url))
-                    RemoteUrls.Add(remote.Url);
-            }
-
-            // Reset before re-checking
-            LocalOnlyCommits = false;
-            LocalCommitCount = 0;
-
-            // Count commits reachable from any LOCAL branch but not from any
-            // remote-tracking branch - genuinely unpushed commits, counted once
-            // across all local branches. The old per-branch approach counted an
-            // untracked branch's ENTIRE history as unpushed, so already-pushed
-            // mainline commits were multiply-counted and the total could exceed
-            // the repo's commit count. With no remotes, nothing is excluded and
-            // every local commit counts (a brand-new repo is all-local).
-            try
-            {
-                var localTips = repository.Branches
-                    .Where(branch => !branch.IsRemote)
-                    .Select(branch => branch.Tip)
-                    .Where(tip => tip != null)
-                    .ToList();
-
-                if (localTips.Count > 0)
-                {
-                    var filter = new CommitFilter { IncludeReachableFrom = localTips };
-
-                    var remoteTips = repository.Branches
-                        .Where(branch => branch.IsRemote)
-                        .Select(branch => branch.Tip)
-                        .Where(tip => tip != null)
-                        .ToList();
-                    if (remoteTips.Count > 0)
-                        filter.ExcludeReachableFrom = remoteTips;
-
-                    LocalCommitCount = repository.Commits.QueryBy(filter).Count();
-                    LocalOnlyCommits = LocalCommitCount > 0;
-                }
-            }
-            catch (Exception exception)
-            {
-                GitWizardLog.LogException(exception, $"Exception counting local-only commits for {WorkingDirectory}");
-            }
-
-            // Collect per-branch divergence from the default branch.
-            try
-            {
-                CollectBranches(repository, allBranches);
-            }
-            catch (Exception exception)
-            {
-                GitWizardLog.LogException(exception, $"Exception collecting branches for {WorkingDirectory}");
-            }
-
-            // Cache author emails for "My Repositories" filter
-            try
-            {
-                AuthorEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var commit in repository.Commits.Take(200))
-                {
-                    AuthorEmails.Add(commit.Author.Email);
-                }
-            }
-            catch (Exception exception)
-            {
-                GitWizardLog.LogException(exception, $"Exception collecting author emails for {WorkingDirectory}");
-            }
-
-            // Collect recent commits for projdash/LLM consumption
-            try
-            {
-                RecentCommits = new List<GitWizardCommitInfo>();
-                foreach (var commit in repository.Commits.Take(10))
-                {
-                    RecentCommits.Add(new GitWizardCommitInfo
-                    {
-                        Hash = commit.Sha[..7],
-                        Message = commit.MessageShort,
-                        Date = commit.Author.When,
-                        AuthorEmail = commit.Author.Email
-                    });
-                }
-            }
-            catch (Exception exception)
-            {
-                GitWizardLog.LogException(exception, $"Exception collecting recent commits for {WorkingDirectory}");
-            }
-
-            // Compute size on disk
-            try
-            {
-                SizeOnDisk = ComputeDirectorySize(WorkingDirectory);
-            }
-            catch (Exception exception)
-            {
-                GitWizardLog.LogException(exception, $"Exception computing size for {WorkingDirectory}");
-            }
+            RefreshHeadInfo(repository);
+            RefreshPendingChangesStatus(repository, deepRefresh);
+            RefreshRemoteUrls(repository);
+            RefreshLocalOnlyCommits(repository);
+            RefreshBranchDivergence(repository, allBranches);
+            RefreshAuthorEmails(repository);
+            RefreshRecentCommits(repository);
+            RefreshSizeOnDisk(WorkingDirectory);
 
             IsRefreshing = false;
-
-            try
-            {
-                updateHandler?.OnRepositoryRefreshCompleted(this);
-            }
-            catch (Exception exception)
-            {
-                GitWizardLog.LogException(exception, "Exception thrown by Refresh OnRepositoryRefreshCompleted callback.");
-            }
+            NotifyRefreshCompleted(updateHandler);
         }
         catch (Exception exception)
         {
             RefreshError = exception.Message;
             GitWizardLog.LogException(exception, $"Exception thrown trying to refresh {WorkingDirectory}");
             IsRefreshing = false;
+            NotifyRefreshCompleted(updateHandler);
+        }
+    }
 
-            try
+    void RefreshHeadInfo(Repository repository)
+    {
+        CurrentBranch = repository.Head.FriendlyName;
+        IsDetachedHead = repository.Head.Reference is not SymbolicReference;
+        if (IsDetachedHead)
+            FindMatchingBranch(repository);
+        LastCommitDate = repository.Head.Tip?.Author.When;
+        if (LastCommitDate.HasValue)
+            DaysSinceLastCommit = (int)(DateTimeOffset.Now - LastCommitDate.Value).TotalDays;
+    }
+
+    void RefreshPendingChangesStatus(Repository repository, bool deepRefresh)
+    {
+        try
+        {
+            // Refresh the index to update stale stat data (slow on large repos / slow drives)
+            // Only run during deep refresh to keep auto-refresh fast
+            if (deepRefresh)
+                RefreshIndex(repository);
+
+            var status = repository.RetrieveStatus();
+            HasPendingChanges = status.IsDirty;
+            if (HasPendingChanges)
             {
-                updateHandler?.OnRepositoryRefreshCompleted(this);
+                // Must match the categories that contribute to status.IsDirty so
+                // callers never see HasPendingChanges=true with a count of 0.
+                // LibGit2Sharp's IsDirty includes Modified, Staged, Removed, Added,
+                // Untracked, RenamedInIndex, and RenamedInWorkDir.
+                NumberOfPendingChanges = 0;
+                foreach (var _ in status.Modified) NumberOfPendingChanges++;
+                foreach (var _ in status.Staged) NumberOfPendingChanges++;
+                foreach (var _ in status.Removed) NumberOfPendingChanges++;
+                foreach (var _ in status.Added) NumberOfPendingChanges++;
+                foreach (var _ in status.Untracked) NumberOfPendingChanges++;
+                foreach (var _ in status.RenamedInIndex) NumberOfPendingChanges++;
+                foreach (var _ in status.RenamedInWorkDir) NumberOfPendingChanges++;
             }
-            catch (Exception callbackException)
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, $"Exception retrieving status for {WorkingDirectory}");
+        }
+    }
+
+    void RefreshRemoteUrls(Repository repository)
+    {
+        RemoteUrls.Clear();
+        foreach (var remote in repository.Network.Remotes)
+        {
+            if (!string.IsNullOrEmpty(remote.Url))
+                RemoteUrls.Add(remote.Url);
+        }
+    }
+
+    // Count commits reachable from any LOCAL branch but not from any
+    // remote-tracking branch - genuinely unpushed commits, counted once
+    // across all local branches. The old per-branch approach counted an
+    // untracked branch's ENTIRE history as unpushed, so already-pushed
+    // mainline commits were multiply-counted and the total could exceed
+    // the repo's commit count. With no remotes, nothing is excluded and
+    // every local commit counts (a brand-new repo is all-local).
+    void RefreshLocalOnlyCommits(Repository repository)
+    {
+        LocalOnlyCommits = false;
+        LocalCommitCount = 0;
+
+        try
+        {
+            var localTips = repository.Branches
+                .Where(branch => !branch.IsRemote)
+                .Select(branch => branch.Tip)
+                .Where(tip => tip != null)
+                .ToList();
+
+            if (localTips.Count > 0)
             {
-                GitWizardLog.LogException(callbackException, "Exception thrown by Refresh OnRepositoryRefreshCompleted callback.");
+                var filter = new CommitFilter { IncludeReachableFrom = localTips };
+
+                var remoteTips = repository.Branches
+                    .Where(branch => branch.IsRemote)
+                    .Select(branch => branch.Tip)
+                    .Where(tip => tip != null)
+                    .ToList();
+                if (remoteTips.Count > 0)
+                    filter.ExcludeReachableFrom = remoteTips;
+
+                LocalCommitCount = repository.Commits.QueryBy(filter).Count();
+                LocalOnlyCommits = LocalCommitCount > 0;
             }
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, $"Exception counting local-only commits for {WorkingDirectory}");
+        }
+    }
+
+    void RefreshBranchDivergence(Repository repository, bool allBranches)
+    {
+        try
+        {
+            CollectBranches(repository, allBranches);
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, $"Exception collecting branches for {WorkingDirectory}");
+        }
+    }
+
+    // Cache author emails for "My Repositories" filter
+    void RefreshAuthorEmails(Repository repository)
+    {
+        try
+        {
+            AuthorEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var commit in repository.Commits.Take(200))
+            {
+                AuthorEmails.Add(commit.Author.Email);
+            }
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, $"Exception collecting author emails for {WorkingDirectory}");
+        }
+    }
+
+    // Collect recent commits for projdash/LLM consumption
+    void RefreshRecentCommits(Repository repository)
+    {
+        try
+        {
+            RecentCommits = new List<GitWizardCommitInfo>();
+            foreach (var commit in repository.Commits.Take(10))
+            {
+                RecentCommits.Add(new GitWizardCommitInfo
+                {
+                    Hash = commit.Sha[..7],
+                    Message = commit.MessageShort,
+                    Date = commit.Author.When,
+                    AuthorEmail = commit.Author.Email
+                });
+            }
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, $"Exception collecting recent commits for {WorkingDirectory}");
+        }
+    }
+
+    void RefreshSizeOnDisk(string workingDirectory)
+    {
+        try
+        {
+            SizeOnDisk = ComputeDirectorySize(workingDirectory);
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, $"Exception computing size for {WorkingDirectory}");
+        }
+    }
+
+    void NotifyRefreshCompleted(IUpdateHandler? updateHandler)
+    {
+        try
+        {
+            updateHandler?.OnRepositoryRefreshCompleted(this);
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, "Exception thrown by Refresh OnRepositoryRefreshCompleted callback.");
         }
     }
 

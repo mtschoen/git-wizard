@@ -23,8 +23,9 @@
   <ItemGroup>
     <ProjectReference Include="..\GitWizard\GitWizard.csproj" />
     <ProjectReference Include="..\GitWizardUI\GitWizardUI.csproj" />
+    <ProjectReference Include="..\git-wizard\git-wizard.csproj" />
     <!-- MFTLib reference is provided centrally by the repo-root Directory.Build.targets
-         (vendored bridge — see lib/MFTLib/README.md). -->
+         (source-build bridge to the external/MFTLib submodule — see that file's header). -->
   </ItemGroup>
 
   <ItemGroup>

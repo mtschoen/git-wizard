@@ -3,17 +3,16 @@ name: Release
 on:
   push:
     tags: ['v*']
-  # PR publish-smoke is TEMPORARILY DISABLED during the vendored-MFTLib bridge era
-  # (lib/MFTLib/). `dotnet publish` is blocked by BlockVendoredMFTLibOnPublish, and
-  # the Ubuntu release runner can't bundle the Windows-only native MFTLibNative.dll
-  # for the win-x64 RID anyway. Restore this block when MFTLib 0.3.0 ships to NuGet
-  # and the vendored bridge is retired (see lib/MFTLib/README.md).
-  # pull_request:
-  #   paths:
-  #     - '.gitea/workflows/release.yml'
-  #     - 'GitWizard/GitWizard.csproj'
-  #     - 'GitWizardUI/GitWizardUI.csproj'
-  #     - 'git-wizard/git-wizard.csproj'
+  # PR publish-smoke: publishes all RIDs and creates+deletes a draft smoke release,
+  # scoped to files that affect publishing.
+  pull_request:
+    paths:
+      - '.gitea/workflows/release.yml'
+      - 'GitWizard/GitWizard.csproj'
+      - 'GitWizardUI/GitWizardUI.csproj'
+      - 'git-wizard/git-wizard.csproj'
+      - 'Directory.Build.targets'
+      - '.gitmodules'
   workflow_dispatch:
     inputs:
       version:
@@ -22,19 +21,21 @@ on:
         default: '0.0.0-test'
 
 jobs:
-  publish-cross:
-    name: Publish CLI + Avalonia (cross-platform)
+  publish-posix:
+    name: Publish CLI + Avalonia (linux + osx)
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     strategy:
       fail-fast: false
       matrix:
-        rid: [win-x64, linux-x64, osx-x64]
+        rid: [linux-x64, osx-x64]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Set up .NET 10 SDK
         uses: actions/setup-dotnet@v4
@@ -48,6 +49,17 @@ jobs:
           key: linux-nuget-${{ hashFiles('**/*.csproj') }}
           restore-keys: |
             linux-nuget-
+
+      # osx-x64 ships managed-only (no mac runner to build the native; the vendored era
+      # shipped no osx native either). linux-x64 gets the CMake-built .so via the
+      # CopyMFTLibNativeLinux target. The stray .so a linux host copies into the osx
+      # publish is inert junk, accepted (the vendored era did the same with the win dll).
+      - name: Build MFTLib (native + managed)
+        run: |
+          apt-get update && apt-get install -y cmake ninja-build g++ zip
+          cmake -S external/MFTLib/MFTLibNative -B external/MFTLib/build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build external/MFTLib/build-linux
+          dotnet build external/MFTLib/MFTLib/MFTLib.csproj -c Release -p:Platform=x64
 
       - name: Resolve version
         id: ver
@@ -102,14 +114,91 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: cross-${{ matrix.rid }}
+          name: posix-${{ matrix.rid }}
+          path: artifacts/*.zip
+          if-no-files-found: error
+
+  publish-windows:
+    name: Publish CLI + Avalonia (win-x64, native MFTLib)
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+        with:
+          msbuild-architecture: x64
+
+      - name: Build MFTLib (native + managed)
+        shell: pwsh
+        run: |
+          msbuild external\MFTLib\MFTLibNative\MFTLibNative.vcxproj -t:Build -p:Configuration=Release -p:Platform=x64 -nologo -v:minimal
+          dotnet build external\MFTLib\MFTLib\MFTLib.csproj -c Release -p:Platform=x64
+
+      - name: Resolve version
+        id: ver
+        shell: pwsh
+        run: |
+          switch ('${{ github.event_name }}') {
+            'push'         { $version = $env:GITHUB_REF_NAME -replace '^v', '' }
+            'pull_request' { $version = "0.0.0-pr-$($env:GITHUB_SHA.Substring(0,7))" }
+            default        { $version = '${{ inputs.version }}' }
+          }
+          "version=$version" | Out-File -Append $env:GITHUB_OUTPUT
+          Write-Host "Resolved version: $version"
+
+      - name: Publish CLI
+        shell: pwsh
+        run: |
+          dotnet publish git-wizard/git-wizard.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -o publish/cli/win-x64
+
+      - name: Publish GUI (GitWizardUI)
+        shell: pwsh
+        run: |
+          dotnet publish GitWizardUI/GitWizardUI.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -o publish/gui/win-x64
+
+      - name: Zip artifacts
+        shell: pwsh
+        run: |
+          $version = '${{ steps.ver.outputs.version }}'
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          Compress-Archive -Path publish/cli/win-x64/* -DestinationPath "artifacts/git-wizard-$version-win-x64.zip"
+          Compress-Archive -Path publish/gui/win-x64/* -DestinationPath "artifacts/GitWizardUI-$version-win-x64.zip"
+          Get-ChildItem artifacts
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: windows-win-x64
           path: artifacts/*.zip
           if-no-files-found: error
 
   release:
     name: Create Gitea release
     runs-on: ubuntu-latest
-    needs: [publish-cross]
+    needs: [publish-posix, publish-windows]
     if: github.event_name == 'push' || github.event_name == 'pull_request'
     timeout-minutes: 15
 

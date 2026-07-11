@@ -129,7 +129,8 @@ Avalonia, which also has extras (Downstream Branches filter, Clean button, progr
 - [ ] **Trust llamabox cert on the Windows runner** - currently the release publish and test-results upload use `NODE_TLS_REJECT_UNAUTHORIZED=0` to work around Node.js not trusting the self-signed Caddy cert. Install the cert into the runner's Node/system trust store and remove the env override.
 
   *Note (2026-06-19): Largely overtaken by events. (1) The `NODE_TLS_REJECT_UNAUTHORIZED=0` override is already gone (removed by #66 / `e992b43`, which kept TLS verification on and dropped `CERT_NONE` / `curl -k`). (2) The instance now serves a trusted Let's Encrypt wildcard cert at `gitea.llamabox.sticktoitive.net` (verifies natively); `gitea.llamabox.internal` is fully retired. (3) `release.yml` was still POSTing to the retired `.internal` host - repointed to the LE FQDN this session. REMAINING: the `ci.yml` coverage-artifact upload (`actions/upload-artifact@v3`) is still `continue-on-error` because the act_runner's artifact-backend endpoint (`ACTIONS_RESULTS_URL`, set in the runner config on llamabox - may differ from `GITHUB_SERVER_URL`) isn't trusted by the runner's Node. Finishing that needs runner-side config + a live CI run to validate; not doable from a dev box.*
-- [ ] **Retire the vendored MFTLib bridge** - `lib/MFTLib/` (prebuilt 0.3.0 DLLs) + repo-root `Directory.Build.targets` are a TEMPORARY checked-in bridge that unblocks CI while MFTLib 0.3.0 is unpublished. When 0.3.0 ships to NuGet: delete both, add `<PackageReference Include="MFTLib" Version="0.3.0" />` to `GitWizard/GitWizard.csproj`, and confirm CI stays green. Steps in `lib/MFTLib/README.md`.
+- [x] **Replace the prebuilt-DLL MFTLib bridge with a source-built submodule** - `lib/MFTLib/` (prebuilt 0.3.0 DLLs) + the old `Directory.Build.targets` bridge are gone; MFTLib now builds from source via the `external/MFTLib` git submodule (native: VS MSBuild `.vcxproj` on Windows / CMake on Linux; managed: `dotnet build`). See `AGENTS.md` → Build.
+- [ ] **Retire the MFTLib submodule for a NuGet `PackageReference`** - repo-root `Directory.Build.targets` is a TEMPORARY source-build bridge that unblocks the build while MFTLib 0.3.0 is unpublished. When 0.3.0 ships to NuGet: delete the `external/MFTLib` submodule + `Directory.Build.targets`, add `<PackageReference Include="MFTLib" Version="0.3.0" />` to `GitWizard/GitWizard.csproj`, and confirm CI stays green. Steps in the `Directory.Build.targets` header.
 
 ## Backlog
 
@@ -142,6 +143,10 @@ file was retired. Not yet scheduled; promote to Next Up / a Gitea issue when pic
       are already counted per Schema 1.1; verify deletions are too).
 - [ ] **Show an error log in the UI** - exceptions are currently only written to output.
 - [ ] **Quick refresh / filesystem watcher** to drop deleted-or-renamed repos from the UI.
+      *Note (2026-07-06): CLI-side building block landed - `git-wizard -watch` auto-detects
+      changes in tracked repositories via MFTLib's journal broker and prints `changed: <root>`
+      (one UAC, Windows only). Not yet wired into GitWizardUI or used to drop
+      deleted/renamed repos; see AGENTS.md → Key Architecture → Journal watch.*
 - [ ] **Sort by size on disk.**
 - [ ] **Submodule health checks** - aggregate parent-repo status from submodule states; flag
       submodules at a non-pointer ref, not init'd/checked out, or in `.gitmodules` but not the

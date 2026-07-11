@@ -40,6 +40,9 @@ Other options:
   -no-mft                   Skip MFT search and use recursive directory scan instead
   -db-size                  Show the size of the GitWizard local files folder (~/.GitWizard/) and exit
   -all-branches             Include all local branches (default + already-merged) in each repo's Branches list, not just actionable ones
+  -watch                    Watch tracked repositories for changes via MFTLib's USN journal broker
+                            (Windows only; triggers one UAC prompt) and print a line per repo that
+                            changes. Runs until Ctrl-C.
 ";
 
         /// <summary>
@@ -132,6 +135,12 @@ Other options:
         public readonly bool AllBranches = false;
 
         /// <summary>
+        /// Watch tracked repositories for changes via MFTLib's USN journal broker
+        /// (Windows only) and print a line per repo that changes.
+        /// </summary>
+        public readonly bool Watch = false;
+
+        /// <summary>
         /// Initialize a RunConfiguration using Environment.GetCommandLineArgs
         /// </summary>
         public RunConfiguration()
@@ -154,6 +163,7 @@ Other options:
             CustomConfigurationPath = parsed.CustomConfigurationPath;
             DbSize = parsed.DbSize;
             AllBranches = parsed.AllBranches;
+            Watch = parsed.Watch;
         }
 
         static ParsedArguments ParseCommandLine(string[] arguments)
@@ -270,6 +280,9 @@ Other options:
                 case "-all-branches":
                     parsed.AllBranches = true;
                     break;
+                case "-watch":
+                    parsed.Watch = true;
+                    break;
                 default:
                     return false;
             }
@@ -296,6 +309,7 @@ Other options:
             public string? CustomConfigurationPath { get; set; }
             public bool DbSize { get; set; }
             public bool AllBranches { get; set; }
+            public bool Watch { get; set; }
         }
     }
 }

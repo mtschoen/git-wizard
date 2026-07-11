@@ -9,7 +9,8 @@
   <ItemGroup>
     <PackageReference Include="LibGit2Sharp" Version="0.31.0" />
     <!-- MFTLib (0.3.0) is referenced centrally for the whole tree in the repo-root
-         Directory.Build.targets — a TEMPORARY vendored bridge while 0.3.0 is unpublished.
-         To publish, or to do local MFTLib source dev, see lib/MFTLib/README.md. -->
+         Directory.Build.targets — a TEMPORARY source-build bridge to the external/MFTLib
+         submodule while 0.3.0 is unpublished. See Directory.Build.targets' header for the
+         retire-to-NuGet steps, and AGENTS.md's MFTLib Local Development section for local dev. -->
   </ItemGroup>
 </Project>

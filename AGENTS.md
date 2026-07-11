@@ -12,27 +12,44 @@ Multi-project solution for scanning and reporting on git repositories.
 
 ## Build
 
-Plain `dotnet build` is the norm and works on Windows/macOS/Linux. **Currently** that works via a **TEMPORARY vendored MFTLib** bridge: prebuilt MFTLib `0.3.0` DLLs are checked in at `lib/MFTLib/` and referenced centrally in the repo-root `Directory.Build.targets` (managed `<Reference>` for all projects + a Windows native-DLL copy). This exists because MFTLib `0.3.0` isn't on NuGet yet; it's retired (swap to a `PackageReference`, delete `lib/MFTLib/` + `Directory.Build.targets`) when `0.3.0` ships - see `lib/MFTLib/README.md` and the **MFTLib Local Development** section. (Once it's a NuGet **PackageReference**, plain `dotnet build` keeps working because the package ships the native `MFTLibNative.dll` pre-built.)
+MFTLib is a git **submodule** at `external/MFTLib`, built from source (MFTLib `0.3.0` isn't on
+NuGet yet). Run `git submodule update --init` once after cloning - the tree does not build until
+the submodule is checked out. It has a native C++ project (`MFTLibNative.vcxproj`, v143 toolset)
+that only **VS MSBuild** can compile on Windows (CMake on Linux), while git-wizard's own projects
+build entirely with the **`dotnet`** CLI - so a full build uses both toolchains:
 
 ```bash
-# Whole solution
-dotnet build git-wizard.slnx
+git submodule update --init
 
-# GUI desktop app
-dotnet build GitWizardUI/GitWizardUI.csproj
+# Windows: build the native lib with VS MSBuild (dotnet cannot load the .vcxproj), then
+# everything managed - MFTLib.dll and the git-wizard solution - with dotnet.
+"C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" external/MFTLib/MFTLibNative/MFTLibNative.vcxproj -t:Build -p:Configuration=Release -p:Platform=x64 -nologo -v:minimal
+dotnet build external/MFTLib/MFTLib/MFTLib.csproj -c Release -p:Platform=x64
+dotnet restore git-wizard.slnx
+dotnet build git-wizard.slnx -c Release --no-restore
+
+# Linux: build the native lib with CMake/Ninja into the fixed external/MFTLib/build-linux
+# binary dir, then MFTLib.dll and the solution with dotnet. Managed-only builds (and the
+# whole test suite) work without the native step - only the runtime P/Invoke surface needs it.
+cmake -S external/MFTLib/MFTLibNative -B external/MFTLib/build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build external/MFTLib/build-linux
+dotnet build external/MFTLib/MFTLib/MFTLib.csproj -c Release -p:Platform=x64
+dotnet build git-wizard.slnx -c Release
 ```
 
-The only time you need VS2026's MSBuild is when MFTLib is swapped to a local **ProjectReference** (MFTLib local dev - see below): the `dotnet` CLI can't build MFTLib's native `MFTLibNative.vcxproj` (it needs the v145 platform toolset). In that mode only:
+Every git-wizard project consumes MFTLib as a built **assembly** (a HintPath `<Reference>` in the
+repo-root `Directory.Build.targets`), not a `<ProjectReference>` - a `ProjectReference` would drag
+the native `.vcxproj` into every consumer's `dotnet` build graph, which `dotnet` cannot load
+(MSB4278). `Directory.Build.targets` also copies the built native library beside each project's
+output on both platforms. `dotnet publish` works normally against the source-built submodule -
+there is no publish guard. The header of `Directory.Build.targets` carries the retire-to-NuGet
+note (swap to a `PackageReference` when MFTLib `0.3.0` ships); see it for the exact steps rather
+than duplicating them here.
+
+To **run the NUnit suite**, build first, then run tests with `--no-build` (a plain `dotnet test`
+re-invokes the build):
 
 ```bash
-"C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" git-wizard/git-wizard.csproj -t:Build -p:Configuration=Debug -nologo -v:minimal
-```
-
-To **run the NUnit suite** in ProjectReference mode, build with MSBuild first, then run tests with `--no-build` - a plain `dotnet test` re-invokes the dotnet build and fails on the native `.vcxproj`. The pre-built native DLL only ships for **Release** (`C:\Users\mtsch\MFTLib\x64\Release\MFTLibNative.dll`), so build Release:
-
-```bash
-"C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" GitWizardTests/GitWizardTests.csproj -t:Restore -p:Configuration=Release -nologo -v:minimal
-"C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" GitWizardTests/GitWizardTests.csproj -t:Build    -p:Configuration=Release -nologo -v:minimal
 dotnet test GitWizardTests/GitWizardTests.csproj --no-build -c Release --nologo
 ```
 
@@ -43,23 +60,34 @@ The bar is **0 findings** across every configured analyzer (see `TEST-REPORT.md`
 - **Analyzers + naming (CA*/IDE*/RCS*)** - `Directory.Build.props` sets `EnableNETAnalyzers`, `AnalysisLevel=latest-Recommended`, `EnforceCodeStyleInBuild`, and **`TreatWarningsAsErrors`**, so a normal `dotnet build`/MSBuild build *is* the gate (Roslynator 4.15.0 included). `EnforceCodeStyleInBuild` also turns the `.editorconfig` naming ruleset (IDE1006, at `warning`) into a **build error** - so the editorconfig is the **authoritative naming gate**, not just an IDE hint. MFTLib (outside this tree) does not inherit these.
 - **Formatting + naming** - `.editorconfig` is the canonical fleet C# standard (source of truth: `~/.claude/notes/idioms_csharp_naming.md`): **utf-8 (no BOM)**, CRLF, 4-space, and the full naming ruleset at `warning` → build error (PascalCase types/members/const/static-readonly; `_camelCase` **all** private/internal fields incl. mutable static; camelCase params/locals; no `m_`/`k_`/`s_`). Formatting/charset check: `dotnet format git-wizard.slnx --verify-no-changes`; apply: `dotnet format git-wizard.slnx`. A local on-save hook (`.claude/scripts/format-on-save.ps1`, wired in `settings.local.json`) runs whitespace formatting per edit. (`dotnet format` fixes charset/whitespace/style but **cannot** auto-fix IDE1006 naming - rename via Rider/`jb cleanupcode`.)
 - **Deep inspection** - `~/.dotnet/tools/jb.exe inspectcode git-wizard.slnx -o="$TEMP/jb.xml" --settings="git-wizard.slnx.DotSettings" --severity=WARNING --no-updates`, gated by `ci/parse-jb-report.py` (exits non-zero on any finding). Match ci.yml's invocation exactly - omitting `--settings`/`--severity` reports hundreds of suggestion-tier findings the gate never sees. Now a *supplementary* deep pass - the editorconfig (above) is the primary naming gate. **jb-CLI binds `InconsistentNaming` to the machine's *global* ReSharper config, not the solution `.DotSettings`** - the global config here is aligned to the canonical convention; Rider uses the solution `.DotSettings` (which has the ExtraRules jb-CLI ignores).
-- **aislop** (AI-slop gate) - `.gitea/workflows/aislop.yml` gates the whole repo (C# + Python) at `failBelow: 100` in `.aislop/config.yml`. The C# engine lives **only in the personal fork `github.com/mtschoen/aislop`** (the public npm `aislop` scores just the Python `ci/` tooling - 2 files), so the workflow clones + `npm install`-builds that fork at a **pinned commit** (`env.AISLOP_FORK_COMMIT`) and runs the built `dist/cli.js`; it also `dotnet tool install`s `roslynator.dotnet.cli` + `JetBrains.ReSharper.GlobalTools` (the C# lint engine shells out to `roslynator` and `jb` inspectcode, which targets the whole `.slnx`) and `dotnet restore`s the solution so jb can build it, and sanity-fails if the scan covers <10 files (catching a silent Python-only pass). The repo scores **100/100 (0 findings across every engine)**; `failBelow: 100` enforces the same 0-findings bar as the other analyzers. Findings map to fixes, not mutes: oversized files split into partials, long functions extracted, TODOs tracked as gitea issues, narrative comments reworded to trip aislop's why-marker exemption. Bump the pinned commit deliberately (don't track the moving `schoen/main`).
+- **aislop** (AI-slop gate) - `.gitea/workflows/aislop.yml` gates the whole repo (C# + Python) at `failBelow: 100` in `.aislop/config.yml`. The C# engine lives **only in the personal fork `github.com/mtschoen/aislop`** (the public npm `aislop` scores just the Python `ci/` tooling - 2 files), so the workflow clones + `npm install`-builds that fork at a **pinned commit** (`env.AISLOP_FORK_COMMIT`) and runs the built `dist/cli.js`; it also `dotnet tool install`s `roslynator.dotnet.cli` + `JetBrains.ReSharper.GlobalTools` (the C# lint engine shells out to `roslynator` and `jb` inspectcode, which targets the whole `.slnx`) and `dotnet restore`s the solution so jb can build it, and sanity-fails if the scan covers <10 files (catching a silent Python-only pass). `failBelow: 100` enforces a 0-findings bar, same as the other analyzers; current score is tracked in `TEST-REPORT.md`, not asserted here. Findings map to fixes, not mutes: oversized files split into partials, long functions extracted, TODOs tracked as gitea issues, narrative comments reworded to trip aislop's why-marker exemption. Bump the pinned commit deliberately (don't track the moving `schoen/main`).
 
-CI wires all three (`.gitea/workflows/ci.yml`). It is now **active**: the TEMPORARY vendored MFTLib bridge (`lib/MFTLib/` + `Directory.Build.targets`, see the **Build** section) lets the runners build the solution with plain `dotnet build` - no MFTLib source or native toolchain needed. Both jobs (Linux + Windows) restore/build/test/format-check green locally with the `dotnet` CLI. (Before vendoring, CI was dormant/red-by-design because the committed local `ProjectReference` to a sibling MFTLib checkout couldn't be restored on the runners.)
+CI wires all three (`.gitea/workflows/ci.yml`). Both jobs (Linux + Windows) check out the
+`external/MFTLib` submodule, build it from source with the platform-appropriate toolchain (see the
+**Build** section), then restore/build/test/format-check the solution green with the `dotnet` CLI.
+(Before the submodule, CI was dormant/red-by-design because the committed local `ProjectReference`
+to a sibling MFTLib checkout couldn't be restored on the runners.)
 
 ## MFTLib Local Development
 
-MFTLib source lives at `C:\Users\mtsch\MFTLib`. git-wizard depends on MFTLib `0.3.0` (the `IElevationProvider` API), which is **not on NuGet yet**. There are **three reference modes**:
+MFTLib lives in the repo as a submodule at `external/MFTLib`, pinned to a specific commit.
+git-wizard depends on MFTLib `0.3.0` (the `IElevationProvider` API), which is **not on NuGet
+yet**. To iterate on MFTLib changes, edit files directly under `external/MFTLib/` and rebuild
+(native + managed, per platform - see the **Build** section). To move git-wizard to a different
+MFTLib commit:
 
-1. **VENDORED (committed default).** Prebuilt MFTLib `0.3.0` DLLs are checked in at `lib/MFTLib/` and referenced centrally by the repo-root `Directory.Build.targets` - a managed `<Reference>` for every project (a raw assembly reference is non-transitive, and the CLI/UI expose `IElevationProvider` through GitWizard API signatures, so they'd hit CS0012 without it) plus a Windows native-DLL copy into each output. Plain `dotnet build`/`dotnet test` work everywhere; **this is what CI uses and what you commit.** TEMPORARY - retire when `0.3.0` ships (see `lib/MFTLib/README.md`).
+```bash
+cd external/MFTLib && git fetch && git checkout <ref> && cd ../..
+git add external/MFTLib && git commit -m "build: bump MFTLib submodule to <ref>"
+```
 
-2. **PUBLISH (`PackageReference`).** When MFTLib `0.3.0` ships to NuGet: delete `lib/MFTLib/` + `Directory.Build.targets`, add `<PackageReference Include="MFTLib" Version="0.3.0" />` to `GitWizard/GitWizard.csproj` (flows transitively; the package ships the native DLL). The `BlockVendoredMFTLibOnPublish` target in `Directory.Build.targets` errors on any `dotnet publish` while the vendored reference is active, to stop a vendored DLL shipping in a release.
+The submodule URL in `.gitmodules` is relative (`../MFTLib.git`), so it resolves to GitHub for a
+local clone (origin = github.com/mtschoen/git-wizard) and to Gitea on the CI runner. **The pinned
+commit must exist on both MFTLib remotes.**
 
-3. **LOCAL MFTLib DEV (`ProjectReference`).** To iterate on MFTLib source: in `Directory.Build.targets` comment out the vendored `<Reference>`, and add to `GitWizard/GitWizard.csproj`:
-   ```xml
-   <ProjectReference Include="..\..\MFTLib\MFTLib\MFTLib.csproj" SetPlatform="Platform=x64" />
-   ```
-   **`SetPlatform="Platform=x64"`** is required (MFTLib defines only x64/x86; git-wizard is AnyCPU - without it MSBuild looks for the ref assembly at the wrong obj path: "Metadata file could not be found"). This mode needs **VS2026 MSBuild** (the `dotnet` CLI can't build the native `.vcxproj`); build Release and `dotnet test --no-build` (see the Build section). To re-vendor after MFTLib changes: rebuild MFTLib Release (`-p:Platform=x64`) and copy `MFTLib/bin/x64/Release/net8.0/MFTLib.dll` + `MFTLibNative/x64/Release/MFTLibNative.dll` into `lib/MFTLib/` (+ `win-x64/`). **Swap back to mode 1 before committing.**
+**Retiring the submodule** (when MFTLib `0.3.0` ships to NuGet): see the retire-to-NuGet note in
+`Directory.Build.targets`'s header for the exact steps (delete the submodule + that file, add a
+`PackageReference` to `GitWizard/GitWizard.csproj`).
 
 ## Key Architecture
 
@@ -70,6 +98,7 @@ MFTLib source lives at `C:\Users\mtsch\MFTLib`. git-wizard depends on MFTLib `0.
 - **Collection swap pattern** - `ApplyFilterAndGrouping()` builds a new `ObservableCollection` off-screen and swaps it in one shot to avoid per-item layout updates with 700+ repos.
 - **UI command queue** - Background refresh threads enqueue `RepositoryUICommand` structs; a UI update thread drains them in batches on the main thread every 250ms.
 - **RefreshStatus enum** - Per-repo status (Refreshing/Success/Timeout/Error) drives the status icon in column 0. `MarkRefreshFailed()` on `GitWizardRepository` handles timeout/error paths.
+- **Journal watch (`-watch`, Windows only, CLI)** - Auto-detects changes in tracked repositories via MFTLib's `VolumeBroker` (`JournalBrokerClient`/`JournalBrokerHost`), one UAC prompt for the whole run. `Program.cs` dispatches MFTLib's elevated `--broker` child mode via `ElevatedEntryPoint.TryHandle` before any other startup work (see `Program.Watch.cs`'s `TryHandleElevatedBrokerEntry` seam); `-watch` itself groups tracked repository roots by drive, arms one broker client's cold scan + live watch across those drives, and prints `changed: <root>` as journal batches arrive. `GitWizard.RepositoryChangeFilter` (pure, cross-platform-testable) maps a drive's cold-scan `ScanRecord`s to repository roots by MFT record number, then filters live `UsnJournalEntry` batches down to the distinct repos they touched (parent-record match, or the record's own number for a directory entry; longest-root-first so a nested repo wins over its container). Not wired into GitWizardUI.
 
 ## Local files
 

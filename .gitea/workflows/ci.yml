@@ -19,6 +19,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Set up .NET 10 SDK
         uses: actions/setup-dotnet@v4
@@ -32,6 +34,17 @@ jobs:
           key: linux-nuget-${{ hashFiles('**/*.csproj') }}
           restore-keys: |
             linux-nuget-
+
+      # MFTLib is a source submodule (external/MFTLib) until 0.3.0 ships to NuGet.
+      # Native via CMake (POSIX path is real: platform_posix.cpp), managed via dotnet;
+      # Directory.Build.targets consumes both from fixed paths. apt install mirrors
+      # MFTLib's own linux CI (pip is cert-blocked on this runner).
+      - name: Build MFTLib (native + managed)
+        run: |
+          apt-get update && apt-get install -y cmake ninja-build g++
+          cmake -S external/MFTLib/MFTLibNative -B external/MFTLib/build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build external/MFTLib/build-linux
+          dotnet build external/MFTLib/MFTLib/MFTLib.csproj -c Release -p:Platform=x64
 
       - name: Restore (cross-platform projects)
         run: |
@@ -110,11 +123,26 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Set up .NET 10 SDK
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+
+      # VS MSBuild is the only toolchain that can compile MFTLib's native C++ vcxproj
+      # (file-wizard CI precedent on this runner).
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+        with:
+          msbuild-architecture: x64
+
+      - name: Build MFTLib (native + managed)
+        shell: pwsh
+        run: |
+          msbuild external\MFTLib\MFTLibNative\MFTLibNative.vcxproj -t:Build -p:Configuration=Release -p:Platform=x64 -nologo -v:minimal
+          dotnet build external\MFTLib\MFTLib\MFTLib.csproj -c Release -p:Platform=x64
 
       - name: Cache NuGet packages
         uses: actions/cache@v4
@@ -145,8 +173,12 @@ jobs:
           dotnet tool install -g JetBrains.ReSharper.GlobalTools 2>$null
           # jb takes option VALUES with '=' (like -o= above). Space-separated
           # `-s <path>` is rejected as "Invalid option 's'", so use --settings=.
+          # Inspect the Release configuration: it's what this job built, and the
+          # MFTLib native copy target errors under the default Debug config
+          # because only Release\MFTLibNative.dll exists on the runner.
           jb inspectcode git-wizard.slnx -o="$env:RUNNER_TEMP\jb-report.xml" `
-            --settings="git-wizard.slnx.DotSettings" --severity=WARNING --no-updates
+            --settings="git-wizard.slnx.DotSettings" --severity=WARNING --no-updates `
+            --properties:Configuration=Release
           # Gate inline in PowerShell - mirrors ci/parse-jb-report.py (kept for local
           # use). The SYSTEM-account Windows runner has no `python` on PATH (the
           # user's Store Python is per-user), so we don't shell out to it here.

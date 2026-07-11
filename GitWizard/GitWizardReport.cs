@@ -139,25 +139,23 @@ public partial class GitWizardReport
     /// <param name="configuration">The configuration to use for this report.</param>
     /// <param name="repositoryPaths">The repository paths to include in the report.</param>
     /// <param name="updateHandler">Optional handler for UI updates.</param>
-    /// <param name="fetchRemotes">When true, fetch from each repository's remotes before computing ahead/behind state.</param>
-    /// <param name="deepRefresh">When true, run the expensive <c>git update-index --refresh</c> on each repository.</param>
-    /// <param name="noMft">When true, skip MFT-based discovery and walk the filesystem directly.</param>
-    /// <param name="allBranches">When true, include the default branch and branches sitting at the default tip.</param>
+    /// <param name="options">Optional refresh flags; defaults to all-off when omitted.</param>
     /// <returns>The generated report.</returns>
     public static GitWizardReport GenerateReport(GitWizardConfiguration configuration,
         ICollection<string>? repositoryPaths = null, IUpdateHandler? updateHandler = null,
-        bool fetchRemotes = false, bool deepRefresh = false, bool noMft = false,
-        bool allBranches = false)
+        GitWizardReportOptions? options = null)
     {
+        options ??= new GitWizardReportOptions();
+
         var report = new GitWizardReport(configuration);
         if (repositoryPaths == null)
         {
             repositoryPaths = new SortedSet<string>();
-            report.GetRepositoryPaths(repositoryPaths, updateHandler, noMft);
+            report.GetRepositoryPaths(repositoryPaths, updateHandler, options.NoMft);
         }
 
-        report.Refresh(repositoryPaths, updateHandler, fetchRemotes, deepRefresh, allBranches);
-        report.BranchScope = allBranches ? "all" : "actionable";
+        report.Refresh(repositoryPaths, updateHandler, options.FetchRemotes, options.DeepRefresh, options.AllBranches);
+        report.BranchScope = options.AllBranches ? "all" : "actionable";
 
         return report;
     }
@@ -205,31 +203,8 @@ public partial class GitWizardReport
     public void Refresh(ICollection<string> repositoryPaths, IUpdateHandler? updateHandler = null,
         bool fetchRemotes = false, bool deepRefresh = false, bool allBranches = false)
     {
-        var options = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) };
-        var validPaths = new ConcurrentBag<string>();
-        var deletedPaths = new ConcurrentBag<string>();
-
-        // Pre-filter: identify deleted repos (directory no longer exists)
-        foreach (var path in repositoryPaths)
-        {
-            if (Directory.Exists(path))
-                validPaths.Add(path);
-            else
-                deletedPaths.Add(path);
-        }
-
-        DeletedPaths = new HashSet<string>(deletedPaths);
-
-        // Clean up deleted repos from the report's Repositories dictionary
-        foreach (var deleted in DeletedPaths)
-        {
-            Repositories.Remove(deleted);
-        }
-
-        if (DeletedPaths.Count > 0)
-        {
-            GitWizardLog.Log($"Cleaned {DeletedPaths.Count} deleted repository(s) from cache");
-        }
+        var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) };
+        var validPaths = PruneDeletedRepositories(repositoryPaths);
 
         var count = 0;
 
@@ -242,47 +217,9 @@ public partial class GitWizardReport
             GitWizardLog.LogException(exception, "Exception thrown by Refresh StartProgress callback.");
         }
 
-        Parallel.ForEach(validPaths, options, path =>
+        Parallel.ForEach(validPaths, parallelOptions, path =>
         {
-            GitWizardRepository? repository;
-            lock (Repositories)
-            {
-                if (!Repositories.TryGetValue(path, out repository))
-                {
-                    repository = new GitWizardRepository(path);
-                    Repositories[path] = repository;
-                }
-            }
-
-            try
-            {
-                updateHandler?.OnRepositoryCreated(repository);
-            }
-            catch (Exception exception)
-            {
-                GitWizardLog.LogException(exception, "Exception thrown by Refresh OnRepositoryCreated callback.");
-            }
-
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-            var refreshTask = Task.Run(() => repository.Refresh(updateHandler, fetchRemotes, deepRefresh, allBranches));
-            if (!refreshTask.Wait(TimeSpan.FromMinutes(5)))
-            {
-                GitWizardLog.Log($"Refresh timed out after 5 minutes for {path}", GitWizardLog.LogType.Warning);
-                repository.MarkRefreshFailed("Timed out after 5 minutes", updateHandler);
-            }
-            else if (refreshTask.IsFaulted)
-            {
-                var errorMsg = refreshTask.Exception?.InnerException?.Message ?? "Unknown error";
-                GitWizardLog.Log($"Refresh failed for {path}: {errorMsg}", GitWizardLog.LogType.Error);
-                // Note: OnRepositoryRefreshCompleted is called from the catch block in Refresh()
-            }
-
-            stopwatch.Stop();
-            repository.RefreshTimeSeconds = Math.Round(stopwatch.Elapsed.TotalSeconds, 1);
-            if (stopwatch.Elapsed.TotalSeconds >= 10)
-            {
-                GitWizardLog.Log($"Refresh took {repository.RefreshTimeSeconds}s for {path}", GitWizardLog.LogType.Warning);
-            }
+            RefreshSingleRepository(path, updateHandler, fetchRemotes, deepRefresh, allBranches);
 
             try
             {
@@ -293,6 +230,82 @@ public partial class GitWizardReport
                 GitWizardLog.LogException(exception, "Exception thrown by Refresh UpdateProgress callback.");
             }
         });
+    }
+
+    // Identifies repos whose directory no longer exists, records them on DeletedPaths, prunes
+    // them from Repositories, and returns the remaining still-present paths to refresh.
+    ConcurrentBag<string> PruneDeletedRepositories(ICollection<string> repositoryPaths)
+    {
+        var validPaths = new ConcurrentBag<string>();
+        var deletedPaths = new ConcurrentBag<string>();
+
+        foreach (var path in repositoryPaths)
+        {
+            if (Directory.Exists(path))
+                validPaths.Add(path);
+            else
+                deletedPaths.Add(path);
+        }
+
+        DeletedPaths = new HashSet<string>(deletedPaths);
+
+        foreach (var deleted in DeletedPaths)
+        {
+            Repositories.Remove(deleted);
+        }
+
+        if (DeletedPaths.Count > 0)
+        {
+            GitWizardLog.Log($"Cleaned {DeletedPaths.Count} deleted repository(s) from cache");
+        }
+
+        return validPaths;
+    }
+
+    // Gets or creates the GitWizardRepository for path, runs its Refresh with a 5-minute
+    // timeout, and records the elapsed time. One iteration of the Refresh Parallel.ForEach body.
+    void RefreshSingleRepository(string path, IUpdateHandler? updateHandler, bool fetchRemotes,
+        bool deepRefresh, bool allBranches)
+    {
+        GitWizardRepository? repository;
+        lock (Repositories)
+        {
+            if (!Repositories.TryGetValue(path, out repository))
+            {
+                repository = new GitWizardRepository(path);
+                Repositories[path] = repository;
+            }
+        }
+
+        try
+        {
+            updateHandler?.OnRepositoryCreated(repository);
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, "Exception thrown by Refresh OnRepositoryCreated callback.");
+        }
+
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var refreshTask = Task.Run(() => repository.Refresh(updateHandler, fetchRemotes, deepRefresh, allBranches));
+        if (!refreshTask.Wait(TimeSpan.FromMinutes(5)))
+        {
+            GitWizardLog.Log($"Refresh timed out after 5 minutes for {path}", GitWizardLog.LogType.Warning);
+            repository.MarkRefreshFailed("Timed out after 5 minutes", updateHandler);
+        }
+        else if (refreshTask.IsFaulted)
+        {
+            var errorMsg = refreshTask.Exception?.InnerException?.Message ?? "Unknown error";
+            GitWizardLog.Log($"Refresh failed for {path}: {errorMsg}", GitWizardLog.LogType.Error);
+            // Note: OnRepositoryRefreshCompleted is called from the catch block in Refresh()
+        }
+
+        stopwatch.Stop();
+        repository.RefreshTimeSeconds = Math.Round(stopwatch.Elapsed.TotalSeconds, 1);
+        if (stopwatch.Elapsed.TotalSeconds >= 10)
+        {
+            GitWizardLog.Log($"Refresh took {repository.RefreshTimeSeconds}s for {path}", GitWizardLog.LogType.Warning);
+        }
     }
 
     public void Save(string path)

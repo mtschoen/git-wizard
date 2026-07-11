@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using MFTLib;
 
 // ReSharper disable once CheckNamespace
 namespace GitWizard.CLI;
@@ -27,8 +28,63 @@ git-wizard Session Started
 
     public static async Task Main()
     {
-        // Handle elevated helper modes (launched by self-elevation)
         var args = Environment.GetCommandLineArgs();
+
+        // Dispatch MFTLib's elevated journal-broker child mode (launched by -watch's
+        // self-elevation) before any other startup work.
+        if (TryHandleElevatedBrokerEntry(args, new DefaultElevatedEntryRunner()))
+            return;
+
+        if (await TryHandleElevatedHelperModesAsync(args).ConfigureAwait(false))
+            return;
+
+        var runConfiguration = new RunConfiguration();
+        if (TryHandleImmediateExitFlags(runConfiguration))
+            return;
+
+        GitWizardLog.Log(SessionStartMessage);
+        var configuration = await GetConfigurationAsync(runConfiguration);
+
+        if (runConfiguration.SetupDefender)
+        {
+            GitWizardLog.Log("Setting up Windows Defender exclusions...");
+            WindowsDefender.AddExclusions();
+        }
+
+        if (runConfiguration.Merge)
+        {
+            RunMerge(runConfiguration, configuration);
+            Environment.Exit(0);
+            return;
+        }
+
+        if (runConfiguration.ScanOnly)
+        {
+            RunScanOnly(runConfiguration, configuration);
+            return;
+        }
+
+        if (runConfiguration.Watch)
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                GitWizardLog.Log("-watch requires Windows.", GitWizardLog.LogType.Error);
+                Environment.Exit(1);
+                return;
+            }
+
+            await RunWatchAsync(configuration);
+            Environment.Exit(0);
+            return;
+        }
+
+        await RunDefaultReportModeAsync(runConfiguration, configuration);
+    }
+
+    // Handle elevated helper modes (launched by self-elevation). Returns true if one of the
+    // helper-mode args was found and handled, meaning the caller should return immediately.
+    static async Task<bool> TryHandleElevatedHelperModesAsync(string[] args)
+    {
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -60,18 +116,25 @@ git-wizard Session Started
                             Environment.Exit(1);
                         }
 
-                        return;
+                        return true;
                     }
                 case "--elevated-defender":
                     {
                         var success = WindowsDefender.RunDefenderCommands();
                         Environment.Exit(success ? 0 : 1);
-                        return;
+                        return true;
                     }
             }
         }
 
-        var runConfiguration = new RunConfiguration();
+        return false;
+    }
+
+    // Handle the flags that resolve to an immediate exit before any report is generated
+    // (-db-size, -delete-all-local-files, -clear-cache). Returns true if Main should return
+    // immediately; false if execution should continue into report generation.
+    static bool TryHandleImmediateExitFlags(RunConfiguration runConfiguration)
+    {
         if (runConfiguration.DbSize)
         {
             var sizeBytes = GitWizardApi.GetLocalFilesSize();
@@ -85,7 +148,7 @@ git-wizard Session Started
             if (!runConfiguration.RefreshReport)
             {
                 Environment.Exit(0);
-                return;
+                return true;
             }
         }
 
@@ -95,40 +158,28 @@ git-wizard Session Started
             if (!runConfiguration.RefreshReport)
             {
                 Environment.Exit(0);
-                return;
+                return true;
             }
         }
 
-        GitWizardLog.Log(SessionStartMessage);
-        var configuration = await GetConfigurationAsync(runConfiguration);
+        return false;
+    }
 
-        if (runConfiguration.SetupDefender)
+    static void RunScanOnly(RunConfiguration runConfiguration, GitWizardConfiguration configuration)
+    {
+        var scanReport = new GitWizardReport(configuration);
+        var scanPaths = new SortedSet<string>();
+        scanReport.GetRepositoryPaths(scanPaths, noMft: runConfiguration.NoMft);
+        foreach (var path in scanPaths)
         {
-            GitWizardLog.Log("Setting up Windows Defender exclusions...");
-            WindowsDefender.AddExclusions();
+            Console.WriteLine(path);
         }
 
-        if (runConfiguration.Merge)
-        {
-            RunMerge(runConfiguration, configuration);
-            Environment.Exit(0);
-            return;
-        }
+        Environment.Exit(0);
+    }
 
-        if (runConfiguration.ScanOnly)
-        {
-            var scanReport = new GitWizardReport(configuration);
-            var scanPaths = new SortedSet<string>();
-            scanReport.GetRepositoryPaths(scanPaths, noMft: runConfiguration.NoMft);
-            foreach (var path in scanPaths)
-            {
-                Console.WriteLine(path);
-            }
-
-            Environment.Exit(0);
-            return;
-        }
-
+    static async Task RunDefaultReportModeAsync(RunConfiguration runConfiguration, GitWizardConfiguration configuration)
+    {
         var repositoryPaths = ParseExplicitPaths(runConfiguration) ?? await GetRepositoryPathsAsync(runConfiguration);
         var updateHandler = new UpdateHandler();
         var report = await GetReportAsync(runConfiguration, configuration, repositoryPaths, updateHandler);
@@ -209,7 +260,7 @@ git-wizard Session Started
         }
 
         return GitWizardReport.GenerateReport(configuration, repositoryPaths, updateHandler,
-            noMft: runConfiguration.NoMft, allBranches: runConfiguration.AllBranches);
+            new GitWizardReportOptions { NoMft = runConfiguration.NoMft, AllBranches = runConfiguration.AllBranches });
     }
 
     /// <summary>

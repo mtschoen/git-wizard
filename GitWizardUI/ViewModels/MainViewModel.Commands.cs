@@ -164,73 +164,85 @@ public partial class MainViewModel
                 return;
             }
 
-            var success = true;
-            var failed = new List<string>();
+            var (success, failed) = await DeleteBranchesAsync(workingDir, downstream);
+            await ReportDownstreamDeletionResultAsync(node, downstream, success, failed);
+        });
+    }
 
-            foreach (var branch in downstream)
+    static async Task<(bool Success, List<string> Failed)> DeleteBranchesAsync(string workingDir, List<BranchInfo> downstream)
+    {
+        var success = true;
+        var failed = new List<string>();
+
+        foreach (var branch in downstream)
+        {
+            var psi = new ProcessStartInfo
             {
-                var psi = new ProcessStartInfo
-                {
-                    FileName = "git",
-                    Arguments = $"branch -d \"{branch.Name}\"",
-                    WorkingDirectory = workingDir,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
+                FileName = "git",
+                Arguments = $"branch -d \"{branch.Name}\"",
+                WorkingDirectory = workingDir,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
 
-                try
+            try
+            {
+                using var process = Process.Start(psi);
+                if (process != null)
                 {
-                    using var process = Process.Start(psi);
-                    if (process != null)
+                    if (!process.WaitForExit(15000))
                     {
-                        if (!process.WaitForExit(15000))
+                        process.Kill();
+                        failed.Add(branch.Name);
+                        success = false;
+                    }
+                    else if (process.ExitCode != 0)
+                    {
+                        var error = await process.StandardError.ReadToEndAsync();
+                        if (!string.IsNullOrEmpty(error) && !error.Contains("not fully merged"))
                         {
-                            process.Kill();
+                            GitWizardLog.Log($"git branch -d {branch.Name}: {error}", GitWizardLog.LogType.Warning);
+                        }
+                        if (process.ExitCode != 0)
+                        {
                             failed.Add(branch.Name);
                             success = false;
                         }
-                        else if (process.ExitCode != 0)
-                        {
-                            var error = await process.StandardError.ReadToEndAsync();
-                            if (!string.IsNullOrEmpty(error) && !error.Contains("not fully merged"))
-                            {
-                                GitWizardLog.Log($"git branch -d {branch.Name}: {error}", GitWizardLog.LogType.Warning);
-                            }
-                            if (process.ExitCode != 0)
-                            {
-                                failed.Add(branch.Name);
-                                success = false;
-                            }
-                        }
                     }
                 }
-                catch (Exception ex)
-                {
-                    GitWizardLog.LogException(ex, $"Exception deleting branch {branch.Name} in {workingDir}");
-                    failed.Add(branch.Name);
-                    success = false;
-                }
             }
+            catch (Exception ex)
+            {
+                GitWizardLog.LogException(ex, $"Exception deleting branch {branch.Name} in {workingDir}");
+                failed.Add(branch.Name);
+                success = false;
+            }
+        }
 
-            if (success)
-            {
-                var deletedCount = downstream.Count;
-                node.Repository.Branches?.RemoveAll(b => b.IsMerged);
-                node.UpdateDisplayText();
-                await _dialogs.DisplayAlertAsync("Done", $"Deleted {deletedCount} branch(es)");
-            }
-            else if (failed.Count > 0)
-            {
-                // Remove successfully deleted branches from Branches so UI doesn't show stale data
-                node.Repository.Branches?.RemoveAll(b => b.IsMerged && !failed.Contains(b.Name));
-                var failedList = string.Join(", ", failed);
-                await _dialogs.DisplayAlertAsync(
-                    "Partial Success",
-                    $"Could not delete: {failedList}\n\nThese branches may not be fully merged or are protected.");
-            }
-        });
+        return (success, failed);
+    }
+
+    async Task ReportDownstreamDeletionResultAsync(RepositoryNodeViewModel node, List<BranchInfo> downstream,
+        bool success, List<string> failed)
+    {
+        if (success)
+        {
+            var deletedCount = downstream.Count;
+            node.Repository.Branches?.RemoveAll(b => b.IsMerged);
+            node.UpdateDisplayText();
+            await _dialogs.DisplayAlertAsync("Done", $"Deleted {deletedCount} branch(es)");
+        }
+        else if (failed.Count > 0)
+        {
+            // Remove successfully deleted branches from Branches so UI doesn't show stale data
+            node.Repository.Branches?.RemoveAll(b => b.IsMerged && !failed.Contains(b.Name));
+            var failedList = string.Join(", ", failed);
+            await _dialogs.DisplayAlertAsync(
+                "Partial Success",
+                $"Could not delete: {failedList}\n\nThese branches may not be fully merged or are protected.");
+        }
     }
 
     internal void ToggleGroupExpand(RepositoryNodeViewModel? node)

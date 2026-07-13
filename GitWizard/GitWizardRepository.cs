@@ -5,6 +5,13 @@ namespace GitWizard;
 [Serializable]
 public partial class GitWizardRepository
 {
+    /// <summary>
+    /// RefreshError text set when a cached path exists but no longer resolves to a valid git
+    /// repository. Shared with <see cref="GitWizardReport"/> so it can distinguish this "stale
+    /// cache entry" case (safe to prune) from a merely missing directory (transient, kept).
+    /// </summary>
+    internal const string NotAGitRepositoryError = "Not a git repository";
+
     public string? WorkingDirectory { get; private set; }
     public string? CurrentBranch { get; private set; }
     public bool IsDetachedHead { get; private set; }
@@ -66,7 +73,7 @@ public partial class GitWizardRepository
             if (!Repository.IsValid(WorkingDirectory))
             {
                 GitWizardLog.Log($"Working directory {WorkingDirectory} is not a git repository; skipping refresh.", GitWizardLog.LogType.Warning);
-                MarkRefreshFailed("Not a git repository", updateHandler);
+                MarkRefreshFailed(NotAGitRepositoryError, updateHandler);
                 return;
             }
 

@@ -459,4 +459,70 @@ public class SettingsViewModelTests
         Assert.That(vm.SaveCommand, Is.Not.Null);
         Assert.That(vm.SaveCommand, Is.InstanceOf<ICommand>());
     }
+
+    [Test]
+    public void ResetToDefaultsCommand_CommandType()
+    {
+        var picker = new StubFolderPicker();
+        var vm = new SettingsViewModel(picker);
+
+        Assert.That(vm.ResetToDefaultsCommand, Is.Not.Null);
+        Assert.That(vm.ResetToDefaultsCommand, Is.InstanceOf<ICommand>());
+    }
+
+    [Test]
+    public void ResetToDefaults_RestoresDefaultSearchAndIgnoredPaths()
+    {
+        var picker = new StubFolderPicker();
+        var vm = new SettingsViewModel(picker);
+
+        vm.SearchPaths.Clear();
+        vm.SearchPaths.Add("/custom/search");
+        vm.IgnoredPaths.Clear();
+        vm.IgnoredPaths.Add("/custom/ignored");
+
+        vm.ResetToDefaults();
+
+        var defaults = GitWizardConfiguration.CreateDefaultConfiguration();
+        Assert.That(vm.SearchPaths, Is.EquivalentTo(defaults.SearchPaths));
+        Assert.That(vm.IgnoredPaths, Is.EquivalentTo(defaults.IgnoredPaths));
+    }
+
+    [Test]
+    public void ResetToDefaults_ClearsForkPath()
+    {
+        var picker = new StubFolderPicker();
+        var vm = new SettingsViewModel(picker) { ForkPath = "/custom/fork" };
+
+        vm.ResetToDefaults();
+
+        Assert.That(vm.ForkPath, Is.Empty);
+    }
+
+    [Test]
+    public void ResetToDefaults_PersistsAcrossReload()
+    {
+        var picker = new StubFolderPicker();
+        var vm = new SettingsViewModel(picker) { ForkPath = "/custom/fork" };
+        vm.SearchPaths.Add("/custom/search");
+
+        vm.ResetToDefaults();
+
+        var reloaded = GitWizardConfiguration.GetGlobalConfiguration();
+        var defaults = GitWizardConfiguration.CreateDefaultConfiguration();
+        Assert.That(reloaded.SearchPaths, Is.EquivalentTo(defaults.SearchPaths));
+        Assert.That(reloaded.IgnoredPaths, Is.EquivalentTo(defaults.IgnoredPaths));
+        Assert.That(reloaded.ForkPath, Is.Null.Or.Empty);
+    }
+
+    [Test]
+    public void ResetToDefaultsCommand_ExecutesReset()
+    {
+        var picker = new StubFolderPicker();
+        var vm = new SettingsViewModel(picker) { ForkPath = "/custom/fork" };
+
+        vm.ResetToDefaultsCommand.Execute(null);
+
+        Assert.That(vm.ForkPath, Is.Empty);
+    }
 }

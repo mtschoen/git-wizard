@@ -59,4 +59,7 @@ public partial class SettingsWindow : Window
         _viewModel.AddIgnoredPathCommand.Execute(null);
         e.Handled = true;
     }
+
+    void ResetToDefaults_Click(object? sender, RoutedEventArgs e)
+        => _viewModel.ResetToDefaultsCommand.Execute(null);
 }

@@ -108,6 +108,49 @@ public class GitWizardReportTests
     }
 
     [Test]
+    public void Refresh_NonRepoPath_TracksAndPrunesNonRepositoryPath()
+    {
+        GitWizardLog.SilentMode = true;
+        var nonRepoPath = Path.Combine(Path.GetTempPath(), "not-a-repo-" + Guid.NewGuid());
+        Directory.CreateDirectory(nonRepoPath);
+
+        try
+        {
+            var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
+            var report = new GitWizardReport(configuration);
+
+            var paths = new SortedSet<string> { nonRepoPath };
+            report.Refresh(paths);
+
+            Assert.That(report.NonRepositoryPaths.Count, Is.EqualTo(1));
+            Assert.That(report.NonRepositoryPaths.Contains(nonRepoPath), Is.True);
+            Assert.That(report.Repositories.ContainsKey(nonRepoPath), Is.False);
+
+            // A merely-missing directory must NOT be mistaken for a stale non-repo path.
+            Assert.That(report.DeletedPaths, Does.Not.Contain(nonRepoPath));
+        }
+        finally
+        {
+            Directory.Delete(nonRepoPath, true);
+        }
+    }
+
+    [Test]
+    public void Refresh_ValidRepo_EmptyNonRepositoryPaths()
+    {
+        GitWizardLog.SilentMode = true;
+        using var validRepo = TempRepoFixture.CreateWithInitialCommit();
+
+        var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
+        var report = new GitWizardReport(configuration);
+
+        var paths = new SortedSet<string> { validRepo.Path };
+        report.Refresh(paths);
+
+        Assert.That(report.NonRepositoryPaths, Is.Empty);
+    }
+
+    [Test]
     public void Refresh_DeletedRepos_RemovedFromReportDictionary()
     {
         GitWizardLog.SilentMode = true;

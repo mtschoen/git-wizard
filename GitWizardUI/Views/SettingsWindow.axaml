@@ -59,6 +59,8 @@
       <TextBlock Text="• Use environment variables like %USERPROFILE% or %APPDATA%" FontSize="12" />
       <TextBlock Text="• Changes are saved automatically" FontSize="12" />
       <TextBlock Text="• Refresh the main view to see changes" FontSize="12" />
+      <Button Content="Reset Defaults" Click="ResetToDefaults_Click" HorizontalAlignment="Left" Margin="0,10,0,0"
+              ToolTip.Tip="Reset search paths, ignored paths, and fork path to their first-run clean defaults" />
     </StackPanel>
   </Grid>
 </Window>

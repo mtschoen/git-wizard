@@ -126,10 +126,10 @@ public partial class MainViewModel
         string[]? repositoryPaths = await GitWizardApi.GetCachedRepositoryPathsAsync().ConfigureAwait(false);
         var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync().ConfigureAwait(false);
 
-        var (deletedPaths, renamedOldPaths) =
+        var (deletedPaths, renamedOldPaths, nonRepositoryPaths) =
             await RunRefreshScanAsync(configuration, repositoryPaths, fetchRemotes).ConfigureAwait(false);
 
-        UpdateCachedPathsAfterScan(deletedPaths, renamedOldPaths);
+        UpdateCachedPathsAfterScan(deletedPaths, renamedOldPaths, nonRepositoryPaths);
         RemoveRenamedReposFromUi(renamedOldPaths);
 
         // Wait for the UI command queue to fully drain before applying grouping/sorting
@@ -177,12 +177,14 @@ public partial class MainViewModel
         }
     }
 
-    // Run the CPU-bound git scan on the thread pool; returns the deleted and renamed-old paths.
-    async Task<(HashSet<string> DeletedPaths, HashSet<string> RenamedOldPaths)> RunRefreshScanAsync(
+    // Run the CPU-bound git scan on the thread pool; returns the deleted, renamed-old, and stale
+    // non-repo paths.
+    async Task<(HashSet<string> DeletedPaths, HashSet<string> RenamedOldPaths, HashSet<string> NonRepositoryPaths)> RunRefreshScanAsync(
         GitWizardConfiguration configuration, string[]? repositoryPaths, bool fetchRemotes)
     {
         var deletedPaths = new HashSet<string>();
         var renamedOldPaths = new HashSet<string>();
+        var nonRepositoryPaths = new HashSet<string>();
 
         await Task.Run(() =>
         {
@@ -191,8 +193,9 @@ public partial class MainViewModel
                 new GitWizardReportOptions { FetchRemotes = fetchRemotes, DeepRefresh = fetchRemotes });
             _stopwatch.Stop();
 
-            // Capture deleted paths for cache cleanup on main thread
+            // Capture deleted and stale non-repo paths for cache cleanup on main thread
             deletedPaths = new HashSet<string>(report.DeletedPaths);
+            nonRepositoryPaths = new HashSet<string>(report.NonRepositoryPaths);
 
             // Detect renamed repos: find errored repos whose remote URLs
             // match a newly discovered (non-error) repo at a different path
@@ -218,23 +221,27 @@ public partial class MainViewModel
                 refreshMsg += $", {deletedPaths.Count} deleted";
             if (renamedOldPaths.Count > 0)
                 refreshMsg += $", {renamedOldPaths.Count} renamed";
+            if (nonRepositoryPaths.Count > 0)
+                refreshMsg += $", {nonRepositoryPaths.Count} stale";
             _lastRefreshMessage = refreshMsg;
 
             if (repositoryPaths == null)
                 GitWizardApi.SaveCachedRepositoryPaths(report.GetRepositoryPaths());
         }).ConfigureAwait(false);
 
-        return (deletedPaths, renamedOldPaths);
+        return (deletedPaths, renamedOldPaths, nonRepositoryPaths);
     }
 
-    // Drop deleted and renamed (old path) entries from the cached repository-path list.
-    static void UpdateCachedPathsAfterScan(HashSet<string> deletedPaths, HashSet<string> renamedOldPaths)
+    // Drop deleted, renamed (old path), and stale non-repo entries from the cached
+    // repository-path list.
+    static void UpdateCachedPathsAfterScan(HashSet<string> deletedPaths, HashSet<string> renamedOldPaths,
+        HashSet<string> nonRepositoryPaths)
     {
         var cachedPaths = GitWizardApi.GetCachedRepositoryPaths();
         if (cachedPaths == null)
             return;
 
-        var pathsToRemove = deletedPaths.Union(renamedOldPaths).ToHashSet();
+        var pathsToRemove = deletedPaths.Union(renamedOldPaths).Union(nonRepositoryPaths).ToHashSet();
         if (pathsToRemove.Count > 0)
         {
             var updatedPaths = cachedPaths.Where(p => !pathsToRemove.Contains(p)).ToList();

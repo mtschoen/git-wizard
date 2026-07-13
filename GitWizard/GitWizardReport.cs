@@ -40,6 +40,14 @@ public partial class GitWizardReport
     public SortedDictionary<string, GitWizardRepository> Repositories { get; set; } = new();
     public HashSet<string> DeletedPaths { get; private set; } = new();
 
+    /// <summary>
+    /// Cached paths whose directory exists but no longer resolves to a valid git repository
+    /// (e.g. the <c>.git</c> folder was removed). Populated by <see cref="Refresh"/> and pruned
+    /// from <see cref="Repositories"/>, distinct from <see cref="DeletedPaths"/> (missing
+    /// directory, which may just be a transiently-unmounted drive).
+    /// </summary>
+    public HashSet<string> NonRepositoryPaths { get; private set; } = new();
+
     public static string GetCachedReportPath()
     {
         return Path.Combine(GitWizardApi.GetLocalFilesPath(), "report.json");
@@ -230,6 +238,40 @@ public partial class GitWizardReport
                 GitWizardLog.LogException(exception, "Exception thrown by Refresh UpdateProgress callback.");
             }
         });
+
+        PruneNonRepositoryPaths(validPaths);
+    }
+
+    // Identifies paths that existed but whose Refresh determined they are no longer a valid git
+    // repository (NotAGitRepositoryError), records them on NonRepositoryPaths, and prunes them
+    // from Repositories so they stop being re-probed as stale cache entries every session. This
+    // is deliberately separate from PruneDeletedRepositories: a missing directory can be a
+    // transiently-unmounted drive and must NOT be pruned, whereas a directory that exists but
+    // isn't a repo is unambiguously stale.
+    void PruneNonRepositoryPaths(IEnumerable<string> refreshedPaths)
+    {
+        var stalePaths = new List<string>();
+
+        foreach (var path in refreshedPaths)
+        {
+            if (Repositories.TryGetValue(path, out var repository) &&
+                repository.RefreshError == GitWizardRepository.NotAGitRepositoryError)
+            {
+                stalePaths.Add(path);
+            }
+        }
+
+        NonRepositoryPaths = new HashSet<string>(stalePaths);
+
+        foreach (var stale in NonRepositoryPaths)
+        {
+            Repositories.Remove(stale);
+        }
+
+        if (NonRepositoryPaths.Count > 0)
+        {
+            GitWizardLog.Log($"Pruned {NonRepositoryPaths.Count} stale non-repo path(s) from cache");
+        }
     }
 
     // Identifies repos whose directory no longer exists, records them on DeletedPaths, prunes

@@ -67,6 +67,7 @@ public class SettingsViewModel : INotifyPropertyChanged
     public ICommand AddIgnoredPathCommand { get; }
     public ICommand RemoveIgnoredPathCommand { get; }
     public ICommand SaveCommand { get; }
+    public ICommand ResetToDefaultsCommand { get; }
 
     public SettingsViewModel(IFolderPicker folderPicker)
     {
@@ -89,6 +90,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         AddIgnoredPathCommand = new RelayCommand(AddIgnoredPath);
         RemoveIgnoredPathCommand = new RelayCommand<string>(RemoveIgnoredPath);
         SaveCommand = new RelayCommand(Save);
+        ResetToDefaultsCommand = new RelayCommand(ResetToDefaults);
     }
 
     private void AddSearchPath()
@@ -197,6 +199,30 @@ public class SettingsViewModel : INotifyPropertyChanged
         _configuration.ForkPath = string.IsNullOrWhiteSpace(ForkPath) ? null : ForkPath;
 
         _ = SaveAsync();
+    }
+
+    /// <summary>
+    /// Resets search paths, ignored paths, and the fork path to their first-run clean defaults
+    /// (<see cref="GitWizardConfiguration.CreateDefaultConfiguration"/>) and saves immediately.
+    /// </summary>
+    public void ResetToDefaults()
+    {
+        var defaults = GitWizardConfiguration.CreateDefaultConfiguration();
+
+        SearchPaths.Clear();
+        foreach (var path in defaults.SearchPaths)
+            SearchPaths.Add(path);
+
+        IgnoredPaths.Clear();
+        foreach (var path in defaults.IgnoredPaths)
+            IgnoredPaths.Add(path);
+
+        // Set the backing field directly rather than the ForkPath property: the property setter
+        // calls SaveImmediate() itself, which would save once here and again below.
+        _forkPath = string.Empty;
+        OnPropertyChanged(nameof(ForkPath));
+
+        SaveImmediate();
     }
 
     private void SaveImmediate()

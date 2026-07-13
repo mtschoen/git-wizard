@@ -161,6 +161,16 @@ Workflows live in `.gitea/workflows/` (`ci.yml`, `release.yml`) - the YAML is th
 - **Deliberate non-goals:** no binary signing, no MAUI (retired 2026-05-26 - GitWizardUI is the Avalonia app, covering cross-platform desktop), and no macOS CI runner.
 - **Cert workaround:** both workflows set `NODE_TLS_REJECT_UNAUTHORIZED=0` because the Windows runner's Node doesn't trust the self-signed llamabox Caddy cert. Tracked for removal in `PLAN.md` → Infrastructure.
 
+### Preview builds (`/preview`)
+
+`/preview` on a git-wizard PR (pr-crew comment command or the ops-dashboard button) builds and runs that PR's `GitWizardUI` on the platform you ask for. Default platform is **windows**; `/preview linux` targets llamabox.
+
+- **Windows** (`.gitea/workflows/preview.yml`, dispatched on `windows-latest`): MSVC native build → self-contained `win-x64` publish → zip → upload to the gitea generic package registry at `…/packages/schoen/generic/git-wizard-pr-<N>/<head-sha>/GitWizardUI-windows-x64.zip` (auth: `CI_GITEA_TOKEN`). The upload is existence-guarded so a re-dispatch for the same SHA is a no-op.
+- **Linux** (`.preview/up`, run by pr-crew on llamabox in a detached PR-head worktree): CMake native build → self-contained `linux-x64` publish → zip → registry upload (auth: `PREVIEW_GITEA_TOKEN`). If a live graphical session exists it launches the app on llamabox's hyprland display via XWayland — GitWizardUI is Avalonia 11.2 (X11-only on Linux), so `DISPLAY` is the load-bearing var (`kind: "app"`, PID in `$PREVIEW_PID_FILE`); otherwise it posts artifact links only (`kind: "artifact"`). `.preview/down` kills the launched process.
+- **Run a published artifact yourself:** `scripts/run-preview.ps1 [<PR#>]` (Windows) or `scripts/run-preview.sh [<PR#>]` (Linux). No arg fetches the newest git-wizard preview package; both download the current-OS zip from the registry, unzip to a temp dir, and launch `GitWizardUI`. Set `GITEA_TOKEN` if anonymous registry reads are refused.
+
+Enrollment (adding git-wizard to pr-crew's `[preview]` config on llamabox) is an operator step, not in this repo — see the plan's deploy notes.
+
 ## Tips
 
 - `deepRefresh` parameter skips expensive `git update-index --refresh` during auto-refresh; per-repo ↻ button triggers it on demand

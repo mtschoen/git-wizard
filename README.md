@@ -31,6 +31,10 @@ dotnet build GitWizardUI/GitWizardUI.csproj
 
 On first run, configure your search paths in Settings. GitWizard will scan those paths for git repositories and cache the results for fast subsequent launches.
 
+### Preview a PR build
+
+`/preview` on a git-wizard PR builds and publishes the desktop app for Windows or Linux; `scripts/run-preview.ps1` / `scripts/run-preview.sh` download and launch a published preview. See **CI infrastructure → Preview builds** in [AGENTS.md](AGENTS.md).
+
 ## Projects
 
 | Project | Description |

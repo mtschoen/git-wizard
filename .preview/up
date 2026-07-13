@@ -1,0 +1,116 @@
+#!/bin/sh
+# git-wizard preview provider (linux local executor).
+#
+# Contract (spec 2026-07-10-preview-platform-executors-design.md §4; pr_crew
+# preview.py): env in = PREVIEW_ID, PREVIEW_REF (head sha), PREVIEW_WORKTREE,
+# PREVIEW_PLATFORM, PREVIEW_PID_FILE, PREVIEW_GITEA_TOKEN. cwd = detached
+# worktree of the PR head. Out = one JSON line as the LAST stdout line
+# {"kind", "url"?, "note"?}; all diagnostics to stderr; nonzero exit = failure
+# (stderr tail lands in the PR comment).
+#
+# Unlike schoen-lab's site-kind provider there is no slot port and no URL
+# probe: this builds the desktop app, uploads it to the gitea generic registry,
+# and - if a graphical session is live - launches it on llamabox's hyprland
+# display via XWayland (kind "app", PID-file liveness; see the display branch
+# below). No display => artifact only.
+set -eu
+
+ROOT="$(dirname "$PREVIEW_PID_FILE")"
+LOG="$ROOT/app.log"
+ZIP="$ROOT/GitWizardUI-linux-x64.zip"
+URL="https://gitea.llamabox.sticktoitive.net/api/packages/schoen/generic/$PREVIEW_ID/$PREVIEW_REF/GitWizardUI-linux-x64.zip"
+
+# The orchestrator's detached PR-head worktree does NOT initialize submodules
+# (plain `git worktree add`), so MFTLib's source is absent until we fetch it.
+# The relative submodule URL (../MFTLib.git) resolves against the clone's
+# origin, which is the canonical gitea on this host.
+git submodule update --init 1>&2
+
+# Registry auth: gitea packages are owner-scoped, and pr-crew's
+# PREVIEW_GITEA_TOKEN is an LLM-bot identity token that cannot write the
+# schoen package namespace (observed live: 401 on PUT / reqPackageAccess on
+# DELETE). Until pr-crew grows a dedicated registry token in its provider env
+# (schoen-lab #317), prefer the operator-minted package-scoped token dropped
+# on this host; fall back to the provider env token.
+PKG_TOKEN="$(cat "$HOME/.pr-crew/preview-registry-token" 2>/dev/null || printf %s "$PREVIEW_GITEA_TOKEN")"
+
+# Build native (CMake/Ninja), then the managed MFTLib.dll (HintPath reference —
+# dotnet publish does NOT build it transitively), then publish the
+# self-contained linux GUI. Same three-step as ci.yml; Directory.Build.targets
+# adds libMFTLibNative.so to the publish output once the native build exists.
+# Progress to stderr so stdout stays clean for the JSON contract line.
+cmake -S external/MFTLib/MFTLibNative -B external/MFTLib/build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release 1>&2
+cmake --build external/MFTLib/build-linux 1>&2
+dotnet build external/MFTLib/MFTLib/MFTLib.csproj -c Release -p:Platform=x64 1>&2
+dotnet publish GitWizardUI/GitWizardUI.csproj -c Release -r linux-x64 --self-contained -o publish/gui/linux-x64 1>&2
+
+# Zip the publish folder's CONTENTS (exe at archive root, matching run-preview).
+( cd publish/gui/linux-x64 && zip -qr "$ZIP" . ) 1>&2
+
+# Existence-guarded upload: a HEAD 2xx (curl exit 0) means the file is already
+# present, so skip the PUT (the registry 409s on duplicate name+version+file).
+# curl -f maps any HTTP >=400 (incl. a 404-absent) to exit 22 -> proceed to the
+# PUT. A probe error is NOT "absent": a transport/TLS failure (exit 6, 7, 28,
+# 35, ...) must fail loudly rather than silently re-PUT into a 409.
+probe_rc=0
+curl -fsSI -o /dev/null -H "Authorization: token $PKG_TOKEN" "$URL" || probe_rc=$?
+if [ "$probe_rc" -eq 0 ]; then
+    echo "artifact already present at $URL - skipping upload" 1>&2
+elif [ "$probe_rc" -eq 22 ]; then
+    echo "uploading $URL" 1>&2
+    # --upload-file, not --data-binary: the latter defaults Content-Type to
+    # x-www-form-urlencoded, which gitea's generic uploader 500s on
+    # ("request Content-Type isn't multipart/form-data").
+    curl -fsSL -H "Authorization: token $PKG_TOKEN" \
+        -H "Content-Type: application/octet-stream" \
+        --upload-file "$ZIP" "$URL" 1>&2
+else
+    echo "registry HEAD probe failed (curl exit $probe_rc - network/TLS, not a 404) - aborting" 1>&2
+    exit 1
+fi
+
+# Display branch: launch on the live hyprland session if one exists. pr_crew may
+# run under a different session than the interactive one, so derive the display
+# vars explicitly and pass them to the child rather than inheriting.
+#
+# GitWizardUI is Avalonia 11.2, which has NO native Wayland backend: on Linux it
+# uses the X11 backend and runs under hyprland via XWayland. DISPLAY (the X
+# socket) is the load-bearing var - WAYLAND_DISPLAY is irrelevant to Avalonia 11.
+# Do NOT drop DISPLAY in a future cleanup: without it the app opens no window.
+# A live wayland-* socket signals the graphical session is up; the X socket under
+# /tmp/.X11-unix supplies XWayland's DISPLAY. Wayland up but no X socket =>
+# XWayland absent, so treat it as no-display (artifact only).
+XDG="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+wayland_socket=""
+for s in "$XDG"/wayland-*; do
+    case "$s" in *.lock) continue ;; esac
+    [ -S "$s" ] && { wayland_socket="$s"; break; }
+done
+display=""
+for x in /tmp/.X11-unix/X*; do
+    [ -S "$x" ] && { display=":${x##*/X}"; break; }
+done
+
+if [ -n "$wayland_socket" ] && [ -n "$display" ]; then
+    app="$PREVIEW_WORKTREE/publish/gui/linux-x64/GitWizardUI"
+    echo "launching $app on DISPLAY=$display (XWayland under ${wayland_socket##*/})" 1>&2
+    env XDG_RUNTIME_DIR="$XDG" DISPLAY="$display" WAYLAND_DISPLAY="${wayland_socket##*/}" \
+        nohup "$app" </dev/null >"$LOG" 2>&1 &
+    pid=$!
+    echo "$pid" > "$PREVIEW_PID_FILE"
+    # If it dies immediately, fail loudly (and reap) rather than report a live
+    # app that isn't.
+    sleep 2
+    if ! kill -0 "$pid" 2>/dev/null; then
+        echo "app exited immediately; app.log tail:" 1>&2
+        tail -n 30 "$LOG" 1>&2 || :
+        kill "$pid" 2>/dev/null || :
+        exit 1
+    fi
+    printf '{"kind": "app", "note": "running on the llamabox display \302\267 artifact: %s"}\n' "$URL"
+    exit 0
+fi
+
+echo "no live X/XWayland display (wayland_socket='$wayland_socket' display='$display') - artifact only" 1>&2
+printf '{"kind": "artifact", "url": "%s", "note": "no display session - use scripts/run-preview"}\n' "$URL"
+exit 0

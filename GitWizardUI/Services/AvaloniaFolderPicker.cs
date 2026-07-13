@@ -17,6 +17,6 @@ public sealed class AvaloniaFolderPicker : IFolderPicker
             Title = "Select repository folder",
             AllowMultiple = false,
         });
-        return result.Count > 0 ? result[0].Path.LocalPath : null;
+        return result.Count > 0 ? result[0].TryGetLocalPath() : null;
     }
 }

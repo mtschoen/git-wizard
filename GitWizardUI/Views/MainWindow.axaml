@@ -86,7 +86,7 @@
                      is always null in Avalonia 11 (AvaloniaUI/Avalonia#16344), so the old
                      DataContext="{Binding $self.PlacementTarget.DataContext}" failed at bind time (null) and
                      blocked the natural inheritance, leaving the menu items' Tag/IsVisible unbound. -->
-                <controls:ContextMenu x:DataType="vm:RepositoryNodeViewModel">
+                <controls:ContextMenu x:DataType="vm:RepositoryNodeViewModel" IsVisible="{Binding IsNotGroupHeader}">
                   <MenuItem Header="Open in Fork"     IsVisible="{Binding IsNotGroupHeader}"  Click="OnOpenInForkClick"       Tag="{Binding .}" />
                   <MenuItem Header="Open in Explorer" Click="OnOpenInExplorerClick"            Tag="{Binding .}" />
                   <MenuItem Header="Copy working directory to clipboard" Click="OnCopyToClipboardClick" Tag="{Binding .}" />

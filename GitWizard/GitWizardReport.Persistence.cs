@@ -25,16 +25,18 @@ public partial class GitWizardReport
     /// <param name="repositoryPaths">The repository paths to refresh and upsert.</param>
     /// <param name="updateHandler">Optional handler for progress updates.</param>
     /// <param name="allBranches">When true, include all branches in each refreshed repo.</param>
+    /// <param name="computeLocalCommitCount">When false, skip the expensive per-branch local-commit-count iteration.</param>
     /// <returns>The merged report (also written to <paramref name="savePath"/>).</returns>
     public static GitWizardReport MergeIntoFile(string savePath, GitWizardConfiguration configuration,
-        ICollection<string> repositoryPaths, IUpdateHandler? updateHandler = null, bool allBranches = false)
+        ICollection<string> repositoryPaths, IUpdateHandler? updateHandler = null, bool allBranches = false,
+        bool computeLocalCommitCount = true)
     {
         // Refresh just the supplied repos in an isolated report so we get fresh entries for them
         // without disturbing anything else (Refresh prunes deleted paths and would otherwise
         // touch the whole collection, so it must run on a throwaway report - not the on-disk one).
         var refreshed = new GitWizardReport(configuration);
         if (repositoryPaths.Count > 0)
-            refreshed.Refresh(repositoryPaths, updateHandler, allBranches: allBranches);
+            refreshed.Refresh(repositoryPaths, updateHandler, allBranches: allBranches, computeLocalCommitCount: computeLocalCommitCount);
 
         // Read the existing report as a JSON DOM rather than deserializing into GitWizardReport.
         // Deserialize-then-reserialize would drop every `private set` field (e.g. CurrentBranch)

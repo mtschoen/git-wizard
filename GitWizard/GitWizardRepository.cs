@@ -69,7 +69,7 @@ public partial class GitWizardRepository
     }
 
     public void Refresh(IUpdateHandler? updateHandler = null, bool fetchRemotes = false,
-        bool deepRefresh = false, bool allBranches = false)
+        bool deepRefresh = false, bool allBranches = false, bool computeLocalCommitCount = true)
     {
         if (string.IsNullOrEmpty(WorkingDirectory) || !Directory.Exists(WorkingDirectory))
         {
@@ -110,7 +110,8 @@ public partial class GitWizardRepository
             RefreshHeadInfo(repository);
             RefreshPendingChangesStatus(repository, deepRefresh);
             RefreshRemoteUrls(repository);
-            RefreshLocalOnlyCommits(repository);
+            if (computeLocalCommitCount)
+                RefreshLocalOnlyCommits(repository);
             RefreshBranchDivergence(repository, allBranches);
             RefreshRemoteDivergence(repository);
             RefreshAuthorEmails(repository);
@@ -183,13 +184,16 @@ public partial class GitWizardRepository
         }
     }
 
-    // Count commits reachable from any LOCAL branch but not from any
-    // remote-tracking branch - genuinely unpushed commits, counted once
-    // across all local branches. The old per-branch approach counted an
-    // untracked branch's ENTIRE history as unpushed, so already-pushed
-    // mainline commits were multiply-counted and the total could exceed
-    // the repo's commit count. With no remotes, nothing is excluded and
-    // every local commit counts (a brand-new repo is all-local).
+    /// <summary>
+    /// Count commits reachable from any LOCAL branch but not from any
+    /// remote-tracking branch - genuinely unpushed commits, counted once
+    /// across all local branches. The old per-branch approach counted an
+    /// untracked branch's ENTIRE history as unpushed, so already-pushed
+    /// mainline commits were multiply-counted and the total could exceed
+    /// the repo's commit count. With no remotes, nothing is excluded and
+    /// every local commit counts (a brand-new repo is all-local).
+    /// </summary>
+    /// <param name="repository">The repository to scan.</param>
     void RefreshLocalOnlyCommits(Repository repository)
     {
         LocalOnlyCommits = false;

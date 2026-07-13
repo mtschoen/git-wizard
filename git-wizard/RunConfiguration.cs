@@ -40,6 +40,7 @@ Other options:
   -no-mft                   Skip MFT search and use recursive directory scan instead
   -db-size                  Show the size of the GitWizard local files folder (~/.GitWizard/) and exit
   -all-branches             Include all local branches (default + already-merged) in each repo's Branches list, not just actionable ones
+  -no-local-commit-count    Skip computing per-repo LocalCommitCount/LocalOnlyCommits (expensive branch iteration)
   -watch                    Watch tracked repositories for changes via MFTLib's USN journal broker
                             (Windows only; triggers one UAC prompt) and print a line per repo that
                             changes. Runs until Ctrl-C.
@@ -141,6 +142,12 @@ Other options:
         public readonly bool Watch = false;
 
         /// <summary>
+        /// When true, skip the expensive per-branch local-commit-count iteration
+        /// in each repository refresh. Defaults to false (compute counts).
+        /// </summary>
+        public readonly bool NoLocalCommitCount = false;
+
+        /// <summary>
         /// Initialize a RunConfiguration using Environment.GetCommandLineArgs
         /// </summary>
         public RunConfiguration()
@@ -164,6 +171,7 @@ Other options:
             DbSize = parsed.DbSize;
             AllBranches = parsed.AllBranches;
             Watch = parsed.Watch;
+            NoLocalCommitCount = parsed.NoLocalCommitCount;
         }
 
         static ParsedArguments ParseCommandLine(string[] arguments)
@@ -283,6 +291,9 @@ Other options:
                 case "-watch":
                     parsed.Watch = true;
                     break;
+                case "-no-local-commit-count":
+                    parsed.NoLocalCommitCount = true;
+                    break;
                 default:
                     return false;
             }
@@ -310,6 +321,7 @@ Other options:
             public bool DbSize { get; set; }
             public bool AllBranches { get; set; }
             public bool Watch { get; set; }
+            public bool NoLocalCommitCount { get; set; }
         }
     }
 }

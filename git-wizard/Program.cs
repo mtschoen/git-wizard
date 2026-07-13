@@ -253,14 +253,14 @@ git-wizard Session Started
 
             if (cachedReport != null && repositoryPaths != null)
             {
-                cachedReport.Refresh(repositoryPaths, updateHandler, allBranches: runConfiguration.AllBranches);
+                cachedReport.Refresh(repositoryPaths, updateHandler, allBranches: runConfiguration.AllBranches, computeLocalCommitCount: !runConfiguration.NoLocalCommitCount);
                 cachedReport.BranchScope = runConfiguration.AllBranches ? "all" : "actionable";
                 return cachedReport;
             }
         }
 
         return GitWizardReport.GenerateReport(configuration, repositoryPaths, updateHandler,
-            new GitWizardReportOptions { NoMft = runConfiguration.NoMft, AllBranches = runConfiguration.AllBranches });
+            new GitWizardReportOptions { NoMft = runConfiguration.NoMft, AllBranches = runConfiguration.AllBranches, ComputeLocalCommitCount = !runConfiguration.NoLocalCommitCount });
     }
 
     /// <summary>
@@ -284,7 +284,7 @@ git-wizard Session Started
         GitWizardLog.Log($"Merging {explicitPaths.Length} repo(s) into {savePath}");
         var updateHandler = new UpdateHandler();
         GitWizardReport.MergeIntoFile(savePath, configuration, explicitPaths, updateHandler,
-            allBranches: runConfiguration.AllBranches);
+            allBranches: runConfiguration.AllBranches, computeLocalCommitCount: !runConfiguration.NoLocalCommitCount);
         updateHandler.ProcessCommands();
         updateHandler.PrintSummary();
     }

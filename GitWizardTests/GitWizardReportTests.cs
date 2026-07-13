@@ -217,6 +217,40 @@ public class GitWizardReportTests
     }
 
     [Test]
+    public void Refresh_WithComputeLocalCommitCount_False_SkipsCommitCounting()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AppendCommit("second.txt");
+
+        var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
+        var report = new GitWizardReport(configuration);
+
+        var paths = new SortedSet<string> { fixture.Path };
+        report.Refresh(paths, computeLocalCommitCount: false);
+
+        var repo = report.Repositories[fixture.Path];
+        Assert.That(repo.LocalCommitCount, Is.EqualTo(0));
+        Assert.That(repo.LocalOnlyCommits, Is.False);
+    }
+
+    [Test]
+    public void GenerateReport_Options_ComputeLocalCommitCount_False_SkipsCounting()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AppendCommit("second.txt");
+
+        var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
+        var options = new GitWizardReportOptions { ComputeLocalCommitCount = false };
+        var report = GitWizardReport.GenerateReport(configuration, new List<string> { fixture.Path }, options: options);
+
+        var repo = report.Repositories[fixture.Path];
+        Assert.That(repo.LocalCommitCount, Is.EqualTo(0));
+        Assert.That(repo.LocalOnlyCommits, Is.False);
+    }
+
+    [Test]
     public void GetRepositoryPaths_WithEmptySearchPaths_DoesNotThrow()
     {
         var report = new GitWizardReport();

@@ -313,6 +313,46 @@ public class GitWizardRepositoryMoreTests
         Assert.That(repo.NumberOfPendingChanges, Is.EqualTo(0));
     }
 
+    [Test]
+    public void Refresh_ComputeLocalCommitCount_True_PopulatesLocalCommitCount()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AppendCommit("second.txt");
+        fixture.AppendCommit("third.txt");
+
+        var repo = new GitWizardRepository(fixture.Path);
+        repo.Refresh(computeLocalCommitCount: true);
+
+        Assert.That(repo.LocalCommitCount, Is.EqualTo(3));
+        Assert.That(repo.LocalOnlyCommits, Is.True);
+    }
+
+    [Test]
+    public void Refresh_ComputeLocalCommitCount_SkipsBranchIteration()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AppendCommit("second.txt");
+
+        var repo = new GitWizardRepository(fixture.Path);
+        repo.Refresh(computeLocalCommitCount: false);
+
+        Assert.That(repo.LocalCommitCount, Is.EqualTo(0));
+        Assert.That(repo.LocalOnlyCommits, Is.False);
+    }
+
+    [Test]
+    public void Refresh_ComputeLocalCommitCount_Default_ComputesCount()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AppendCommit("second.txt");
+
+        var repo = new GitWizardRepository(fixture.Path);
+        repo.Refresh(); // default computeLocalCommitCount=true
+
+        Assert.That(repo.LocalCommitCount, Is.EqualTo(2));
+        Assert.That(repo.LocalOnlyCommits, Is.True);
+    }
+
     static string CreateNonGitDirectory()
     {
         var directory = Path.Combine(Path.GetTempPath(), "gw-nongit-" + Guid.NewGuid().ToString("N"));

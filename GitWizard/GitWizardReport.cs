@@ -162,7 +162,7 @@ public partial class GitWizardReport
             report.GetRepositoryPaths(repositoryPaths, updateHandler, options.NoMft);
         }
 
-        report.Refresh(repositoryPaths, updateHandler, options.FetchRemotes, options.DeepRefresh, options.AllBranches);
+        report.Refresh(repositoryPaths, updateHandler, options.FetchRemotes, options.DeepRefresh, options.AllBranches, options.ComputeLocalCommitCount);
         report.BranchScope = options.AllBranches ? "all" : "actionable";
 
         return report;
@@ -209,7 +209,8 @@ public partial class GitWizardReport
     }
 
     public void Refresh(ICollection<string> repositoryPaths, IUpdateHandler? updateHandler = null,
-        bool fetchRemotes = false, bool deepRefresh = false, bool allBranches = false)
+        bool fetchRemotes = false, bool deepRefresh = false, bool allBranches = false,
+        bool computeLocalCommitCount = true)
     {
         var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) };
         var validPaths = PruneDeletedRepositories(repositoryPaths);
@@ -227,7 +228,7 @@ public partial class GitWizardReport
 
         Parallel.ForEach(validPaths, parallelOptions, path =>
         {
-            RefreshSingleRepository(path, updateHandler, fetchRemotes, deepRefresh, allBranches);
+            RefreshSingleRepository(path, updateHandler, fetchRemotes, deepRefresh, allBranches, computeLocalCommitCount);
 
             try
             {
@@ -307,7 +308,7 @@ public partial class GitWizardReport
     // Gets or creates the GitWizardRepository for path, runs its Refresh with a 5-minute
     // timeout, and records the elapsed time. One iteration of the Refresh Parallel.ForEach body.
     void RefreshSingleRepository(string path, IUpdateHandler? updateHandler, bool fetchRemotes,
-        bool deepRefresh, bool allBranches)
+        bool deepRefresh, bool allBranches, bool computeLocalCommitCount)
     {
         GitWizardRepository? repository;
         lock (Repositories)
@@ -329,7 +330,7 @@ public partial class GitWizardReport
         }
 
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        var refreshTask = Task.Run(() => repository.Refresh(updateHandler, fetchRemotes, deepRefresh, allBranches));
+        var refreshTask = Task.Run(() => repository.Refresh(updateHandler, fetchRemotes, deepRefresh, allBranches, computeLocalCommitCount));
         if (!refreshTask.Wait(TimeSpan.FromMinutes(5)))
         {
             GitWizardLog.Log($"Refresh timed out after 5 minutes for {path}", GitWizardLog.LogType.Warning);

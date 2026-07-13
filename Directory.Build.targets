@@ -51,15 +51,22 @@
 
   <!-- (2a) Windows native lib - copied into each project's output so MFTLib's P/Invoke resolves
        it at runtime. Glob for the vcxproj-built DLL under the submodule, scoped to the active
-       Configuration, excluding obj copies. -->
+       Configuration but falling back to whichever configuration is actually built (mirrors the
+       managed DLL fallback above). -->
   <Target Name="CopyMFTLibNativeWindows" AfterTargets="Build"
           Condition="'$(IsMFTLibSubmodule)' != 'true' And '$(MSBuildProjectExtension)' == '.csproj' And '$(TargetFramework)' != '' And $([MSBuild]::IsOSPlatform('Windows'))">
     <ItemGroup>
       <_MFTLibNativeDll Include="$(MSBuildThisFileDirectory)external\MFTLib\**\$(Configuration)\MFTLibNative.dll"
                         Exclude="$(MSBuildThisFileDirectory)external\MFTLib\**\obj\**" />
+      <_MFTLibNativeDll Condition="'@(_MFTLibNativeDll)' == ''"
+                        Include="$(MSBuildThisFileDirectory)external\MFTLib\**\Release\MFTLibNative.dll"
+                        Exclude="$(MSBuildThisFileDirectory)external\MFTLib\**\obj\**" />
+      <_MFTLibNativeDll Condition="'@(_MFTLibNativeDll)' == ''"
+                        Include="$(MSBuildThisFileDirectory)external\MFTLib\**\Debug\MFTLibNative.dll"
+                        Exclude="$(MSBuildThisFileDirectory)external\MFTLib\**\obj\**" />
     </ItemGroup>
     <Error Condition="'@(_MFTLibNativeDll)' == ''"
-           Text="MFTLibNative.dll ($(Configuration)) not found under external/MFTLib. Build it first with VS MSBuild: msbuild external\MFTLib\MFTLibNative\MFTLibNative.vcxproj -t:Build -p:Configuration=$(Configuration) -p:Platform=x64. Also ensure the submodule is checked out (git submodule update --init)." />
+           Text="MFTLibNative.dll not found under external/MFTLib. Build it with VS MSBuild (any configuration): msbuild external\MFTLib\MFTLibNative\MFTLibNative.vcxproj -t:Build -p:Configuration=Release -p:Platform=x64. Also ensure the submodule is checked out (git submodule update --init)." />
     <Copy SourceFiles="@(_MFTLibNativeDll)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
   </Target>
 
@@ -79,11 +86,18 @@
   </Target>
 
   <!-- (2c/2d) Publish participation - the AfterTargets="Build" copies above populate $(OutDir),
-       but publish computes its own file list; register the native there explicitly. -->
+       but publish computes its own file list; register the native there explicitly. Same
+       configuration fallback as the build-time copy. -->
   <Target Name="PublishMFTLibNativeWindows" BeforeTargets="ComputeFilesToPublish"
           Condition="'$(IsMFTLibSubmodule)' != 'true' And '$(MSBuildProjectExtension)' == '.csproj' And $([MSBuild]::IsOSPlatform('Windows'))">
     <ItemGroup>
       <_MFTLibNativeDllPub Include="$(MSBuildThisFileDirectory)external\MFTLib\**\$(Configuration)\MFTLibNative.dll"
+                           Exclude="$(MSBuildThisFileDirectory)external\MFTLib\**\obj\**" />
+      <_MFTLibNativeDllPub Condition="'@(_MFTLibNativeDllPub)' == ''"
+                           Include="$(MSBuildThisFileDirectory)external\MFTLib\**\Release\MFTLibNative.dll"
+                           Exclude="$(MSBuildThisFileDirectory)external\MFTLib\**\obj\**" />
+      <_MFTLibNativeDllPub Condition="'@(_MFTLibNativeDllPub)' == ''"
+                           Include="$(MSBuildThisFileDirectory)external\MFTLib\**\Debug\MFTLibNative.dll"
                            Exclude="$(MSBuildThisFileDirectory)external\MFTLib\**\obj\**" />
       <ResolvedFileToPublish Include="@(_MFTLibNativeDllPub)">
         <RelativePath>MFTLibNative.dll</RelativePath>

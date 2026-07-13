@@ -256,6 +256,36 @@ public class GitWizardLogTests
     }
 
     [Test]
+    public void CloseCurrentLogFile_IsIdempotent()
+    {
+        // Calling CloseCurrentLogFile multiple times should not throw
+        GitWizardLog.CloseCurrentLogFile();
+        GitWizardLog.CloseCurrentLogFile();
+        GitWizardLog.CloseCurrentLogFile();
+        Assert.Pass();
+    }
+
+    [Test]
+    public void Log_LogsMessage_ToLogFile()
+    {
+        GitWizardLog.SilentMode = false;
+        GitWizardLog.LogMethod = _ => { }; // suppress console
+
+        GitWizardLog.Log("async file log test message");
+
+        // Give the async writer a moment to process
+        Thread.Sleep(50);
+
+        GitWizardLog.CloseCurrentLogFile();
+
+        var logFolder = GitWizardApi.GetLogFolderPath();
+        var files = Directory.GetFiles(logFolder, "GitWizardLog_*.log");
+        Assert.That(files.Length, Is.GreaterThan(0));
+        var content = File.ReadAllText(files[0]);
+        Assert.That(content, Does.Contain("async file log test message"));
+    }
+
+    [Test]
     public void Log_OutputAppearsInLogMethod()
     {
         GitWizardLog.SilentMode = false;

@@ -1,0 +1,15 @@
+{
+  "format-on-save": {
+    "PostToolUse": [
+      {
+        "matcher": "replace_file_content|write_to_file|multi_replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \".claude/scripts/format-on-save.ps1\""
+          }
+        ]
+      }
+    ]
+  }
+}

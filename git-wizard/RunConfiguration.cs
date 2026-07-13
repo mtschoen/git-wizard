@@ -197,22 +197,22 @@ Other options:
                         parsed.PathsArgument = arguments[++i];
                         break;
                     case "-save-path":
-                        if (i >= length)
+                        if (i + 1 >= length)
                         {
                             GitWizardLog.Log("-save-path argument passed without a following argument.", GitWizardLog.LogType.Error);
                             break;
                         }
 
-                        parsed.SavePath = arguments[i + 1];
+                        parsed.SavePath = arguments[++i];
                         break;
                     case "-config-path":
-                        if (i >= length)
+                        if (i + 1 >= length)
                         {
                             GitWizardLog.Log("-config-path argument passed without a following argument.", GitWizardLog.LogType.Error);
                             break;
                         }
 
-                        parsed.CustomConfigurationPath = arguments[i + 1];
+                        parsed.CustomConfigurationPath = arguments[++i];
                         break;
                 }
             }

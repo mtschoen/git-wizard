@@ -311,6 +311,11 @@ public partial class MainViewModel
                 }
             }
 
+            if (header == null)
+            {
+                _pendingGroups.TryGetValue(key, out header);
+            }
+
             if (header != null)
             {
                 header.Children.Add(node);
@@ -320,7 +325,10 @@ public partial class MainViewModel
                 if (header.IsExpanded)
                 {
                     var headerIndex = Repositories.IndexOf(header);
-                    Repositories.Insert(headerIndex + header.Children.Count, node);
+                    if (headerIndex >= 0)
+                    {
+                        Repositories.Insert(headerIndex + header.Children.Count, node);
+                    }
                 }
             }
             else

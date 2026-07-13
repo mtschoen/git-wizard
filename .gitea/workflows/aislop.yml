@@ -51,8 +51,8 @@ jobs:
       # is enough for analysis (no native build here - the copy target only warns).
       - name: Build MFTLib managed (HintPath for analysis)
         run: dotnet build external/MFTLib/MFTLib/MFTLib.csproj -c Release -p:Platform=x64
-      - name: Restore git-wizard (jb inspectcode builds the solution it targets)
-        run: dotnet restore git-wizard.slnx
+      - name: Build git-wizard (fully compiles the workspace for dotnet format)
+        run: dotnet build git-wizard.slnx -c Release
       - name: aislop quality gate
         # Sanity-fail if the C# engine did not actually analyze the .cs tree (avoid a
         # silent Python-only pass): require a healthy file count alongside the score gate.

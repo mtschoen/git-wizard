@@ -8,7 +8,7 @@ public class GitWizardReportTests
     public void Report_HasSchemaVersion()
     {
         var report = new GitWizardReport();
-        Assert.That(report.SchemaVersion, Is.EqualTo("2.0"));
+        Assert.That(report.SchemaVersion, Is.EqualTo("2.1"));
     }
 
     [Test]
@@ -17,7 +17,7 @@ public class GitWizardReportTests
         var report = new GitWizardReport();
         var json = System.Text.Json.JsonSerializer.Serialize(report);
         var deserialized = System.Text.Json.JsonSerializer.Deserialize<GitWizardReport>(json);
-        Assert.That(deserialized!.SchemaVersion, Is.EqualTo("2.0"));
+        Assert.That(deserialized!.SchemaVersion, Is.EqualTo("2.1"));
     }
 
     [Test]
@@ -28,7 +28,7 @@ public class GitWizardReportTests
         var report = GitWizardReport.GenerateReport(configuration, new List<string>());
 
         Assert.That(report.BranchScope, Is.EqualTo("actionable"));
-        Assert.That(report.SchemaVersion, Is.EqualTo("2.0"));
+        Assert.That(report.SchemaVersion, Is.EqualTo("2.1"));
     }
 
     [Test]

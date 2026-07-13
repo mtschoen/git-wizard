@@ -119,6 +119,40 @@ public class RepositoryNodeViewModelStateTests
     }
 
     [Test]
+    public void BehindRemote_DrivesFilterDisplayDecorationAndTooltip()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AddOriginRemoteAndPush();
+        fixture.AdvanceOriginIndependently("upstream-change.txt");
+        var repo = new GitWizardRepository(fixture.Path);
+        repo.Refresh(fetchRemotes: true);
+        var node = new RepositoryNodeViewModel(repo);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(node.MatchesFilter(FilterType.BehindRemote), Is.True);
+            Assert.That(node.DisplayText, Does.Contain("↓(1)"),
+                "A repo behind its remote must show the behind-remote count in the row label.");
+            Assert.That(node.BehindRemoteTooltip, Does.Contain("1 commit behind"));
+            Assert.That(node.BehindRemoteTooltip, Does.Contain("last fetch"),
+                "The tooltip must cite the fetch timestamp so a stale comparison is visible.");
+        });
+    }
+
+    [Test]
+    public void NotBehindRemote_HasNoBehindRemoteTooltip()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var node = RefreshedNode(fixture);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(node.MatchesFilter(FilterType.BehindRemote), Is.False);
+            Assert.That(node.BehindRemoteTooltip, Is.Null);
+        });
+    }
+
+    [Test]
     public void MyRepositories_MatchesAuthoredEmail()
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();

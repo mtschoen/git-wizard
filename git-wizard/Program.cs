@@ -361,7 +361,7 @@ git-wizard Session Started
     {
         foreach (var kvp in report.Repositories)
         {
-            if (kvp.Value.HasPendingChanges || kvp.Value.LocalOnlyCommits)
+            if (kvp.Value.HasPendingChanges || kvp.Value.LocalOnlyCommits || kvp.Value.BehindRemoteCount > 0)
                 return true;
         }
 

@@ -9,6 +9,7 @@ public class GitWizardSummary
     public int Unpushed { get; set; }
     public int Stale { get; set; }
     public int MergedBranches { get; set; }
+    public int BehindRemote { get; set; }
     public List<AttentionItem> NeedingAttention { get; set; } = new();
 
     public static GitWizardSummary FromReport(GitWizardReport report)
@@ -45,6 +46,12 @@ public class GitWizardSummary
             {
                 summary.MergedBranches++;
                 reasons.Add("merged-branches");
+            }
+
+            if (repository.BehindRemoteCount > 0)
+            {
+                summary.BehindRemote++;
+                reasons.Add("behind-remote");
             }
 
             if (reasons.Count > 0)

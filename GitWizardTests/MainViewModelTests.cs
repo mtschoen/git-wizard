@@ -356,6 +356,8 @@ public class MainViewModelTests
             ("FilterLocalOnlyCommits", FilterType.LocalOnlyCommits),
             ("FilterStale", FilterType.Stale),
             ("FilterDownstreamBranches", FilterType.DownstreamBranches),
+            ("FilterBehindRemote", FilterType.BehindRemote),
+            ("FilterPublishReady", FilterType.PublishReady),
         };
 
         foreach (var (button, expected) in cases)

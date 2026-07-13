@@ -40,6 +40,27 @@ public partial class GitWizardRepository
     public List<BranchInfo>? Branches { get; set; }
     public long SizeOnDisk { get; private set; }
 
+    /// <summary>Commits on the current branch's upstream not reachable from the current branch - i.e. how far behind the remote this checkout is. 0 when there is no upstream. See <see cref="BranchInfo.BehindDefault"/> for the unrelated local-default comparison.</summary>
+    public int BehindRemoteCount { get; private set; }
+
+    /// <summary>Commits on the current branch not reachable from its upstream - i.e. unpushed commits on the checked-out branch. 0 when there is no upstream.</summary>
+    public int AheadOfRemoteCount { get; private set; }
+
+    /// <summary>When the last successful <c>fetchRemotes</c> refresh completed; null if this repository has never been fetched by GitWizard. Shown beside <see cref="BehindRemoteCount"/> so a stale comparison is visible.</summary>
+    public DateTimeOffset? LastFetchTime { get; private set; }
+
+    /// <summary>
+    /// True when this checkout is safe to publish from: no pending changes, not behind its
+    /// upstream remote, and currently on the default branch - the literal
+    /// Asset-Store-submission check from the founding UniMerge incident (git-wizard#78 point 4).
+    /// Purely derived from other already-serialized fields (not its own stored/private-set
+    /// field), so it stays correct even against a report deserialized from an older cache rather
+    /// than freshly refreshed in-process.
+    /// </summary>
+    public bool IsPublishReady =>
+        !HasPendingChanges && BehindRemoteCount == 0 &&
+        !string.IsNullOrEmpty(CurrentBranch) && CurrentBranch == DefaultBranch;
+
     GitWizardRepository() { }
 
     public GitWizardRepository(string workingDirectory)
@@ -56,8 +77,8 @@ public partial class GitWizardRepository
             return;
         }
 
-        if (fetchRemotes)
-            FetchAllRemotes(WorkingDirectory);
+        if (fetchRemotes && FetchAllRemotes(WorkingDirectory))
+            LastFetchTime = DateTimeOffset.Now;
 
         GitWizardLog.Log($"Refreshing {WorkingDirectory}");
 
@@ -91,6 +112,7 @@ public partial class GitWizardRepository
             RefreshRemoteUrls(repository);
             RefreshLocalOnlyCommits(repository);
             RefreshBranchDivergence(repository, allBranches);
+            RefreshRemoteDivergence(repository);
             RefreshAuthorEmails(repository);
             RefreshRecentCommits(repository);
             RefreshSizeOnDisk(WorkingDirectory);

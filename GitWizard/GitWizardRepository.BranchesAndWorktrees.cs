@@ -87,7 +87,11 @@ public partial class GitWizardRepository
         }
     }
 
-    static void FetchAllRemotes(string workingDirectory)
+    // Returns true when the fetch process ran to completion (regardless of exit code - a non-zero
+    // exit can still mean some remotes were fetched successfully), so callers can record a
+    // trustworthy LastFetchTime. Returns false when the fetch never completed (failed to start or
+    // timed out), so a stale timestamp is left in place rather than overwritten.
+    static bool FetchAllRemotes(string workingDirectory)
     {
         try
         {
@@ -103,28 +107,31 @@ public partial class GitWizardRepository
             };
 
             using var process = System.Diagnostics.Process.Start(psi);
-            if (process != null)
-            {
-                if (!process.WaitForExit(60000))
-                {
-                    GitWizardLog.Log($"git fetch --all timed out for {workingDirectory}", GitWizardLog.LogType.Warning);
-                    process.Kill();
-                    return;
-                }
+            if (process == null)
+                return false;
 
-                if (process.ExitCode != 0)
+            if (!process.WaitForExit(60000))
+            {
+                GitWizardLog.Log($"git fetch --all timed out for {workingDirectory}", GitWizardLog.LogType.Warning);
+                process.Kill();
+                return false;
+            }
+
+            if (process.ExitCode != 0)
+            {
+                var error = process.StandardError.ReadToEnd();
+                if (!string.IsNullOrEmpty(error))
                 {
-                    var error = process.StandardError.ReadToEnd();
-                    if (!string.IsNullOrEmpty(error))
-                    {
-                        GitWizardLog.Log($"git fetch --all reported: {error}", GitWizardLog.LogType.Warning);
-                    }
+                    GitWizardLog.Log($"git fetch --all reported: {error}", GitWizardLog.LogType.Warning);
                 }
             }
+
+            return true;
         }
         catch (Exception exception)
         {
             GitWizardLog.LogException(exception, $"Exception fetching remotes for {workingDirectory}");
+            return false;
         }
     }
 
@@ -235,6 +242,41 @@ public partial class GitWizardRepository
         }
 
         Branches = collected.Count > 0 ? collected : null;
+    }
+
+    /// <summary>
+    /// Compute how far the CURRENTLY CHECKED OUT branch (<c>repository.Head</c>) has diverged from
+    /// its upstream remote-tracking branch, and store the result on
+    /// <see cref="GitWizardRepository.BehindRemoteCount"/> / <see cref="GitWizardRepository.AheadOfRemoteCount"/>.
+    /// This is deliberately independent of <see cref="CollectBranches"/>'s "actionable" branch
+    /// filter - the default branch (the branch you are about to publish from) is always dropped
+    /// from <c>Branches</c> unless it diverges from ITSELF, so it would otherwise never surface a
+    /// behind-remote signal. Left at 0/0 for a detached HEAD or a branch with no upstream (mirrors
+    /// <c>HasUpstream</c> on <see cref="BranchInfo"/>: no tracking branch means nothing to compare).
+    /// </summary>
+    void RefreshRemoteDivergence(Repository repository)
+    {
+        BehindRemoteCount = 0;
+        AheadOfRemoteCount = 0;
+
+        if (IsDetachedHead)
+            return;
+
+        try
+        {
+            var head = repository.Head;
+            var trackedTip = head.TrackedBranch?.Tip;
+            if (head.Tip == null || trackedTip == null)
+                return;
+
+            var divergence = repository.ObjectDatabase.CalculateHistoryDivergence(head.Tip, trackedTip);
+            AheadOfRemoteCount = divergence.AheadBy ?? 0;
+            BehindRemoteCount = divergence.BehindBy ?? 0;
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, $"Exception computing remote divergence for {WorkingDirectory}");
+        }
     }
 
     public void CheckoutBranch(string branchName)

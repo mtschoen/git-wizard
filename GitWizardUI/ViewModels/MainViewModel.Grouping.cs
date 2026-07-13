@@ -78,6 +78,8 @@ public partial class MainViewModel
         "FilterLocalOnlyCommits" => FilterType.LocalOnlyCommits,
         "FilterStale" => FilterType.Stale,
         "FilterDownstreamBranches" => FilterType.DownstreamBranches,
+        "FilterBehindRemote" => FilterType.BehindRemote,
+        "FilterPublishReady" => FilterType.PublishReady,
         _ => FilterType.None,
     });
 

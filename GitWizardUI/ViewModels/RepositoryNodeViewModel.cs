@@ -147,6 +147,31 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
 
     public bool HasMatchingBranch => !string.IsNullOrEmpty(MatchingBranchName) && Repository.IsDetachedHead;
 
+    /// <summary>
+    /// Tooltip for the row label when the current checkout is behind its remote, naming the
+    /// last-fetch timestamp so a stale comparison is visible (point 3 of git-wizard#78) - null
+    /// (no tooltip) when the repository is not behind. A missing <c>LastFetchTime</c> despite a
+    /// nonzero behind count means the remote-tracking ref came from a fetch GitWizard itself never
+    /// recorded (e.g. a manual <c>git fetch</c>, or a cache written before this field existed) -
+    /// called out explicitly rather than silently treated as fresh.
+    /// </summary>
+    public string? BehindRemoteTooltip
+    {
+        get
+        {
+            var behindCount = Repository.BehindRemoteCount;
+            if (behindCount <= 0)
+                return null;
+
+            var fetchTime = Repository.LastFetchTime;
+            var asOf = fetchTime.HasValue
+                ? $"as of last fetch at {fetchTime.Value.LocalDateTime:g}"
+                : "as of an untracked fetch (GitWizard has not fetched this repository itself)";
+            var commitWord = behindCount == 1 ? "commit" : "commits";
+            return $"{behindCount} {commitWord} behind {Repository.CurrentBranch}'s upstream, {asOf}";
+        }
+    }
+
     public RepositoryNodeViewModel(GitWizardRepository repository)
     {
         Repository = repository;
@@ -212,6 +237,12 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
             label += " ↑";
         }
 
+        var behindRemoteCount = Repository.BehindRemoteCount;
+        if (behindRemoteCount > 0)
+        {
+            label += $" ↓({behindRemoteCount})";
+        }
+
         var daysSinceLastCommit = Repository.DaysSinceLastCommit;
         if (daysSinceLastCommit > 30)
         {
@@ -261,6 +292,8 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
             FilterType.LocalOnlyCommits => Repository.LocalOnlyCommits,
             FilterType.Stale => Repository.DaysSinceLastCommit > 30,
             FilterType.DownstreamBranches => HasDownstreamBranches(),
+            FilterType.BehindRemote => Repository.BehindRemoteCount > 0,
+            FilterType.PublishReady => Repository.IsPublishReady,
             _ => true
         };
     }
@@ -355,5 +388,7 @@ public enum FilterType
     MyRepositories,
     LocalOnlyCommits,
     Stale,
-    DownstreamBranches
+    DownstreamBranches,
+    BehindRemote,
+    PublishReady
 }

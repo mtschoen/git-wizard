@@ -23,7 +23,7 @@ public partial class GitWizardReport
     /// report at save time so cached reports from older builds don't
     /// propagate stale version strings forward.
     /// </summary>
-    public const string CurrentSchemaVersion = "2.0";
+    public const string CurrentSchemaVersion = "2.1";
 
     public string SchemaVersion { get; set; } = CurrentSchemaVersion;
 

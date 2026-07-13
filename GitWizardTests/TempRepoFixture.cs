@@ -104,6 +104,31 @@ internal sealed class TempRepoFixture : IDisposable
     }
 
     /// <summary>
+    /// Advance the "origin" remote's tracked branch independently of this repository: clone the
+    /// bare origin created by <see cref="AddOriginRemoteAndPush"/> into a scratch working copy, add
+    /// a commit there, and push it back. This repository's own HEAD and remote-tracking ref are
+    /// left untouched - a fetch is required to observe the new commit - modelling another
+    /// contributor pushing to the remote while this checkout sits still (the UniMerge-flub
+    /// scenario git-wizard#78 is meant to catch).
+    /// </summary>
+    public void AdvanceOriginIndependently(string fileName)
+    {
+        string originUrl;
+        using (var repository = new Repository(Path))
+            originUrl = repository.Network.Remotes["origin"].Url;
+
+        var scratch = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gw-scratch-" + Guid.NewGuid().ToString("N"));
+        RunGit(System.IO.Path.GetTempPath(), "clone", originUrl, scratch);
+        _extraCleanupDirs.Add(scratch);
+
+        File.WriteAllText(System.IO.Path.Combine(scratch, fileName), Guid.NewGuid().ToString());
+        RunGit(scratch, "add", fileName);
+        RunGit(scratch, "-c", "user.email=test@example.com", "-c", "user.name=Test",
+            "commit", "-m", $"add {fileName}");
+        RunGit(scratch, "push", "origin", "HEAD");
+    }
+
+    /// <summary>
     /// Commit a <c>.gitmodules</c> entry pointing at <paramref name="path"/> WITHOUT
     /// adding a matching gitlink to the index. The superproject then declares a
     /// submodule that has no index entry - modelling the "declared in .gitmodules

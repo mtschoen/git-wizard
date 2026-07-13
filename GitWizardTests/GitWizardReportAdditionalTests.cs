@@ -123,7 +123,7 @@ public class GitWizardReportAdditionalTests
 
         var json = File.ReadAllText(jsonPath);
         var deserialized = System.Text.Json.JsonSerializer.Deserialize<GitWizardReport>(json);
-        Assert.That(deserialized!.SchemaVersion, Is.EqualTo("2.0"));
+        Assert.That(deserialized!.SchemaVersion, Is.EqualTo("2.1"));
     }
 
     [Test]
@@ -140,6 +140,7 @@ public class GitWizardReportAdditionalTests
     [Test]
     public async Task GetCachedReportAsync_CachesReport()
     {
+        // SaveAsync always stamps CurrentSchemaVersion, overriding this initializer - see below.
         var report = new GitWizardReport { SchemaVersion = "2.0" };
         var jsonPath = GitWizardReport.GetCachedReportPath();
 
@@ -147,12 +148,13 @@ public class GitWizardReportAdditionalTests
 
         var loaded = await GitWizardReport.GetCachedReportAsync();
         Assert.That(loaded, Is.Not.Null);
-        Assert.That(loaded!.SchemaVersion, Is.EqualTo("2.0"));
+        Assert.That(loaded!.SchemaVersion, Is.EqualTo("2.1"));
     }
 
     [Test]
     public void GetCachedReport_CachesReport()
     {
+        // Save always stamps CurrentSchemaVersion, overriding this initializer - see below.
         var report = new GitWizardReport { SchemaVersion = "2.0" };
         var jsonPath = GitWizardReport.GetCachedReportPath();
 
@@ -160,7 +162,7 @@ public class GitWizardReportAdditionalTests
 
         var loaded = GitWizardReport.GetCachedReport();
         Assert.That(loaded, Is.Not.Null);
-        Assert.That(loaded!.SchemaVersion, Is.EqualTo("2.0"));
+        Assert.That(loaded!.SchemaVersion, Is.EqualTo("2.1"));
     }
 
     [Test]

@@ -234,7 +234,7 @@ public partial class MainViewModel
 
     // Drop deleted, renamed (old path), and stale non-repo entries from the cached
     // repository-path list.
-    static void UpdateCachedPathsAfterScan(HashSet<string> deletedPaths, HashSet<string> renamedOldPaths,
+    internal static void UpdateCachedPathsAfterScan(HashSet<string> deletedPaths, HashSet<string> renamedOldPaths,
         HashSet<string> nonRepositoryPaths)
     {
         var cachedPaths = GitWizardApi.GetCachedRepositoryPaths();

@@ -426,4 +426,143 @@ public class MainViewModelRefreshTests
             "Only the repo matching the search text should appear.");
         Assert.That(vm.Repositories[0].WorkingDirectory, Is.EqualTo("C:/repos/alpha"));
     }
+
+    // ── UpdateCachedPathsAfterScan ────────────────────────────────────
+
+    [Test]
+    public void UpdateCachedPathsAfterScan_RemovesNonRepositoryPaths()
+    {
+        var tempHome = TestUtilities.RedirectLocalFilesToTemp();
+        TestUtilities.ResetStaticCaches();
+
+        try
+        {
+            var validPath = "/valid/repo";
+            var stalePath = "/stale/not-a-repo";
+
+            // Write a repositories.txt with both valid and stale paths.
+            GitWizardApi.SaveCachedRepositoryPaths([validPath, stalePath]);
+
+            // Call UpdateCachedPathsAfterScan with the stale path in NonRepositoryPaths.
+            MainViewModel.UpdateCachedPathsAfterScan(
+                deletedPaths: [],
+                renamedOldPaths: [],
+                nonRepositoryPaths: new HashSet<string> { stalePath });
+
+            // The stale path should be removed from the cache file.
+            var cachedPaths = GitWizardApi.GetCachedRepositoryPaths();
+            Assert.That(cachedPaths, Is.Not.Null);
+            Assert.That(cachedPaths, Does.Not.Contain(stalePath));
+            Assert.That(cachedPaths, Does.Contain(validPath));
+        }
+        finally
+        {
+            TestUtilities.ClearLocalFilesRedirect(tempHome);
+        }
+    }
+
+    [Test]
+    public void UpdateCachedPathsAfterScan_RemovesDeletedPaths()
+    {
+        var tempHome = TestUtilities.RedirectLocalFilesToTemp();
+        TestUtilities.ResetStaticCaches();
+
+        try
+        {
+            var validPath = "/valid/repo";
+            var deletedPath = "/deleted/repo";
+
+            GitWizardApi.SaveCachedRepositoryPaths([validPath, deletedPath]);
+
+            MainViewModel.UpdateCachedPathsAfterScan(
+                deletedPaths: new HashSet<string> { deletedPath },
+                renamedOldPaths: [],
+                nonRepositoryPaths: []);
+
+            var cachedPaths = GitWizardApi.GetCachedRepositoryPaths();
+            Assert.That(cachedPaths, Is.Not.Null);
+            Assert.That(cachedPaths, Does.Not.Contain(deletedPath));
+            Assert.That(cachedPaths, Does.Contain(validPath));
+        }
+        finally
+        {
+            TestUtilities.ClearLocalFilesRedirect(tempHome);
+        }
+    }
+
+    [Test]
+    public void UpdateCachedPathsAfterScan_RemovesAllThreeTypes()
+    {
+        var tempHome = TestUtilities.RedirectLocalFilesToTemp();
+        TestUtilities.ResetStaticCaches();
+
+        try
+        {
+            var healthyPath = "/healthy/repo";
+            var deletedPath = "/deleted/repo";
+            var stalePath = "/stale/not-a-repo";
+            var renamedPath = "/old-name/repo";
+
+            GitWizardApi.SaveCachedRepositoryPaths([healthyPath, deletedPath, stalePath, renamedPath]);
+
+            MainViewModel.UpdateCachedPathsAfterScan(
+                deletedPaths: new HashSet<string> { deletedPath },
+                renamedOldPaths: new HashSet<string> { renamedPath },
+                nonRepositoryPaths: new HashSet<string> { stalePath });
+
+            var cachedPaths = GitWizardApi.GetCachedRepositoryPaths();
+            Assert.That(cachedPaths, Is.Not.Null);
+            Assert.That(cachedPaths!.Length, Is.EqualTo(1));
+            Assert.That(cachedPaths[0], Is.EqualTo(healthyPath));
+        }
+        finally
+        {
+            TestUtilities.ClearLocalFilesRedirect(tempHome);
+        }
+    }
+
+    [Test]
+    public void UpdateCachedPathsAfterScan_NoPathsToRemove_NoChange()
+    {
+        var tempHome = TestUtilities.RedirectLocalFilesToTemp();
+        TestUtilities.ResetStaticCaches();
+
+        try
+        {
+            var path = "/valid/repo";
+            GitWizardApi.SaveCachedRepositoryPaths([path]);
+
+            MainViewModel.UpdateCachedPathsAfterScan([], [], []);
+
+            var cachedPaths = GitWizardApi.GetCachedRepositoryPaths();
+            Assert.That(cachedPaths, Is.Not.Null);
+            Assert.That(cachedPaths!.Length, Is.EqualTo(1));
+            Assert.That(cachedPaths[0], Is.EqualTo(path));
+        }
+        finally
+        {
+            TestUtilities.ClearLocalFilesRedirect(tempHome);
+        }
+    }
+
+    [Test]
+    public void UpdateCachedPathsAfterScan_NoCachedFile_IsNoOp()
+    {
+        var tempHome = TestUtilities.RedirectLocalFilesToTemp();
+        TestUtilities.ResetStaticCaches();
+
+        try
+        {
+            // No repositories.txt exists; the method should not throw.
+            MainViewModel.UpdateCachedPathsAfterScan(
+                deletedPaths: ["/some/deleted"],
+                renamedOldPaths: [],
+                nonRepositoryPaths: []);
+            // If we got here without an exception, the test passes.
+        }
+        finally
+        {
+            TestUtilities.ClearLocalFilesRedirect(tempHome);
+        }
+    }
 }

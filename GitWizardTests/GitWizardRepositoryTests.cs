@@ -376,7 +376,8 @@ public class GitWizardRepositoryTests
         var directory = Directory.GetCurrentDirectory();
         while (directory != null)
         {
-            if (Directory.Exists(Path.Combine(directory, ".git")))
+            var gitPath = Path.Combine(directory, ".git");
+            if (Directory.Exists(gitPath) || File.Exists(gitPath))
                 return directory;
             directory = Directory.GetParent(directory)?.FullName;
         }

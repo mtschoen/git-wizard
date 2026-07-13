@@ -4,7 +4,7 @@ namespace GitWizardTests;
 
 /// <summary>
 /// Covers edge paths of the recursive (non-MFT) repository scan in
-/// <see cref="GitWizardApi.GetRepositoryPaths(string, System.Collections.Generic.ICollection{string}, System.Collections.Generic.ICollection{string}, IUpdateHandler?)"/>:
+/// <see cref="GitWizardApi.GetRepositoryPaths(string, System.Collections.Generic.ICollection{string}, System.Collections.Generic.ICollection{string}, IUpdateHandler?, bool?)"/>:
 /// a throwing update handler is swallowed, and a hidden-attribute directory is skipped.
 /// </summary>
 public class GitWizardApiDiscoveryTests

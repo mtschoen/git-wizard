@@ -31,7 +31,7 @@ public static partial class GitWizardApi
                 if (expanded == null)
                     continue;
 
-                FindGitRepositoriesUsingMft(expanded, paths, configuration.IgnoredPaths, updateHandler);
+                FindGitRepositoriesUsingMft(expanded, paths, configuration.IgnoredPaths, updateHandler, configuration.SkipHiddenDirectories);
             }
 
             return paths.Count > 0;
@@ -82,7 +82,7 @@ public static partial class GitWizardApi
             if (expanded == null)
                 continue;
 
-            FindGitRepositoriesUsingMft(expanded, paths, configuration.IgnoredPaths);
+            FindGitRepositoriesUsingMft(expanded, paths, configuration.IgnoredPaths, null, configuration.SkipHiddenDirectories);
         }
 
         File.WriteAllLines(outputPath, paths);
@@ -95,8 +95,11 @@ public static partial class GitWizardApi
     /// <param name="paths">Collection of strings to store the results.</param>
     /// <param name="ignoredPaths">Collection of strings containing paths to ignore.</param>
     /// <param name="updateHandler">Optional handler for UI updates.</param>
+    /// <param name="skipHiddenDirectories">Whether to skip directories whose last path segment starts with '.'.
+    /// Null uses the default behavior (skip hidden directories).</param>
     public static void GetRepositoryPaths(string rootPath, ICollection<string> paths,
-        ICollection<string> ignoredPaths, IUpdateHandler? updateHandler = null)
+        ICollection<string> ignoredPaths, IUpdateHandler? updateHandler = null,
+        bool? skipHiddenDirectories = null)
     {
         var expanded = ExpandSearchPath(rootPath);
         if (expanded == null)
@@ -111,7 +114,7 @@ public static partial class GitWizardApi
         // When searching a scoped path, include .git files for worktrees/submodules whose parent
         // may be outside the search scope.
         var includeGitFiles = !IsDriveRoot(rootPath);
-        FindGitRepositoriesRecursively(rootPath, paths, ExpandIgnoredPaths(ignoredPaths), includeGitFiles, updateHandler);
+        FindGitRepositoriesRecursively(rootPath, paths, ExpandIgnoredPaths(ignoredPaths), includeGitFiles, updateHandler, skipHiddenDirectories);
 
         try
         {
@@ -124,7 +127,8 @@ public static partial class GitWizardApi
     }
 
     static void FindGitRepositoriesUsingMft(string rootPath, ICollection<string> paths,
-        ICollection<string> ignoredPaths, IUpdateHandler? updateHandler = null)
+        ICollection<string> ignoredPaths, IUpdateHandler? updateHandler = null,
+        bool? skipHiddenDirectories = null)
     {
         try
         {
@@ -166,10 +170,14 @@ public static partial class GitWizardApi
                     continue;
 
                 // Skip paths containing hidden/dot directories (matches recursive search behavior)
-                var relativePath = normalizedParentPath[normalizedRootPath.Length..];
-                if (relativePath.Split(Path.DirectorySeparatorChar)
-                    .Any(segment => segment.Length > 0 && segment.StartsWith('.')))
-                    continue;
+                var shouldSkipHiddenDirs = skipHiddenDirectories != false;
+                if (shouldSkipHiddenDirs)
+                {
+                    var relativePath = normalizedParentPath[normalizedRootPath.Length..];
+                    if (relativePath.Split(Path.DirectorySeparatorChar)
+                        .Any(segment => segment.Length > 0 && segment.StartsWith('.')))
+                        continue;
+                }
 
                 // Verify the directory is accessible
                 if (!Directory.Exists(parentPath))
@@ -195,7 +203,7 @@ public static partial class GitWizardApi
         }
     }
 
-    static void FindGitRepositoriesRecursively(string rootPath, ICollection<string> paths, ICollection<string> ignoredPaths, bool includeGitFiles, IUpdateHandler? updateHandler = null)
+    static void FindGitRepositoriesRecursively(string rootPath, ICollection<string> paths, ICollection<string> ignoredPaths, bool includeGitFiles, IUpdateHandler? updateHandler = null, bool? skipHiddenDirectories = null)
     {
         try
         {
@@ -229,7 +237,8 @@ public static partial class GitWizardApi
                 return;
             }
 
-            Parallel.ForEach(directories, subDirectory =>
+            var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
+            Parallel.ForEach(directories, parallelOptions, subDirectory =>
             {
                 try
                 {
@@ -244,20 +253,23 @@ public static partial class GitWizardApi
                             paths.Add(NormalizePath(rootPath));
                         }
 
-                        return;
+                        return; // Ends only this lambda invocation, not the enclosing method - Parallel.ForEach has no `continue`.
                     }
 
-                    if (split.Last().StartsWith('.'))
+                    if (split.Last().StartsWith('.') && skipHiddenDirectories != false)
                         return;
 
-                    var directoryInfo = new DirectoryInfo(subDirectory);
-                    if (directoryInfo.Attributes.HasFlag(FileAttributes.Hidden))
-                        return;
+                    if (OperatingSystem.IsWindows())
+                    {
+                        var directoryInfo = new DirectoryInfo(subDirectory);
+                        if (directoryInfo.Attributes.HasFlag(FileAttributes.Hidden))
+                            return;
+                    }
 
                     if (ignoredPaths.Any(ignored => IsSameOrChildPath(normalizedSubDirectory, ignored)))
                         return;
 
-                    FindGitRepositoriesRecursively(normalizedSubDirectory, paths, ignoredPaths, includeGitFiles, updateHandler);
+                    FindGitRepositoriesRecursively(normalizedSubDirectory, paths, ignoredPaths, includeGitFiles, updateHandler, skipHiddenDirectories);
                 }
                 catch (Exception exception)
                 {

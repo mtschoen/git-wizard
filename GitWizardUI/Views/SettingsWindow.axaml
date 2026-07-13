@@ -6,12 +6,12 @@
         x:Class="GitWizardUI.Views.SettingsWindow"
         x:DataType="vm:SettingsViewModel"
         Title="Settings"
-        Width="600" Height="600"
+        Width="600" Height="650"
         WindowStartupLocation="CenterOwner">
   <Window.Resources>
     <converters:PathPrettyPrintConverter x:Key="PathPrettyPrintConverter" />
   </Window.Resources>
-  <Grid RowDefinitions="Auto,*,Auto,Auto,*,Auto,Auto,Auto,*,Auto" Margin="10">
+  <Grid RowDefinitions="Auto,*,Auto,Auto,*,Auto,Auto,Auto,Auto,*,Auto,Auto,Auto,Auto" Margin="10">
     <StackPanel Grid.Row="0" Margin="0,0,0,5">
       <TextBlock Text="Search Paths" FontSize="16" FontWeight="Bold" />
       <TextBlock Text="Directories to search for Git repositories" FontSize="12" Foreground="Gray" />
@@ -54,13 +54,19 @@
     </StackPanel>
     <TextBox Grid.Row="7" Text="{Binding ForkPath}" Watermark="C:\Users\YourName\AppData\Local\Fork\Fork.exe" />
 
-    <StackPanel Grid.Row="9" Spacing="3" Margin="0,10,0,0">
+    <StackPanel Grid.Row="8" Margin="0,15,0,5">
+      <TextBlock Text="Scan Options" FontSize="16" FontWeight="Bold" />
+    </StackPanel>
+    <CheckBox Grid.Row="9" Content="Skip hidden directories (starting with '.')" IsChecked="{Binding SkipHiddenDirectories, Mode=TwoWay}" Margin="0,5,0,0" />
+    <TextBlock Grid.Row="10" Text="When enabled, directories whose last path segment starts with '.' are skipped during repository discovery." FontSize="12" Foreground="Gray" Margin="0,2,0,0" />
+
+    <StackPanel Grid.Row="12" Spacing="3" Margin="0,10,0,0">
       <TextBlock Text="Tips:" FontWeight="Bold" FontSize="14" />
       <TextBlock Text="• Use environment variables like %USERPROFILE% or %APPDATA%" FontSize="12" />
       <TextBlock Text="• Changes are saved automatically" FontSize="12" />
       <TextBlock Text="• Refresh the main view to see changes" FontSize="12" />
       <Button Content="Reset Defaults" Click="ResetToDefaults_Click" HorizontalAlignment="Left" Margin="0,10,0,0"
-              ToolTip.Tip="Reset search paths, ignored paths, and fork path to their first-run clean defaults" />
+              ToolTip.Tip="Reset search paths, ignored paths, fork path, and scan options to their first-run clean defaults" />
     </StackPanel>
   </Grid>
 </Window>

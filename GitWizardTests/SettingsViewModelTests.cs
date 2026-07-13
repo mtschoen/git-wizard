@@ -41,6 +41,15 @@ public class SettingsViewModelTests
     }
 
     [Test]
+    public void Construction_LoadsSkipHiddenDirectoriesFromConfiguration()
+    {
+        var picker = new StubFolderPicker();
+        var vm = new SettingsViewModel(picker);
+
+        Assert.That(vm.SkipHiddenDirectories, Is.EqualTo(true));
+    }
+
+    [Test]
     public void Construction_PopulatesSearchPathsFromConfiguration()
     {
         var picker = new StubFolderPicker();
@@ -108,6 +117,27 @@ public class SettingsViewModelTests
 
         Assert.That(vm.ForkPath, Is.EqualTo("/usr/local/bin/fork"));
         Assert.That(propertyChangedFired, Is.True);
+    }
+
+    [Test]
+    public void SkipHiddenDirectories_SetsValueAndTriggersNotification()
+    {
+        var picker = new StubFolderPicker();
+        var vm = new SettingsViewModel(picker);
+        var propertyChangedFired = false;
+        var changedName = string.Empty;
+
+        vm.PropertyChanged += (_, e) =>
+        {
+            propertyChangedFired = true;
+            changedName = e.PropertyName ?? string.Empty;
+        };
+
+        vm.SkipHiddenDirectories = false;
+
+        Assert.That(vm.SkipHiddenDirectories, Is.False);
+        Assert.That(propertyChangedFired, Is.True);
+        Assert.That(changedName, Is.EqualTo("SkipHiddenDirectories"));
     }
 
     [Test]
@@ -497,6 +527,17 @@ public class SettingsViewModelTests
         vm.ResetToDefaults();
 
         Assert.That(vm.ForkPath, Is.Empty);
+    }
+
+    [Test]
+    public void ResetToDefaults_ResetsSkipHiddenDirectories()
+    {
+        var picker = new StubFolderPicker();
+        var vm = new SettingsViewModel(picker) { SkipHiddenDirectories = false };
+
+        vm.ResetToDefaults();
+
+        Assert.That(vm.SkipHiddenDirectories, Is.EqualTo(true));
     }
 
     [Test]

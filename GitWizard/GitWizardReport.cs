@@ -37,6 +37,14 @@ public partial class GitWizardReport
 
     public SortedSet<string> SearchPaths { get; set; } = new();
     public SortedSet<string> IgnoredPaths { get; set; } = new();
+
+    /// <summary>
+    /// Whether this report's scan should skip directories whose last path segment
+    /// starts with '.'. Mirrors <see cref="GitWizardConfiguration.SkipHiddenDirectories"/>.
+    /// <c>null</c> uses the legacy hard-coded behavior (skip hidden directories).
+    /// </summary>
+    public bool? SkipHiddenDirectories { get; set; }
+
     public SortedDictionary<string, GitWizardRepository> Repositories { get; set; } = new();
     public HashSet<string> DeletedPaths { get; private set; } = new();
 
@@ -139,6 +147,7 @@ public partial class GitWizardReport
     {
         SearchPaths = configuration.SearchPaths;
         IgnoredPaths = configuration.IgnoredPaths;
+        SkipHiddenDirectories = configuration.SkipHiddenDirectories;
     }
 
     /// <summary>
@@ -175,7 +184,8 @@ public partial class GitWizardReport
         var configuration = new GitWizardConfiguration
         {
             SearchPaths = SearchPaths,
-            IgnoredPaths = IgnoredPaths
+            IgnoredPaths = IgnoredPaths,
+            SkipHiddenDirectories = SkipHiddenDirectories
         };
 
         if (GitWizardApi.TryFindAllRepositoriesUsingMft(configuration, repositoryPaths, updateHandler, noMft))

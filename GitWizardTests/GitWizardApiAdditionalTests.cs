@@ -288,6 +288,58 @@ public class GitWizardApiAdditionalTests
     }
 
     [Test]
+    public void GetRepositoryPaths_FindsReposInDotDirectories_WhenSkipHiddenDirectoriesFalse()
+    {
+        var root = Path.Combine(_tempRoot!, "root");
+        var dotDir = Path.Combine(root, ".hidden", "repo");
+        var normalDir = Path.Combine(root, "normal", "repo");
+        Directory.CreateDirectory(Path.Combine(dotDir, ".git"));
+        Directory.CreateDirectory(Path.Combine(normalDir, ".git"));
+
+        var paths = new SortedSet<string>();
+        GitWizardApi.GetRepositoryPaths(root, paths, Array.Empty<string>(), skipHiddenDirectories: false);
+
+        Assert.That(paths, Has.Count.EqualTo(2));
+        // GetRepositoryPaths normalizes (lower-cases) returned paths on Windows, so compare
+        // case-insensitively rather than against dotDir/normalDir's original casing.
+        Assert.That(paths, Does.Contain(dotDir).IgnoreCase);
+        Assert.That(paths, Does.Contain(normalDir).IgnoreCase);
+    }
+
+    [Test]
+    public void GetRepositoryPaths_SkipsDotDirectories_WhenSkipHiddenDirectoriesTrue()
+    {
+        var root = Path.Combine(_tempRoot!, "root");
+        var dotDir = Path.Combine(root, ".hidden", "repo");
+        var normalDir = Path.Combine(root, "normal", "repo");
+        Directory.CreateDirectory(Path.Combine(dotDir, ".git"));
+        Directory.CreateDirectory(Path.Combine(normalDir, ".git"));
+
+        var paths = new SortedSet<string>();
+        GitWizardApi.GetRepositoryPaths(root, paths, Array.Empty<string>(), skipHiddenDirectories: true);
+
+        Assert.That(paths, Has.Count.EqualTo(1));
+        Assert.That(paths.First(), Does.Contain("normal"));
+    }
+
+    [Test]
+    public void GetRepositoryPaths_SkipsDotDirectories_WhenSkipHiddenDirectoriesNull()
+    {
+        var root = Path.Combine(_tempRoot!, "root");
+        var dotDir = Path.Combine(root, ".hidden", "repo");
+        var normalDir = Path.Combine(root, "normal", "repo");
+        Directory.CreateDirectory(Path.Combine(dotDir, ".git"));
+        Directory.CreateDirectory(Path.Combine(normalDir, ".git"));
+
+        var paths = new SortedSet<string>();
+        GitWizardApi.GetRepositoryPaths(root, paths, Array.Empty<string>(), skipHiddenDirectories: null);
+
+        // Null = default = skip dot-prefixed directories (backward-compatible behavior)
+        Assert.That(paths, Has.Count.EqualTo(1));
+        Assert.That(paths.First(), Does.Contain("normal"));
+    }
+
+    [Test]
     public async Task GetCachedRepositoryPathsAsync_ReturnsCachedPaths()
     {
         var paths = new[] { "/async/repo/1", "/async/repo/2" };

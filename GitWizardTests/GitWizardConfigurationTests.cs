@@ -139,6 +139,61 @@ public class GitWizardConfigurationTests
     }
 
     [Test]
+    public void Save_SerializesSkipHiddenDirectories_True()
+    {
+        var config = new GitWizardConfiguration
+        {
+            SkipHiddenDirectories = true
+        };
+        var jsonPath = Path.Combine(_tempRoot!, "skip_hidden_true.json");
+
+        config.Save(jsonPath);
+
+        var json = File.ReadAllText(jsonPath);
+        Assert.That(json, Does.Contain("skipHiddenDirectories"));
+        Assert.That(json, Does.Contain("true"));
+    }
+
+    [Test]
+    public void Save_OmitsSkipHiddenDirectories_WhenNull()
+    {
+        var config = new GitWizardConfiguration();
+        var jsonPath = Path.Combine(_tempRoot!, "skip_hidden_default.json");
+
+        config.Save(jsonPath);
+
+        var json = File.ReadAllText(jsonPath);
+        // DefaultIgnoreCondition = WhenWritingDefault omits null (the default for bool?)
+        Assert.That(json, Does.Not.Contain("skipHiddenDirectories"));
+    }
+
+    [Test]
+    public void GetConfigurationAtPath_DeserializesSkipHiddenDirectories_True()
+    {
+        var config = new GitWizardConfiguration { SkipHiddenDirectories = true };
+        var jsonPath = Path.Combine(_tempRoot!, "load_skip_hidden_true.json");
+        config.Save(jsonPath);
+
+        var loaded = GitWizardConfiguration.GetConfigurationAtPath(jsonPath);
+
+        Assert.That(loaded, Is.Not.Null);
+        Assert.That(loaded!.SkipHiddenDirectories, Is.True);
+    }
+
+    [Test]
+    public void GetConfigurationAtPath_DeserializesSkipHiddenDirectories_False()
+    {
+        var config = new GitWizardConfiguration { SkipHiddenDirectories = false };
+        var jsonPath = Path.Combine(_tempRoot!, "load_skip_hidden_false.json");
+        config.Save(jsonPath);
+
+        var loaded = GitWizardConfiguration.GetConfigurationAtPath(jsonPath);
+
+        Assert.That(loaded, Is.Not.Null);
+        Assert.That(loaded!.SkipHiddenDirectories, Is.False);
+    }
+
+    [Test]
     public void Save_SerializesNullForkPath_IgnoresNull()
     {
         var config = new GitWizardConfiguration

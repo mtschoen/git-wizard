@@ -21,6 +21,15 @@ public class GitWizardConfiguration
     public SortedSet<string> IgnoredPaths { get; set; } = new();
 
     /// <summary>
+    /// Whether to skip directories whose last path segment starts with '.' during
+    /// repository discovery. <c>null</c> (the default) uses the legacy hard-coded
+    /// behavior (skip hidden directories). Set to <c>false</c> to include them
+    /// in the scan; set to <c>true</c> to explicitly enable skipping.
+    /// </summary>
+    [JsonPropertyName("skipHiddenDirectories")]
+    public bool? SkipHiddenDirectories { get; set; }
+
+    /// <summary>
     /// Full path to the Fork executable. Null means use the default location.
     /// </summary>
     [JsonPropertyName("forkPath")]
@@ -168,7 +177,7 @@ public class GitWizardConfiguration
     {
         Parallel.ForEach(SearchPaths, path =>
         {
-            GitWizardApi.GetRepositoryPaths(path, paths, IgnoredPaths, updateHandler);
+            GitWizardApi.GetRepositoryPaths(path, paths, IgnoredPaths, updateHandler, SkipHiddenDirectories);
         });
     }
 }

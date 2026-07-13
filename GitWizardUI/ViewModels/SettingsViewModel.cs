@@ -62,6 +62,18 @@ public class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
+    private bool _skipHiddenDirectories;
+    public bool SkipHiddenDirectories
+    {
+        get => _skipHiddenDirectories;
+        set
+        {
+            _skipHiddenDirectories = value;
+            OnPropertyChanged();
+            SaveImmediate();
+        }
+    }
+
     public ICommand AddSearchPathCommand { get; }
     public ICommand RemoveSearchPathCommand { get; }
     public ICommand AddIgnoredPathCommand { get; }
@@ -84,6 +96,8 @@ public class SettingsViewModel : INotifyPropertyChanged
         // assigning ForkPath here would write config.json (a fire-and-forget async save) on every
         // construction - a redundant no-op write of just-loaded data that also races test teardown.
         _forkPath = _configuration.ForkPath ?? string.Empty;
+        // null in config means "use legacy behavior (skip)" so show checked in UI.
+        _skipHiddenDirectories = _configuration.SkipHiddenDirectories != false;
 
         AddSearchPathCommand = new RelayCommand(AddSearchPath);
         RemoveSearchPathCommand = new RelayCommand<string>(RemoveSearchPath);
@@ -183,6 +197,8 @@ public class SettingsViewModel : INotifyPropertyChanged
         foreach (var path in IgnoredPaths)
             _configuration.IgnoredPaths.Add(path);
 
+        _configuration.SkipHiddenDirectories = SkipHiddenDirectories;
+
         return GitWizardConfiguration.SaveGlobalConfigurationAsync(_configuration);
     }
 
@@ -197,13 +213,15 @@ public class SettingsViewModel : INotifyPropertyChanged
             _configuration.IgnoredPaths.Add(path);
 
         _configuration.ForkPath = string.IsNullOrWhiteSpace(ForkPath) ? null : ForkPath;
+        _configuration.SkipHiddenDirectories = SkipHiddenDirectories;
 
         _ = SaveAsync();
     }
 
     /// <summary>
-    /// Resets search paths, ignored paths, and the fork path to their first-run clean defaults
-    /// (<see cref="GitWizardConfiguration.CreateDefaultConfiguration"/>) and saves immediately.
+    /// Resets search paths, ignored paths, the fork path, and the hidden-directory skip flag to
+    /// their first-run clean defaults (<see cref="GitWizardConfiguration.CreateDefaultConfiguration"/>)
+    /// and saves immediately.
     /// </summary>
     public void ResetToDefaults()
     {
@@ -221,6 +239,8 @@ public class SettingsViewModel : INotifyPropertyChanged
         // calls SaveImmediate() itself, which would save once here and again below.
         _forkPath = string.Empty;
         OnPropertyChanged(nameof(ForkPath));
+        _skipHiddenDirectories = defaults.SkipHiddenDirectories != false;
+        OnPropertyChanged(nameof(SkipHiddenDirectories));
 
         SaveImmediate();
     }

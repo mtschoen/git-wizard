@@ -183,26 +183,51 @@ public sealed class RepositoryWatchService
         var nextBatch = enumerator.MoveNextAsync().AsTask();
         var idle = Task.Delay(Timeout.InfiniteTimeSpan, ct);
 
-        while (true)
+        try
         {
-            var winner = await Task.WhenAny(nextBatch, idle).ConfigureAwait(false);
-            if (winner == nextBatch)
+            while (true)
             {
-                if (!await nextBatch.ConfigureAwait(false))
-                    break;
+                var winner = await Task.WhenAny(nextBatch, idle).ConfigureAwait(false);
+                if (winner == nextBatch)
+                {
+                    if (!await nextBatch.ConfigureAwait(false))
+                        break;
 
-                ApplyBatch(filtersByVolume, enumerator.Current, pending);
-                nextBatch = enumerator.MoveNextAsync().AsTask();
-                idle = Task.Delay(_debounce, ct);
-                continue;
+                    ApplyBatch(filtersByVolume, enumerator.Current, pending);
+                    nextBatch = enumerator.MoveNextAsync().AsTask();
+                    idle = Task.Delay(_debounce, ct);
+                    continue;
+                }
+
+                await idle.ConfigureAwait(false);
+                await FlushAsync(pending, writer, ct).ConfigureAwait(false);
+                idle = Task.Delay(Timeout.InfiniteTimeSpan, ct);
             }
-
-            await idle.ConfigureAwait(false);
-            await FlushAsync(pending, writer, ct).ConfigureAwait(false);
-            idle = Task.Delay(Timeout.InfiniteTimeSpan, ct);
+        }
+        finally
+        {
+            // If idle won the race above (or ct cancelled between iterations), nextBatch's
+            // MoveNextAsync may still be outstanding when this method returns/throws. The
+            // caller's `await using` then disposes the enumerator immediately - and a
+            // compiler-generated async-iterator enumerator throws NotSupportedException if
+            // DisposeAsync races a still-in-flight MoveNextAsync. Observing it here first
+            // (swallowing only the expected cancellation) makes that always safe.
+            await ObserveCancellationAsync(nextBatch).ConfigureAwait(false);
         }
 
         await FlushAsync(pending, writer, ct).ConfigureAwait(false);
+    }
+
+    static async Task ObserveCancellationAsync(Task task)
+    {
+        try
+        {
+            await task.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected: this task shares the same cancellation token as the loop that awaited it.
+        }
     }
 
     static void ApplyBatch(

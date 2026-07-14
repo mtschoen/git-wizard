@@ -40,7 +40,8 @@ public static partial class Program
         await using var source = new UsnVolumeChangeSource(BrokerLauncher.Launch);
         var service = new RepositoryWatchService(source, repositoryPaths, searchRoots);
 
-        var stopped = await RunWatchLoopAsync(service, Console.WriteLine, ctrlC.Token).ConfigureAwait(false);
+        var stopped = await RunWatchLoopAsync(service, Console.WriteLine, Environment.Exit, ctrlC.Token)
+            .ConfigureAwait(false);
         if (stopped)
             Environment.Exit(1);
     }
@@ -48,10 +49,13 @@ public static partial class Program
     // Drains service.RunAsync, printing one line per RepositoryChangeEvent kind plus one line
     // per drive that failed to arm, and reports whether the underlying source died mid-run.
     // Internal (rather than folded into RunWatchAsync) so GitWizardTests can drive it with a
-    // fake-source-backed RepositoryWatchService and a capturing sink, without touching
-    // Environment.Exit or a real elevated broker.
+    // fake-source-backed RepositoryWatchService, a capturing sink, and a fake exit, without
+    // touching the real Environment.Exit or a real elevated broker. The exit callback (defaulted
+    // to Environment.Exit by the production caller) fires the non-zero exit for a failed broker
+    // spawn - the one terminal condition that must exit before any events flow.
     internal static async Task<bool> RunWatchLoopAsync(
-        RepositoryWatchService service, Action<string> writeLine, CancellationToken cancellationToken)
+        RepositoryWatchService service, Action<string> writeLine, Action<int> exit,
+        CancellationToken cancellationToken)
     {
         var stopped = false;
         service.Stopped += reason =>
@@ -60,8 +64,28 @@ public static partial class Program
             writeLine($"Broker died: {reason}");
         };
 
+        // Drive GetAsyncEnumerator/MoveNextAsync by hand rather than `await foreach` ON PURPOSE:
+        // ScanErrors is only populated once arming completes (during the first MoveNextAsync) and
+        // is guaranteed set before the first event, so the scan-error lines must be printed
+        // between the first move and the first event. Do NOT "simplify" this back to await foreach
+        // - that would lose the ability to interleave the scan-error print at the right point.
         await using var enumerator = service.RunAsync(cancellationToken).GetAsyncEnumerator(cancellationToken);
-        var hasNext = await MoveNextIgnoringCancellationAsync(enumerator).ConfigureAwait(false);
+
+        bool hasNext;
+        try
+        {
+            hasNext = await MoveNextIgnoringCancellationAsync(enumerator).ConfigureAwait(false);
+        }
+        catch (InvalidOperationException exception)
+        {
+            // Broker spawn declined (UAC) or failed: UsnVolumeChangeSource.ArmAndCatchUpAsync
+            // surfaces JournalBrokerClient.SpawnAndConnectAsync's throw from this first arming
+            // MoveNextAsync. Match the prior CLI's clean message + non-zero exit instead of
+            // crashing with an unhandled stack trace.
+            writeLine($"Could not start the journal broker: {exception.Message}");
+            exit(1);
+            return true;
+        }
 
         foreach (var (drive, message) in service.ScanErrors)
             writeLine($"scan error on {drive}: {message}");

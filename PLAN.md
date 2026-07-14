@@ -143,10 +143,13 @@ file was retired. Not yet scheduled; promote to Next Up / a Gitea issue when pic
       are already counted per Schema 1.1; verify deletions are too).
 - [ ] **Show an error log in the UI** - exceptions are currently only written to output.
 - [ ] **Quick refresh / filesystem watcher** to drop deleted-or-renamed repos from the UI.
-      *Note (2026-07-06): CLI-side building block landed - `git-wizard -watch` auto-detects
-      changes in tracked repositories via MFTLib's journal broker and prints `changed: <root>`
-      (one UAC, Windows only). Not yet wired into GitWizardUI or used to drop
-      deleted/renamed repos; see AGENTS.md → Key Architecture → Journal watch.*
+      *Note (2026-07-14): CLI-side building block landed - `git-wizard --watch` auto-detects
+      changes in tracked repositories via MFTLib's journal broker and prints `changed: <root>`,
+      `created: <root>`, and `deleted: <root>` (one UAC, Windows only); rename correlation is
+      deliberately left to consumers, not printed by the CLI. The pipeline is now a reusable,
+      platform-agnostic core (`GitWizard/Watch/RepositoryWatchService` behind
+      `IVolumeChangeSource`) - not yet wired into GitWizardUI or used to drop deleted/renamed
+      repos there; see AGENTS.md → Key Architecture → Journal watch.*
 - [ ] **Sort by size on disk.**
 - [ ] **Submodule health checks** - aggregate parent-repo status from submodule states; flag
       submodules at a non-pointer ref, not init'd/checked out, or in `.gitmodules` but not the

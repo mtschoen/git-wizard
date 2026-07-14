@@ -371,6 +371,107 @@ public class GitWizardRepositoryTests
         Assert.That(repository.SubmoduleHealth, Is.Empty);
     }
 
+    [Test]
+    public void Refresh_DetectsStaleUpstreamSubmodule()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AddSubmoduleBehindUpstream("external/libfoo", commitsBehind: 3);
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(repository.HasSubmoduleIssues, Is.True);
+            Assert.That(repository.SubmoduleHealth, Does.ContainKey("external/libfoo"));
+            var health = repository.SubmoduleHealth["external/libfoo"];
+            Assert.That(health.Status, Is.EqualTo(SubmoduleHealthStatus.StaleUpstream));
+            Assert.That(health.BehindUpstreamCount, Is.EqualTo(3));
+            Assert.That(health.GitLinkSha, Is.Not.Null);
+            Assert.That(health.GitLinkSha!.Length, Is.GreaterThanOrEqualTo(7));
+            Assert.That(health.ExpectedCommitSha, Is.EqualTo(health.GitLinkSha));
+            Assert.That(health.ActualCommitSha, Is.Not.Null);
+            // In the StaleUpstream scenario, checkout == gitlink (both at the stale pointer),
+            // while the submodule's default branch has advanced.
+            Assert.That(health.ActualCommitSha, Is.EqualTo(health.GitLinkSha));
+            Assert.That(health.Issues, Is.Not.Empty);
+        });
+    }
+
+    [Test]
+    public void Refresh_DetectsStaleUpstreamSubmodule_WhenRemoteIsNotOrigin()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AddSubmoduleBehindUpstream("external/libfoo", commitsBehind: 3, remoteName: "upstream");
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        // The submodule's only remote is "upstream", not "origin" - CheckStaleUpstream must
+        // fall back to the first available remote to resolve "<remote>/<defaultBranch>"
+        // instead of failing to find "origin/<defaultBranch>" and reporting no staleness.
+        Assert.Multiple(() =>
+        {
+            Assert.That(repository.HasSubmoduleIssues, Is.True);
+            Assert.That(repository.SubmoduleHealth, Does.ContainKey("external/libfoo"));
+            var health = repository.SubmoduleHealth["external/libfoo"];
+            Assert.That(health.Status, Is.EqualTo(SubmoduleHealthStatus.StaleUpstream));
+            Assert.That(health.BehindUpstreamCount, Is.EqualTo(3));
+        });
+    }
+
+    [Test]
+    public void Refresh_WrongRefSubmoduleAtDefaultBranchTip_HasZeroBehindUpstream()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AddInitializedSubmodule("external/libfoo");
+
+        // AddSubmoduleAtWrongRef advances checkout ahead of gitlink while the
+        // submodule's default branch (main) stays at the gitlink - so the gitlink
+        // IS the current HEAD of the submodule repo, making BehindUpstreamCount = 0.
+        fixture.AddSubmoduleAtWrongRef("external/libbar");
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        // libbar is at WrongRef (checkout ahead of gitlink) - but its gitlink
+        // IS the current HEAD of the submodule repo, so BehindUpstreamCount should be 0.
+        var health = repository.SubmoduleHealth["external/libbar"];
+        Assert.That(health.Status, Is.EqualTo(SubmoduleHealthStatus.WrongRef));
+        Assert.That(health.BehindUpstreamCount, Is.EqualTo(0));
+    }
+
+    [Test]
+    public void IsPublishReady_StaleSubmodule_IsFalse()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AddSubmoduleBehindUpstream("external/libfoo", commitsBehind: 5);
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        Assert.That(repository.IsPublishReady, Is.False,
+            "A superproject with a stale submodule pointer must not be publish-ready.");
+    }
+
+    [Test]
+    public void IsPublishReady_HealthySubmodule_IsTrue()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AddInitializedSubmodule("external/libfoo");
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(repository.HasSubmoduleIssues, Is.False);
+            Assert.That(repository.IsPublishReady, Is.True);
+        });
+    }
+
     static string FindRepoRoot()
     {
         var directory = Directory.GetCurrentDirectory();

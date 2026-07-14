@@ -51,15 +51,45 @@ public partial class GitWizardRepository
 
     /// <summary>
     /// True when this checkout is safe to publish from: no pending changes, not behind its
-    /// upstream remote, and currently on the default branch - the literal
-    /// Asset-Store-submission check from the founding UniMerge incident (git-wizard#78 point 4).
+    /// upstream remote, currently on the default branch, and all initialized submodules are
+    /// healthy and up-to-date - the literal Asset-Store-submission check from the founding
+    /// UniMerge incident (git-wizard#78 point 4). A submodule with any health issue
+    /// (Uninitialized, WrongRef, StaleUpstream) or pending changes makes this false;
+    /// submodules of submodules are recursed.
     /// Purely derived from other already-serialized fields (not its own stored/private-set
     /// field), so it stays correct even against a report deserialized from an older cache rather
     /// than freshly refreshed in-process.
     /// </summary>
     public bool IsPublishReady =>
         !HasPendingChanges && BehindRemoteCount == 0 &&
-        !string.IsNullOrEmpty(CurrentBranch) && CurrentBranch == DefaultBranch;
+        !string.IsNullOrEmpty(CurrentBranch) && CurrentBranch == DefaultBranch &&
+        IsSubmodulePublishReady();
+
+    bool IsSubmodulePublishReady()
+    {
+        if (SubmoduleHealth.Count > 0)
+        {
+            foreach (var health in SubmoduleHealth.Values)
+            {
+                if (health.Status != SubmoduleHealthStatus.Healthy)
+                    return false;
+            }
+        }
+
+        if (Submodules != null)
+        {
+            foreach (var kvp in Submodules)
+            {
+                if (kvp.Value == null)
+                    continue;
+
+                if (!kvp.Value.IsSubmodulePublishReady())
+                    return false;
+            }
+        }
+
+        return true;
+    }
 
     GitWizardRepository() { }
 

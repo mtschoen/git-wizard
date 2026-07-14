@@ -10,6 +10,7 @@ public enum SubmoduleHealthStatus
     WrongRef,
     MissingFromIndex,
     MissingFromGitmodules,
+    StaleUpstream,
 }
 
 public class SubmoduleHealthInfo
@@ -22,6 +23,12 @@ public class SubmoduleHealthInfo
     public string? ActualCommitSha { get; set; }
     public SubmoduleHealthStatus Status { get; set; }
     public List<string> Issues { get; set; } = new();
+
+    /// <summary>How many commits the superproject-recorded gitlink SHA is behind the tip of the submodule's default branch. Non-zero when the gitlink pointer is stale relative to the submodule's upstream (git-wizard#80).</summary>
+    public int BehindUpstreamCount { get; set; }
+
+    /// <summary>The full SHA of the superproject-recorded gitlink commit (the expected commit for this submodule).</summary>
+    public string? GitLinkSha { get; set; }
 }
 
 public partial class GitWizardRepository
@@ -193,12 +200,84 @@ public partial class GitWizardRepository
 
         info.ExpectedCommitSha = indexCommit?.Sha;
         info.ActualCommitSha = workDirCommit.Sha;
+        info.GitLinkSha = indexCommit?.Sha;
 
         if (indexCommit != null && !indexCommit.Equals(workDirCommit))
         {
             info.Status = SubmoduleHealthStatus.WrongRef;
             info.Issues.Add(
                 $"'{path}' is checked out at {Shorten(info.ActualCommitSha)} but the superproject expects {Shorten(indexCommit.Sha)}");
+            return;
+        }
+
+        // The gitlink and workdir checkout agree - check if the recorded pointer is stale
+        // relative to the submodule's upstream (git-wizard#80).
+        // Guard: indexCommit should not be null here (workdir is initialized, gitlink is in the index).
+        // If it is, the submodule is in an inconsistent state and we skip stale-upstream analysis.
+        if (indexCommit != null)
+            CheckStaleUpstream(repository, path, indexCommit, info);
+    }
+
+    /// <summary>
+    /// Resolve the default branch from the submodule repository itself (not the parent) and
+    /// compare its tip - falling back to the remote-tracking branch if the checkout is detached
+    /// at the gitlink - against the gitlink commit, recording <see cref="SubmoduleHealthStatus.StaleUpstream"/>
+    /// when the submodule's upstream has moved on without the superproject's pointer.
+    /// </summary>
+    static void CheckStaleUpstream(Repository repository, string path, ObjectId indexCommit, SubmoduleHealthInfo info)
+    {
+        try
+        {
+            var submodulePath = Path.Combine(repository.Info.WorkingDirectory, path);
+
+            var submoduleRepo = Repository.IsValid(submodulePath)
+                ? new Repository(submodulePath)
+                : null;
+
+            try
+            {
+                var defaultBranch = submoduleRepo != null ? ResolveDefaultBranch(submoduleRepo) : null;
+                var tip = defaultBranch?.Tip;
+                var gitLinkSha = indexCommit.Sha;
+
+                // If the default branch tip is the same as the gitlink (detached at gitlink),
+                // try the remote-tracking branch instead, since the remote may have advanced.
+                if (tip != null && tip.Sha == gitLinkSha)
+                {
+                    var defaultBranchName = defaultBranch?.FriendlyName ?? "main";
+                    // Prefer "origin", fall back to the first available remote (null if there is none).
+                    var remoteName = submoduleRepo?.Network.Remotes.FirstOrDefault(r => r.Name == "origin")?.Name
+                        ?? submoduleRepo?.Network.Remotes.FirstOrDefault()?.Name;
+                    var remoteBranch = remoteName != null ? submoduleRepo?.Branches[$"{remoteName}/{defaultBranchName}"] : null;
+                    tip = remoteBranch?.Tip;
+                }
+
+                if (tip != null && submoduleRepo != null)
+                {
+                    // Look up the gitlink commit in the submodule's own database.
+                    var submoduleDb = submoduleRepo.ObjectDatabase;
+                    var gitLinkInSubmodule = submoduleRepo.Lookup<Commit>(indexCommit.Sha);
+                    if (gitLinkInSubmodule != null)
+                    {
+                        var divergence = submoduleDb.CalculateHistoryDivergence(gitLinkInSubmodule, tip);
+                        info.BehindUpstreamCount = divergence.BehindBy ?? 0;
+                        if (info.BehindUpstreamCount > 0)
+                        {
+                            info.Status = SubmoduleHealthStatus.StaleUpstream;
+                            info.Issues.Add(
+                                $"'{path}' is behind upstream by {info.BehindUpstreamCount} commit(s) - the superproject-recorded pointer ({Shorten(gitLinkSha)}) is stale relative to the submodule's default branch ({Shorten(tip.Sha)})");
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                submoduleRepo?.Dispose();
+            }
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, $"Exception computing behind-upstream divergence for submodule '{path}' in {repository.Info.WorkingDirectory}");
         }
     }
 

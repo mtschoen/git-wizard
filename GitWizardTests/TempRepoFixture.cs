@@ -185,6 +185,69 @@ internal sealed class TempRepoFixture : IDisposable
     }
 
     /// <summary>
+    /// Add a submodule where the superproject's gitlink pointer is pinned behind the
+    /// submodule's default branch by <paramref name="commitsBehind"/> commits - modelling
+    /// the UniMerge-flub scenario where the submodule was updated in isolation but the
+    /// superproject pointer was never advanced (git-wizard#80). <paramref name="remoteName"/>
+    /// defaults to "origin"; passing a different name renames the clone's remote after
+    /// checkout, exercising the "fall back to the first remote" branch in
+    /// <c>CheckStaleUpstream</c> for submodules whose remote isn't named "origin".
+    /// </summary>
+    public void AddSubmoduleBehindUpstream(string path, int commitsBehind = 3, string remoteName = "origin")
+    {
+        var upstream = CreateUpstreamRepo();
+        var submoduleDir = System.IO.Path.Combine(Path, path);
+
+        // Clone the upstream so we have a working copy with origin/main.
+        RunGit(Path, "-c", "protocol.file.allow=always", "clone", upstream, submoduleDir);
+        _extraCleanupDirs.Add(submoduleDir);
+
+        if (remoteName != "origin")
+            RunGit(submoduleDir, "remote", "rename", "origin", remoteName);
+
+        // Create .gitmodules entry (matches what 'git submodule add' would do).
+        var name = System.IO.Path.GetFileName(path);
+        var gitmodulesPath = System.IO.Path.Combine(Path, ".gitmodules");
+        File.WriteAllText(gitmodulesPath,
+            $"[submodule \"{name}\"]\n\tpath = {path}\n\turl = {upstream}\n");
+        RunGit(Path, "add", ".gitmodules");
+        RunGit(Path, "-c", "user.email=test@example.com", "-c", "user.name=Test",
+            "commit", "-m", $"add .gitmodules for {path}");
+
+        // Pin the superproject's gitlink at the initial commit (the "stale" pointer).
+        // First detach HEAD at the initial commit so workdirCommit == gitlink.
+        // Capture the clone's default branch name too - it tracks whatever
+        // init.defaultBranch produced ("main" or "master"), not a fixed literal.
+        string initialSha;
+        string defaultBranchName;
+        using (var upstreamRepo = new Repository(upstream))
+        {
+            initialSha = upstreamRepo.Head.Tip!.Sha;
+            defaultBranchName = upstreamRepo.Head.FriendlyName;
+        }
+        RunGit(submoduleDir, "-c", "advice.detachedHead=false", "checkout", "--detach", initialSha);
+
+        RunGit(Path, "update-index", "--add", "--cacheinfo",
+            $"160000,{initialSha},{path}");
+        RunGit(Path, "-c", "user.email=test@example.com", "-c", "user.name=Test",
+            "commit", "-m", $"add submodule {path} (pinned at initial)");
+
+        // Advance the submodule's default branch beyond the gitlink.
+        RunGit(submoduleDir, "checkout", defaultBranchName);
+        for (var i = 0; i < commitsBehind; i++)
+        {
+            File.WriteAllText(System.IO.Path.Combine(submoduleDir, $"upstream-{i}.txt"), Guid.NewGuid().ToString());
+            RunGit(submoduleDir, "add", $"upstream-{i}.txt");
+            RunGit(submoduleDir, "-c", "user.email=test@example.com", "-c", "user.name=Test",
+                "commit", "-m", $"upstream commit {i}");
+        }
+
+        // Detach HEAD back at the gitlink commit so workdirCommit == indexCommit.
+        // In the real UniMerge scenario the submodule is always on detached HEAD.
+        RunGit(submoduleDir, "-c", "advice.detachedHead=false", "checkout", "--detach", initialSha);
+    }
+
+    /// <summary>
     /// Stage a gitlink at <paramref name="path"/> (pointing at the current HEAD) and
     /// commit it WITHOUT a matching .gitmodules entry - an index that records a
     /// submodule the .gitmodules file knows nothing about.

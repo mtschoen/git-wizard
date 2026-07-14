@@ -16,7 +16,7 @@ public static partial class Program
         ElevatedEntryPoint.TryHandle(args, runner);
 
     /// <summary>
-    /// -watch: auto-detect changes in tracked repositories via MFTLib's elevated journal
+    /// --watch: auto-detect changes in tracked repositories via MFTLib's elevated journal
     /// broker (one UAC prompt for the whole run). Groups repository roots by drive, arms
     /// one cold scan + live watch per drive over a single broker client, and prints one
     /// line per affected repository as journal batches arrive. Runs until Ctrl-C or the
@@ -97,7 +97,7 @@ public static partial class Program
     }
 
     /// <summary>
-    /// Bridges Ctrl-C to a <see cref="CancellationTokenSource"/> for the -watch command's
+    /// Bridges Ctrl-C to a <see cref="CancellationTokenSource"/> for the --watch command's
     /// lifetime. A small owned type - the source is an instance field the handler reaches
     /// via <c>this</c>, not a captured local - rather than a bare
     /// <see cref="CancellationTokenSource"/> plus a lambda subscribed to

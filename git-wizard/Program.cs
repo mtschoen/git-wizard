@@ -7,7 +7,7 @@ namespace GitWizard.CLI;
 
 public static partial class Program
 {
-    // Cached serializer options (CA1869): WriteIndented depends on the -minified flag,
+    // Cached serializer options (CA1869): WriteIndented depends on the --print-minified flag,
     // so two presets are kept rather than allocating a JsonSerializerOptions per call.
     static readonly JsonSerializerOptions IndentedSerializerOptions = new()
     {
@@ -30,7 +30,7 @@ git-wizard Session Started
     {
         var args = Environment.GetCommandLineArgs();
 
-        // Dispatch MFTLib's elevated journal-broker child mode (launched by -watch's
+        // Dispatch MFTLib's elevated journal-broker child mode (launched by --watch's
         // self-elevation) before any other startup work.
         if (TryHandleElevatedBrokerEntry(args, new DefaultElevatedEntryRunner()))
             return;
@@ -39,6 +39,20 @@ git-wizard Session Started
             return;
 
         var runConfiguration = new RunConfiguration();
+
+        // --help/--version already printed their text via McMaster; stop here rather than
+        // falling through to a full report run (they carry no other flags to distinguish
+        // them from a bare invocation).
+        if (runConfiguration.ExitRequested)
+            return;
+
+        if (runConfiguration.HasParseError)
+        {
+            GitWizardLog.Log("Aborting due to CLI parsing errors.", GitWizardLog.LogType.Error);
+            Environment.Exit(2);
+            return;
+        }
+
         if (TryHandleImmediateExitFlags(runConfiguration))
             return;
 
@@ -68,7 +82,7 @@ git-wizard Session Started
         {
             if (!OperatingSystem.IsWindows())
             {
-                GitWizardLog.Log("-watch requires Windows.", GitWizardLog.LogType.Error);
+                GitWizardLog.Log("--watch requires Windows.", GitWizardLog.LogType.Error);
                 Environment.Exit(1);
                 return;
             }
@@ -131,7 +145,7 @@ git-wizard Session Started
     }
 
     // Handle the flags that resolve to an immediate exit before any report is generated
-    // (-db-size, -delete-all-local-files, -clear-cache). Returns true if Main should return
+    // (--db-size, --delete-all-local-files, --clear-cache). Returns true if Main should return
     // immediately; false if execution should continue into report generation.
     static bool TryHandleImmediateExitFlags(RunConfiguration runConfiguration)
     {
@@ -264,8 +278,8 @@ git-wizard Session Started
     }
 
     /// <summary>
-    /// Handle the -merge flag: validate required args, refresh the supplied repos, and merge
-    /// them into the existing report at -save-path (atomic write, other entries preserved).
+    /// Handle the --merge flag: validate required args, refresh the supplied repos, and merge
+    /// them into the existing report at --save-path (atomic write, other entries preserved).
     /// </summary>
     static void RunMerge(RunConfiguration runConfiguration, GitWizardConfiguration configuration)
     {
@@ -275,7 +289,7 @@ git-wizard Session Started
         if (explicitPaths == null || explicitPaths.Length == 0 || string.IsNullOrEmpty(savePath))
         {
             GitWizardLog.Log(
-                "-merge requires both -paths (repos to refresh) and -save-path (report to merge into).",
+                "--merge requires both --paths (repos to refresh) and --save-path (report to merge into).",
                 GitWizardLog.LogType.Error);
             Environment.Exit(2);
             return;

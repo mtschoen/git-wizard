@@ -15,28 +15,6 @@ public class CoverageSafetyBoostTests
     }
 
     [Test]
-    public void RunElevatedMftScan_CrossPlatform_ExecutesAndWritesFile()
-    {
-        var tempRoot = TestUtilities.RedirectLocalFilesToTemp();
-        try
-        {
-            var configPath = Path.Combine(tempRoot, "config.json");
-            var outputPath = Path.Combine(tempRoot, "output.txt");
-            var config = new GitWizardConfiguration { SearchPaths = { tempRoot } };
-            config.Save(configPath);
-
-            // This should run without throwing (on Linux, it will fall back to directory scan or log MFT failure warning)
-            GitWizardApi.RunElevatedMftScan(configPath, outputPath);
-
-            Assert.That(File.Exists(outputPath), Is.True);
-        }
-        finally
-        {
-            TestUtilities.ClearLocalFilesRedirect(tempRoot);
-        }
-    }
-
-    [Test]
     public void FetchAllRemotes_ValidAndInvalid_ReturnsExpected()
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();

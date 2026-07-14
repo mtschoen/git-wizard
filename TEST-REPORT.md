@@ -1,22 +1,23 @@
 # Test & Coverage Report - git-wizard
 
-**Status:** PASS - 794 non-admin tests pass, **0 build/analyzer findings** (analyzer gate + `dotnet format` + jb inspectcode clean). **aislop:** 73/100 as of 2026-07-10 (`failBelow: 100`, gate red), 11 findings - 6 are an aislop-fork engine bug (the C# format/lint engines shell out to `dotnet format`/build-backed inspectcode over the whole solution and don't respect `.aislop/config.yml`'s `exclude`, so they still surface `external/MFTLib` submodule findings and 4 local-only, gitignored `.claude/spikes/*.cs` format findings that exist on this machine only, not on CI checkouts); the remaining 5 are real pre-existing complexity debt (`GitWizardReport.cs`, `GitWizardRepository.cs`, `MainViewModel.Commands.cs`, `Program.cs` - function-too-long/too-many-params). Gate resolution pending (needs a fork fix or a deliberate `failBelow` call, per `.superpowers/sdd/task-6-report.md` → "Fix: aislop excludes").
-**Mode:** coverage = close-the-gap (the task IS a coverage push - new tests cover code, baseline ratcheted **up** 52.85% → 80.04% line); lint/analyzers = maintain (build gate held at 0); aislop = maintain (was 100 as of 2026-06-21; see Status above for current). One minimal **production** change enables the view-model batch: `GitWizardUI` grants `InternalsVisibleTo("GitWizardTests")` and four `MainViewModel` methods (`AddRepository`, `UpdateCompletedRepository`, `ToggleGroupExpand`, `CleanDownstreamBranchesAsync`) widened `private` → `internal` so the grouping/command logic is testable without driving the async UI command queue.
-**Branch:** `main` - +402 tests across nine new test files and a Boost suite targeting the largest testable gaps.
-**Last measured:** 2026-07-13, Windows, `Debug`, non-admin tier (with `coverlet.runsettings` excluding untestable view/UI-glue assemblies and files).
-**Command:** `dotnet build git-wizard.slnx` (analyzer gate) · `dotnet test git-wizard.slnx --collect:"XPlat Code Coverage" --settings GitWizardTests/coverlet.runsettings` · `dotnet format git-wizard.slnx --verify-no-changes` · `aislop ci .` (C# AI-slop gate).
-**Git:** `main`
+**Status:** PASS - 803 non-admin tests pass, **0 build/analyzer findings** (analyzer gate + `dotnet format` + jb inspectcode clean), **aislop 100/100** (`aislop ci .` clean, gate green). The earlier fork-engine/complexity findings noted on 2026-07-10 no longer surface in the full `aislop ci` run.
+**Mode:** coverage = best-effort (this change is the **MFTLib 0.3 broker-discovery cutover**, a feature migration, not a coverage push - new/changed code is covered and the baseline was held/raised, 80.04% → 83.15% line); lint/analyzers/aislop = maintain (0 findings held). The one genuinely uncovered new line is `GitWizardApi.BrokerScanAsync` (the real elevated-broker spawn), which is UAC-bound and cannot run in the non-admin tier - mirrors MFTLib's own RequiresAdmin broker seams. Rebased onto current `main` (`bff479d`), integrating #88's `SkipHiddenDirectories` and #91's `ComputeLocalCommitCount` through the migrated discovery/report paths.
+**Change:** Migrated the not-elevated repository-discovery path off the `--elevated-mft` temp-file relaunch onto MFTLib's journal broker (`JournalBrokerClient` cold scan, one UAC prompt). `GenerateReport`/`GetRepositoryPaths`/`TryFindAllRepositoriesUsingMft` are now async; the `--elevated-mft` child mode + `RunElevatedMftScan` were removed; `GitWizardUI.Main` now dispatches the `--broker` child mode. New `BrokerDiscoveryTests` cover the flow via an injected scan seam.
+**Branch:** `feat/broker-discovery` (working tree; rebased onto `bff479d`).
+**Last measured:** 2026-07-13, Windows, `Release`, non-admin tier (`scripts/run-coverage.ps1 -NonInteractive`).
+**Command:** `dotnet build git-wizard.slnx` (analyzer gate) · `scripts/run-coverage.ps1 -NonInteractive` (`dotnet test` + coverlet Cobertura) · `dotnet format git-wizard.slnx --verify-no-changes` · `aislop ci .` (C# AI-slop gate).
+**Git:** `feat/broker-discovery` rebased onto `bff479d`
 
 ## Results
 
 | Metric | Value |
 | --- | --- |
-| Tests passed (non-admin tier) | 794 (+402 vs the prior 392: RunConfiguration, UpdateHandler, ProgramHelpers, MainViewModelRefresh, MainViewModelCommand, SmallFiles, and CoverageBoost) |
-| Tests passed (`RequiresAdmin` tier, elevated) | 2 (carried forward - not re-run this session) |
+| Tests passed (non-admin tier) | 847 (broker-discovery migration: +3 `BrokerDiscoveryTests`, `--elevated-mft`/`RunElevatedMftScan` routing tests removed, discovery/report tests converted to async; includes tests from main PRs #86-#95 after rebase) |
+| Tests passed (`RequiresAdmin` tier, elevated) | 1 (`TryFindAllRepositoriesUsingMftAsync_Elevated_RealMftScanDoesNotThrow`; not re-run this session) |
 | Failed | 0 |
 | Skipped on Windows (Unix-only + non-Windows MFT guard) | 2 |
-| **Line coverage (non-admin, `Debug`)** | **80.04%** (was 52.85%; **+27.19** - past the 80% pr-crew gate) |
-| **Branch coverage (non-admin, `Debug`)** | **64.56%** (was 59.29%; **+5.27**) |
+| **Line coverage (non-admin, `Release`)** | **83.15%** (baseline 80.04% held/raised) |
+| **Branch coverage (non-admin, `Release`)** | **80.17%** |
 | Per-file lift | `RunConfiguration` 65.0% → 69.3%, `GitWizardRepository.BranchesAndWorktrees` 71.0% → 75.6%, `GitWizardRepository` 82.2% → 84.2%, `GitWizardReport` 87.2% → 92.2%, `GitWizardApi` 84.7% → 90.4%, `MainViewModel.Grouping` 78.0% → 84.0% |
 | Line coverage (merged: non-admin + elevated, prior full run) | 80.04% |
 | `[ExcludeFromCodeCoverage]` annotations | 0 (Exclusions configured cleanly via `coverlet.runsettings` for Views, UI Services wrappers, and WindowsDefender) |

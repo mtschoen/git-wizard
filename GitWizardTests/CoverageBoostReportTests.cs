@@ -27,10 +27,10 @@ public class CoverageBoostReportTests
     }
 
     [Test]
-    public void GenerateReport_WithNoRepos_CreatesEmptyReport()
+    public async Task GenerateReport_WithNoRepos_CreatesEmptyReport()
     {
         var config = GitWizardConfiguration.CreateDefaultConfiguration();
-        var report = GitWizardReport.GenerateReport(config, new List<string>());
+        var report = await GitWizardReport.GenerateReportAsync(config, new List<string>());
 
         Assert.Multiple(() =>
         {
@@ -41,28 +41,28 @@ public class CoverageBoostReportTests
     }
 
     [Test]
-    public void GenerateReport_AllBranches_SetsBranchScopeToAll()
+    public async Task GenerateReport_AllBranches_SetsBranchScopeToAll()
     {
         var config = GitWizardConfiguration.CreateDefaultConfiguration();
         var options = new GitWizardReportOptions { AllBranches = true };
-        var report = GitWizardReport.GenerateReport(config, new List<string>(), options: options);
+        var report = await GitWizardReport.GenerateReportAsync(config, new List<string>(), options: options);
 
         Assert.That(report.BranchScope, Is.EqualTo("all"));
     }
 
     [Test]
-    public void GenerateReport_WithRealRepo_PopulatesRepository()
+    public async Task GenerateReport_WithRealRepo_PopulatesRepository()
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         var config = GitWizardConfiguration.CreateDefaultConfiguration();
-        var report = GitWizardReport.GenerateReport(config, new List<string> { fixture.Path });
+        var report = await GitWizardReport.GenerateReportAsync(config, new List<string> { fixture.Path });
 
         Assert.That(report.Repositories, Has.Count.EqualTo(1));
         Assert.That(report.Repositories.ContainsKey(fixture.Path), Is.True);
     }
 
     [Test]
-    public void GenerateReport_NullPaths_TriesDiscovery()
+    public async Task GenerateReport_NullPaths_TriesDiscovery()
     {
         var config = new GitWizardConfiguration
         {
@@ -70,7 +70,7 @@ public class CoverageBoostReportTests
             IgnoredPaths = new SortedSet<string>()
         };
         var options = new GitWizardReportOptions { NoMft = true };
-        var report = GitWizardReport.GenerateReport(config, options: options);
+        var report = await GitWizardReport.GenerateReportAsync(config, options: options);
 
         Assert.That(report, Is.Not.Null);
         Assert.That(report.Repositories, Is.Empty);

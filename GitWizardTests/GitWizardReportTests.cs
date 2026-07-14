@@ -21,11 +21,11 @@ public class GitWizardReportTests
     }
 
     [Test]
-    public void GeneratedReport_DefaultsBranchScopeToActionable()
+    public async Task GeneratedReport_DefaultsBranchScopeToActionable()
     {
         GitWizardLog.SilentMode = true;
         var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
-        var report = GitWizardReport.GenerateReport(configuration, new List<string>());
+        var report = await GitWizardReport.GenerateReportAsync(configuration, new List<string>());
 
         Assert.That(report.BranchScope, Is.EqualTo("actionable"));
         Assert.That(report.SchemaVersion, Is.EqualTo("2.1"));
@@ -235,7 +235,7 @@ public class GitWizardReportTests
     }
 
     [Test]
-    public void GenerateReport_Options_ComputeLocalCommitCount_False_SkipsCounting()
+    public async Task GenerateReport_Options_ComputeLocalCommitCount_False_SkipsCounting()
     {
         GitWizardLog.SilentMode = true;
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
@@ -243,7 +243,7 @@ public class GitWizardReportTests
 
         var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
         var options = new GitWizardReportOptions { ComputeLocalCommitCount = false };
-        var report = GitWizardReport.GenerateReport(configuration, new List<string> { fixture.Path }, options: options);
+        var report = await GitWizardReport.GenerateReportAsync(configuration, new List<string> { fixture.Path }, options: options);
 
         var repo = report.Repositories[fixture.Path];
         Assert.That(repo.LocalCommitCount, Is.EqualTo(0));
@@ -251,14 +251,14 @@ public class GitWizardReportTests
     }
 
     [Test]
-    public void GetRepositoryPaths_WithEmptySearchPaths_DoesNotThrow()
+    public async Task GetRepositoryPaths_WithEmptySearchPaths_DoesNotThrow()
     {
         var report = new GitWizardReport();
         var paths = new SortedSet<string>();
 
         // noMft: true skips MFT discovery so the test pops no UAC on Windows; with empty search
         // paths the recursive fallback is a no-op, so the assertion is unchanged.
-        report.GetRepositoryPaths(paths, noMft: true);
+        await report.GetRepositoryPathsAsync(paths, noMft: true);
 
         Assert.That(paths, Is.Empty);
     }

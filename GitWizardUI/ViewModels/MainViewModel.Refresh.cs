@@ -186,10 +186,10 @@ public partial class MainViewModel
         var renamedOldPaths = new HashSet<string>();
         var nonRepositoryPaths = new HashSet<string>();
 
-        await Task.Run(() =>
+        await Task.Run(async () =>
         {
             _stopwatch.Restart();
-            var report = GitWizardReport.GenerateReport(configuration, repositoryPaths, this,
+            var report = await GitWizardReport.GenerateReportAsync(configuration, repositoryPaths, this,
                 new GitWizardReportOptions { FetchRemotes = fetchRemotes, DeepRefresh = fetchRemotes });
             _stopwatch.Stop();
 

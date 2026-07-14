@@ -91,9 +91,9 @@ commit must exist on both MFTLib remotes.**
 
 ## Key Architecture
 
-- **MFTLib** - Used on Windows for fast .git discovery via NTFS MFT parsing. Requires elevation; the app self-elevates via UAC when needed.
-- **MFTLib.ElevationUtilities** - Elevation helpers from MFTLib: `IsElevated()`, `CanSelfElevate()`, `TryRunElevated(args, timeoutMs)`. Used by GitWizardApi for MFT scanning and WindowsDefenderException for adding exclusions.
-- **Self-elevation** - Both CLI and GitWizardUI handle `--elevated-mft` and `--elevated-defender` hidden args for child process elevation.
+- **MFTLib** - Used on Windows for fast .git discovery via NTFS MFT parsing. When already elevated, `GitWizardApi.TryFindAllRepositoriesUsingMftAsync` scans in-process; when not, it takes the cold scan through MFTLib's journal broker (`JournalBrokerClient`, one UAC prompt) and pulls repository roots from the returned `ScanRecord`s - no temp-file handoff.
+- **MFTLib.ElevationUtilities** - Elevation helpers from MFTLib: `IsElevated()`, `CanSelfElevate()`, `TryRunElevated(args, timeoutMs)`. `TryRunElevated` is used by WindowsDefenderException for adding exclusions; MFT discovery elevates through the journal broker instead.
+- **Self-elevation** - Both CLI and GitWizardUI dispatch MFTLib's elevated `--broker` child mode via `ElevatedEntryPoint.TryHandle` (for broker-backed MFT discovery and `-watch`), plus the `--elevated-defender` hidden arg for Defender exclusions, before any normal/Avalonia startup.
 - **IUpdateHandler** - Interface for progress reporting, used by both CLI (UpdateHandler) and GitWizardUI (MainViewModel).
 - **Collection swap pattern** - `ApplyFilterAndGrouping()` builds a new `ObservableCollection` off-screen and swaps it in one shot to avoid per-item layout updates with 700+ repos.
 - **UI command queue** - Background refresh threads enqueue `RepositoryUICommand` structs; a UI update thread drains them in batches on the main thread every 250ms.

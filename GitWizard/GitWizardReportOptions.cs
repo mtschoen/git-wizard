@@ -1,7 +1,7 @@
 namespace GitWizard;
 
 /// <summary>
-/// Bundles the optional refresh flags for <see cref="GitWizardReport.GenerateReport"/> so the
+/// Bundles the optional refresh flags for <see cref="GitWizardReport.GenerateReportAsync"/> so the
 /// method stays under the parameter-count limit as new flags are added.
 /// </summary>
 public class GitWizardReportOptions

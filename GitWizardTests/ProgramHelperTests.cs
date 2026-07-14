@@ -13,7 +13,7 @@ namespace GitWizardTests;
 /// <summary>
 /// Tests for the private static helper methods on <see cref="Program"/>:
 /// FormatSize, ReportNeedsAttention, ApplyFilter, ParseExplicitPaths,
-/// SerializeReport, and TryHandleElevatedHelperModesAsync.
+/// SerializeReport, and TryHandleElevatedHelperModes.
 /// Uses reflection because these methods are private.
 /// </summary>
 public class ProgramHelperTests
@@ -120,12 +120,12 @@ public class ProgramHelperTests
     }
 
     /// <summary>
-    /// Invokes the private static TryHandleElevatedHelperModesAsync(string[]) method.
+    /// Invokes the private static TryHandleElevatedHelperModes(string[]) method.
     /// </summary>
-    static Task<bool> InvokeTryHandleElevatedHelperModesAsync(string[] args)
+    static bool InvokeTryHandleElevatedHelperModes(string[] args)
     {
-        var method = GetPrivateStaticMethod("TryHandleElevatedHelperModesAsync", ProgramType);
-        return (Task<bool>)method.Invoke(null, new object[] { args })!;
+        var method = GetPrivateStaticMethod("TryHandleElevatedHelperModes", ProgramType);
+        return (bool)method.Invoke(null, new object[] { args })!;
     }
 
     /// <summary>
@@ -561,26 +561,26 @@ public class ProgramHelperTests
 
     #endregion
 
-    #region TryHandleElevatedHelperModesAsync
+    #region TryHandleElevatedHelperModes
 
     [Test]
-    public async Task TryHandleElevatedHelperModesAsync_NoElevatedArgs_ReturnsFalse()
+    public void TryHandleElevatedHelperModes_NoElevatedArgs_ReturnsFalse()
     {
-        var result = await InvokeTryHandleElevatedHelperModesAsync(new[] { "git-wizard.exe", "-summary" });
+        var result = InvokeTryHandleElevatedHelperModes(new[] { "git-wizard.exe", "-summary" });
         Assert.That(result, Is.False);
     }
 
     [Test]
-    public async Task TryHandleElevatedHelperModesAsync_EmptyArgs_ReturnsFalse()
+    public void TryHandleElevatedHelperModes_EmptyArgs_ReturnsFalse()
     {
-        var result = await InvokeTryHandleElevatedHelperModesAsync(Array.Empty<string>());
+        var result = InvokeTryHandleElevatedHelperModes(Array.Empty<string>());
         Assert.That(result, Is.False);
     }
 
     [Test]
-    public async Task TryHandleElevatedHelperModesAsync_UnrelatedArgs_ReturnsFalse()
+    public void TryHandleElevatedHelperModes_UnrelatedArgs_ReturnsFalse()
     {
-        var result = await InvokeTryHandleElevatedHelperModesAsync(
+        var result = InvokeTryHandleElevatedHelperModes(
             new[] { "git-wizard.exe", "-filter", "test", "-print-minified" });
         Assert.That(result, Is.False);
     }

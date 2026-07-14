@@ -49,35 +49,18 @@ public class ElevationDecisionTests
 
     [Test]
     [Platform("Win")]
-    public void TryFindAllRepositoriesUsingMft_NotElevated_RoutesThroughTryRunElevated()
+    public async Task TryFindAllRepositoriesUsingMftAsync_ElevatedWithEmptySearchPaths_ReturnsFalse()
     {
-        var fake = new FakeElevationProvider { Elevated = false, RunElevatedResult = false };
-        var paths = new SortedSet<string>();
-
-        var result = GitWizardApi.TryFindAllRepositoriesUsingMft(
-            new GitWizardConfiguration(), paths, elevation: fake);
-
-        Assert.That(result, Is.False);
-        Assert.That(fake.RunElevatedCalls, Has.Count.EqualTo(1));
-        Assert.That(fake.RunElevatedCalls[0].Arguments, Does.StartWith("--elevated-mft --config-path "));
-        Assert.That(fake.RunElevatedCalls[0].TimeoutMs, Is.EqualTo(120000));
-    }
-
-    [Test]
-    [Platform("Win")]
-    public void TryFindAllRepositoriesUsingMft_ElevatedWithEmptySearchPaths_DoesNotSelfElevate()
-    {
-        // Already-elevated branch: scans directly. Empty search paths ⇒ no real MftVolume.Open,
-        // and TryRunElevated must never be called. This branch is unreachable via the internal
-        // Func seams alone (IsElevated does a real token check) - it needs the injected provider.
+        // Already-elevated branch: scans directly, no broker child. Empty search paths ⇒ no
+        // real MftVolume.Open and no broker spawn. This branch needs the injected provider
+        // because IsElevated does a real token check.
         var fake = new FakeElevationProvider { Elevated = true };
         var paths = new SortedSet<string>();
 
-        var result = GitWizardApi.TryFindAllRepositoriesUsingMft(
+        var result = await GitWizardApi.TryFindAllRepositoriesUsingMftAsync(
             new GitWizardConfiguration(), paths, elevation: fake);
 
         Assert.That(result, Is.False);
-        Assert.That(fake.RunElevatedCalls, Is.Empty);
         Assert.That(paths, Is.Empty);
     }
 }

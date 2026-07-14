@@ -35,7 +35,7 @@ git-wizard Session Started
         if (TryHandleElevatedBrokerEntry(args, new DefaultElevatedEntryRunner()))
             return;
 
-        if (await TryHandleElevatedHelperModesAsync(args).ConfigureAwait(false))
+        if (TryHandleElevatedHelperModes(args))
             return;
 
         var runConfiguration = new RunConfiguration();
@@ -74,7 +74,7 @@ git-wizard Session Started
 
         if (runConfiguration.ScanOnly)
         {
-            RunScanOnly(runConfiguration, configuration);
+            await RunScanOnlyAsync(runConfiguration, configuration);
             return;
         }
 
@@ -97,51 +97,13 @@ git-wizard Session Started
 
     // Handle elevated helper modes (launched by self-elevation). Returns true if one of the
     // helper-mode args was found and handled, meaning the caller should return immediately.
-    static async Task<bool> TryHandleElevatedHelperModesAsync(string[] args)
+    static bool TryHandleElevatedHelperModes(string[] args)
     {
-        for (var i = 0; i < args.Length; i++)
-        {
-            switch (args[i])
-            {
-                case "--elevated-mft":
-                    {
-                        string? configPath = null;
-                        string? outputPath = null;
-                        for (var j = i + 1; j < args.Length; j++)
-                        {
-                            switch (args[j])
-                            {
-                                case "--config-path":
-                                    if (j + 1 < args.Length) configPath = args[++j];
-                                    break;
-                                case "--output":
-                                    if (j + 1 < args.Length) outputPath = args[++j];
-                                    break;
-                            }
-                        }
+        if (!args.Contains("--elevated-defender"))
+            return false;
 
-                        if (configPath != null && outputPath != null)
-                        {
-                            await Task.Run(() => GitWizardApi.RunElevatedMftScan(configPath, outputPath)).ConfigureAwait(false);
-                            Environment.Exit(0);
-                        }
-                        else
-                        {
-                            Environment.Exit(1);
-                        }
-
-                        return true;
-                    }
-                case "--elevated-defender":
-                    {
-                        var success = WindowsDefender.RunDefenderCommands();
-                        Environment.Exit(success ? 0 : 1);
-                        return true;
-                    }
-            }
-        }
-
-        return false;
+        Environment.Exit(WindowsDefender.RunDefenderCommands() ? 0 : 1);
+        return true;
     }
 
     // Handle the flags that resolve to an immediate exit before any report is generated
@@ -179,11 +141,11 @@ git-wizard Session Started
         return false;
     }
 
-    static void RunScanOnly(RunConfiguration runConfiguration, GitWizardConfiguration configuration)
+    static async Task RunScanOnlyAsync(RunConfiguration runConfiguration, GitWizardConfiguration configuration)
     {
         var scanReport = new GitWizardReport(configuration);
         var scanPaths = new SortedSet<string>();
-        scanReport.GetRepositoryPaths(scanPaths, noMft: runConfiguration.NoMft);
+        await scanReport.GetRepositoryPathsAsync(scanPaths, noMft: runConfiguration.NoMft);
         foreach (var path in scanPaths)
         {
             Console.WriteLine(path);
@@ -273,7 +235,7 @@ git-wizard Session Started
             }
         }
 
-        return GitWizardReport.GenerateReport(configuration, repositoryPaths, updateHandler,
+        return await GitWizardReport.GenerateReportAsync(configuration, repositoryPaths, updateHandler,
             new GitWizardReportOptions { NoMft = runConfiguration.NoMft, AllBranches = runConfiguration.AllBranches, ComputeLocalCommitCount = !runConfiguration.NoLocalCommitCount });
     }
 

@@ -99,17 +99,17 @@ public class CoverageBoostDiscoveryTests
     }
 
     [Test]
-    public void TryFindAllRepositoriesUsingMft_NoMftTrue_ReturnsFalse()
+    public async Task TryFindAllRepositoriesUsingMftAsync_NoMftTrue_ReturnsFalse()
     {
         var config = new GitWizardConfiguration { SearchPaths = { Path.GetTempPath() } };
         var paths = new SortedSet<string>();
-        var result = GitWizardApi.TryFindAllRepositoriesUsingMft(config, paths, noMft: true);
+        var result = await GitWizardApi.TryFindAllRepositoriesUsingMftAsync(config, paths, noMft: true);
         Assert.That(result, Is.False);
         Assert.That(paths, Is.Empty);
     }
 
     [Test]
-    public void TryFindAllRepositoriesUsingMft_ElevatedProvider_EmptySearchPaths_ReturnsFalse()
+    public async Task TryFindAllRepositoriesUsingMftAsync_ElevatedProvider_EmptySearchPaths_ReturnsFalse()
     {
         if (!OperatingSystem.IsWindows())
             Assert.Ignore("MFT is Windows-only.");
@@ -117,25 +117,12 @@ public class CoverageBoostDiscoveryTests
         var config = new GitWizardConfiguration(); // empty search paths
         var paths = new SortedSet<string>();
         var fakeProvider = new FakeElevationProvider(isElevated: true);
-        var result = GitWizardApi.TryFindAllRepositoriesUsingMft(config, paths, elevation: fakeProvider);
+        var result = await GitWizardApi.TryFindAllRepositoriesUsingMftAsync(config, paths, elevation: fakeProvider);
         Assert.That(result, Is.False);
     }
 
     [Test]
-    public void TryFindAllRepositoriesUsingMft_NotElevated_FailsTryRun_ReturnsFalse()
-    {
-        if (!OperatingSystem.IsWindows())
-            Assert.Ignore("MFT is Windows-only.");
-
-        var config = new GitWizardConfiguration { SearchPaths = { Path.GetTempPath() } };
-        var paths = new SortedSet<string>();
-        var fakeProvider = new FakeElevationProvider(isElevated: false, tryRunResult: false);
-        var result = GitWizardApi.TryFindAllRepositoriesUsingMft(config, paths, elevation: fakeProvider);
-        Assert.That(result, Is.False);
-    }
-
-    [Test]
-    public void ReportGetRepositoryPaths_NoMft_FallsBackToDirectoryScan()
+    public async Task ReportGetRepositoryPaths_NoMft_FallsBackToDirectoryScan()
     {
         var root = Path.Combine(Path.GetTempPath(), "gw-report-scan-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(root, "myrepo", ".git"));
@@ -147,7 +134,7 @@ public class CoverageBoostDiscoveryTests
                 IgnoredPaths = new SortedSet<string>()
             };
             var paths = new SortedSet<string>();
-            report.GetRepositoryPaths(paths, noMft: true);
+            await report.GetRepositoryPathsAsync(paths, noMft: true);
             Assert.That(paths, Has.Count.EqualTo(1));
             Assert.That(paths.Single(), Does.Contain("myrepo").IgnoreCase);
         }
@@ -171,7 +158,7 @@ public class CoverageBoostDiscoveryTests
             };
             var paths = new SortedSet<string>();
             var handler = new ThrowingProgressHandler();
-            Assert.DoesNotThrow(() => report.GetRepositoryPaths(paths, handler, noMft: true));
+            Assert.DoesNotThrowAsync(() => report.GetRepositoryPathsAsync(paths, handler, noMft: true));
         }
         finally
         {
@@ -180,7 +167,7 @@ public class CoverageBoostDiscoveryTests
     }
 
     [Test]
-    public void ReportGetRepositoryPaths_MultipleSearchPaths_MergesResults()
+    public async Task ReportGetRepositoryPaths_MultipleSearchPaths_MergesResults()
     {
         var root1 = Path.Combine(Path.GetTempPath(), "gw-multi1-" + Guid.NewGuid().ToString("N"));
         var root2 = Path.Combine(Path.GetTempPath(), "gw-multi2-" + Guid.NewGuid().ToString("N"));
@@ -194,7 +181,7 @@ public class CoverageBoostDiscoveryTests
                 IgnoredPaths = new SortedSet<string>()
             };
             var paths = new SortedSet<string>();
-            report.GetRepositoryPaths(paths, noMft: true);
+            await report.GetRepositoryPathsAsync(paths, noMft: true);
             Assert.That(paths, Has.Count.EqualTo(2));
         }
         finally

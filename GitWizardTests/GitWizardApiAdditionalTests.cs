@@ -430,21 +430,21 @@ public class GitWizardApiAdditionalTests
     }
 
     [Test]
-    public void TryFindAllRepositoriesUsingMft_ReturnsFalse_WhenNoMftFlagDisablesScan()
+    public async Task TryFindAllRepositoriesUsingMftAsync_ReturnsFalse_WhenNoMftFlagDisablesScan()
     {
-        var found = GitWizardApi.TryFindAllRepositoriesUsingMft(
+        var found = await GitWizardApi.TryFindAllRepositoriesUsingMftAsync(
             new GitWizardConfiguration(), new SortedSet<string>(), noMft: true);
 
         Assert.That(found, Is.False);
     }
 
     [Test]
-    public void TryFindAllRepositoriesUsingMft_ReturnsFalse_OnNonWindows()
+    public async Task TryFindAllRepositoriesUsingMftAsync_ReturnsFalse_OnNonWindows()
     {
         if (OperatingSystem.IsWindows())
             Assert.Ignore("MFT scanning is Windows-only; the non-Windows early-return is only reachable off Windows.");
 
-        var found = GitWizardApi.TryFindAllRepositoriesUsingMft(
+        var found = await GitWizardApi.TryFindAllRepositoriesUsingMftAsync(
             new GitWizardConfiguration(), new SortedSet<string>());
 
         Assert.That(found, Is.False);

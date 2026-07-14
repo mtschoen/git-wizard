@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using MFTLib;
 
 namespace GitWizard;
@@ -6,13 +7,27 @@ namespace GitWizard;
 public static partial class GitWizardApi
 {
     /// <summary>
-    /// Try to find all git repositories across all search paths using MFT.
-    /// On Windows, this will launch an elevated helper process if not already elevated.
+    /// Try to find all git repositories across all search paths using MFT, taking the cold
+    /// scan through MFTLib's elevated journal broker when not already elevated - one UAC
+    /// prompt for the whole run, no temp-file handoff. Repository roots are pulled from the
+    /// broker's <see cref="ScanRecord"/>s exactly as the already-elevated in-process scan
+    /// pulls them from <see cref="MftVolume"/>.
     /// </summary>
+    /// <param name="configuration">Search and ignored paths to scan.</param>
+    /// <param name="paths">Collection that discovered repository roots are added to.</param>
+    /// <param name="updateHandler">Optional handler for UI progress updates.</param>
+    /// <param name="noMft">When true, skip MFT discovery entirely and return false.</param>
+    /// <param name="elevation">Elevation provider; defaults to the real one. Injected in tests.</param>
+    /// <param name="scanProvider">
+    /// Seam that returns the cold-scan records for the given drive letters. Defaults to
+    /// spawning a real <see cref="JournalBrokerClient"/>; injected in tests to exercise the
+    /// filtering flow without real elevation.
+    /// </param>
     /// <returns>True if MFT search was used successfully.</returns>
-    public static bool TryFindAllRepositoriesUsingMft(GitWizardConfiguration configuration,
-        ICollection<string> paths, IUpdateHandler? updateHandler = null, bool noMft = false,
-        IElevationProvider? elevation = null)
+    public static async Task<bool> TryFindAllRepositoriesUsingMftAsync(
+        GitWizardConfiguration configuration, ICollection<string> paths,
+        IUpdateHandler? updateHandler = null, bool noMft = false, IElevationProvider? elevation = null,
+        Func<IReadOnlyList<string>, Task<IReadOnlyList<ScanRecord>>>? scanProvider = null)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             return false;
@@ -24,68 +39,96 @@ public static partial class GitWizardApi
 
         if (elevation.IsElevated())
         {
-            // Already elevated - scan directly
+            // Already elevated - scan directly, no child process needed.
             foreach (var searchPath in configuration.SearchPaths)
             {
                 var expanded = ExpandSearchPath(searchPath);
                 if (expanded == null)
                     continue;
 
-                FindGitRepositoriesUsingMft(expanded, paths, configuration.IgnoredPaths, updateHandler, configuration.SkipHiddenDirectories);
+                FindGitRepositoriesUsingMft(expanded, paths, configuration.IgnoredPaths, updateHandler,
+                    configuration.SkipHiddenDirectories);
             }
 
             return paths.Count > 0;
         }
 
-        // Not elevated - try launching an elevated helper
-        var configPath = GitWizardConfiguration.GetGlobalConfigurationPath();
-        var outputPath = Path.Combine(Path.GetTempPath(), $"gitwizard-mft-{Guid.NewGuid()}.txt");
+        // Not elevated - take the cold scan through the journal broker (single UAC prompt).
+        var expandedRoots = configuration.SearchPaths
+            .Select(ExpandSearchPath)
+            .OfType<string>()
+            .ToList();
+        if (expandedRoots.Count == 0)
+            return false;
 
+        var drives = expandedRoots
+            .Select(GetDriveLetter)
+            .OfType<string>()
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (drives.Count == 0)
+            return false;
+
+        scanProvider ??= BrokerScanAsync;
+
+        IReadOnlyList<ScanRecord> records;
         try
         {
-            if (!elevation.TryRunElevated($"--elevated-mft --config-path \"{configPath}\" --output \"{outputPath}\"", timeoutMs: 120000))
-                return false;
-
-            if (!File.Exists(outputPath))
-                return false;
-
-            var lines = File.ReadAllLines(outputPath);
-            foreach (var line in lines)
-            {
-                if (!string.IsNullOrWhiteSpace(line))
-                    paths.Add(line);
-            }
-
-            updateHandler?.SendUpdateMessage($"MFT search found {paths.Count} repositories");
-            return paths.Count > 0;
+            records = await scanProvider(drives).ConfigureAwait(false);
         }
-        finally
+        catch (InvalidOperationException exception)
         {
-            try { File.Delete(outputPath); } catch { /* ignore */ }
+            // Broker spawn declined (UAC) or failed - let the caller fall back to a directory scan.
+            GitWizardLog.Log($"MFT broker scan unavailable: {exception.Message}", GitWizardLog.LogType.Warning);
+            return false;
+        }
+
+        foreach (var searchPath in expandedRoots)
+            CollectGitRepositoriesFromScan(records, searchPath, configuration.IgnoredPaths, paths,
+                configuration.SkipHiddenDirectories);
+
+        updateHandler?.SendUpdateMessage($"MFT search found {paths.Count} repositories");
+        return paths.Count > 0;
+    }
+
+    // Spawns the real elevated broker, takes one cold scan across the given drives, and
+    // returns its records. Throws InvalidOperationException if the broker can't be started.
+    [SupportedOSPlatform("windows")]
+    static async Task<IReadOnlyList<ScanRecord>> BrokerScanAsync(IReadOnlyList<string> drives)
+    {
+        var client = await JournalBrokerClient
+            .SpawnAndConnectAsync(BrokerLauncher.Launch, CancellationToken.None).ConfigureAwait(false);
+
+        await using (client.ConfigureAwait(false))
+        {
+            var scan = await client.ArmScanAndCatchUpAsync(drives, CancellationToken.None).ConfigureAwait(false);
+            return scan.Records;
         }
     }
 
-    /// <summary>
-    /// Run the elevated MFT scan and write results to the output file.
-    /// Called by the elevated child process.
-    /// </summary>
-    public static void RunElevatedMftScan(string configPath, string outputPath)
+    // Filters one drive's cold-scan records down to the repository roots under a single
+    // search path, applying the same drive-root rule as the in-process scan: at a drive root
+    // only .git directories count; under a scoped path, .git files (worktree/submodule
+    // pointers) count too.
+    static void CollectGitRepositoriesFromScan(IReadOnlyList<ScanRecord> records, string rootPath,
+        ICollection<string> ignoredPaths, ICollection<string> paths, bool? skipHiddenDirectories)
     {
-        var configuration = GitWizardConfiguration.GetConfigurationAtPath(configPath)
-                            ?? GitWizardConfiguration.CreateDefaultConfiguration();
+        var includeGitFiles = !IsDriveRoot(NormalizePath(rootPath));
+        var gitEntryPaths = SelectGitEntryPaths(records, includeGitFiles);
+        CollectGitRepositories(gitEntryPaths, rootPath, ignoredPaths, paths, skipHiddenDirectories);
+    }
 
-        var paths = new SortedSet<string>();
+    // The .git-named scan records, as their paths. Pure: no filesystem access, so the
+    // drive-root include-files rule is unit-testable with synthetic records.
+    static IEnumerable<string> SelectGitEntryPaths(IReadOnlyList<ScanRecord> records, bool includeGitFiles) =>
+        records
+            .Where(record => record.Name == ".git" && (includeGitFiles || record.IsDirectory))
+            .Select(record => record.Path);
 
-        foreach (var searchPath in configuration.SearchPaths)
-        {
-            var expanded = ExpandSearchPath(searchPath);
-            if (expanded == null)
-                continue;
-
-            FindGitRepositoriesUsingMft(expanded, paths, configuration.IgnoredPaths, null, configuration.SkipHiddenDirectories);
-        }
-
-        File.WriteAllLines(outputPath, paths);
+    static string? GetDriveLetter(string path)
+    {
+        var root = Path.GetPathRoot(path);
+        return string.IsNullOrEmpty(root) ? null : root[..1];
     }
 
     /// <summary>
@@ -132,67 +175,23 @@ public static partial class GitWizardApi
     {
         try
         {
-            var driveLetter = Path.GetPathRoot(rootPath)?[..1];
+            var driveLetter = GetDriveLetter(rootPath);
             if (driveLetter == null)
                 return;
 
             updateHandler?.SendUpdateMessage($"Using MFT to search {driveLetter}: drive");
 
             using var volume = MftVolume.Open(driveLetter);
-            var normalizedRootPath = NormalizePath(rootPath);
-            var expandedIgnoredPaths = ExpandIgnoredPaths(ignoredPaths);
-            var isDriveRoot = IsDriveRoot(normalizedRootPath);
 
             // When searching a full drive, only find .git directories - submodules and worktrees
             // (.git files) will be discovered during refresh of the parent repo.
             // When searching a scoped path, also find .git files in case the search root itself
             // is a worktree or submodule whose parent is outside the search scope.
-            var gitEntries = isDriveRoot
+            var gitEntries = IsDriveRoot(NormalizePath(rootPath))
                 ? volume.FindDirectories(".git")
                 : volume.FindRecords(".git");
 
-            var candidates = new List<string>();
-
-            foreach (var gitDirPath in gitEntries)
-            {
-                var parentPath = Path.GetDirectoryName(gitDirPath);
-                if (parentPath == null)
-                    continue;
-
-                var normalizedParentPath = NormalizePath(parentPath);
-
-                // Must be under the root search path
-                if (!IsSameOrChildPath(normalizedParentPath, normalizedRootPath))
-                    continue;
-
-                // Skip ignored paths
-                if (expandedIgnoredPaths.Any(ignored => IsSameOrChildPath(normalizedParentPath, ignored)))
-                    continue;
-
-                // Skip paths containing hidden/dot directories (matches recursive search behavior)
-                var shouldSkipHiddenDirs = skipHiddenDirectories != false;
-                if (shouldSkipHiddenDirs)
-                {
-                    var relativePath = normalizedParentPath[normalizedRootPath.Length..];
-                    if (relativePath.Split(Path.DirectorySeparatorChar)
-                        .Any(segment => segment.Length > 0 && segment.StartsWith('.')))
-                        continue;
-                }
-
-                // Verify the directory is accessible
-                if (!Directory.Exists(parentPath))
-                    continue;
-
-                candidates.Add(normalizedParentPath);
-            }
-
-            foreach (var candidate in candidates)
-            {
-                lock (paths)
-                {
-                    paths.Add(candidate);
-                }
-            }
+            CollectGitRepositories(gitEntries, rootPath, ignoredPaths, paths, skipHiddenDirectories);
 
             updateHandler?.SendUpdateMessage($"MFT search found {paths.Count} repositories on {driveLetter}:");
         }
@@ -200,6 +199,59 @@ public static partial class GitWizardApi
         {
             GitWizardLog.Log($"MFT search failed, falling back to directory scan: {exception.Message}",
                 GitWizardLog.LogType.Warning);
+        }
+    }
+
+    // Turns a set of .git entry paths (from a live MFT scan or a broker cold scan) into the
+    // repository roots under rootPath: the .git entry's parent must be under the search root,
+    // not ignored, and (unless skipHiddenDirectories is false) free of hidden/dot path
+    // segments, and must still exist on disk.
+    static void CollectGitRepositories(IEnumerable<string> gitEntryPaths, string rootPath,
+        ICollection<string> ignoredPaths, ICollection<string> paths, bool? skipHiddenDirectories = null)
+    {
+        var normalizedRootPath = NormalizePath(rootPath);
+        var expandedIgnoredPaths = ExpandIgnoredPaths(ignoredPaths);
+        var shouldSkipHiddenDirs = skipHiddenDirectories != false;
+        var candidates = new List<string>();
+
+        foreach (var gitEntryPath in gitEntryPaths)
+        {
+            var parentPath = Path.GetDirectoryName(gitEntryPath);
+            if (parentPath == null)
+                continue;
+
+            var normalizedParentPath = NormalizePath(parentPath);
+
+            // Must be under the root search path
+            if (!IsSameOrChildPath(normalizedParentPath, normalizedRootPath))
+                continue;
+
+            // Skip ignored paths
+            if (expandedIgnoredPaths.Any(ignored => IsSameOrChildPath(normalizedParentPath, ignored)))
+                continue;
+
+            // Skip paths containing hidden/dot directories (matches recursive search behavior)
+            if (shouldSkipHiddenDirs)
+            {
+                var relativePath = normalizedParentPath[normalizedRootPath.Length..];
+                if (relativePath.Split(Path.DirectorySeparatorChar)
+                    .Any(segment => segment.Length > 0 && segment.StartsWith('.')))
+                    continue;
+            }
+
+            // Verify the directory is accessible
+            if (!Directory.Exists(parentPath))
+                continue;
+
+            candidates.Add(normalizedParentPath);
+        }
+
+        foreach (var candidate in candidates)
+        {
+            lock (paths)
+            {
+                paths.Add(candidate);
+            }
         }
     }
 

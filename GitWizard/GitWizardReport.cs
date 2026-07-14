@@ -158,7 +158,7 @@ public partial class GitWizardReport
     /// <param name="updateHandler">Optional handler for UI updates.</param>
     /// <param name="options">Optional refresh flags; defaults to all-off when omitted.</param>
     /// <returns>The generated report.</returns>
-    public static GitWizardReport GenerateReport(GitWizardConfiguration configuration,
+    public static async Task<GitWizardReport> GenerateReportAsync(GitWizardConfiguration configuration,
         ICollection<string>? repositoryPaths = null, IUpdateHandler? updateHandler = null,
         GitWizardReportOptions? options = null)
     {
@@ -168,7 +168,7 @@ public partial class GitWizardReport
         if (repositoryPaths == null)
         {
             repositoryPaths = new SortedSet<string>();
-            report.GetRepositoryPaths(repositoryPaths, updateHandler, options.NoMft);
+            await report.GetRepositoryPathsAsync(repositoryPaths, updateHandler, options.NoMft).ConfigureAwait(false);
         }
 
         report.Refresh(repositoryPaths, updateHandler, options.FetchRemotes, options.DeepRefresh, options.AllBranches, options.ComputeLocalCommitCount);
@@ -177,7 +177,7 @@ public partial class GitWizardReport
         return report;
     }
 
-    public void GetRepositoryPaths(ICollection<string> repositoryPaths, IUpdateHandler? updateHandler = null,
+    public async Task GetRepositoryPathsAsync(ICollection<string> repositoryPaths, IUpdateHandler? updateHandler = null,
         bool noMft = false)
     {
         // Try MFT scan first (Windows only) - handles elevation automatically
@@ -188,7 +188,8 @@ public partial class GitWizardReport
             SkipHiddenDirectories = SkipHiddenDirectories
         };
 
-        if (GitWizardApi.TryFindAllRepositoriesUsingMft(configuration, repositoryPaths, updateHandler, noMft))
+        if (await GitWizardApi.TryFindAllRepositoriesUsingMftAsync(configuration, repositoryPaths, updateHandler, noMft)
+                .ConfigureAwait(false))
             return;
 
         // Fall back to recursive directory scan

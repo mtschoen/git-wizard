@@ -1,5 +1,6 @@
 using Avalonia;
 using GitWizard;
+using MFTLib;
 
 namespace GitWizardUI;
 
@@ -11,10 +12,13 @@ static class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        // Self-elevation child modes: the core (GitWizardApi.GetRepositoryPaths /
-        // WindowsDefender) relaunches THIS exe with these flags. Handle
-        // them before any Avalonia init so the elevated child performs its single
-        // task and exits instead of opening a second GUI window.
+        // MFTLib's elevated journal-broker child mode: broker-backed repository discovery
+        // relaunches THIS exe with --broker to run the elevated MFT scan over a pipe. Handle
+        // it (and the Defender child mode below) before any Avalonia init so the elevated
+        // child performs its single task and exits instead of opening a second GUI window.
+        if (ElevatedEntryPoint.TryHandle(args, new DefaultElevatedEntryRunner()))
+            return;
+
         if (TryHandleElevatedMode(args))
             return;
 
@@ -26,43 +30,11 @@ static class Program
 
     static bool TryHandleElevatedMode(string[] args)
     {
-        for (var i = 0; i < args.Length; i++)
-        {
-            switch (args[i])
-            {
-                case "--elevated-mft":
-                    {
-                        string? configPath = null;
-                        string? outputPath = null;
-                        for (var j = i + 1; j < args.Length; j++)
-                        {
-                            switch (args[j])
-                            {
-                                case "--config-path":
-                                    if (j + 1 < args.Length) configPath = args[++j];
-                                    break;
-                                case "--output":
-                                    if (j + 1 < args.Length) outputPath = args[++j];
-                                    break;
-                            }
-                        }
+        if (!args.Contains("--elevated-defender"))
+            return false;
 
-                        if (configPath != null && outputPath != null)
-                        {
-                            GitWizardApi.RunElevatedMftScan(configPath, outputPath);
-                            Environment.Exit(0);
-                        }
-
-                        Environment.Exit(1);
-                        return true;
-                    }
-                case "--elevated-defender":
-                    Environment.Exit(WindowsDefender.RunDefenderCommands() ? 0 : 1);
-                    return true;
-            }
-        }
-
-        return false;
+        Environment.Exit(WindowsDefender.RunDefenderCommands() ? 0 : 1);
+        return true;
     }
 
     // Required by the Avalonia visual designer - do not remove.

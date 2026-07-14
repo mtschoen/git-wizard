@@ -90,12 +90,12 @@ public class GitWizardReportAdditionalTests
     }
 
     [Test]
-    public void GetRepositoryPaths_EmptyConfiguration_FindsNothing()
+    public async Task GetRepositoryPaths_EmptyConfiguration_FindsNothing()
     {
         var report = new GitWizardReport();
         var paths = new SortedSet<string>();
         // noMft: true skips MFT discovery (no UAC on Windows); empty config finds nothing either way.
-        report.GetRepositoryPaths(paths, noMft: true);
+        await report.GetRepositoryPathsAsync(paths, noMft: true);
         Assert.That(paths, Is.Empty);
     }
 
@@ -194,7 +194,7 @@ public class GitWizardReportAdditionalTests
     }
 
     [Test]
-    public void GetRepositoryPaths_WithNonExistentSearchPath_DoesNotThrow()
+    public async Task GetRepositoryPaths_WithNonExistentSearchPath_DoesNotThrow()
     {
         var report = new GitWizardReport();
         report.SearchPaths.Add("/nonexistent/search/path");
@@ -202,7 +202,7 @@ public class GitWizardReportAdditionalTests
         var paths = new SortedSet<string>();
         // noMft: true skips MFT discovery (no UAC on Windows); the nonexistent path yields nothing
         // from the recursive fallback, so the assertion is unchanged.
-        report.GetRepositoryPaths(paths, noMft: true);
+        await report.GetRepositoryPathsAsync(paths, noMft: true);
 
         Assert.That(paths, Is.Empty);
     }

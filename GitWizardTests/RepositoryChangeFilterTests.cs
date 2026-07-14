@@ -169,6 +169,21 @@ public class RepositoryChangeFilterTests
     }
 
     [Test]
+    public void Filter_RootAndScanPathBothUseInternalForwardSlashes_StillMatches()
+    {
+        // Regression: BuildIndex must compare tracked roots and ScanRecord paths with their
+        // internal separators intact. A root with an internal '/' must still match a
+        // scan-record path that also uses '/', without a separator rewrite on only one side.
+        var forwardSlashRoot = "C:/repos/repo-a";
+        var scanRecords = new[] { Directory(RepoRootRecord, 1, forwardSlashRoot) };
+        var filter = new RepositoryChangeFilter(scanRecords, [forwardSlashRoot]);
+
+        var affected = filter.Filter([FileEntry(203, RepoRootRecord, "index.lock")]);
+
+        Assert.That(affected, Is.EquivalentTo(new[] { forwardSlashRoot }));
+    }
+
+    [Test]
     public void Filter_FileScanRecordsAreNotIndexed_OnlyDirectoriesAre()
     {
         // A file ScanRecord sharing a repository root's own RecordNumber must not be

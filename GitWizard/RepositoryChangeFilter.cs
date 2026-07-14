@@ -44,8 +44,8 @@ public sealed class RepositoryChangeFilter
         IReadOnlyCollection<string>? searchRoots = null)
     {
         _repositoryRootByRecordNumber = BuildIndex(scanRecords, repositoryRootPaths);
-        _orderedRepositoryRoots = OrderRootsByDescendingLength(repositoryRootPaths);
-        _orderedSearchRoots = OrderRootsByDescendingLength(searchRoots ?? []);
+        _orderedRepositoryRoots = OrderRootsForClassify(repositoryRootPaths);
+        _orderedSearchRoots = OrderRootsForClassify(searchRoots ?? []);
     }
 
     /// <summary>
@@ -83,7 +83,7 @@ public sealed class RepositoryChangeFilter
 
         foreach (var entry in entries)
         {
-            var path = NormalizeRoot(entry.FullPath);
+            var path = NormalizeClassifyPath(entry.FullPath);
             switch (entry.Kind)
             {
                 case VolumeEntryKind.Modified:
@@ -124,7 +124,10 @@ public sealed class RepositoryChangeFilter
             var isRootItself = path.Equals(root, StringComparison.OrdinalIgnoreCase);
             var isRootGitDirectory = path.Equals(root + @"\.git", StringComparison.OrdinalIgnoreCase);
             if (isRootItself || isRootGitDirectory)
+            {
                 deleted.Add(root);
+                break;
+            }
         }
     }
 
@@ -154,11 +157,16 @@ public sealed class RepositoryChangeFilter
     }
 
     // Longest-root-first so a nested repository root wins the mapping for directories under
-    // it, rather than the outer repository that also contains it.
+    // it, rather than the outer repository that also contains it. Roots and scan-record
+    // paths are both trailing-trimmed only (no separator rewrite) so they compare
+    // symmetrically regardless of internal separator style.
     static Dictionary<ulong, string> BuildIndex(
         IReadOnlyList<ScanRecord> scanRecords, IReadOnlyCollection<string> repositoryRootPaths)
     {
-        var orderedRoots = OrderRootsByDescendingLength(repositoryRootPaths);
+        var orderedRoots = repositoryRootPaths
+            .Select(root => root.TrimEnd('\\', '/'))
+            .OrderByDescending(root => root.Length)
+            .ToArray();
 
         var index = new Dictionary<ulong, string>();
         foreach (var record in scanRecords)
@@ -190,10 +198,10 @@ public sealed class RepositoryChangeFilter
             && (path[root.Length] == '\\' || path[root.Length] == '/');
     }
 
-    static string[] OrderRootsByDescendingLength(IReadOnlyCollection<string> roots) =>
-        roots.Select(NormalizeRoot).OrderByDescending(root => root.Length).ToArray();
+    static string[] OrderRootsForClassify(IReadOnlyCollection<string> roots) =>
+        roots.Select(NormalizeClassifyPath).OrderByDescending(root => root.Length).ToArray();
 
-    // Forward slashes (fanotify paths on Linux) and backslashes (USN paths on Windows) are
-    // treated as equivalent so Classify works against either platform's raw entries.
-    static string NormalizeRoot(string root) => root.Replace('/', '\\').TrimEnd('\\');
+    // Classify-only separator rewrite (Linux fanotify '/' and Windows USN '\\' unified); the
+    // legacy record-number Filter/BuildIndex path deliberately does NOT use this.
+    static string NormalizeClassifyPath(string path) => path.Replace('/', '\\').TrimEnd('\\');
 }

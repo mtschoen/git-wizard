@@ -252,16 +252,24 @@ public partial class MainViewModel
     // Remove renamed repos (old path entries) from the UI collections.
     void RemoveRenamedReposFromUi(HashSet<string> renamedOldPaths)
     {
-        if (renamedOldPaths.Count == 0)
+        foreach (var path in renamedOldPaths)
+            RemoveRepositoryByPath(path);
+    }
+
+    /// <summary>
+    /// Removes a single repository, by working-directory path, from every UI collection
+    /// (<c>_repositoryMap</c>, <c>_allRepositories</c>, <see cref="Repositories"/>). No-op if the
+    /// path isn't currently tracked. Shared by the batch-refresh rename cleanup above and
+    /// Live mode's per-event deletion/rename handling in <c>MainViewModel.Live.cs</c>.
+    /// </summary>
+    internal void RemoveRepositoryByPath(string path)
+    {
+        if (!_repositoryMap.TryGetValue(path, out var node))
             return;
 
-        var toRemove = _allRepositories.Where(r => renamedOldPaths.Contains(r.WorkingDirectory)).ToList();
-        foreach (var node in toRemove)
-        {
-            _repositoryMap.TryRemove(node.WorkingDirectory, out _);
-            _allRepositories.Remove(node);
-            Repositories.Remove(node);
-        }
+        _repositoryMap.TryRemove(path, out _);
+        _allRepositories.Remove(node);
+        Repositories.Remove(node);
     }
 
 }

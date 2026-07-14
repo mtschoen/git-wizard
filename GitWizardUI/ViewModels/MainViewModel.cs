@@ -24,6 +24,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler
     bool _isProgressVisible;
     string _progressText = string.Empty;
     bool _isRefreshing;
+    bool _isLive;
     bool _isScanning;
     FilterType _activeFilter = FilterType.None;
     GroupMode _activeGroupMode = GroupMode.None;
@@ -128,11 +129,38 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler
                 _isRefreshing = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(CanRefresh));
+                OnPropertyChanged(nameof(CanToggleLive));
             }
         }
     }
 
     public bool CanRefresh => !IsRefreshing;
+
+    /// <summary>
+    /// True while a <see cref="GitWizardUI.Services.LiveWatchController"/> session is running (elevated USN-journal
+    /// watch on Windows), auto-updating the repository list as tracked/search-root repos
+    /// change on disk. Toggled via <see cref="ToggleLiveCommand"/>.
+    /// </summary>
+    public bool IsLive
+    {
+        get => _isLive;
+        internal set
+        {
+            if (_isLive != value)
+            {
+                _isLive = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(CanToggleLive));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Live mode may not be started mid-refresh: a full scan rebuilds <c>_repositoryMap</c>/
+    /// <c>_allRepositories</c> from scratch, which would race a live event's incremental
+    /// add/update/remove against that rebuild. Stopping is always allowed.
+    /// </summary>
+    public bool CanToggleLive => IsLive || !IsRefreshing;
 
     /// <summary>
     /// True from the moment a refresh starts until the first repository surfaces (or the
@@ -210,6 +238,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler
     public ICommand RefreshCommand { get; }
     public ICommand FetchAndRefreshCommand { get; }
     public ICommand CleanDownstreamCommand { get; }
+    public ICommand ToggleLiveCommand { get; }
 
     public MainViewModel(IUiDispatcher ui, IUserDialogs dialogs, IClipboardService clipboard)
     {
@@ -224,6 +253,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         RefreshCommand = new AsyncRelayCommand(() => RefreshAsync(background: false));
         FetchAndRefreshCommand = new AsyncRelayCommand(() => RefreshAsync(background: false, fetchRemotes: true));
         CleanDownstreamCommand = new AsyncRelayCommand<RepositoryNodeViewModel>(node => CleanDownstreamBranchesAsync(node));
+        ToggleLiveCommand = new AsyncRelayCommand(ToggleLiveAsync, () => CanToggleLive);
         StartUIUpdateThread();
     }
 

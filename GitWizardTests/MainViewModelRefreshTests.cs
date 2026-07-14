@@ -341,6 +341,31 @@ public class MainViewModelRefreshTests
             "A second add with the same path still appends (the map is updated, but the list grows).");
     }
 
+    // ── RemoveRepositoryByPath (the generalized helper RemoveRenamedReposFromUi and Live mode
+    // share - unlike its private caller above, this one is internal and directly testable) ──
+
+    [Test]
+    public void RemoveRepositoryByPath_ExistingPath_RemovesFromRepositories()
+    {
+        var vm = CreateViewModel();
+        vm.AddRepository(Repo("C:/repos/alpha"));
+        vm.AddRepository(Repo("C:/repos/beta"));
+
+        vm.RemoveRepositoryByPath("C:/repos/alpha");
+
+        Assert.That(vm.Repositories.Select(node => node.WorkingDirectory), Is.EquivalentTo(new[] { "C:/repos/beta" }));
+    }
+
+    [Test]
+    public void RemoveRepositoryByPath_UnknownPath_NoOp()
+    {
+        var vm = CreateViewModel();
+        vm.AddRepository(Repo("C:/repos/alpha"));
+
+        Assert.DoesNotThrow(() => vm.RemoveRepositoryByPath("C:/repos/does-not-exist"));
+        Assert.That(vm.Repositories, Has.Count.EqualTo(1));
+    }
+
     // ── ProcessUICommand dispatch (via IUpdateHandler) ────────────────
 
     [Test]

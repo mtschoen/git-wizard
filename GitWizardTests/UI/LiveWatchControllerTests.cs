@@ -112,6 +112,8 @@ public class LiveWatchControllerTests
 
         Assert.That(sourceFactoryCallCount, Is.EqualTo(2));
         Assert.That(stoppedReasons, Is.Empty);
+        Assert.That(firstSource.DisposeCount, Is.EqualTo(1),
+            "the dead source must be disposed before the elevated respawn");
     }
 
     [Test]
@@ -144,6 +146,89 @@ public class LiveWatchControllerTests
         Assert.That(stoppedReasons, Is.Empty);
         Assert.That(sourceFactoryCallCount, Is.EqualTo(1));
         Assert.That(source.DisposeCount, Is.EqualTo(1));
+    }
+
+    // Critical 2 (TOCTOU): a StopAsync landing while an elevated respawn is mid-flight must win -
+    // no new source may be spun up after stop, and StartAsync must complete. The first source's
+    // DisposeAsync (which the respawn path awaits *before* re-checking the stop flag) is used as a
+    // deterministic barrier: we park in it, request stop, then release - forcing the loop's
+    // atomic top-of-iteration re-check to observe the stop before it can call the factory again.
+    [Test]
+    public async Task StopAsync_DuringElevatedRespawn_CreatesNoNewSourceAndCompletes()
+    {
+        var firstSource = new GatedDisposeKillableSource();
+        var secondSource = new HangingKillableSource();
+        var sources = new Queue<IVolumeChangeSource>(new IVolumeChangeSource[] { firstSource, secondSource });
+        var sourceFactoryCallCount = 0;
+        Func<IVolumeChangeSource> factory = () =>
+        {
+            sourceFactoryCallCount++;
+            return sources.Dequeue();
+        };
+
+        var stoppedReasons = new List<string>();
+        var controller = new LiveWatchController(
+            factory,
+            trackedRoots: Array.Empty<string>(),
+            searchRoots: Array.Empty<string>(),
+            onEvent: _ => { },
+            onStopped: stoppedReasons.Add,
+            isElevated: () => true);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var startTask = controller.StartAsync(cts.Token);
+
+        await WaitUntilAsync(() => firstSource.IsArmed);
+        firstSource.KillSource("driver hiccup");
+
+        await WaitUntilAsync(() => firstSource.DisposeStarted);
+        await controller.StopAsync();
+        firstSource.ReleaseDispose();
+
+        await startTask;
+
+        Assert.That(sourceFactoryCallCount, Is.EqualTo(1),
+            "no new source may be created after a stop that raced an elevated respawn");
+        Assert.That(stoppedReasons, Is.Empty);
+    }
+
+    // Minor: StopAsync force-disposes the source without awaiting the in-flight run to unwind, so
+    // it can stop a source whose WatchAsync ignores its CancellationToken and only surfaces via
+    // DisposeAsync. Without that force-dispose this would hang past the 5s guard.
+    [Test]
+    public async Task StopAsync_UnblocksSourceThatIgnoresCancellation()
+    {
+        var source = new DisposeToUnblockSource();
+        var controller = new LiveWatchController(
+            () => source,
+            trackedRoots: Array.Empty<string>(),
+            searchRoots: Array.Empty<string>(),
+            onEvent: _ => { },
+            onStopped: _ => { },
+            isElevated: () => false);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var startTask = controller.StartAsync(cts.Token);
+
+        await WaitUntilAsync(() => source.IsArmed);
+        await controller.StopAsync();
+        await startTask;
+
+        Assert.That(source.DisposeCount, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void ScanErrors_BeforeStart_IsEmpty()
+    {
+        var controller = new LiveWatchController(
+            () => new HangingKillableSource(),
+            trackedRoots: Array.Empty<string>(),
+            searchRoots: Array.Empty<string>(),
+            onEvent: _ => { },
+            onStopped: _ => { },
+            isElevated: () => false);
+
+        Assert.That(controller.ScanErrors, Is.Empty);
     }
 
     [Test]
@@ -212,6 +297,82 @@ internal sealed class HangingKillableSource : IVolumeChangeSource
     public ValueTask DisposeAsync()
     {
         DisposeCount++;
+        return ValueTask.CompletedTask;
+    }
+}
+
+// Like HangingKillableSource, but its DisposeAsync parks until ReleaseDispose() is called - giving
+// a test a deterministic barrier inside the respawn path's dispose-before-re-check window.
+internal sealed class GatedDisposeKillableSource : IVolumeChangeSource
+{
+    readonly TaskCompletionSource _releaseDispose = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public event Action<string>? SourceDied;
+
+    public bool IsArmed { get; private set; }
+    public bool DisposeStarted { get; private set; }
+
+    public Task<VolumeArmResult> ArmAndCatchUpAsync(
+        IReadOnlyCollection<string> volumes, CancellationToken ct)
+    {
+        IsArmed = true;
+        return Task.FromResult(new VolumeArmResult(
+            Array.Empty<VolumeColdRecord>(), new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)));
+    }
+
+    public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync(
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+        yield break;
+    }
+
+    public void KillSource(string reason) => SourceDied?.Invoke(reason);
+    public void ReleaseDispose() => _releaseDispose.TrySetResult();
+
+    public async ValueTask DisposeAsync()
+    {
+        DisposeStarted = true;
+        await _releaseDispose.Task.ConfigureAwait(false);
+    }
+}
+
+// A source whose WatchAsync deliberately ignores its CancellationToken and only unblocks when the
+// source itself is disposed - used to prove StopAsync's force-dispose path can stop a source that
+// never honours cancellation.
+internal sealed class DisposeToUnblockSource : IVolumeChangeSource
+{
+    readonly TaskCompletionSource _disposed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public bool IsArmed { get; private set; }
+    public int DisposeCount { get; private set; }
+
+    // Never dies on its own; a plain field-like event that is never invoked trips CS0067.
+    event Action<string>? IVolumeChangeSource.SourceDied
+    {
+        add { }
+        remove { }
+    }
+
+    public Task<VolumeArmResult> ArmAndCatchUpAsync(
+        IReadOnlyCollection<string> volumes, CancellationToken ct)
+    {
+        IsArmed = true;
+        return Task.FromResult(new VolumeArmResult(
+            Array.Empty<VolumeColdRecord>(), new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)));
+    }
+
+    public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync(
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        await _disposed.Task.ConfigureAwait(false);
+        yield break;
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        DisposeCount++;
+        _disposed.TrySetResult();
         return ValueTask.CompletedTask;
     }
 }

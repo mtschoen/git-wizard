@@ -2,11 +2,11 @@
 
 **Status:** PASS - 909 non-admin tests pass, **0 build/analyzer findings** (analyzer gate + `dotnet format` + jb inspectcode clean), **aislop 100/100** (`aislop scan .` clean).
 **Mode:** coverage = best-effort (watch-in-UI is a feature, not a coverage push - new/changed logic is covered and the prior 83.15% line baseline rose to 85.38%); lint/analyzers/aislop = maintain (0 findings held). Real UAC/broker activation remains in the `RequiresAdmin` tier; controller, ViewModel, and compiled Live-button behavior are covered through fake-source and Avalonia-headless tests.
-**Change:** Added the Windows UI Live-mode pipeline through `RepositoryWatchService`, `LiveWatchController`, and `MainViewModel`, including lifecycle/error handling, incremental repository updates, rename correlation, and the `MainWindow` Live toggle.
-**Branch:** `feat/watch-in-ui` (working tree at Task 9 checkpoint).
+**Change:** Added the Windows UI Live-mode pipeline through `RepositoryWatchService`, `LiveWatchController`, and `MainViewModel`, including lifecycle/error handling, incremental repository updates, rename correlation, and the `MainWindow` Live toggle. Restored the Windows executable icon with a multi-resolution ICO embedded through `ApplicationIcon`.
+**Branch:** `feat/watch-in-ui` (working tree through Tasks 9 and 15).
 **Last measured:** 2026-07-14, Windows, `Release`, non-admin tier (`scripts/run-coverage.ps1 -NonInteractive`).
 **Command:** `scripts/run-coverage.ps1 -NonInteractive` (`dotnet build` + `dotnet test` + coverlet Cobertura) · `dotnet format git-wizard.slnx --verify-no-changes` · `jb inspectcode` + `ci/parse-jb-report.py` · `aislop scan .`.
-**Git:** `48a60b5` (`feat/watch-in-ui` plus working-tree Task 9 changes)
+**Git:** `9ee7e09` (`feat/watch-in-ui` through the executable-icon integration)
 
 ## Results
 

@@ -14,6 +14,14 @@ namespace GitWizard.Watch;
 /// indexed path when its parent was never scanned. Each resolution is folded back into the
 /// index so a descendant created later in the same watch (e.g. a ".git" folder inside a
 /// directory created moments earlier) also resolves.
+/// <para>
+/// The cold scan and the start of the live watch are not simultaneous: changes that land in
+/// that gap are returned separately by the broker as <see cref="BrokerScanResult.CatchUpEntries"/>.
+/// <see cref="WatchAsync"/> replays each drive's catch-up entries as that drive's first batch,
+/// through the same resolution/index path as live entries, before any live batch - so the
+/// index is exactly as if the catch-up entries were the earliest live batch, and no change in
+/// the arm-to-watch-start window is lost.
+/// </para>
 /// </summary>
 [SupportedOSPlatform("windows")]
 public sealed class UsnVolumeChangeSource : IVolumeChangeSource
@@ -25,6 +33,8 @@ public sealed class UsnVolumeChangeSource : IVolumeChangeSource
     JournalBrokerClient? _client;
     IReadOnlyDictionary<string, UsnJournalCursor> _cursorsByDrive =
         new Dictionary<string, UsnJournalCursor>(StringComparer.OrdinalIgnoreCase);
+    IReadOnlyDictionary<string, UsnJournalEntry[]> _catchUpEntriesByDrive =
+        new Dictionary<string, UsnJournalEntry[]>(StringComparer.OrdinalIgnoreCase);
 
     public event Action<string>? SourceDied;
 
@@ -37,7 +47,7 @@ public sealed class UsnVolumeChangeSource : IVolumeChangeSource
     /// Spawns and connects the elevated broker, arms + cold-scans <paramref name="volumes"/>,
     /// and seeds the per-drive path index from the resulting scan records.
     /// </summary>
-    public async Task<IReadOnlyList<VolumeColdRecord>> ArmAndCatchUpAsync(
+    public async Task<VolumeArmResult> ArmAndCatchUpAsync(
         IReadOnlyCollection<string> volumes, CancellationToken ct)
     {
         _client = await JournalBrokerClient.SpawnAndConnectAsync(_brokerLaunch, ct).ConfigureAwait(false);
@@ -45,13 +55,16 @@ public sealed class UsnVolumeChangeSource : IVolumeChangeSource
 
         var scan = await _client.ArmScanAndCatchUpAsync(volumes.ToList(), ct).ConfigureAwait(false);
         _cursorsByDrive = scan.AdvancedCursors;
+        _catchUpEntriesByDrive = scan.CatchUpEntries;
 
         foreach (var record in scan.Records)
             IndexRecord(record.Path, record.RecordNumber);
 
-        return scan.Records
+        var coldRecords = scan.Records
             .Select(record => new VolumeColdRecord(record.Path, record.RecordNumber))
             .ToList();
+
+        return new VolumeArmResult(coldRecords, scan.Errors);
     }
 
     /// <summary>
@@ -99,12 +112,28 @@ public sealed class UsnVolumeChangeSource : IVolumeChangeSource
         JournalBatchSource batchSource, string drive, UsnJournalCursor cursor,
         ChannelWriter<VolumeChangeBatch> writer, CancellationToken ct)
     {
+        await EmitCatchUpBatchAsync(drive, writer, ct).ConfigureAwait(false);
+
         await foreach (var (entries, _) in batchSource(drive, cursor, ct).ConfigureAwait(false))
         {
             var mapped = MapEntries(drive, entries);
             if (mapped.Count > 0)
                 await writer.WriteAsync(new VolumeChangeBatch(drive, mapped), ct).ConfigureAwait(false);
         }
+    }
+
+    // Replays this drive's catch-up entries - changes that landed between the armed cursor and
+    // the advanced cursor, i.e. during the cold scan - as its first batch, through the same
+    // resolution/index path as live entries. Must run before the live pump below so the index
+    // self-heals from catch-up entries exactly as it would from an equivalent live batch.
+    async Task EmitCatchUpBatchAsync(string drive, ChannelWriter<VolumeChangeBatch> writer, CancellationToken ct)
+    {
+        if (!_catchUpEntriesByDrive.TryGetValue(drive, out var catchUpEntries) || catchUpEntries.Length == 0)
+            return;
+
+        var mapped = MapEntries(drive, catchUpEntries);
+        if (mapped.Count > 0)
+            await writer.WriteAsync(new VolumeChangeBatch(drive, mapped), ct).ConfigureAwait(false);
     }
 
     List<VolumeChangeEntry> MapEntries(string drive, UsnJournalEntry[] entries)

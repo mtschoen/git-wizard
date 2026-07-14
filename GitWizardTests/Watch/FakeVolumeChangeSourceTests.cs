@@ -7,17 +7,22 @@ internal sealed class FakeVolumeChangeSource : IVolumeChangeSource
 {
     readonly IReadOnlyList<VolumeColdRecord> _cold;
     readonly IReadOnlyList<VolumeChangeBatch> _batches;
+    readonly IReadOnlyDictionary<string, string> _errors;
     public event Action<string>? SourceDied;
 
     public FakeVolumeChangeSource(
-        IReadOnlyList<VolumeColdRecord> cold, IReadOnlyList<VolumeChangeBatch> batches)
+        IReadOnlyList<VolumeColdRecord> cold,
+        IReadOnlyList<VolumeChangeBatch> batches,
+        IReadOnlyDictionary<string, string>? errors = null)
     {
         _cold = cold;
         _batches = batches;
+        _errors = errors ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     }
 
-    public Task<IReadOnlyList<VolumeColdRecord>> ArmAndCatchUpAsync(
-        IReadOnlyCollection<string> volumes, CancellationToken ct) => Task.FromResult(_cold);
+    public Task<VolumeArmResult> ArmAndCatchUpAsync(
+        IReadOnlyCollection<string> volumes, CancellationToken ct) =>
+        Task.FromResult(new VolumeArmResult(_cold, _errors));
 
     public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync(
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
@@ -67,10 +72,23 @@ public class FakeVolumeChangeSourceTests
             cold: new[] { new VolumeColdRecord(@"C:\repo\a\file.txt", 42UL) },
             batches: Array.Empty<VolumeChangeBatch>());
 
-        var cold = await source.ArmAndCatchUpAsync(new[] { "C" }, CancellationToken.None);
+        var armResult = await source.ArmAndCatchUpAsync(new[] { "C" }, CancellationToken.None);
 
-        Assert.That(cold[0].Path, Is.EqualTo(@"C:\repo\a\file.txt"));
-        Assert.That(cold[0].RecordId, Is.EqualTo(42UL));
+        Assert.That(armResult.ColdRecords[0].Path, Is.EqualTo(@"C:\repo\a\file.txt"));
+        Assert.That(armResult.ColdRecords[0].RecordId, Is.EqualTo(42UL));
+        Assert.That(armResult.Errors, Is.Empty);
+    }
+
+    [Test]
+    public async Task ArmAndCatchUpAsync_WithScriptedErrors_ReturnsThemOnResult()
+    {
+        var errors = new Dictionary<string, string> { ["D"] = "access denied" };
+        var source = new FakeVolumeChangeSource(
+            cold: Array.Empty<VolumeColdRecord>(), batches: Array.Empty<VolumeChangeBatch>(), errors: errors);
+
+        var armResult = await source.ArmAndCatchUpAsync(new[] { "C", "D" }, CancellationToken.None);
+
+        Assert.That(armResult.Errors, Does.ContainKey("D").WithValue("access denied"));
     }
 
     [Test]

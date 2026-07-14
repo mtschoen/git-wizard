@@ -5,7 +5,7 @@ public interface IVolumeChangeSource : IAsyncDisposable
 {
     event Action<string>? SourceDied;
 
-    Task<IReadOnlyList<VolumeColdRecord>> ArmAndCatchUpAsync(
+    Task<VolumeArmResult> ArmAndCatchUpAsync(
         IReadOnlyCollection<string> volumes, CancellationToken ct);
 
     IAsyncEnumerable<VolumeChangeBatch> WatchAsync(CancellationToken ct);

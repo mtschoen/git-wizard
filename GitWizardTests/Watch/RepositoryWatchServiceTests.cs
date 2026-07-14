@@ -25,9 +25,10 @@ internal sealed class DelayedVolumeChangeSource : IVolumeChangeSource
         _delayBetweenBatches = delayBetweenBatches;
     }
 
-    public Task<IReadOnlyList<VolumeColdRecord>> ArmAndCatchUpAsync(
+    public Task<VolumeArmResult> ArmAndCatchUpAsync(
         IReadOnlyCollection<string> volumes, CancellationToken ct) =>
-        Task.FromResult<IReadOnlyList<VolumeColdRecord>>(Array.Empty<VolumeColdRecord>());
+        Task.FromResult(new VolumeArmResult(
+            Array.Empty<VolumeColdRecord>(), new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)));
 
     public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync(
         [EnumeratorCancellation] CancellationToken ct)
@@ -51,9 +52,10 @@ internal sealed class HangingVolumeChangeSource : IVolumeChangeSource
 {
     public event Action<string>? SourceDied;
 
-    public Task<IReadOnlyList<VolumeColdRecord>> ArmAndCatchUpAsync(
+    public Task<VolumeArmResult> ArmAndCatchUpAsync(
         IReadOnlyCollection<string> volumes, CancellationToken ct) =>
-        Task.FromResult<IReadOnlyList<VolumeColdRecord>>(Array.Empty<VolumeColdRecord>());
+        Task.FromResult(new VolumeArmResult(
+            Array.Empty<VolumeColdRecord>(), new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)));
 
     public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync(
         [EnumeratorCancellation] CancellationToken ct)
@@ -209,6 +211,69 @@ public class RepositoryWatchServiceTests
 
         Assert.That(events, Has.Count.EqualTo(2));
         Assert.That(events, Has.All.EqualTo(new RepositoryChangeEvent(@"C:\repo\a", RepositoryChangeKind.Changed)));
+    }
+
+    [Test]
+    public async Task ArmErrors_AreExposedAsScanErrorsAfterRun()
+    {
+        var errors = new Dictionary<string, string> { ["D"] = "drive not ready" };
+        var svc = new RepositoryWatchService(
+            new FakeVolumeChangeSource(
+                Array.Empty<VolumeColdRecord>(), Array.Empty<VolumeChangeBatch>(), errors),
+            trackedRoots: Array.Empty<string>(),
+            searchRoots: Array.Empty<string>(),
+            debounce: TimeSpan.FromMilliseconds(10));
+
+        await DrainAsync(svc);
+
+        Assert.That(svc.ScanErrors, Does.ContainKey("D").WithValue("drive not ready"));
+    }
+
+    [Test]
+    public async Task NoArmErrors_ScanErrorsIsEmptyAfterRun()
+    {
+        var svc = new RepositoryWatchService(
+            new FakeVolumeChangeSource(Array.Empty<VolumeColdRecord>(), Array.Empty<VolumeChangeBatch>()),
+            trackedRoots: Array.Empty<string>(),
+            searchRoots: Array.Empty<string>(),
+            debounce: TimeSpan.FromMilliseconds(10));
+
+        await DrainAsync(svc);
+
+        Assert.That(svc.ScanErrors, Is.Empty);
+    }
+
+    // FakeVolumeChangeSource yields its scripted WatchAsync batches in order with no
+    // distinction between "catch-up" and "live" - which is exactly the contract
+    // UsnVolumeChangeSource.WatchAsync must uphold: catch-up entries are just that drive's
+    // first batch, processed through the identical path as every later live batch. This
+    // exercises that a leading batch (standing in for catch-up entries) and a later batch
+    // (standing in for live entries) both classify and coalesce normally, with no special
+    // casing required downstream of IVolumeChangeSource.
+    [Test]
+    public async Task CatchUpStyleLeadingBatch_ClassifiesTheSameAsLiveBatch()
+    {
+        var catchUpStyleBatch = new VolumeChangeBatch("C", new[]
+        {
+            new VolumeChangeEntry(@"C:\repo\a\during-cold-scan.txt", VolumeEntryKind.Modified)
+        });
+        var liveBatch = new VolumeChangeBatch("C", new[]
+        {
+            new VolumeChangeEntry(@"C:\repo\b\newrepo\.git", VolumeEntryKind.Created)
+        });
+        var svc = new RepositoryWatchService(
+            new FakeVolumeChangeSource(
+                Array.Empty<VolumeColdRecord>(), new[] { catchUpStyleBatch, liveBatch }),
+            trackedRoots: new[] { @"C:\repo\a" },
+            searchRoots: new[] { @"C:\repo\b" },
+            debounce: TimeSpan.FromMilliseconds(10));
+
+        var events = await DrainAsync(svc);
+
+        Assert.That(events, Does.Contain(
+            new RepositoryChangeEvent(@"C:\repo\a", RepositoryChangeKind.Changed)));
+        Assert.That(events, Does.Contain(
+            new RepositoryChangeEvent(@"C:\repo\b\newrepo", RepositoryChangeKind.Created)));
     }
 
     [Test]

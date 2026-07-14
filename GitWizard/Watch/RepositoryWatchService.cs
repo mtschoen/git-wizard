@@ -21,6 +21,14 @@ public sealed class RepositoryWatchService
 
     public event Action<string>? Stopped;
 
+    /// <summary>
+    /// Per-drive scan failures from the most recent <see cref="RunAsync"/>'s arm step, keyed
+    /// by drive letter. Set before the first event is yielded. A drive present here was not
+    /// armed and is not watched; watching continues on the drives that armed successfully.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> ScanErrors { get; private set; } =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
     public RepositoryWatchService(
         IVolumeChangeSource source,
         IReadOnlyCollection<string> trackedRoots,
@@ -105,7 +113,8 @@ public sealed class RepositoryWatchService
             .Union(searchByVolume.Keys, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        await _source.ArmAndCatchUpAsync(volumes, ct).ConfigureAwait(false);
+        var armResult = await _source.ArmAndCatchUpAsync(volumes, ct).ConfigureAwait(false);
+        ScanErrors = armResult.Errors;
 
         var filters = new Dictionary<string, RepositoryChangeFilter>(StringComparer.OrdinalIgnoreCase);
         foreach (var volume in volumes)

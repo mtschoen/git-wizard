@@ -166,7 +166,7 @@ public sealed class UsnVolumeChangeSource : IVolumeChangeSource
 
     void IndexRecord(string path, ulong recordNumber)
     {
-        var drive = GetDriveLetter(path);
+        var drive = GitWizardApi.GetDriveLetter(path);
         if (drive is null)
             return;
 
@@ -187,11 +187,5 @@ public sealed class UsnVolumeChangeSource : IVolumeChangeSource
         if (entry.IsDelete)
             return VolumeEntryKind.Deleted;
         return VolumeEntryKind.Modified;
-    }
-
-    static string? GetDriveLetter(string path)
-    {
-        var root = Path.GetPathRoot(path);
-        return string.IsNullOrEmpty(root) ? null : root[..1];
     }
 }

@@ -1,6 +1,15 @@
+using GitWizard.Watch;
 using MFTLib;
 
 namespace GitWizard;
+
+/// <summary>
+/// Result of <see cref="RepositoryChangeFilter.Classify"/>: tracked roots with modified
+/// content, new repository roots discovered under a search root, and tracked roots whose
+/// repository was deleted.
+/// </summary>
+public readonly record struct FilterResult(
+    IReadOnlyCollection<string> Changed, IReadOnlyCollection<string> Created, IReadOnlyCollection<string> Deleted);
 
 /// <summary>
 /// Maps USN journal batches back to the tracked repository roots they touched. Built once
@@ -17,16 +26,26 @@ namespace GitWizard;
 public sealed class RepositoryChangeFilter
 {
     readonly Dictionary<ulong, string> _repositoryRootByRecordNumber;
+    readonly string[] _orderedRepositoryRoots;
+    readonly string[] _orderedSearchRoots;
 
     /// <summary>
     /// Build the filter's record-number index for one drive.
     /// </summary>
     /// <param name="scanRecords">Cold-scan records for one drive.</param>
     /// <param name="repositoryRootPaths">Tracked repository roots on that same drive.</param>
+    /// <param name="searchRoots">
+    /// Configured discovery roots, used by <see cref="Classify"/> to recognize newly created
+    /// repositories. Optional so the pre-existing <see cref="Filter"/> call site keeps compiling.
+    /// </param>
     public RepositoryChangeFilter(
-        IReadOnlyList<ScanRecord> scanRecords, IReadOnlyCollection<string> repositoryRootPaths)
+        IReadOnlyList<ScanRecord> scanRecords,
+        IReadOnlyCollection<string> repositoryRootPaths,
+        IReadOnlyCollection<string>? searchRoots = null)
     {
         _repositoryRootByRecordNumber = BuildIndex(scanRecords, repositoryRootPaths);
+        _orderedRepositoryRoots = OrderRootsByDescendingLength(repositoryRootPaths);
+        _orderedSearchRoots = OrderRootsByDescendingLength(searchRoots ?? []);
     }
 
     /// <summary>
@@ -51,15 +70,95 @@ public sealed class RepositoryChangeFilter
         return affectedRoots;
     }
 
+    /// <summary>
+    /// Classifies a batch of raw volume change entries into modified tracked roots, new
+    /// repository roots discovered under a search root, and tracked roots whose repository
+    /// was deleted.
+    /// </summary>
+    public FilterResult Classify(IReadOnlyList<VolumeChangeEntry> entries)
+    {
+        var changed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var created = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var deleted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entry in entries)
+        {
+            var path = NormalizeRoot(entry.FullPath);
+            switch (entry.Kind)
+            {
+                case VolumeEntryKind.Modified:
+                    ClassifyChanged(changed, path);
+                    break;
+                case VolumeEntryKind.Created:
+                    ClassifyCreated(created, path);
+                    break;
+                case VolumeEntryKind.Deleted:
+                    ClassifyDeleted(deleted, path);
+                    break;
+            }
+        }
+
+        return new FilterResult(changed, created, deleted);
+    }
+
+    void ClassifyChanged(HashSet<string> changed, string path)
+    {
+        var root = FindContainingRoot(path, _orderedRepositoryRoots);
+        if (root is not null)
+            changed.Add(root);
+    }
+
+    void ClassifyCreated(HashSet<string> created, string path)
+    {
+        if (!TryGetGitDirectoryParent(path, out var parent))
+            return;
+
+        if (FindContainingRoot(parent, _orderedSearchRoots) is not null)
+            created.Add(parent);
+    }
+
+    void ClassifyDeleted(HashSet<string> deleted, string path)
+    {
+        foreach (var root in _orderedRepositoryRoots)
+        {
+            var isRootItself = path.Equals(root, StringComparison.OrdinalIgnoreCase);
+            var isRootGitDirectory = path.Equals(root + @"\.git", StringComparison.OrdinalIgnoreCase);
+            if (isRootItself || isRootGitDirectory)
+                deleted.Add(root);
+        }
+    }
+
+    static string? FindContainingRoot(string path, IReadOnlyList<string> orderedRoots)
+    {
+        foreach (var root in orderedRoots)
+        {
+            if (IsUnderOrEqual(path, root))
+                return root;
+        }
+
+        return null;
+    }
+
+    static bool TryGetGitDirectoryParent(string path, out string parent)
+    {
+        var separatorIndex = path.LastIndexOf('\\');
+        var name = separatorIndex < 0 ? path : path[(separatorIndex + 1)..];
+        if (separatorIndex < 0 || !name.Equals(".git", StringComparison.OrdinalIgnoreCase))
+        {
+            parent = "";
+            return false;
+        }
+
+        parent = path[..separatorIndex];
+        return true;
+    }
+
     // Longest-root-first so a nested repository root wins the mapping for directories under
     // it, rather than the outer repository that also contains it.
     static Dictionary<ulong, string> BuildIndex(
         IReadOnlyList<ScanRecord> scanRecords, IReadOnlyCollection<string> repositoryRootPaths)
     {
-        var orderedRoots = repositoryRootPaths
-            .Select(root => root.TrimEnd('\\', '/'))
-            .OrderByDescending(root => root.Length)
-            .ToArray();
+        var orderedRoots = OrderRootsByDescendingLength(repositoryRootPaths);
 
         var index = new Dictionary<ulong, string>();
         foreach (var record in scanRecords)
@@ -90,4 +189,11 @@ public sealed class RepositoryChangeFilter
             && path.StartsWith(root, StringComparison.OrdinalIgnoreCase)
             && (path[root.Length] == '\\' || path[root.Length] == '/');
     }
+
+    static string[] OrderRootsByDescendingLength(IReadOnlyCollection<string> roots) =>
+        roots.Select(NormalizeRoot).OrderByDescending(root => root.Length).ToArray();
+
+    // Forward slashes (fanotify paths on Linux) and backslashes (USN paths on Windows) are
+    // treated as equivalent so Classify works against either platform's raw entries.
+    static string NormalizeRoot(string root) => root.Replace('/', '\\').TrimEnd('\\');
 }

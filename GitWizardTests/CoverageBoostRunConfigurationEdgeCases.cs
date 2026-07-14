@@ -103,7 +103,10 @@ public class CoverageBoostRunConfigurationEdgeCases
         Assert.Multiple(() =>
         {
             Assert.That(parsed.SavePath, Is.Null);
-            Assert.That(parsed.HasError, Is.False);
+            // Missing value for a string option triggers CommandParsingException,
+            // which now surfaces as a parse error (non-zero exit) rather than
+            // silently falling through to defaults.
+            Assert.That(parsed.HasError, Is.True);
         });
     }
 
@@ -141,8 +144,7 @@ public class CoverageBoostRunConfigurationEdgeCases
     [Test]
     public void ParseCommandLine_SavePathWithValidParentDirectory_ReturnsPath()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), "GitWizardHome", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(tempDir);
+        var tempDir = TestUtilities.CreateTempDir(out var cleanup);
         try
         {
             var subDir = Path.Combine(tempDir, "subdir");
@@ -151,11 +153,7 @@ public class CoverageBoostRunConfigurationEdgeCases
             var parsed = Parse("--save-path", savePath);
             Assert.That(parsed.SavePath, Is.EqualTo(savePath));
         }
-        finally
-        {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
-        }
+        finally { cleanup(); }
     }
 
     [Test]
@@ -169,8 +167,7 @@ public class CoverageBoostRunConfigurationEdgeCases
     [Test]
     public void ParseCommandLine_ConfigPathWithExistingFile_ReturnsPath()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), "GitWizardHome", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(tempDir);
+        var tempDir = TestUtilities.CreateTempDir(out var cleanup);
         try
         {
             var configPath = Path.Combine(tempDir, "config.json");
@@ -178,11 +175,7 @@ public class CoverageBoostRunConfigurationEdgeCases
             var parsed = Parse("--config-path", configPath);
             Assert.That(parsed.CustomConfigurationPath, Is.EqualTo(configPath));
         }
-        finally
-        {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
-        }
+        finally { cleanup(); }
     }
 
     [Test]
@@ -196,8 +189,7 @@ public class CoverageBoostRunConfigurationEdgeCases
     [Test]
     public void ParseCommandLine_SavePathAndConfigPathValidation_AllApplied()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), "GitWizardHome", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(tempDir);
+        var tempDir = TestUtilities.CreateTempDir(out var cleanup);
         try
         {
             var configFile = Path.Combine(tempDir, "config.json");
@@ -211,11 +203,7 @@ public class CoverageBoostRunConfigurationEdgeCases
                 Assert.That(parsed.HasError, Is.False);
             });
         }
-        finally
-        {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
-        }
+        finally { cleanup(); }
     }
 
     [Test]
@@ -246,19 +234,14 @@ public class CoverageBoostRunConfigurationEdgeCases
     {
         // Validation only preserves a save-path whose parent directory exists, so anchor
         // the path in a real temp directory rather than a hard-coded OS-specific literal.
-        var tempDir = Path.Combine(Path.GetTempPath(), "GitWizardHome", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(tempDir);
+        var tempDir = TestUtilities.CreateTempDir(out var cleanup);
         try
         {
             var savePath = Path.Combine(tempDir, "out.json");
             var parsed = Parse("--save-path", savePath);
             Assert.That(parsed.SavePath, Is.EqualTo(savePath));
         }
-        finally
-        {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
-        }
+        finally { cleanup(); }
     }
 
     [Test]
@@ -341,19 +324,14 @@ public class CoverageBoostRunConfigurationEdgeCases
     [Test]
     public void ParseProcessArgs_LeadingProgramPath_SavePathStillValidated()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), "GitWizardHome", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(tempDir);
+        var tempDir = TestUtilities.CreateTempDir(out var cleanup);
         try
         {
             var savePath = Path.Combine(tempDir, "out.json");
             var parsed = CliParser.ParseProcessArgs([@"C:\some\path\git-wizard.dll", "--save-path", savePath]);
             Assert.That(parsed.SavePath, Is.EqualTo(savePath));
         }
-        finally
-        {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
-        }
+        finally { cleanup(); }
     }
 
     [Test]
@@ -388,5 +366,96 @@ public class CoverageBoostRunConfigurationEdgeCases
     {
         var parsed = Parse("--summary");
         Assert.That(parsed.ExitRequested, Is.False);
+    }
+
+    // ---------------------------------------------------------------
+    // Unknown flags - regression for silently dropping unrecognized arguments
+    // ---------------------------------------------------------------
+
+    [Test]
+    public void ParseCommandLine_UnknownLongFlag_SetsHasError()
+    {
+        var parsed = Parse("--bogus-flag");
+        Assert.Multiple(() =>
+        {
+            Assert.That(parsed.HasError, Is.True);
+            Assert.That(parsed.ExitRequested, Is.False);
+        });
+    }
+
+    [Test]
+    public void ParseCommandLine_SingleDashLongFlag_SetsHasError()
+    {
+        // Old-style single-dash long flags (e.g. -save-path) are unrecognized
+        // by the current McMaster setup; they should surface as a parse error
+        // so stale callers fail loudly rather than silently running with defaults.
+        var parsed = Parse("-save-path");
+        Assert.Multiple(() =>
+        {
+            Assert.That(parsed.HasError, Is.True);
+            Assert.That(parsed.ExitRequested, Is.False);
+        });
+    }
+
+    [Test]
+    public void ParseCommandLine_UnknownMixedFlags_SetsHasError()
+    {
+        var parsed = Parse("--unknown-flag", "-v");
+        Assert.Multiple(() =>
+        {
+            Assert.That(parsed.HasError, Is.True);
+            Assert.That(parsed.ExitRequested, Is.False);
+        });
+    }
+
+    // ---------------------------------------------------------------
+    // --version output verification
+    // ---------------------------------------------------------------
+
+    [Test]
+    public void ParseCommandLine_VersionOutput_NoAppNameDuplication()
+    {
+        // McMaster's VersionOption prints the version string directly to Console.Out.
+        // The version string passed is "0.4.1" (no app name).
+        // This test verifies the output does NOT duplicate the app name
+        // (e.g. "git-wizard git-wizard 0.4.1" would be wrong).
+        using var sw = new StringWriter();
+        var originalOut = Console.Out;
+        Console.SetOut(sw);
+
+        Parse("--version");
+
+        Console.SetOut(originalOut);
+        var output = sw.ToString();
+        Assert.Multiple(() =>
+        {
+            Assert.That(output, Does.Contain("0.4.1"));
+            Assert.That(output, Does.Not.Match(@"git-wizard.*git-wizard"));
+        });
+    }
+
+    // ---------------------------------------------------------------
+    // Unicode / non-ASCII filter patterns
+    // ---------------------------------------------------------------
+
+    [Test]
+    public void ParseCommandLine_FilterWithUnicode_PatternPreserved()
+    {
+        var parsed = Parse("--filter", "münchen");
+        Assert.That(parsed.FilterPattern, Is.EqualTo("münchen"));
+    }
+
+    [Test]
+    public void ParseCommandLine_FilterWithCyrillic_PatternPreserved()
+    {
+        var parsed = Parse("--filter", "проект");
+        Assert.That(parsed.FilterPattern, Is.EqualTo("проект"));
+    }
+
+    [Test]
+    public void ParseCommandLine_FilterWithEmoji_PatternPreserved()
+    {
+        var parsed = Parse("--filter", "repo🔥");
+        Assert.That(parsed.FilterPattern, Is.EqualTo("repo🔥"));
     }
 }

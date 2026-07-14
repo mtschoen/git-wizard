@@ -238,19 +238,14 @@ public class CoverageBoostRunConfigurationTests
     {
         // The save-path parent directory must exist, otherwise validation rejects it,
         // so point at a real temp directory rather than a hard-coded absolute path.
-        var tempDir = Path.Combine(Path.GetTempPath(), "GitWizardHome", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(tempDir);
+        var tempDir = TestUtilities.CreateTempDir(out var cleanup);
         try
         {
             var savePath = Path.Combine(tempDir, "output.json");
             var parsed = Parse("--save-path", savePath);
             Assert.That(parsed.SavePath, Is.EqualTo(savePath));
         }
-        finally
-        {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
-        }
+        finally { cleanup(); }
     }
 
     [Test]
@@ -268,8 +263,7 @@ public class CoverageBoostRunConfigurationTests
     [Test]
     public void ParseCommandLine_ConfigPath_SetsCustomConfigurationPath()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), "GitWizardHome", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(tempDir);
+        var tempDir = TestUtilities.CreateTempDir(out var cleanup);
         try
         {
             var configPath = Path.Combine(tempDir, "custom.json");
@@ -277,11 +271,7 @@ public class CoverageBoostRunConfigurationTests
             var parsed = Parse("--config-path", configPath);
             Assert.That(parsed.CustomConfigurationPath, Is.EqualTo(configPath));
         }
-        finally
-        {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
-        }
+        finally { cleanup(); }
     }
 
     // ---------------------------------------------------------------

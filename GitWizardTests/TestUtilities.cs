@@ -46,6 +46,27 @@ public static class TestUtilities
     public static string? DefaultHome { get; set; }
 
     /// <summary>
+    /// Creates a throwaway temp directory under <c>Path.GetTempPath()</c> and returns an
+    /// <see cref="Action"/> that deletes it.  Use with <c>using</c> or a <c>try/finally</c>
+    /// block to keep test boilerplate to one line:
+    /// <code>
+    /// var dir = TempDir.Create(out var cleanup);
+    /// try { /* ... */ } finally { cleanup(); }
+    /// </code>
+    /// </summary>
+    public static string CreateTempDir(out Action cleanup)
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "gw-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        cleanup = () =>
+        {
+            try { if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* best-effort */ }
+        };
+        return dir;
+    }
+
+    /// <summary>
     /// Clears the GITWIZARD_HOME redirect set by <see cref="RedirectLocalFilesToTemp"/> and
     /// deletes the temp dir. Safe to call with a null/missing path. NUnit runs TearDown even
     /// after a failing test, so the env var never leaks into the next test.

@@ -83,6 +83,10 @@ static class CliParser
             // Parsing failed (e.g., unknown tokens like testhost.dll paths in tests);
             // return default configuration rather than throwing.
             GitWizardLog.Log($"CLI parse failed, using defaults: {ex.Message}", GitWizardLog.LogType.Verbose);
+            // Unknown/unrecognized flags are surfaced as a parse error so that
+            // stale callers fail loudly (exit 2) instead of silently running with
+            // defaults – important during the CLI flag migration.
+            return CreateDefaultResult() with { HasError = true };
         }
 
         // McMaster prints the help/version text itself and skips OnExecute, but that leaves

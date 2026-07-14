@@ -226,6 +226,9 @@ public partial class MainWindow : Window
         _viewModel.FetchAndRefreshCommand.Execute(null);
     }
 
+    void LiveButton_Click(object? sender, RoutedEventArgs e)
+        => _viewModel.ToggleLiveCommand.Execute(null);
+
     void ForkButton_Click(object? sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is RepositoryNodeViewModel node)

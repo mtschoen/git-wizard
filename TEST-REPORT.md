@@ -1,23 +1,23 @@
 # Test & Coverage Report - git-wizard
 
-**Status:** PASS - 803 non-admin tests pass, **0 build/analyzer findings** (analyzer gate + `dotnet format` + jb inspectcode clean), **aislop 100/100** (`aislop ci .` clean, gate green). The earlier fork-engine/complexity findings noted on 2026-07-10 no longer surface in the full `aislop ci` run.
-**Mode:** coverage = best-effort (this change is the **MFTLib 0.3 broker-discovery cutover**, a feature migration, not a coverage push - new/changed code is covered and the baseline was held/raised, 80.04% → 83.15% line); lint/analyzers/aislop = maintain (0 findings held). The one genuinely uncovered new line is `GitWizardApi.BrokerScanAsync` (the real elevated-broker spawn), which is UAC-bound and cannot run in the non-admin tier - mirrors MFTLib's own RequiresAdmin broker seams. Rebased onto current `main` (`bff479d`), integrating #88's `SkipHiddenDirectories` and #91's `ComputeLocalCommitCount` through the migrated discovery/report paths.
-**Change:** Migrated the not-elevated repository-discovery path off the `--elevated-mft` temp-file relaunch onto MFTLib's journal broker (`JournalBrokerClient` cold scan, one UAC prompt). `GenerateReport`/`GetRepositoryPaths`/`TryFindAllRepositoriesUsingMft` are now async; the `--elevated-mft` child mode + `RunElevatedMftScan` were removed; `GitWizardUI.Main` now dispatches the `--broker` child mode. New `BrokerDiscoveryTests` cover the flow via an injected scan seam.
-**Branch:** `feat/broker-discovery` (working tree; rebased onto `bff479d`).
-**Last measured:** 2026-07-13, Windows, `Release`, non-admin tier (`scripts/run-coverage.ps1 -NonInteractive`).
-**Command:** `dotnet build git-wizard.slnx` (analyzer gate) · `scripts/run-coverage.ps1 -NonInteractive` (`dotnet test` + coverlet Cobertura) · `dotnet format git-wizard.slnx --verify-no-changes` · `aislop ci .` (C# AI-slop gate).
-**Git:** `feat/broker-discovery` rebased onto `bff479d`
+**Status:** PASS - 909 non-admin tests pass, **0 build/analyzer findings** (analyzer gate + `dotnet format` + jb inspectcode clean), **aislop 100/100** (`aislop scan .` clean).
+**Mode:** coverage = best-effort (watch-in-UI is a feature, not a coverage push - new/changed logic is covered and the prior 83.15% line baseline rose to 85.38%); lint/analyzers/aislop = maintain (0 findings held). Real UAC/broker activation remains in the `RequiresAdmin` tier; controller, ViewModel, and compiled Live-button behavior are covered through fake-source and Avalonia-headless tests.
+**Change:** Added the Windows UI Live-mode pipeline through `RepositoryWatchService`, `LiveWatchController`, and `MainViewModel`, including lifecycle/error handling, incremental repository updates, rename correlation, and the `MainWindow` Live toggle.
+**Branch:** `feat/watch-in-ui` (working tree at Task 9 checkpoint).
+**Last measured:** 2026-07-14, Windows, `Release`, non-admin tier (`scripts/run-coverage.ps1 -NonInteractive`).
+**Command:** `scripts/run-coverage.ps1 -NonInteractive` (`dotnet build` + `dotnet test` + coverlet Cobertura) · `dotnet format git-wizard.slnx --verify-no-changes` · `jb inspectcode` + `ci/parse-jb-report.py` · `aislop scan .`.
+**Git:** `48a60b5` (`feat/watch-in-ui` plus working-tree Task 9 changes)
 
 ## Results
 
 | Metric | Value |
 | --- | --- |
-| Tests passed (non-admin tier) | 847 (broker-discovery migration: +3 `BrokerDiscoveryTests`, `--elevated-mft`/`RunElevatedMftScan` routing tests removed, discovery/report tests converted to async; includes tests from main PRs #86-#95 after rebase) |
-| Tests passed (`RequiresAdmin` tier, elevated) | 1 (`TryFindAllRepositoriesUsingMftAsync_Elevated_RealMftScanDoesNotThrow`; not re-run this session) |
+| Tests passed (non-admin tier) | 909 |
+| Tests passed (`RequiresAdmin` tier, elevated) | Not re-run at this checkpoint |
 | Failed | 0 |
 | Skipped on Windows (Unix-only + non-Windows MFT guard) | 2 |
-| **Line coverage (non-admin, `Release`)** | **83.15%** (baseline 80.04% held/raised) |
-| **Branch coverage (non-admin, `Release`)** | **80.17%** |
+| **Line coverage (non-admin, `Release`)** | **85.38%** (prior 83.15% baseline held/raised) |
+| **Branch coverage (non-admin, `Release`)** | **82.47%** |
 | Per-file lift | `RunConfiguration` 65.0% → 69.3%, `GitWizardRepository.BranchesAndWorktrees` 71.0% → 75.6%, `GitWizardRepository` 82.2% → 84.2%, `GitWizardReport` 87.2% → 92.2%, `GitWizardApi` 84.7% → 90.4%, `MainViewModel.Grouping` 78.0% → 84.0% |
 | Line coverage (merged: non-admin + elevated, prior full run) | 80.04% |
 | `[ExcludeFromCodeCoverage]` annotations | 0 (Exclusions configured cleanly via `coverlet.runsettings` for Views, UI Services wrappers, and WindowsDefender) |

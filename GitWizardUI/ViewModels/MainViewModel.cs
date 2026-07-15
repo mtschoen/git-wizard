@@ -25,6 +25,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler
     string _progressText = string.Empty;
     bool _isRefreshing;
     bool _isLive;
+    bool _isLiveStarting;
     bool _isScanning;
     FilterType _activeFilter = FilterType.None;
     GroupMode _activeGroupMode = GroupMode.None;
@@ -151,16 +152,35 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler
                 _isLive = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(CanToggleLive));
+                OnPropertyChanged(nameof(LiveButtonText));
             }
         }
     }
+
+    /// <summary>True while the broker is arming and building its per-volume path indexes.</summary>
+    public bool IsLiveStarting
+    {
+        get => _isLiveStarting;
+        internal set
+        {
+            if (_isLiveStarting != value)
+            {
+                _isLiveStarting = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(CanToggleLive));
+                OnPropertyChanged(nameof(LiveButtonText));
+            }
+        }
+    }
+
+    public string LiveButtonText => IsLiveStarting ? "Starting Live..." : "Live";
 
     /// <summary>
     /// Live mode may not be started mid-refresh: a full scan rebuilds <c>_repositoryMap</c>/
     /// <c>_allRepositories</c> from scratch, which would race a live event's incremental
     /// add/update/remove against that rebuild. Stopping is always allowed.
     /// </summary>
-    public bool CanToggleLive => IsLive || !IsRefreshing;
+    public bool CanToggleLive => IsLive || IsLiveStarting || !IsRefreshing;
 
     /// <summary>
     /// True from the moment a refresh starts until the first repository surfaces (or the

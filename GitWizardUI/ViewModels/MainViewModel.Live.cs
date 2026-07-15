@@ -120,7 +120,7 @@ public partial class MainViewModel
 
     internal async Task ToggleLiveAsync()
     {
-        if (IsLive)
+        if (IsLive || IsLiveStarting)
         {
             await StopLiveAsync().ConfigureAwait(false);
             return;
@@ -144,13 +144,22 @@ public partial class MainViewModel
             }),
             onStopped: reason => _ui.Post(() =>
             {
+                IsLiveStarting = false;
                 IsLive = false;
                 HeaderText = $"Live watch stopped: {reason}{FormatLiveScanErrorSuffix(RequireLiveController())}";
             }),
             isElevated: LiveIsElevated);
+        controller.Started += () => _ui.Post(() =>
+        {
+            IsLiveStarting = false;
+            IsLive = true;
+            HeaderText = "Live watch active";
+            SurfaceNewLiveScanErrors(RequireLiveController());
+        });
         _liveController = controller;
 
-        IsLive = true;
+        IsLiveStarting = true;
+        HeaderText = "Starting Live watch...";
 
         try
         {
@@ -159,6 +168,7 @@ public partial class MainViewModel
         catch (InvalidOperationException exception)
         {
             await controller.StopAsync().ConfigureAwait(false);
+            IsLiveStarting = false;
             IsLive = false;
             HeaderText = $"Live watch could not start: {exception.Message}";
         }
@@ -169,6 +179,7 @@ public partial class MainViewModel
         if (_liveController != null)
             await _liveController.StopAsync().ConfigureAwait(false);
 
+        IsLiveStarting = false;
         IsLive = false;
     }
 

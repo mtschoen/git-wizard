@@ -213,6 +213,30 @@ public class RepositoryChangeFilterTests
     }
 
     [Test]
+    public void Classify_FileCreatedUnderTrackedRoot_MapsToChanged()
+    {
+        var filter = new RepositoryChangeFilter([], [RepoRoot], [@"C:\repos"]);
+
+        var result = filter.Classify([Created(Path.Combine(RepoRoot, "test.txt"))]);
+
+        Assert.That(result.Changed, Is.EquivalentTo(new[] { RepoRoot }));
+        Assert.That(result.Created, Is.Empty);
+        Assert.That(result.Deleted, Is.Empty);
+    }
+
+    [Test]
+    public void Classify_FileDeletedUnderTrackedRoot_MapsToChanged()
+    {
+        var filter = new RepositoryChangeFilter([], [RepoRoot], [@"C:\repos"]);
+
+        var result = filter.Classify([Deleted(Path.Combine(RepoRoot, "test.txt"))]);
+
+        Assert.That(result.Changed, Is.EquivalentTo(new[] { RepoRoot }));
+        Assert.That(result.Created, Is.Empty);
+        Assert.That(result.Deleted, Is.Empty);
+    }
+
+    [Test]
     public void Classify_GitCreatedDirectlyUnderSearchRoot_MapsToCreatedParent()
     {
         var searchRoot = @"C:\repos";

@@ -43,6 +43,38 @@ internal sealed class DelayedVolumeChangeSource : IVolumeChangeSource
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
 
+// Emits one relevant change followed by continuous unrelated drive activity. A global
+// idle-based debounce never flushes this stream; a fixed relevant-change window does.
+internal sealed class BusyVolumeChangeSource : IVolumeChangeSource
+{
+    event Action<string>? IVolumeChangeSource.SourceDied
+    {
+        add { }
+        remove { }
+    }
+
+    public Task<VolumeArmResult> ArmAndCatchUpAsync(
+        IReadOnlyCollection<string> volumes, CancellationToken ct) =>
+        Task.FromResult(new VolumeArmResult(
+            Array.Empty<VolumeColdRecord>(), new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)));
+
+    public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync(
+        [EnumeratorCancellation] CancellationToken ct)
+    {
+        yield return new VolumeChangeBatch("C",
+            new[] { new VolumeChangeEntry(@"C:\repo\a\test.txt", VolumeEntryKind.Created) });
+
+        for (var index = 0; index < 1000; index++)
+        {
+            await Task.Delay(5, ct);
+            yield return new VolumeChangeBatch("C",
+                new[] { new VolumeChangeEntry(@"C:\unrelated\noise.tmp", VolumeEntryKind.Modified) });
+        }
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+}
+
 // An IVolumeChangeSource whose WatchAsync never resolves on its own - only cancellation (via
 // RepositoryWatchService reacting to KillSource) can unblock it. Used to exercise the
 // source-death path deterministically: since no batch is ever classified, there is no pending
@@ -99,6 +131,27 @@ public class RepositoryWatchServiceTests
 
         Assert.That(events, Has.Count.EqualTo(1));
         Assert.That(events[0], Is.EqualTo(new RepositoryChangeEvent(@"C:\repo\a", RepositoryChangeKind.Changed)));
+    }
+
+    [Test]
+    public async Task FileCreatedUnderTrackedRoot_EmitsChanged()
+    {
+        var batch = new VolumeChangeBatch("C", new[]
+        {
+            new VolumeChangeEntry(@"C:\repo\a\test.txt", VolumeEntryKind.Created),
+        });
+        var svc = new RepositoryWatchService(
+            new FakeVolumeChangeSource(Array.Empty<VolumeColdRecord>(), new[] { batch }),
+            trackedRoots: new[] { @"C:\repo\a" },
+            searchRoots: new[] { @"C:\repo" },
+            debounce: TimeSpan.FromMilliseconds(10));
+
+        var events = await DrainAsync(svc);
+
+        Assert.That(events, Is.EqualTo(new[]
+        {
+            new RepositoryChangeEvent(@"C:\repo\a", RepositoryChangeKind.Changed),
+        }));
     }
 
     [Test]
@@ -185,6 +238,25 @@ public class RepositoryWatchServiceTests
 
         Assert.That(events, Has.Count.EqualTo(1));
         Assert.That(events[0], Is.EqualTo(new RepositoryChangeEvent(@"C:\repo\a", RepositoryChangeKind.Changed)));
+    }
+
+    [Test]
+    public async Task ContinuousUnrelatedDriveActivity_DoesNotStarveRelevantChange()
+    {
+        var svc = new RepositoryWatchService(
+            new BusyVolumeChangeSource(),
+            trackedRoots: new[] { @"C:\repo\a" },
+            searchRoots: new[] { @"C:\repo" },
+            debounce: TimeSpan.FromMilliseconds(20));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        await using var enumerator = svc.RunAsync(cts.Token).GetAsyncEnumerator(cts.Token);
+
+        var hasEvent = await enumerator.MoveNextAsync();
+
+        Assert.That(hasEvent, Is.True);
+        Assert.That(enumerator.Current,
+            Is.EqualTo(new RepositoryChangeEvent(@"C:\repo\a", RepositoryChangeKind.Changed)));
+        cts.Cancel();
     }
 
     [Test]

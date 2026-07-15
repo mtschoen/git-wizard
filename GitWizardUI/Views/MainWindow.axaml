@@ -23,6 +23,11 @@
       <Setter Property="Foreground" Value="White" />
       <Setter Property="FontWeight" Value="Bold" />
     </Style>
+    <Style Selector="Button.liveStarting">
+      <Setter Property="Background" Value="#F9A825" />
+      <Setter Property="Foreground" Value="Black" />
+      <Setter Property="FontWeight" Value="Bold" />
+    </Style>
   </Window.Styles>
   <Grid ColumnDefinitions="250,*" RowDefinitions="Auto,*,Auto">
 
@@ -64,8 +69,9 @@
       <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="5" Margin="0,5">
         <Button x:Name="RefreshButton" Content="Refresh" Click="RefreshButton_Click" ToolTip.Tip="Click to refresh known repositories. Shift+click to clear the cache and rediscover all repositories." />
         <Button x:Name="FetchAndRefreshButton" Content="Fetch &amp; Refresh" Click="FetchAndRefreshButton_Click" ToolTip.Tip="Fetch all remotes before refreshing status (slower but accurate)" />
-        <Button x:Name="LiveButton" Content="Live" Click="LiveButton_Click"
-                Classes.live="{Binding IsLive}" IsEnabled="{Binding CanToggleLive}"
+        <Button x:Name="LiveButton" Content="{Binding LiveButtonText}" Click="LiveButton_Click"
+                Classes.live="{Binding IsLive}" Classes.liveStarting="{Binding IsLiveStarting}"
+                IsEnabled="{Binding CanToggleLive}"
                 ToolTip.Tip="Start or stop live repository monitoring (requires elevation when starting)" />
       </StackPanel>
 

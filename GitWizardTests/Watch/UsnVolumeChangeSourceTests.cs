@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.Versioning;
 using GitWizard.Watch;
 using MFTLib;
@@ -18,8 +19,8 @@ public class UsnVolumeChangeSourceTests
     {
         if (!ElevationUtilities.IsElevated()) { Assert.Inconclusive("Requires admin"); return; }
 
-        await using var source = new UsnVolumeChangeSource(BrokerLauncher.Launch);
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        await using var source = new UsnVolumeChangeSource(LaunchUiBroker);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
 
         var armResult = await source.ArmAndCatchUpAsync(new[] { "C" }, cts.Token);
 
@@ -41,8 +42,8 @@ public class UsnVolumeChangeSourceTests
     {
         if (!ElevationUtilities.IsElevated()) { Assert.Inconclusive("Requires admin"); return; }
 
-        await using var source = new UsnVolumeChangeSource(BrokerLauncher.Launch);
-        using var armCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        await using var source = new UsnVolumeChangeSource(LaunchUiBroker);
+        using var armCts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         await source.ArmAndCatchUpAsync(new[] { "C" }, armCts.Token);
 
         using var watchCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
@@ -60,5 +61,65 @@ public class UsnVolumeChangeSourceTests
             // No batch arrived within the window - acceptable; the point is that the
             // catch-up-replay path in WatchAsync didn't throw.
         }
+    }
+
+    [Test]
+    [SupportedOSPlatform("windows")]
+    public async Task WatchAsync_RealBroker_DetectsCreatedFile()
+    {
+        if (!ElevationUtilities.IsElevated()) { Assert.Inconclusive("Requires admin"); return; }
+
+        var tempPath = Path.Combine(Path.GetTempPath(), $"git-wizard-watch-{Guid.NewGuid():N}.tmp");
+        await using var source = new UsnVolumeChangeSource(LaunchUiBroker);
+        using var armCts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+        var armResult = await source.ArmAndCatchUpAsync(new[] { "C" }, armCts.Token);
+        Assert.That(armResult.Errors, Does.Not.ContainKey("C"));
+
+        using var watchCts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var observedTask = ObservePathAsync(source, tempPath, watchCts.Token);
+        try
+        {
+            await Task.Delay(500, watchCts.Token);
+            await File.WriteAllTextAsync(tempPath, "watch test", watchCts.Token);
+
+            Assert.That(await observedTask, Is.True);
+        }
+        finally
+        {
+            watchCts.Cancel();
+            File.Delete(tempPath);
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    static async Task<bool> ObservePathAsync(
+        UsnVolumeChangeSource source, string expectedPath, CancellationToken cancellationToken)
+    {
+        await foreach (var batch in source.WatchAsync(cancellationToken))
+        {
+            if (batch.Entries.Any(entry =>
+                entry.FullPath.Equals(expectedPath, StringComparison.OrdinalIgnoreCase)))
+                return true;
+        }
+
+        return false;
+    }
+
+    [SupportedOSPlatform("windows")]
+    static bool LaunchUiBroker(string brokerArguments)
+    {
+        var testDirectory = TestContext.CurrentContext.TestDirectory;
+        var configuration = Directory.GetParent(testDirectory)?.Name
+            ?? throw new InvalidOperationException("Could not determine the test build configuration.");
+        var repositoryRoot = Path.GetFullPath(Path.Combine(testDirectory, "..", "..", "..", ".."));
+        var executablePath = Path.Combine(
+            repositoryRoot, "GitWizardUI", "bin", configuration, "net10.0", "GitWizardUI.exe");
+
+        using var process = Process.Start(new ProcessStartInfo(executablePath, brokerArguments)
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        });
+        return process is not null;
     }
 }

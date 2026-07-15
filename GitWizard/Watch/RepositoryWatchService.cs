@@ -19,6 +19,7 @@ public sealed class RepositoryWatchService
     readonly IReadOnlyCollection<string> _searchRoots;
     readonly TimeSpan _debounce;
 
+    public event Action? Started;
     public event Action<string>? Stopped;
 
     /// <summary>
@@ -45,6 +46,7 @@ public sealed class RepositoryWatchService
         [EnumeratorCancellation] CancellationToken ct)
     {
         var filtersByVolume = await BuildFiltersByVolumeAsync(ct).ConfigureAwait(false);
+        Started?.Invoke();
         var channel = Channel.CreateUnbounded<RepositoryChangeEvent>();
         using var deathSignal = new SourceDeathSignal(
             _source,
@@ -182,6 +184,7 @@ public sealed class RepositoryWatchService
     {
         var nextBatch = enumerator.MoveNextAsync().AsTask();
         var idle = Task.Delay(Timeout.InfiniteTimeSpan, ct);
+        var flushScheduled = false;
 
         try
         {
@@ -193,15 +196,20 @@ public sealed class RepositoryWatchService
                     if (!await nextBatch.ConfigureAwait(false))
                         break;
 
-                    ApplyBatch(filtersByVolume, enumerator.Current, pending);
+                    var hasRelevantChanges = ApplyBatch(filtersByVolume, enumerator.Current, pending);
                     nextBatch = enumerator.MoveNextAsync().AsTask();
-                    idle = Task.Delay(_debounce, ct);
+                    if (hasRelevantChanges && !flushScheduled)
+                    {
+                        idle = Task.Delay(_debounce, ct);
+                        flushScheduled = true;
+                    }
                     continue;
                 }
 
                 await idle.ConfigureAwait(false);
                 await FlushAsync(pending, writer, ct).ConfigureAwait(false);
                 idle = Task.Delay(Timeout.InfiniteTimeSpan, ct);
+                flushScheduled = false;
             }
         }
         finally
@@ -230,13 +238,17 @@ public sealed class RepositoryWatchService
         }
     }
 
-    static void ApplyBatch(
+    static bool ApplyBatch(
         IReadOnlyDictionary<string, RepositoryChangeFilter> filtersByVolume,
         VolumeChangeBatch batch,
         PendingChanges pending)
     {
-        if (filtersByVolume.TryGetValue(batch.Volume, out var filter))
-            pending.Merge(filter.Classify(batch.Entries));
+        if (!filtersByVolume.TryGetValue(batch.Volume, out var filter))
+            return false;
+
+        var result = filter.Classify(batch.Entries);
+        pending.Merge(result);
+        return result.Changed.Count > 0 || result.Created.Count > 0 || result.Deleted.Count > 0;
     }
 
     static async Task FlushAsync(

@@ -177,6 +177,31 @@ public class MainViewModelLiveTests
     #region ToggleLiveAsync lifecycle (fake source seam)
 
     [Test]
+    public async Task ToggleLiveAsync_WhileArming_ShowsStartingStateUntilStopped()
+    {
+        var viewModel = NewViewModel();
+        var source = new BlockingArmVolumeChangeSource();
+        viewModel.LiveVolumeChangeSourceFactory = () => source;
+        viewModel.LiveIsElevated = () => false;
+
+        var startTask = viewModel.ToggleLiveAsync();
+        await source.ArmStarted;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.IsLiveStarting, Is.True);
+            Assert.That(viewModel.IsLive, Is.False);
+            Assert.That(viewModel.LiveButtonText, Is.EqualTo("Starting Live..."));
+            Assert.That(viewModel.HeaderText, Is.EqualTo("Starting Live watch..."));
+        });
+
+        await viewModel.ToggleLiveAsync();
+        await startTask;
+
+        Assert.That(viewModel.IsLiveStarting, Is.False);
+    }
+
+    [Test]
     public async Task ToggleLiveAsync_StartThenToggleAgain_StopsAndClearsIsLive()
     {
         var viewModel = NewViewModel();
@@ -303,6 +328,37 @@ public class MainViewModelLiveTests
     }
 
     #endregion
+}
+
+internal sealed class BlockingArmVolumeChangeSource : IVolumeChangeSource
+{
+    readonly TaskCompletionSource _armStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    event Action<string>? IVolumeChangeSource.SourceDied
+    {
+        add { }
+        remove { }
+    }
+
+    public Task ArmStarted => _armStarted.Task;
+
+    public async Task<VolumeArmResult> ArmAndCatchUpAsync(
+        IReadOnlyCollection<string> volumes, CancellationToken ct)
+    {
+        _armStarted.TrySetResult();
+        await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+        return new VolumeArmResult(
+            Array.Empty<VolumeColdRecord>(), new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+    }
+
+    public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync(
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+        yield break;
+    }
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
 
 // Like HangingKillableSource (LiveWatchControllerTests.cs) but with configurable scan errors, used

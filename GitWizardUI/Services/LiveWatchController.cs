@@ -18,6 +18,8 @@ public sealed class LiveWatchController
     readonly Action<string> _onStopped;
     readonly Func<bool> _isElevated;
 
+    public event Action? Started;
+
     // Guards the read-modify-write of the mutable run state below. StartAsync's loop and a
     // concurrent StopAsync both touch _stopRequested/_runCts/_source; without this a StopAsync
     // landing between iterations could no-op its cancel while the loop respawned a fresh source.
@@ -140,6 +142,7 @@ public sealed class LiveWatchController
     async Task<string?> RunOnceAsync(RepositoryWatchService service, CancellationToken ct)
     {
         string? deathReason = null;
+        service.Started += OnStarted;
         service.Stopped += reason => deathReason = reason;
 
         try
@@ -154,4 +157,6 @@ public sealed class LiveWatchController
 
         return deathReason;
     }
+
+    void OnStarted() => Started?.Invoke();
 }

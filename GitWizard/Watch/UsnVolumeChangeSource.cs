@@ -53,7 +53,8 @@ public sealed class UsnVolumeChangeSource : IVolumeChangeSource
         _client = await JournalBrokerClient.SpawnAndConnectAsync(_brokerLaunch, ct).ConfigureAwait(false);
         _client.BrokerDied += reason => SourceDied?.Invoke(reason);
 
-        var scan = await _client.ArmScanAndCatchUpAsync(volumes.ToList(), ct).ConfigureAwait(false);
+        var scan = await _client.ArmScanAndCatchUpAsync(
+            volumes.ToList(), BrokerScanProfile.DirectoryIndexWithGitPointers, ct).ConfigureAwait(false);
         _cursorsByDrive = scan.AdvancedCursors;
         _catchUpEntriesByDrive = scan.CatchUpEntries;
 

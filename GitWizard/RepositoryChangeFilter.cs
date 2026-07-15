@@ -90,10 +90,10 @@ public sealed class RepositoryChangeFilter
                     ClassifyChanged(changed, path);
                     break;
                 case VolumeEntryKind.Created:
-                    ClassifyCreated(created, path);
+                    ClassifyCreated(changed, created, path);
                     break;
                 case VolumeEntryKind.Deleted:
-                    ClassifyDeleted(deleted, path);
+                    ClassifyDeleted(changed, deleted, path);
                     break;
             }
         }
@@ -108,16 +108,21 @@ public sealed class RepositoryChangeFilter
             changed.Add(root);
     }
 
-    void ClassifyCreated(HashSet<string> created, string path)
+    void ClassifyCreated(HashSet<string> changed, HashSet<string> created, string path)
     {
-        if (!TryGetGitDirectoryParent(path, out var parent))
+        var trackedRoot = FindContainingRoot(path, _orderedRepositoryRoots);
+        if (trackedRoot is not null)
+        {
+            changed.Add(trackedRoot);
             return;
+        }
 
-        if (FindContainingRoot(parent, _orderedSearchRoots) is not null)
+        if (TryGetGitDirectoryParent(path, out var parent)
+            && FindContainingRoot(parent, _orderedSearchRoots) is not null)
             created.Add(parent);
     }
 
-    void ClassifyDeleted(HashSet<string> deleted, string path)
+    void ClassifyDeleted(HashSet<string> changed, HashSet<string> deleted, string path)
     {
         foreach (var root in _orderedRepositoryRoots)
         {
@@ -126,9 +131,11 @@ public sealed class RepositoryChangeFilter
             if (isRootItself || isRootGitDirectory)
             {
                 deleted.Add(root);
-                break;
+                return;
             }
         }
+
+        ClassifyChanged(changed, path);
     }
 
     static string? FindContainingRoot(string path, IReadOnlyList<string> orderedRoots)

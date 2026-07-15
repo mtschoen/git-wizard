@@ -1,26 +1,28 @@
 # Test & Coverage Report - git-wizard
 
-**Status:** PASS - 909 non-admin tests pass, **0 build/analyzer findings** (analyzer gate + `dotnet format` + jb inspectcode clean), **aislop 100/100** (`aislop scan .` clean).
-**Mode:** coverage = best-effort (watch-in-UI is a feature, not a coverage push - new/changed logic is covered and the prior 83.15% line baseline rose to 85.38%); lint/analyzers/aislop = maintain (0 findings held). Real UAC/broker activation remains in the `RequiresAdmin` tier; controller, ViewModel, and compiled Live-button behavior are covered through fake-source and Avalonia-headless tests.
-**Change:** Added the Windows UI Live-mode pipeline through `RepositoryWatchService`, `LiveWatchController`, and `MainViewModel`, including lifecycle/error handling, incremental repository updates, rename correlation, and the `MainWindow` Live toggle. Restored the Windows executable icon with a multi-resolution ICO embedded through `ApplicationIcon`.
-**Branch:** `feat/watch-in-ui` (working tree through Tasks 9 and 15).
-**Last measured:** 2026-07-14, Windows, `Release`, non-admin tier (`scripts/run-coverage.ps1 -NonInteractive`).
-**Command:** `scripts/run-coverage.ps1 -NonInteractive` (`dotnet build` + `dotnet test` + coverlet Cobertura) · `dotnet format git-wizard.slnx --verify-no-changes` · `jb inspectcode` + `ci/parse-jb-report.py` · `aislop scan .`.
-**Git:** `9ee7e09` (`feat/watch-in-ui` through the executable-icon integration)
+**Status:** PASS - 914 non-admin tests and 3 elevated Windows watch tests pass, **0 build/analyzer findings** (analyzer gate + `dotnet format` + jb inspectcode clean), **aislop 100/100** (`aislop scan .` clean).
+**Mode:** coverage = best-effort (watch-in-UI is a feature, not a coverage push - new/changed logic is covered and the prior 85.38% line baseline rose to 85.58%); lint/analyzers/aislop = maintain (0 findings held).
+**Change:** Fixed Live mode dropping ordinary file create/delete events, C: failing to arm when its full broker snapshot exceeded the managed 2 GiB payload limit, and repository events being starved by a global all-drive idle debounce. Added an amber `Starting Live...` state that becomes green only after arming completes. GitWizard now requests MFTLib's additive directory-plus-`.git` scan profile, preserving the generic full-scan default.
+**Branch:** `feat/watch-in-ui` (working tree after on-hardware Live diagnosis).
+**Last measured:** 2026-07-14, Windows, `Release`, non-admin plus elevated watch tier.
+**Command:** `dotnet build git-wizard.slnx -c Release` · `dotnet test GitWizardTests/GitWizardTests.csproj --no-build -c Release` · elevated `UsnVolumeChangeSourceTests` · `dotnet format git-wizard.slnx --verify-no-changes` · `jb inspectcode` + `ci/parse-jb-report.py` · `aislop scan .`.
+**Git:** `022d83d` (`feat/watch-in-ui` working tree)
 
 ## Results
 
 | Metric | Value |
 | --- | --- |
-| Tests passed (non-admin tier) | 909 |
-| Tests passed (`RequiresAdmin` tier, elevated) | Not re-run at this checkpoint |
+| Tests passed (non-admin tier) | 914 |
+| Tests passed (`RequiresAdmin` watch tier, elevated) | 3 |
 | Failed | 0 |
 | Skipped on Windows (Unix-only + non-Windows MFT guard) | 2 |
-| **Line coverage (non-admin, `Release`)** | **85.38%** (prior 83.15% baseline held/raised) |
-| **Branch coverage (non-admin, `Release`)** | **82.47%** |
+| **Line coverage (non-admin, `Release`)** | **85.58%** (prior 85.38% baseline held/raised) |
+| **Branch coverage (non-admin, `Release`)** | **82.66%** |
 | Per-file lift | `RunConfiguration` 65.0% → 69.3%, `GitWizardRepository.BranchesAndWorktrees` 71.0% → 75.6%, `GitWizardRepository` 82.2% → 84.2%, `GitWizardReport` 87.2% → 92.2%, `GitWizardApi` 84.7% → 90.4%, `MainViewModel.Grouping` 78.0% → 84.0% |
 | Line coverage (merged: non-admin + elevated, prior full run) | 80.04% |
 | `[ExcludeFromCodeCoverage]` annotations | 0 (Exclusions configured cleanly via `coverlet.runsettings` for Views, UI Services wrappers, and WindowsDefender) |
+
+The touched MFTLib broker tests pass (39 focused tests), the full MFTLib suite passes on an isolated rerun (384 passed, 34 admin skips), and the real elevated MFT kernel test plus all 3 GitWizard broker tests pass.
 
 > **Line coverage is correctly merged** across the two runs (`ci/post-coverage-status.py` ORs line hits
 > across every `coverage.cobertura.xml`): in the prior full run the elevated tier lifted the non-admin

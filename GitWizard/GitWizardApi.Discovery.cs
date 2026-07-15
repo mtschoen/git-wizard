@@ -101,7 +101,8 @@ public static partial class GitWizardApi
 
         await using (client.ConfigureAwait(false))
         {
-            var scan = await client.ArmScanAndCatchUpAsync(drives, CancellationToken.None).ConfigureAwait(false);
+            var scan = await client.ArmScanAndCatchUpAsync(
+                drives, BrokerScanProfile.DirectoryIndexWithGitPointers, CancellationToken.None).ConfigureAwait(false);
             return scan.Records;
         }
     }

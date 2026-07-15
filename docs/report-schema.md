@@ -18,12 +18,12 @@ The report is written with `System.Text.Json`'s `DefaultIgnoreCondition = WhenWr
 ## Concurrency
 
 The report file has **no lockfile**. Writes are atomic at the file level - the CLI's
-`-merge` flag (and the underlying `GitWizardReport.SaveAtomic`) writes to a temp file in
+`--merge` flag (and the underlying `GitWizardReport.SaveAtomic`) writes to a temp file in
 the same directory and renames it over the destination, so a concurrent reader always sees
 either the complete old file or the complete new file, never a half-written one.
 
 There is **no protection against concurrent writers**, however. If two callers refresh
-**disjoint** sets of repos at the same time (e.g. projdash issuing a targeted `-merge` for
+**disjoint** sets of repos at the same time (e.g. projdash issuing a targeted `--merge` for
 a freshly-cloned repo while a full rescan is also in flight), each one reads the report,
 applies its own changes to that snapshot, and writes the whole file back. **Last writer
 wins for the file as a whole** - the later write replaces the file produced by the earlier

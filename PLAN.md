@@ -63,11 +63,11 @@ Projdash now bounds it to ~10s via abandon-on-timeout (projdash commit
 empty git state for the missing repo. A targeted single-repo refresh in
 GitWizard would let projdash skip subprocess git entirely.
 
-- [ ] **CLI `-merge` flag**: when set with `-paths` and `-save-path`, read the
+- [x] **CLI `--merge` flag**: when set with `--paths` and `--save-path`, read the
       existing JSON if present, update/insert entries for the supplied paths,
       leave other entries intact, write back atomically (temp file + rename).
       Stamps `SchemaVersion = CurrentSchemaVersion`.
-- [ ] **Document concurrency in `docs/report-schema.md`**: two concurrent
+- [x] **Document concurrency in `docs/report-schema.md`**: two concurrent
       callers refreshing disjoint repos - last writer wins for the file as a
       whole. Acceptable; no lockfile.
 - [ ] **Projdash consumer change** (tracked in projdash's own PLAN): replace

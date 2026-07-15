@@ -13,10 +13,12 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler
     readonly IUiDispatcher _ui;
     readonly IUserDialogs _dialogs;
     readonly IClipboardService _clipboard;
-    readonly ConcurrentDictionary<string, RepositoryNodeViewModel> _repositoryMap = new();
+    internal readonly ConcurrentDictionary<string, RepositoryNodeViewModel> _repositoryMap = new();
     readonly ConcurrentQueue<RepositoryUICommand> _uiCommands = new();
+    internal readonly HashSet<string> _prePopulatedPaths = new();
+    HashSet<RepositoryNodeViewModel>? _prePopulatedNodes;
     readonly Stopwatch _stopwatch = new();
-    readonly List<RepositoryNodeViewModel> _allRepositories = new();
+    internal readonly List<RepositoryNodeViewModel> _allRepositories = new();
     readonly Dictionary<string, RepositoryNodeViewModel> _pendingGroups = new();
 
     string _headerText = "GitWizard";

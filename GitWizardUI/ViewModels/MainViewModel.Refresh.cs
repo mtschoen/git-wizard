@@ -16,6 +16,16 @@ public partial class MainViewModel
 
         var node = new RepositoryNodeViewModel(repository);
         _repositoryMap[path] = node;
+
+        var existingNode = _allRepositories.FirstOrDefault(candidate => candidate.WorkingDirectory == path);
+        if (existingNode != null)
+        {
+            var existingIndex = _allRepositories.IndexOf(existingNode);
+            _allRepositories[existingIndex] = node;
+            ReplaceVisibleRepositoryNode(existingNode, node);
+            return;
+        }
+
         _allRepositories.Add(node);
 
         if (!node.MatchesFilter(_activeFilter, GlobalUserEmail))
@@ -27,11 +37,30 @@ public partial class MainViewModel
 
         if (_activeGroupMode == GroupMode.None)
         {
-            Repositories.Add(node);
+            if (!Repositories.Any(candidate => candidate.WorkingDirectory == path))
+                Repositories.Add(node);
         }
         else
         {
             AddToGroups(node);
+        }
+    }
+
+    void ReplaceVisibleRepositoryNode(RepositoryNodeViewModel existingNode, RepositoryNodeViewModel freshNode)
+    {
+        var visibleIndex = Repositories.IndexOf(existingNode);
+        if (visibleIndex >= 0)
+            Repositories[visibleIndex] = freshNode;
+
+        foreach (var groupHeader in Repositories.Where(candidate => candidate.IsGroupHeader)
+                     .Concat(_pendingGroups.Values).Distinct())
+        {
+            var childIndex = groupHeader.Children.IndexOf(existingNode);
+            if (childIndex < 0)
+                continue;
+
+            groupHeader.Children[childIndex] = freshNode;
+            groupHeader.UpdateDisplayText();
         }
     }
 
@@ -117,27 +146,42 @@ public partial class MainViewModel
 
         await EnsureGlobalUserEmailAsync();
 
-        Repositories.Clear();
-        _allRepositories.Clear();
-        _repositoryMap.Clear();
-        _pendingGroups.Clear();
-
-        // Async file I/O for cached repo paths and configuration
+        // Read cached repo paths and config first (lightweight file I/O).
+        // Pre-populate UI from cached report so repos appear immediately while the
+        // full refresh runs in the background. This eliminates the 30+ second empty-list
+        // gap on large repo sets where individual refreshes take a long time (issue #98).
         string[]? repositoryPaths = await GitWizardApi.GetCachedRepositoryPathsAsync().ConfigureAwait(false);
         var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync().ConfigureAwait(false);
 
-        var (deletedPaths, renamedOldPaths, nonRepositoryPaths) =
+        // Clear displayed list, group state, and the backing collections so that only
+        // nodes from the cached report (pre-population) + fresh scan (AddRepository)
+        // survive. This prevents stale or deleted repos from accumulating across
+        // repeated refresh cycles. The visible collection must be changed on the UI thread.
+        await _ui.InvokeAsync(() =>
+        {
+            Repositories.Clear();
+            _pendingGroups.Clear();
+            _allRepositories.Clear();
+            _repositoryMap.Clear();
+            PrePopulateFromReport(configuration, repositoryPaths);
+        }).ConfigureAwait(false);
+
+        var (deletedPaths, renamedOldPaths, nonRepositoryPaths, freshPaths) =
             await RunRefreshScanAsync(configuration, repositoryPaths, fetchRemotes).ConfigureAwait(false);
 
         UpdateCachedPathsAfterScan(deletedPaths, renamedOldPaths, nonRepositoryPaths);
-        RemoveRenamedReposFromUi(renamedOldPaths);
 
-        // Wait for the UI command queue to fully drain before applying grouping/sorting
+        // Wait for the UI command queue to fully drain before pruning. RepositoryCreated
+        // commands are queued before a refresh determines that a path is no longer a repo,
+        // so pruning earlier could let a late command restore a stale row.
         while (!_uiCommands.IsEmpty)
             await Task.Delay(150).ConfigureAwait(false);
 
-        // One more delay to let the last batch of UI commands finish processing
-        await Task.Delay(200).ConfigureAwait(false);
+        await _ui.InvokeAsync(() =>
+        {
+            PruneStalePrePopulatedRepos(freshPaths, renamedOldPaths);
+            RemoveRenamedReposFromUi(renamedOldPaths);
+        }).ConfigureAwait(false);
 
         ApplyFilterAndGrouping();
 
@@ -178,13 +222,14 @@ public partial class MainViewModel
     }
 
     // Run the CPU-bound git scan on the thread pool; returns the deleted, renamed-old, and stale
-    // non-repo paths.
-    async Task<(HashSet<string> DeletedPaths, HashSet<string> RenamedOldPaths, HashSet<string> NonRepositoryPaths)> RunRefreshScanAsync(
+    // non-repo paths, plus the set of healthy repo paths discovered by the scan.
+    async Task<(HashSet<string> DeletedPaths, HashSet<string> RenamedOldPaths, HashSet<string> NonRepositoryPaths, HashSet<string> FreshPaths)> RunRefreshScanAsync(
         GitWizardConfiguration configuration, string[]? repositoryPaths, bool fetchRemotes)
     {
         var deletedPaths = new HashSet<string>();
         var renamedOldPaths = new HashSet<string>();
         var nonRepositoryPaths = new HashSet<string>();
+        var freshPaths = new HashSet<string>();
 
         await Task.Run(async () =>
         {
@@ -196,6 +241,7 @@ public partial class MainViewModel
             // Capture deleted and stale non-repo paths for cache cleanup on main thread
             deletedPaths = new HashSet<string>(report.DeletedPaths);
             nonRepositoryPaths = new HashSet<string>(report.NonRepositoryPaths);
+            freshPaths = new HashSet<string>(report.Repositories.Keys);
 
             // Detect renamed repos: find errored repos whose remote URLs
             // match a newly discovered (non-error) repo at a different path
@@ -229,7 +275,74 @@ public partial class MainViewModel
                 GitWizardApi.SaveCachedRepositoryPaths(report.GetRepositoryPaths());
         }).ConfigureAwait(false);
 
-        return (deletedPaths, renamedOldPaths, nonRepositoryPaths);
+        return (deletedPaths, renamedOldPaths, nonRepositoryPaths, freshPaths);
+    }
+
+    // Pre-populate the UI from the cached report so repos appear immediately on launch.
+    // Existing repos get updated in-place as the refresh completes; new repos discovered
+    // during the scan get added normally through OnRepositoryCreated. (Issue #98.)
+    internal void PrePopulateFromReport(GitWizardConfiguration configuration, string[]? repositoryPaths)
+    {
+        // These collections describe only the current refresh cycle. Reset them before
+        // every early return so paths from a prior refresh cannot suppress fresh rows.
+        _prePopulatedNodes = null;
+        _prePopulatedPaths.Clear();
+
+        if (repositoryPaths == null || repositoryPaths.Length == 0)
+            return;
+
+        // Load the cached report (may be null if no cache exists).
+        var cachedReport = GitWizardReport.GetCachedReport();
+        if (cachedReport == null || cachedReport.Repositories.Count == 0)
+            return;
+
+        var pathsSet = new HashSet<string>(repositoryPaths);
+
+        foreach (var (path, repo) in cachedReport.Repositories)
+        {
+            if (!pathsSet.Contains(path))
+                continue;
+
+            var node = new RepositoryNodeViewModel(repo);
+            _repositoryMap[path] = node;
+            _allRepositories.Add(node);
+            _prePopulatedPaths.Add(path);
+            _prePopulatedNodes ??= new HashSet<RepositoryNodeViewModel>();
+            _prePopulatedNodes.Add(node);
+
+            if (!node.MatchesFilter(_activeFilter, GlobalUserEmail))
+                continue;
+            if (!string.IsNullOrWhiteSpace(_searchText) &&
+                !path.Contains(_searchText, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (_activeGroupMode == GroupMode.None)
+                Repositories.Add(node);
+            else
+                AddToGroups(node);
+        }
+    }
+
+    // After a full refresh, prune repos that were pre-populated but no longer exist
+    // in the fresh report (deleted, renamed, or stale non-repo paths).  _allRepositories
+    // is cleared at the start of RefreshAsync, so this method only handles cleanup
+    // from Repositories and _repositoryMap for nodes whose paths are absent from the
+    // fresh scan results (deleted) or that moved (renamed).
+    internal void PruneStalePrePopulatedRepos(HashSet<string> freshPaths, HashSet<string> renamedOldPaths)
+    {
+        if (_prePopulatedNodes == null)
+            return;
+
+        var stalePaths = _prePopulatedNodes
+            .Select(node => node.WorkingDirectory)
+            .Where(path => !freshPaths.Contains(path) || renamedOldPaths.Contains(path))
+            .ToList();
+
+        foreach (var path in stalePaths)
+            RemoveRepositoryPathFromUi(path);
+
+        _prePopulatedNodes = null;
+        _prePopulatedPaths.Clear();
     }
 
     // Drop deleted, renamed (old path), and stale non-repo entries from the cached
@@ -255,13 +368,34 @@ public partial class MainViewModel
         if (renamedOldPaths.Count == 0)
             return;
 
-        var toRemove = _allRepositories.Where(r => renamedOldPaths.Contains(r.WorkingDirectory)).ToList();
-        foreach (var node in toRemove)
-        {
-            _repositoryMap.TryRemove(node.WorkingDirectory, out _);
-            _allRepositories.Remove(node);
-            Repositories.Remove(node);
-        }
+        foreach (var path in renamedOldPaths)
+            RemoveRepositoryPathFromUi(path);
     }
 
+    void RemoveRepositoryPathFromUi(string path)
+    {
+        _repositoryMap.TryRemove(path, out _);
+        _allRepositories.RemoveAll(candidate => candidate.WorkingDirectory == path);
+        _prePopulatedPaths.Remove(path);
+
+        var groupHeaders = Repositories.Where(candidate => candidate.IsGroupHeader)
+            .Concat(_pendingGroups.Values).Distinct().ToList();
+
+        for (var index = Repositories.Count - 1; index >= 0; index--)
+        {
+            if (Repositories[index].WorkingDirectory == path)
+                Repositories.RemoveAt(index);
+        }
+
+        foreach (var groupHeader in groupHeaders)
+        {
+            for (var index = groupHeader.Children.Count - 1; index >= 0; index--)
+            {
+                if (groupHeader.Children[index].WorkingDirectory == path)
+                    groupHeader.Children.RemoveAt(index);
+            }
+
+            groupHeader.UpdateDisplayText();
+        }
+    }
 }

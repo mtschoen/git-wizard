@@ -1,10 +1,26 @@
 # Watch-in-UI Session Handoff
 
-## Integrated branch
+## Current Windows state
 
-`feat/watch-in-ui` is clean at `772a3b0`. Phase 1, Windows Phase 2, the Live UI toggle,
-and the executable icon are committed. The real Windows UAC/filesystem-event smoke is
-still outstanding.
+`feat/watch-in-ui` now has additional validated but uncommitted Windows work on top of
+`022d83d`. Live mode correctly refreshes tracked repositories for ordinary file creation and
+deletion, uses a relevant-event fixed debounce window, requests MFTLib's reduced directory +
+`.git` broker profile to avoid the 2 GiB C: payload overflow, and shows amber `Starting Live...`
+until every requested volume has armed. Green `Live` means the watch is active, and clicking
+again during startup cancels it.
+
+Validation completed this session: Release build clean, 914 non-admin tests passed with two
+platform/admin skips, three elevated broker tests passed, formatting clean, aislop 100/100,
+coverage 85.58%, and a real CLI create/delete smoke emitted the expected repository change.
+The user also manually confirmed the UI reaches green, but broker diagnostics showed the six
+volumes arming sequentially in roughly 132 seconds.
+
+The next optimization is deliberately split across repositories. MFTLib must first receive an
+independent scan-to-watch session API review; GitWizard then consumes the finalized API so a
+cold-cache discovery broker is not discarded and rescanned. See:
+
+- `external/MFTLib/docs/plans/2026-07-15-scan-to-watch-session-api.md`
+- `docs/superpowers/plans/2026-07-15-reuse-discovery-broker-for-live.md`
 
 ## Reviewed branches awaiting integration
 

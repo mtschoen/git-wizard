@@ -21,7 +21,7 @@ env:
   # excludes, so the external/MFTLib submodule leaked into the scan),
   # depth-aware countParams, record param counting. Pinned by commit, not a
   # published version - the registry publish route is retired.
-  AISLOP_FORK_COMMIT: 58baba50e6f61a8808bbd2b897bd134e841904ee
+  AISLOP_FORK_COMMIT: 6736600f4da37ce21f29362e42b07cb5ee892c96
 
 jobs:
   quality-gate:

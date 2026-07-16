@@ -115,15 +115,16 @@ public class BrokerDiscoveryTests
     [Platform("Win")]
     public async Task TryFindAllRepositoriesUsingMftAsync_NotElevated_DirectoryIndexPayload_FindsWorktreeGitFile()
     {
-        // A DirectoryIndex-shaped payload: plain directory records plus a .git *file* (a
-        // worktree/submodule pointer). Under a scoped search path, discovery keeps .git files,
-        // so the worktree root is found while the plain directory produces no false positive.
+        // A DirectoryIndex-shaped payload: plain directory records plus a .git *file* record
+        // (a worktree/submodule pointer). Under a scoped search path, discovery keeps .git
+        // files, so the worktree root is found while the plain directory produces no false
+        // positive. Only the parent directories need to exist on disk - discovery verifies
+        // the repository directory, never the .git entry itself - so no .git file is written.
         var root = Path.Combine(Path.GetTempPath(), $"gw-broker-{Guid.NewGuid():N}");
         var worktree = Path.Combine(root, "worktree");
         var plain = Path.Combine(root, "plain");
         Directory.CreateDirectory(worktree);
         Directory.CreateDirectory(plain);
-        File.WriteAllText(Path.Combine(worktree, ".git"), "gitdir: ../repo/.git/worktrees/wt");
         try
         {
             var configuration = new GitWizardConfiguration();

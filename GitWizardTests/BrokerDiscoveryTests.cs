@@ -110,4 +110,45 @@ public class BrokerDiscoveryTests
         Assert.That(result, Is.False);
         Assert.That(scanned, Is.False);
     }
+
+    [Test]
+    [Platform("Win")]
+    public async Task TryFindAllRepositoriesUsingMftAsync_NotElevated_DirectoryIndexPayload_FindsWorktreeGitFile()
+    {
+        // A DirectoryIndex-shaped payload: plain directory records plus a .git *file* (a
+        // worktree/submodule pointer). Under a scoped search path, discovery keeps .git files,
+        // so the worktree root is found while the plain directory produces no false positive.
+        var root = Path.Combine(Path.GetTempPath(), $"gw-broker-{Guid.NewGuid():N}");
+        var worktree = Path.Combine(root, "worktree");
+        var plain = Path.Combine(root, "plain");
+        Directory.CreateDirectory(worktree);
+        Directory.CreateDirectory(plain);
+        File.WriteAllText(Path.Combine(worktree, ".git"), "gitdir: ../repo/.git/worktrees/wt");
+        try
+        {
+            var configuration = new GitWizardConfiguration();
+            configuration.SearchPaths.Add(root);
+            var paths = new SortedSet<string>();
+
+            var scanned = new List<ScanRecord>
+            {
+                new(0, 0, 0, 0, 0, IsDirectory: true, Name: "worktree", Path: worktree),
+                new(0, 0, 0, 0, 0, IsDirectory: true, Name: "plain", Path: plain),
+                new(0, 0, 0, 0, 0, IsDirectory: false, Name: ".git", Path: Path.Combine(worktree, ".git")),
+            };
+
+            var result = await GitWizardApi.TryFindAllRepositoriesUsingMftAsync(
+                configuration, paths,
+                elevation: new FakeElevationProvider { Elevated = false },
+                scanProvider: _ => Task.FromResult<IReadOnlyList<ScanRecord>>(scanned));
+
+            Assert.That(result, Is.True);
+            Assert.That(paths, Has.Count.EqualTo(1));
+            Assert.That(paths, Has.Some.EndsWith("worktree").IgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
 }

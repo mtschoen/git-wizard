@@ -17,10 +17,10 @@ public static partial class Program
 
     /// <summary>
     /// --watch: auto-detect changes in tracked repositories via MFTLib's elevated journal
-    /// broker (one UAC prompt for the whole run). Groups repository roots by drive, arms
-    /// one cold scan + live watch per drive over a single broker client, and prints one
-    /// line per affected repository as journal batches arrive. Runs until Ctrl-C or the
-    /// broker dies.
+    /// broker (one UAC prompt for the whole run). Groups repository roots by drive, runs one
+    /// <see cref="JournalBrokerScanSession"/> that cold-scans and live-watches those drives
+    /// on a single elevated process, and prints one line per affected repository as journal
+    /// batches arrive. Runs until Ctrl-C or the broker dies.
     /// </summary>
     [SupportedOSPlatform("windows")]
     static async Task RunWatchAsync(GitWizardConfiguration configuration)
@@ -36,11 +36,11 @@ public static partial class Program
 
         using var ctrlC = new CtrlCCancellation();
 
-        JournalBrokerClient client;
+        JournalBrokerScanSession session;
         try
         {
-            client = await JournalBrokerClient
-                .SpawnAndConnectAsync(BrokerLauncher.Launch, ctrlC.Token)
+            session = await JournalBrokerScanSession
+                .StartAsync(BrokerLauncher.Launch, rootsByDrive.Keys.ToList(), ctrlC.Token)
                 .ConfigureAwait(false);
         }
         catch (InvalidOperationException exception)
@@ -50,46 +50,44 @@ public static partial class Program
             return;
         }
 
-        await using (client.ConfigureAwait(false))
+        await using (session.ConfigureAwait(false))
         {
-            await RunWatchLoopAsync(client, rootsByDrive, ctrlC).ConfigureAwait(false);
+            await RunWatchLoopAsync(session, rootsByDrive, ctrlC).ConfigureAwait(false);
         }
     }
 
-    // Arms the cold scan, starts the live watch, and drains batches until Ctrl-C or the
-    // broker dies. Split from RunWatchAsync so the client's lifetime (the outer
-    // `await using`) is visibly separate from the loop that uses it.
+    // Starts the session's live watch and drains batches until Ctrl-C or the broker dies.
+    // Split from RunWatchAsync so the session's lifetime (the outer `await using`) is
+    // visibly separate from the loop that uses it.
     static async Task RunWatchLoopAsync(
-        JournalBrokerClient client, Dictionary<string, List<string>> rootsByDrive, CtrlCCancellation ctrlC)
+        JournalBrokerScanSession session, Dictionary<string, List<string>> rootsByDrive, CtrlCCancellation ctrlC)
     {
         var brokerDied = false;
-        client.BrokerDied += reason =>
+        session.Faulted += reason =>
         {
             brokerDied = true;
             Console.WriteLine($"Broker died: {reason}");
             ctrlC.Cancel();
         };
 
-        var drives = rootsByDrive.Keys.ToList();
-        var scan = await client.ArmScanAndCatchUpAsync(drives, ctrlC.Token).ConfigureAwait(false);
-        var filtersByDrive = BuildFiltersByDrive(rootsByDrive, scan.Records);
+        var filtersByDrive = BuildFiltersByDrive(rootsByDrive, session.LatestScan.Records);
 
-        await client.SendStartWatchAsync(scan.AdvancedCursors, ctrlC.Token).ConfigureAwait(false);
-        var batchSource = client.CreateBatchSource();
+        await session.StartWatchAsync(ctrlC.Token).ConfigureAwait(false);
 
-        var watchTasks = drives
-            .Where(scan.AdvancedCursors.ContainsKey)
-            .Select(drive => WatchDriveAsync(
-                batchSource, drive, scan.AdvancedCursors[drive], filtersByDrive[drive], ctrlC.Token))
+        var watchTasks = session.LatestScan.AdvancedCursors.Keys
+            .Where(rootsByDrive.ContainsKey)
+            .Select(drive => WatchDriveAsync(session, drive, filtersByDrive[drive], ctrlC.Token))
             .ToArray();
 
         try
         {
             await Task.WhenAll(watchTasks).ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (Exception exception) when (exception is OperationCanceledException || brokerDied)
         {
-            // Expected on Ctrl-C or broker death (reported above via BrokerDied).
+            // Expected on Ctrl-C, or on broker death - which the session surfaces both as a
+            // Faulted event (cancelling the token) and as an InvalidOperationException from
+            // the faulted per-drive watch enumerable.
         }
 
         if (brokerDied)
@@ -129,15 +127,13 @@ public static partial class Program
     }
 
     // Reads live journal batches for one drive until cancelled, printing a line per
-    // repository root the batch touched (deduplicated by RepositoryChangeFilter).
+    // repository root the batch touched (deduplicated by RepositoryChangeFilter). The
+    // session owns the drive's resume cursor, so none is threaded in here.
     static async Task WatchDriveAsync(
-        JournalBatchSource batchSource, string drive, UsnJournalCursor cursor,
+        JournalBrokerScanSession session, string drive,
         RepositoryChangeFilter filter, CancellationToken cancellationToken)
     {
-        // No .WithCancellation(cancellationToken) here: the token is already threaded
-        // through as the delegate's own parameter (JournalBrokerClient.CreateBatchSource's
-        // enumerator method takes it via [EnumeratorCancellation]).
-        await foreach (var (entries, _) in batchSource(drive, cursor, cancellationToken).ConfigureAwait(false))
+        await foreach (var (entries, _) in session.WatchDriveAsync(drive, cancellationToken).ConfigureAwait(false))
         {
             foreach (var root in filter.Filter(entries))
                 Console.WriteLine($"changed: {root}");

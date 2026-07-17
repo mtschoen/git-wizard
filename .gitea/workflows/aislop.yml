@@ -50,7 +50,9 @@ jobs:
       # MFTLib types must resolve for jb/roslynator to load the solution; managed-only
       # is enough for analysis (no native build here - the copy target only warns).
       - name: Build MFTLib managed (HintPath for analysis)
-        run: dotnet build external/MFTLib/MFTLib/MFTLib.csproj -c Release -p:Platform=x64
+        run: |
+          dotnet build external/MFTLib/MFTLib/MFTLib.csproj -c Release -p:Platform=x64
+          dotnet build external/MFTLib/MFTLibTestExtensions/MFTLibTestExtensions.csproj -c Release -p:Platform=x64
       - name: Build git-wizard (fully compiles the workspace for dotnet format)
         run: dotnet build git-wizard.slnx -c Release
       - name: aislop quality gate

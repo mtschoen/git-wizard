@@ -13,4 +13,10 @@
          submodule while 0.3.0 is unpublished. See Directory.Build.targets' header for the
          retire-to-NuGet steps, and AGENTS.md's MFTLib Local Development section for local dev. -->
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- Expose the broker discovery profile/keep-file-name constants to the test project so
+         the wire-level ArmAndScan assertion can reuse them instead of repeating literals. -->
+    <InternalsVisibleTo Include="GitWizardTests" />
+  </ItemGroup>
 </Project>

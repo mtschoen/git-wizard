@@ -6,6 +6,11 @@ namespace GitWizard;
 
 public static partial class GitWizardApi
 {
+    // Cold-scan profile and keep-file name BrokerScanAsync passes to the session - internal so
+    // BrokerDiscoveryTests's wire-level assertion can reuse them instead of repeating literals.
+    internal const BrokerScanProfile GitDiscoveryScanProfile = BrokerScanProfile.DirectoryIndex;
+    internal const string GitEntryName = ".git";
+
     /// <summary>
     /// Try to find all git repositories across all search paths using MFT, taking the cold
     /// scan through MFTLib's elevated journal broker when not already elevated - one UAC
@@ -20,8 +25,8 @@ public static partial class GitWizardApi
     /// <param name="elevation">Elevation provider; defaults to the real one. Injected in tests.</param>
     /// <param name="scanProvider">
     /// Seam that returns the cold-scan records for the given drive letters. Defaults to
-    /// spawning a real <see cref="JournalBrokerClient"/>; injected in tests to exercise the
-    /// filtering flow without real elevation.
+    /// running a real <see cref="JournalBrokerScanSession"/>; injected in tests to exercise
+    /// the filtering flow without real elevation.
     /// </param>
     /// <returns>True if MFT search was used successfully.</returns>
     public static async Task<bool> TryFindAllRepositoriesUsingMftAsync(
@@ -91,19 +96,20 @@ public static partial class GitWizardApi
         return paths.Count > 0;
     }
 
-    // Spawns the real elevated broker, takes one cold scan across the given drives, and
-    // returns its records. Throws InvalidOperationException if the broker can't be started.
+    // Runs one elevated scan-to-watch session's initial scan across the given drives and
+    // returns its records. The DirectoryIndex profile keeping only .git-named files narrows
+    // the cold-scan payload to directories plus .git markers - the smallest snapshot .git
+    // discovery needs. Throws InvalidOperationException if the broker can't be started.
     [SupportedOSPlatform("windows")]
     static async Task<IReadOnlyList<ScanRecord>> BrokerScanAsync(IReadOnlyList<string> drives)
     {
-        var client = await JournalBrokerClient
-            .SpawnAndConnectAsync(BrokerLauncher.Launch, CancellationToken.None).ConfigureAwait(false);
+        await using var session = await JournalBrokerScanSession
+            .StartAsync(BrokerLauncher.Launch, drives, GitDiscoveryScanProfile,
+                keepFileNames: [GitEntryName], CancellationToken.None).ConfigureAwait(false);
 
-        await using (client.ConfigureAwait(false))
-        {
-            var scan = await client.ArmScanAndCatchUpAsync(drives, CancellationToken.None).ConfigureAwait(false);
-            return scan.Records;
-        }
+        var latestScan = session.LatestScan
+            ?? throw new InvalidOperationException("Scanned session unexpectedly has no LatestScan result.");
+        return latestScan.Records;
     }
 
     // Filters one drive's cold-scan records down to the repository roots under a single
@@ -122,7 +128,7 @@ public static partial class GitWizardApi
     // drive-root include-files rule is unit-testable with synthetic records.
     static IEnumerable<string> SelectGitEntryPaths(IReadOnlyList<ScanRecord> records, bool includeGitFiles) =>
         records
-            .Where(record => record.Name == ".git" && (includeGitFiles || record.IsDirectory))
+            .Where(record => record.Name == GitEntryName && (includeGitFiles || record.IsDirectory))
             .Select(record => record.Path);
 
     static string? GetDriveLetter(string path)

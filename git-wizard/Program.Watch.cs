@@ -70,11 +70,13 @@ public static partial class Program
             ctrlC.Cancel();
         };
 
-        var filtersByDrive = BuildFiltersByDrive(rootsByDrive, session.LatestScan.Records);
+        var latestScan = session.LatestScan
+            ?? throw new InvalidOperationException("Scanned session unexpectedly has no LatestScan result.");
+        var filtersByDrive = BuildFiltersByDrive(rootsByDrive, latestScan.Records);
 
         await session.StartWatchAsync(ctrlC.Token).ConfigureAwait(false);
 
-        var watchTasks = session.LatestScan.AdvancedCursors.Keys
+        var watchTasks = latestScan.AdvancedCursors.Keys
             .Where(rootsByDrive.ContainsKey)
             .Select(drive => WatchDriveAsync(session, drive, filtersByDrive[drive], ctrlC.Token))
             .ToArray();

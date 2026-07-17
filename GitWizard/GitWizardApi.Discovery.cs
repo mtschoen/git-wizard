@@ -6,6 +6,11 @@ namespace GitWizard;
 
 public static partial class GitWizardApi
 {
+    // Cold-scan profile and keep-file name BrokerScanAsync passes to the session - internal so
+    // BrokerDiscoveryTests's wire-level assertion can reuse them instead of repeating literals.
+    internal const BrokerScanProfile GitDiscoveryScanProfile = BrokerScanProfile.DirectoryIndex;
+    internal const string GitEntryName = ".git";
+
     /// <summary>
     /// Try to find all git repositories across all search paths using MFT, taking the cold
     /// scan through MFTLib's elevated journal broker when not already elevated - one UAC
@@ -99,10 +104,12 @@ public static partial class GitWizardApi
     static async Task<IReadOnlyList<ScanRecord>> BrokerScanAsync(IReadOnlyList<string> drives)
     {
         await using var session = await JournalBrokerScanSession
-            .StartAsync(BrokerLauncher.Launch, drives, BrokerScanProfile.DirectoryIndex,
-                keepFileNames: [".git"], CancellationToken.None).ConfigureAwait(false);
+            .StartAsync(BrokerLauncher.Launch, drives, GitDiscoveryScanProfile,
+                keepFileNames: [GitEntryName], CancellationToken.None).ConfigureAwait(false);
 
-        return session.LatestScan.Records;
+        var latestScan = session.LatestScan
+            ?? throw new InvalidOperationException("Scanned session unexpectedly has no LatestScan result.");
+        return latestScan.Records;
     }
 
     // Filters one drive's cold-scan records down to the repository roots under a single
@@ -121,7 +128,7 @@ public static partial class GitWizardApi
     // drive-root include-files rule is unit-testable with synthetic records.
     static IEnumerable<string> SelectGitEntryPaths(IReadOnlyList<ScanRecord> records, bool includeGitFiles) =>
         records
-            .Where(record => record.Name == ".git" && (includeGitFiles || record.IsDirectory))
+            .Where(record => record.Name == GitEntryName && (includeGitFiles || record.IsDirectory))
             .Select(record => record.Path);
 
     static string? GetDriveLetter(string path)

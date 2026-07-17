@@ -49,6 +49,22 @@
     </Reference>
   </ItemGroup>
 
+  <!-- (1b) Test-harness reference - MFTLibTestExtensions.dll, scoped to GitWizardTests only.
+       Same configuration-fallback shape as the managed MFTLib reference above; consumed by
+       BrokerDiscoveryTests to build a JournalBrokerScanSession over a fake broker client. -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'GitWizardTests'">
+    <_MFTLibTestExtensionsBin>$(MSBuildThisFileDirectory)external\MFTLib\MFTLibTestExtensions\bin\x64</_MFTLibTestExtensionsBin>
+    <_MFTLibTestExtensionsDll>$(_MFTLibTestExtensionsBin)\$(Configuration)\net8.0\MFTLibTestExtensions.dll</_MFTLibTestExtensionsDll>
+    <_MFTLibTestExtensionsDll Condition="!Exists('$(_MFTLibTestExtensionsDll)') And Exists('$(_MFTLibTestExtensionsBin)\Release\net8.0\MFTLibTestExtensions.dll')">$(_MFTLibTestExtensionsBin)\Release\net8.0\MFTLibTestExtensions.dll</_MFTLibTestExtensionsDll>
+    <_MFTLibTestExtensionsDll Condition="!Exists('$(_MFTLibTestExtensionsDll)') And Exists('$(_MFTLibTestExtensionsBin)\Debug\net8.0\MFTLibTestExtensions.dll')">$(_MFTLibTestExtensionsBin)\Debug\net8.0\MFTLibTestExtensions.dll</_MFTLibTestExtensionsDll>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'GitWizardTests'">
+    <Reference Include="MFTLibTestExtensions">
+      <HintPath>$(_MFTLibTestExtensionsDll)</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
   <!-- (2a) Windows native lib - copied into each project's output so MFTLib's P/Invoke resolves
        it at runtime. Glob for the vcxproj-built DLL under the submodule, scoped to the active
        Configuration but falling back to whichever configuration is actually built (mirrors the

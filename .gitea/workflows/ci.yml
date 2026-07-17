@@ -45,6 +45,7 @@ jobs:
           cmake -S external/MFTLib/MFTLibNative -B external/MFTLib/build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build external/MFTLib/build-linux
           dotnet build external/MFTLib/MFTLib/MFTLib.csproj -c Release -p:Platform=x64
+          dotnet build external/MFTLib/MFTLibTestExtensions/MFTLibTestExtensions.csproj -c Release -p:Platform=x64
 
       - name: Restore (cross-platform projects)
         run: |
@@ -143,6 +144,7 @@ jobs:
         run: |
           msbuild external\MFTLib\MFTLibNative\MFTLibNative.vcxproj -t:Build -p:Configuration=Release -p:Platform=x64 -nologo -v:minimal
           dotnet build external\MFTLib\MFTLib\MFTLib.csproj -c Release -p:Platform=x64
+          dotnet build external\MFTLib\MFTLibTestExtensions\MFTLibTestExtensions.csproj -c Release -p:Platform=x64
 
       - name: Cache NuGet packages
         uses: actions/cache@v4

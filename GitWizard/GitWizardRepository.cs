@@ -186,10 +186,13 @@ public partial class GitWizardRepository
             {
                 // Must match the categories that contribute to status.IsDirty so
                 // callers never see HasPendingChanges=true with a count of 0.
-                // LibGit2Sharp's IsDirty includes Modified, Staged, Removed, Added,
-                // Untracked, RenamedInIndex, and RenamedInWorkDir.
+                // LibGit2Sharp's IsDirty includes Added, Missing, Modified, Removed,
+                // RenamedInIndex, RenamedInWorkDir, Staged, and Untracked. Missing
+                // covers a tracked file deleted from the working directory but not
+                // yet staged; Removed covers the same deletion once it is staged.
                 NumberOfPendingChanges = 0;
                 foreach (var _ in status.Modified) NumberOfPendingChanges++;
+                foreach (var _ in status.Missing) NumberOfPendingChanges++;
                 foreach (var _ in status.Staged) NumberOfPendingChanges++;
                 foreach (var _ in status.Removed) NumberOfPendingChanges++;
                 foreach (var _ in status.Added) NumberOfPendingChanges++;

@@ -204,6 +204,16 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler
     /// offset declaratively and leaves this null.
     /// </summary>
     public Action? AfterRepositoriesSwap { get; set; }
+
+    /// <summary>
+    /// In-memory error log fed by refresh/scan/command catch sites (see <see cref="LogError"/>);
+    /// surfaced in the UI by the Errors window/button.
+    /// </summary>
+    public ErrorLogViewModel ErrorLog { get; } = new();
+
+    /// <summary>Button label reflecting the current error count, e.g. "Errors" or "Errors (3)".</summary>
+    public string ErrorsButtonLabel => ErrorLog.Count > 0 ? $"Errors ({ErrorLog.Count})" : "Errors";
+
     public ICommand OpenInExplorerCommand { get; }
     public ICommand OpenInForkCommand { get; }
     public ICommand CopyToClipboardCommand { get; }
@@ -226,8 +236,21 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         RefreshCommand = new AsyncRelayCommand(() => RefreshAsync(background: false));
         FetchAndRefreshCommand = new AsyncRelayCommand(() => RefreshAsync(background: false, fetchRemotes: true));
         CleanDownstreamCommand = new AsyncRelayCommand<RepositoryNodeViewModel>(node => CleanDownstreamBranchesAsync(node));
+        ErrorLog.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(ErrorLogViewModel.Count))
+                OnPropertyChanged(nameof(ErrorsButtonLabel));
+        };
         StartUIUpdateThread();
     }
+
+    /// <summary>
+    /// Records an error into <see cref="ErrorLog"/>, marshaled onto the UI thread since
+    /// <see cref="ObservableCollection{T}"/> is not thread-safe and some catch sites that call this
+    /// run on background refresh/command threads.
+    /// </summary>
+    internal void LogError(string message, string? repositoryPath = null)
+        => _ui.Post(() => ErrorLog.AddError(message, repositoryPath));
 
     /// <summary>
     /// Marshal a user-facing alert onto the UI thread, logging (not propagating) any dialog
@@ -245,6 +268,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         catch (Exception exception)
         {
             GitWizardLog.LogException(exception, "Failed to display alert dialog.");
+            LogError($"Failed to display alert dialog: {exception.Message}");
         }
     }
 

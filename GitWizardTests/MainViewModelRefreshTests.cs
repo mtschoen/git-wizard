@@ -284,6 +284,39 @@ public class MainViewModelRefreshTests
             "Group header display text must reflect updated child error counts.");
     }
 
+    // ── ErrorLog wiring ─────────────────────────────────────────────────
+
+    [Test]
+    public void UpdateCompletedRepository_WithRefreshError_FeedsErrorLog()
+    {
+        var vm = CreateViewModel();
+        var repo = Repo("C:/repos/alpha");
+        vm.AddRepository(repo);
+
+        repo.RefreshError = "Something went wrong";
+        vm.UpdateCompletedRepository(repo);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(vm.ErrorLog.Count, Is.EqualTo(1));
+            var entry = vm.ErrorLog.Entries.Single();
+            Assert.That(entry.Message, Is.EqualTo("Something went wrong"));
+            Assert.That(entry.RepositoryPath, Is.EqualTo("C:/repos/alpha"));
+        });
+    }
+
+    [Test]
+    public void UpdateCompletedRepository_WithoutRefreshError_DoesNotFeedErrorLog()
+    {
+        var vm = CreateViewModel();
+        var repo = Repo("C:/repos/alpha");
+        vm.AddRepository(repo);
+
+        vm.UpdateCompletedRepository(repo);
+
+        Assert.That(vm.ErrorLog.Count, Is.EqualTo(0));
+    }
+
     // ── HardRefreshAsync ──────────────────────────────────────────────
 
     [Test]

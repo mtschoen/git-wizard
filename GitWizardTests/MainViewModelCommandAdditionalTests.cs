@@ -374,6 +374,40 @@ public class MainViewModelCommandAdditionalTests
             Is.True, "A non-existent directory must surface the invalid-path alert.");
     }
 
+    [Test]
+    public void OpenInFork_ConfiguredForkPathWithEnvironmentVariable_IsExpandedBeforeUse()
+    {
+        var temp = TestUtilities.RedirectLocalFilesToTemp();
+        TestUtilities.ResetStaticCaches();
+        try
+        {
+            var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var expected = Path.Combine(profile, "NoSuchTool", "tool.exe");
+            var configuration = GitWizardConfiguration.GetGlobalConfiguration();
+            configuration.ForkPath = Path.Combine("~", "NoSuchTool", "tool.exe");
+
+            var dialogs = new StubUserDialogs();
+            var vm = new MainViewModel(new StubUiDispatcher(), dialogs, new StubClipboardService());
+            var workingDirectory = TestUtilities.CreateTempDir(out var cleanupWorkingDirectory);
+            try
+            {
+                vm.OpenInForkCommand.Execute(RepoNode(workingDirectory));
+
+                Assert.That(dialogs.AlertCalls.Any(a => a.Message.Contains(expected, StringComparison.Ordinal)),
+                    Is.True, "A ~-prefixed configured fork path must be expanded to the real user profile path before the not-found check.");
+            }
+            finally
+            {
+                cleanupWorkingDirectory();
+            }
+        }
+        finally
+        {
+            TestUtilities.ResetStaticCaches();
+            TestUtilities.ClearLocalFilesRedirect(temp);
+        }
+    }
+
     // ── IUpdateHandler: SendUpdateMessage ─────────────────────────────
 
     [Test]

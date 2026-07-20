@@ -99,6 +99,43 @@ public class GitWizardRepositoryTests
     }
 
     [Test]
+    public void Refresh_CountsUnstagedDeletionInPendingChanges()
+    {
+        // Regression: an unstaged deletion of a tracked file (LibGit2Sharp's
+        // RepositoryStatus.Missing) contributes to IsDirty/HasPendingChanges but
+        // was never added to the NumberOfPendingChanges tally.
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        File.Delete(Path.Combine(fixture.Path, "README.md"));
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        Assert.That(repository.HasPendingChanges, Is.True);
+        Assert.That(repository.NumberOfPendingChanges, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void Refresh_CountsStagedDeletionInPendingChanges()
+    {
+        // Companion to the unstaged case above: staging the deletion moves it from
+        // RepositoryStatus.Missing to RepositoryStatus.Removed, which was already
+        // counted - this asserts that path stays correct alongside the fix.
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var readmePath = Path.Combine(fixture.Path, "README.md");
+        File.Delete(readmePath);
+        using (var gitRepository = new Repository(fixture.Path))
+            Commands.Stage(gitRepository, "README.md");
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+
+        Assert.That(repository.HasPendingChanges, Is.True);
+        Assert.That(repository.NumberOfPendingChanges, Is.EqualTo(1));
+    }
+
+    [Test]
     public void Refresh_CountsLocalCommitsOnUntrackedBranch()
     {
         // Regression: LocalOnlyCommits used to be a bare bool. Consumers need

@@ -90,6 +90,10 @@ public partial class MainViewModel
     internal void UpdateCompletedRepository(GitWizardRepository repository)
     {
         var path = repository.WorkingDirectory;
+
+        if (!string.IsNullOrEmpty(repository.RefreshError))
+            LogError(repository.RefreshError, path);
+
         if (string.IsNullOrEmpty(path) || !_repositoryMap.TryGetValue(path, out var node))
             return;
 

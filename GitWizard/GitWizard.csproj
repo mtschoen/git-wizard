@@ -15,8 +15,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Expose the broker discovery profile/keep-file-name constants to the test project so
-         the wire-level ArmAndScan assertion can reuse them instead of repeating literals. -->
+    <!-- Expose internals to the test project: the pure ScanRecord-to-repository-root mapping
+         seam (SelectGitEntryPaths, ResolveRepositoryRootCandidates) so the .git-file discovery
+         path can be exercised with synthetic ScanRecords on any OS, and the broker discovery
+         profile/keep-file-name constants so the wire-level ArmAndScan assertion can reuse them
+         instead of repeating literals. -->
     <InternalsVisibleTo Include="GitWizardTests" />
   </ItemGroup>
 </Project>

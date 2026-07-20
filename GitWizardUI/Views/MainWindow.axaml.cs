@@ -63,6 +63,9 @@ public partial class MainWindow : Window
     void DeleteAllLocalFilesMenuItem_Click(object? sender, RoutedEventArgs e)
         => _ = _viewModel.DeleteAllLocalFilesAsync();
 
+    void ErrorsMenuItem_Click(object? sender, RoutedEventArgs e)
+        => new ErrorLogWindow(_viewModel.ErrorLog).ShowDialog(this);
+
     void FilterButton_Click(object? sender, RoutedEventArgs e)
         => _viewModel.ApplyFilter((sender as Button)?.Name ?? string.Empty);
 

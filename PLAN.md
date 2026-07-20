@@ -137,10 +137,30 @@ Avalonia, which also has extras (Downstream Branches filter, Clean button, progr
 Still-live ideas migrated from the legacy `.plan` (2026-06-19) when that pre-Avalonia
 file was retired. Not yet scheduled; promote to Next Up / a Gitea issue when picked up.
 
-- [ ] **MFT parser also finds `.git` files (not just directories)** so worktrees whose
+- [x] **MFT parser also finds `.git` files (not just directories)** so worktrees whose
       origin lives outside the search paths are discovered.
-- [ ] **Include deleted files in the uncommitted-changes count** (untracked/added/renamed
-      are already counted per Schema 1.1; verify deletions are too).
+      *Note (2026-07-19): The mapping (`GitWizardApi.SelectGitEntryPaths` /
+      `CollectGitRepositoriesFromScan`, used by both the in-process elevated MFT scan and the
+      not-elevated journal-broker cold scan) already treated a `.git` FILE record's parent as a
+      repository root - landed incidentally in #96's broker migration, before this backlog item
+      was written, and never checked off. It had zero unit coverage and was unreachable on
+      Linux (private methods, Windows-gated entry point/test class). Extracted the pure
+      candidate-mapping (`ResolveRepositoryRootCandidates`) to `internal` + `InternalsVisibleTo`
+      and added `GitFileScanRecordMappingTests` (synthetic `ScanRecord`s, cross-platform). The
+      recursive (non-MFT) scanner already had matching `.git`-file handling at every directory
+      level (`FindGitRepositoriesRecursively`'s `includeGitFiles` check) - no change needed
+      there. `RepositoryChangeFilter` (the `-watch` live-journal mapper) was left untouched:
+      it indexes tracked repository roots by their own directory record, which is unaffected by
+      whether that root additionally contains a `.git` file vs. directory; its existing
+      `Filter_FileScanRecordsAreNotIndexed_OnlyDirectoriesAre` test guards a different,
+      intentional invariant (a root's directory record must actually be a directory).*
+- [x] **Include deleted files in the uncommitted-changes count** (untracked/added/renamed
+      are already counted per Schema 1.1; verify deletions are too). Verified NOT already
+      counted: staged deletions (`status.Removed`) were counted, but unstaged deletions
+      (`status.Missing`) contributed to `HasPendingChanges`/`IsDirty` without being tallied
+      in `NumberOfPendingChanges`. Fixed in `GitWizardRepository.RefreshPendingChangesStatus`
+      (added a `status.Missing` loop); regression tests added for both the staged and
+      unstaged deletion cases; `docs/report-schema.md` field description updated.
 - [ ] **Show an error log in the UI** - exceptions are currently only written to output.
 - [ ] **Quick refresh / filesystem watcher** to drop deleted-or-renamed repos from the UI.
       *Note (2026-07-06): CLI-side building block landed - `git-wizard -watch` auto-detects
@@ -152,11 +172,16 @@ file was retired. Not yet scheduled; promote to Next Up / a Gitea issue when pic
       submodules at a non-pointer ref, not init'd/checked out, or in `.gitmodules` but not the
       index (or vice versa). (Verify against the current `SubmoduleHealth` coverage first.)
 - [ ] **Add the Windows folder to default exclusions.**
-- [ ] **Make the `Fork.exe` path configurable in settings** (currently hard-coded to
-      `%LocalAppData%\Fork\Fork.exe`).
+- [x] **Make the `Fork.exe` path configurable in settings** (currently hard-coded to
+      `%LocalAppData%\Fork\Fork.exe`). *Done: `GitWizardConfiguration.ForkPath` (config.json,
+      null = default location), surfaced in `SettingsWindow`/`SettingsViewModel`. A configured
+      value with `%VAR%`/`~` references is now expanded via `GitWizardApi.PrettyPrintPath` before
+      use in `MainViewModel.OpenInFork` (2026-07-19).*
 - [ ] **Explore a CLI arg-parsing library with auto-generated help** (replace `RunConfiguration`).
 - [ ] **Explore a path-handling library** for `%USERPROFILE%` / `~` aliases.
-- [ ] **"Pretty print" path lists** - show environment-variable values inline.
+- [x] **"Pretty print" path lists** - show environment-variable values inline. *Done:
+      `GitWizardApi.PrettyPrintPath` + `PathPrettyPrintConverter` render the expanded form of each
+      Search/Ignored path row in `SettingsWindow`.*
 - [ ] **Async save/load for cached files** (configs and reports).
 - [ ] **Make filters additive rather than mutually exclusive.**
 - [ ] **Review refresh concurrency/timeout** - `GitWizardReport.Refresh` still wraps sync work

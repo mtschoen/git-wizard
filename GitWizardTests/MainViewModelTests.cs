@@ -238,6 +238,31 @@ public class MainViewModelTests
     }
 
     [Test]
+    public void ErrorsButtonLabel_ReflectsErrorLogCount()
+    {
+        var vm = CreateViewModel();
+
+        Assert.That(vm.ErrorsButtonLabel, Is.EqualTo("Errors"),
+            "With no errors logged, the button should not show a count.");
+
+        vm.ErrorLog.AddError("boom");
+
+        Assert.That(vm.ErrorsButtonLabel, Is.EqualTo("Errors (1)"));
+    }
+
+    [Test]
+    public void ErrorsButtonLabel_ChangeRaisesPropertyChanged()
+    {
+        var vm = CreateViewModel();
+        var raisedProperties = new List<string?>();
+        vm.PropertyChanged += (_, args) => raisedProperties.Add(args.PropertyName);
+
+        vm.ErrorLog.AddError("boom");
+
+        Assert.That(raisedProperties, Does.Contain(nameof(MainViewModel.ErrorsButtonLabel)));
+    }
+
+    [Test]
     public void CopyToClipboard_DoesNothing_ForNodeWithoutWorkingDirectory()
     {
         var clipboard = new StubClipboardService();

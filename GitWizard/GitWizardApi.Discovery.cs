@@ -116,7 +116,7 @@ public static partial class GitWizardApi
     // search path, applying the same drive-root rule as the in-process scan: at a drive root
     // only .git directories count; under a scoped path, .git files (worktree/submodule
     // pointers) count too.
-    static void CollectGitRepositoriesFromScan(IReadOnlyList<ScanRecord> records, string rootPath,
+    internal static void CollectGitRepositoriesFromScan(IReadOnlyList<ScanRecord> records, string rootPath,
         ICollection<string> ignoredPaths, ICollection<string> paths, bool? skipHiddenDirectories)
     {
         var includeGitFiles = !IsDriveRoot(NormalizePath(rootPath));
@@ -125,8 +125,11 @@ public static partial class GitWizardApi
     }
 
     // The .git-named scan records, as their paths. Pure: no filesystem access, so the
-    // drive-root include-files rule is unit-testable with synthetic records.
-    static IEnumerable<string> SelectGitEntryPaths(IReadOnlyList<ScanRecord> records, bool includeGitFiles) =>
+    // drive-root include-files rule is unit-testable with synthetic records. A .git FILE
+    // record (worktree/submodule pointer, IsDirectory: false) is kept whenever includeGitFiles
+    // is true - its parent directory becomes a repository root just like a .git directory's
+    // parent does (see ResolveRepositoryRootCandidates).
+    internal static IEnumerable<string> SelectGitEntryPaths(IReadOnlyList<ScanRecord> records, bool includeGitFiles) =>
         records
             .Where(record => record.Name == GitEntryName && (includeGitFiles || record.IsDirectory))
             .Select(record => record.Path);
@@ -211,14 +214,37 @@ public static partial class GitWizardApi
     // Turns a set of .git entry paths (from a live MFT scan or a broker cold scan) into the
     // repository roots under rootPath: the .git entry's parent must be under the search root,
     // not ignored, and (unless skipHiddenDirectories is false) free of hidden/dot path
-    // segments, and must still exist on disk.
+    // segments, and must still exist on disk. A .git entry can be either a directory (a normal
+    // repository) or a file (a worktree/submodule pointer, whose real gitdir may live outside
+    // every search path) - both map to their parent directory as the repository root the same
+    // way; the includeGitFiles flag upstream in SelectGitEntryPaths is what decides whether
+    // .git files are offered to this method at all.
     static void CollectGitRepositories(IEnumerable<string> gitEntryPaths, string rootPath,
         ICollection<string> ignoredPaths, ICollection<string> paths, bool? skipHiddenDirectories = null)
+    {
+        var candidates = ResolveRepositoryRootCandidates(gitEntryPaths, rootPath, ignoredPaths, skipHiddenDirectories)
+            .Where(candidate => Directory.Exists(candidate))
+            .ToList();
+
+        foreach (var candidate in candidates)
+        {
+            lock (paths)
+            {
+                paths.Add(candidate);
+            }
+        }
+    }
+
+    // Pure candidate-root derivation: maps each .git entry path to its parent directory and
+    // applies root-scope, ignored-path, and hidden-directory filtering - everything
+    // CollectGitRepositories does except the Directory.Exists disk check, so it can be
+    // exercised with synthetic ScanRecord-derived paths (real or nonexistent) on any OS.
+    internal static IEnumerable<string> ResolveRepositoryRootCandidates(IEnumerable<string> gitEntryPaths,
+        string rootPath, ICollection<string> ignoredPaths, bool? skipHiddenDirectories = null)
     {
         var normalizedRootPath = NormalizePath(rootPath);
         var expandedIgnoredPaths = ExpandIgnoredPaths(ignoredPaths);
         var shouldSkipHiddenDirs = skipHiddenDirectories != false;
-        var candidates = new List<string>();
 
         foreach (var gitEntryPath in gitEntryPaths)
         {
@@ -245,19 +271,7 @@ public static partial class GitWizardApi
                     continue;
             }
 
-            // Verify the directory is accessible
-            if (!Directory.Exists(parentPath))
-                continue;
-
-            candidates.Add(normalizedParentPath);
-        }
-
-        foreach (var candidate in candidates)
-        {
-            lock (paths)
-            {
-                paths.Add(candidate);
-            }
+            yield return normalizedParentPath;
         }
     }
 

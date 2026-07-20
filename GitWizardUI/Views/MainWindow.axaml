@@ -26,6 +26,8 @@
       <Button x:Name="DefenderButton" Content="Configure Windows Defender" Click="CheckWindowsDefenderMenuItem_Click" FontSize="12" Padding="10,5" />
       <Button x:Name="ClearCacheButton" Content="Clear Cache" Click="ClearCacheMenuItem_Click" FontSize="12" Padding="10,5" />
       <Button x:Name="DeleteAllFilesButton" Content="Delete All Local Files" Click="DeleteAllLocalFilesMenuItem_Click" FontSize="12" Padding="10,5" />
+      <Button x:Name="ErrorsButton" Content="{Binding ErrorsButtonLabel}" Click="ErrorsMenuItem_Click" FontSize="12" Padding="10,5"
+              ToolTip.Tip="View errors caught while scanning, refreshing, or acting on repositories" />
     </StackPanel>
 
     <ScrollViewer Grid.Row="1" Grid.Column="0">

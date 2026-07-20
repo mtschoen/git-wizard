@@ -1,0 +1,23 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:GitWizardUI.ViewModels"
+        x:Class="GitWizardUI.Views.ErrorLogWindow"
+        x:DataType="vm:ErrorLogViewModel"
+        Title="Error Log"
+        Width="700" Height="450"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="10">
+    <TextBlock Grid.Row="0" Margin="0,0,0,5"
+               Text="Errors caught while scanning, refreshing, or acting on repositories. Newest first." />
+    <ListBox Grid.Row="1" ItemsSource="{Binding Entries}">
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="vm:ErrorLogEntry">
+          <TextBlock Text="{Binding DisplayText}" TextWrapping="Wrap" />
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="5" Margin="0,10,0,0">
+      <Button Content="Clear" Click="Clear_Click" ToolTip.Tip="Clear the in-memory error log" />
+    </StackPanel>
+  </Grid>
+</Window>

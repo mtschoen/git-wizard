@@ -52,7 +52,7 @@ merge of disjoint updates must serialize their writes externally.
 | `CurrentBranch` | `string` | yes | Current branch name |
 | `IsDetachedHead` | `bool` | no | Whether HEAD is detached |
 | `HasPendingChanges` | `bool` | no | Whether repo has uncommitted changes (matches libgit2's `IsDirty`) |
-| `NumberOfPendingChanges` | `int` | no | Count of modified + staged + removed + added + untracked + renamed files. Always matches `HasPendingChanges` (0 iff false). |
+| `NumberOfPendingChanges` | `int` | no | Count of modified + staged + removed + added + untracked + renamed files, including deleted tracked files whether or not the deletion is staged. Always matches `HasPendingChanges` (0 iff false). |
 | `IsWorktree` | `bool` | no | Whether this is a git worktree |
 | `LocalOnlyCommits` | `bool` | no | Whether any local branch has unpushed commits |
 | `LocalCommitCount` | `int` | no | Total unpushed commits across all local branches (sums `AheadOfDefault`-style divergence for tracked branches and all commits on untracked branches). |

@@ -31,6 +31,7 @@ public partial class MainViewModel
         catch (Exception ex)
         {
             ShowAlert("Error", $"Could not open folder: {ex.Message}");
+            LogError($"Could not open folder: {ex.Message}", node.WorkingDirectory);
         }
     }
 
@@ -54,6 +55,13 @@ public partial class MainViewModel
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "Fork", "Fork.exe");
         }
+        else
+        {
+            // A user-configured path may contain environment-variable references (e.g.
+            // %LocalAppData%\Fork\Fork.exe) or a ~ home-directory alias, same as SearchPaths/
+            // IgnoredPaths. Expand it the same way before checking for/launching the exe.
+            forkPath = GitWizardApi.PrettyPrintPath(forkPath);
+        }
 
         if (!File.Exists(forkPath))
         {
@@ -74,6 +82,7 @@ public partial class MainViewModel
         catch (Exception ex)
         {
             ShowAlert("Error", $"Could not launch Fork: {ex.Message}");
+            LogError($"Could not launch Fork: {ex.Message}", node.WorkingDirectory);
         }
     }
 
@@ -133,7 +142,9 @@ public partial class MainViewModel
             }
             catch (Exception ex)
             {
-                ShowAlert("Checkout Failed", $"Could not check out branch '{node.MatchingBranchName}': {ex.Message}");
+                var message = $"Could not check out branch '{node.MatchingBranchName}': {ex.Message}";
+                ShowAlert("Checkout Failed", message);
+                LogError(message, node.WorkingDirectory);
             }
         });
     }
@@ -239,6 +250,7 @@ public partial class MainViewModel
             // Remove successfully deleted branches from Branches so UI doesn't show stale data
             node.Repository.Branches?.RemoveAll(b => b.IsMerged && !failed.Contains(b.Name));
             var failedList = string.Join(", ", failed);
+            LogError($"Could not delete downstream branch(es): {failedList}", node.WorkingDirectory);
             await _dialogs.DisplayAlertAsync(
                 "Partial Success",
                 $"Could not delete: {failedList}\n\nThese branches may not be fully merged or are protected.");

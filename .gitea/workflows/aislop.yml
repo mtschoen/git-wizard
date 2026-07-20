@@ -62,6 +62,11 @@ jobs:
           REPORT="$RUNNER_TEMP/aislop-report.json"
           node "$RUNNER_TEMP/aislop/dist/cli.js" ci . --json > "$REPORT" || GATE_FAILED=1
           node -e "const r=require(process.env.REPORT); const f=r.summary?.files??0; console.log('aislop score',r.score,'over',f,'files'); if(f<10){console.error('aislop only scanned '+f+' files - the C# engine did not run');process.exit(1);}"
-          if [ -n "$GATE_FAILED" ]; then echo "aislop score below failBelow"; exit 1; fi
+          # On a failing score, print every finding so the log says WHY - a bare
+          # score is undebuggable from a runner without shell access to $RUNNER_TEMP.
+          if [ -n "$GATE_FAILED" ]; then
+            node -e "const r=require(process.env.REPORT); for (const f of (r.diagnostics??[])) console.log([f.severity,f.rule,f.filePath+':'+(f.line??0),f.message].join(' | '));"
+            echo "aislop score below failBelow"; exit 1
+          fi
         env:
           REPORT: ${{ runner.temp }}/aislop-report.json

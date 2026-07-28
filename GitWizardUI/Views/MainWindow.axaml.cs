@@ -96,10 +96,34 @@ public partial class MainWindow : Window
             _viewModel.RefreshCommand.Execute(null);
     }
 
+    RepositoryNodeViewModel? _lastTappedGroup;
+    IPointer? _lastGroupTapPointer;
+    ulong _lastGroupTapTimestamp;
+
+    void RepositoryList_Tapped(object? sender, TappedEventArgs e)
+    {
+        if ((e.Source as Control)?.DataContext is RepositoryNodeViewModel { IsGroupHeader: true } node)
+        {
+            var doubleTapTime = ((IInputRoot)this).PlatformSettings?.GetDoubleTapTime(e.Pointer.Type)
+                ?? TimeSpan.FromMilliseconds(500);
+            var isSecondTap = ReferenceEquals(node, _lastTappedGroup)
+                && e.Pointer.Id == _lastGroupTapPointer?.Id
+                && e.Timestamp >= _lastGroupTapTimestamp
+                && e.Timestamp - _lastGroupTapTimestamp <= (ulong)doubleTapTime.TotalMilliseconds;
+
+            _lastTappedGroup = isSecondTap ? null : node;
+            _lastGroupTapPointer = isSecondTap ? null : e.Pointer;
+            _lastGroupTapTimestamp = isSecondTap ? 0 : e.Timestamp;
+            if (isSecondTap)
+                return;
+
+            _viewModel.ToggleGroupExpand(node);
+        }
+    }
+
     void RepositoryList_DoubleTapped(object? sender, TappedEventArgs e)
     {
-        // OpenInExplorer decides what to do: toggle a group header, or open a repo.
-        if ((e.Source as Control)?.DataContext is RepositoryNodeViewModel node)
+        if ((e.Source as Control)?.DataContext is RepositoryNodeViewModel { IsGroupHeader: false } node)
             _viewModel.OpenInExplorerCommand.Execute(node);
     }
 

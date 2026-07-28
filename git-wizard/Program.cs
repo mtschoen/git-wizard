@@ -21,6 +21,18 @@ public static partial class Program
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
     };
 
+    static readonly JsonSerializerOptions IndentedSweepSerializerOptions = new()
+    {
+        WriteIndented = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
+    static readonly JsonSerializerOptions CompactSweepSerializerOptions = new()
+    {
+        WriteIndented = false,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
     const string SessionStartMessage = @"Session Start Message
 =======================================================================================================================
 git-wizard Session Started
@@ -55,6 +67,12 @@ git-wizard Session Started
 
         if (TryHandleImmediateExitFlags(runConfiguration))
             return;
+
+        if (runConfiguration.Sweep)
+        {
+            await RunSweepAsync(runConfiguration);
+            return;
+        }
 
         GitWizardLog.Log(SessionStartMessage);
         var configuration = await GetConfigurationAsync(runConfiguration);
@@ -93,6 +111,43 @@ git-wizard Session Started
         }
 
         await RunDefaultReportModeAsync(runConfiguration, configuration);
+    }
+
+    static async Task RunSweepAsync(RunConfiguration runConfiguration)
+    {
+        // Machine mode reserves stdout for the JSON document. Any exceptional diagnostics
+        // emitted by shared configuration/discovery code are redirected to stderr.
+        GitWizardLog.SilentMode = true;
+        GitWizardLog.LogMethod = Console.Error.WriteLine;
+
+        var repositoryPaths = ParseExplicitPaths(runConfiguration);
+        if (repositoryPaths == null)
+        {
+            repositoryPaths = await GetRepositoryPathsAsync(runConfiguration);
+            if (repositoryPaths == null)
+            {
+                var configuration = await GetConfigurationAsync(runConfiguration);
+                var discoveredPaths = new SortedSet<string>();
+                var discoveryReport = new GitWizardReport(configuration);
+                await discoveryReport.GetRepositoryPathsAsync(discoveredPaths, noMft: runConfiguration.NoMft);
+                repositoryPaths = discoveredPaths.ToArray();
+                await GitWizardApi.SaveCachedRepositoryPathsAsync(repositoryPaths);
+            }
+        }
+
+        if (!string.IsNullOrEmpty(runConfiguration.FilterPattern))
+        {
+            repositoryPaths = repositoryPaths
+                .Where(path => path.Contains(runConfiguration.FilterPattern, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+        }
+
+        var report = RepositorySweepReport.Scan(repositoryPaths);
+        var json = SerializeSweepReport(runConfiguration, report);
+        if (runConfiguration.SavePath != null)
+            await File.WriteAllTextAsync(runConfiguration.SavePath, json);
+
+        Console.WriteLine(json);
     }
 
     // Handle elevated helper modes (launched by self-elevation). Returns true if one of the
@@ -288,6 +343,14 @@ git-wizard Session Started
 
         var jsonString = JsonSerializer.Serialize(report, options);
         return jsonString;
+    }
+
+    static string SerializeSweepReport(RunConfiguration runConfiguration, RepositorySweepReport report)
+    {
+        var options = runConfiguration.Minified
+            ? CompactSweepSerializerOptions
+            : IndentedSweepSerializerOptions;
+        return JsonSerializer.Serialize(report, options);
     }
 
     static GitWizardReport ApplyFilter(RunConfiguration runConfiguration, GitWizardReport report)

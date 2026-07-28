@@ -2,6 +2,7 @@
 // struct without invoking its constructor (which calls Environment.GetCommandLineArgs).
 #pragma warning disable SYSLIB0050 // FormatterServices is obsolete
 
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.Serialization;
 using System.Text.Json;
@@ -119,6 +120,12 @@ public class ProgramHelperTests
         return (string)method.Invoke(null, new[] { runConfig, report })!;
     }
 
+    static string InvokeSerializeSweepReport(object runConfig, RepositorySweepReport report)
+    {
+        var method = GetPrivateStaticMethod("SerializeSweepReport", ProgramType);
+        return (string)method.Invoke(null, new[] { runConfig, report })!;
+    }
+
     /// <summary>
     /// Invokes the private static TryHandleElevatedHelperModes(string[]) method.
     /// </summary>
@@ -153,6 +160,42 @@ public class ProgramHelperTests
             .Invoke(repo, new object[] { behindRemoteCount });
 
         return repo;
+    }
+
+    #endregion
+
+    #region SerializeSweepReport
+
+    [Test]
+    public void SerializeSweepReport_DefaultValues_ArePresentForStableContract()
+    {
+        var report = new RepositorySweepReport();
+        report.Repositories.Add(new RepositorySweepItem { Path = "/repo/clean" });
+        var config = CreateRunConfig();
+
+        var json = InvokeSerializeSweepReport(config, report);
+        using var document = JsonDocument.Parse(json);
+        var repository = document.RootElement.GetProperty("Repositories")[0];
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(repository.GetProperty("DirtyTrackedFiles").GetArrayLength(), Is.Zero);
+            Assert.That(repository.GetProperty("UnpushedBranches").GetArrayLength(), Is.Zero);
+            Assert.That(repository.GetProperty("StashCount").GetInt32(), Is.Zero);
+        });
+    }
+
+    [Test]
+    public void SerializeSweepReport_Minified_HasNoIndentedNewlines()
+    {
+        var config = CreateRunConfig((type, boxed) =>
+        {
+            SetRunConfigField(type, ref boxed, "Minified", true);
+        });
+
+        var json = InvokeSerializeSweepReport(config, new RepositorySweepReport());
+
+        Assert.That(json, Does.Not.Contain(Environment.NewLine));
     }
 
     #endregion
@@ -586,4 +629,112 @@ public class ProgramHelperTests
     }
 
     #endregion
+}
+
+public class ProgramEntryPointTests
+{
+    [Test]
+    public async Task Main_Sweep_PrintsIndentedJsonToStandardOutputAndReturnsZero()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AddOriginRemoteAndPush();
+
+        var result = await RunCliAsync("--sweep", "--paths", fixture.Path);
+
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        var repository = document.RootElement.GetProperty("Repositories")[0];
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.Zero);
+            Assert.That(result.StandardError, Is.Empty);
+            Assert.That(result.StandardOutput.TrimEnd(), Does.Contain(Environment.NewLine));
+            Assert.That(document.RootElement.GetProperty("SchemaVersion").GetString(), Is.EqualTo("1.0"));
+            Assert.That(repository.GetProperty("Path").GetString(), Is.EqualTo(fixture.Path));
+            Assert.That(repository.GetProperty("DirtyTrackedFiles").GetArrayLength(), Is.Zero);
+            Assert.That(repository.GetProperty("UnpushedBranches").GetArrayLength(), Is.Zero);
+            Assert.That(repository.GetProperty("StashCount").GetInt32(), Is.Zero);
+        });
+    }
+
+    [Test]
+    public async Task Main_SweepWithPrintMinified_PrintsSingleLineJsonAndReturnsZero()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AddOriginRemoteAndPush();
+
+        var result = await RunCliAsync("--sweep", "--print-minified", "--paths", fixture.Path);
+
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.Zero);
+            Assert.That(result.StandardError, Is.Empty);
+            Assert.That(result.StandardOutput.TrimEnd(), Does.Not.Contain('\n'));
+            Assert.That(document.RootElement.GetProperty("Repositories").GetArrayLength(), Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public async Task Main_SweepWithUnknownOption_ReturnsParseErrorWithoutJson()
+    {
+        var result = await RunCliAsync("--sweep", "--unknown-sweep-option");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(2));
+            Assert.That(result.StandardOutput, Does.Not.Contain("\"Repositories\""));
+        });
+    }
+
+    static async Task<(int ExitCode, string StandardOutput, string StandardError)> RunCliAsync(params string[] args)
+    {
+        var executablePath = GetCliExecutablePath();
+        var startInfo = new ProcessStartInfo(executablePath)
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+
+        foreach (var arg in args)
+            startInfo.ArgumentList.Add(arg);
+
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException($"Could not start CLI at {executablePath}.");
+        var standardOutput = process.StandardOutput.ReadToEndAsync();
+        var standardError = process.StandardError.ReadToEndAsync();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        try
+        {
+            await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            process.Kill(entireProcessTree: true);
+            throw;
+        }
+
+        return (
+            process.ExitCode,
+            await standardOutput.ConfigureAwait(false),
+            await standardError.ConfigureAwait(false));
+    }
+
+    static string GetCliExecutablePath()
+    {
+        var testOutputDirectory = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
+        var configurationDirectory = testOutputDirectory.Parent
+            ?? throw new InvalidOperationException("Could not determine the build configuration directory.");
+        var repositoryRoot = configurationDirectory.Parent?.Parent?.Parent
+            ?? throw new InvalidOperationException("Could not determine the repository root.");
+        var executableName = OperatingSystem.IsWindows() ? "git-wizard.exe" : "git-wizard";
+
+        return Path.Combine(
+            repositoryRoot.FullName,
+            "git-wizard",
+            "bin",
+            configurationDirectory.Name,
+            testOutputDirectory.Name,
+            executableName);
+    }
 }

@@ -36,6 +36,7 @@ static class CliParser
             noMftOption,
             noLocalCommitCountOption,
             summaryOption,
+            sweepOption,
             mergeOption,
             clearCacheOption,
             deleteAllLocalFilesOption,
@@ -62,6 +63,7 @@ static class CliParser
             noMftOption,
             noLocalCommitCountOption,
             summaryOption,
+            sweepOption,
             mergeOption,
             clearCacheOption,
             deleteAllLocalFilesOption,
@@ -110,6 +112,7 @@ static class CliParser
         CommandOption noMft,
         CommandOption noLocalCommitCount,
         CommandOption summary,
+        CommandOption sweep,
         CommandOption merge,
         CommandOption clearCache,
         CommandOption deleteAllLocalFiles,
@@ -135,6 +138,7 @@ static class CliParser
         var noMftOption = app.Option("--no-mft", "Skip MFT search and use recursive directory scan instead", CommandOptionType.NoValue);
         var noLocalCommitCountOption = app.Option("--no-local-commit-count", "Skip the expensive per-branch local-commit-count iteration in each repository refresh", CommandOptionType.NoValue);
         var summaryOption = app.Option("--summary", "Output a condensed summary (dirty/unpushed/stale counts + repos needing attention)", CommandOptionType.NoValue);
+        var sweepOption = app.Option("--sweep", "Output automation-focused JSON: tracked dirty files, branches with commits absent from all remote-tracking refs, and stash counts", CommandOptionType.NoValue);
         var mergeOption = app.Option("--merge", "Targeted single-repo refresh: merge the repos named by --paths into the existing report at --save-path (insert/update those entries, leave all others intact), then write back atomically. Requires --paths and --save-path.", CommandOptionType.NoValue);
         var clearCacheOption = app.Option("--clear-cache", "Delete cached reports and configurations before running (combine with --no-refresh to avoid re-generating the cache)", CommandOptionType.NoValue);
         var deleteAllLocalFilesOption = app.Option("--delete-all-local-files", "Delete all files created by GitWizard before running (includes files deleted by --clear-cache; combine with --no-refresh to avoid creating any more local files)", CommandOptionType.NoValue);
@@ -161,6 +165,7 @@ static class CliParser
             noMftOption,
             noLocalCommitCountOption,
             summaryOption,
+            sweepOption,
             mergeOption,
             clearCacheOption,
             deleteAllLocalFilesOption,
@@ -186,6 +191,7 @@ static class CliParser
         CommandOption noMftOption,
         CommandOption noLocalCommitCountOption,
         CommandOption summaryOption,
+        CommandOption sweepOption,
         CommandOption mergeOption,
         CommandOption clearCacheOption,
         CommandOption deleteAllLocalFilesOption,
@@ -239,6 +245,7 @@ static class CliParser
             filterValue,
             pathsValue,
             summaryOption.HasValue(),
+            sweepOption.HasValue(),
             mergeOption.HasValue(),
             !noRefreshOption.HasValue(),
             printMinifiedOption.HasValue(),
@@ -281,7 +288,7 @@ static class CliParser
     static RunConfigurationResult CreateDefaultResult() =>
         new(
             false, false, false, false, false, false, false, null, null,
-            false, false, true, false, null, null, false, false, false, false, false);
+            false, false, false, true, false, null, null, false, false, false, false, false);
 }
 
 sealed record RunConfigurationResult(
@@ -295,6 +302,7 @@ sealed record RunConfigurationResult(
     string? FilterPattern,
     string? PathsArgument,
     bool Summary,
+    bool Sweep,
     bool Merge,
     bool RefreshReport,
     bool Minified,

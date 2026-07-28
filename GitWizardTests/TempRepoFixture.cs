@@ -294,6 +294,28 @@ internal sealed class TempRepoFixture : IDisposable
         => File.WriteAllText(System.IO.Path.Combine(Path, fileName), Guid.NewGuid().ToString());
 
     /// <summary>
+    /// Replace a committed file's contents without staging the change.
+    /// </summary>
+    public void ModifyTrackedFile(string fileName)
+        => File.WriteAllText(System.IO.Path.Combine(Path, fileName), Guid.NewGuid().ToString());
+
+    /// <summary>
+    /// Create and stage a new file without committing it.
+    /// </summary>
+    public void AddStagedFile(string fileName)
+    {
+        AddUntrackedFile(fileName);
+        RunGit(Path, "add", fileName);
+    }
+
+    /// <summary>
+    /// Stash the current tracked-tree changes.
+    /// </summary>
+    public void StashTrackedChanges()
+        => RunGit(Path, "-c", "user.email=test@example.com", "-c", "user.name=Test",
+            "stash", "push", "-m", "test stash");
+
+    /// <summary>
     /// Add a linked worktree (on a fresh branch <paramref name="branchName"/>) in a sibling temp
     /// directory and return its absolute path. The directory is cleaned up on dispose.
     /// </summary>

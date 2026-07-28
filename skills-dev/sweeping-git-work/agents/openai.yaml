@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sweeping Git Work"
+  short_description: "Find dirty, unpushed, and stashed git work"
+  default_prompt: "Use $sweeping-git-work to audit this machine for git work that is not safely remote-backed."

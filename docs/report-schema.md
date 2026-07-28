@@ -139,3 +139,37 @@ A local branch's relationship to the repository's default branch. By default the
 |------|---------|
 | `0` | All repos clean, pushed, and not behind their remote |
 | `1` | At least one repo has pending changes, unpushed commits, or is behind its remote (`BehindRemoteCount > 0`) |
+
+## Repository sweep output (`--sweep`)
+
+The automation-focused sweep is a separate contract from the cached report above. Its schema version starts at `1.0`, and its arrays plus `StashCount` are always serialized even when empty or zero.
+
+```json
+{
+  "SchemaVersion": "1.0",
+  "Repositories": [
+    {
+      "Path": "/work/example",
+      "DirtyTrackedFiles": ["README.md"],
+      "UnpushedBranches": [
+        { "Name": "feature/local", "CommitCount": 2 }
+      ],
+      "StashCount": 1
+    }
+  ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `SchemaVersion` | `string` | Sweep contract version, currently `"1.0"` |
+| `Repositories` | `RepositorySweepItem[]` | Path-sorted repository results |
+| `Path` | `string` | Repository path supplied by explicit paths, cache, or discovery |
+| `DirtyTrackedFiles` | `string[]` | Path-sorted staged or unstaged tracked changes; untracked files are excluded |
+| `UnpushedBranches` | `UnpushedBranchInfo[]` | Local branches reaching commits absent from every local remote-tracking ref |
+| `Name` | `string` | Local branch name |
+| `CommitCount` | `int` | Commits reachable from this branch and no remote-tracking ref |
+| `StashCount` | `int` | Entries under `refs/stash` |
+| `Error` | `string` | Optional repository-local scan error; other repositories are still reported |
+
+`--sweep` does not contact remotes. Run an explicitly approved fetch first when the audit requires current server state. A completed sweep exits `0` even when it finds work; findings are data. Parser or process failures retain the CLI's non-zero error behavior.

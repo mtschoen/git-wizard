@@ -31,6 +31,17 @@ dotnet build GitWizardUI/GitWizardUI.csproj
 
 On first run, configure your search paths in Settings. GitWizard will scan those paths for git repositories and cache the results for fast subsequent launches.
 
+### Machine-readable safety sweep
+
+Use the focused sweep mode before travel, migration, or machine maintenance:
+
+```bash
+git-wizard --sweep --print-minified
+git-wizard --sweep --paths /work/repo-a,/work/repo-b
+```
+
+It emits stable JSON containing each repository path, dirty tracked files, local branches with commits absent from all local remote-tracking refs, and stash count. The sweep is read-only and does not fetch, so remote-tracking freshness depends on the machine's last fetch. See [the sweep schema](docs/report-schema.md#repository-sweep-output---sweep) and the local/SSH agent workflow in [skills-dev/sweeping-git-work](skills-dev/sweeping-git-work/SKILL.md).
+
 ### Preview a PR build
 
 `/preview` on a git-wizard PR builds and publishes the desktop app for Windows or Linux; `scripts/run-preview.ps1` / `scripts/run-preview.sh` download and launch a published preview. See **CI infrastructure → Preview builds** in [AGENTS.md](AGENTS.md).
@@ -42,6 +53,7 @@ On first run, configure your search paths in Settings. GitWizard will scan those
 | **GitWizard/** | Core class library (cross-platform) |
 | **git-wizard/** | CLI tool |
 | **GitWizardUI/** | Avalonia desktop app (Windows, macOS, Linux); view models under `ViewModels/` |
+| **skills-dev/** | Agent skills developed alongside the CLI |
 
 ## License
 

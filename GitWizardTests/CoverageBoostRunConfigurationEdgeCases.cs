@@ -291,6 +291,14 @@ public class CoverageBoostRunConfigurationEdgeCases
     }
 
     [Test]
+    public void ParseCommandLine_Sweep_SetsSweepMode()
+    {
+        var parsed = Parse("--sweep");
+
+        Assert.That(parsed.Sweep, Is.True);
+    }
+
+    [Test]
     public void ParseCommandLine_ClearCacheAndDeleteAll_BothSet()
     {
         var parsed = Parse("--clear-cache", "--delete-all-local-files");

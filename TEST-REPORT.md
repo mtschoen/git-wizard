@@ -1,40 +1,27 @@
 # Test & Coverage Report - git-wizard
 
-**Status:** PASS - 879 tests pass, **0 build/analyzer findings** (analyzer gate + `dotnet format` + jb inspectcode clean), **aislop 100/100** (`aislop ci .` clean, gate green).
-**Mode:** coverage = maintain (this change modifies release workflow configuration and documentation, not production code); lint/analyzers/aislop = maintain (0 findings held).
-**Change:** Tag releases now fail-fast on missing GitHub credentials, build JSON booleans safely, mirror the Gitea release and zip assets to GitHub, and document token provisioning plus the first-release smoke procedure.
-**Branch:** `agent/1171-mirror-gitea-releases-to-github-` based on `94650b4`.
+**Status:** PASS - 890 non-admin tests pass, **0 build/analyzer findings** (analyzer gate + `dotnet format` + jb inspectcode clean), **aislop 100/100** (`aislop ci .` clean, gate green).
+**Mode:** coverage gate = pass (**81.75%** line ≥ 45%); sweep classification, branch counting, stash counting, error isolation, parser, serialization, and CLI entry-point behavior are covered. The built CLI was exercised against a disposable repository.
+**Change:** Added the `--sweep` JSON contract for dirty tracked files, branches with commits absent from all remote-tracking refs, and stash counts; documented local/SSH agent operation and recovery bundling; added process-level coverage of normal, minified, and invalid sweep invocations.
+**Branch:** `agent/1172-agent-skill-machine-wide-unpushe` (issue #101, based on `94650b4`).
 **Last measured:** 2026-07-28, Linux, `Release`, non-admin tier.
-**Command:** `dotnet build git-wizard.slnx -c Release --no-restore` · `dotnet test GitWizardTests/GitWizardTests.csproj --no-build -c Release --collect:"XPlat Code Coverage"` · `dotnet format git-wizard.slnx --verify-no-changes` · `jb inspectcode git-wizard.slnx --settings=git-wizard.slnx.DotSettings --severity=WARNING --no-updates --properties:Configuration=Release` · `aislop ci .`.
-**Git:** `agent/1171-mirror-gitea-releases-to-github-` based on `94650b4`
+**Command:** `cmake -S external/MFTLib/MFTLibNative -B external/MFTLib/build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release` · `cmake --build external/MFTLib/build-linux` · `dotnet build git-wizard.slnx -c Release --no-restore` · `dotnet test GitWizardTests/GitWizardTests.csproj -c Release --no-build --collect:"XPlat Code Coverage"` · `python3 ci/post-coverage-status.py --cobertura "TestResults/**/coverage.cobertura.xml" --gate-line 45 --summary --skip-post` · `dotnet format git-wizard.slnx --verify-no-changes` · `jb inspectcode git-wizard.slnx --settings=git-wizard.slnx.DotSettings --severity=WARNING --no-updates --properties:Configuration=Release` · `aislop ci .`.
+**Git:** `agent/1172-agent-skill-machine-wide-unpushe` at `f3817a2` plus integration-test/report edits
 
 ## Results
 
 | Metric | Value |
 | --- | --- |
-| Tests passed (non-admin tier) | 879 |
-| Tests passed (`RequiresAdmin` tier, elevated) | 1 (`TryFindAllRepositoriesUsingMftAsync_Elevated_RealMftScanDoesNotThrow`; not re-run this session) |
+| Tests passed (non-admin tier) | 890 |
+| Tests passed (`RequiresAdmin` tier, elevated) | Not run on Linux |
 | Failed | 0 |
-| Skipped by the Linux run | 3 |
-| **Line coverage (non-admin, `Release`)** | **82.07%** (2,526 / 3,078 lines; 45% CI gate passed) |
-| **Branch coverage (non-admin, `Release`)** | **79.60%** (1,155 / 1,451 branches) |
-| Line coverage (merged: non-admin + elevated, prior full run) | 80.04% |
+| Skipped on Linux (Windows-only MFT/elevation guards) | 3 |
+| **Line coverage (non-admin, `Release`)** | **81.75%** (CI gate: 45%) |
+| **Branch coverage (non-admin, `Release`)** | **79.25%** |
 | `[ExcludeFromCodeCoverage]` annotations | 0 (Exclusions configured cleanly via `coverlet.runsettings` for Views, UI Services wrappers, and WindowsDefender) |
 
-> **Line coverage is correctly merged** across the two runs (`ci/post-coverage-status.py` ORs line hits
-> across every `coverage.cobertura.xml`): in the prior full run the elevated tier lifted the non-admin
-> baseline 41.45% → **44.24%** by covering the genuinely-privileged code (`MftVolume.Open` raw scan in
-> `TryFindGitRepositoriesUsingMft`, `RunElevatedMftScan`). This PR raised the **non-admin line baseline
-> 49.56% → 53.06%** (Debug, measured against `main` @ `ed21997` in the same config) by salvaging genuine
-> API / repository / `MainViewModel` / `GitWizardSummary` coverage from PR #57; a fresh self-elevating run
-> would merge higher, but the elevated tier wasn't re-run (unchanged privileged code).
->
-> **Branch coverage is NOT reliably merged by that script** - it averages each report's root `branch-rate`
-> (the script's own docstring flags this as an approximation for the multi-report case). With the full run
-> producing two reports (a whole-suite report + a 2-test elevated report), that average reads ~20%, which is
-> a tooling artifact, not a real drop. The meaningful single-report branch figure is **36.64%** (non-admin).
-> Accurate branch merging across the split runs would need `reportgenerator` - a follow-up, not wired up here.
-> `WindowsDefenderException.RunDefenderCommands*` remains uncovered by design (real Defender mutation; not auto-tested).
+> These are the Linux CI-equivalent figures from one fresh Cobertura report. The elevated Windows
+> tier was not run because this change does not touch privileged MFT or Defender behavior.
 
 ## Lint gate (PASS - 0 findings)
 

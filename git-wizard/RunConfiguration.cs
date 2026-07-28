@@ -60,6 +60,11 @@ public static partial class Program
         public readonly bool Summary;
 
         /// <summary>
+        /// Output the compact machine-sweep JSON contract.
+        /// </summary>
+        public readonly bool Sweep;
+
+        /// <summary>
         /// Targeted single-repo merge refresh: merge the repos named by --paths into the
         /// existing report at --save-path, leaving other entries intact. Requires --paths
         /// and --save-path.
@@ -137,6 +142,7 @@ public static partial class Program
             FilterPattern = result.FilterPattern;
             PathsArgument = result.PathsArgument;
             Summary = result.Summary;
+            Sweep = result.Sweep;
             Merge = result.Merge;
             RefreshReport = result.RefreshReport;
             Minified = result.Minified;

@@ -1,23 +1,23 @@
 # Test & Coverage Report - git-wizard
 
-**Status:** PASS - 859 non-admin tests pass, **0 build/analyzer findings** (analyzer gate + `dotnet format` + jb inspectcode clean), **aislop 100/100** (`aislop ci .` clean, gate green).
-**Mode:** coverage = best-effort (this change fixes cached-report pre-population lifecycle behavior, not the repository-wide coverage gap; changed behavior is covered and line coverage increased from 83.15% to 83.44%); lint/analyzers/aislop = maintain (0 findings held).
-**Change:** Fresh scan nodes now replace cached nodes immediately in direct and grouped views, refresh-only pre-population state resets between cycles, grouped pre-population honors active filters, and UI-bound collection changes run on the UI thread. Lifecycle tests cover visible completion updates, grouped replacement/filtering, consecutive refreshes, deletion, and rename cleanup.
-**Branch:** `fix/pr99-visible-node` (PR #99 head based on `826a79b`).
-**Last measured:** 2026-07-15, Windows, `Release`, non-admin tier.
-**Command:** `dotnet build git-wizard.slnx -c Release --no-restore` · `dotnet test GitWizardTests/GitWizardTests.csproj --no-build -c Release --nologo` · `dotnet format git-wizard.slnx --verify-no-changes --no-restore` · `jb inspectcode git-wizard.slnx --settings=git-wizard.slnx.DotSettings --severity=WARNING --no-updates` · `aislop ci .`.
-**Git:** `fix/pr99-visible-node` based on `826a79b`
+**Status:** PASS - 879 tests pass, **0 build/analyzer findings** (analyzer gate + `dotnet format` + jb inspectcode clean), **aislop 100/100** (`aislop ci .` clean, gate green).
+**Mode:** coverage = maintain (this change modifies release workflow configuration and documentation, not production code); lint/analyzers/aislop = maintain (0 findings held).
+**Change:** Tag releases now fail-fast on missing GitHub credentials, build JSON booleans safely, mirror the Gitea release and zip assets to GitHub, and document token provisioning plus the first-release smoke procedure.
+**Branch:** `agent/1171-mirror-gitea-releases-to-github-` based on `94650b4`.
+**Last measured:** 2026-07-28, Linux, `Release`, non-admin tier.
+**Command:** `dotnet build git-wizard.slnx -c Release --no-restore` · `dotnet test GitWizardTests/GitWizardTests.csproj --no-build -c Release --collect:"XPlat Code Coverage"` · `dotnet format git-wizard.slnx --verify-no-changes` · `jb inspectcode git-wizard.slnx --settings=git-wizard.slnx.DotSettings --severity=WARNING --no-updates --properties:Configuration=Release` · `aislop ci .`.
+**Git:** `agent/1171-mirror-gitea-releases-to-github-` based on `94650b4`
 
 ## Results
 
 | Metric | Value |
 | --- | --- |
-| Tests passed (non-admin tier) | 859 |
+| Tests passed (non-admin tier) | 879 |
 | Tests passed (`RequiresAdmin` tier, elevated) | 1 (`TryFindAllRepositoriesUsingMftAsync_Elevated_RealMftScanDoesNotThrow`; not re-run this session) |
 | Failed | 0 |
-| Skipped on Windows (Unix-only + non-Windows MFT guard) | 2 |
-| **Line coverage (non-admin, `Release`)** | **83.44%** (2,536 / 3,039 lines; prior 83.15% baseline held/raised) |
-| **Branch coverage (non-admin, `Release`)** | **80.69%** |
+| Skipped by the Linux run | 3 |
+| **Line coverage (non-admin, `Release`)** | **82.07%** (2,526 / 3,078 lines; 45% CI gate passed) |
+| **Branch coverage (non-admin, `Release`)** | **79.60%** (1,155 / 1,451 branches) |
 | Line coverage (merged: non-admin + elevated, prior full run) | 80.04% |
 | `[ExcludeFromCodeCoverage]` annotations | 0 (Exclusions configured cleanly via `coverlet.runsettings` for Views, UI Services wrappers, and WindowsDefender) |
 

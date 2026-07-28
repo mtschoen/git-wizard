@@ -140,7 +140,7 @@ The workflow runs on `windows-latest`, captures the screenshot using Avalonia he
 3. Update screenshot: trigger CI workflow (see above) or run locally
 4. Commit version bump, screenshot, and all pending changes
 5. `git tag v0.x.y && git push origin main --tags`
-6. CI builds and publishes the release with all artifacts attached. Watch `https://gitea.llamabox.sticktoitive.net/schoen/git-wizard/actions`. The release workflow's `publish-cross` job asserts the tag matches the csproj `<Version>` and fails fast on drift.
+6. CI builds and publishes the release with all artifacts attached, then mirrors it to `github.com/mtschoen/git-wizard`. Watch `https://gitea.llamabox.sticktoitive.net/schoen/git-wizard/actions`. The release workflow's publish job asserts the tag matches the csproj `<Version>` and fails fast on drift.
 
 The release attaches: `git-wizard-{ver}-{rid}.zip` and `GitWizardUI-{ver}-{rid}.zip` for `rid in {win-x64, linux-x64, osx-x64}`. See `.gitea/workflows/release.yml` and the **CI infrastructure** section below.
 
@@ -157,6 +157,8 @@ Workflows live in `.gitea/workflows/` (`ci.yml`, `release.yml`) - the YAML is th
   ```
   Add `ci-bot` as a **Write** collaborator on `schoen/git-wizard` (needed to create releases + upload assets). `write:repository` is the only scope required.
 - **Secret:** store `ci-bot`'s PAT as the repo secret **`CI_GITEA_TOKEN`** (Settings → Actions → Secrets). `release.yml` reads `${{ secrets.CI_GITEA_TOKEN }}`. To rotate: re-run `generate-access-token` and re-paste the value - no code change.
+- **GitHub release mirror:** after a tag push creates the Gitea release and uploads all assets, `release.yml` creates the matching release at `github.com/mtschoen/git-wizard` and uploads the same zip files. The mirror is deliberately skipped by PR publish-smoke runs. A mirror failure fails the release job loudly; the Gitea release may already exist, so repair or remove the partial releases before rerunning the tag workflow.
+- **GitHub mirror secret:** store a GitHub PAT with `repo` scope for `mtschoen/git-wizard` as the Gitea repo Actions secret **`GITHUB_RELEASE_TOKEN`**. The workflow validates that credential before creating the Gitea release, so a missing or revoked token fails without leaving a Gitea-only release. Before the first real release, use a throwaway branch to set the app and CLI versions to `0.0.0-mirror-test`, tag it `v0.0.0-mirror-test`, and push that tag. Verify both prerelease pages and their assets, then delete both releases and the test tag.
 - **Branch protection** (`main`, configured in the Gitea UI, not in any file): require status checks `build-linux` + `test-windows`, require up-to-date branches, restrict force-pushes. Configure *after* the first green CI run so you don't lock yourself out.
 - **Deliberate non-goals:** no binary signing, no MAUI (retired 2026-05-26 - GitWizardUI is the Avalonia app, covering cross-platform desktop), and no macOS CI runner.
 - **Cert workaround:** both workflows set `NODE_TLS_REJECT_UNAUTHORIZED=0` because the Windows runner's Node doesn't trust the self-signed llamabox Caddy cert. Tracked for removal in `PLAN.md` → Infrastructure.

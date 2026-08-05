@@ -363,6 +363,7 @@ MigrationBackup/
 .maintenance.json
 .qwen/
 
-# aislop runtime artifacts (keep only .aislop/config.yml)
-.aislop/
-!.aislop/config.yml
+# aislop runtime artifacts (session/history logs, caches, baselines).
+# Unanchored so nested project directories are covered too.
+**/.aislop/*
+!**/.aislop/config.yml

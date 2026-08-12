@@ -26,6 +26,14 @@ engines:
   architecture: false
   security: true
 
+# projectEvaluation is the required opt-in since aislop 0.14.1 for the
+# project-backed C# tools (jb inspectcode, roslynator, dotnet format) to run
+# at all - without it those engines silently skip. This repo is first-party,
+# so evaluating its own .sln/.csproj files during a scan is trusted.
+lint:
+  csharp:
+    projectEvaluation: true
+
 quality:
   maxFunctionLoc: 80
   maxFileLoc: 400

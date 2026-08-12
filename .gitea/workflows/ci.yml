@@ -172,7 +172,7 @@ jobs:
         # should pass. The format + warnaserror gates above are config-independent
         # and deterministic.
         run: |
-          dotnet tool install -g JetBrains.ReSharper.GlobalTools 2>$null
+          dotnet tool update -g JetBrains.ReSharper.GlobalTools --version 2026.2.0 --allow-downgrade 2>$null
           # jb takes option VALUES with '=' (like -o= above). Space-separated
           # `-s <path>` is rejected as "Invalid option 's'", so use --settings=.
           # Inspect the Release configuration: it's what this job built, and the

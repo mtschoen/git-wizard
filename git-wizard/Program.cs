@@ -2,7 +2,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using MFTLib;
 
-// ReSharper disable once CheckNamespace
 namespace GitWizard.CLI;
 
 public static partial class Program

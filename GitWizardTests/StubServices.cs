@@ -1,6 +1,30 @@
-namespace GitWizardUI.ViewModels.Services;
+using GitWizardUI.ViewModels.Services;
 
-/// <summary>Test stub: records every call, returns scripted answers for confirms.</summary>
+namespace GitWizardTests;
+
+public sealed class StubClipboardService : IClipboardService
+{
+    public List<string> Writes { get; } = new();
+
+    public Task SetPlainTextAsync(string text)
+    {
+        Writes.Add(text);
+        return Task.CompletedTask;
+    }
+}
+
+public sealed class StubFolderPicker : IFolderPicker
+{
+    public string? NextResult { get; set; }
+    public int PickCount { get; private set; }
+
+    public Task<string?> PickFolderAsync()
+    {
+        PickCount++;
+        return Task.FromResult(NextResult);
+    }
+}
+
 public sealed class StubUserDialogs : IUserDialogs
 {
     public record AlertCall(string Title, string Message);

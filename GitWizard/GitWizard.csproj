@@ -7,6 +7,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="JetBrains.Annotations" Version="2026.2.0">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="LibGit2Sharp" Version="0.31.0" />
     <!-- MFTLib (0.3.0) is referenced centrally for the whole tree in the repo-root
          Directory.Build.targets — a TEMPORARY source-build bridge to the external/MFTLib

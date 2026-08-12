@@ -1,14 +1,9 @@
 using Avalonia;
-using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Headless;
-using Avalonia.Media.Imaging;
-using Avalonia.Platform;
-using Avalonia.Skia;
 using SkiaSharp;
-using System;
-using System.IO;
-using System.Threading.Tasks;
+
+namespace GitWizardUI.Screenshot;
 
 static class Program
 {
@@ -16,13 +11,13 @@ static class Program
     {
         try
         {
-            var builder = AppBuilder.Configure<GitWizardUI.App>()
+            AppBuilder.Configure<App>()
                 .UseHeadless(new AvaloniaHeadlessPlatformOptions())
                 .StartWithClassicDesktopLifetime(args);
 
             await Task.Delay(2000);
 
-            var app = Application.Current as GitWizardUI.App;
+            var app = Application.Current as App;
             var lifetime = app?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime;
             var window = lifetime?.MainWindow;
 
@@ -61,7 +56,7 @@ static class Program
             try
             {
                 System.Runtime.InteropServices.Marshal.Copy(pixelData, 0, address, pixelData.Length);
-                skBitmap.InstallPixels(info, address, width * 4, (ref_, _) => { });
+                skBitmap.InstallPixels(info, address, width * 4, (_, _) => { });
             }
             finally
             {

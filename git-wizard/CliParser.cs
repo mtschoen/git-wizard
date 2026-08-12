@@ -87,7 +87,7 @@ static class CliParser
             GitWizardLog.Log($"CLI parse failed, using defaults: {ex.Message}", GitWizardLog.LogType.Verbose);
             // Unknown/unrecognized flags are surfaced as a parse error so that
             // stale callers fail loudly (exit 2) instead of silently running with
-            // defaults – important during the CLI flag migration.
+            // defaults - important during the CLI flag migration.
             return CreateDefaultResult() with { HasError = true };
         }
 

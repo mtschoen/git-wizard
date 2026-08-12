@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using GitWizard;
 using GitWizardUI.ViewModels;
-using GitWizardUI.ViewModels.Services;
 
 namespace GitWizardTests;
 
@@ -14,7 +13,7 @@ public class SettingsViewModelTests
     {
         GitWizardLog.SilentMode = true;
         // Redirect the data dir to temp: these tests construct SettingsViewModel (which loads
-        // config) and SaveAsync/SaveCommand write it back. Without the redirect they read/write
+        // config) and SaveAsync/Save write it back. Without the redirect they read/write
         // the real ~/.GitWizard/config.json, which caused order-dependent failures.
         _tempRoot = TestUtilities.RedirectLocalFilesToTemp();
         TestUtilities.ResetStaticCaches();
@@ -195,30 +194,6 @@ public class SettingsViewModelTests
     }
 
     [Test]
-    public void RemoveSearchPathCommand_RemovesSpecifiedPath()
-    {
-        var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker);
-
-        var pathToRemove = vm.SearchPaths[0];
-        vm.RemoveSearchPathCommand.Execute(pathToRemove);
-
-        Assert.That(vm.SearchPaths, Does.Not.Contain(pathToRemove));
-    }
-
-    [Test]
-    public void RemoveSearchPathCommand_IgnoresNullPath()
-    {
-        var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker);
-
-        var initialCount = vm.SearchPaths.Count;
-        vm.RemoveSearchPathCommand.Execute(null);
-
-        Assert.That(vm.SearchPaths, Has.Count.EqualTo(initialCount));
-    }
-
-    [Test]
     public void AddIgnoredPathCommand_AddsNonEmptyPath()
     {
         var picker = new StubFolderPicker();
@@ -242,33 +217,6 @@ public class SettingsViewModelTests
         var initialCount = vm.IgnoredPaths.Count;
         vm.NewIgnoredPath = string.Empty;
         vm.AddIgnoredPathCommand.Execute(null);
-
-        Assert.That(vm.IgnoredPaths, Has.Count.EqualTo(initialCount));
-    }
-
-    [Test]
-    public void RemoveIgnoredPathCommand_RemovesSpecifiedPath()
-    {
-        var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker);
-        // Default IgnoredPaths are platform-specific (Windows seeds %APPDATA%/%WINDIR%, Linux/macOS
-        // seed none), so seed one to make this cross-platform-deterministic instead of indexing [0].
-        vm.IgnoredPaths.Add("/seed/ignored");
-
-        var pathToRemove = vm.IgnoredPaths[0];
-        vm.RemoveIgnoredPathCommand.Execute(pathToRemove);
-
-        Assert.That(vm.IgnoredPaths, Does.Not.Contain(pathToRemove));
-    }
-
-    [Test]
-    public void RemoveIgnoredPathCommand_IgnoresNullPath()
-    {
-        var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker);
-
-        var initialCount = vm.IgnoredPaths.Count;
-        vm.RemoveIgnoredPathCommand.Execute(null);
 
         Assert.That(vm.IgnoredPaths, Has.Count.EqualTo(initialCount));
     }
@@ -383,7 +331,7 @@ public class SettingsViewModelTests
     }
 
     [Test]
-    public void SaveCommand_ExecutesSave()
+    public void Save_ExecutesSave()
     {
         var picker = new StubFolderPicker();
         var vm = new SettingsViewModel(picker);
@@ -391,7 +339,7 @@ public class SettingsViewModelTests
         vm.SearchPaths.Add("/new/search");
         vm.ForkPath = "/usr/local/bin/fork";
 
-        vm.SaveCommand.Execute(null);
+        vm.Save();
 
         Assert.That(vm.ForkPath, Is.EqualTo("/usr/local/bin/fork"));
     }
@@ -468,26 +416,6 @@ public class SettingsViewModelTests
 
         Assert.That(vm.AddSearchPathCommand, Is.Not.Null);
         Assert.That(vm.AddSearchPathCommand, Is.InstanceOf<ICommand>());
-    }
-
-    [Test]
-    public void RemoveSearchPathCommand_CommandType()
-    {
-        var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker);
-
-        Assert.That(vm.RemoveSearchPathCommand, Is.Not.Null);
-        Assert.That(vm.RemoveSearchPathCommand, Is.InstanceOf<ICommand>());
-    }
-
-    [Test]
-    public void SaveCommand_CommandType()
-    {
-        var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker);
-
-        Assert.That(vm.SaveCommand, Is.Not.Null);
-        Assert.That(vm.SaveCommand, Is.InstanceOf<ICommand>());
     }
 
     [Test]

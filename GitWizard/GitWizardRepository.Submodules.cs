@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using JetBrains.Annotations;
 using LibGit2Sharp;
 
 namespace GitWizard;
@@ -15,19 +16,20 @@ public enum SubmoduleHealthStatus
 
 public class SubmoduleHealthInfo
 {
-    // Serialized to report.json as part of SubmoduleHealth; the getter is exercised by
-    // System.Text.Json, which ReSharper's usage analysis doesn't account for.
-    // ReSharper disable once UnusedAutoPropertyAccessor.Global
+    [UsedImplicitly]
     public string Path { get; set; } = string.Empty;
+    [UsedImplicitly]
     public string? ExpectedCommitSha { get; set; }
     public string? ActualCommitSha { get; set; }
     public SubmoduleHealthStatus Status { get; set; }
+    [UsedImplicitly]
     public List<string> Issues { get; set; } = new();
 
     /// <summary>How many commits the superproject-recorded gitlink SHA is behind the tip of the submodule's default branch. Non-zero when the gitlink pointer is stale relative to the submodule's upstream (git-wizard#80).</summary>
     public int BehindUpstreamCount { get; set; }
 
     /// <summary>The full SHA of the superproject-recorded gitlink commit (the expected commit for this submodule).</summary>
+    [UsedImplicitly]
     public string? GitLinkSha { get; set; }
 }
 

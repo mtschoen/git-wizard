@@ -739,7 +739,7 @@ public class MainViewModelRefreshTests
             vm.PrePopulateFromReport(config, ["/repos/alpha"]);
 
             var cachedNode = vm._allRepositories[0];
-            Assert.That(vm._prePopulatedPaths, Contains.Item("/repos/alpha"),
+            Assert.That(vm._repositoryMap, Does.ContainKey("/repos/alpha"),
                 "Pre-condition: repo is pre-populated.");
 
             // Simulate a fresh scan result for the same path.
@@ -894,7 +894,7 @@ public class MainViewModelRefreshTests
                 SearchPaths = new SortedSet<string> { "/repos" }
             };
             viewModel.PrePopulateFromReport(configuration, ["/repos/alpha"]);
-            Assert.That(viewModel._prePopulatedPaths, Contains.Item("/repos/alpha"));
+            Assert.That(viewModel._repositoryMap, Does.ContainKey("/repos/alpha"));
 
             viewModel.Repositories.Clear();
             viewModel._allRepositories.Clear();

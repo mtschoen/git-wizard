@@ -7,7 +7,7 @@ public partial class MainViewModel
 {
     internal void AddRepository(GitWizardRepository repository)
     {
-        // The first repository to surface ends the "Scanning…" gap; rows now stream into the list.
+        // The first repository to surface ends the "Scanning..." gap; rows now stream into the list.
         IsScanning = false;
 
         var path = repository.WorkingDirectory;
@@ -290,7 +290,6 @@ public partial class MainViewModel
         // These collections describe only the current refresh cycle. Reset them before
         // every early return so paths from a prior refresh cannot suppress fresh rows.
         _prePopulatedNodes = null;
-        _prePopulatedPaths.Clear();
 
         if (repositoryPaths == null || repositoryPaths.Length == 0)
             return;
@@ -310,7 +309,6 @@ public partial class MainViewModel
             var node = new RepositoryNodeViewModel(repo);
             _repositoryMap[path] = node;
             _allRepositories.Add(node);
-            _prePopulatedPaths.Add(path);
             _prePopulatedNodes ??= new HashSet<RepositoryNodeViewModel>();
             _prePopulatedNodes.Add(node);
 
@@ -346,7 +344,6 @@ public partial class MainViewModel
             RemoveRepositoryPathFromUi(path);
 
         _prePopulatedNodes = null;
-        _prePopulatedPaths.Clear();
     }
 
     // Drop deleted, renamed (old path), and stale non-repo entries from the cached
@@ -380,7 +377,6 @@ public partial class MainViewModel
     {
         _repositoryMap.TryRemove(path, out _);
         _allRepositories.RemoveAll(candidate => candidate.WorkingDirectory == path);
-        _prePopulatedPaths.Remove(path);
 
         var groupHeaders = Repositories.Where(candidate => candidate.IsGroupHeader)
             .Concat(_pendingGroups.Values).Distinct().ToList();

@@ -15,7 +15,6 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler
     readonly IClipboardService _clipboard;
     internal readonly ConcurrentDictionary<string, RepositoryNodeViewModel> _repositoryMap = new();
     readonly ConcurrentQueue<RepositoryUICommand> _uiCommands = new();
-    internal readonly HashSet<string> _prePopulatedPaths = new();
     HashSet<RepositoryNodeViewModel>? _prePopulatedNodes;
     readonly Stopwatch _stopwatch = new();
     internal readonly List<RepositoryNodeViewModel> _allRepositories = new();
@@ -138,7 +137,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler
 
     /// <summary>
     /// True from the moment a refresh starts until the first repository surfaces (or the
-    /// determinate progress bar takes over). Drives an indeterminate "Scanning…" indicator that
+    /// determinate progress bar takes over). Drives an indeterminate "Scanning..." indicator that
     /// fills the otherwise-empty list during the initial discovery/cache-read gap, which can run
     /// 15-20s on a cold start. Parity with the retired MAUI UI's startup feedback.
     /// </summary>

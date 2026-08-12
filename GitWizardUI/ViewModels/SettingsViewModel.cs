@@ -75,10 +75,7 @@ public class SettingsViewModel : INotifyPropertyChanged
     }
 
     public ICommand AddSearchPathCommand { get; }
-    public ICommand RemoveSearchPathCommand { get; }
     public ICommand AddIgnoredPathCommand { get; }
-    public ICommand RemoveIgnoredPathCommand { get; }
-    public ICommand SaveCommand { get; }
     public ICommand ResetToDefaultsCommand { get; }
 
     public SettingsViewModel(IFolderPicker folderPicker)
@@ -100,10 +97,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         _skipHiddenDirectories = _configuration.SkipHiddenDirectories != false;
 
         AddSearchPathCommand = new RelayCommand(AddSearchPath);
-        RemoveSearchPathCommand = new RelayCommand<string>(RemoveSearchPath);
         AddIgnoredPathCommand = new RelayCommand(AddIgnoredPath);
-        RemoveIgnoredPathCommand = new RelayCommand<string>(RemoveIgnoredPath);
-        SaveCommand = new RelayCommand(Save);
         ResetToDefaultsCommand = new RelayCommand(ResetToDefaults);
     }
 
@@ -117,30 +111,12 @@ public class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
-    private void RemoveSearchPath(string? path)
-    {
-        if (path != null)
-        {
-            SearchPaths.Remove(path);
-            SaveImmediate();
-        }
-    }
-
     private void AddIgnoredPath()
     {
         if (!string.IsNullOrWhiteSpace(NewIgnoredPath) && !IgnoredPaths.Contains(NewIgnoredPath))
         {
             IgnoredPaths.Add(NewIgnoredPath);
             NewIgnoredPath = string.Empty;
-            SaveImmediate();
-        }
-    }
-
-    private void RemoveIgnoredPath(string? path)
-    {
-        if (path != null)
-        {
-            IgnoredPaths.Remove(path);
             SaveImmediate();
         }
     }

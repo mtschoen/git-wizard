@@ -32,7 +32,16 @@ jobs:
           submodules: recursive
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 22, not 20: the `npm install` below builds the fork via its
+          # "prepare": "tsdown" script, and tsdown >= 0.22 requires node
+          # ^22.18 || >=24.11 at build time (it calls Promise.withResolvers,
+          # added in node 22). The pin below still predates that tsdown bump,
+          # so 20 happens to work today - but bumping AISLOP_FORK_COMMIT past
+          # aislop's upstream-0.14.1 merge on node 20 fails with
+          # "Promise.withResolvers is not a function". aislop's own CI matrix
+          # is 22/24. The built CLI still targets node18, so this is aislop's
+          # build floor, not its runtime floor.
+          node-version: 22
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'

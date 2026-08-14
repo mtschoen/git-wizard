@@ -18,8 +18,8 @@ an `if: always()` step does not double-fail the job; but when --gate-line is
 set, an unreadable report is treated as a gate failure (exit 1). A POST/network
 failure DOES raise.
 
-TLS: gitea.llamabox.sticktoitive.net uses a Let's Encrypt cert that Python's
-default ssl context verifies natively - no custom CA needed.
+TLS: HTTPS requests use Python's default SSL context; certificate verification
+is not overridden.
 """
 
 from __future__ import annotations

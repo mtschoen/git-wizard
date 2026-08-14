@@ -7,11 +7,15 @@
 #
 # The preview provider publishes the app to the gitea generic package registry;
 # this fetches the current-OS zip, unpacks it to a temp dir, and launches
-# GitWizardUI. Set $env:GITEA_TOKEN if the registry needs auth; anonymous first.
+# GitWizardUI. Set $env:GITEA_BASE_URL to the registry origin. Set
+# $env:GITEA_TOKEN if the registry needs auth; anonymous first.
 param([int]$PrNumber)
 
 $ErrorActionPreference = "Stop"
-$gitea = "https://gitea.llamabox.sticktoitive.net"
+if ([string]::IsNullOrWhiteSpace($env:GITEA_BASE_URL)) {
+    throw "GITEA_BASE_URL must be set to the Gitea base URL"
+}
+$giteaBaseUrl = $env:GITEA_BASE_URL.TrimEnd('/')
 $owner = "schoen"
 
 if ($IsWindows -or $env:OS -eq "Windows_NT") { $platform = "windows" }
@@ -25,17 +29,17 @@ if ($env:GITEA_TOKEN) { $headers["Authorization"] = "token $env:GITEA_TOKEN" }
 
 if ($PSBoundParameters.ContainsKey('PrNumber')) {
     $query = "git-wizard-pr-$PrNumber"
-    $listUrl = "{0}/api/v1/packages/{1}?type=generic&q={2}" -f $gitea, $owner, $query
+    $listUrl = "{0}/api/v1/packages/{1}?type=generic&q={2}" -f $giteaBaseUrl, $owner, $query
     $pkgs = @(Invoke-RestMethod -Uri $listUrl -Headers $headers |
         Where-Object { $_.name -eq $query })
 } else {
-    $listUrl = "{0}/api/v1/packages/{1}?type=generic&q=git-wizard-pr-" -f $gitea, $owner
+    $listUrl = "{0}/api/v1/packages/{1}?type=generic&q=git-wizard-pr-" -f $giteaBaseUrl, $owner
     $pkgs = @(Invoke-RestMethod -Uri $listUrl -Headers $headers)
 }
 $newest = $pkgs | Sort-Object { [datetime]$_.created_at } | Select-Object -Last 1
 if (-not $newest) { Write-Error "no git-wizard preview package found"; exit 1 }
 
-$url = "{0}/api/packages/{1}/generic/{2}/{3}/{4}" -f $gitea, $owner, $newest.name, $newest.version, $file
+$url = "{0}/api/packages/{1}/generic/{2}/{3}/{4}" -f $giteaBaseUrl, $owner, $newest.name, $newest.version, $file
 $tmp = New-Item -ItemType Directory -Path (Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetRandomFileName()))
 $zip = Join-Path $tmp $file
 Write-Host "downloading $file ($($newest.name) @ $($newest.version))"

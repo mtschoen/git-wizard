@@ -25,6 +25,8 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler
     bool _isProgressVisible;
     string _progressText = string.Empty;
     bool _isRefreshing;
+    bool _isLive;
+    bool _isLiveStarting;
     bool _isScanning;
     FilterType _activeFilter = FilterType.None;
     GroupMode _activeGroupMode = GroupMode.None;
@@ -47,10 +49,6 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         }
     }
     public static string? GlobalUserEmail { get; private set; }
-
-    string? _progressDescription;
-    int? _progressTotal;
-    int? _progressCount;
 
     ObservableCollection<RepositoryNodeViewModel> _repositories = new();
 
@@ -129,11 +127,57 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler
                 _isRefreshing = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(CanRefresh));
+                OnPropertyChanged(nameof(CanToggleLive));
             }
         }
     }
 
     public bool CanRefresh => !IsRefreshing;
+
+    /// <summary>
+    /// True while a <see cref="GitWizardUI.Services.LiveWatchController"/> session is running (elevated USN-journal
+    /// watch on Windows), auto-updating the repository list as tracked/search-root repos
+    /// change on disk. Toggled via <see cref="ToggleLiveCommand"/>.
+    /// </summary>
+    public bool IsLive
+    {
+        get => _isLive;
+        internal set
+        {
+            if (_isLive != value)
+            {
+                _isLive = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(CanToggleLive));
+                OnPropertyChanged(nameof(LiveButtonText));
+            }
+        }
+    }
+
+    /// <summary>True while the broker is arming and building its per-volume path indexes.</summary>
+    public bool IsLiveStarting
+    {
+        get => _isLiveStarting;
+        internal set
+        {
+            if (_isLiveStarting != value)
+            {
+                _isLiveStarting = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(CanToggleLive));
+                OnPropertyChanged(nameof(LiveButtonText));
+            }
+        }
+    }
+
+    public string LiveButtonText => IsLiveStarting ? "Starting Live..." : "Live";
+
+    /// <summary>
+    /// Live mode may not be started mid-refresh: a full scan rebuilds <c>_repositoryMap</c>/
+    /// <c>_allRepositories</c> from scratch, which would race a live event's incremental
+    /// add/update/remove against that rebuild. Stopping is always allowed.
+    /// </summary>
+    public bool CanToggleLive => IsLive || IsLiveStarting || !IsRefreshing;
 
     /// <summary>
     /// True from the moment a refresh starts until the first repository surfaces (or the
@@ -221,6 +265,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler
     public ICommand RefreshCommand { get; }
     public ICommand FetchAndRefreshCommand { get; }
     public ICommand CleanDownstreamCommand { get; }
+    public ICommand ToggleLiveCommand { get; }
 
     public MainViewModel(IUiDispatcher ui, IUserDialogs dialogs, IClipboardService clipboard)
     {
@@ -235,6 +280,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         RefreshCommand = new AsyncRelayCommand(() => RefreshAsync(background: false));
         FetchAndRefreshCommand = new AsyncRelayCommand(() => RefreshAsync(background: false, fetchRemotes: true));
         CleanDownstreamCommand = new AsyncRelayCommand<RepositoryNodeViewModel>(node => CleanDownstreamBranchesAsync(node));
+        ToggleLiveCommand = new AsyncRelayCommand(ToggleLiveAsync, () => CanToggleLive);
         ErrorLog.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(ErrorLogViewModel.Count))
@@ -271,122 +317,10 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         }
     }
 
-    // IUpdateHandler implementation
-
-    // Coalesce a burst of status messages into one UI update. A heavy scan (the
-    // recursive walk posts per directory) or refresh can fire thousands of these;
-    // posting each one floods the dispatcher and starves UI input ("Not Responding").
-    // Instead we keep only the latest message and allow at most one post in flight -
-    // many updates batch into a single HeaderText write, event-driven (no polling).
-    string? _latestStatusMessage;
-    int _statusUpdateScheduled;
-
-    public void SendUpdateMessage(string? message)
-    {
-        if (message == null)
-            return;
-
-        _latestStatusMessage = message;
-
-        // Schedule a post only if none is pending; the pending post applies whatever
-        // the most recent message is by the time it runs on the UI thread.
-        if (Interlocked.CompareExchange(ref _statusUpdateScheduled, 1, 0) == 0)
-        {
-            _ui.Post(() =>
-            {
-                Interlocked.Exchange(ref _statusUpdateScheduled, 0);
-                HeaderText = _latestStatusMessage;
-            });
-        }
-    }
-
-    public void OnRepositoryCreated(GitWizardRepository gitWizardRepository)
-    {
-        _uiCommands.Enqueue(new RepositoryUICommand
-        {
-            Type = RepositoryUICommandType.RepositoryCreated,
-            Repository = gitWizardRepository
-        });
-    }
-
-    public void StartProgress(string description, int total)
-    {
-        _progressCount = 0;
-        _progressDescription = description;
-        _progressTotal = total;
-        _ui.Post(() =>
-        {
-            IsScanning = false;
-            IsProgressVisible = true;
-            ProgressValue = 0;
-            ProgressText = $"{description} 0 / {total}";
-        });
-    }
-
-    public void UpdateProgress(int count)
-    {
-        _progressCount = count;
-    }
-
-    public void OnSubmoduleCreated(GitWizardRepository parent, GitWizardRepository submodule)
-    {
-        _uiCommands.Enqueue(new RepositoryUICommand
-        {
-            Type = RepositoryUICommandType.SubmoduleCreated,
-            ParentRepository = parent,
-            Repository = submodule
-        });
-    }
-
-    public void OnWorktreeCreated(GitWizardRepository worktree)
-    {
-        _uiCommands.Enqueue(new RepositoryUICommand
-        {
-            Type = RepositoryUICommandType.WorktreeCreated,
-            Repository = worktree
-        });
-    }
-
-    public void OnUninitializedSubmoduleCreated(GitWizardRepository parent, string submodulePath)
-    {
-        _uiCommands.Enqueue(new RepositoryUICommand
-        {
-            Type = RepositoryUICommandType.UninitializedSubmoduleCreated,
-            ParentRepository = parent,
-            SubmodulePath = submodulePath
-        });
-    }
-
-    public void OnRepositoryRefreshCompleted(GitWizardRepository gitWizardRepository)
-    {
-        _uiCommands.Enqueue(new RepositoryUICommand
-        {
-            Type = RepositoryUICommandType.RefreshCompleted,
-            Repository = gitWizardRepository
-        });
-    }
-
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-    }
-
-    enum RepositoryUICommandType
-    {
-        RepositoryCreated,
-        SubmoduleCreated,
-        WorktreeCreated,
-        UninitializedSubmoduleCreated,
-        RefreshCompleted
-    }
-
-    struct RepositoryUICommand
-    {
-        public RepositoryUICommandType Type;
-        public GitWizardRepository? Repository;
-        public GitWizardRepository? ParentRepository;
-        public string? SubmodulePath;
     }
 }

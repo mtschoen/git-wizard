@@ -134,7 +134,10 @@ public static partial class GitWizardApi
             .Where(record => record.Name == GitEntryName && (includeGitFiles || record.IsDirectory))
             .Select(record => record.Path);
 
-    static string? GetDriveLetter(string path)
+    // internal: also the canonical GetDriveLetter for GitWizard.Watch.UsnVolumeChangeSource
+    // (purely Path.GetPathRoot-based, so sharing it doesn't broaden that Windows-gated type's
+    // platform surface).
+    internal static string? GetDriveLetter(string path)
     {
         var root = Path.GetPathRoot(path);
         return string.IsNullOrEmpty(root) ? null : root[..1];

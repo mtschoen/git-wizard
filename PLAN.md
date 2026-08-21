@@ -162,11 +162,17 @@ file was retired. Not yet scheduled; promote to Next Up / a Gitea issue when pic
       (added a `status.Missing` loop); regression tests added for both the staged and
       unstaged deletion cases; `docs/report-schema.md` field description updated.
 - [ ] **Show an error log in the UI** - exceptions are currently only written to output.
-- [ ] **Quick refresh / filesystem watcher** to drop deleted-or-renamed repos from the UI.
-      *Note (2026-07-06): CLI-side building block landed - `git-wizard -watch` auto-detects
-      changes in tracked repositories via MFTLib's journal broker and prints `changed: <root>`
-      (one UAC, Windows only). Not yet wired into GitWizardUI or used to drop
-      deleted/renamed repos; see AGENTS.md → Key Architecture → Journal watch.*
+- [x] **Quick refresh / filesystem watcher** to drop deleted-or-renamed repos from the UI.
+      *Done (2026-08-21): `git-wizard --watch` auto-detects changes in tracked repositories via
+      MFTLib's journal broker and prints `changed: <root>`, `created: <root>`, and
+      `deleted: <root>` (one UAC, Windows only); rename correlation is deliberately left to
+      consumers, not printed by the CLI. The pipeline is a reusable, platform-agnostic core
+      (`GitWizard/Watch/RepositoryWatchService` behind `IVolumeChangeSource`), and GitWizardUI's
+      opt-in Live toggle runs the same service through `LiveWatchController` to add, update, and
+      drop repositories live, correlating delete/create pairs by remote URL so a rename is not
+      shown as a delete plus an unrelated add. Linux has the `FanotifyInterop` capability probe
+      but no `IVolumeChangeSource` adapter yet, so Live mode is Windows-only. See AGENTS.md
+      → Key Architecture → Journal watch.*
 - [ ] **Sort by size on disk.**
 - [ ] **Submodule health checks** - aggregate parent-repo status from submodule states; flag
       submodules at a non-pointer ref, not init'd/checked out, or in `.gitmodules` but not the

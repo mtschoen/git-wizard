@@ -1,0 +1,120 @@
+using GitWizard;
+
+namespace GitWizardUI.ViewModels;
+
+public partial class MainViewModel
+{
+    string? _progressDescription;
+    int? _progressTotal;
+    int? _progressCount;
+
+    // Coalesce a burst of status messages into one UI update. A heavy scan (the
+    // recursive walk posts per directory) or refresh can fire thousands of these;
+    // posting each one floods the dispatcher and starves UI input ("Not Responding").
+    // Instead we keep only the latest message and allow at most one post in flight -
+    // many updates batch into a single HeaderText write, event-driven (no polling).
+    string? _latestStatusMessage;
+    int _statusUpdateScheduled;
+
+    public void SendUpdateMessage(string? message)
+    {
+        if (message == null)
+            return;
+
+        _latestStatusMessage = message;
+
+        // Schedule a post only if none is pending; the pending post applies whatever
+        // the most recent message is by the time it runs on the UI thread.
+        if (Interlocked.CompareExchange(ref _statusUpdateScheduled, 1, 0) == 0)
+        {
+            _ui.Post(() =>
+            {
+                Interlocked.Exchange(ref _statusUpdateScheduled, 0);
+                HeaderText = _latestStatusMessage;
+            });
+        }
+    }
+
+    public void OnRepositoryCreated(GitWizardRepository gitWizardRepository)
+    {
+        _uiCommands.Enqueue(new RepositoryUICommand
+        {
+            Type = RepositoryUICommandType.RepositoryCreated,
+            Repository = gitWizardRepository
+        });
+    }
+
+    public void StartProgress(string description, int total)
+    {
+        _progressCount = 0;
+        _progressDescription = description;
+        _progressTotal = total;
+        _ui.Post(() =>
+        {
+            IsScanning = false;
+            IsProgressVisible = true;
+            ProgressValue = 0;
+            ProgressText = $"{description} 0 / {total}";
+        });
+    }
+
+    public void UpdateProgress(int count)
+    {
+        _progressCount = count;
+    }
+
+    public void OnSubmoduleCreated(GitWizardRepository parent, GitWizardRepository submodule)
+    {
+        _uiCommands.Enqueue(new RepositoryUICommand
+        {
+            Type = RepositoryUICommandType.SubmoduleCreated,
+            ParentRepository = parent,
+            Repository = submodule
+        });
+    }
+
+    public void OnWorktreeCreated(GitWizardRepository worktree)
+    {
+        _uiCommands.Enqueue(new RepositoryUICommand
+        {
+            Type = RepositoryUICommandType.WorktreeCreated,
+            Repository = worktree
+        });
+    }
+
+    public void OnUninitializedSubmoduleCreated(GitWizardRepository parent, string submodulePath)
+    {
+        _uiCommands.Enqueue(new RepositoryUICommand
+        {
+            Type = RepositoryUICommandType.UninitializedSubmoduleCreated,
+            ParentRepository = parent,
+            SubmodulePath = submodulePath
+        });
+    }
+
+    public void OnRepositoryRefreshCompleted(GitWizardRepository gitWizardRepository)
+    {
+        _uiCommands.Enqueue(new RepositoryUICommand
+        {
+            Type = RepositoryUICommandType.RefreshCompleted,
+            Repository = gitWizardRepository
+        });
+    }
+
+    enum RepositoryUICommandType
+    {
+        RepositoryCreated,
+        SubmoduleCreated,
+        WorktreeCreated,
+        UninitializedSubmoduleCreated,
+        RefreshCompleted
+    }
+
+    struct RepositoryUICommand
+    {
+        public RepositoryUICommandType Type;
+        public GitWizardRepository? Repository;
+        public GitWizardRepository? ParentRepository;
+        public string? SubmodulePath;
+    }
+}

@@ -373,6 +373,16 @@ public partial class MainViewModel
             RemoveRepositoryPathFromUi(path);
     }
 
+    /// <summary>
+    /// Removes a single repository, by working-directory path, from every UI collection
+    /// (<c>_repositoryMap</c>, <c>_allRepositories</c>, <see cref="Repositories"/>, and any
+    /// group header holding it). No-op if the path isn't currently tracked. The internal
+    /// entry point Live mode's per-event deletion/rename handling in
+    /// <c>MainViewModel.Live.cs</c> calls; the batch-refresh rename cleanup above reaches the
+    /// same code directly.
+    /// </summary>
+    internal void RemoveRepositoryByPath(string path) => RemoveRepositoryPathFromUi(path);
+
     void RemoveRepositoryPathFromUi(string path)
     {
         _repositoryMap.TryRemove(path, out _);

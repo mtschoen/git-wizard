@@ -1,0 +1,226 @@
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
+using JetBrains.Annotations;
+using Microsoft.Win32.SafeHandles;
+
+namespace GitWizard.Watch.Linux;
+
+public enum FanotifyCapabilityStatus
+{
+    Available,
+    RequiresElevation,
+    UnsupportedKernel,
+    UnsupportedFileSystem
+}
+
+public readonly record struct FanotifyCapabilityResult(
+    FanotifyCapabilityStatus Status,
+    [property: UsedImplicitly] int ErrorNumber)
+{
+    public bool IsSupported => Status is
+        FanotifyCapabilityStatus.Available or FanotifyCapabilityStatus.RequiresElevation;
+
+    public bool RequiresElevation => Status == FanotifyCapabilityStatus.RequiresElevation;
+}
+
+/// <summary>
+/// Linux fanotify interop and capability probing for filesystem marks that report directory
+/// file identifiers and names. <c>FAN_REPORT_DFID_NAME</c> requires Linux 5.9 or newer.
+/// </summary>
+public static class FanotifyInterop
+{
+    public static Version MinimumKernelVersion { get; } = new(5, 9);
+
+    /// <summary>
+    /// Probes fanotify support for the filesystem containing the existing directory
+    /// identified by <paramref name="path"/>. A result requiring elevation remains supported
+    /// so callers can offer a pkexec path.
+    /// </summary>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="path"/> is blank or does not identify an existing directory.
+    /// </exception>
+    [SupportedOSPlatform("linux")]
+    public static FanotifyCapabilityResult Probe(string path = "/")
+    {
+        return new FanotifyProbe(FanotifyNative.Instance).Probe(path);
+    }
+}
+
+internal sealed class FanotifyProbe
+{
+    readonly IFanotifyNative _native;
+
+    public FanotifyProbe(IFanotifyNative native)
+    {
+        _native = native;
+    }
+
+    public FanotifyCapabilityResult Probe(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        if (!Directory.Exists(path))
+            throw new ArgumentException("Path must identify an existing directory.", nameof(path));
+
+        var initializeResult = _native.Initialize(
+            FanotifyConstants.CloseOnExecute | FanotifyConstants.ReportDirectoryFileIdAndName,
+            FanotifyConstants.ReadOnly);
+        if (initializeResult.Value < 0)
+            return ClassifyFailure(initializeResult.ErrorNumber);
+
+        using var descriptor = new SafeUnixFileDescriptor(initializeResult.Value, _native);
+        var addResult = Mark(initializeResult.Value, FanotifyConstants.MarkAdd, path);
+        if (addResult.Value < 0)
+            return ClassifyFailure(addResult.ErrorNumber);
+
+        var removeResult = Mark(initializeResult.Value, FanotifyConstants.MarkRemove, path);
+        return removeResult.Value < 0
+            ? ClassifyFailure(removeResult.ErrorNumber)
+            : new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
+    }
+
+    FanotifyNativeCallResult Mark(int descriptor, uint operation, string path)
+    {
+        return _native.Mark(
+            descriptor,
+            operation | FanotifyConstants.MarkFilesystem,
+            FanotifyConstants.ProbeEventMask,
+            FanotifyConstants.CurrentWorkingDirectory,
+            path);
+    }
+
+    static FanotifyCapabilityResult ClassifyFailure(int errorNumber)
+    {
+        return errorNumber switch
+        {
+            FanotifyError.NotPermitted => new(
+                FanotifyCapabilityStatus.RequiresElevation,
+                errorNumber),
+            FanotifyError.NoSystemCall or FanotifyError.InvalidArgument => new(
+                FanotifyCapabilityStatus.UnsupportedKernel,
+                errorNumber),
+            FanotifyError.NoDevice or FanotifyError.OperationNotSupported => new(
+                FanotifyCapabilityStatus.UnsupportedFileSystem,
+                errorNumber),
+            _ => throw new Win32Exception(errorNumber, "fanotify capability probe failed.")
+        };
+    }
+}
+
+internal sealed class SafeUnixFileDescriptor : SafeHandleMinusOneIsInvalid
+{
+    readonly IFanotifyNative _native;
+
+    public SafeUnixFileDescriptor(int descriptor, IFanotifyNative native)
+        : base(true)
+    {
+        _native = native;
+        SetHandle(descriptor);
+    }
+
+    protected override bool ReleaseHandle()
+    {
+        return _native.Close(handle.ToInt32()) == 0;
+    }
+}
+
+internal interface IFanotifyNative
+{
+    FanotifyNativeCallResult Initialize(uint flags, uint eventFileFlags);
+
+    FanotifyNativeCallResult Mark(
+        int descriptor,
+        uint flags,
+        ulong mask,
+        int directoryDescriptor,
+        string path);
+
+    int Close(int descriptor);
+}
+
+internal readonly record struct FanotifyNativeCallResult(int Value, int ErrorNumber);
+
+[SupportedOSPlatform("linux")]
+internal sealed partial class FanotifyNative : IFanotifyNative
+{
+    public static FanotifyNative Instance { get; } = new();
+
+    FanotifyNative()
+    {
+    }
+
+    public FanotifyNativeCallResult Initialize(uint flags, uint eventFileFlags)
+    {
+        return CaptureResult(FanotifyInitialize(flags, eventFileFlags));
+    }
+
+    public FanotifyNativeCallResult Mark(
+        int descriptor,
+        uint flags,
+        ulong mask,
+        int directoryDescriptor,
+        string path)
+    {
+        return CaptureResult(FanotifyMark(descriptor, flags, mask, directoryDescriptor, path));
+    }
+
+    public int Close(int descriptor)
+    {
+        return CloseDescriptor(descriptor);
+    }
+
+    static FanotifyNativeCallResult CaptureResult(int value)
+    {
+        return new FanotifyNativeCallResult(value, value < 0 ? Marshal.GetLastPInvokeError() : 0);
+    }
+
+    [LibraryImport("libc", EntryPoint = "fanotify_init", SetLastError = true)]
+    private static partial int FanotifyInitialize(uint flags, uint eventFileFlags);
+
+    [LibraryImport(
+        "libc",
+        EntryPoint = "fanotify_mark",
+        SetLastError = true,
+        StringMarshalling = StringMarshalling.Utf8)]
+    private static partial int FanotifyMark(
+        int fanotifyDescriptor,
+        uint flags,
+        ulong mask,
+        int directoryDescriptor,
+        string path);
+
+    [LibraryImport("libc", EntryPoint = "close")]
+    private static partial int CloseDescriptor(int descriptor);
+}
+
+internal static class FanotifyConstants
+{
+    public const uint CloseOnExecute = 0x00000001;
+    public const uint ReadOnly = 0;
+    public const uint ReportDirectoryFileId = 0x00000400;
+    public const uint ReportName = 0x00000800;
+    public const uint ReportDirectoryFileIdAndName = ReportDirectoryFileId | ReportName;
+
+    public const uint MarkAdd = 0x00000001;
+    public const uint MarkRemove = 0x00000002;
+    public const uint MarkFilesystem = 0x00000100;
+
+    public const ulong Modify = 0x00000002;
+    public const ulong MovedFrom = 0x00000040;
+    public const ulong MovedTo = 0x00000080;
+    public const ulong Create = 0x00000100;
+    public const ulong Delete = 0x00000200;
+    public const ulong OnDirectory = 0x40000000;
+    public const ulong ProbeEventMask = Modify | MovedFrom | MovedTo | Create | Delete | OnDirectory;
+
+    public const int CurrentWorkingDirectory = -100;
+}
+
+internal static class FanotifyError
+{
+    public const int NotPermitted = 1;
+    public const int NoDevice = 19;
+    public const int InvalidArgument = 22;
+    public const int NoSystemCall = 38;
+    public const int OperationNotSupported = 95;
+}

@@ -1,93 +1,125 @@
-using MFTLib;
+using GitWizard.Watch;
 
 namespace GitWizard;
 
 /// <summary>
-/// Maps USN journal batches back to the tracked repository roots they touched. Built once
-/// per drive from that drive's cold-scan <see cref="ScanRecord"/>s and the repository roots
-/// being watched on it, then reused for every subsequent <see cref="Filter"/> call against
-/// live journal batches from the same drive.
+/// Result of <see cref="RepositoryChangeFilter.Classify"/>: tracked roots with modified
+/// content, new repository roots discovered under a search root, and tracked roots whose
+/// repository was deleted.
+/// </summary>
+public readonly record struct FilterResult(
+    IReadOnlyCollection<string> Changed, IReadOnlyCollection<string> Created, IReadOnlyCollection<string> Deleted);
+
+/// <summary>
+/// Maps raw volume change batches back to tracked and search repository roots.
 /// </summary>
 /// <remarks>
-/// Pure and cross-platform-testable: it only consumes MFTLib's plain data types
-/// (<see cref="ScanRecord"/>, <see cref="UsnJournalEntry"/>) and never touches the
-/// filesystem, so it can be exercised with synthetic records on any OS even though the
-/// journal-watch feature itself is Windows-only.
+/// Pure and cross-platform-testable: it only consumes <see cref="VolumeChangeEntry"/> records
+/// and never touches the filesystem, so it can be exercised with synthetic entries on any OS.
 /// </remarks>
 public sealed class RepositoryChangeFilter
 {
-    readonly Dictionary<ulong, string> _repositoryRootByRecordNumber;
+    readonly WatchPath[] _orderedRepositoryRoots;
+    readonly WatchPath[] _orderedSearchRoots;
 
     /// <summary>
-    /// Build the filter's record-number index for one drive.
+    /// Build the filter for one volume.
     /// </summary>
-    /// <param name="scanRecords">Cold-scan records for one drive.</param>
-    /// <param name="repositoryRootPaths">Tracked repository roots on that same drive.</param>
+    /// <param name="repositoryRootPaths">Tracked repository roots on that volume.</param>
+    /// <param name="searchRoots">
+    /// Configured discovery roots, used by <see cref="Classify"/> to recognize newly created
+    /// repositories.
+    /// </param>
     public RepositoryChangeFilter(
-        IReadOnlyList<ScanRecord> scanRecords, IReadOnlyCollection<string> repositoryRootPaths)
+        IReadOnlyCollection<string> repositoryRootPaths,
+        IReadOnlyCollection<string>? searchRoots = null)
     {
-        _repositoryRootByRecordNumber = BuildIndex(scanRecords, repositoryRootPaths);
+        _orderedRepositoryRoots = OrderRootsForClassify(repositoryRootPaths);
+        _orderedSearchRoots = OrderRootsForClassify(searchRoots ?? []);
     }
 
     /// <summary>
-    /// Returns the distinct repository roots affected by <paramref name="batch"/>. An entry
-    /// is affected if its parent directory (or, for a directory entry, the directory itself)
-    /// is under a tracked repository root.
+    /// Classifies a batch of raw volume change entries into modified tracked roots, new
+    /// repository roots discovered under a search root, and tracked roots whose repository
+    /// was deleted.
     /// </summary>
-    public IReadOnlyCollection<string> Filter(UsnJournalEntry[] batch)
+    public FilterResult Classify(IReadOnlyList<VolumeChangeEntry> entries)
     {
-        var affectedRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var entry in batch)
+        var changed = new HashSet<string>(WatchPath.StringComparer);
+        var created = new HashSet<string>(WatchPath.StringComparer);
+        var deleted = new HashSet<string>(WatchPath.StringComparer);
+
+        foreach (var entry in entries)
         {
-            if (_repositoryRootByRecordNumber.TryGetValue(entry.ParentRecordNumber, out var parentRoot))
-                affectedRoots.Add(parentRoot);
-
-            var isDirectoryEntry = (entry.FileAttributes & FileAttributes.Directory) != 0;
-            if (isDirectoryEntry
-                && _repositoryRootByRecordNumber.TryGetValue(entry.RecordNumber, out var directoryRoot))
-                affectedRoots.Add(directoryRoot);
-        }
-
-        return affectedRoots;
-    }
-
-    // Longest-root-first so a nested repository root wins the mapping for directories under
-    // it, rather than the outer repository that also contains it.
-    static Dictionary<ulong, string> BuildIndex(
-        IReadOnlyList<ScanRecord> scanRecords, IReadOnlyCollection<string> repositoryRootPaths)
-    {
-        var orderedRoots = repositoryRootPaths
-            .Select(root => root.TrimEnd('\\', '/'))
-            .OrderByDescending(root => root.Length)
-            .ToArray();
-
-        var index = new Dictionary<ulong, string>();
-        foreach (var record in scanRecords)
-        {
-            if (!record.IsDirectory)
-                continue;
-
-            var path = record.Path.TrimEnd('\\', '/');
-            foreach (var root in orderedRoots)
+            var path = WatchPath.Parse(entry.FullPath);
+            switch (entry.Kind)
             {
-                if (!IsUnderOrEqual(path, root))
-                    continue;
-
-                index[record.RecordNumber] = root;
-                break;
+                case VolumeEntryKind.Modified:
+                    ClassifyChanged(changed, path);
+                    break;
+                case VolumeEntryKind.Created:
+                    ClassifyCreated(changed, created, path);
+                    break;
+                case VolumeEntryKind.Deleted:
+                    ClassifyDeleted(changed, deleted, path);
+                    break;
             }
         }
 
-        return index;
+        return new FilterResult(changed, created, deleted);
     }
 
-    static bool IsUnderOrEqual(string path, string root)
+    void ClassifyChanged(HashSet<string> changed, WatchPath path)
     {
-        if (path.Equals(root, StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        return path.Length > root.Length
-            && path.StartsWith(root, StringComparison.OrdinalIgnoreCase)
-            && (path[root.Length] == '\\' || path[root.Length] == '/');
+        var root = FindContainingRoot(path, _orderedRepositoryRoots);
+        if (root is not null)
+            changed.Add(root.Value.Original);
     }
+
+    void ClassifyCreated(HashSet<string> changed, HashSet<string> created, WatchPath path)
+    {
+        var trackedRoot = FindContainingRoot(path, _orderedRepositoryRoots);
+        if (trackedRoot is not null)
+        {
+            changed.Add(trackedRoot.Value.Original);
+            return;
+        }
+
+        if (path.TryGetGitDirectoryParent(out var parent)
+            && FindContainingRoot(parent, _orderedSearchRoots) is not null)
+            created.Add(parent.Original);
+    }
+
+    void ClassifyDeleted(HashSet<string> changed, HashSet<string> deleted, WatchPath path)
+    {
+        foreach (var root in _orderedRepositoryRoots)
+        {
+            if (path.IsEqualTo(root) || path.IsEqualToChildOf(root, ".git"))
+            {
+                deleted.Add(root.Original);
+                return;
+            }
+        }
+
+        ClassifyChanged(changed, path);
+    }
+
+    static WatchPath? FindContainingRoot(WatchPath path, IReadOnlyList<WatchPath> orderedRoots)
+    {
+        foreach (var root in orderedRoots)
+        {
+            if (path.IsUnderOrEqual(root))
+                return root;
+        }
+
+        return null;
+    }
+
+    // Classify path handling goes through WatchPath, which retains each path's syntax
+    // (Windows-rooted vs POSIX) rather than rewriting separators. A '/' to '\\' rewrite would
+    // report a Linux repository root back to consumers as "\repos\repo-a".
+    static WatchPath[] OrderRootsForClassify(IReadOnlyCollection<string> roots) =>
+        roots.Select(WatchPath.Parse)
+            .OrderByDescending(root => root.Comparison.Length)
+            .ToArray();
 }

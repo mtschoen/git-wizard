@@ -1,27 +1,29 @@
 # Test & Coverage Report - git-wizard
 
-**Status:** PASS - 890 non-admin tests pass, **0 build/analyzer findings** (analyzer gate + `dotnet format` + jb inspectcode clean), **aislop 100/100** (`aislop ci .` clean, gate green).
-**Mode:** coverage gate = pass (**81.75%** line ≥ 45%); sweep classification, branch counting, stash counting, error isolation, parser, serialization, and CLI entry-point behavior are covered. The built CLI was exercised against a disposable repository.
-**Change:** Added the `--sweep` JSON contract for dirty tracked files, branches with commits absent from all remote-tracking refs, and stash counts; documented local/SSH agent operation and recovery bundling; added process-level coverage of normal, minified, and invalid sweep invocations.
-**Branch:** `agent/1172-agent-skill-machine-wide-unpushe` (issue #101, based on `94650b4`).
-**Last measured:** 2026-07-28, Linux, `Release`, non-admin tier.
-**Command:** `cmake -S external/MFTLib/MFTLibNative -B external/MFTLib/build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release` · `cmake --build external/MFTLib/build-linux` · `dotnet build git-wizard.slnx -c Release --no-restore` · `dotnet test GitWizardTests/GitWizardTests.csproj -c Release --no-build --collect:"XPlat Code Coverage"` · `python3 ci/post-coverage-status.py --cobertura "TestResults/**/coverage.cobertura.xml" --gate-line 45 --summary --skip-post` · `dotnet format git-wizard.slnx --verify-no-changes` · `jb inspectcode git-wizard.slnx --settings=git-wizard.slnx.DotSettings --severity=WARNING --no-updates --properties:Configuration=Release` · `aislop ci .`.
-**Git:** `agent/1172-agent-skill-machine-wide-unpushe` at `f3817a2` plus integration-test/report edits
+**Status:** PASS - 1000 non-admin tests pass, **0 build/analyzer findings** (analyzer gate + `dotnet format` + jb inspectcode clean). aislop not re-scored locally (the C# engine lives in the pinned fork the `aislop.yml` workflow builds); the gate runs in CI.
+**Mode:** coverage gate = pass (**85.67%** line ≥ 55%). The watch pipeline is covered end to end with fakes: the `IVolumeChangeSource` seam, `RepositoryWatchService` mapping / debounce / rename surfacing, `RepositoryChangeFilter.Classify` on both Windows and POSIX path shapes, the CLI `--watch` loop, `LiveWatchController`, and the `MainViewModel` Live wiring. The real-broker `UsnVolumeChangeSource` tests and the real-kernel `FanotifyInterop` test are `RequiresAdmin`/`RequiresRoot` and self-skip when unprivileged.
+**Change:** Revived the shelved watch-in-UI work on top of current main. Ported `UsnVolumeChangeSource` from the removed raw `JournalBrokerClient` API to `JournalBrokerScanSession`, wired the UI Live-mode toggle through `LiveWatchController`, added the Linux `FanotifyInterop` capability probe, and replaced the Classify path normalization with syntax-preserving `WatchPath` comparisons.
+**Branch:** `feat/watch-in-ui-revive` (consolidates `feat/watch-in-ui`, `openai/watch-ui-fanotify-interop`, and `salvage/watch-ui-linux-watch-tests`).
+**Last measured:** 2026-08-21, Windows, `Release`, non-admin tier.
+**Command:** `MSBuild.exe external/MFTLib/MFTLibNative/MFTLibNative.vcxproj -t:Build -p:Configuration=Release -p:Platform=x64` · `dotnet build external/MFTLib/MFTLib/MFTLib.csproj -c Release -p:Platform=x64` · `dotnet build external/MFTLib/MFTLibTestExtensions/MFTLibTestExtensions.csproj -c Release -p:Platform=x64` · `dotnet build git-wizard.slnx -c Release --no-restore` · `dotnet test GitWizardTests/GitWizardTests.csproj -c Release --no-build --collect:"XPlat Code Coverage"` · `python ci/post-coverage-status.py --cobertura "GitWizardTests/TestResults/**/coverage.cobertura.xml" --gate-line 55 --summary --skip-post` · `dotnet format git-wizard.slnx --verify-no-changes` · `jb inspectcode git-wizard.slnx --settings=git-wizard.slnx.DotSettings --severity=WARNING --no-updates` gated by `python ci/parse-jb-report.py`.
+**Git:** `feat/watch-in-ui-revive` at the WatchPath cherry-pick, plus this report edit
 
 ## Results
 
 | Metric | Value |
 | --- | --- |
-| Tests passed (non-admin tier) | 890 |
-| Tests passed (`RequiresAdmin` tier, elevated) | Not run on Linux |
+| Tests passed (non-admin tier) | 1000 |
+| Tests passed (`RequiresAdmin` tier, elevated) | Not run - 3 real-broker tests and 1 real-kernel fanotify test self-skip unprivileged |
 | Failed | 0 |
-| Skipped on Linux (Windows-only MFT/elevation guards) | 3 |
-| **Line coverage (non-admin, `Release`)** | **81.75%** (CI gate: 45%) |
-| **Branch coverage (non-admin, `Release`)** | **79.25%** |
+| Skipped on Windows (Linux-only/non-Windows guards) | 2 |
+| **Line coverage (non-admin, `Release`)** | **85.67%** (CI gate: 55%) |
+| **Branch coverage (non-admin, `Release`)** | **83.06%** |
 | `[ExcludeFromCodeCoverage]` annotations | 0 (Exclusions configured cleanly via `coverlet.runsettings` for Views, UI Services wrappers, and WindowsDefender) |
 
-> These are the Linux CI-equivalent figures from one fresh Cobertura report. The elevated Windows
-> tier was not run because this change does not touch privileged MFT or Defender behavior.
+> These are Windows figures from one fresh Cobertura report. The elevated tier was not run:
+> the real-broker `UsnVolumeChangeSource` tests need an actual UAC elevation, and the
+> real-kernel `FanotifyInterop` test needs a Linux root session. Both self-skip with
+> `Assert.Inconclusive` rather than failing.
 
 ## Lint gate (PASS - 0 findings)
 

@@ -13,6 +13,7 @@ Scan, organize, and manage all the git repositories on your machine. Find duplic
 - **Sort** by path, last commit date, or remote URL
 - **Search** to quickly find repos by path
 - **Deep refresh** per repo with remote fetch and index update
+- **Live mode (Windows)** - opt-in repository monitoring updates changed, created, deleted, and renamed repositories after one elevation prompt
 - **Cross-platform desktop** - Avalonia app runs natively on Windows, macOS, and Linux; library and CLI run everywhere
 
 ## Getting Started

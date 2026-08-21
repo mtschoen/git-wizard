@@ -6,7 +6,7 @@
         <Configuration>
           <Format>cobertura</Format>
           <Exclude>[GitWizardUI]GitWizardUI.Views.*,[GitWizardUI]GitWizardUI.Services.AvaloniaUiDispatcher,[GitWizardUI]GitWizardUI.Services.AvaloniaUserDialogs,[GitWizardUI]GitWizardUI.Services.AvaloniaFolderPicker,[GitWizardUI]GitWizardUI.Services.IconLoader,[GitWizardUI]GitWizardUI.Program,[GitWizard]GitWizard.WindowsDefender</Exclude>
-          <ExcludeByFile>**/Program.Watch.cs,**/WindowsDefender.cs,**/MainWindow.axaml.cs,**/SettingsWindow.axaml.cs</ExcludeByFile>
+          <ExcludeByFile>**/Program.Watch.cs,**/WindowsDefender.cs,**/MainWindow.axaml.cs,**/SettingsWindow.axaml.cs,**/UsnVolumeChangeSource.cs</ExcludeByFile>
         </Configuration>
       </DataCollector>
     </DataCollectors>

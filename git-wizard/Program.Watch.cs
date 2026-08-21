@@ -1,4 +1,5 @@
 using System.Runtime.Versioning;
+using GitWizard.Watch;
 using MFTLib;
 
 // ReSharper disable once CheckNamespace
@@ -17,10 +18,8 @@ public static partial class Program
 
     /// <summary>
     /// --watch: auto-detect changes in tracked repositories via MFTLib's elevated journal
-    /// broker (one UAC prompt for the whole run). Groups repository roots by drive, runs one
-    /// <see cref="JournalBrokerScanSession"/> that cold-scans and live-watches those drives
-    /// on a single elevated process, and prints one line per affected repository as journal
-    /// batches arrive. Runs until Ctrl-C or the broker dies.
+    /// broker (one UAC prompt for the whole run), driven through <see cref="RepositoryWatchService"/>.
+    /// Prints one line per repository event as it arrives and runs until Ctrl-C or the broker dies.
     /// </summary>
     [SupportedOSPlatform("windows")]
     static async Task RunWatchAsync(GitWizardConfiguration configuration)
@@ -32,69 +31,109 @@ public static partial class Program
             return;
         }
 
-        var rootsByDrive = GroupPathsByDrive(repositoryPaths);
+        var searchRoots = configuration.SearchPaths
+            .Select(GitWizardApi.ExpandSearchPath)
+            .OfType<string>()
+            .ToList();
 
         using var ctrlC = new CtrlCCancellation();
+        await using var source = new UsnVolumeChangeSource(BrokerLauncher.Launch);
+        var service = new RepositoryWatchService(source, repositoryPaths, searchRoots);
 
-        JournalBrokerScanSession session;
+        var stopped = await RunWatchLoopAsync(service, Console.WriteLine, Environment.Exit, ctrlC.Token)
+            .ConfigureAwait(false);
+        if (stopped)
+            Environment.Exit(1);
+    }
+
+    // Drains service.RunAsync, printing one line per RepositoryChangeEvent kind plus one line
+    // per drive that failed to arm, and reports whether the underlying source died mid-run.
+    // Internal (rather than folded into RunWatchAsync) so GitWizardTests can drive it with a
+    // fake-source-backed RepositoryWatchService, a capturing sink, and a fake exit, without
+    // touching the real Environment.Exit or a real elevated broker. The exit callback (defaulted
+    // to Environment.Exit by the production caller) fires the non-zero exit for a failed broker
+    // spawn - the one terminal condition that must exit before any events flow.
+    internal static async Task<bool> RunWatchLoopAsync(
+        RepositoryWatchService service, Action<string> writeLine, Action<int> exit,
+        CancellationToken cancellationToken)
+    {
+        var stopped = false;
+        service.Stopped += reason =>
+        {
+            stopped = true;
+            writeLine($"Broker died: {reason}");
+        };
+
+        // Drive GetAsyncEnumerator/MoveNextAsync by hand rather than `await foreach` ON PURPOSE:
+        // ScanErrors is only populated once arming completes (during the first MoveNextAsync) and
+        // is guaranteed set before the first event, so the scan-error lines must be printed
+        // between the first move and the first event. Do NOT "simplify" this back to await foreach
+        // - that would lose the ability to interleave the scan-error print at the right point.
+        await using var enumerator = service.RunAsync(cancellationToken).GetAsyncEnumerator(cancellationToken);
+
+        bool hasNext;
         try
         {
-            session = await JournalBrokerScanSession
-                .StartAsync(BrokerLauncher.Launch, rootsByDrive.Keys.ToList(), ctrlC.Token)
-                .ConfigureAwait(false);
+            hasNext = await MoveNextIgnoringCancellationAsync(enumerator).ConfigureAwait(false);
         }
         catch (InvalidOperationException exception)
         {
-            Console.WriteLine($"Could not start the journal broker: {exception.Message}");
-            Environment.Exit(1);
-            return;
+            // Broker spawn declined (UAC) or failed: UsnVolumeChangeSource.ArmAndCatchUpAsync
+            // surfaces JournalBrokerScanSession.StartAsync's throw from this first arming
+            // MoveNextAsync. Match the prior CLI's clean message + non-zero exit instead of
+            // crashing with an unhandled stack trace.
+            writeLine($"Could not start the journal broker: {exception.Message}");
+            exit(1);
+            return true;
         }
 
-        await using (session.ConfigureAwait(false))
+        foreach (var (drive, message) in service.ScanErrors)
+            writeLine($"scan error on {drive}: {message}");
+
+        while (hasNext)
         {
-            await RunWatchLoopAsync(session, rootsByDrive, ctrlC).ConfigureAwait(false);
+            writeLine(FormatChangeEvent(enumerator.Current));
+            try
+            {
+                hasNext = await MoveNextIgnoringCancellationAsync(enumerator).ConfigureAwait(false);
+            }
+            catch (InvalidOperationException exception)
+            {
+                if (!stopped)
+                {
+                    stopped = true;
+                    writeLine($"Broker died: {exception.Message}");
+                }
+
+                return true;
+            }
         }
+
+        return stopped;
     }
 
-    // Starts the session's live watch and drains batches until Ctrl-C or the broker dies.
-    // Split from RunWatchAsync so the session's lifetime (the outer `await using`) is
-    // visibly separate from the loop that uses it.
-    static async Task RunWatchLoopAsync(
-        JournalBrokerScanSession session, Dictionary<string, List<string>> rootsByDrive, CtrlCCancellation ctrlC)
+    // Ctrl-C and broker death both cancel the token backing RunAsync's enumeration; both are
+    // expected ways for the loop to end, not failures to propagate.
+    static async Task<bool> MoveNextIgnoringCancellationAsync(IAsyncEnumerator<RepositoryChangeEvent> enumerator)
     {
-        var brokerDied = false;
-        session.Faulted += reason =>
-        {
-            brokerDied = true;
-            Console.WriteLine($"Broker died: {reason}");
-            ctrlC.Cancel();
-        };
-
-        var latestScan = session.LatestScan
-            ?? throw new InvalidOperationException("Scanned session unexpectedly has no LatestScan result.");
-        var filtersByDrive = BuildFiltersByDrive(rootsByDrive, latestScan.Records);
-
-        await session.StartWatchAsync(ctrlC.Token).ConfigureAwait(false);
-
-        var watchTasks = latestScan.AdvancedCursors.Keys
-            .Where(rootsByDrive.ContainsKey)
-            .Select(drive => WatchDriveAsync(session, drive, filtersByDrive[drive], ctrlC.Token))
-            .ToArray();
-
         try
         {
-            await Task.WhenAll(watchTasks).ConfigureAwait(false);
+            return await enumerator.MoveNextAsync().ConfigureAwait(false);
         }
-        catch (Exception exception) when (exception is OperationCanceledException || brokerDied)
+        catch (OperationCanceledException)
         {
-            // Expected on Ctrl-C, or on broker death - which the session surfaces both as a
-            // Faulted event (cancelling the token) and as an InvalidOperationException from
-            // the faulted per-drive watch enumerable.
+            return false;
         }
-
-        if (brokerDied)
-            Environment.Exit(1);
     }
+
+    static string FormatChangeEvent(RepositoryChangeEvent changeEvent) =>
+        changeEvent.Kind switch
+        {
+            RepositoryChangeKind.Changed => $"changed: {changeEvent.RepoRoot}",
+            RepositoryChangeKind.Created => $"created: {changeEvent.RepoRoot}",
+            RepositoryChangeKind.Deleted => $"deleted: {changeEvent.RepoRoot}",
+            _ => $"{changeEvent.Kind.ToString().ToLowerInvariant()}: {changeEvent.RepoRoot}",
+        };
 
     /// <summary>
     /// Bridges Ctrl-C to a <see cref="CancellationTokenSource"/> for the --watch command's
@@ -113,8 +152,6 @@ public static partial class Program
 
         public CancellationToken Token => _source.Token;
 
-        public void Cancel() => _source.Cancel();
-
         void OnCancelKeyPress(object? sender, ConsoleCancelEventArgs eventArgs)
         {
             eventArgs.Cancel = true;
@@ -125,20 +162,6 @@ public static partial class Program
         {
             Console.CancelKeyPress -= OnCancelKeyPress;
             _source.Dispose();
-        }
-    }
-
-    // Reads live journal batches for one drive until cancelled, printing a line per
-    // repository root the batch touched (deduplicated by RepositoryChangeFilter). The
-    // session owns the drive's resume cursor, so none is threaded in here.
-    static async Task WatchDriveAsync(
-        JournalBrokerScanSession session, string drive,
-        RepositoryChangeFilter filter, CancellationToken cancellationToken)
-    {
-        await foreach (var (entries, _) in session.WatchDriveAsync(drive, cancellationToken).ConfigureAwait(false))
-        {
-            foreach (var root in filter.Filter(entries))
-                Console.WriteLine($"changed: {root}");
         }
     }
 
@@ -157,57 +180,5 @@ public static partial class Program
             await GitWizardApi.SaveCachedRepositoryPathsAsync(paths).ConfigureAwait(false);
 
         return paths;
-    }
-
-    static Dictionary<string, List<string>> GroupPathsByDrive(IEnumerable<string> paths)
-    {
-        var result = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var path in paths)
-        {
-            var drive = GetDriveLetter(path);
-            if (drive == null)
-                continue;
-
-            if (!result.TryGetValue(drive, out var roots))
-                result[drive] = roots = new List<string>();
-
-            roots.Add(path);
-        }
-
-        return result;
-    }
-
-    // Builds one RepositoryChangeFilter per drive from that drive's slice of the combined
-    // cold-scan records (BrokerScanResult.Records spans every requested drive).
-    static Dictionary<string, RepositoryChangeFilter> BuildFiltersByDrive(
-        Dictionary<string, List<string>> rootsByDrive, IReadOnlyList<ScanRecord> scanRecords)
-    {
-        var recordsByDrive = new Dictionary<string, List<ScanRecord>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var record in scanRecords)
-        {
-            var drive = GetDriveLetter(record.Path);
-            if (drive == null)
-                continue;
-
-            if (!recordsByDrive.TryGetValue(drive, out var records))
-                recordsByDrive[drive] = records = new List<ScanRecord>();
-
-            records.Add(record);
-        }
-
-        var filters = new Dictionary<string, RepositoryChangeFilter>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (drive, roots) in rootsByDrive)
-        {
-            recordsByDrive.TryGetValue(drive, out var records);
-            filters[drive] = new RepositoryChangeFilter(records ?? new List<ScanRecord>(), roots);
-        }
-
-        return filters;
-    }
-
-    static string? GetDriveLetter(string path)
-    {
-        var root = Path.GetPathRoot(path);
-        return string.IsNullOrEmpty(root) ? null : root[..1];
     }
 }

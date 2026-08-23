@@ -85,9 +85,23 @@ jobs:
       - name: aislop quality gate
         # Sanity-fail if the C# engine did not actually analyze the .cs tree (avoid a
         # silent Python-only pass): require a healthy file count alongside the score gate.
+        #
+        # The scan runs backgrounded with a foreground heartbeat because its stdout is
+        # redirected to $REPORT: with no log output, Gitea's zombie-task reaper
+        # (ZOMBIE_TASK_TIMEOUT, 10 minutes) marks the task failed whenever a busy
+        # runner stretches the scan past 10 silent minutes, even though the process
+        # is healthy. The heartbeat keeps the task's log (and its updated stamp) alive.
         run: |
           REPORT="$RUNNER_TEMP/aislop-report.json"
-          node "$RUNNER_TEMP/aislop/dist/cli.js" ci . --json > "$REPORT" || GATE_FAILED=1
+          node "$RUNNER_TEMP/aislop/dist/cli.js" ci . --json > "$REPORT" &
+          aislop_pid=$!
+          ( while kill -0 "$aislop_pid" 2>/dev/null; do
+              echo "aislop scan in progress ($(date -u +%H:%M:%S))"
+              sleep 60
+            done ) &
+          heartbeat_pid=$!
+          wait "$aislop_pid" || GATE_FAILED=1
+          kill "$heartbeat_pid" 2>/dev/null || true
           node -e "const r=require(process.env.REPORT); const f=r.summary?.files??0; console.log('aislop score',r.score,'over',f,'files'); if(f<10){console.error('aislop only scanned '+f+' files - the C# engine did not run');process.exit(1);}"
           # On a failing score, print every finding so the log says WHY - a bare
           # score is undebuggable from a runner without shell access to $RUNNER_TEMP.

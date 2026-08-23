@@ -629,6 +629,83 @@ public class ProgramHelperTests
     }
 
     #endregion
+
+    #region EnsureUsableSearchPaths tests
+
+    [Test]
+    public void EnsureUsableSearchPaths_AllInvalid_ExitsOneAndLogsSummary()
+    {
+        var config = new GitWizardConfiguration
+        {
+            SearchPaths = { "/nonexistent/path/one", "/nonexistent/path/two", "/nonexistent/path/three" }
+        };
+
+        var loggedMessages = new List<string>();
+        GitWizardLog.LogMethod = msg => { if (msg != null) loggedMessages.Add(msg); };
+        var exitCode = -1;
+
+        try
+        {
+            var result = Program.EnsureUsableSearchPaths(config, code => exitCode = code);
+            Assert.Multiple(() =>
+            {
+                Assert.That(result, Is.False);
+                Assert.That(exitCode, Is.EqualTo(1));
+                Assert.That(loggedMessages.Any(m => m.Contains("0 of 3 configured search paths are usable")), Is.True);
+            });
+        }
+        finally
+        {
+            GitWizardLog.LogMethod = Console.WriteLine;
+        }
+    }
+
+    [Test]
+    public void EnsureUsableSearchPaths_EmptySearchPaths_ExitsOneAndLogsSummary()
+    {
+        var config = new GitWizardConfiguration();
+        config.SearchPaths.Clear();
+
+        var loggedMessages = new List<string>();
+        GitWizardLog.LogMethod = msg => { if (msg != null) loggedMessages.Add(msg); };
+        var exitCode = -1;
+
+        try
+        {
+            var result = Program.EnsureUsableSearchPaths(config, code => exitCode = code);
+            Assert.Multiple(() =>
+            {
+                Assert.That(result, Is.False);
+                Assert.That(exitCode, Is.EqualTo(1));
+                Assert.That(loggedMessages.Any(m => m.Contains("0 of 0 configured search paths are usable")), Is.True);
+            });
+        }
+        finally
+        {
+            GitWizardLog.LogMethod = Console.WriteLine;
+        }
+    }
+
+    [Test]
+    public void EnsureUsableSearchPaths_WithUsablePath_ReturnsTrueWithoutExit()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var config = new GitWizardConfiguration
+        {
+            SearchPaths = { fixture.Path, "/nonexistent/path/two" }
+        };
+
+        var exitCalled = false;
+        var result = Program.EnsureUsableSearchPaths(config, _ => exitCalled = true);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result, Is.True);
+            Assert.That(exitCalled, Is.False);
+        });
+    }
+
+    #endregion
 }
 
 public class ProgramEntryPointTests
@@ -684,6 +761,127 @@ public class ProgramEntryPointTests
             Assert.That(result.ExitCode, Is.EqualTo(2));
             Assert.That(result.StandardOutput, Does.Not.Contain("\"Repositories\""));
         });
+    }
+
+    [Test]
+    public async Task Main_ScanOnly_PrintsRepositoryPathsToStdoutAndDiagnosticsToStderr()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var tempConfigFile = Path.GetTempFileName();
+        try
+        {
+            var config = new GitWizardConfiguration
+            {
+                SearchPaths = { fixture.Path }
+            };
+            await config.SaveAsync(tempConfigFile);
+
+            var result = await RunCliAsync("--config-path", tempConfigFile, "--scan-only", "--no-mft");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.ExitCode, Is.Zero);
+                // Stdout contains ONLY discovered repository paths, no session banner or log lines
+                Assert.That(result.StandardOutput.Trim(), Is.EqualTo(fixture.Path).IgnoreCase);
+                Assert.That(result.StandardOutput, Does.Not.Contain("Session Start Message"));
+                Assert.That(result.StandardOutput, Does.Not.Contain("git-wizard Session Started"));
+                // Stderr contains session banner / diagnostics
+                Assert.That(result.StandardError, Does.Contain("Session Start Message"));
+                Assert.That(result.StandardError, Does.Contain("git-wizard Session Started"));
+            });
+        }
+        finally
+        {
+            if (File.Exists(tempConfigFile))
+                File.Delete(tempConfigFile);
+        }
+    }
+
+    [Test]
+    public async Task Main_ScanOnly_AllInvalidSearchPaths_ExitsNonZeroWithUsableSummary()
+    {
+        var tempConfigFile = Path.GetTempFileName();
+        try
+        {
+            var config = new GitWizardConfiguration
+            {
+                SearchPaths = { "/nonexistent/search/one", "/nonexistent/search/two", "/nonexistent/search/three" }
+            };
+            await config.SaveAsync(tempConfigFile);
+
+            var result = await RunCliAsync("--config-path", tempConfigFile, "--scan-only", "--no-mft");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.ExitCode, Is.EqualTo(1));
+                // Stdout is completely empty
+                Assert.That(result.StandardOutput.Trim(), Is.Empty);
+                // Stderr contains per-path errors and summary message
+                Assert.That(result.StandardError, Does.Contain("0 of 3 configured search paths are usable"));
+                Assert.That(result.StandardError, Does.Contain("Could not get repository paths at /nonexistent/search/one"));
+            });
+        }
+        finally
+        {
+            if (File.Exists(tempConfigFile))
+                File.Delete(tempConfigFile);
+        }
+    }
+
+    [Test]
+    public async Task Main_DefaultReportMode_AllInvalidSearchPaths_ExitsNonZero()
+    {
+        var tempConfigFile = Path.GetTempFileName();
+        try
+        {
+            var config = new GitWizardConfiguration
+            {
+                SearchPaths = { "/nonexistent/search/one", "/nonexistent/search/two" }
+            };
+            await config.SaveAsync(tempConfigFile);
+
+            var result = await RunCliAsync("--config-path", tempConfigFile, "--rebuild-report", "--no-mft");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.ExitCode, Is.EqualTo(1));
+                Assert.That(result.StandardOutput, Does.Not.Contain("\"Repositories\""));
+            });
+        }
+        finally
+        {
+            if (File.Exists(tempConfigFile))
+                File.Delete(tempConfigFile);
+        }
+    }
+
+    [Test]
+    public async Task Main_ScanOnly_WithFilter_FiltersStdout()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var tempConfigFile = Path.GetTempFileName();
+        try
+        {
+            var config = new GitWizardConfiguration
+            {
+                SearchPaths = { fixture.Path }
+            };
+            await config.SaveAsync(tempConfigFile);
+
+            var result = await RunCliAsync("--config-path", tempConfigFile, "--scan-only", "--filter", "nonexistentfilterpattern", "--no-mft");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.ExitCode, Is.Zero);
+                Assert.That(result.StandardOutput.Trim(), Is.Empty);
+                Assert.That(result.StandardError, Does.Contain("Session Start Message"));
+            });
+        }
+        finally
+        {
+            if (File.Exists(tempConfigFile))
+                File.Delete(tempConfigFile);
+        }
     }
 
     static async Task<(int ExitCode, string StandardOutput, string StandardError)> RunCliAsync(params string[] args)

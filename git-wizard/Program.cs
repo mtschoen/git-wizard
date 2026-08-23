@@ -6,19 +6,6 @@ namespace GitWizard.CLI;
 
 public static partial class Program
 {
-    // Cached serializer options (CA1869): WriteIndented depends on the --print-minified flag,
-    // so two presets are kept rather than allocating a JsonSerializerOptions per call.
-    static readonly JsonSerializerOptions IndentedSerializerOptions = new()
-    {
-        WriteIndented = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
-    };
-
-    static readonly JsonSerializerOptions CompactSerializerOptions = new()
-    {
-        WriteIndented = false,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
-    };
 
     static readonly JsonSerializerOptions IndentedSweepSerializerOptions = new()
     {
@@ -71,6 +58,11 @@ git-wizard Session Started
         {
             await RunSweepAsync(runConfiguration);
             return;
+        }
+
+        if (runConfiguration.ScanOnly)
+        {
+            GitWizardLog.LogMethod = Console.Error.WriteLine;
         }
 
         GitWizardLog.Log(SessionStartMessage);
@@ -129,6 +121,7 @@ git-wizard Session Started
                 var discoveredPaths = new SortedSet<string>();
                 var discoveryReport = new GitWizardReport(configuration);
                 await discoveryReport.GetRepositoryPathsAsync(discoveredPaths, noMft: runConfiguration.NoMft);
+                EnsureUsableSearchPaths(configuration);
                 repositoryPaths = discoveredPaths.ToArray();
                 await GitWizardApi.SaveCachedRepositoryPathsAsync(repositoryPaths);
             }
@@ -197,59 +190,21 @@ git-wizard Session Started
 
     static async Task RunScanOnlyAsync(RunConfiguration runConfiguration, GitWizardConfiguration configuration)
     {
+        GitWizardLog.LogMethod = Console.Error.WriteLine;
         var scanReport = new GitWizardReport(configuration);
         var scanPaths = new SortedSet<string>();
         await scanReport.GetRepositoryPathsAsync(scanPaths, noMft: runConfiguration.NoMft);
+        EnsureUsableSearchPaths(configuration);
         foreach (var path in scanPaths)
         {
-            Console.WriteLine(path);
+            if (string.IsNullOrEmpty(runConfiguration.FilterPattern) ||
+                path.Contains(runConfiguration.FilterPattern, StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine(path);
+            }
         }
 
         Environment.Exit(0);
-    }
-
-    static async Task RunDefaultReportModeAsync(RunConfiguration runConfiguration, GitWizardConfiguration configuration)
-    {
-        var repositoryPaths = ParseExplicitPaths(runConfiguration) ?? await GetRepositoryPathsAsync(runConfiguration);
-        var updateHandler = new UpdateHandler();
-        var report = await GetReportAsync(runConfiguration, configuration, repositoryPaths, updateHandler);
-        if (report == null)
-        {
-            // If the user requested to not generate a new report, and no cached report exists, early out
-            GitWizardLog.Log("Could not retrieve cached report", GitWizardLog.LogType.Error);
-            Environment.Exit(0);
-            return;
-        }
-
-        GitWizardLog.Log("Processing queued commands...");
-        updateHandler.ProcessCommands();
-        updateHandler.PrintSummary();
-
-        if (repositoryPaths == null)
-            await GitWizardApi.SaveCachedRepositoryPathsAsync(report.GetRepositoryPaths());
-
-        SaveReport(runConfiguration, report);
-
-        var filteredReport = ApplyFilter(runConfiguration, report);
-        var needsAttention = ReportNeedsAttention(filteredReport);
-
-        string jsonString;
-        if (runConfiguration.Summary)
-        {
-            var summary = GitWizardSummary.FromReport(filteredReport);
-            var options = runConfiguration.Minified ? CompactSerializerOptions : IndentedSerializerOptions;
-            jsonString = JsonSerializer.Serialize(summary, options);
-        }
-        else
-        {
-            jsonString = SerializeReport(runConfiguration, filteredReport);
-        }
-
-        if (!GitWizardLog.SilentMode)
-            Console.WriteLine(jsonString);
-
-        if (needsAttention)
-            Environment.Exit(1);
     }
 
     static async Task<GitWizardConfiguration> GetConfigurationAsync(RunConfiguration runConfiguration)
@@ -272,105 +227,12 @@ git-wizard Session Started
         return runConfiguration.RebuildRepositoryList ? null : await GitWizardApi.GetCachedRepositoryPathsAsync().ConfigureAwait(false);
     }
 
-    static async Task<GitWizardReport?> GetReportAsync(RunConfiguration runConfiguration, GitWizardConfiguration configuration,
-        ICollection<string>? repositoryPaths, UpdateHandler updateHandler)
-    {
-        if (!runConfiguration.RebuildReport)
-        {
-            var cachedReport = await GitWizardReport.GetCachedReportAsync().ConfigureAwait(false);
-            if (!runConfiguration.RefreshReport)
-                return cachedReport;
-
-            if (cachedReport != null && repositoryPaths != null)
-            {
-                cachedReport.Refresh(repositoryPaths, updateHandler, allBranches: runConfiguration.AllBranches, computeLocalCommitCount: !runConfiguration.NoLocalCommitCount);
-                cachedReport.BranchScope = runConfiguration.AllBranches ? "all" : "actionable";
-                return cachedReport;
-            }
-        }
-
-        return await GitWizardReport.GenerateReportAsync(configuration, repositoryPaths, updateHandler,
-            new GitWizardReportOptions { NoMft = runConfiguration.NoMft, AllBranches = runConfiguration.AllBranches, ComputeLocalCommitCount = !runConfiguration.NoLocalCommitCount });
-    }
-
-    /// <summary>
-    /// Handle the --merge flag: validate required args, refresh the supplied repos, and merge
-    /// them into the existing report at --save-path (atomic write, other entries preserved).
-    /// </summary>
-    static void RunMerge(RunConfiguration runConfiguration, GitWizardConfiguration configuration)
-    {
-        var savePath = runConfiguration.SavePath;
-        var explicitPaths = ParseExplicitPaths(runConfiguration);
-
-        if (explicitPaths == null || explicitPaths.Length == 0 || string.IsNullOrEmpty(savePath))
-        {
-            GitWizardLog.Log(
-                "--merge requires both --paths (repos to refresh) and --save-path (report to merge into).",
-                GitWizardLog.LogType.Error);
-            Environment.Exit(2);
-            return;
-        }
-
-        GitWizardLog.Log($"Merging {explicitPaths.Length} repo(s) into {savePath}");
-        var updateHandler = new UpdateHandler();
-        GitWizardReport.MergeIntoFile(savePath, configuration, explicitPaths, updateHandler,
-            allBranches: runConfiguration.AllBranches, computeLocalCommitCount: !runConfiguration.NoLocalCommitCount);
-        updateHandler.ProcessCommands();
-        updateHandler.PrintSummary();
-    }
-
-    static void SaveReport(RunConfiguration runConfiguration, GitWizardReport report)
-    {
-        // Always save a cache
-        report.Save(GitWizardReport.GetCachedReportPath());
-
-        var savePath = runConfiguration.SavePath;
-        if (savePath == null)
-            return;
-
-        GitWizardLog.Log($"Saving report to {savePath}");
-
-        report.Save(savePath);
-    }
-
-    static string SerializeReport(RunConfiguration runConfiguration, GitWizardReport report)
-    {
-        // Stamp the current schema version so console output never carries
-        // a stale version loaded from an older cache.
-        report.SchemaVersion = GitWizardReport.CurrentSchemaVersion;
-        var options = runConfiguration.Minified ? CompactSerializerOptions : IndentedSerializerOptions;
-
-        var jsonString = JsonSerializer.Serialize(report, options);
-        return jsonString;
-    }
-
     static string SerializeSweepReport(RunConfiguration runConfiguration, RepositorySweepReport report)
     {
         var options = runConfiguration.Minified
             ? CompactSweepSerializerOptions
             : IndentedSweepSerializerOptions;
         return JsonSerializer.Serialize(report, options);
-    }
-
-    static GitWizardReport ApplyFilter(RunConfiguration runConfiguration, GitWizardReport report)
-    {
-        if (string.IsNullOrEmpty(runConfiguration.FilterPattern))
-            return report;
-
-        var filtered = new GitWizardReport
-        {
-            SchemaVersion = report.SchemaVersion,
-            SearchPaths = report.SearchPaths,
-            IgnoredPaths = report.IgnoredPaths
-        };
-
-        foreach (var kvp in report.Repositories)
-        {
-            if (kvp.Key.Contains(runConfiguration.FilterPattern, StringComparison.OrdinalIgnoreCase))
-                filtered.Repositories[kvp.Key] = kvp.Value;
-        }
-
-        return filtered;
     }
 
     static string[]? ParseExplicitPaths(RunConfiguration runConfiguration)
@@ -395,26 +257,19 @@ git-wizard Session Started
             .ToArray();
     }
 
-    static bool ReportNeedsAttention(GitWizardReport report)
+    internal static bool EnsureUsableSearchPaths(GitWizardConfiguration configuration, Action<int>? exit = null)
     {
-        foreach (var kvp in report.Repositories)
+        var usableCount = configuration.SearchPaths.Count(path => GitWizardApi.ExpandSearchPath(path) != null);
+        if (usableCount == 0)
         {
-            if (kvp.Value.HasPendingChanges || kvp.Value.LocalOnlyCommits || kvp.Value.BehindRemoteCount > 0)
-                return true;
+            GitWizardLog.SilentMode = false;
+            GitWizardLog.Log(
+                $"{usableCount} of {configuration.SearchPaths.Count} configured search paths are usable",
+                GitWizardLog.LogType.Error);
+            (exit ?? Environment.Exit)(1);
+            return false;
         }
 
-        return false;
-    }
-    static string FormatSize(long bytes)
-    {
-        string[] units = { "B", "KB", "MB", "GB", "TB" };
-        double size = bytes;
-        int i = 0;
-        while (size >= 1024 && i < units.Length - 1)
-        {
-            size /= 1024;
-            i++;
-        }
-        return $"{size:0.##} {units[i]}";
+        return true;
     }
 }

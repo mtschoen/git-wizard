@@ -175,6 +175,7 @@ public static partial class Program
 
         var discovered = new SortedSet<string>();
         configuration.GetRepositoryPaths(discovered);
+        EnsureUsableSearchPaths(configuration);
         var paths = discovered.ToList();
         if (paths.Count > 0)
             await GitWizardApi.SaveCachedRepositoryPathsAsync(paths).ConfigureAwait(false);

@@ -50,8 +50,7 @@ public partial class RepositoryWatchServiceTests
         var svc = new RepositoryWatchService(
             new FakeVolumeChangeSource(batches),
             trackedRoots: Array.Empty<string>(),
-            searchRoots: new[] { @"C:\repo" },
-            debounce: TimeSpan.FromMilliseconds(10));
+            searchRoots: new[] { @"C:\repo" });
 
         var events = await DrainAsync(svc);
 

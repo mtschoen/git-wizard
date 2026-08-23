@@ -209,6 +209,8 @@ static class CliParser
         // Apply side-effects first (logging mode).
         GitWizardLog.VerboseMode = verboseOption.HasValue();
         GitWizardLog.SilentMode = silentOption.HasValue();
+        if (scanOnlyOption.HasValue())
+            GitWizardLog.LogMethod = Console.Error.WriteLine;
 
         // Get the last value for string options (last wins, like the old parser).
         string? GetLastValue(CommandOption opt)

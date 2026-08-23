@@ -3,25 +3,22 @@ name: aislop
 # `aislop ci` scores the whole repo (0-100) and exits non-zero when the score
 # drops below ci.failBelow (100) in .aislop/config.yml - gating the PR/push.
 #
-# The C# engine lives ONLY in the personal fork github.com/mtschoen/aislop (the
-# public npm `aislop` scores just the Python ci/ tooling), so we clone + build
-# that fork at a PINNED commit and run the built CLI. The C# lint engine shells
-# out to the `roslynator` and `jb` (ReSharper CLT) dotnet global tools, so dotnet,
-# roslynator, and jb are set up here, and the solution is restored so jb inspectcode
-# can build it. Bump AISLOP_FORK_COMMIT deliberately; do not track the moving branch.
+# The C# engine lives ONLY in the personal fork gitea.fleet.sticktoitive.net/
+# schoen/aislop (the public npm `aislop` scores just the Python ci/ tooling),
+# so we clone + build that fork at the commit pinned in .aislop/fork-commit
+# and run the built CLI. Gitea is the canonical source - the pin is bumped by
+# pushes that land there first - and github.com/mtschoen/aislop is a mirror
+# that can lag behind, so a freshly bumped sha may not exist on GitHub yet.
+# The C# lint engine shells out to the `roslynator` and `jb` (ReSharper CLT)
+# dotnet global tools, so dotnet, roslynator, and jb are set up here, and the
+# solution is restored so jb inspectcode can build it. The pin is bumped by
+# the aislop fork's sync-consumers workflow via PR; a manual bump = edit
+# .aislop/fork-commit.
 on:
   pull_request:
   push:
     branches: [main]
   workflow_dispatch:
-
-env:
-  # github.com/mtschoen/aislop @ schoen/main 2026-07-11: central exclude
-  # post-filter (build-backed C#/C++ engines previously bypassed config
-  # excludes, so the external/MFTLib submodule leaked into the scan),
-  # depth-aware countParams, record param counting. Pinned by commit, not a
-  # published version - the registry publish route is retired.
-  AISLOP_FORK_COMMIT: 6736600f4da37ce21f29362e42b07cb5ee892c96
 
 jobs:
   quality-gate:
@@ -30,6 +27,22 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Read aislop fork pin
+        # Pinned by commit, not a published version - the registry publish
+        # route is retired. The pin is bumped by the aislop fork's
+        # sync-consumers workflow via PR; a manual bump = edit
+        # .aislop/fork-commit directly. .aislop/fork-commit is modified by
+        # external bump PRs by design, so validate it is exactly one 40-char
+        # lowercase hex sha before it reaches GITHUB_ENV - an unvalidated
+        # write would let a crafted file with embedded newlines inject
+        # arbitrary env vars into later steps.
+        run: |
+          commit=$(tr -d '[:space:]' < .aislop/fork-commit)
+          if [[ ! "$commit" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "ERROR: .aislop/fork-commit is not a single 40-char lowercase sha" >&2
+            exit 1
+          fi
+          echo "AISLOP_FORK_COMMIT=$commit" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with:
           # 22, not 20: the `npm install` below builds the fork via its
@@ -52,10 +65,15 @@ jobs:
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
       - name: Build C#-capable aislop (pinned fork commit)
         # Cloned outside the workspace so aislop does not scan the fork's own source.
+        # From Gitea (canonical, always current), not the github.com mirror (can lag
+        # behind by many commits, so a freshly bumped pin can be absent there).
+        # The fork is a pnpm workspace (packageManager pnpm@10.28.0 + pnpm-lock.yaml);
+        # npm chokes on it on some npm versions, so install via pnpm through npx -y
+        # (hermetic - no corepack or preinstalled pnpm needed).
         run: |
-          git clone https://github.com/mtschoen/aislop.git "$RUNNER_TEMP/aislop"
+          git clone https://gitea.fleet.sticktoitive.net/schoen/aislop.git "$RUNNER_TEMP/aislop"
           git -C "$RUNNER_TEMP/aislop" checkout "$AISLOP_FORK_COMMIT"
-          (cd "$RUNNER_TEMP/aislop" && npm install --no-audit --no-fund)
+          (cd "$RUNNER_TEMP/aislop" && npx -y pnpm@10.28.0 install --frozen-lockfile)
       # MFTLib types must resolve for jb/roslynator to load the solution; managed-only
       # is enough for analysis (no native build here - the copy target only warns).
       - name: Build MFTLib managed (HintPath for analysis)

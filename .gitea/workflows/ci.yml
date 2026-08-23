@@ -22,12 +22,51 @@ jobs:
         with:
           submodules: recursive
 
+      # Pin-only PRs (a bump of .aislop/fork-commit, opened by the aislop fork's
+      # sync-consumers workflow) don't touch anything this job builds or tests.
+      # Detect that case and skip the rest of the job's steps (still SUCCESS,
+      # not skipped-as-failure, so branch protection's required check is
+      # satisfied) instead of paying for a full build+test cycle. Never use
+      # workflow-level paths/paths-ignore for this: on Gitea that leaves the
+      # required check permanently pending for any PR that doesn't touch the
+      # matched paths (gitea issue 36895).
+      - name: Determine changed files (pin-only PR early exit)
+        id: changed-files
+        shell: bash
+        env:
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+        run: |
+          PIN_ONLY=false
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ] && [ -n "$GITHUB_BASE_REF" ]; then
+            if git fetch --depth=1 origin "$GITHUB_BASE_REF" 2>/dev/null; then
+              CHANGED=$(git diff --name-only FETCH_HEAD HEAD 2>/dev/null || true)
+              echo "Changed files vs $GITHUB_BASE_REF:"
+              echo "$CHANGED"
+              if [ "$CHANGED" = ".aislop/fork-commit" ]; then
+                PIN_ONLY=true
+              fi
+            fi
+          elif [ "$GITHUB_EVENT_NAME" = "push" ] && [ -n "$EVENT_BEFORE" ] && [ "$EVENT_BEFORE" != "0000000000000000000000000000000000000000" ]; then
+            if git fetch --depth=1 origin "$EVENT_BEFORE" 2>/dev/null; then
+              CHANGED=$(git diff --name-only "$EVENT_BEFORE" "$EVENT_AFTER" 2>/dev/null || true)
+              echo "Changed files ($EVENT_BEFORE..$EVENT_AFTER):"
+              echo "$CHANGED"
+              if [ "$CHANGED" = ".aislop/fork-commit" ]; then
+                PIN_ONLY=true
+              fi
+            fi
+          fi
+          echo "pin_only=$PIN_ONLY" >> "$GITHUB_OUTPUT"
+
       - name: Set up .NET 10 SDK
+        if: steps.changed-files.outputs.pin_only != 'true'
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
 
       - name: Cache NuGet packages
+        if: steps.changed-files.outputs.pin_only != 'true'
         uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
@@ -40,6 +79,7 @@ jobs:
       # Directory.Build.targets consumes both from fixed paths. apt install mirrors
       # MFTLib's own linux CI (pip is cert-blocked on this runner).
       - name: Build MFTLib (native + managed)
+        if: steps.changed-files.outputs.pin_only != 'true'
         run: |
           apt-get update && apt-get install -y cmake ninja-build g++
           cmake -S external/MFTLib/MFTLibNative -B external/MFTLib/build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -48,6 +88,7 @@ jobs:
           dotnet build external/MFTLib/MFTLibTestExtensions/MFTLibTestExtensions.csproj -c Release -p:Platform=x64
 
       - name: Restore (cross-platform projects)
+        if: steps.changed-files.outputs.pin_only != 'true'
         run: |
           for proj in \
             GitWizard/GitWizard.csproj \
@@ -59,12 +100,14 @@ jobs:
           done
 
       - name: Format check (dotnet format --verify-no-changes)
+        if: steps.changed-files.outputs.pin_only != 'true'
         # Same tool as the on-save hook, in check mode: fails on any whitespace/
         # style drift from .editorconfig. MFTLib (outside this repo) fails to load
         # on Linux and is skipped; the git-wizard projects are still verified.
         run: dotnet format git-wizard.slnx --verify-no-changes
 
       - name: Build (cross-platform projects)
+        if: steps.changed-files.outputs.pin_only != 'true'
         # TreatWarningsAsErrors (Directory.Build.props) makes this the analyzer
         # gate: any CA*/IDE*/RCS* warning on a git-wizard project fails the build.
         run: |
@@ -78,6 +121,7 @@ jobs:
           done
 
       - name: Test
+        if: steps.changed-files.outputs.pin_only != 'true'
         run: |
           dotnet test GitWizardTests/GitWizardTests.csproj \
               -c Release --no-build \
@@ -86,13 +130,13 @@ jobs:
               --collect:"XPlat Code Coverage"
 
       - name: Post coverage status
-        if: always()
+        if: always() && steps.changed-files.outputs.pin_only != 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 ci/post-coverage-status.py --cobertura "TestResults/**/coverage.cobertura.xml"
 
       - name: Upload coverage report
-        if: always()
+        if: always() && steps.changed-files.outputs.pin_only != 'true'
         # Supplementary artifact only - the coverage GATE runs in "Post coverage status" /
         # "Coverage gate" above (which read the cobertura file directly). The upload to gitea's
         # artifact backend currently fails TLS verification on the runner (the mkcert CA isn't
@@ -111,6 +155,7 @@ jobs:
       # (2026-05-26) - the app's untestable Avalonia glue (Views/App/Program) now
       # sits in coverage scope. Ratchet up as ViewModel coverage grows (issue #36).
       - name: Coverage gate
+        if: steps.changed-files.outputs.pin_only != 'true'
         run: |
           python3 ci/post-coverage-status.py \
               --cobertura "TestResults/**/coverage.cobertura.xml" \
@@ -127,7 +172,52 @@ jobs:
         with:
           submodules: recursive
 
+      # Pin-only PRs (a bump of .aislop/fork-commit, opened by the aislop fork's
+      # sync-consumers workflow) don't touch anything this job builds or tests.
+      # Detect that case and skip the rest of the job's steps (still SUCCESS,
+      # not skipped-as-failure, so branch protection's required check is
+      # satisfied) instead of paying for a full build+test cycle. Never use
+      # workflow-level paths/paths-ignore for this: on Gitea that leaves the
+      # required check permanently pending for any PR that doesn't touch the
+      # matched paths (gitea issue 36895).
+      - name: Determine changed files (pin-only PR early exit)
+        id: changed-files
+        shell: pwsh
+        env:
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_AFTER: ${{ github.event.after }}
+        run: |
+          $pinOnly = $false
+          try {
+            if ($env:GITHUB_EVENT_NAME -eq "pull_request" -and $env:GITHUB_BASE_REF) {
+              git fetch --depth=1 origin $env:GITHUB_BASE_REF 2>$null
+              if ($LASTEXITCODE -eq 0) {
+                $changed = @(git diff --name-only FETCH_HEAD HEAD 2>$null)
+                Write-Host "Changed files vs $($env:GITHUB_BASE_REF):"
+                $changed | ForEach-Object { Write-Host $_ }
+                if ($changed.Count -eq 1 -and $changed[0] -eq ".aislop/fork-commit") {
+                  $pinOnly = $true
+                }
+              }
+            } elseif ($env:GITHUB_EVENT_NAME -eq "push" -and $env:EVENT_BEFORE -and $env:EVENT_BEFORE -ne "0000000000000000000000000000000000000000") {
+              git fetch --depth=1 origin $env:EVENT_BEFORE 2>$null
+              if ($LASTEXITCODE -eq 0) {
+                $changed = @(git diff --name-only $env:EVENT_BEFORE $env:EVENT_AFTER 2>$null)
+                Write-Host "Changed files ($($env:EVENT_BEFORE)..$($env:EVENT_AFTER)):"
+                $changed | ForEach-Object { Write-Host $_ }
+                if ($changed.Count -eq 1 -and $changed[0] -eq ".aislop/fork-commit") {
+                  $pinOnly = $true
+                }
+              }
+            }
+          } catch {
+            Write-Host "Changed-file detection failed, running the job in full: $_"
+            $pinOnly = $false
+          }
+          "pin_only=$($pinOnly.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
       - name: Set up .NET 10 SDK
+        if: steps.changed-files.outputs.pin_only != 'true'
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
@@ -135,11 +225,13 @@ jobs:
       # VS MSBuild is the only toolchain that can compile MFTLib's native C++ vcxproj
       # (file-wizard CI precedent on this runner).
       - name: Setup MSBuild
+        if: steps.changed-files.outputs.pin_only != 'true'
         uses: microsoft/setup-msbuild@v2
         with:
           msbuild-architecture: x64
 
       - name: Build MFTLib (native + managed)
+        if: steps.changed-files.outputs.pin_only != 'true'
         shell: pwsh
         run: |
           msbuild external\MFTLib\MFTLibNative\MFTLibNative.vcxproj -t:Build -p:Configuration=Release -p:Platform=x64 -nologo -v:minimal
@@ -147,6 +239,7 @@ jobs:
           dotnet build external\MFTLib\MFTLibTestExtensions\MFTLibTestExtensions.csproj -c Release -p:Platform=x64
 
       - name: Cache NuGet packages
+        if: steps.changed-files.outputs.pin_only != 'true'
         uses: actions/cache@v4
         with:
           path: ~\.nuget\packages
@@ -155,13 +248,16 @@ jobs:
             windows-nuget-
 
       - name: Restore (full solution)
+        if: steps.changed-files.outputs.pin_only != 'true'
         run: dotnet restore git-wizard.slnx
 
       - name: Build (full solution)
+        if: steps.changed-files.outputs.pin_only != 'true'
         # TreatWarningsAsErrors (Directory.Build.props) gates analyzer warnings here.
         run: dotnet build git-wizard.slnx -c Release --no-restore
 
       - name: JetBrains InspectCode (deep lint gate)
+        if: steps.changed-files.outputs.pin_only != 'true'
         shell: pwsh
         # Deep ReSharper inspection; the gate's bar is zero findings
         # (ci/parse-jb-report.py exits non-zero otherwise).
@@ -198,6 +294,7 @@ jobs:
           Write-Host "jb inspectcode gate passed (0 findings)."
 
       - name: Test
+        if: steps.changed-files.outputs.pin_only != 'true'
         shell: pwsh
         run: |
           dotnet test GitWizardTests/GitWizardTests.csproj `
@@ -206,7 +303,7 @@ jobs:
               --results-directory ./TestResults
 
       - name: Upload test results
-        if: always()
+        if: always() && steps.changed-files.outputs.pin_only != 'true'
         uses: actions/upload-artifact@v3
         with:
           name: test-results-windows

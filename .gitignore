@@ -364,6 +364,8 @@ MigrationBackup/
 .qwen/
 
 # aislop runtime artifacts (session/history logs, caches, baselines).
-# Ignore directory contents rather than the directory itself so config.yml can be un-ignored.
+# Ignore directory contents rather than the directory itself so config.yml and
+# the CI fork-pin file can be un-ignored.
 **/.aislop/*
 !**/.aislop/config.yml
+!**/.aislop/fork-commit

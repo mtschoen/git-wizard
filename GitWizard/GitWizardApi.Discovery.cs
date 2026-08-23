@@ -103,13 +103,17 @@ public static partial class GitWizardApi
     [SupportedOSPlatform("windows")]
     static async Task<IReadOnlyList<ScanRecord>> BrokerScanAsync(IReadOnlyList<string> drives)
     {
+        var records = new List<ScanRecord>();
         await using var session = await JournalBrokerScanSession
             .StartAsync(BrokerLauncher.Launch, drives, GitDiscoveryScanProfile,
-                keepFileNames: [GitEntryName], CancellationToken.None).ConfigureAwait(false);
+                (batch, _) =>
+                {
+                    records.AddRange(batch);
+                    return ValueTask.CompletedTask;
+                },
+                keepFileNames: [GitEntryName], cancellationToken: CancellationToken.None).ConfigureAwait(false);
 
-        var latestScan = session.LatestScan
-            ?? throw new InvalidOperationException("Scanned session unexpectedly has no LatestScan result.");
-        return latestScan.Records;
+        return records;
     }
 
     // Filters one drive's cold-scan records down to the repository roots under a single

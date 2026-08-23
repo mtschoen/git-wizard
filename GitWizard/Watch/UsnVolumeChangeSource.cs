@@ -61,6 +61,12 @@ public sealed class UsnVolumeChangeSource : IVolumeChangeSource
         // path resolution) plus .git markers (for repository-root mapping), not the whole MFT.
         var session = await JournalBrokerScanSession.StartAsync(
                 _brokerLaunch, volumes.ToList(), GitWizardApi.GitDiscoveryScanProfile,
+                (batch, _) =>
+                {
+                    foreach (var record in batch)
+                        IndexRecord(record.Path, record.RecordNumber);
+                    return ValueTask.CompletedTask;
+                },
                 keepFileNames: [GitWizardApi.GitEntryName], ct)
             .ConfigureAwait(false);
         _session = session;
@@ -81,9 +87,6 @@ public sealed class UsnVolumeChangeSource : IVolumeChangeSource
 
         foreach (var drive in _watchedDrives)
             GetOrAddIndex(drive);
-
-        foreach (var record in scan.Records)
-            IndexRecord(record.Path, record.RecordNumber);
 
         return new VolumeArmResult(scan.Errors);
     }

@@ -73,7 +73,7 @@ jobs:
           # assets) and 401s on /api/packages — do not reuse it here.
           PREVIEW_REGISTRY_TOKEN: ${{ secrets.PREVIEW_REGISTRY_TOKEN }}
         run: |
-          $url = "https://gitea.llamabox.sticktoitive.net/api/packages/schoen/generic/${{ inputs.preview_id }}/${{ inputs.head_sha }}/GitWizardUI-windows-x64.zip"
+          $url = "https://gitea.fleet.sticktoitive.net/api/packages/schoen/generic/${{ inputs.preview_id }}/${{ inputs.head_sha }}/GitWizardUI-windows-x64.zip"
           $headers = @{ Authorization = "token $env:PREVIEW_REGISTRY_TOKEN" }
           try {
             Invoke-WebRequest -Method Head -Uri $url -Headers $headers -ErrorAction Stop | Out-Null

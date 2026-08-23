@@ -26,9 +26,9 @@
 
 GitWizard already scans 692 repos and caches state in `report.json`. Projdash currently shells out to `git` per-repo (slow, one at a time). The goal: GitWizard produces structured batch reports that projdash (and LLMs via MCP) can consume efficiently.
 
-- [x] **CLI `-filter` flag**: case-insensitive path substring filter
-- [x] **CLI `-paths` flag**: newline-separated file or comma-separated list of repo paths
-- [x] **CLI `-summary` flag**: condensed summary with dirty/unpushed/stale counts and repos needing attention
+- [x] **CLI `--filter` flag**: case-insensitive path substring filter
+- [x] **CLI `--paths` flag**: newline-separated file or comma-separated list of repo paths
+- [x] **CLI `--summary` flag**: condensed summary with dirty/unpushed/stale counts and repos needing attention
 - [x] **Recent commit log in report**: `RecentCommits` field on `GitWizardRepository` (last 10 commits)
 - [x] **Staleness info in report**: `DaysSinceLastCommit` computed field on `GitWizardRepository`
 - [x] **Stable JSON schema**: `docs/report-schema.md` + `SchemaVersion` field on `GitWizardReport`
@@ -52,7 +52,7 @@ These tasks live in projdash's PLAN.md but are noted here for cross-reference:
 - [x] `CurrentSchemaVersion` constant stamped at save time - cached reports from older builds no longer propagate stale version strings
 - [x] Documented `WhenWritingDefault` serializer behavior in `docs/report-schema.md` (absent fields = default values, not "unknown")
 
-### Single-repo merge refresh (for projdash fallback) - tracked as [#42](https://gitea.llamabox.sticktoitive.net/schoen/git-wizard/issues/42)
+### Single-repo merge refresh (for projdash fallback) - tracked as [#42](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/42)
 
 Projdash falls back to per-repo `git` subprocess when the cache misses a repo
 (fresh clones, repos created since the last full scan). On Windows that path
@@ -108,7 +108,7 @@ Avalonia, which also has extras (Downstream Branches filter, Clean button, progr
       per row on scroll. Added `StringToThicknessConverter` (commit `ec5a17a`). See AGENTS.md tips.
 - [x] **Fix: `RepositoryNotFoundException` spam on refresh** - guarded `Refresh` with `Repository.IsValid`
       so stale/non-repo cache entries skip cleanly (commit `b7a0321`). Cache-pruning follow-up tracked as
-      [#48](https://gitea.llamabox.sticktoitive.net/schoen/git-wizard/issues/48).
+      [#48](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/48).
 - [x] **Debounce search** - 200ms debounce in the `MainViewModel.SearchText` setter coalesces rapid
       keystrokes into a single `ApplyFilterAndGrouping` pass (commit `ec5a17a`); the immediate
       `SetSearchText` path is unchanged. Covered by a coalescing regression test.
@@ -128,7 +128,7 @@ Avalonia, which also has extras (Downstream Branches filter, Clean button, progr
 - [x] **Gitea Actions CI** - `.gitea/workflows/ci.yml` runs `test-linux` (build + full NUnit suite with coverage, gated at 55% line via `ci/post-coverage-status.py`) and `test-windows` (full solution build + tests) on push to `main` and PRs targeting `main`. `.gitea/workflows/release.yml` builds CLI + GitWizardUI for `win-x64`/`linux-x64`/`osx-x64` and creates a Gitea release with all 6 assets attached on `v*` tag pushes. See `AGENTS.md` § CI infrastructure for runner/bot/branch-protection setup.
 - [ ] **Trust llamabox cert on the Windows runner** - currently the release publish and test-results upload use `NODE_TLS_REJECT_UNAUTHORIZED=0` to work around Node.js not trusting the self-signed Caddy cert. Install the cert into the runner's Node/system trust store and remove the env override.
 
-  *Note (2026-06-19): Largely overtaken by events. (1) The `NODE_TLS_REJECT_UNAUTHORIZED=0` override is already gone (removed by #66 / `e992b43`, which kept TLS verification on and dropped `CERT_NONE` / `curl -k`). (2) The instance now serves a trusted Let's Encrypt wildcard cert at `gitea.llamabox.sticktoitive.net` (verifies natively); `gitea.llamabox.internal` is fully retired. (3) `release.yml` was still POSTing to the retired `.internal` host - repointed to the LE FQDN this session. REMAINING: the `ci.yml` coverage-artifact upload (`actions/upload-artifact@v3`) is still `continue-on-error` because the act_runner's artifact-backend endpoint (`ACTIONS_RESULTS_URL`, set in the runner config on llamabox - may differ from `GITHUB_SERVER_URL`) isn't trusted by the runner's Node. Finishing that needs runner-side config + a live CI run to validate; not doable from a dev box.*
+  *Note (2026-06-19): Largely overtaken by events. (1) The `NODE_TLS_REJECT_UNAUTHORIZED=0` override is already gone (removed by #66 / `e992b43`, which kept TLS verification on and dropped `CERT_NONE` / `curl -k`). (2) The instance now serves a trusted Let's Encrypt wildcard cert at `gitea.fleet.sticktoitive.net` (verifies natively); `gitea.llamabox.internal` is fully retired. (3) `release.yml` was still POSTing to the retired `.internal` host - repointed to the LE FQDN this session. REMAINING: the `ci.yml` coverage-artifact upload (`actions/upload-artifact@v3`) is still `continue-on-error` because the act_runner's artifact-backend endpoint (`ACTIONS_RESULTS_URL`, set in the runner config on llamabox - may differ from `GITHUB_SERVER_URL`) isn't trusted by the runner's Node. Finishing that needs runner-side config + a live CI run to validate; not doable from a dev box.*
 - [x] **Replace the prebuilt-DLL MFTLib bridge with a source-built submodule** - `lib/MFTLib/` (prebuilt 0.3.0 DLLs) + the old `Directory.Build.targets` bridge are gone; MFTLib now builds from source via the `external/MFTLib` git submodule (native: VS MSBuild `.vcxproj` on Windows / CMake on Linux; managed: `dotnet build`). See `AGENTS.md` → Build.
 - [ ] **Retire the MFTLib submodule for a NuGet `PackageReference`** - repo-root `Directory.Build.targets` is a TEMPORARY source-build bridge that unblocks the build while MFTLib 0.3.0 is unpublished. When 0.3.0 ships to NuGet: delete the `external/MFTLib` submodule + `Directory.Build.targets`, add `<PackageReference Include="MFTLib" Version="0.3.0" />` to `GitWizard/GitWizard.csproj`, and confirm CI stays green. Steps in the `Directory.Build.targets` header.
 

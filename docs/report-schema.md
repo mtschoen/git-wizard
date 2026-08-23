@@ -6,7 +6,7 @@ The `SchemaVersion` field at the top of every report indicates the schema versio
 
 ## Version history
 
-- **2.1** - Behind-remote detection ([#78](https://gitea.llamabox.sticktoitive.net/schoen/git-wizard/issues/78)). Added repository `BehindRemoteCount` / `AheadOfRemoteCount` (the checked-out branch vs its upstream - see the disambiguation note under **Repository object** below), `LastFetchTime`, and `IsPublishReady`, plus summary `BehindRemote` / the `"behind-remote"` attention reason.
+- **2.1** - Behind-remote detection ([#78](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/78)). Added repository `BehindRemoteCount` / `AheadOfRemoteCount` (the checked-out branch vs its upstream - see the disambiguation note under **Repository object** below), `LastFetchTime`, and `IsPublishReady`, plus summary `BehindRemote` / the `"behind-remote"` attention reason.
 - **2.0** - Per-branch divergence. Added repository `Branches` (`BranchInfo[]`) and top-level `BranchScope`, plus repository `DefaultBranch`, `MatchingBranchName`, and `SizeOnDisk`, and summary `MergedBranches` / the `"merged-branches"` attention reason.
 - **1.1** - `NumberOfPendingChanges` counts untracked + added + renamed files (matches `HasPendingChanges`); added `LocalCommitCount`.
 - **1.0** - Initial schema.
@@ -37,7 +37,7 @@ merge of disjoint updates must serialize their writes externally.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `SchemaVersion` | `string` | Schema version (currently `"2.0"`) |
+| `SchemaVersion` | `string` | Schema version (currently `"2.1"`) |
 | `BranchScope` | `string` | How each repo's `Branches` list was filtered: `"actionable"` (default) or `"all"` (with `--all-branches`). Absent on reports written before 2.0. |
 | `SearchPaths` | `string[]` | Configured search paths |
 | `IgnoredPaths` | `string[]` | Configured ignored paths |

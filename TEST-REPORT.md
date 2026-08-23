@@ -34,7 +34,7 @@ The linter rollout drove every configured analyzer/inspection to **zero** and ba
 | Roslyn analyzers (CA*/IDE*) + Roslynator 4.15.0 | **0** | `Directory.Build.props`: `EnableNETAnalyzers`, `AnalysisLevel=latest-Recommended`, `EnforceCodeStyleInBuild`, `TreatWarningsAsErrors` → the Release build **is** the gate. |
 | `dotnet format` (`.editorconfig`) | **0** | `dotnet format git-wizard.slnx --verify-no-changes` (CI Linux job) + an on-save PostToolUse hook (local, `.claude/`). |
 | jb inspectcode (deep ReSharper) | **0** | `jb inspectcode … --severity=WARNING` gated by `ci/parse-jb-report.py` (CI Windows job). |
-| aislop (AI-slop, C# engine) | **100** (0 findings) | `.gitea/workflows/aislop.yml` clones + builds the C#-capable fork `github.com/mtschoen/aislop` at a pinned commit (the public npm `aislop` is Python-only) and runs it against `.aislop/config.yml` (csharp.yml shape, `maxFileLoc: 400`, `failBelow: 100`); the job also installs `roslynator.dotnet.cli` and fails on a <10-file scan. This branch took the C# score 13 → 45 → **100**: all error-level, null-forgiving, todo-stub, narrative-comment, and file/function-too-large findings cleared. `failBelow` raised to 100 to match the repo's 0-findings bar. |
+| aislop (AI-slop, C# engine) | **100** (0 findings) | `.gitea/workflows/aislop.yml` clones + builds the C#-capable fork `gitea.fleet.sticktoitive.net/schoen/aislop` at a pinned commit (the public npm `aislop` is Python-only; `github.com/mtschoen/aislop` is a lagging mirror) and runs it against `.aislop/config.yml` (csharp.yml shape, `maxFileLoc: 400`, `failBelow: 100`); the job also installs `roslynator.dotnet.cli` and fails on a <10-file scan. This branch took the C# score 13 → 45 → **100**: all error-level, null-forgiving, todo-stub, narrative-comment, and file/function-too-large findings cleared. `failBelow` raised to 100 to match the repo's 0-findings bar. |
 
 - **This PR's added tests (2026-05-31) pass all three gates with 0 new findings** - the build's analyzer/naming gate caught a real CA1725 (handler override param names had to match `IUpdateHandler`'s `gitWizardRepository`) and an RCS1139 (a `<param>` doc comment needed a `<summary>`); both fixed, then `dotnet format --verify-no-changes` and `jb inspectcode` (0 findings) re-verified clean.
 - Went **364 Roslyn warnings → 0** and **20 jb findings → 0**. Naming modernized to idiomatic .NET (dropped Unity-style `k_`/`s_` prefixes → PascalCase; `_camelCase` instance fields); the local + solution ReSharper naming config was aligned so `InconsistentNaming` stays active.
@@ -78,7 +78,7 @@ the CI gate uses - it ORs line hits across every `coverage.cobertura.xml` under 
 
 ## Relationship to the CI gate
 
-The CI **Linux** job gates on **45% line** coverage of the cross-platform code (`ci/post-coverage-status.py
---gate-line 45`). That is a separate measurement from the Windows figures above: the Windows-only MFT/elevation
+The CI **Linux** job gates on **55% line** coverage of the cross-platform code (`ci/post-coverage-status.py
+--gate-line 55`). That is a separate measurement from the Windows figures above: the Windows-only MFT/elevation
 code is out of scope on Linux. git-wizard's coverage truth is the **union** of the Linux-measured cross-platform
 code and the elevated-Windows-measured privileged code.

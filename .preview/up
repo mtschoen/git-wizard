@@ -18,7 +18,7 @@ set -eu
 ROOT="$(dirname "$PREVIEW_PID_FILE")"
 LOG="$ROOT/app.log"
 ZIP="$ROOT/GitWizardUI-linux-x64.zip"
-URL="https://gitea.llamabox.sticktoitive.net/api/packages/schoen/generic/$PREVIEW_ID/$PREVIEW_REF/GitWizardUI-linux-x64.zip"
+URL="https://gitea.fleet.sticktoitive.net/api/packages/schoen/generic/$PREVIEW_ID/$PREVIEW_REF/GitWizardUI-linux-x64.zip"
 
 # The orchestrator's detached PR-head worktree does NOT initialize submodules
 # (plain `git worktree add`), so MFTLib's source is absent until we fetch it.

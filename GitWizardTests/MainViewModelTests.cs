@@ -63,7 +63,12 @@ public class MainViewModelTests
         // only its contents mutate - which sidesteps AccessToModifiedClosure while the callback
         // still increments a single shared counter.
         var swapCount = new StrongBox<int>(0);
-        vm.AfterRepositoriesSwap = () => Interlocked.Increment(ref swapCount.Value);
+        var swapCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        vm.AfterRepositoriesSwap = () =>
+        {
+            Interlocked.Increment(ref swapCount.Value);
+            swapCompleted.TrySetResult();
+        };
 
         // Three distinct values, each fires the setter - but they arrive within the debounce window.
         vm.SearchText = "a";
@@ -74,9 +79,9 @@ public class MainViewModelTests
         Assert.That(Volatile.Read(ref swapCount.Value), Is.EqualTo(0),
             "Filtering must be deferred during the debounce window, not run per keystroke.");
 
-        // Wait past the 200ms debounce window, then drain the pump so the swap has executed.
-        await Task.Delay(400);
-        await dispatcher.InvokeAsync(() => { });
+        // The callback runs after the deferred collection swap, so its completion is the condition
+        // this test needs. The timeout only bounds a broken test instead of controlling progress.
+        await swapCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.Multiple(() =>
         {

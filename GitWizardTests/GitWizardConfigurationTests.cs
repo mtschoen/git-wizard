@@ -281,17 +281,18 @@ public class GitWizardConfigurationTests
     }
 
     [Test]
-    public async Task GetGlobalConfigurationAsync_DoesNotBlock_WhenAlreadyLoaded()
+    public void GetGlobalConfigurationAsync_CompletesSynchronously_WhenAlreadyLoaded()
     {
-        var _ = await GitWizardConfiguration.GetGlobalConfigurationAsync();
+        var loadedConfiguration = GitWizardConfiguration.GetGlobalConfiguration();
 
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         var task = GitWizardConfiguration.GetGlobalConfigurationAsync();
-        await task;
-        stopwatch.Stop();
 
-        // Should return immediately (cached, no I/O)
-        Assert.That(stopwatch.ElapsedMilliseconds, Is.LessThan(100));
+        Assert.Multiple(() =>
+        {
+            Assert.That(task.IsCompletedSuccessfully, Is.True,
+                "The cached configuration path should complete synchronously without I/O.");
+            Assert.That(task.Result, Is.SameAs(loadedConfiguration));
+        });
     }
 
     [Test]

@@ -271,11 +271,10 @@ public class GitWizardLogTests
         GitWizardLog.SilentMode = false;
         GitWizardLog.LogMethod = _ => { }; // suppress console
 
+        // Other fixtures redirect GITWIZARD_HOME. Start with a fresh writer so this test's message
+        // is written under the home directory it inspects below.
+        GitWizardLog.CloseCurrentLogFile();
         GitWizardLog.Log("async file log test message");
-
-        // Give the async writer a moment to process
-        Thread.Sleep(50);
-
         GitWizardLog.CloseCurrentLogFile();
 
         var logFolder = GitWizardApi.GetLogFolderPath();

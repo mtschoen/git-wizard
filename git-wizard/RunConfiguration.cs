@@ -65,6 +65,31 @@ public static partial class Program
         public readonly bool Sweep;
 
         /// <summary>
+        /// Output the tags inventory JSON contract.
+        /// </summary>
+        public readonly bool Tags;
+
+        /// <summary>
+        /// Glob pattern for tag matching in the tags inventory command.
+        /// </summary>
+        public readonly string? TagMatchPattern;
+
+        /// <summary>
+        /// Output the branches inventory JSON contract.
+        /// </summary>
+        public readonly bool Branches;
+
+        /// <summary>
+        /// Base branch to compare against in the branches inventory command.
+        /// </summary>
+        public readonly string? NotMergedBranch;
+
+        /// <summary>
+        /// Filter to branches not merged into the base branch.
+        /// </summary>
+        public readonly bool NotMergedOnly;
+
+        /// <summary>
         /// Targeted single-repo merge refresh: merge the repos named by --paths into the
         /// existing report at --save-path, leaving other entries intact. Requires --paths
         /// and --save-path.
@@ -143,6 +168,11 @@ public static partial class Program
             PathsArgument = result.PathsArgument;
             Summary = result.Summary;
             Sweep = result.Sweep;
+            Tags = result.Tags;
+            TagMatchPattern = result.TagMatchPattern;
+            Branches = result.Branches;
+            NotMergedBranch = result.NotMergedBranch;
+            NotMergedOnly = result.NotMergedOnly;
             Merge = result.Merge;
             RefreshReport = result.RefreshReport;
             Minified = result.Minified;

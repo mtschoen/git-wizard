@@ -85,7 +85,7 @@ public static partial class GitWizardApi
             ? StringComparison.OrdinalIgnoreCase
             : StringComparison.Ordinal;
 
-    static string NormalizePath(string path)
+    internal static string NormalizePath(string path)
     {
         var fullPath = Path.GetFullPath(path);
 

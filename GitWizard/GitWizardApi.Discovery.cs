@@ -66,7 +66,8 @@ public static partial class GitWizardApi
         // When searching a scoped path, include .git files for worktrees/submodules whose parent
         // may be outside the search scope.
         var includeGitFiles = !IsDriveRoot(rootPath);
-        FindGitRepositoriesRecursively(rootPath, paths, ExpandIgnoredPaths(ignoredPaths), includeGitFiles, updateHandler, skipHiddenDirectories);
+        var context = new DiscoveryContext(paths, ExpandIgnoredPaths(ignoredPaths), includeGitFiles, updateHandler, skipHiddenDirectories);
+        FindGitRepositoriesRecursively(rootPath, context);
 
         try
         {
@@ -175,25 +176,40 @@ public static partial class GitWizardApi
         }
     }
 
-    static void FindGitRepositoriesRecursively(string rootPath, ICollection<string> paths, ICollection<string> ignoredPaths, bool includeGitFiles, IUpdateHandler? updateHandler = null, bool? skipHiddenDirectories = null)
+    readonly record struct DiscoveryContext(
+        ICollection<string> Paths,
+        ICollection<string> IgnoredPaths,
+        bool IncludeGitFiles,
+        IUpdateHandler? UpdateHandler,
+        bool? SkipHiddenDirectories);
+
+    static void FindGitRepositoriesRecursively(string rootPath, DiscoveryContext context)
     {
         try
         {
             try
             {
-                updateHandler?.SendUpdateMessage(rootPath);
+                context.UpdateHandler?.SendUpdateMessage(rootPath);
             }
             catch (Exception nextException)
             {
                 GitWizardLog.LogException(nextException, "Exception thrown by GenerateReport onUpdate callback.");
             }
 
-            // Check for .git file (submodule/worktree pointer) in current directory
-            if (includeGitFiles && File.Exists(Path.Combine(rootPath, ".git")))
+            if (IsBareGitRepository(rootPath))
             {
-                lock (paths)
+                lock (context.Paths)
                 {
-                    paths.Add(NormalizePath(rootPath));
+                    context.Paths.Add(NormalizePath(rootPath));
+                }
+                return;
+            }
+
+            if (context.IncludeGitFiles && File.Exists(Path.Combine(rootPath, ".git")))
+            {
+                lock (context.Paths)
+                {
+                    context.Paths.Add(NormalizePath(rootPath));
                 }
             }
 
@@ -212,42 +228,7 @@ public static partial class GitWizardApi
             var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
             Parallel.ForEach(directories, parallelOptions, subDirectory =>
             {
-                try
-                {
-                    var normalizedSubDirectory = NormalizePath(subDirectory);
-                    var split = subDirectory.Split(Path.DirectorySeparatorChar);
-                    var lastDirectory = split.Last();
-
-                    if (lastDirectory == ".git")
-                    {
-                        lock (paths)
-                        {
-                            paths.Add(NormalizePath(rootPath));
-                        }
-
-                        return; // Ends only this lambda invocation, not the enclosing method - Parallel.ForEach has no `continue`.
-                    }
-
-                    if (split.Last().StartsWith('.') && skipHiddenDirectories != false)
-                        return;
-
-                    if (OperatingSystem.IsWindows())
-                    {
-                        var directoryInfo = new DirectoryInfo(subDirectory);
-                        if (directoryInfo.Attributes.HasFlag(FileAttributes.Hidden))
-                            return;
-                    }
-
-                    if (ignoredPaths.Any(ignored => IsSameOrChildPath(normalizedSubDirectory, ignored)))
-                        return;
-
-                    FindGitRepositoriesRecursively(normalizedSubDirectory, paths, ignoredPaths, includeGitFiles, updateHandler, skipHiddenDirectories);
-                }
-                catch (Exception exception)
-                {
-                    // Ignore per-directory exceptions (access denied, etc.) and continue the walk.
-                    GitWizardLog.Log($"Skipping directory during scan: {exception.Message}", GitWizardLog.LogType.Verbose);
-                }
+                ProcessSubDirectory(subDirectory, rootPath, context);
             });
         }
         catch (Exception exception)
@@ -255,13 +236,73 @@ public static partial class GitWizardApi
             // Ignore exceptions like access failure
             try
             {
-                updateHandler?.SendUpdateMessage($"Exception reading {rootPath}: {exception.Message}");
+                context.UpdateHandler?.SendUpdateMessage($"Exception reading {rootPath}: {exception.Message}");
             }
             catch (Exception nextException)
             {
                 GitWizardLog.LogException(nextException, "Exception thrown by GenerateReport onUpdate callback.");
             }
         }
+    }
+
+    static void ProcessSubDirectory(
+        string subDirectory,
+        string rootPath,
+        DiscoveryContext context)
+    {
+        try
+        {
+            var normalizedSubDirectory = NormalizePath(subDirectory);
+            var split = subDirectory.Split(Path.DirectorySeparatorChar);
+            var lastDirectory = split.Last();
+
+            if (lastDirectory == ".git")
+            {
+                lock (context.Paths)
+                {
+                    context.Paths.Add(NormalizePath(rootPath));
+                }
+
+                return; // Ends only this lambda invocation, not the enclosing method - Parallel.ForEach has no `continue`.
+            }
+
+            if (split.Last().StartsWith('.') && context.SkipHiddenDirectories != false)
+                return;
+
+            if (OperatingSystem.IsWindows())
+            {
+                var directoryInfo = new DirectoryInfo(subDirectory);
+                if (directoryInfo.Attributes.HasFlag(FileAttributes.Hidden))
+                    return;
+            }
+
+            if (context.IgnoredPaths.Any(ignored => IsSameOrChildPath(normalizedSubDirectory, ignored)))
+                return;
+
+            if (IsBareGitRepository(subDirectory))
+            {
+                lock (context.Paths)
+                {
+                    context.Paths.Add(normalizedSubDirectory);
+                }
+
+                return;
+            }
+
+            FindGitRepositoriesRecursively(normalizedSubDirectory, context);
+        }
+        catch (Exception exception)
+        {
+            // Ignore per-directory exceptions (access denied, etc.) and continue the walk.
+            GitWizardLog.Log($"Skipping directory during scan: {exception.Message}", GitWizardLog.LogType.Verbose);
+        }
+    }
+
+    internal static bool IsBareGitRepository(string path)
+    {
+        return File.Exists(Path.Combine(path, "HEAD")) &&
+               Directory.Exists(Path.Combine(path, "objects")) &&
+               Directory.Exists(Path.Combine(path, "refs"));
     }
 }
 

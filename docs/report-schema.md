@@ -173,3 +173,90 @@ The automation-focused sweep is a separate contract from the cached report above
 | `Error` | `string` | Optional repository-local scan error; other repositories are still reported |
 
 `--sweep` does not contact remotes. Run an explicitly approved fetch first when the audit requires current server state. A completed sweep exits `0` even when it finds work; findings are data. Parser or process failures retain the CLI's non-zero error behavior.
+
+## Tag inventory output (`tags`)
+
+`git-wizard tags` inspects every clone (including submodule checkouts and linked worktrees) for tags matching a pattern, and queries remotes via `git ls-remote --tags` to verify whether the tag still exists upstream.
+
+```json
+{
+  "SchemaVersion": "1.0",
+  "MatchPattern": "archive/*",
+  "Repositories": [
+    {
+      "Path": "/work/repo-a",
+      "Tags": [
+        {
+          "Name": "archive/2026-01",
+          "CommitSha": "d670460b4b4aece5915caf5c68d12f560a9fe3e4",
+          "ExistsOnRemote": true,
+          "Remotes": ["origin"]
+        }
+      ]
+    }
+  ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `SchemaVersion` | `string` | Contract version, currently `"1.0"` |
+| `MatchPattern` | `string` | Glob pattern matched against tag names (e.g. `archive/*`, default `*`) |
+| `Repositories` | `RepositoryTagItem[]` | Repositories holding at least one matching tag |
+| `Path` | `string` | Absolute path to repository |
+| `Tags` | `TagInfo[]` | Matching tags in this repository |
+| `Name` | `string` | Tag name |
+| `CommitSha` | `string` | Target commit SHA |
+| `ExistsOnRemote` | `bool` | Whether the tag exists on any configured remote |
+| `Remotes` | `string[]` | Remote names that still hold this tag |
+| `Error` | `string` | Optional repository error if repository could not be inspected |
+
+## Branch inventory output (`branches`)
+
+`git-wizard branches` inspects every clone for local branches, comparing against the specified base branch (`--not-merged <base>` / `--not <base>`) or each repository's default branch. It calculates upstream tracking divergence and a `UniqueCommitCount` that proves zero data loss before branch deletion.
+
+```json
+{
+  "SchemaVersion": "1.0",
+  "BaseBranch": "main",
+  "Repositories": [
+    {
+      "Path": "/work/repo-a",
+      "DefaultBranch": "main",
+      "Branches": [
+        {
+          "Name": "feature/unpushed",
+          "IsMerged": false,
+          "AheadOfBase": 2,
+          "BehindBase": 0,
+          "HasUpstream": false,
+          "AheadOfUpstream": 0,
+          "BehindUpstream": 0,
+          "UniqueCommitCount": 2,
+          "LastCommitDate": "2026-08-24T00:00:00+00:00"
+        }
+      ]
+    }
+  ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `SchemaVersion` | `string` | Contract version, currently `"1.0"` |
+| `BaseBranch` | `string` | Base branch specified on CLI (null if using default branch per repository) |
+| `Repositories` | `RepositoryBranchItem[]` | Repositories holding local branches |
+| `Path` | `string` | Absolute path to repository |
+| `DefaultBranch` | `string` | The repository's default branch name |
+| `Branches` | `BranchInventoryInfo[]` | Local branches in this repository |
+| `Name` | `string` | Local branch name |
+| `IsMerged` | `bool` | Whether the branch is merged into the base branch (`AheadOfBase == 0`) |
+| `AheadOfBase` | `int` | Commits on this branch not reachable from the base branch |
+| `BehindBase` | `int` | Commits in the base branch not reachable from this branch |
+| `HasUpstream` | `bool` | Whether this branch tracks an upstream remote branch |
+| `UpstreamBranch` | `string` | Name of upstream tracking branch |
+| `AheadOfUpstream` | `int` | Commits ahead of upstream branch |
+| `BehindUpstream` | `int` | Commits behind upstream branch |
+| `UniqueCommitCount` | `int` | Count of commits reachable only from this branch and not on base branch or any remote branch. When 0, the branch is safe to delete with zero data loss. |
+| `LastCommitDate` | `string` (ISO 8601) | Timestamp of the branch tip commit |
+| `Error` | `string` | Optional repository error if repository could not be inspected |

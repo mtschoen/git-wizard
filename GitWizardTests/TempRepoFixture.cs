@@ -104,6 +104,42 @@ internal sealed class TempRepoFixture : IDisposable
     }
 
     /// <summary>
+    /// Create a local tag at HEAD.
+    /// </summary>
+    public void AddTag(string tagName)
+    {
+        using var repository = new Repository(Path);
+        repository.ApplyTag(tagName);
+    }
+
+    /// <summary>
+    /// Create a local tag at HEAD and push it to origin.
+    /// </summary>
+    public void AddTagAndPush(string tagName)
+    {
+        AddTag(tagName);
+        RunGit(Path, "push", "origin", tagName);
+    }
+
+    /// <summary>
+    /// Create an annotated local tag at HEAD.
+    /// </summary>
+    public void AddAnnotatedTag(string tagName, string message)
+    {
+        using var repository = new Repository(Path);
+        repository.ApplyTag(tagName, Author, message);
+    }
+
+    /// <summary>
+    /// Create an annotated local tag at HEAD and push it to origin.
+    /// </summary>
+    public void AddAnnotatedTagAndPush(string tagName, string message)
+    {
+        AddAnnotatedTag(tagName, message);
+        RunGit(Path, "push", "origin", tagName);
+    }
+
+    /// <summary>
     /// Advance the "origin" remote's tracked branch independently of this repository: clone the
     /// bare origin created by <see cref="AddOriginRemoteAndPush"/> into a scratch working copy, add
     /// a commit there, and push it back. This repository's own HEAD and remote-tracking ref are

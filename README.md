@@ -43,6 +43,36 @@ git-wizard --sweep --paths /work/repo-a,/work/repo-b
 
 It emits stable JSON containing each repository path, dirty tracked files, local branches with commits absent from all local remote-tracking refs, and stash count. The sweep is read-only and does not fetch, so remote-tracking freshness depends on the machine's last fetch. See [the sweep schema](docs/report-schema.md#repository-sweep-output---sweep) and the local/SSH agent workflow in [skills-dev/sweeping-git-work](skills-dev/sweeping-git-work/SKILL.md).
 
+### Fleet-wide tag and branch inventory
+
+Scan every clone on the machine (including submodule checkouts, nested worktrees, and `~/.pr-crew/repos` when present):
+
+```bash
+# Inventory matching tags and verify whether they still exist on any remote
+git-wizard tags -m 'archive/*'
+
+# Inventory local branches divergent from default or base branch, with unique-commit counts
+git-wizard branches --not-merged main
+```
+
+#### Example: Reap tag fleet-wide and prove nothing is left
+
+```bash
+# 1. Identify all clones holding the tag and whether remotes still have it
+git-wizard tags -m 'archive/2026-01'
+
+# 2. In each clone holding the tag, delete it locally (and on remote if needed)
+git-wizard tags -m 'archive/2026-01' | jq -r '.Repositories[].Path' | while read -r repo; do
+    git -C "$repo" tag -d archive/2026-01
+done
+
+# 3. Prove zero occurrences remain across all repositories and submodules
+git-wizard tags -m 'archive/2026-01' --print-minified
+# Output: {"SchemaVersion":"1.0","MatchPattern":"archive/2026-01","Repositories":[]}
+```
+
+See the [tag and branch inventory schemas](docs/report-schema.md#tag-inventory-output-tags) for schema documentation.
+
 ### Preview a PR build
 
 `/preview` on a git-wizard PR builds and publishes the desktop app for Windows or Linux; `scripts/run-preview.ps1` / `scripts/run-preview.sh` download and launch a published preview. Set `GITEA_BASE_URL` to the Gitea origin before running either launcher. See **CI infrastructure → Preview builds** in [AGENTS.md](AGENTS.md).

@@ -884,6 +884,91 @@ public class ProgramEntryPointTests
         }
     }
 
+    [Test]
+    public async Task Main_Tags_PrintsIndentedJsonToStandardOutputAndReturnsZero()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AddTag("archive/v1");
+
+        var result = await RunCliAsync("tags", "-m", "archive/*", "-p", fixture.Path);
+
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        var repository = document.RootElement.GetProperty("Repositories")[0];
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.Zero);
+            Assert.That(result.StandardError, Is.Empty);
+            Assert.That(result.StandardOutput.TrimEnd(), Does.Contain(Environment.NewLine));
+            Assert.That(document.RootElement.GetProperty("SchemaVersion").GetString(), Is.EqualTo("1.0"));
+            Assert.That(document.RootElement.GetProperty("MatchPattern").GetString(), Is.EqualTo("archive/*"));
+            Assert.That(repository.GetProperty("Path").GetString(), Is.EqualTo(GitWizardApi.NormalizePath(fixture.Path)));
+            var tags = repository.GetProperty("Tags");
+            Assert.That(tags.GetArrayLength(), Is.EqualTo(1));
+            Assert.That(tags[0].GetProperty("Name").GetString(), Is.EqualTo("archive/v1"));
+        });
+    }
+
+    [Test]
+    public async Task Main_TagsWithPrintMinified_PrintsSingleLineJson()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AddTag("v1.0.0");
+
+        var result = await RunCliAsync("tags", "--print-minified", "-p", fixture.Path);
+
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.Zero);
+            Assert.That(result.StandardError, Is.Empty);
+            Assert.That(result.StandardOutput.TrimEnd(), Does.Not.Contain('\n'));
+            Assert.That(document.RootElement.GetProperty("Repositories").GetArrayLength(), Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public async Task Main_Branches_PrintsIndentedJsonToStandardOutputAndReturnsZero()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.CommitOnNewBranch("feature-test", "f.txt");
+
+        var result = await RunCliAsync("branches", "--not-merged", "main", "-p", fixture.Path);
+
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        var repository = document.RootElement.GetProperty("Repositories")[0];
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.Zero);
+            Assert.That(result.StandardError, Is.Empty);
+            Assert.That(result.StandardOutput.TrimEnd(), Does.Contain(Environment.NewLine));
+            Assert.That(document.RootElement.GetProperty("SchemaVersion").GetString(), Is.EqualTo("1.0"));
+            Assert.That(document.RootElement.GetProperty("BaseBranch").GetString(), Is.EqualTo("main"));
+            Assert.That(repository.GetProperty("Path").GetString(), Is.EqualTo(GitWizardApi.NormalizePath(fixture.Path)));
+            var branches = repository.GetProperty("Branches");
+            Assert.That(branches.GetArrayLength(), Is.EqualTo(1));
+            Assert.That(branches[0].GetProperty("Name").GetString(), Is.EqualTo("feature-test"));
+            Assert.That(branches[0].GetProperty("UniqueCommitCount").GetInt32(), Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public async Task Main_BranchesWithPrintMinified_PrintsSingleLineJson()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.CommitOnNewBranch("feature-min", "f.txt");
+
+        var result = await RunCliAsync("branches", "--print-minified", "-p", fixture.Path);
+
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.Zero);
+            Assert.That(result.StandardError, Is.Empty);
+            Assert.That(result.StandardOutput.TrimEnd(), Does.Not.Contain('\n'));
+            Assert.That(document.RootElement.GetProperty("Repositories").GetArrayLength(), Is.EqualTo(1));
+        });
+    }
+
     static async Task<(int ExitCode, string StandardOutput, string StandardError)> RunCliAsync(params string[] args)
     {
         var executablePath = GetCliExecutablePath();

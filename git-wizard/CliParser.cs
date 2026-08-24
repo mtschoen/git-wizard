@@ -3,7 +3,7 @@ namespace GitWizard.CLI;
 
 using McMaster.Extensions.CommandLineUtils;
 
-static class CliParser
+static partial class CliParser
 {
     /// <summary>
     /// Parses the process's raw command-line args (as returned by
@@ -51,6 +51,10 @@ static class CliParser
         ) = SetupOptions(app);
 
         RunConfigurationResult? lastResult = null;
+
+        var tagsHelpOption = SetupTagsCommand(app, result => lastResult = result);
+        var branchesHelpOption = SetupBranchesCommand(app, result => lastResult = result);
+
         app.OnExecute(() => lastResult = ExecuteHandler(
             verboseOption,
             silentOption,
@@ -94,7 +98,7 @@ static class CliParser
         // McMaster prints the help/version text itself and skips OnExecute, but that leaves
         // no signal in the returned result - without this, the caller can't tell "--help" or
         // "--version" apart from "no args at all" and falls through to a full run.
-        if (helpOption.HasValue() || versionOption.HasValue())
+        if (helpOption.HasValue() || versionOption.HasValue() || tagsHelpOption?.HasValue() == true || branchesHelpOption?.HasValue() == true)
             return CreateDefaultResult() with { ExitRequested = true };
 
         return lastResult ?? CreateDefaultResult();
@@ -212,14 +216,6 @@ static class CliParser
         if (scanOnlyOption.HasValue())
             GitWizardLog.LogMethod = Console.Error.WriteLine;
 
-        // Get the last value for string options (last wins, like the old parser).
-        string? GetLastValue(CommandOption opt)
-        {
-            if (opt.Values.Count == 0)
-                return null;
-            return opt.Values[opt.Values.Count - 1];
-        }
-
         var savePath = GetLastValue(savePathOption);
         var configPath = GetLastValue(configPathOption);
         var filterValue = GetLastValue(filterOption);
@@ -260,6 +256,13 @@ static class CliParser
             hasError);
     }
 
+    static string? GetLastValue(CommandOption opt)
+    {
+        if (opt.Values.Count == 0)
+            return null;
+        return opt.Values[opt.Values.Count - 1];
+    }
+
     static void ValidateSavePath(ref string? savePath, ref bool hasError)
     {
         if (savePath != null && !string.IsNullOrEmpty(savePath))
@@ -291,34 +294,4 @@ static class CliParser
         new(
             false, false, false, false, false, false, false, null, null,
             false, false, false, true, false, null, null, false, false, false, false, false);
-}
-
-sealed record RunConfigurationResult(
-    bool RebuildRepositoryList,
-    bool RebuildReport,
-    bool ClearCache,
-    bool DeleteAllLocalFiles,
-    bool SetupDefender,
-    bool ScanOnly,
-    bool NoMft,
-    string? FilterPattern,
-    string? PathsArgument,
-    bool Summary,
-    bool Sweep,
-    bool Merge,
-    bool RefreshReport,
-    bool Minified,
-    string? SavePath,
-    string? CustomConfigurationPath,
-    bool DbSize,
-    bool AllBranches,
-    bool Watch,
-    bool NoLocalCommitCount,
-    bool HasError)
-{
-    /// <summary>
-    /// True when McMaster already printed help or version text and the caller should exit
-    /// immediately without running any report generation (e.g., --help, --version).
-    /// </summary>
-    public bool ExitRequested { get; init; }
 }

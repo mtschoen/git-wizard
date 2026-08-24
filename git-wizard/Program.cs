@@ -54,11 +54,8 @@ git-wizard Session Started
         if (TryHandleImmediateExitFlags(runConfiguration))
             return;
 
-        if (runConfiguration.Sweep)
-        {
-            await RunSweepAsync(runConfiguration);
+        if (await TryHandleSubcommandsAsync(runConfiguration))
             return;
-        }
 
         if (runConfiguration.ScanOnly)
         {
@@ -104,6 +101,29 @@ git-wizard Session Started
         await RunDefaultReportModeAsync(runConfiguration, configuration);
     }
 
+    static async Task<bool> TryHandleSubcommandsAsync(RunConfiguration runConfiguration)
+    {
+        if (runConfiguration.Sweep)
+        {
+            await RunSweepAsync(runConfiguration);
+            return true;
+        }
+
+        if (runConfiguration.Tags)
+        {
+            await RunTagsAsync(runConfiguration);
+            return true;
+        }
+
+        if (runConfiguration.Branches)
+        {
+            await RunBranchesAsync(runConfiguration);
+            return true;
+        }
+
+        return false;
+    }
+
     static async Task RunSweepAsync(RunConfiguration runConfiguration)
     {
         // Machine mode reserves stdout for the JSON document. Any exceptional diagnostics
@@ -136,6 +156,71 @@ git-wizard Session Started
 
         var report = RepositorySweepReport.Scan(repositoryPaths);
         var json = SerializeSweepReport(runConfiguration, report);
+        if (runConfiguration.SavePath != null)
+            await File.WriteAllTextAsync(runConfiguration.SavePath, json);
+
+        Console.WriteLine(json);
+    }
+
+    static async Task RunTagsAsync(RunConfiguration runConfiguration)
+    {
+        GitWizardLog.SilentMode = true;
+        GitWizardLog.LogMethod = Console.Error.WriteLine;
+
+        var configuration = await GetConfigurationAsync(runConfiguration);
+        var explicitPaths = ParseExplicitPaths(runConfiguration);
+        var allClones = await GitWizardApi.DiscoverAllClonePathsAsync(
+            configuration,
+            explicitPaths,
+            noMft: runConfiguration.NoMft);
+
+        if (!string.IsNullOrEmpty(runConfiguration.FilterPattern))
+        {
+            allClones = allClones
+                .Where(path => path.Contains(runConfiguration.FilterPattern, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        var report = await TagInventoryReport.ScanAsync(
+            allClones,
+            matchPattern: runConfiguration.TagMatchPattern ?? "*");
+
+        var options = runConfiguration.Minified ? CompactSweepSerializerOptions : IndentedSweepSerializerOptions;
+        var json = JsonSerializer.Serialize(report, options);
+
+        if (runConfiguration.SavePath != null)
+            await File.WriteAllTextAsync(runConfiguration.SavePath, json);
+
+        Console.WriteLine(json);
+    }
+
+    static async Task RunBranchesAsync(RunConfiguration runConfiguration)
+    {
+        GitWizardLog.SilentMode = true;
+        GitWizardLog.LogMethod = Console.Error.WriteLine;
+
+        var configuration = await GetConfigurationAsync(runConfiguration);
+        var explicitPaths = ParseExplicitPaths(runConfiguration);
+        var allClones = await GitWizardApi.DiscoverAllClonePathsAsync(
+            configuration,
+            explicitPaths,
+            noMft: runConfiguration.NoMft);
+
+        if (!string.IsNullOrEmpty(runConfiguration.FilterPattern))
+        {
+            allClones = allClones
+                .Where(path => path.Contains(runConfiguration.FilterPattern, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        var report = BranchInventoryReport.Scan(
+            allClones,
+            baseBranchName: runConfiguration.NotMergedBranch,
+            notMergedOnly: runConfiguration.NotMergedOnly);
+
+        var options = runConfiguration.Minified ? CompactSweepSerializerOptions : IndentedSweepSerializerOptions;
+        var json = JsonSerializer.Serialize(report, options);
+
         if (runConfiguration.SavePath != null)
             await File.WriteAllTextAsync(runConfiguration.SavePath, json);
 

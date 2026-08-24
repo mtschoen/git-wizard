@@ -1,120 +1,13 @@
-using System.Runtime.InteropServices;
-using System.Runtime.Versioning;
 using MFTLib;
 
 namespace GitWizard;
 
 public static partial class GitWizardApi
 {
-    // Cold-scan profile and keep-file name BrokerScanAsync passes to the session - internal so
+    // Cold-scan profile and keep-file name BrokerScanWithSessionAsync passes to the session - internal so
     // BrokerDiscoveryTests's wire-level assertion can reuse them instead of repeating literals.
     internal const BrokerScanProfile GitDiscoveryScanProfile = BrokerScanProfile.DirectoryIndex;
     internal const string GitEntryName = ".git";
-
-    /// <summary>
-    /// Try to find all git repositories across all search paths using MFT, taking the cold
-    /// scan through MFTLib's elevated journal broker when not already elevated - one UAC
-    /// prompt for the whole run, no temp-file handoff. Repository roots are pulled from the
-    /// broker's <see cref="ScanRecord"/>s exactly as the already-elevated in-process scan
-    /// pulls them from <see cref="MftVolume"/>.
-    /// </summary>
-    /// <param name="configuration">Search and ignored paths to scan.</param>
-    /// <param name="paths">Collection that discovered repository roots are added to.</param>
-    /// <param name="updateHandler">Optional handler for UI progress updates.</param>
-    /// <param name="noMft">When true, skip MFT discovery entirely and return false.</param>
-    /// <param name="elevation">Elevation provider; defaults to the real one. Injected in tests.</param>
-    /// <param name="scanProvider">
-    /// Seam that returns the cold-scan records for the given drive letters. Defaults to
-    /// running a real <see cref="JournalBrokerScanSession"/>; injected in tests to exercise
-    /// the filtering flow without real elevation.
-    /// </param>
-    /// <returns>True if MFT search was used successfully.</returns>
-    public static async Task<bool> TryFindAllRepositoriesUsingMftAsync(
-        GitWizardConfiguration configuration, ICollection<string> paths,
-        IUpdateHandler? updateHandler = null, bool noMft = false, IElevationProvider? elevation = null,
-        Func<IReadOnlyList<string>, Task<IReadOnlyList<ScanRecord>>>? scanProvider = null)
-    {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            return false;
-
-        if (noMft)
-            return false;
-
-        elevation ??= ElevationUtilities.DefaultProvider;
-
-        if (elevation.IsElevated())
-        {
-            // Already elevated - scan directly, no child process needed.
-            foreach (var searchPath in configuration.SearchPaths)
-            {
-                var expanded = ExpandSearchPath(searchPath);
-                if (expanded == null)
-                    continue;
-
-                FindGitRepositoriesUsingMft(expanded, paths, configuration.IgnoredPaths, updateHandler,
-                    configuration.SkipHiddenDirectories);
-            }
-
-            return paths.Count > 0;
-        }
-
-        // Not elevated - take the cold scan through the journal broker (single UAC prompt).
-        var expandedRoots = configuration.SearchPaths
-            .Select(ExpandSearchPath)
-            .OfType<string>()
-            .ToList();
-        if (expandedRoots.Count == 0)
-            return false;
-
-        var drives = expandedRoots
-            .Select(GetDriveLetter)
-            .OfType<string>()
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        if (drives.Count == 0)
-            return false;
-
-        scanProvider ??= BrokerScanAsync;
-
-        IReadOnlyList<ScanRecord> records;
-        try
-        {
-            records = await scanProvider(drives).ConfigureAwait(false);
-        }
-        catch (InvalidOperationException exception)
-        {
-            // Broker spawn declined (UAC) or failed - let the caller fall back to a directory scan.
-            GitWizardLog.Log($"MFT broker scan unavailable: {exception.Message}", GitWizardLog.LogType.Warning);
-            return false;
-        }
-
-        foreach (var searchPath in expandedRoots)
-            CollectGitRepositoriesFromScan(records, searchPath, configuration.IgnoredPaths, paths,
-                configuration.SkipHiddenDirectories);
-
-        updateHandler?.SendUpdateMessage($"MFT search found {paths.Count} repositories");
-        return paths.Count > 0;
-    }
-
-    // Runs one elevated scan-to-watch session's initial scan across the given drives and
-    // returns its records. The DirectoryIndex profile keeping only .git-named files narrows
-    // the cold-scan payload to directories plus .git markers - the smallest snapshot .git
-    // discovery needs. Throws InvalidOperationException if the broker can't be started.
-    [SupportedOSPlatform("windows")]
-    static async Task<IReadOnlyList<ScanRecord>> BrokerScanAsync(IReadOnlyList<string> drives)
-    {
-        var records = new List<ScanRecord>();
-        await using var session = await JournalBrokerScanSession
-            .StartAsync(BrokerLauncher.Launch, drives, GitDiscoveryScanProfile,
-                (batch, _) =>
-                {
-                    records.AddRange(batch);
-                    return ValueTask.CompletedTask;
-                },
-                keepFileNames: [GitEntryName], cancellationToken: CancellationToken.None).ConfigureAwait(false);
-
-        return records;
-    }
 
     // Filters one drive's cold-scan records down to the repository roots under a single
     // search path, applying the same drive-root rule as the in-process scan: at a drive root
@@ -371,3 +264,4 @@ public static partial class GitWizardApi
         }
     }
 }
+

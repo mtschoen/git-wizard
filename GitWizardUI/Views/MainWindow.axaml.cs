@@ -10,7 +10,7 @@ using GitWizardUI.ViewModels;
 
 namespace GitWizardUI.Views;
 
-public partial class MainWindow : Window
+public partial class MainWindow : Window, IAsyncDisposable
 {
     readonly MainViewModel _viewModel;
 
@@ -37,6 +37,26 @@ public partial class MainWindow : Window
         // capture the Shift state from a tunneling PointerPressed before Click is raised.
         RefreshButton.AddHandler(InputElement.PointerPressedEvent, RefreshButton_PointerPressed,
             RoutingStrategies.Tunnel);
+
+        Closed += MainWindow_Closed;
+    }
+
+    async void MainWindow_Closed(object? sender, EventArgs e)
+    {
+        try
+        {
+            await DisposeAsync();
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, "Exception during MainWindow disposal on close.");
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _viewModel.DisposeAsync();
+        GC.SuppressFinalize(this);
     }
 
     void Window_Loaded(object? sender, RoutedEventArgs e)

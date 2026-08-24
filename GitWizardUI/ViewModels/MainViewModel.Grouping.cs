@@ -99,16 +99,18 @@ public partial class MainViewModel
         _ => SortMode.WorkingDirectory,
     });
 
-    public Task ClearCacheAsync()
+    public async Task ClearCacheAsync()
     {
+        await SetPreparedDiscoverySessionAsync(null).ConfigureAwait(false);
         GitWizardApi.ClearCache();
-        return _dialogs.DisplayAlertAsync("Cache Cleared", "Repository cache has been cleared");
+        await _dialogs.DisplayAlertAsync("Cache Cleared", "Repository cache has been cleared");
     }
 
-    public Task DeleteAllLocalFilesAsync()
+    public async Task DeleteAllLocalFilesAsync()
     {
+        await SetPreparedDiscoverySessionAsync(null).ConfigureAwait(false);
         GitWizardApi.DeleteAllLocalFiles();
-        return _dialogs.DisplayAlertAsync("Files Deleted", "All local files have been deleted");
+        await _dialogs.DisplayAlertAsync("Files Deleted", "All local files have been deleted");
     }
 
     void ApplyFilterAndGrouping()

@@ -35,6 +35,10 @@ public sealed class UsnVolumeChangeSource : IVolumeChangeSource
     readonly Dictionary<string, Dictionary<ulong, string>> _pathIndexByDrive =
         new(StringComparer.OrdinalIgnoreCase);
 
+    JournalBrokerScanSession? _preparedSession;
+    IReadOnlyList<ScanRecord>? _preparedRecords;
+    IReadOnlyList<string>? _preparedDrives;
+
     JournalBrokerScanSession? _session;
     IReadOnlyCollection<string> _watchedDrives = [];
     IReadOnlyDictionary<string, UsnJournalEntry[]> _catchUpEntriesByDrive =
@@ -47,16 +51,66 @@ public sealed class UsnVolumeChangeSource : IVolumeChangeSource
         _brokerLaunch = brokerLaunch;
     }
 
+    public UsnVolumeChangeSource(
+        JournalBrokerScanSession preparedSession,
+        IReadOnlyList<ScanRecord> scanRecords,
+        Func<string, bool> brokerLaunch,
+        IReadOnlyList<string>? preparedDrives = null)
+    {
+        _brokerLaunch = brokerLaunch;
+        _preparedSession = preparedSession;
+        _preparedRecords = scanRecords;
+        _preparedDrives = preparedDrives ?? preparedSession.LatestScan?.AdvancedCursors.Keys.ToList();
+    }
+
     /// <summary>
     /// Starts the session - one elevated broker (single UAC prompt), armed and cold-scanned
     /// across <paramref name="volumes"/> - and seeds the per-drive path index from the
-    /// resulting scan records. Throws <see cref="InvalidOperationException"/> if the broker
-    /// declines to launch or dies before the scan completes; the session disposes itself on
-    /// that path, so a failed arm leaves nothing to clean up.
+    /// resulting scan records. Reuses any prepared discovery session if its drives match
+    /// and it remains operable; otherwise falls back to starting a fresh session. Throws
+    /// <see cref="InvalidOperationException"/> if the broker declines to launch or dies before
+    /// the scan completes; the session disposes itself on that path, so a failed arm leaves
+    /// nothing to clean up.
     /// </summary>
     public async Task<VolumeArmResult> ArmAndCatchUpAsync(
         IReadOnlyCollection<string> volumes, CancellationToken ct)
     {
+        if (GetPreparedSession(volumes) is { } prepared)
+        {
+            var adoptedSession = prepared.Session;
+            _session = adoptedSession;
+            _preparedSession = null;
+            _preparedRecords = null;
+            _preparedDrives = null;
+
+            adoptedSession.Faulted += reason => SourceDied?.Invoke(reason);
+
+            var scan = adoptedSession.LatestScan
+                ?? throw new InvalidOperationException("Scanned session unexpectedly has no LatestScan result.");
+
+            _watchedDrives = scan.AdvancedCursors.Keys.ToList();
+            _catchUpEntriesByDrive = scan.CatchUpEntries;
+
+            if (prepared.Records != null)
+            {
+                foreach (var record in prepared.Records)
+                    IndexRecord(record.Path, record.RecordNumber);
+            }
+
+            foreach (var drive in _watchedDrives)
+                GetOrAddIndex(drive);
+
+            return new VolumeArmResult(scan.Errors);
+        }
+
+        if (_preparedSession is not null)
+        {
+            await _preparedSession.DisposeAsync().ConfigureAwait(false);
+            _preparedSession = null;
+            _preparedRecords = null;
+            _preparedDrives = null;
+        }
+
         // Same profile and keep-file name as GitWizardApi's discovery scan: directories (for
         // path resolution) plus .git markers (for repository-root mapping), not the whole MFT.
         var session = await JournalBrokerScanSession.StartAsync(
@@ -77,18 +131,50 @@ public sealed class UsnVolumeChangeSource : IVolumeChangeSource
         // reaches here at all - StartAsync throws instead.
         session.Faulted += reason => SourceDied?.Invoke(reason);
 
-        var scan = session.LatestScan
+        var freshScan = session.LatestScan
             ?? throw new InvalidOperationException("Scanned session unexpectedly has no LatestScan result.");
 
         // The session's watch cursor set: exactly the drives that armed successfully, and
         // exactly the keys WatchDriveAsync accepts.
-        _watchedDrives = scan.AdvancedCursors.Keys.ToList();
-        _catchUpEntriesByDrive = scan.CatchUpEntries;
+        _watchedDrives = freshScan.AdvancedCursors.Keys.ToList();
+        _catchUpEntriesByDrive = freshScan.CatchUpEntries;
 
         foreach (var drive in _watchedDrives)
             GetOrAddIndex(drive);
 
-        return new VolumeArmResult(scan.Errors);
+        return new VolumeArmResult(freshScan.Errors);
+    }
+
+    (JournalBrokerScanSession Session, IReadOnlyList<ScanRecord>? Records)? GetPreparedSession(
+        IReadOnlyCollection<string> requestedVolumes)
+    {
+        if (_preparedSession is null || _preparedSession.IsFaulted || _preparedSession.State != JournalBrokerSessionState.Parked)
+            return null;
+
+        var sessionDrives = _preparedDrives ?? _preparedSession.LatestScan?.AdvancedCursors.Keys ?? [];
+        var normalizedRequested = requestedVolumes
+            .Select(NormalizeDriveToken)
+            .Where(drive => !string.IsNullOrEmpty(drive))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var normalizedSession = sessionDrives
+            .Select(NormalizeDriveToken)
+            .Where(drive => !string.IsNullOrEmpty(drive))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (!normalizedRequested.SetEquals(normalizedSession))
+            return null;
+
+        return (_preparedSession, _preparedRecords);
+    }
+
+    static string NormalizeDriveToken(string volume)
+    {
+        var letter = GitWizardApi.GetDriveLetter(volume);
+        if (!string.IsNullOrEmpty(letter))
+            return letter;
+
+        var trimmed = volume.TrimEnd(':', '\\', '/');
+        return trimmed.Length == 1 ? trimmed.ToUpperInvariant() : volume;
     }
 
     /// <summary>
@@ -113,8 +199,19 @@ public sealed class UsnVolumeChangeSource : IVolumeChangeSource
 
     public async ValueTask DisposeAsync()
     {
+        if (_preparedSession is not null)
+        {
+            await _preparedSession.DisposeAsync().ConfigureAwait(false);
+            _preparedSession = null;
+            _preparedRecords = null;
+            _preparedDrives = null;
+        }
+
         if (_session is not null)
+        {
             await _session.DisposeAsync().ConfigureAwait(false);
+            _session = null;
+        }
     }
 
     async Task PumpAllDrivesAsync(
@@ -201,7 +298,7 @@ public sealed class UsnVolumeChangeSource : IVolumeChangeSource
 
     void IndexRecord(string path, ulong recordNumber)
     {
-        var drive = GitWizardApi.GetDriveLetter(path);
+        var drive = WatchPath.Parse(path).Volume;
         if (drive is null)
             return;
 

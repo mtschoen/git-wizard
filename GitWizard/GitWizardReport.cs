@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace GitWizard;
 
 [Serializable]
-public partial class GitWizardReport
+public partial class GitWizardReport : IAsyncDisposable
 {
     static GitWizardReport? _cachedReport;
     static readonly object ReportLock = new();
@@ -165,58 +165,24 @@ public partial class GitWizardReport
         options ??= new GitWizardReportOptions();
 
         var report = new GitWizardReport(configuration);
-        if (repositoryPaths == null)
-        {
-            repositoryPaths = new SortedSet<string>();
-            await report.GetRepositoryPathsAsync(repositoryPaths, updateHandler, options.NoMft).ConfigureAwait(false);
-        }
-
-        report.Refresh(repositoryPaths, updateHandler, options.FetchRemotes, options.DeepRefresh, options.AllBranches, options.ComputeLocalCommitCount);
-        report.BranchScope = options.AllBranches ? "all" : "actionable";
-
-        return report;
-    }
-
-    public async Task GetRepositoryPathsAsync(ICollection<string> repositoryPaths, IUpdateHandler? updateHandler = null,
-        bool noMft = false)
-    {
-        // Try MFT scan first (Windows only) - handles elevation automatically
-        var configuration = new GitWizardConfiguration
-        {
-            SearchPaths = SearchPaths,
-            IgnoredPaths = IgnoredPaths,
-            SkipHiddenDirectories = SkipHiddenDirectories
-        };
-
-        if (await GitWizardApi.TryFindAllRepositoriesUsingMftAsync(configuration, repositoryPaths, updateHandler, noMft)
-                .ConfigureAwait(false))
-            return;
-
-        // Fall back to recursive directory scan
-        var count = 0;
-
         try
         {
-            updateHandler?.StartProgress("Getting GitWizardRepository Paths", SearchPaths.Count);
-        }
-        catch (Exception exception)
-        {
-            GitWizardLog.LogException(exception, "Exception thrown by GetRepositoryPaths StartProgress callback.");
-        }
-
-        Parallel.ForEach(SearchPaths, path =>
-        {
-            GitWizardApi.GetRepositoryPaths(path, repositoryPaths, IgnoredPaths, updateHandler);
-
-            try
+            if (repositoryPaths == null)
             {
-                updateHandler?.UpdateProgress(++count);
+                repositoryPaths = new SortedSet<string>();
+                await report.GetRepositoryPathsAsync(repositoryPaths, updateHandler, options.NoMft, options.RetainDiscoverySession).ConfigureAwait(false);
             }
-            catch (Exception exception)
-            {
-                GitWizardLog.LogException(exception, "Exception thrown by GetRepositoryPaths UpdateProgress callback.");
-            }
-        });
+
+            report.Refresh(repositoryPaths, updateHandler, options.FetchRemotes, options.DeepRefresh, options.AllBranches, options.ComputeLocalCommitCount);
+            report.BranchScope = options.AllBranches ? "all" : "actionable";
+
+            return report;
+        }
+        catch
+        {
+            await report.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
     }
 
     public void Refresh(ICollection<string> repositoryPaths, IUpdateHandler? updateHandler = null,

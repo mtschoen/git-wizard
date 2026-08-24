@@ -158,6 +158,154 @@ public class BrokerDiscoveryTests
         }
     }
 
+    [Test]
+    [Platform("Win")]
+    public async Task TryDiscoverRepositoriesUsingMftAsync_NotElevated_ReturnsSessionAndRecords()
+    {
+        var root = CreateRepoTree(out var repoA, out var repoB);
+        try
+        {
+            var configuration = new GitWizardConfiguration();
+            configuration.SearchPaths.Add(root);
+            var paths = new SortedSet<string>();
+
+            var scanned = new List<ScanRecord> { GitDirRecord(repoA), GitDirRecord(repoB) };
+
+            var (clientSide, serverSide) = DuplexStream.CreatePair();
+            var client = new JournalBrokerClient(
+                pipe: clientSide,
+                mmfReader: new EmptyMmfReader(),
+                createDriveMmf: (letter, _) => ($"gw-test-{letter}", NoOpDisposable.Instance));
+
+            var brokerTask = Task.Run(async () =>
+            {
+                _ = await ReadOneFrameAsync(serverSide);
+                var response = new ArrayBufferWriter<byte>();
+                BrokerProtocol.WriteCursor(response, "C", new UsnJournalCursor(0UL, 0L));
+                BrokerProtocol.WriteScanReady(response, "gw-test-C", 0, 0);
+                BrokerProtocol.WriteJournalBatch(response, "C", new UsnJournalCursor(0UL, 0L), []);
+                await serverSide.WriteAsync(response.WrittenMemory);
+                await serverSide.FlushAsync();
+            });
+
+            await using var result = await GitWizardApi.TryDiscoverRepositoriesUsingMftAsync(
+                configuration, paths,
+                elevation: new FakeElevationProvider { Elevated = false },
+                sessionScanProvider: async drives =>
+                {
+                    var session = await ScanSessionTestHarness.StartScannedAsync(
+                        _ => Task.FromResult(client), drives,
+                        GitWizardApi.GitDiscoveryScanProfile, [GitWizardApi.GitEntryName]);
+                    await brokerTask;
+                    return (session, scanned);
+                });
+
+            Assert.That(result.Success, Is.True);
+            Assert.That(result.Session, Is.Not.Null);
+            Assert.That(result.ScanRecords, Is.EqualTo(scanned));
+            Assert.That(result.Drives, Is.Not.Null);
+            Assert.That(paths, Has.Count.EqualTo(2));
+
+            var detached = result.DetachSession();
+            Assert.That(detached, Is.Not.Null);
+            Assert.That(result.Session, Is.Null);
+            await detached!.DisposeAsync();
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task TryDiscoverRepositoriesUsingMftAsync_NoMft_ReturnsFalseAndNullSession()
+    {
+        var configuration = new GitWizardConfiguration();
+        configuration.SearchPaths.Add(Path.GetTempPath());
+        var paths = new SortedSet<string>();
+
+        await using var result = await GitWizardApi.TryDiscoverRepositoriesUsingMftAsync(
+            configuration, paths, noMft: true,
+            elevation: new FakeElevationProvider { Elevated = false });
+
+        Assert.That(result.Success, Is.False);
+        Assert.That(result.Session, Is.Null);
+    }
+
+    [Test]
+    [Platform("Win")]
+    public async Task TryDiscoverRepositoriesUsingMftAsync_BrokerDeclined_ReturnsFalseAndNullSession()
+    {
+        var root = CreateRepoTree(out _, out _);
+        try
+        {
+            var configuration = new GitWizardConfiguration();
+            configuration.SearchPaths.Add(root);
+            var paths = new SortedSet<string>();
+
+            await using var result = await GitWizardApi.TryDiscoverRepositoriesUsingMftAsync(
+                configuration, paths,
+                elevation: new FakeElevationProvider { Elevated = false },
+                sessionScanProvider: _ => throw new InvalidOperationException("UAC declined"));
+
+            Assert.That(result.Success, Is.False);
+            Assert.That(result.Session, Is.Null);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Test]
+    [Platform("Win")]
+    public async Task TryDiscoverRepositoriesUsingMftAsync_NoReposFound_DisposesSessionAndReturnsFalse()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"gw-broker-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var configuration = new GitWizardConfiguration();
+            configuration.SearchPaths.Add(root);
+            var paths = new SortedSet<string>();
+
+            var (clientSide, serverSide) = DuplexStream.CreatePair();
+            var client = new JournalBrokerClient(
+                pipe: clientSide,
+                mmfReader: new EmptyMmfReader(),
+                createDriveMmf: (letter, _) => ($"gw-test-{letter}", NoOpDisposable.Instance));
+
+            var brokerTask = Task.Run(async () =>
+            {
+                _ = await ReadOneFrameAsync(serverSide);
+                var response = new ArrayBufferWriter<byte>();
+                BrokerProtocol.WriteCursor(response, "C", new UsnJournalCursor(0UL, 0L));
+                BrokerProtocol.WriteScanReady(response, "gw-test-C", 0, 0);
+                BrokerProtocol.WriteJournalBatch(response, "C", new UsnJournalCursor(0UL, 0L), []);
+                await serverSide.WriteAsync(response.WrittenMemory);
+                await serverSide.FlushAsync();
+            });
+
+            var session = await ScanSessionTestHarness.StartScannedAsync(
+                _ => Task.FromResult(client), ["C:\\"],
+                GitWizardApi.GitDiscoveryScanProfile, [GitWizardApi.GitEntryName]);
+            await brokerTask;
+
+            await using var result = await GitWizardApi.TryDiscoverRepositoriesUsingMftAsync(
+                configuration, paths,
+                elevation: new FakeElevationProvider { Elevated = false },
+                sessionScanProvider: _ => Task.FromResult<(JournalBrokerScanSession?, IReadOnlyList<ScanRecord>)>((session, [])));
+
+            Assert.That(result.Success, Is.False);
+            Assert.That(result.Session, Is.Null);
+            Assert.That(session.State, Is.EqualTo(JournalBrokerSessionState.Disposed));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     // Drives a JournalBrokerScanSession over a fake broker client (MFTLibTestExtensions'
     // harness) the same way BrokerScanAsync does, and asserts on the actual ArmAndScan
     // wire frame - the arguments GitWizard's discovery layer commits to, not just the

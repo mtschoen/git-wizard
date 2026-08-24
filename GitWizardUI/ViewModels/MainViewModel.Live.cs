@@ -25,7 +25,14 @@ public partial class MainViewModel
     // Swappable dependencies for testability: the real Windows factory spawns an elevated broker
     // (a live UAC prompt), which an automated test can never drive. Tests substitute a fake
     // IVolumeChangeSource / elevation answer here to exercise ToggleLiveAsync end-to-end.
-    internal Func<IVolumeChangeSource> LiveVolumeChangeSourceFactory { get; set; } = CreateDefaultVolumeChangeSourceFactory();
+    Func<IVolumeChangeSource>? _liveVolumeChangeSourceFactory;
+
+    internal Func<IVolumeChangeSource> LiveVolumeChangeSourceFactory
+    {
+        get => _liveVolumeChangeSourceFactory ??= CreateDefaultVolumeChangeSourceFactory();
+        set => _liveVolumeChangeSourceFactory = value;
+    }
+
     internal Func<bool> LiveIsElevated { get; set; } = ElevationUtilities.IsElevated;
 
     internal void ApplyLiveEvent(RepositoryChangeEvent ev) => _ = ApplyLiveEventAsync(ev);
@@ -248,9 +255,9 @@ public partial class MainViewModel
 
     // Windows is the only platform with an IVolumeChangeSource today (Phase 3 adds Linux
     // fanotify); the RuntimeInformation guard lets the platform-compatibility analyzer accept
-    // the reference to the windows-only constructor below, mirroring GitWizardApi.Discovery.cs's
-    // BrokerScanAsync guard.
-    static Func<IVolumeChangeSource> CreateDefaultVolumeChangeSourceFactory()
+    // the reference to the windows-only constructor below, mirroring GitWizardApi.PreparedDiscovery.cs's
+    // BrokerScanWithSessionAsync guard.
+    Func<IVolumeChangeSource> CreateDefaultVolumeChangeSourceFactory()
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             return CreateWindowsVolumeChangeSource;
@@ -259,5 +266,12 @@ public partial class MainViewModel
     }
 
     [SupportedOSPlatform("windows")]
-    static IVolumeChangeSource CreateWindowsVolumeChangeSource() => new UsnVolumeChangeSource(BrokerLauncher.Launch);
+    IVolumeChangeSource CreateWindowsVolumeChangeSource()
+    {
+        var prepared = TakePreparedDiscoverySession();
+        if (prepared != null)
+            return new UsnVolumeChangeSource(prepared.Session, prepared.ScanRecords, BrokerLauncher.Launch, prepared.Drives);
+
+        return new UsnVolumeChangeSource(BrokerLauncher.Launch);
+    }
 }

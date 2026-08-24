@@ -238,9 +238,30 @@ public partial class MainViewModel
         await Task.Run(async () =>
         {
             _stopwatch.Restart();
-            var report = await GitWizardReport.GenerateReportAsync(configuration, repositoryPaths, this,
-                new GitWizardReportOptions { FetchRemotes = fetchRemotes, DeepRefresh = fetchRemotes });
+            await using var report = await GitWizardReport.GenerateReportAsync(configuration, repositoryPaths, this,
+                new GitWizardReportOptions
+                {
+                    FetchRemotes = fetchRemotes,
+                    DeepRefresh = fetchRemotes,
+                    RetainDiscoverySession = true
+                }).ConfigureAwait(false);
             _stopwatch.Stop();
+
+            var (session, records, drives) = report.DetachDiscoverySession();
+            PreparedDiscoverySession? preparedSession = null;
+            if (session != null)
+            {
+                if (records != null)
+                {
+                    preparedSession = new PreparedDiscoverySession(session, records, drives);
+                }
+                else
+                {
+                    await session.DisposeAsync().ConfigureAwait(false);
+                }
+            }
+
+            await SetPreparedDiscoverySessionAsync(preparedSession).ConfigureAwait(false);
 
             // Capture deleted and stale non-repo paths for cache cleanup on main thread
             deletedPaths = new HashSet<string>(report.DeletedPaths);

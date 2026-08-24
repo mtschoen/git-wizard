@@ -8,7 +8,7 @@ using GitWizardUI.ViewModels.Services;
 
 namespace GitWizardUI.ViewModels;
 
-public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler
+public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAsyncDisposable
 {
     readonly IUiDispatcher _ui;
     readonly IUserDialogs _dialogs;
@@ -317,6 +317,53 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         }
     }
 
+    readonly Lock _preparedSessionLock = new();
+    PreparedDiscoverySession? _preparedDiscoverySession;
+
+    internal PreparedDiscoverySession? PreparedDiscoverySession
+    {
+        get
+        {
+            lock (_preparedSessionLock)
+                return _preparedDiscoverySession;
+        }
+    }
+
+    internal PreparedDiscoverySession? TakePreparedDiscoverySession()
+    {
+        lock (_preparedSessionLock)
+        {
+            var session = _preparedDiscoverySession;
+            _preparedDiscoverySession = null;
+            return session;
+        }
+    }
+
+    internal async Task SetPreparedDiscoverySessionAsync(PreparedDiscoverySession? nextSession)
+    {
+        PreparedDiscoverySession? oldSession;
+        lock (_preparedSessionLock)
+        {
+            oldSession = _preparedDiscoverySession;
+            _preparedDiscoverySession = nextSession;
+        }
+
+        if (oldSession != null)
+            await oldSession.DisposeAsync().ConfigureAwait(false);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_liveController != null)
+        {
+            await _liveController.StopAsync().ConfigureAwait(false);
+            _liveController = null;
+        }
+
+        await SetPreparedDiscoverySessionAsync(null).ConfigureAwait(false);
+        GC.SuppressFinalize(this);
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -324,3 +371,4 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }
+

@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.IO.Pipelines;
 using GitWizard;
+using GitWizard.Watch;
 using GitWizardUI.ViewModels;
 using GitWizardUI.ViewModels.Services;
 using MFTLib;
@@ -246,5 +247,145 @@ public class MainViewModelPreparedSessionTests
         Assert.That(session.State, Is.EqualTo(JournalBrokerSessionState.Disposed));
 
         serverSide.Dispose();
+    }
+
+    [Test]
+    public async Task ToggleLiveAsync_TwoConsecutiveStarts_FirstAdoptsPreparedSession_SecondLaunchesBroker()
+    {
+        var (session, serverSide) = await CreateParkedSessionAsync(["C:\\"]);
+        IReadOnlyList<ScanRecord> scanRecords =
+        [
+            new(RecordNumber: 42, ParentRecordNumber: 0, 0, 0, 0, IsDirectory: true, Name: "repo", Path: "C:\\code\\repo")
+        ];
+        IReadOnlyList<string> drives = ["C"];
+
+        var brokerLaunchCount = 0;
+        bool FakeBrokerLaunch(string _)
+        {
+            brokerLaunchCount++;
+            return false;
+        }
+
+        var viewModel = NewViewModel();
+        await viewModel.SetPreparedDiscoverySessionAsync(
+            new PreparedDiscoverySession(session, scanRecords, drives));
+
+        viewModel.LiveVolumeChangeSourceFactory = () =>
+        {
+            var prepared = viewModel.TakePreparedDiscoverySession();
+            if (prepared != null)
+                return new UsnVolumeChangeSource(prepared.Session, prepared.ScanRecords, FakeBrokerLaunch, prepared.Drives);
+
+            return new UsnVolumeChangeSource(FakeBrokerLaunch);
+        };
+        viewModel.LiveIsElevated = () => false;
+        viewModel.AddRepository(new GitWizardRepository(@"C:\code\repo"));
+
+        // First start: adopts prepared session with zero broker launches
+        var startTask1 = viewModel.ToggleLiveAsync();
+        var startWatchFrame = await ReadOneFrameAsync(serverSide);
+        Assert.That(startWatchFrame.Kind, Is.EqualTo(BrokerFrameKind.StartWatch));
+
+        await WaitUntilAsync(() => viewModel.IsLive);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.IsLive, Is.True);
+            Assert.That(brokerLaunchCount, Is.EqualTo(0), "First start must adopt prepared session with zero broker launches.");
+            Assert.That(viewModel.PreparedDiscoverySession, Is.Null, "Prepared discovery session must be consumed.");
+        });
+
+        // Stop first start: disposes the adopted prepared session
+        await viewModel.ToggleLiveAsync();
+        await startTask1;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.IsLive, Is.False);
+            Assert.That(session.State, Is.EqualTo(JournalBrokerSessionState.Disposed), "Prepared session must be disposed after stopping.");
+        });
+
+        // Second start: falls through to a fresh UsnVolumeChangeSource and launches broker
+        await viewModel.ToggleLiveAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.IsLive, Is.False, "Second start fails cleanly because fake broker launcher returned false.");
+            Assert.That(brokerLaunchCount, Is.EqualTo(1), "Second start must launch exactly one broker.");
+            Assert.That(session.State, Is.EqualTo(JournalBrokerSessionState.Disposed), "Prepared session was disposed exactly once.");
+        });
+
+        serverSide.Dispose();
+    }
+
+    [Test]
+    public async Task ToggleLiveAsync_ElevatedRespawn_FirstAdoptsPreparedSession_RespawnLaunchesBroker()
+    {
+        var (session, serverSide) = await CreateParkedSessionAsync(["C:\\"]);
+        IReadOnlyList<ScanRecord> scanRecords =
+        [
+            new(RecordNumber: 42, ParentRecordNumber: 0, 0, 0, 0, IsDirectory: true, Name: "repo", Path: "C:\\code\\repo")
+        ];
+        IReadOnlyList<string> drives = ["C"];
+
+        var brokerLaunchCount = 0;
+        bool FakeBrokerLaunch(string _)
+        {
+            brokerLaunchCount++;
+            return false;
+        }
+
+        var viewModel = NewViewModel();
+        await viewModel.SetPreparedDiscoverySessionAsync(
+            new PreparedDiscoverySession(session, scanRecords, drives));
+
+        viewModel.LiveVolumeChangeSourceFactory = () =>
+        {
+            var prepared = viewModel.TakePreparedDiscoverySession();
+            if (prepared != null)
+                return new UsnVolumeChangeSource(prepared.Session, prepared.ScanRecords, FakeBrokerLaunch, prepared.Drives);
+
+            return new UsnVolumeChangeSource(FakeBrokerLaunch);
+        };
+        viewModel.LiveIsElevated = () => true;
+        viewModel.AddRepository(new GitWizardRepository(@"C:\code\repo"));
+
+        // First start: adopts prepared session with zero broker launches
+        var startTask = viewModel.ToggleLiveAsync();
+        var startWatchFrame = await ReadOneFrameAsync(serverSide);
+        Assert.That(startWatchFrame.Kind, Is.EqualTo(BrokerFrameKind.StartWatch));
+
+        await WaitUntilAsync(() => viewModel.IsLive);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.IsLive, Is.True);
+            Assert.That(brokerLaunchCount, Is.EqualTo(0), "First start must adopt prepared session with zero broker launches.");
+            Assert.That(viewModel.PreparedDiscoverySession, Is.Null, "Prepared discovery session must be consumed.");
+        });
+
+        // Kill the first source by disposing the server side stream
+        serverSide.Dispose();
+
+        // The controller disposes the dead source (disposing prepared session) and respawns,
+        // which falls through to a fresh UsnVolumeChangeSource, launching exactly one broker.
+        await startTask;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.IsLive, Is.False);
+            Assert.That(brokerLaunchCount, Is.EqualTo(1), "Respawn must launch exactly one broker.");
+            Assert.That(session.State, Is.EqualTo(JournalBrokerSessionState.Disposed), "Prepared session was disposed exactly once.");
+        });
+    }
+
+    static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        while (!condition())
+        {
+            timeout.Token.ThrowIfCancellationRequested();
+            await Task.Delay(10, timeout.Token);
+        }
     }
 }

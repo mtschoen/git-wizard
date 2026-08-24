@@ -170,8 +170,8 @@ file was retired. Not yet scheduled; promote to Next Up / a Gitea issue when pic
       (`GitWizard/Watch/RepositoryWatchService` behind `IVolumeChangeSource`), and GitWizardUI's
       opt-in Live toggle runs the same service through `LiveWatchController` to add, update, and
       drop repositories live, correlating delete/create pairs by remote URL so a rename is not
-      shown as a delete plus an unrelated add. Linux has the `FanotifyInterop` capability probe
-      but no `IVolumeChangeSource` adapter yet, so Live mode is Windows-only. See AGENTS.md
+      shown as a delete plus an unrelated add. Linux uses the `FanotifyVolumeChangeSource`
+      adapter (#135); OS selection and pkexec elevation are tracked in #131. See AGENTS.md
       → Key Architecture → Journal watch.*
 - [ ] **Sort by size on disk.**
 - [ ] **Submodule health checks** - aggregate parent-repo status from submodule states; flag

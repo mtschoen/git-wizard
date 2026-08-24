@@ -39,11 +39,13 @@ Live mode is currently Windows-only.
 **Interfaces:**
 - Produces: `[SupportedOSPlatform("linux")] sealed class FanotifyVolumeChangeSource : IVolumeChangeSource` — arms marks per mount, decodes the fanotify event stream (`FAN_CREATE`/`FAN_DELETE`/`FAN_MOVED_FROM`/`FAN_MOVED_TO`/`FAN_MODIFY`) into `VolumeChangeBatch` using `FAN_REPORT_DFID_NAME` (dir fd + name → full path via `open_by_handle_at`/`/proc/self/fd`). Cold scan = a directory walk of the search roots (synthetic `RecordId`).
 
-- [ ] **Step 1:** Test on llamabox: create/delete/rename files under a temp mount and assert the decoded `VolumeChangeEntry` kinds + paths.
-- [ ] **Step 2:** Run — verify FAIL.
-- [ ] **Step 3:** Implement the read loop + decode. Keep the fd read loop small; extract path-resolution into a helper. Map moves: `FAN_MOVED_FROM`→Deleted, `FAN_MOVED_TO`→Created (the service correlates into rename downstream).
-- [ ] **Step 4:** Run on llamabox — verify PASS. Then run `RepositoryWatchServiceTests` on Linux too (they use the fake — must stay green cross-platform).
-- [ ] **Step 5:** Format, aislop, commit: `git commit -m "feat(watch): FanotifyVolumeChangeSource (Linux whole-fs watch)"`
+- [x] **Step 1:** Test on llamabox: create/delete/rename files under a temp mount and assert the decoded `VolumeChangeEntry` kinds + paths.
+- [x] **Step 2:** Run — verify FAIL.
+- [x] **Step 3:** Implement the read loop + decode. Keep the fd read loop small; extract path-resolution into a helper. Map moves: `FAN_MOVED_FROM`→Deleted, `FAN_MOVED_TO`→Created (the service correlates into rename downstream).
+- [x] **Step 4:** Run on llamabox — verify PASS. Then run `RepositoryWatchServiceTests` on Linux too (they use the fake — must stay green cross-platform).
+- [x] **Step 5:** Format, aislop, commit: `git commit -m "feat(watch): FanotifyVolumeChangeSource (Linux whole-fs watch)"`
+
+Landed as PR #135 (issue #130): `FanotifyVolumeChangeSource` plus its root-gated tests, merged 2026-08-23 with all CI contexts green.
 
 ### Task 13: pkexec elevation + OS source selection
 

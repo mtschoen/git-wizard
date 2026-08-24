@@ -69,9 +69,9 @@ Landed as PR #135 (issue #130): `FanotifyVolumeChangeSource` plus its root-gated
 - Modify: `GitWizardUI/ViewModels/MainViewModel.cs` (call `FanotifyInterop.Probe()` on Linux; disable `CanToggleLive` with a reason for `UnsupportedKernel` or `UnsupportedFileSystem`, while `Available` and `RequiresElevation` remain enabled)
 - Modify: `README.md`, `AGENTS.md`
 
-- [ ] **Step 1:** Test injected `FanotifyCapabilityResult` values: `UnsupportedKernel` and `UnsupportedFileSystem` disable `CanToggleLive` with the matching reason; `Available` enables it; `RequiresElevation` also enables it so Task 13 can request one pkexec elevation.
-- [ ] **Step 2:** Implement, verify PASS.
-- [ ] **Step 3:** **Docs** - document Linux Live mode: fanotify, kernel 5.9 or newer, pkexec prompt, llamabox as the test host. `git commit -m "docs(watch): Linux Live mode (fanotify, pkexec, kernel floor)"`
+- [x] **Step 1:** Test injected `FanotifyCapabilityResult` values: `UnsupportedKernel` and `UnsupportedFileSystem` disable `CanToggleLive` with the matching reason; `Available` enables it; `RequiresElevation` also enables it so Task 13 can request one pkexec elevation.
+- [x] **Step 2:** Implement, verify PASS.
+- [x] **Step 3:** **Docs** - document Linux Live mode: fanotify, kernel 5.9 or newer, pkexec prompt, llamabox as the test host. `git commit -m "docs(watch): Linux Live mode (fanotify, pkexec, kernel floor)"`
 
 ---
 

@@ -45,4 +45,23 @@ public class MainWindowLiveTests
             Assert.That(button.IsEnabled, Is.True);
         });
     }
+
+    [AvaloniaTest]
+    public void LiveButton_UnsupportedCapability_IsDisabledWithTooltip()
+    {
+        var window = new MainWindow();
+        var viewModel = (MainViewModel)window.DataContext!;
+        var button = window.FindControl<Button>("LiveButton");
+
+        Assert.That(button, Is.Not.Null);
+
+        viewModel.LiveCapabilityProbe = () => new GitWizard.Watch.Linux.FanotifyCapabilityResult(
+            GitWizard.Watch.Linux.FanotifyCapabilityStatus.UnsupportedKernel, 0);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(button.IsEnabled, Is.False);
+            Assert.That(ToolTip.GetTip(button), Does.Contain("kernel 5.9"));
+        });
+    }
 }

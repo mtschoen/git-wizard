@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using GitWizard;
 using GitWizard.Watch;
+using GitWizard.Watch.Linux;
 using GitWizardUI.Services;
 using MFTLib;
 
@@ -34,6 +35,51 @@ public partial class MainViewModel
     }
 
     internal Func<bool> LiveIsElevated { get; set; } = ElevationUtilities.IsElevated;
+
+    Func<FanotifyCapabilityResult>? _liveCapabilityProbe;
+
+    internal Func<FanotifyCapabilityResult> LiveCapabilityProbe
+    {
+        get => _liveCapabilityProbe ??= DefaultLiveCapabilityProbe;
+        set
+        {
+            _liveCapabilityProbe = value;
+            OnPropertyChanged(nameof(CanToggleLive));
+            OnPropertyChanged(nameof(LiveTooltip));
+        }
+    }
+
+    public bool IsLiveSupported
+    {
+        get
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || _liveCapabilityProbe != null)
+                return LiveCapabilityProbe().IsSupported;
+
+            return RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        }
+    }
+
+    public string LiveTooltip
+    {
+        get
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || _liveCapabilityProbe != null)
+            {
+                var probe = LiveCapabilityProbe();
+                if (probe.Status == FanotifyCapabilityStatus.UnsupportedKernel)
+                    return "Live mode requires Linux kernel 5.9 or newer (unsupported kernel).";
+                if (probe.Status == FanotifyCapabilityStatus.UnsupportedFileSystem)
+                    return "Live mode is unsupported on this filesystem (fanotify marks not supported).";
+            }
+            else if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                return "Live mode currently requires Windows or Linux.";
+            }
+
+            return "Start or stop live repository monitoring (requires elevation when starting)";
+        }
+    }
 
     internal void ApplyLiveEvent(RepositoryChangeEvent ev) => _ = ApplyLiveEventAsync(ev);
 
@@ -168,6 +214,15 @@ public partial class MainViewModel
             return;
         }
 
+        if (!IsLiveSupported)
+        {
+            HeaderText = $"Live watch unavailable: {LiveTooltip}";
+            return;
+        }
+
+        if (IsRefreshing)
+            return;
+
         _reportedLiveScanErrorDrives.Clear();
         var trackedRoots = _allRepositories
             .Select(node => node.WorkingDirectory)
@@ -253,16 +308,15 @@ public partial class MainViewModel
         return $" (scan errors: {errors})";
     }
 
-    // Windows is the only platform with an IVolumeChangeSource today (Phase 3 adds Linux
-    // fanotify); the RuntimeInformation guard lets the platform-compatibility analyzer accept
-    // the reference to the windows-only constructor below, mirroring GitWizardApi.PreparedDiscovery.cs's
-    // BrokerScanWithSessionAsync guard.
     Func<IVolumeChangeSource> CreateDefaultVolumeChangeSourceFactory()
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             return CreateWindowsVolumeChangeSource;
 
-        return () => throw new PlatformNotSupportedException("Live mode currently requires Windows.");
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return CreateLinuxVolumeChangeSource;
+
+        return () => throw new PlatformNotSupportedException("Live mode currently requires Windows or Linux.");
     }
 
     [SupportedOSPlatform("windows")]
@@ -273,5 +327,33 @@ public partial class MainViewModel
             return new UsnVolumeChangeSource(prepared.Session, prepared.ScanRecords, BrokerLauncher.Launch, prepared.Drives);
 
         return new UsnVolumeChangeSource(BrokerLauncher.Launch);
+    }
+
+    [SupportedOSPlatform("linux")]
+    static IVolumeChangeSource CreateLinuxVolumeChangeSource()
+    {
+        return new FanotifyVolumeChangeSource();
+    }
+
+    static FanotifyCapabilityResult DefaultLiveCapabilityProbe()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return ProbeLinuxCapability();
+
+        return new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
+    }
+
+    [SupportedOSPlatform("linux")]
+    static FanotifyCapabilityResult ProbeLinuxCapability()
+    {
+        try
+        {
+            return FanotifyInterop.Probe();
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, "Failed to probe Linux fanotify capabilities.");
+            return new FanotifyCapabilityResult(FanotifyCapabilityStatus.UnsupportedKernel, 0);
+        }
     }
 }

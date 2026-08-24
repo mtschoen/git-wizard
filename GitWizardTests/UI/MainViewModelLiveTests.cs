@@ -1,5 +1,6 @@
 using GitWizard;
 using GitWizard.Watch;
+using GitWizard.Watch.Linux;
 using GitWizardTests.Watch;
 using GitWizardUI.ViewModels;
 using GitWizardUI.ViewModels.Services;
@@ -202,6 +203,95 @@ public class MainViewModelLiveTests
         Assert.That(viewModel.CanToggleLive, Is.True, "Stopping must stay available even if IsRefreshing is somehow true.");
     }
 
+    [Test]
+    public async Task ToggleLiveAsync_WhileRefreshing_IsNoOpAndDoesNotChangeHeader()
+    {
+        var viewModel = NewViewModel();
+        viewModel.IsRefreshing = true;
+        viewModel.HeaderText = "Refreshing repositories...";
+
+        await viewModel.ToggleLiveAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.IsLive, Is.False);
+            Assert.That(viewModel.IsLiveStarting, Is.False);
+            Assert.That(viewModel.HeaderText, Is.EqualTo("Refreshing repositories..."));
+        });
+    }
+
+    [Test]
+    public async Task CanToggleLive_UnsupportedKernel_IsFalse_AndTooltipSurfacesReason()
+    {
+        var viewModel = NewViewModel();
+        viewModel.LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.UnsupportedKernel, 0);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.CanToggleLive, Is.False);
+            Assert.That(viewModel.ToggleLiveCommand.CanExecute(null), Is.False);
+            Assert.That(viewModel.LiveTooltip, Does.Contain("kernel 5.9"));
+        });
+
+        await viewModel.ToggleLiveAsync();
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.IsLive, Is.False);
+            Assert.That(viewModel.HeaderText, Does.Contain("Live watch unavailable"));
+            Assert.That(viewModel.HeaderText, Does.Contain("kernel 5.9"));
+        });
+    }
+
+    [Test]
+    public async Task CanToggleLive_UnsupportedFileSystem_IsFalse_AndTooltipSurfacesReason()
+    {
+        var viewModel = NewViewModel();
+        viewModel.LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.UnsupportedFileSystem, 0);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.CanToggleLive, Is.False);
+            Assert.That(viewModel.ToggleLiveCommand.CanExecute(null), Is.False);
+            Assert.That(viewModel.LiveTooltip, Does.Contain("unsupported on this filesystem"));
+        });
+
+        await viewModel.ToggleLiveAsync();
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.IsLive, Is.False);
+            Assert.That(viewModel.HeaderText, Does.Contain("Live watch unavailable"));
+            Assert.That(viewModel.HeaderText, Does.Contain("unsupported on this filesystem"));
+        });
+    }
+
+    [Test]
+    public void CanToggleLive_Available_IsTrue_AndTooltipIsDefault()
+    {
+        var viewModel = NewViewModel();
+        viewModel.LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.CanToggleLive, Is.True);
+            Assert.That(viewModel.ToggleLiveCommand.CanExecute(null), Is.True);
+            Assert.That(viewModel.LiveTooltip, Is.EqualTo("Start or stop live repository monitoring (requires elevation when starting)"));
+        });
+    }
+
+    [Test]
+    public void CanToggleLive_RequiresElevation_IsTrue_AndTooltipIsDefault()
+    {
+        var viewModel = NewViewModel();
+        viewModel.LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.RequiresElevation, 1);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.CanToggleLive, Is.True);
+            Assert.That(viewModel.ToggleLiveCommand.CanExecute(null), Is.True);
+            Assert.That(viewModel.LiveTooltip, Is.EqualTo("Start or stop live repository monitoring (requires elevation when starting)"));
+        });
+    }
+
     #endregion
 
     #region ToggleLiveAsync lifecycle (fake source seam)
@@ -383,6 +473,19 @@ public class MainViewModelLiveTests
         // GetType().Name (not a static reference to the [SupportedOSPlatform("windows")] type)
         // so this assertion itself stays platform-compat-analyzer clean under the IsWindows guard.
         Assert.That(source.GetType().Name, Is.EqualTo("UsnVolumeChangeSource"));
+    }
+
+    [Test]
+    public async Task LiveVolumeChangeSourceFactory_DefaultsToRealLinuxSourceConstructor()
+    {
+        if (!OperatingSystem.IsLinux())
+            Assert.Ignore("The default Live volume-change source on Linux is Linux-only.");
+
+        var viewModel = NewViewModel();
+
+        await using var source = viewModel.LiveVolumeChangeSourceFactory();
+
+        Assert.That(source.GetType().Name, Is.EqualTo("FanotifyVolumeChangeSource"));
     }
 
     #endregion

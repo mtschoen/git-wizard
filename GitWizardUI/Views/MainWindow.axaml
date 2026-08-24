@@ -74,7 +74,7 @@
         <Button x:Name="LiveButton" Content="{Binding LiveButtonText}" Click="LiveButton_Click"
                 Classes.live="{Binding IsLive}" Classes.liveStarting="{Binding IsLiveStarting}"
                 IsEnabled="{Binding CanToggleLive}"
-                ToolTip.Tip="Start or stop live repository monitoring (requires elevation when starting)" />
+                ToolTip.Tip="{Binding LiveTooltip}" />
       </StackPanel>
 
       <TextBlock Grid.Row="1" Margin="10,0,0,0" VerticalAlignment="Center" Text="{Binding HeaderText}" />

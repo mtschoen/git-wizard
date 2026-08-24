@@ -128,6 +128,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(CanRefresh));
                 OnPropertyChanged(nameof(CanToggleLive));
+                OnPropertyChanged(nameof(LiveTooltip));
             }
         }
     }
@@ -150,6 +151,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(CanToggleLive));
                 OnPropertyChanged(nameof(LiveButtonText));
+                OnPropertyChanged(nameof(LiveTooltip));
             }
         }
     }
@@ -166,6 +168,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(CanToggleLive));
                 OnPropertyChanged(nameof(LiveButtonText));
+                OnPropertyChanged(nameof(LiveTooltip));
             }
         }
     }
@@ -176,8 +179,9 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
     /// Live mode may not be started mid-refresh: a full scan rebuilds <c>_repositoryMap</c>/
     /// <c>_allRepositories</c> from scratch, which would race a live event's incremental
     /// add/update/remove against that rebuild. Stopping is always allowed.
+    /// On Linux, Live mode requires kernel 5.9+ and supported filesystems via fanotify.
     /// </summary>
-    public bool CanToggleLive => IsLive || IsLiveStarting || !IsRefreshing;
+    public bool CanToggleLive => IsLive || IsLiveStarting || (!IsRefreshing && IsLiveSupported);
 
     /// <summary>
     /// True from the moment a refresh starts until the first repository surfaces (or the

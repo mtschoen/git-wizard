@@ -118,6 +118,8 @@ internal sealed class SafeUnixFileDescriptor : SafeHandleMinusOneIsInvalid
         SetHandle(descriptor);
     }
 
+    public int Value => handle.ToInt32();
+
     protected override bool ReleaseHandle()
     {
         return _native.Close(handle.ToInt32()) == 0;
@@ -136,6 +138,14 @@ internal interface IFanotifyNative
         string path);
 
     int Close(int descriptor);
+
+    int Poll(int descriptor, int timeoutMilliseconds);
+
+    int Read(int descriptor, byte[] buffer, int count);
+
+    int OpenByHandle(int mountDirectoryDescriptor, byte[] handle, int flags);
+
+    string? ReadLink(string path);
 }
 
 internal readonly record struct FanotifyNativeCallResult(int Value, int ErrorNumber);
@@ -169,9 +179,87 @@ internal sealed partial class FanotifyNative : IFanotifyNative
         return CloseDescriptor(descriptor);
     }
 
+    public int Poll(int descriptor, int timeoutMilliseconds)
+    {
+        unsafe
+        {
+            var pollFd = new PollFd
+            {
+                Fd = descriptor,
+                Events = 0x0001,
+                Revents = 0
+            };
+            return NativePoll(&pollFd, 1, timeoutMilliseconds);
+        }
+    }
+
+    public int Read(int descriptor, byte[] buffer, int count)
+    {
+        unsafe
+        {
+            fixed (byte* ptr = buffer)
+            {
+                return (int)NativeRead(descriptor, ptr, (nuint)count);
+            }
+        }
+    }
+
+    public int OpenByHandle(int mountDirectoryDescriptor, byte[] handle, int flags)
+    {
+        unsafe
+        {
+            fixed (byte* ptr = handle)
+            {
+                return NativeOpenByHandleAt(mountDirectoryDescriptor, ptr, flags);
+            }
+        }
+    }
+
+    public string? ReadLink(string path)
+    {
+        unsafe
+        {
+            const int initialSize = 1024;
+            var buffer = stackalloc byte[initialSize];
+            var result = NativeReadLink(path, buffer, initialSize);
+            if (result <= 0)
+                return null;
+
+            if (result < initialSize)
+                return System.Text.Encoding.UTF8.GetString(buffer, (int)result);
+
+            var bufferSize = 4096;
+            while (bufferSize <= 65536)
+            {
+                var rented = new byte[bufferSize];
+                fixed (byte* pointer = rented)
+                {
+                    result = NativeReadLink(path, pointer, (nuint)bufferSize);
+                    if (result <= 0)
+                        return null;
+
+                    if (result < bufferSize)
+                        return System.Text.Encoding.UTF8.GetString(pointer, (int)result);
+                }
+
+                bufferSize *= 2;
+            }
+
+            return null;
+        }
+    }
+
     static FanotifyNativeCallResult CaptureResult(int value)
     {
         return new FanotifyNativeCallResult(value, value < 0 ? Marshal.GetLastPInvokeError() : 0);
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct PollFd
+    {
+        public int Fd;
+        public short Events;
+        public short Revents;
     }
 
     [LibraryImport("libc", EntryPoint = "fanotify_init", SetLastError = true)]
@@ -191,6 +279,18 @@ internal sealed partial class FanotifyNative : IFanotifyNative
 
     [LibraryImport("libc", EntryPoint = "close")]
     private static partial int CloseDescriptor(int descriptor);
+
+    [LibraryImport("libc", EntryPoint = "poll", SetLastError = true)]
+    private static unsafe partial int NativePoll(PollFd* fds, nuint nfds, int timeout);
+
+    [LibraryImport("libc", EntryPoint = "read", SetLastError = true)]
+    private static unsafe partial nint NativeRead(int descriptor, byte* buffer, nuint count);
+
+    [LibraryImport("libc", EntryPoint = "open_by_handle_at", SetLastError = true)]
+    private static unsafe partial int NativeOpenByHandleAt(int mountDescriptor, byte* handle, int flags);
+
+    [LibraryImport("libc", EntryPoint = "readlink", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
+    private static unsafe partial nint NativeReadLink(string path, byte* buffer, nuint bufferSize);
 }
 
 internal static class FanotifyConstants
@@ -210,10 +310,22 @@ internal static class FanotifyConstants
     public const ulong MovedTo = 0x00000080;
     public const ulong Create = 0x00000100;
     public const ulong Delete = 0x00000200;
+    public const ulong QueueOverflow = 0x00004000;
     public const ulong OnDirectory = 0x40000000;
     public const ulong ProbeEventMask = Modify | MovedFrom | MovedTo | Create | Delete | OnDirectory;
 
     public const int CurrentWorkingDirectory = -100;
+
+    public const byte EventInfoTypeFid = 1;
+    public const byte EventInfoTypeDfidName = 2;
+    public const byte EventInfoTypeDfid = 3;
+    public const byte EventInfoTypeOldDfidName = 10;
+    public const byte EventInfoTypeNewDfidName = 12;
+
+    public const int OpenPath = 0x00200000;
+    public const int OpenDirectory = 0x00010000;
+    public const int OpenCloseOnExecute = 0x00080000;
+    public const int OpenDirectoryFlags = (int)ReadOnly | OpenDirectory | OpenCloseOnExecute | OpenPath;
 }
 
 internal static class FanotifyError

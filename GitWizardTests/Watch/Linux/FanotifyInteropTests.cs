@@ -312,6 +312,14 @@ internal sealed class FakeFanotifyNative : IFanotifyNative
         ClosedDescriptors.Add(descriptor);
         return 0;
     }
+
+    public int Poll(int descriptor, int timeoutMilliseconds) => 0;
+
+    public int Read(int descriptor, byte[] buffer, int count) => 0;
+
+    public int OpenByHandle(int mountDirectoryDescriptor, byte[] handle, int flags) => -1;
+
+    public string? ReadLink(string path) => null;
 }
 
 internal readonly record struct FanotifyMarkCall(

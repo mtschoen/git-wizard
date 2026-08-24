@@ -89,9 +89,9 @@ git-wizard Session Started
 
         if (runConfiguration.Watch)
         {
-            if (!OperatingSystem.IsWindows())
+            if (!OperatingSystem.IsWindows() && !OperatingSystem.IsLinux())
             {
-                GitWizardLog.Log("--watch requires Windows.", GitWizardLog.LogType.Error);
+                GitWizardLog.Log("--watch requires Windows or Linux.", GitWizardLog.LogType.Error);
                 Environment.Exit(1);
                 return;
             }

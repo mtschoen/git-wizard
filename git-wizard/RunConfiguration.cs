@@ -103,8 +103,8 @@ public static partial class Program
         public readonly bool AllBranches;
 
         /// <summary>
-        /// Watch tracked repositories for changes via MFTLib's USN journal broker
-        /// (Windows only) and print a line per repo that changes.
+        /// Watch tracked repositories for changes via platform volume change detection
+        /// (Windows USN journal or Linux fanotify) and print a line per repo that changes.
         /// </summary>
         public readonly bool Watch;
 

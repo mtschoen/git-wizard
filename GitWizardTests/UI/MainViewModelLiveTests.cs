@@ -461,18 +461,18 @@ public class MainViewModelLiveTests
     }
 
     [Test]
-    public async Task LiveVolumeChangeSourceFactory_DefaultsToRealWindowsSourceConstructor()
+    public async Task LiveVolumeChangeSourceFactory_DefaultsToRealPlatformSourceConstructor()
     {
-        if (!OperatingSystem.IsWindows())
-            Assert.Ignore("The default Live volume-change source is Windows-only.");
-
         var viewModel = NewViewModel();
 
         await using var source = viewModel.LiveVolumeChangeSourceFactory();
 
-        // GetType().Name (not a static reference to the [SupportedOSPlatform("windows")] type)
-        // so this assertion itself stays platform-compat-analyzer clean under the IsWindows guard.
-        Assert.That(source.GetType().Name, Is.EqualTo("UsnVolumeChangeSource"));
+        if (OperatingSystem.IsWindows())
+            Assert.That(source.GetType().Name, Is.EqualTo("UsnVolumeChangeSource"));
+        else if (OperatingSystem.IsLinux())
+            Assert.That(source.GetType().Name, Is.EqualTo("FanotifyVolumeChangeSource"));
+        else
+            Assert.Ignore("Unsupported platform.");
     }
 
     [Test]

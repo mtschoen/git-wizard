@@ -4,7 +4,6 @@ using GitWizard;
 using GitWizard.Watch;
 using GitWizard.Watch.Linux;
 using GitWizardUI.Services;
-using MFTLib;
 
 namespace GitWizardUI.ViewModels;
 
@@ -34,7 +33,7 @@ public partial class MainViewModel
         set => _liveVolumeChangeSourceFactory = value;
     }
 
-    internal Func<bool> LiveIsElevated { get; set; } = ElevationUtilities.IsElevated;
+    internal Func<bool> LiveIsElevated { get; set; } = VolumeChangeSourceFactory.IsElevated;
 
     Func<FanotifyCapabilityResult>? _liveCapabilityProbe;
 
@@ -310,29 +309,17 @@ public partial class MainViewModel
 
     Func<IVolumeChangeSource> CreateDefaultVolumeChangeSourceFactory()
     {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            return CreateWindowsVolumeChangeSource;
+        return () =>
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                var prepared = TakePreparedDiscoverySession();
+                if (prepared != null)
+                    return VolumeChangeSourceFactory.Create(prepared.Session, prepared.ScanRecords, prepared.Drives);
+            }
 
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return CreateLinuxVolumeChangeSource;
-
-        return () => throw new PlatformNotSupportedException("Live mode currently requires Windows or Linux.");
-    }
-
-    [SupportedOSPlatform("windows")]
-    IVolumeChangeSource CreateWindowsVolumeChangeSource()
-    {
-        var prepared = TakePreparedDiscoverySession();
-        if (prepared != null)
-            return new UsnVolumeChangeSource(prepared.Session, prepared.ScanRecords, BrokerLauncher.Launch, prepared.Drives);
-
-        return new UsnVolumeChangeSource(BrokerLauncher.Launch);
-    }
-
-    [SupportedOSPlatform("linux")]
-    static IVolumeChangeSource CreateLinuxVolumeChangeSource()
-    {
-        return new FanotifyVolumeChangeSource();
+            return VolumeChangeSourceFactory.Create();
+        };
     }
 
     static FanotifyCapabilityResult DefaultLiveCapabilityProbe()

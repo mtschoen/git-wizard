@@ -145,7 +145,7 @@ static class CliParser
         var printMinifiedOption = app.Option("--print-minified", "Print the output to the console as minified JSON", CommandOptionType.NoValue);
         var dbSizeOption = app.Option("--db-size", "Show the size of the GitWizard local files folder (~/.GitWizard/) and exit", CommandOptionType.NoValue);
         var allBranchesOption = app.Option("--all-branches", "Include all local branches (default + already-merged) in each repo's Branches list, not just actionable ones", CommandOptionType.NoValue);
-        var watchOption = app.Option("--watch", "Watch tracked repositories for changes via MFTLib's USN journal broker (Windows only; triggers one UAC prompt) and print a line per repo that changes. Runs until Ctrl-C.", CommandOptionType.NoValue);
+        var watchOption = app.Option("--watch", "Watch tracked repositories for changes via platform volume change detection (Windows USN journal or Linux fanotify; triggers one elevation prompt) and print a line per repo that changes. Runs until Ctrl-C.", CommandOptionType.NoValue);
 
         // String options - use MultipleValue to allow missing args and duplicates (last value wins).
         var filterOption = app.Option("-f|--filter <PATTERN>", "Filter output to repositories whose path contains <PATTERN> (case-insensitive)", CommandOptionType.MultipleValue);

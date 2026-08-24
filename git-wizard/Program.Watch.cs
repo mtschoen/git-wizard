@@ -1,4 +1,4 @@
-using System.Runtime.Versioning;
+using System.Diagnostics;
 using GitWizard.Watch;
 using MFTLib;
 
@@ -7,6 +7,21 @@ namespace GitWizard.CLI;
 
 public static partial class Program
 {
+    internal static Func<ProcessStartInfo, Process?> _startProcess = Process.Start;
+    internal static Func<string?> _getProcessPath = () => Environment.ProcessPath;
+    internal static Func<bool> _isElevated = VolumeChangeSourceFactory.IsElevated;
+    internal static Func<IVolumeChangeSource> _sourceFactory = VolumeChangeSourceFactory.Create;
+    internal static Func<string> _getLocalFilesPath = GitWizardApi.GetLocalFilesPath;
+
+    internal static void ResetWatchDependenciesToDefault()
+    {
+        _startProcess = Process.Start;
+        _getProcessPath = () => Environment.ProcessPath;
+        _isElevated = VolumeChangeSourceFactory.IsElevated;
+        _sourceFactory = VolumeChangeSourceFactory.Create;
+        _getLocalFilesPath = GitWizardApi.GetLocalFilesPath;
+    }
+
     /// <summary>
     /// Dispatch MFTLib's elevated journal-broker child-process mode (the <c>--broker</c>
     /// flag). Returns true when this process was the elevated broker child - production
@@ -17,13 +32,20 @@ public static partial class Program
         ElevatedEntryPoint.TryHandle(args, runner);
 
     /// <summary>
-    /// --watch: auto-detect changes in tracked repositories via MFTLib's elevated journal
-    /// broker (one UAC prompt for the whole run), driven through <see cref="RepositoryWatchService"/>.
+    /// --watch: auto-detect changes in tracked repositories via platform volume change detection
+    /// (Windows USN journal broker with single UAC prompt, or Linux fanotify with single pkexec prompt),
+    /// driven through <see cref="RepositoryWatchService"/>.
     /// Prints one line per repository event as it arrives and runs until Ctrl-C or the broker dies.
     /// </summary>
-    [SupportedOSPlatform("windows")]
     static async Task RunWatchAsync(GitWizardConfiguration configuration)
     {
+        if (OperatingSystem.IsLinux() && !_isElevated())
+        {
+            var elevatedExitCode = await RunElevatedWatchViaPkexecAsync().ConfigureAwait(false);
+            Environment.Exit(elevatedExitCode);
+            return;
+        }
+
         var repositoryPaths = await LoadTrackedRepositoryPathsAsync(configuration).ConfigureAwait(false);
         if (repositoryPaths.Count == 0)
         {
@@ -37,13 +59,61 @@ public static partial class Program
             .ToList();
 
         using var ctrlC = new CtrlCCancellation();
-        await using var source = new UsnVolumeChangeSource(BrokerLauncher.Launch);
+        await using var source = _sourceFactory();
         var service = new RepositoryWatchService(source, repositoryPaths, searchRoots);
 
         var stopped = await RunWatchLoopAsync(service, Console.WriteLine, Environment.Exit, ctrlC.Token)
             .ConfigureAwait(false);
         if (stopped)
             Environment.Exit(1);
+    }
+
+    internal static async Task<int> RunElevatedWatchViaPkexecAsync(
+        string[]? commandLineArgs = null,
+        Action<string>? logError = null,
+        CancellationToken cancellationToken = default)
+    {
+        logError ??= message => GitWizardLog.Log(message, GitWizardLog.LogType.Error);
+
+        var processPath = _getProcessPath();
+        if (string.IsNullOrEmpty(processPath))
+        {
+            logError("Cannot determine the current executable path to launch pkexec.");
+            return 1;
+        }
+
+        var localFilesPath = _getLocalFilesPath();
+
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "pkexec",
+            UseShellExecute = false
+        };
+
+        startInfo.ArgumentList.Add("env");
+        startInfo.ArgumentList.Add($"GITWIZARD_HOME={localFilesPath}");
+        startInfo.ArgumentList.Add(processPath);
+        var args = commandLineArgs ?? Environment.GetCommandLineArgs().Skip(1);
+        foreach (var argument in args)
+            startInfo.ArgumentList.Add(argument);
+
+        try
+        {
+            using var process = _startProcess(startInfo);
+            if (process == null)
+            {
+                logError("Failed to start pkexec process.");
+                return 1;
+            }
+
+            await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+            return process.ExitCode;
+        }
+        catch (Exception exception)
+        {
+            logError($"Could not start pkexec: {exception.Message}");
+            return 1;
+        }
     }
 
     // Drains service.RunAsync, printing one line per RepositoryChangeEvent kind plus one line

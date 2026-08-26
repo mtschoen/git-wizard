@@ -53,12 +53,66 @@ re-invokes the build):
 dotnet test GitWizardTests/GitWizardTests.csproj --no-build -c Release --nologo
 ```
 
+## Cleaning the working tree
+
+`git clean -ffxd` must always be safe to run. It is the check that this checkout still matches a fresh clone, so it is run before starting new work, and it must never be the thing that loses something.
+
+That safety comes from an invariant, not from a wrapper: **nothing unrecoverable lives in the working tree.** Every file here is either tracked and pushed, or reproducible by re-running a tool. There is no exclude list, because an exclude list would leave the tree unequal to a fresh clone and defeat the reason for cleaning.
+
+Anything that fails that test belongs somewhere else. If a file is worth keeping, track it and push it; if it is only worth keeping on one machine, keep it outside the working tree. Do not add a file to this repository that is neither.
+
+Git offers no way to protect a file from `git clean`. Aliases cannot shadow built-in commands, there is no `pre-clean` hook, and `-x` overrides `.git/info/exclude`. Only tracked files and files outside the tree are safe, which is why the invariant above is the whole mechanism.
+
+What a clean removes and how each comes back:
+
+| Removed | Restored by |
+| --- | --- |
+| `bin/`, `obj/`, `Debug/`, `.vs/`, `TestResults/` | rebuild / re-run the test suite |
+| `build-diag.log`, `build.binlog`, `smoke-stderr.log` at the repository root | re-run the build or coverage command that produced them |
+| `.claude/scripts/` scan output and tool caches (`.pi-subagents/`, `.ruff_cache/`, `.superpowers/`) | re-run the corresponding tool |
+| `.claude/settings.local.json` | re-granted as needed; broad grants live in the user-scope settings, and any provisioned project-scope overrides are re-applied by the tool that wrote them |
+| `.claude/AISLOP.md`, `.claude/CLAUDE.md` | `aislop hook install claude --project` |
+| `external/MFTLib/` (submodule contents) | `git submodule update --init --recursive`, or `init.ps1`/`init.sh` below |
+
+`.claude/AISLOP.md` and `.claude/CLAUDE.md` are generated boilerplate the aislop installer writes into a sentinel-fenced block, which is why they are not tracked. They do not restore themselves - nothing rewrites them until that command is run, so run it after a clean. It is also how to refresh them after an aislop upgrade.
+
+### Getting back to work after a clean
+
+`init.ps1` (Windows) and `init.sh` (Linux) at the repository root do the things a clean does not undo by itself - the `external/MFTLib` submodule checkout, the NuGet restore, and the generated agent files - and report any prerequisite they cannot install for you:
+
+```powershell
+git clean -ffxd && .\init.ps1          # restore only, a few seconds
+git clean -ffxd && .\init.ps1 -Build   # also build MFTLib (native + managed) and the solution
+```
+
+From `cmd.exe`, use `init.bat`, which forwards to the same script:
+
+```bat
+git clean -ffxd && .\init.bat
+git clean -ffxd && .\init.bat -Build
+```
+
+Keep the `.\` prefix. This machine sets `NoDefaultCurrentDirectoryInExePath=1`, so `cmd.exe` does not search the working directory for executables and a bare `init.bat` fails with "not recognized as an internal or external command".
+
+```bash
+git clean -ffxd && ./init.sh           # restore only
+git clean -ffxd && ./init.sh --build   # also build native (cmake/ninja) + managed
+```
+
+Both are idempotent, so they are safe to run at any time, not only after a clean.
+
+They also make one optional call: if a settings-provisioning tool is on PATH, they ask it to re-apply the project-scope settings it owns, since a clean removes `.claude/settings.local.json`. The call names a single feature rather than running the tool's whole pipeline, and the step is skipped entirely when the tool is absent, so nothing here depends on it.
+
+They are separate scripts rather than one cross-platform script because the work genuinely differs: Windows resolves MSBuild through `vswhere` and builds `MFTLibNative.vcxproj` (the only toolchain that can), while Linux drives cmake/Ninja directly and restores/builds the four cross-platform projects individually rather than `git-wizard.slnx` as a whole, mirroring the Linux CI job exactly (`.gitea/workflows/ci.yml`).
+
+Prerequisites checked but not installed - Windows: .NET SDK, Visual Studio with the MSVC C++ workload, aislop. Linux: .NET SDK, cmake, ninja, g++, aislop.
+
 ## Linting / lint gate
 
 The bar is **0 findings** across every configured analyzer (see `TEST-REPORT.md` → Lint gate). Three tiers:
 
 - **Analyzers + naming (CA*/IDE*/RCS*)** - `Directory.Build.props` sets `EnableNETAnalyzers`, `AnalysisLevel=latest-Recommended`, `EnforceCodeStyleInBuild`, and **`TreatWarningsAsErrors`**, so a normal `dotnet build`/MSBuild build *is* the gate (Roslynator 4.15.0 included). `EnforceCodeStyleInBuild` also turns the `.editorconfig` naming ruleset (IDE1006, at `warning`) into a **build error** - so the editorconfig is the **authoritative naming gate**, not just an IDE hint. MFTLib (outside this tree) does not inherit these.
-- **Formatting + naming** - `.editorconfig` is the canonical fleet C# standard (source of truth: `~/.claude/notes/idioms_csharp_naming.md`): **utf-8 (no BOM)**, CRLF, 4-space, and the full naming ruleset at `warning` → build error (PascalCase types/members/const/static-readonly; `_camelCase` **all** private/internal fields incl. mutable static; camelCase params/locals; no `m_`/`k_`/`s_`). Formatting/charset check: `dotnet format git-wizard.slnx --verify-no-changes`; apply: `dotnet format git-wizard.slnx`. Local on-save hooks (`.claude/scripts/format-on-save.ps1`, wired in `.claude/settings.local.json` for Claude and `.agents/hooks.json` for Antigravity/AGY) run whitespace formatting per edit. (`dotnet format` fixes charset/whitespace/style but **cannot** auto-fix IDE1006 naming - rename via Rider/`jb cleanupcode`.)
+- **Formatting + naming** - `.editorconfig` is the canonical fleet C# standard (source of truth: `~/.claude/notes/idioms_csharp_naming.md`): **utf-8 (no BOM)**, CRLF, 4-space, and the full naming ruleset at `warning` → build error (PascalCase types/members/const/static-readonly; `_camelCase` **all** private/internal fields incl. mutable static; camelCase params/locals; no `m_`/`k_`/`s_`). Formatting/charset check: `dotnet format git-wizard.slnx --verify-no-changes`; apply: `dotnet format git-wizard.slnx`. Local on-save hooks (`scripts/format-on-save.py`, wired in the tracked `.claude/settings.json` for Claude and `.agents/hooks.json` for Antigravity/AGY) run whitespace formatting per edit. The Python entry point is the single cross-platform implementation for both harnesses: it parses the hook JSON from stdin and runs `dotnet format whitespace` directly via `subprocess`, reporting one of three outcomes the calling harness can tell apart - a benign `skipped` (not applicable, or `dotnet` unavailable, exit 0), a successful `applied` (exit 0), or a loud `FAILED` when the formatter ran and returned a nonzero exit code (stderr, exit 2). (`dotnet format` fixes charset/whitespace/style but **cannot** auto-fix IDE1006 naming - rename via Rider/`jb cleanupcode`.)
 - **Deep inspection** - `~/.dotnet/tools/jb.exe inspectcode git-wizard.slnx -o="$TEMP/jb.xml" --settings="git-wizard.slnx.DotSettings" --severity=WARNING --no-updates`, gated by `ci/parse-jb-report.py` (exits non-zero on any finding). Match ci.yml's invocation exactly - omitting `--settings`/`--severity` reports hundreds of suggestion-tier findings the gate never sees. Now a *supplementary* deep pass - the editorconfig (above) is the primary naming gate. **jb-CLI binds `InconsistentNaming` to the machine's *global* ReSharper config, not the solution `.DotSettings`** - the global config here is aligned to the canonical convention; Rider uses the solution `.DotSettings` (which has the ExtraRules jb-CLI ignores).
 - **aislop** (AI-slop gate) - `.gitea/workflows/aislop.yml` gates the whole repo (C# + Python) at `failBelow: 100` in `.aislop/config.yml`. The C# engine lives **only in the personal fork `gitea.fleet.sticktoitive.net/schoen/aislop`** (the public npm `aislop` scores just the Python `ci/` tooling - 2 files; `github.com/mtschoen/aislop` is a mirror that can lag behind, so the workflow clones from Gitea, the canonical source), so the workflow clones + installs (`pnpm`, via `npx`) and builds that fork at the commit pinned in **`.aislop/fork-commit`** and runs the built `dist/cli.js`; it also `dotnet tool install`s `roslynator.dotnet.cli` + `JetBrains.ReSharper.GlobalTools` (the C# lint engine shells out to `roslynator` and `jb` inspectcode, which targets the whole `.slnx`) and `dotnet restore`s the solution so jb can build it, and sanity-fails if the scan covers <10 files (catching a silent Python-only pass). `failBelow: 100` enforces a 0-findings bar, same as the other analyzers; current score is tracked in `TEST-REPORT.md`, not asserted here. Findings map to fixes, not mutes: oversized files split into partials, long functions extracted, TODOs tracked as gitea issues, narrative comments reworded to trip aislop's why-marker exemption. The pin is normally bumped by the aislop fork's sync-consumers workflow via a PR that edits `.aislop/fork-commit`; a manual bump is the same edit, made deliberately (don't track the moving `schoen/main`).
 

@@ -360,7 +360,11 @@ MigrationBackup/
 .claude/*
 !.claude/settings.json
 
-.maintenance.json
+# .maintenance.json is tracked here: it records which maintenance findings were
+# actioned and which were deliberately rejected, and nothing regenerates that.
+# The negation is needed because the machine-wide excludes file ignores it, and
+# a repository .gitignore takes precedence over that.
+!.maintenance.json
 .qwen/
 
 # aislop runtime artifacts (session/history logs, caches, baselines).

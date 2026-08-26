@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \".claude/scripts/format-on-save.ps1\""
+            "command": "if command -v python3 >/dev/null 2>&1; then python3 \"$(git rev-parse --show-toplevel)/scripts/format-on-save.py\"; else echo 'format-on-save: skipped (python3 not found on PATH)'; fi"
           }
         ]
       }

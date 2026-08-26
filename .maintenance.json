@@ -1,0 +1,115 @@
+{
+  "tasks": {
+    "project-maintenance": {
+      "runs": [
+        {
+          "automated": [],
+          "false_positives": [
+            {
+              "finding": ".aislop/config.yml:16 TODO",
+              "reason": "word TODO appears in explanatory prose, not a real marker"
+            },
+            {
+              "finding": "missing on-save hook",
+              "reason": "hook exists in .claude/settings.local.json (untracked, correct); checker only scans tracked settings.json"
+            },
+            {
+              "finding": "stale memory reference_mftlib.md dangling reference to MFTLib/MFTLib.csproj",
+              "reason": "path is relative to MFTLib repo; C:/Users/mtsch/MFTLib/MFTLib/MFTLib.csproj exists; memory content accurate, kept"
+            },
+            {
+              "finding": "missing README/LICENSE/.gitignore",
+              "reason": "were reported against the phantom location, not the real repo"
+            }
+          ],
+          "head": "dbf363e",
+          "rejected": [],
+          "timestamp": "2026-06-19T00:00:00Z",
+          "user_authorized": [
+            {
+              "action": "git merge --ff-only origin/main (pulled a1ed479 gitea URL doc fix)",
+              "finding": "local main behind origin/main by 1"
+            },
+            {
+              "action": "unlink_location",
+              "finding": "phantom project-tracker location C:/Users/mtsch/GitWizard/git-wizard (nonexistent on disk)"
+            },
+            {
+              "action": "deleted local + origin",
+              "finding": "stale branch fix/local-commit-count (code merged via PR #67, only doc drift remained)"
+            },
+            {
+              "action": "git mv CLAUDE.md AGENTS.md; CLAUDE.md now @AGENTS.md pointer; updated live pointers in PLAN.md, lib/MFTLib/README.md, scripts/run-coverage.ps1; committed dbf363e and pushed to origin+gitea",
+              "finding": "agents_source_missing: CLAUDE.md present, no AGENTS.md"
+            }
+          ]
+        },
+        {
+          "automated": [],
+          "head": "ae5c4be",
+          "rejected": [],
+          "timestamp": "2026-06-21T00:00:00Z",
+          "user_authorized": [
+            {
+              "action": "git checkout main && git merge --ff-only gitea/main",
+              "result": "Local main fast-forwarded 3313912 -> ae5c4be (picked up #68 and #69 merges)"
+            },
+            {
+              "action": "git push origin main",
+              "result": "Fast-forwarded GitHub origin/main f3868f7 -> ae5c4be; reconciled mirror drift (origin was behind gitea by the #69 merge)"
+            },
+            {
+              "action": "git push origin --delete fix/aislop-jb-gate",
+              "result": "Deleted stray fix/aislop-jb-gate branch on GitHub origin (gitea copy was already auto-deleted at PR merge)"
+            },
+            {
+              "action": "git branch -D fix/aislop-jb-gate",
+              "result": "Deleted spent local branch; aislop+jb work merged via #69, only remaining diff was superseded pre-#68 mkcert TLS code"
+            },
+            {
+              "action": "Edit memory project_inspection_uac.md",
+              "result": "Marked PR #69 MERGED (was OPEN); follow-ups (a) and (b) resolved, (c) GitWizardUI.Screenshot RCS1102/CA1852 still open"
+            }
+          ]
+        },
+        {
+          "automated": [],
+          "head": "efe68e9580263c7efd54c06110058fc85142ef18",
+          "rejected": [
+            {
+              "action": "did not delete C:/Users/mtsch/GitWizard/git-wizard",
+              "detail": "half-initialized clone, .git holds only empty hooks/; prior unlink_location did not stick",
+              "kind": "phantom_repo",
+              "reason": "outside approved scope this pass; needs registry unlink alongside the delete"
+            },
+            {
+              "action": "no action on 2 month-stale worktree branches",
+              "detail": "fix/pr99-visible-node (6 commits), openai/watch-ui-fanotify-interop (19 commits)",
+              "kind": "unmerged_branch",
+              "reason": "substantial WIP, needs owner decision"
+            }
+          ],
+          "timestamp": "2026-08-15T07:46:20Z",
+          "user_authorized": [
+            {
+              "action": "deleted 3 spent branches",
+              "detail": "fix/81-folder-picker-drive-root-crash (landed as PR #82), chore/aislop-project-evaluation (PR #108), chore/bump-mftlib-cc44880 (superseded twice); all verified local-only=0 so no commits lost",
+              "kind": "branch"
+            },
+            {
+              "action": "removed spent worktree and its branch",
+              "detail": "git-wizard-worktrees/reconcile-plans + chore/reconcile-completed-plans; patch verified byte-identical to squash-merge 099e2b0 (PR #97)",
+              "kind": "worktree"
+            },
+            {
+              "action": "removed .claude/worktrees",
+              "detail": "empty untracked husk",
+              "kind": "empty_dir_husk"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "version": 1
+}

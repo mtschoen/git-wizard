@@ -8,7 +8,7 @@
 # project files, to match .editorconfig (end_of_line = crlf). Without this,
 # `* text=auto` checks these out as LF on Linux, and the Linux CI job's
 # `dotnet format --verify-no-changes` fails with ENDOFLINE on every line.
-# Scripts (*.sh, *.py, *.yml) are deliberately left to text=auto (LF on Linux)
+# Scripts (*.py, *.yml) are deliberately left to text=auto (LF on Linux)
 # so they execute correctly on the runners.
 ###############################################################################
 *.cs       text eol=crlf
@@ -18,6 +18,21 @@
 *.props    text eol=crlf
 *.targets  text eol=crlf
 *.slnx     text eol=crlf
+
+###############################################################################
+# Shell scripts must check out with LF on every platform. With CRLF endings a
+# script fails on Linux at the shebang: "bad interpreter: /usr/bin/env bash^M".
+###############################################################################
+*.sh text eol=lf
+
+###############################################################################
+# Batch files must check out with CRLF. cmd.exe tolerates LF for simple
+# line-by-line scripts, but mis-parses labels, goto targets, and multi-line
+# blocks, so an LF-only .bat works until someone adds one and then fails in a
+# way that reads as a logic bug rather than a line-ending problem.
+###############################################################################
+*.bat text eol=crlf
+*.cmd text eol=crlf
 
 ###############################################################################
 # Set default behavior for command prompt diff.

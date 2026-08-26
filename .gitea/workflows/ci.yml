@@ -164,7 +164,7 @@ jobs:
   test-windows:
     name: Build + Test (Windows, full solution)
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -309,3 +309,103 @@ jobs:
           name: test-results-windows
           path: TestResults/*.trx
           if-no-files-found: warn
+
+      # Genuine, reproducible verification of the post-clean init standard
+      # (AGENTS.md "Cleaning the working tree"): git clean -ffxd must be safe
+      # to run, and init.ps1/init.bat must restore the checkout from that
+      # state, twice (idempotency), through both entry points, including the
+      # -Build path. Folded into this job rather than a separate one: it
+      # reuses the .NET SDK, MSBuild, and warm NuGet cache already set up
+      # above instead of paying for that setup twice, and it runs after the
+      # job's own build+test have already passed, so the git clean below
+      # only ever discards state this job no longer needs.
+      - name: Verify git clean -ffxd leaves a clean tree
+        if: steps.changed-files.outputs.pin_only != 'true'
+        shell: pwsh
+        run: |
+          git clean -ffxd
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::git clean -ffxd exited $LASTEXITCODE."
+            exit 1
+          }
+          $status = git status --porcelain
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::git status exited $LASTEXITCODE after git clean -ffxd - cleanliness is unverified."
+            exit 1
+          }
+          if ($status) {
+            Write-Host "::error::git clean -ffxd left untracked/modified entries behind:"
+            Write-Host $status
+            exit 1
+          }
+          Write-Host "git clean -ffxd left a clean tree."
+
+      - name: Run init.ps1 (post-clean restore, first run)
+        if: steps.changed-files.outputs.pin_only != 'true'
+        shell: pwsh
+        run: |
+          .\init.ps1
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::init.ps1 (first run) exited $LASTEXITCODE."
+            exit 1
+          }
+
+      - name: Run init.ps1 again (idempotency)
+        if: steps.changed-files.outputs.pin_only != 'true'
+        shell: pwsh
+        run: |
+          .\init.ps1
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::init.ps1 (second run) exited $LASTEXITCODE."
+            exit 1
+          }
+          $status = git status --porcelain
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::git status exited $LASTEXITCODE after init.ps1 (second run) - cleanliness is unverified."
+            exit 1
+          }
+          if ($status) {
+            Write-Host "::error::init.ps1 is not idempotent - git status is dirty after a second run:"
+            Write-Host $status
+            exit 1
+          }
+          Write-Host "init.ps1 is idempotent: git status is clean after a second run."
+
+      - name: Run init.bat via cmd.exe (documented .\ prefix)
+        if: steps.changed-files.outputs.pin_only != 'true'
+        shell: cmd
+        # NoDefaultCurrentDirectoryInExePath is a per-machine setting (AGENTS.md
+        # documents it for the maintainer's own workstation), so this step
+        # cannot reproduce the bare-`init.bat` failure that setting causes -
+        # it verifies the documented, supported invocation (with the `.\`
+        # prefix) actually works through cmd.exe, which is the load-bearing
+        # claim: that init.bat correctly forwards to init.ps1.
+        run: |
+          .\init.bat
+          if errorlevel 1 exit /b 1
+
+      - name: Run init.ps1 -Build (native + managed build path)
+        if: steps.changed-files.outputs.pin_only != 'true'
+        shell: pwsh
+        run: |
+          .\init.ps1 -Build
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::init.ps1 -Build exited $LASTEXITCODE."
+            exit 1
+          }
+
+      - name: Verify tree is clean after the full init path
+        if: steps.changed-files.outputs.pin_only != 'true'
+        shell: pwsh
+        run: |
+          $status = git status --porcelain
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::git status exited $LASTEXITCODE after the full post-clean init verification - cleanliness is unverified."
+            exit 1
+          }
+          if ($status) {
+            Write-Host "::error::git status is dirty after the full post-clean init verification:"
+            Write-Host $status
+            exit 1
+          }
+          Write-Host "git status is clean after the full post-clean init verification."

@@ -509,6 +509,29 @@ public class GitWizardRepositoryTests
         });
     }
 
+    [Test]
+    public void Refresh_AfterFailureThenSuccess_ClearsRefreshError()
+    {
+        GitWizardLog.SilentMode = true;
+        var path = Path.Combine(Path.GetTempPath(), "recovers-repo-" + Guid.NewGuid());
+        Directory.CreateDirectory(path);
+
+        try
+        {
+            var repository = new GitWizardRepository(path);
+            repository.Refresh();
+            Assert.That(repository.RefreshError, Is.EqualTo(GitWizardRepository.NotAGitRepositoryError));
+
+            Repository.Init(path);
+            repository.Refresh();
+            Assert.That(repository.RefreshError, Is.Null);
+        }
+        finally
+        {
+            Directory.Delete(path, true);
+        }
+    }
+
     static string FindRepoRoot()
     {
         var directory = Directory.GetCurrentDirectory();

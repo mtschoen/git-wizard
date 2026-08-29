@@ -1,4 +1,5 @@
 using GitWizard;
+using LibGit2Sharp;
 
 namespace GitWizardTests;
 
@@ -132,6 +133,36 @@ public class GitWizardReportTests
         finally
         {
             Directory.Delete(nonRepoPath, true);
+        }
+    }
+
+    [Test]
+    public void Refresh_RecoveredPath_IsNotPrunedAsNonRepository()
+    {
+        GitWizardLog.SilentMode = true;
+        var path = Path.Combine(Path.GetTempPath(), "recovers-repo-" + Guid.NewGuid());
+        Directory.CreateDirectory(path);
+
+        try
+        {
+            var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
+            var report = new GitWizardReport(configuration);
+            report.Repositories[path] = new GitWizardRepository(path)
+            {
+                RefreshError = GitWizardRepository.NotAGitRepositoryError
+            };
+
+            Repository.Init(path);
+
+            var paths = new SortedSet<string> { path };
+            report.Refresh(paths);
+
+            Assert.That(report.Repositories.ContainsKey(path), Is.True);
+            Assert.That(report.NonRepositoryPaths, Does.Not.Contain(path));
+        }
+        finally
+        {
+            Directory.Delete(path, true);
         }
     }
 

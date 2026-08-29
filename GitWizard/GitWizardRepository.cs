@@ -31,6 +31,10 @@ public partial class GitWizardRepository
     public List<string> RemoteUrls { get; private set; } = new();
     public DateTimeOffset? LastCommitDate { get; private set; }
     public double RefreshTimeSeconds { get; set; }
+
+    /// <summary>Error message from the most recent failed refresh; cleared back to null once a
+    /// later refresh begins succeeding, so this never reports a stale failure past a successful
+    /// refresh.</summary>
     public string? RefreshError { get; set; }
     public HashSet<string>? AuthorEmails { get; private set; }
     public List<GitWizardCommitInfo>? RecentCommits { get; private set; }
@@ -130,6 +134,7 @@ public partial class GitWizardRepository
 
             using var repository = new Repository(WorkingDirectory);
             IsRefreshing = true;
+            RefreshError = null;
             RefreshSubmodules(updateHandler, repository, WorkingDirectory);
             CheckSubmoduleHealth(repository, WorkingDirectory);
 

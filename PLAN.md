@@ -161,7 +161,9 @@ file was retired. Not yet scheduled; promote to Next Up / a Gitea issue when pic
       in `NumberOfPendingChanges`. Fixed in `GitWizardRepository.RefreshPendingChangesStatus`
       (added a `status.Missing` loop); regression tests added for both the staged and
       unstaged deletion cases; `docs/report-schema.md` field description updated.
-- [ ] **Show an error log in the UI** - exceptions are currently only written to output.
+- [x] **Show an error log in the UI** - exceptions are currently only written to output.
+      *Done (verified 2026-08-28): `ErrorLogViewModel` / `ErrorLogEntry` / `ErrorLogWindow` in
+      GitWizardUI (300-entry cap, per-repository attribution), landed in #102.*
 - [x] **Quick refresh / filesystem watcher** to drop deleted-or-renamed repos from the UI.
       *Done (2026-08-21): `git-wizard --watch` auto-detects changes in tracked repositories via
       MFTLib's journal broker and prints `changed: <root>`, `created: <root>`, and
@@ -173,22 +175,39 @@ file was retired. Not yet scheduled; promote to Next Up / a Gitea issue when pic
       shown as a delete plus an unrelated add. Linux uses the `FanotifyVolumeChangeSource`
       adapter (#135); OS selection and pkexec elevation landed in #140 (issue #131). See AGENTS.md
       → Key Architecture → Journal watch.*
-- [ ] **Sort by size on disk.**
-- [ ] **Submodule health checks** - aggregate parent-repo status from submodule states; flag
+- [x] **Sort by size on disk.**
+      *Done (verified 2026-08-28): `GitWizardRepository.SizeOnDisk` + `SortMode.SizeOnDisk` in
+      `MainViewModel.Grouping`.*
+- [x] **Submodule health checks** - aggregate parent-repo status from submodule states; flag
       submodules at a non-pointer ref, not init'd/checked out, or in `.gitmodules` but not the
       index (or vice versa). (Verify against the current `SubmoduleHealth` coverage first.)
-- [ ] **Add the Windows folder to default exclusions.**
+      *Done (verified 2026-08-28): `SubmoduleHealthStatus` covers `WrongRef`, `Uninitialized`,
+      `MissingFromIndex`, `MissingFromGitmodules`, plus `StaleUpstream` (#80); aggregated into
+      the parent's status and surfaced via `RepositoryNodeViewModel` and the submodule filters.*
+- [x] **Add the Windows folder to default exclusions.**
+      *Done (verified 2026-08-28): `%WINDIR%` and `%APPDATA%` in
+      `GitWizardConfiguration.CreateDefaultConfiguration`, landed in #11.*
 - [x] **Make the `Fork.exe` path configurable in settings** (currently hard-coded to
       `%LocalAppData%\Fork\Fork.exe`). *Done: `GitWizardConfiguration.ForkPath` (config.json,
       null = default location), surfaced in `SettingsWindow`/`SettingsViewModel`. A configured
       value with `%VAR%`/`~` references is now expanded via `GitWizardApi.PrettyPrintPath` before
       use in `MainViewModel.OpenInFork` (2026-07-19).*
-- [ ] **Explore a CLI arg-parsing library with auto-generated help** (replace `RunConfiguration`).
+- [x] **Explore a CLI arg-parsing library with auto-generated help** (replace `RunConfiguration`).
+      *Done (verified 2026-08-28): `CliParser` builds on `McMaster.Extensions.CommandLineUtils`
+      (auto `--help`/`--version`, `tags`/`branches` subcommands), landed in #87. `RunConfiguration`
+      survives only as the parsed-result struct, not as a parser.*
 - [ ] **Explore a path-handling library** for `%USERPROFILE%` / `~` aliases.
+      *Note (2026-08-28): the aliases themselves are already handled in-house
+      (`GitWizardApi.PrettyPrintPath` / `ExpandSearchPath`: `%VAR%` via
+      `Environment.ExpandEnvironmentVariables`, `~/` and `~\` via `SpecialFolder.UserProfile`).
+      Only the library exploration is open; cross out if the in-house version is good enough.*
 - [x] **"Pretty print" path lists** - show environment-variable values inline. *Done:
       `GitWizardApi.PrettyPrintPath` + `PathPrettyPrintConverter` render the expanded form of each
       Search/Ignored path row in `SettingsWindow`.*
 - [ ] **Async save/load for cached files** (configs and reports).
+      *Note (2026-08-28): partial. Configuration has `SaveGlobalConfigurationAsync` /
+      `LoadConfigurationAsync`; report persistence (`GitWizardReport.Persistence`:
+      `ReadJsonObjectFromFile` / `WriteAtomic`) is still synchronous.*
 - [ ] **Make filters additive rather than mutually exclusive.**
 - [ ] **Review refresh concurrency/timeout** - `GitWizardReport.Refresh` still wraps sync work
       in `Task.Run` with a per-repo timeout while mutating shared state/UI callbacks concurrently.

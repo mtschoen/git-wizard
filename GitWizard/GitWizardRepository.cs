@@ -95,6 +95,28 @@ public partial class GitWizardRepository
         return true;
     }
 
+    /// <summary>
+    /// Test-only seam invoked at each phase boundary inside <see cref="Refresh"/> with the
+    /// zero-based index of the phase about to run, in execution order. Later phases of
+    /// docs/refresh-concurrency-review.md (cancellation between phases, interleaving assertions)
+    /// reuse this hook, so it stays minimal: one integer, no payload.
+    /// </summary>
+    internal Action<int>? PhaseObserverForTesting { get; set; }
+
+    /// <summary>
+    /// Serializes overlapping <see cref="Refresh"/> calls on THIS repository object so no two
+    /// threads write its fields at once (docs/refresh-concurrency-review.md hazard 3 - e.g. a
+    /// Live-watch refresh racing a batch refresh on the same object). A field rather than a
+    /// property, so <c>System.Text.Json</c> never sees it as part of the serialization surface.
+    /// Deliberately a plain lock object rather than the <c>SemaphoreSlim</c> sketched in the
+    /// review doc: <c>SemaphoreSlim</c> is <see cref="IDisposable"/>, and <see
+    /// cref="GitWizardRepository"/> is constructed at every discovery and refresh call site
+    /// without ever being disposed, so making the type disposable would turn every one of those
+    /// call sites into an undisposed-object analyzer finding for no behavioral gain. A monitor
+    /// lock gives the same per-object mutual exclusion without that liability.
+    /// </summary>
+    readonly object _refreshGate = new();
+
     GitWizardRepository() { }
 
     public GitWizardRepository(string workingDirectory)
@@ -104,6 +126,19 @@ public partial class GitWizardRepository
 
     public void Refresh(IUpdateHandler? updateHandler = null, bool fetchRemotes = false,
         bool deepRefresh = false, bool allBranches = false, bool computeLocalCommitCount = true)
+    {
+        // Serialize overlapping Refresh calls on this object: RefreshSubmodules and
+        // RefreshWorktrees recurse into Refresh on DIFFERENT GitWizardRepository objects (their
+        // own submodule/worktree instances, each with their own _refreshGate), so taking this
+        // lock here cannot self-deadlock.
+        lock (_refreshGate)
+        {
+            RefreshLocked(updateHandler, fetchRemotes, deepRefresh, allBranches, computeLocalCommitCount);
+        }
+    }
+
+    void RefreshLocked(IUpdateHandler? updateHandler, bool fetchRemotes, bool deepRefresh,
+        bool allBranches, bool computeLocalCommitCount)
     {
         if (string.IsNullOrEmpty(WorkingDirectory) || !Directory.Exists(WorkingDirectory))
         {
@@ -135,24 +170,7 @@ public partial class GitWizardRepository
             using var repository = new Repository(WorkingDirectory);
             IsRefreshing = true;
             RefreshError = null;
-            RefreshSubmodules(updateHandler, repository, WorkingDirectory);
-            CheckSubmoduleHealth(repository, WorkingDirectory);
-
-            // Worktrees can't have worktrees, and trying to refresh them will cause an infinite loop
-            if (!IsWorktree)
-                RefreshWorktrees(updateHandler, repository);
-
-            RefreshHeadInfo(repository);
-            RefreshPendingChangesStatus(repository, deepRefresh);
-            RefreshRemoteUrls(repository);
-            if (computeLocalCommitCount)
-                RefreshLocalOnlyCommits(repository);
-            RefreshBranchDivergence(repository, allBranches);
-            RefreshRemoteDivergence(repository);
-            RefreshAuthorEmails(repository);
-            RefreshRecentCommits(repository);
-            RefreshSizeOnDisk(WorkingDirectory);
-
+            RunRefreshPhases(updateHandler, repository, WorkingDirectory, deepRefresh, allBranches, computeLocalCommitCount);
             IsRefreshing = false;
             NotifyRefreshCompleted(updateHandler);
         }
@@ -163,6 +181,59 @@ public partial class GitWizardRepository
             IsRefreshing = false;
             NotifyRefreshCompleted(updateHandler);
         }
+    }
+
+    /// <summary>
+    /// Runs the refresh phases against an already-opened repository handle, firing <see
+    /// cref="PhaseObserverForTesting"/> before each one with its zero-based index in execution
+    /// order. Split out of <see cref="RefreshLocked"/> purely to keep that method short.
+    /// </summary>
+    void RunRefreshPhases(IUpdateHandler? updateHandler, Repository repository, string workingDirectory,
+        bool deepRefresh, bool allBranches, bool computeLocalCommitCount)
+    {
+        var phaseIndex = 0;
+        PhaseObserverForTesting?.Invoke(phaseIndex++);
+        RefreshSubmodules(updateHandler, repository, workingDirectory);
+
+        PhaseObserverForTesting?.Invoke(phaseIndex++);
+        CheckSubmoduleHealth(repository, workingDirectory);
+
+        // Worktrees can't have worktrees, and trying to refresh them will cause an infinite loop
+        if (!IsWorktree)
+        {
+            PhaseObserverForTesting?.Invoke(phaseIndex++);
+            RefreshWorktrees(updateHandler, repository);
+        }
+
+        PhaseObserverForTesting?.Invoke(phaseIndex++);
+        RefreshHeadInfo(repository);
+
+        PhaseObserverForTesting?.Invoke(phaseIndex++);
+        RefreshPendingChangesStatus(repository, deepRefresh);
+
+        PhaseObserverForTesting?.Invoke(phaseIndex++);
+        RefreshRemoteUrls(repository);
+
+        if (computeLocalCommitCount)
+        {
+            PhaseObserverForTesting?.Invoke(phaseIndex++);
+            RefreshLocalOnlyCommits(repository);
+        }
+
+        PhaseObserverForTesting?.Invoke(phaseIndex++);
+        RefreshBranchDivergence(repository, allBranches);
+
+        PhaseObserverForTesting?.Invoke(phaseIndex++);
+        RefreshRemoteDivergence(repository);
+
+        PhaseObserverForTesting?.Invoke(phaseIndex++);
+        RefreshAuthorEmails(repository);
+
+        PhaseObserverForTesting?.Invoke(phaseIndex++);
+        RefreshRecentCommits(repository);
+
+        PhaseObserverForTesting?.Invoke(phaseIndex);
+        RefreshSizeOnDisk(workingDirectory);
     }
 
     void RefreshHeadInfo(Repository repository)

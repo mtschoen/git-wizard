@@ -97,7 +97,8 @@ public partial class GitWizardReport
     public void SaveAtomic(string path)
     {
         SchemaVersion = CurrentSchemaVersion;
-        WriteAtomic(path, JsonSerializer.Serialize(this, SerializerOptions));
+        var snapshot = CreateSnapshotForSerialization();
+        WriteAtomic(path, JsonSerializer.Serialize(snapshot, SerializerOptions));
     }
 
     /// <summary>

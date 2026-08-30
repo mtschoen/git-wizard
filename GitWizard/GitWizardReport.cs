@@ -230,20 +230,27 @@ public partial class GitWizardReport : IAsyncDisposable
     {
         var stalePaths = new List<string>();
 
-        foreach (var path in refreshedPaths)
+        // Locked for the whole read-then-write pass: an in-flight orphan refresh from a
+        // concurrent Refresh call (see RefreshSingleRepository) mutates the same dictionary
+        // with its own lock (Repositories), so TryGetValue and the later Remove must be
+        // serialized against it to avoid observing or leaving Repositories in a torn state.
+        lock (Repositories)
         {
-            if (Repositories.TryGetValue(path, out var repository) &&
-                repository.RefreshError == GitWizardRepository.NotAGitRepositoryError)
+            foreach (var path in refreshedPaths)
             {
-                stalePaths.Add(path);
+                if (Repositories.TryGetValue(path, out var repository) &&
+                    repository.RefreshError == GitWizardRepository.NotAGitRepositoryError)
+                {
+                    stalePaths.Add(path);
+                }
             }
-        }
 
-        NonRepositoryPaths = new HashSet<string>(stalePaths);
+            NonRepositoryPaths = new HashSet<string>(stalePaths);
 
-        foreach (var stale in NonRepositoryPaths)
-        {
-            Repositories.Remove(stale);
+            foreach (var stale in NonRepositoryPaths)
+            {
+                Repositories.Remove(stale);
+            }
         }
 
         if (NonRepositoryPaths.Count > 0)
@@ -269,9 +276,15 @@ public partial class GitWizardReport : IAsyncDisposable
 
         DeletedPaths = new HashSet<string>(deletedPaths);
 
-        foreach (var deleted in DeletedPaths)
+        // Locked for the same reason as PruneNonRepositoryPaths: this Remove races the
+        // dictionary against RefreshSingleRepository's lock (Repositories) add-if-missing
+        // from a concurrent Refresh call on the same report.
+        lock (Repositories)
         {
-            Repositories.Remove(deleted);
+            foreach (var deleted in DeletedPaths)
+            {
+                Repositories.Remove(deleted);
+            }
         }
 
         if (DeletedPaths.Count > 0)
@@ -337,7 +350,8 @@ public partial class GitWizardReport : IAsyncDisposable
         try
         {
             SchemaVersion = CurrentSchemaVersion;
-            File.WriteAllText(path, JsonSerializer.Serialize(this, SerializerOptions));
+            var snapshot = CreateSnapshotForSerialization();
+            File.WriteAllText(path, JsonSerializer.Serialize(snapshot, SerializerOptions));
         }
         catch (Exception exception)
         {
@@ -354,7 +368,8 @@ public partial class GitWizardReport : IAsyncDisposable
         try
         {
             SchemaVersion = CurrentSchemaVersion;
-            var jsonText = JsonSerializer.Serialize(this, SerializerOptions);
+            var snapshot = CreateSnapshotForSerialization();
+            var jsonText = JsonSerializer.Serialize(snapshot, SerializerOptions);
             await File.WriteAllTextAsync(path, jsonText, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception)
@@ -363,11 +378,46 @@ public partial class GitWizardReport : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Builds a throwaway <see cref="GitWizardReport"/> that shares this report's scalar and
+    /// set-valued state but carries a <see cref="SortedDictionary{TKey,TValue}"/> copy of
+    /// <see cref="Repositories"/> taken under <c>lock (Repositories)</c>. Used by
+    /// <see cref="Save"/>, <see cref="SaveAsync"/>, and <see cref="SaveAtomic"/> so that
+    /// serialization walks a private, immutable copy of the dictionary instead of the live
+    /// one, which an in-flight orphan refresh from a concurrent Refresh call could otherwise
+    /// still be mutating (see <see cref="RefreshSingleRepository"/>,
+    /// <see cref="PruneDeletedRepositories"/>, <see cref="PruneNonRepositoryPaths"/>).
+    /// </summary>
+    GitWizardReport CreateSnapshotForSerialization()
+    {
+        SortedDictionary<string, GitWizardRepository> repositoriesSnapshot;
+        lock (Repositories)
+        {
+            repositoriesSnapshot = new SortedDictionary<string, GitWizardRepository>(Repositories);
+        }
+
+        return new GitWizardReport
+        {
+            SchemaVersion = SchemaVersion,
+            BranchScope = BranchScope,
+            SearchPaths = SearchPaths,
+            IgnoredPaths = IgnoredPaths,
+            SkipHiddenDirectories = SkipHiddenDirectories,
+            Repositories = repositoriesSnapshot,
+            DeletedPaths = DeletedPaths,
+            NonRepositoryPaths = NonRepositoryPaths,
+        };
+    }
+
     public IEnumerable<string> GetRepositoryPaths()
     {
-        foreach (var kvp in Repositories)
+        // Locked and materialized into a list up front rather than yielded lazily: an
+        // iterator's lock would otherwise stay held across the yield return suspension
+        // (held for as long as the caller takes to consume the enumerable), which could
+        // block a concurrent Refresh call indefinitely instead of just for the snapshot copy.
+        lock (Repositories)
         {
-            yield return kvp.Key;
+            return new List<string>(Repositories.Keys);
         }
     }
 }

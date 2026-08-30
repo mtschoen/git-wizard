@@ -33,7 +33,8 @@ public class GitWizardReportTests
     }
 
     [Test]
-    public void RefreshConcurrencyTest()
+    [Repeat(20)]
+    public void Refresh_ConcurrentCallsOnOneReport_DoNotCorruptRepositories()
     {
         GitWizardLog.SilentMode = true;
         using var repoA = TempRepoFixture.CreateWithInitialCommit();
@@ -47,6 +48,15 @@ public class GitWizardReportTests
         // test here is parallel Refresh, not discovery.
         var repositoryPaths = new SortedSet<string> { repoA.Path, repoB.Path };
         Parallel.For(0, 10, _ => { report.Refresh(repositoryPaths); });
+
+        // Ten concurrent full refreshes over the same two paths race unsynchronized
+        // dictionary mutation (PruneDeletedRepositories, PruneNonRepositoryPaths) against
+        // each other and against RefreshSingleRepository's own locked writes. A corrupted
+        // SortedDictionary can end up missing entries, holding a stale null, or throwing
+        // mid-enumeration; assert the dictionary settles into exactly the seeded paths with
+        // every value populated.
+        Assert.That(report.Repositories.Count, Is.EqualTo(repositoryPaths.Count));
+        Assert.That(report.Repositories.Values, Has.All.Not.Null);
     }
 
     [Test]

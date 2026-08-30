@@ -8,7 +8,9 @@ namespace GitWizardTests;
 /// </summary>
 public class CountingUpdateHandler : IUpdateHandler
 {
-    public int RefreshCompletedCount { get; private set; }
+    int _refreshCompletedCount;
+
+    public int RefreshCompletedCount => _refreshCompletedCount;
 
     public void StartProgress(string description, int total) { }
     public void UpdateProgress(int count) { }
@@ -17,7 +19,7 @@ public class CountingUpdateHandler : IUpdateHandler
     public void OnSubmoduleCreated(GitWizardRepository parent, GitWizardRepository submodule) { }
     public void OnWorktreeCreated(GitWizardRepository worktree) { }
     public void OnUninitializedSubmoduleCreated(GitWizardRepository parent, string submodulePath) { }
-    public void OnRepositoryRefreshCompleted(GitWizardRepository gitWizardRepository) => RefreshCompletedCount++;
+    public void OnRepositoryRefreshCompleted(GitWizardRepository gitWizardRepository) => Interlocked.Increment(ref _refreshCompletedCount);
 }
 
 /// <summary>

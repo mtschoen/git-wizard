@@ -5,8 +5,15 @@ namespace GitWizardUI.ViewModels;
 public partial class MainViewModel
 {
     string? _progressDescription;
-    int? _progressTotal;
-    int? _progressCount;
+
+    // Plain int fields instead of int? so the UI pump (MainViewModel.Commands.cs) can never
+    // observe a torn read across the HasValue/Value pair of a two-field Nullable<int> struct
+    // written from a worker thread while read from the UI thread. _progressActive replaces the
+    // former HasValue sentinel; volatile gives both the field write in StartProgress/UpdateProgress
+    // and the field read on the UI pump the memory-visibility guarantee a plain field lacks.
+    volatile bool _progressActive;
+    int _progressTotal;
+    int _progressCount;
 
     // Coalesce a burst of status messages into one UI update. A heavy scan (the
     // recursive walk posts per directory) or refresh can fire thousands of these;
@@ -49,6 +56,7 @@ public partial class MainViewModel
         _progressCount = 0;
         _progressDescription = description;
         _progressTotal = total;
+        _progressActive = true;
         _ui.Post(() =>
         {
             IsScanning = false;

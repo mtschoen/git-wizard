@@ -96,7 +96,7 @@ public partial class GitWizardReport
 
             try
             {
-                updateHandler?.UpdateProgress(++count);
+                updateHandler?.UpdateProgress(Interlocked.Increment(ref count));
             }
             catch (Exception exception)
             {

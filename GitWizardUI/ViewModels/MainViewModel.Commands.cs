@@ -315,13 +315,13 @@ public partial class MainViewModel
 
                 await _ui.InvokeAsync(() =>
                 {
-                    if (_progressCount.HasValue && _progressTotal.HasValue && _progressTotal.Value > 0)
+                    if (_progressActive && _progressTotal > 0)
                     {
-                        ProgressValue = (double)_progressCount / _progressTotal.Value;
+                        ProgressValue = (double)_progressCount / _progressTotal;
                         ProgressText = $"{_progressDescription} {_progressCount} / {_progressTotal}";
                         IsProgressVisible = true;
 
-                        if (_progressTotal.Value == _progressCount)
+                        if (_progressTotal == _progressCount)
                         {
                             IsProgressVisible = false;
                         }

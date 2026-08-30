@@ -152,6 +152,8 @@ cache even after a later refresh finds it healthy. In the UI, `RepositoryNodeVie
 
 ### 7. Blocking `Wait` inside `Parallel.ForEach` risks thread-pool starvation (confidence: medium)
 
+*(Resolved by PR #162 / issue #161: `RefreshSingleRepository` runs `Refresh` inline on the `Parallel.ForEach` worker under cooperative cancellation.)*
+
 Up to `ProcessorCount / 2` pool threads sit blocked in `Wait` while the work they are waiting for
 needs pool threads of its own, and the nested submodule and worktree loops need more still, with no
 cap. The pool grows past its floor only on its slow injection schedule, so on a large scan the
@@ -341,9 +343,9 @@ intermittently before, deterministically passes after; use `[Repeat(50)]` rather
 assertion.
 
 Deferred to a follow-up issue, not part of this work: replacing the blocking `Wait` inside
-`Parallel.ForEach` (hazard 7). Once phase 2 lands, the timeout is enforced cooperatively and the
-`Wait` becomes a throughput concern only, which is a better fit for a separate perf change than for
-this correctness pass.
+`Parallel.ForEach` (hazard 7) - resolved by PR #162 / issue #161. Once phase 2 lands, the timeout is
+enforced cooperatively and the `Wait` becomes a throughput concern only, which is a better fit for a
+separate perf change than for this correctness pass.
 
 ## Sources
 

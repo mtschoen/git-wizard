@@ -35,7 +35,7 @@ public class SubmoduleHealthInfo
 
 public partial class GitWizardRepository
 {
-    void RefreshSubmodules(IUpdateHandler? updateHandler, Repository repository, string workingDirectory)
+    void RefreshSubmodules(IUpdateHandler? updateHandler, Repository repository, string workingDirectory, CancellationToken cancellationToken)
     {
         try
         {
@@ -43,85 +43,96 @@ public partial class GitWizardRepository
             if (!submodules.Any())
                 return;
 
-            Submodules ??= new SortedDictionary<string, GitWizardRepository?>();
-            Parallel.ForEach(submodules, submodule =>
+            var submodulesMap = Submodules ??= new SortedDictionary<string, GitWizardRepository?>();
+            Parallel.ForEach(submodules, new ParallelOptions { CancellationToken = cancellationToken }, submodule =>
             {
-                var path = Path.Combine(workingDirectory, submodule.Path);
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                    path = path.ToLowerInvariant();
-
-                GitWizardRepository? submoduleRepository;
-                bool hasExisting;
-                lock (Submodules)
-                {
-                    hasExisting = Submodules.TryGetValue(path, out submoduleRepository);
-                }
-
-                if (!hasExisting)
-                {
-                    if (submodule.WorkDirCommitId == null)
-                    {
-                        // Uninitialized submodules will have a null work directory commit id
-                        lock (Submodules)
-                        {
-                            Submodules[path] = null;
-                        }
-
-                        try
-                        {
-                            updateHandler?.OnUninitializedSubmoduleCreated(this, path);
-                        }
-                        catch (Exception exception)
-                        {
-                            GitWizardLog.LogException(exception,
-                                "Exception thrown by Refresh OnUninitializedSubmoduleCreated callback.");
-                        }
-                    }
-                    else
-                    {
-                        try
-                        {
-                            if (Repository.IsValid(path))
-                            {
-                                submoduleRepository = new GitWizardRepository(path);
-                                lock (Submodules)
-                                {
-                                    Submodules[path] = submoduleRepository;
-                                }
-
-                                try
-                                {
-                                    updateHandler?.OnSubmoduleCreated(this, submoduleRepository);
-                                }
-                                catch (Exception exception)
-                                {
-                                    GitWizardLog.LogException(exception,
-                                        "Exception thrown by Refresh OnSubmoduleCreated callback.");
-                                }
-                            }
-                            else
-                            {
-                                GitWizardLog.LogException(new InvalidOperationException("Submodule in unknown state"), $"Unknown submodule state for {path}");
-                            }
-                        }
-                        catch (Exception exception)
-                        {
-                            GitWizardLog.LogException(exception,
-                                $"Exception updating submodules for {WorkingDirectory}");
-                        }
-                    }
-                }
-
+                cancellationToken.ThrowIfCancellationRequested();
+                var submoduleRepository = GetOrCreateSubmoduleRepository(submodule, workingDirectory, updateHandler, submodulesMap);
                 if (submoduleRepository == null)
                     return;
 
-                submoduleRepository.Refresh(updateHandler);
+                submoduleRepository.Refresh(updateHandler, cancellationToken: cancellationToken);
             });
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             GitWizardLog.LogException(exception, $"Exception enumerating submodules for {WorkingDirectory}");
         }
+    }
+
+    GitWizardRepository? GetOrCreateSubmoduleRepository(
+        Submodule submodule,
+        string workingDirectory,
+        IUpdateHandler? updateHandler,
+        SortedDictionary<string, GitWizardRepository?> submodulesMap)
+    {
+        var path = Path.Combine(workingDirectory, submodule.Path);
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            path = path.ToLowerInvariant();
+
+        GitWizardRepository? submoduleRepository;
+        bool hasExisting;
+        lock (submodulesMap)
+        {
+            hasExisting = submodulesMap.TryGetValue(path, out submoduleRepository);
+        }
+
+        if (hasExisting)
+            return submoduleRepository;
+
+        if (submodule.WorkDirCommitId == null)
+        {
+            // Uninitialized submodules will have a null work directory commit id
+            lock (submodulesMap)
+            {
+                submodulesMap[path] = null;
+            }
+
+            try
+            {
+                updateHandler?.OnUninitializedSubmoduleCreated(this, path);
+            }
+            catch (Exception exception)
+            {
+                GitWizardLog.LogException(exception,
+                    "Exception thrown by Refresh OnUninitializedSubmoduleCreated callback.");
+            }
+
+            return null;
+        }
+
+        try
+        {
+            if (Repository.IsValid(path))
+            {
+                submoduleRepository = new GitWizardRepository(path);
+                lock (submodulesMap)
+                {
+                    submodulesMap[path] = submoduleRepository;
+                }
+
+                try
+                {
+                    updateHandler?.OnSubmoduleCreated(this, submoduleRepository);
+                }
+                catch (Exception exception)
+                {
+                    GitWizardLog.LogException(exception,
+                        "Exception thrown by Refresh OnSubmoduleCreated callback.");
+                }
+            }
+            else
+            {
+                GitWizardLog.LogException(new InvalidOperationException("Submodule in unknown state"), $"Unknown submodule state for {path}");
+            }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            GitWizardLog.LogException(exception,
+                $"Exception updating submodules for {WorkingDirectory}");
+        }
+
+        return submoduleRepository;
     }
 
     /// <summary>

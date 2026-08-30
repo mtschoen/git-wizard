@@ -125,7 +125,8 @@ public partial class GitWizardRepository
     }
 
     public void Refresh(IUpdateHandler? updateHandler = null, bool fetchRemotes = false,
-        bool deepRefresh = false, bool allBranches = false, bool computeLocalCommitCount = true)
+        bool deepRefresh = false, bool allBranches = false, bool computeLocalCommitCount = true,
+        CancellationToken cancellationToken = default)
     {
         // Serialize overlapping Refresh calls on this object: RefreshSubmodules and
         // RefreshWorktrees recurse into Refresh on DIFFERENT GitWizardRepository objects (their
@@ -133,12 +134,12 @@ public partial class GitWizardRepository
         // lock here cannot self-deadlock.
         lock (_refreshGate)
         {
-            RefreshLocked(updateHandler, fetchRemotes, deepRefresh, allBranches, computeLocalCommitCount);
+            RefreshLocked(updateHandler, fetchRemotes, deepRefresh, allBranches, computeLocalCommitCount, cancellationToken);
         }
     }
 
     void RefreshLocked(IUpdateHandler? updateHandler, bool fetchRemotes, bool deepRefresh,
-        bool allBranches, bool computeLocalCommitCount)
+        bool allBranches, bool computeLocalCommitCount, CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(WorkingDirectory) || !Directory.Exists(WorkingDirectory))
         {
@@ -146,13 +147,15 @@ public partial class GitWizardRepository
             return;
         }
 
-        if (fetchRemotes && FetchAllRemotes(WorkingDirectory))
-            LastFetchTime = DateTimeOffset.Now;
-
-        GitWizardLog.Log($"Refreshing {WorkingDirectory}");
-
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (fetchRemotes && FetchAllRemotes(WorkingDirectory))
+                LastFetchTime = DateTimeOffset.Now;
+
+            GitWizardLog.Log($"Refreshing {WorkingDirectory}");
+
             // Probe with IsValid before constructing Repository: a cached path whose .git is gone makes
             // the Repository ctor throw RepositoryNotFoundException on every refresh (first-chance
             // exception spam in the log). IsValid returns false for that case without throwing, so we
@@ -170,9 +173,14 @@ public partial class GitWizardRepository
             using var repository = new Repository(WorkingDirectory);
             IsRefreshing = true;
             RefreshError = null;
-            RunRefreshPhases(updateHandler, repository, WorkingDirectory, deepRefresh, allBranches, computeLocalCommitCount);
+            RunRefreshPhases(updateHandler, repository, deepRefresh, allBranches, computeLocalCommitCount, cancellationToken);
             IsRefreshing = false;
             NotifyRefreshCompleted(updateHandler);
+        }
+        catch (OperationCanceledException)
+        {
+            GitWizardLog.Log($"Refresh timed out for {WorkingDirectory}", GitWizardLog.LogType.Warning);
+            MarkRefreshFailed("Timed out", updateHandler);
         }
         catch (Exception exception)
         {
@@ -184,55 +192,69 @@ public partial class GitWizardRepository
     }
 
     /// <summary>
-    /// Runs the refresh phases against an already-opened repository handle, firing <see
-    /// cref="PhaseObserverForTesting"/> before each one with its zero-based index in execution
-    /// order. Split out of <see cref="RefreshLocked"/> purely to keep that method short.
+    /// Runs the refresh phases against an already-opened repository handle, checking
+    /// <paramref name="cancellationToken"/> and firing <see cref="PhaseObserverForTesting"/>
+    /// before each one with its zero-based index in execution order. Split out of <see
+    /// cref="RefreshLocked"/> purely to keep that method short.
     /// </summary>
-    void RunRefreshPhases(IUpdateHandler? updateHandler, Repository repository, string workingDirectory,
-        bool deepRefresh, bool allBranches, bool computeLocalCommitCount)
+    void RunRefreshPhases(IUpdateHandler? updateHandler, Repository repository,
+        bool deepRefresh, bool allBranches, bool computeLocalCommitCount, CancellationToken cancellationToken)
     {
+        var workingDirectory = WorkingDirectory ?? string.Empty;
         var phaseIndex = 0;
         PhaseObserverForTesting?.Invoke(phaseIndex++);
-        RefreshSubmodules(updateHandler, repository, workingDirectory);
+        cancellationToken.ThrowIfCancellationRequested();
+        RefreshSubmodules(updateHandler, repository, workingDirectory, cancellationToken);
 
         PhaseObserverForTesting?.Invoke(phaseIndex++);
+        cancellationToken.ThrowIfCancellationRequested();
         CheckSubmoduleHealth(repository, workingDirectory);
 
         // Worktrees can't have worktrees, and trying to refresh them will cause an infinite loop
         if (!IsWorktree)
         {
             PhaseObserverForTesting?.Invoke(phaseIndex++);
-            RefreshWorktrees(updateHandler, repository);
+            cancellationToken.ThrowIfCancellationRequested();
+            RefreshWorktrees(updateHandler, repository, cancellationToken);
         }
 
         PhaseObserverForTesting?.Invoke(phaseIndex++);
+        cancellationToken.ThrowIfCancellationRequested();
         RefreshHeadInfo(repository);
 
         PhaseObserverForTesting?.Invoke(phaseIndex++);
+        cancellationToken.ThrowIfCancellationRequested();
         RefreshPendingChangesStatus(repository, deepRefresh);
 
         PhaseObserverForTesting?.Invoke(phaseIndex++);
+        cancellationToken.ThrowIfCancellationRequested();
         RefreshRemoteUrls(repository);
 
         if (computeLocalCommitCount)
         {
             PhaseObserverForTesting?.Invoke(phaseIndex++);
+            cancellationToken.ThrowIfCancellationRequested();
             RefreshLocalOnlyCommits(repository);
         }
 
         PhaseObserverForTesting?.Invoke(phaseIndex++);
+        cancellationToken.ThrowIfCancellationRequested();
         RefreshBranchDivergence(repository, allBranches);
 
         PhaseObserverForTesting?.Invoke(phaseIndex++);
+        cancellationToken.ThrowIfCancellationRequested();
         RefreshRemoteDivergence(repository);
 
         PhaseObserverForTesting?.Invoke(phaseIndex++);
+        cancellationToken.ThrowIfCancellationRequested();
         RefreshAuthorEmails(repository);
 
         PhaseObserverForTesting?.Invoke(phaseIndex++);
+        cancellationToken.ThrowIfCancellationRequested();
         RefreshRecentCommits(repository);
 
         PhaseObserverForTesting?.Invoke(phaseIndex);
+        cancellationToken.ThrowIfCancellationRequested();
         RefreshSizeOnDisk(workingDirectory);
     }
 

@@ -5,16 +5,18 @@ namespace GitWizard;
 
 public partial class GitWizardRepository
 {
-    void RefreshWorktrees(IUpdateHandler? updateHandler, Repository repository)
+    void RefreshWorktrees(IUpdateHandler? updateHandler, Repository repository, CancellationToken cancellationToken)
     {
         var worktrees = repository.Worktrees;
         if (worktrees.Any())
         {
             Worktrees ??= new SortedDictionary<string, GitWizardRepository?>();
-            Parallel.ForEach(worktrees, worktree =>
+            Parallel.ForEach(worktrees, new ParallelOptions { CancellationToken = cancellationToken }, worktree =>
             {
                 try
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     if (worktree == null)
                     {
                         GitWizardLog.Log($"Worktree is null in {repository}");
@@ -60,10 +62,10 @@ public partial class GitWizardRepository
 
                     if (worktreeRepository != null)
                     {
-                        worktreeRepository.Refresh(updateHandler);
+                        worktreeRepository.Refresh(updateHandler, cancellationToken: cancellationToken);
                     }
                 }
-                catch (Exception exception)
+                catch (Exception exception) when (exception is not OperationCanceledException)
                 {
                     GitWizardLog.LogException(exception,
                         $"Exception updating worktrees for {WorkingDirectory}");

@@ -295,8 +295,17 @@ public partial class GitWizardReport : IAsyncDisposable
         return validPaths;
     }
 
-    // Gets or creates the GitWizardRepository for path, runs its Refresh with a 5-minute
-    // timeout, and records the elapsed time. One iteration of the Refresh Parallel.ForEach body.
+    /// <summary>
+    /// Timeout for refreshing a single repository. Defaults to 5 minutes.
+    /// Internal so tests can shorten it without sleeping. Assumes tests run sequentially
+    /// (NUnit test fixtures in this solution do not enable LevelOfParallelism).
+    /// </summary>
+    internal static TimeSpan RefreshTimeout { get; set; } = TimeSpan.FromMinutes(5);
+
+    // Gets or creates the GitWizardRepository for path, runs its Refresh inline under a
+    // CancellationTokenSource with RefreshTimeout, and records the elapsed time. One iteration
+    // of the Refresh Parallel.ForEach body. Runs inline without Task.Run to prevent thread-pool
+    // starvation under large reports (docs/refresh-concurrency-review.md hazard 7).
     void RefreshSingleRepository(string path, IUpdateHandler? updateHandler, bool fetchRemotes,
         bool deepRefresh, bool allBranches, bool computeLocalCommitCount)
     {
@@ -320,18 +329,8 @@ public partial class GitWizardReport : IAsyncDisposable
         }
 
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        var refreshTask = Task.Run(() => repository.Refresh(updateHandler, fetchRemotes, deepRefresh, allBranches, computeLocalCommitCount));
-        if (!refreshTask.Wait(TimeSpan.FromMinutes(5)))
-        {
-            GitWizardLog.Log($"Refresh timed out after 5 minutes for {path}", GitWizardLog.LogType.Warning);
-            repository.MarkRefreshFailed("Timed out after 5 minutes", updateHandler);
-        }
-        else if (refreshTask.IsFaulted)
-        {
-            var errorMsg = refreshTask.Exception?.InnerException?.Message ?? "Unknown error";
-            GitWizardLog.Log($"Refresh failed for {path}: {errorMsg}", GitWizardLog.LogType.Error);
-            // Note: OnRepositoryRefreshCompleted is called from the catch block in Refresh()
-        }
+        using var cancellationTokenSource = new CancellationTokenSource(RefreshTimeout);
+        repository.Refresh(updateHandler, fetchRemotes, deepRefresh, allBranches, computeLocalCommitCount, cancellationTokenSource.Token);
 
         stopwatch.Stop();
         repository.RefreshTimeSeconds = Math.Round(stopwatch.Elapsed.TotalSeconds, 1);

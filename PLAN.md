@@ -217,4 +217,8 @@ file was retired. Not yet scheduled; promote to Next Up / a Gitea issue when pic
       nine hazards, and recommends a third, minimal option (keep the synchronous core; add a
       per-repository refresh gate, cooperative cancellation between phases, snapshot-on-save, and
       drop the nested `Parallel.ForEach` over one LibGit2Sharp handle) with a six-phase sketch.
-      Decision pending.*
+      Option C accepted (2026-08-29). Phase 1 refresh gate: #159; phase 4 report lock and
+      snapshot-on-save: #157; phase 6 small fixes: #158. Phases 2 and 3 edit the body of
+      `GitWizardRepository.Refresh` and phase 5 builds on the phase-observer hook #159 adds, so
+      all three follow once #159 lands (phase 3 test A/B already shipped in #156). Hazard 7:
+      #161.*

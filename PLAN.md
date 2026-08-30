@@ -213,3 +213,8 @@ file was retired. Not yet scheduled; promote to Next Up / a Gitea issue when pic
       in `Task.Run` with a per-repo timeout while mutating shared state/UI callbacks concurrently.
       Decide between fully-async-with-cooperative-cancellation vs stricter ownership of shared
       mutable state.
+      *Reviewed (2026-08-28): `docs/refresh-concurrency-review.md` inventories the shared state,
+      nine hazards, and recommends a third, minimal option (keep the synchronous core; add a
+      per-repository refresh gate, cooperative cancellation between phases, snapshot-on-save, and
+      drop the nested `Parallel.ForEach` over one LibGit2Sharp handle) with a six-phase sketch.
+      Decision pending.*

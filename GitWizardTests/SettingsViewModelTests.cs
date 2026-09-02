@@ -342,6 +342,9 @@ public class SettingsViewModelTests
         vm.Save();
 
         Assert.That(vm.ForkPath, Is.EqualTo("/usr/local/bin/fork"));
+        var loaded = GitWizardConfiguration.GetGlobalConfiguration();
+        Assert.That(loaded.SearchPaths, Does.Contain("/new/search"));
+        Assert.That(loaded.ForkPath, Is.EqualTo("/usr/local/bin/fork"));
     }
 
     [Test]

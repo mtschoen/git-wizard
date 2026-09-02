@@ -138,7 +138,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         if (SelectedSearchPath is not null)
         {
             SearchPaths.Remove(SelectedSearchPath);
-            _ = SaveImmediateAsync();
+            SaveImmediate();
         }
     }
 
@@ -159,7 +159,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         if (SelectedIgnoredPath is not null)
         {
             IgnoredPaths.Remove(SelectedIgnoredPath);
-            _ = SaveImmediateAsync();
+            SaveImmediate();
         }
     }
 
@@ -173,6 +173,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         foreach (var path in IgnoredPaths)
             _configuration.IgnoredPaths.Add(path);
 
+        _configuration.ForkPath = string.IsNullOrWhiteSpace(ForkPath) ? null : ForkPath;
         _configuration.SkipHiddenDirectories = SkipHiddenDirectories;
 
         return GitWizardConfiguration.SaveGlobalConfigurationAsync(_configuration);
@@ -191,7 +192,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         _configuration.ForkPath = string.IsNullOrWhiteSpace(ForkPath) ? null : ForkPath;
         _configuration.SkipHiddenDirectories = SkipHiddenDirectories;
 
-        _ = SaveAsync();
+        GitWizardConfiguration.SaveGlobalConfiguration(_configuration);
     }
 
     /// <summary>

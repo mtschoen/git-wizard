@@ -36,12 +36,11 @@ public class GlobalTestSetup
     [OneTimeTearDown]
     public void RestoreDataDir()
     {
-        TestUtilities.DefaultHome = null;
-        Environment.SetEnvironmentVariable("GITWIZARD_HOME", null);
-
         // Release the open log-file handle GitWizardLog keeps in the data dir, then remove the temp
         // home. Cleanup is best-effort: a still-locked file must not fail the whole run (a thrown
         // OneTimeTearDown makes `dotnet test` exit non-zero and reds CI even with every test passing).
+        // GITWIZARD_HOME is deliberately NOT restored to null: unsetting it would re-expose ~/.GitWizard
+        // to any shutdown finalizers or lingering threads in the dying moments of the test process.
         GitWizardLog.CloseCurrentLogFile();
         try
         {

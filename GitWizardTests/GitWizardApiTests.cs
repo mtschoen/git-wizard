@@ -49,6 +49,7 @@ public class GitWizardApiTests
     [Test]
     public void PrettyPrintPath_ExpandsEnvironmentVariables()
     {
+        var originalHome = Environment.GetEnvironmentVariable("HOME");
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         Environment.SetEnvironmentVariable("HOME", home);
         try
@@ -58,7 +59,7 @@ public class GitWizardApiTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("HOME", null);
+            Environment.SetEnvironmentVariable("HOME", originalHome);
         }
     }
 
@@ -88,6 +89,7 @@ public class GitWizardApiTests
     [Test]
     public void PrettyPrintPath_ExpandsInMixedPath()
     {
+        var originalHome = Environment.GetEnvironmentVariable("HOME");
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         Environment.SetEnvironmentVariable("HOME", home);
         try
@@ -97,7 +99,7 @@ public class GitWizardApiTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("HOME", null);
+            Environment.SetEnvironmentVariable("HOME", originalHome);
         }
     }
 

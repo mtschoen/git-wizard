@@ -979,6 +979,10 @@ public class ProgramEntryPointTests
             UseShellExecute = false
         };
 
+        var home = Environment.GetEnvironmentVariable("GITWIZARD_HOME");
+        if (!string.IsNullOrEmpty(home))
+            startInfo.Environment["GITWIZARD_HOME"] = home;
+
         foreach (var arg in args)
             startInfo.ArgumentList.Add(arg);
 

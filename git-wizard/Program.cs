@@ -139,7 +139,7 @@ git-wizard Session Started
             {
                 var configuration = await GetConfigurationAsync(runConfiguration);
                 var discoveredPaths = new SortedSet<string>();
-                var discoveryReport = new GitWizardReport(configuration);
+                await using var discoveryReport = new GitWizardReport(configuration);
                 await discoveryReport.GetRepositoryPathsAsync(discoveredPaths, noMft: runConfiguration.NoMft);
                 EnsureUsableSearchPaths(configuration);
                 repositoryPaths = discoveredPaths.ToArray();
@@ -276,7 +276,7 @@ git-wizard Session Started
     static async Task RunScanOnlyAsync(RunConfiguration runConfiguration, GitWizardConfiguration configuration)
     {
         GitWizardLog.LogMethod = Console.Error.WriteLine;
-        var scanReport = new GitWizardReport(configuration);
+        await using var scanReport = new GitWizardReport(configuration);
         var scanPaths = new SortedSet<string>();
         await scanReport.GetRepositoryPathsAsync(scanPaths, noMft: runConfiguration.NoMft);
         EnsureUsableSearchPaths(configuration);

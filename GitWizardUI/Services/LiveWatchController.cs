@@ -132,7 +132,15 @@ public sealed class LiveWatchController
         lock (_gate)
         {
             _stopRequested = true;
+            // CA1849 would have this await CancelAsync, which cannot be done while holding
+            // the gate. Moving the cancel outside it is worse, not better: the run loop
+            // disposes this same source in its finally under this very gate, so releasing
+            // the gate first lets the loop finish and dispose it before the cancel lands,
+            // and CancelAsync then throws ObjectDisposedException. Cancelling here, under
+            // the gate that also guards disposal, is what makes the handoff safe.
+#pragma warning disable CA1849
             _runCts?.Cancel();
+#pragma warning restore CA1849
             source = _source;
             _source = null;
         }

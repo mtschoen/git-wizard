@@ -29,7 +29,8 @@ engines:
 # projectEvaluation is disabled because CI (ci.yml) already carries the C#
 # compiler, analyzer (TreatWarningsAsErrors), format, and JetBrains InspectCode
 # gates. Disabling projectEvaluation in aislop prevents redundant solution-level
-# evaluation and returns the quality-gate job to its 30-60 s runtime.
+# evaluation; the scan step drops to seconds and the job to a few minutes, which is
+# then dominated by building the aislop fork from source rather than by analysis.
 lint:
   csharp:
     projectEvaluation: false

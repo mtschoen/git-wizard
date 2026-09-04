@@ -34,7 +34,14 @@ public partial class GitWizardReport
         // Refresh just the supplied repos in an isolated report so we get fresh entries for them
         // without disturbing anything else (Refresh prunes deleted paths and would otherwise
         // touch the whole collection, so it must run on a throwaway report - not the on-disk one).
+        // CA2000 wants this owned report disposed, but GitWizardReport is IAsyncDisposable only
+        // and MergeIntoFile is synchronous, so honouring it would mean blocking on the disposal
+        // task - which the sync-over-async gate rejects, and rightly. Disposal exists solely to
+        // tear down a discovery session; this path never opens one, so there is nothing to
+        // release and the object is ordinary garbage once the method returns.
+#pragma warning disable CA2000
         var refreshed = new GitWizardReport(configuration);
+#pragma warning restore CA2000
         if (repositoryPaths.Count > 0)
             refreshed.Refresh(repositoryPaths, updateHandler, allBranches: allBranches, computeLocalCommitCount: computeLocalCommitCount);
 

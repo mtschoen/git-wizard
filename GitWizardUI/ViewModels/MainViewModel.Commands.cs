@@ -203,7 +203,18 @@ public partial class MainViewModel
                 using var process = Process.Start(psi);
                 if (process != null)
                 {
-                    if (!process.WaitForExit(15000))
+                    using var exitTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                    var timedOut = false;
+                    try
+                    {
+                        await process.WaitForExitAsync(exitTimeout.Token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        timedOut = true;
+                    }
+
+                    if (timedOut)
                     {
                         process.Kill();
                         failed.Add(branch.Name);

@@ -21,11 +21,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Roslynator ships 200+ RCS rules, but every one of them is disabled by
-         default and nothing here enables them, so this package currently emits
-         no diagnostics. Turning it on is a burn-down (108 findings in GitWizard
-         alone) tracked in issue #172; until then it is a no-op. Pinned for
-         reproducibility. -->
+    <!-- Roslynator rules are disabled by default. .editorconfig enables a curated,
+         explicitly pinned subset (RCS1161, RCS1168, RCS1238) so package upgrades
+         cannot add surprise build failures. TreatWarningsAsErrors gates that subset;
+         all other RCS rules remain off. Pinned for reproducibility. -->
     <PackageReference Include="Roslynator.Analyzers" Version="4.15.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

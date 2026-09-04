@@ -350,9 +350,13 @@ public sealed class FanotifyVolumeChangeSource : IVolumeChangeSource
         if (directoryPath is null)
             return null;
 
-        var fullPath = string.IsNullOrEmpty(fileName) || fileName == "."
-            ? directoryPath
-            : directoryPath == "/" ? "/" + fileName : Path.Combine(directoryPath, fileName);
+        string fullPath;
+        if (string.IsNullOrEmpty(fileName) || fileName == ".")
+            fullPath = directoryPath;
+        else if (directoryPath == "/")
+            fullPath = "/" + fileName;
+        else
+            fullPath = Path.Combine(directoryPath, fileName);
 
         return new VolumeChangeEntry(fullPath, kind);
     }
@@ -432,11 +436,16 @@ public sealed class FanotifyVolumeChangeSource : IVolumeChangeSource
             }
         }
 
-        return _watchedVolumes.Contains("/") ? "/" : _watchedVolumes.Count > 0 ? _watchedVolumes[0] : "/";
+        if (_watchedVolumes.Contains("/"))
+            return "/";
+
+        return _watchedVolumes.Count > 0 ? _watchedVolumes[0] : "/";
     }
 
-    static VolumeEntryKind ClassifyKind(ulong mask) =>
-        (mask & (FanotifyConstants.Create | FanotifyConstants.MovedTo)) != 0 ? VolumeEntryKind.Created :
-        (mask & (FanotifyConstants.Delete | FanotifyConstants.MovedFrom)) != 0 ? VolumeEntryKind.Deleted :
-        VolumeEntryKind.Modified;
+    static VolumeEntryKind ClassifyKind(ulong mask) => mask switch
+    {
+        _ when (mask & (FanotifyConstants.Create | FanotifyConstants.MovedTo)) != 0 => VolumeEntryKind.Created,
+        _ when (mask & (FanotifyConstants.Delete | FanotifyConstants.MovedFrom)) != 0 => VolumeEntryKind.Deleted,
+        _ => VolumeEntryKind.Modified
+    };
 }

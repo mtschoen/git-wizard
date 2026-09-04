@@ -6,12 +6,12 @@ namespace GitWizard;
 
 public enum SubmoduleHealthStatus
 {
-    Healthy,
-    Uninitialized,
-    WrongRef,
-    MissingFromIndex,
-    MissingFromGitmodules,
-    StaleUpstream,
+    Healthy = 0,
+    Uninitialized = 1,
+    WrongRef = 2,
+    MissingFromIndex = 3,
+    MissingFromGitmodules = 4,
+    StaleUpstream = 5,
 }
 
 public class SubmoduleHealthInfo

@@ -355,40 +355,40 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
 
 public enum RefreshStatus
 {
-    Refreshing,
-    Success,
-    Timeout,
-    Error,
-    SubmoduleIssue
+    Refreshing = 0,
+    Success = 1,
+    Timeout = 2,
+    Error = 3,
+    SubmoduleIssue = 4
 }
 
 public enum GroupMode
 {
-    None,
-    Drive,
-    RemoteUrl
+    None = 0,
+    Drive = 1,
+    RemoteUrl = 2
 }
 
 public enum SortMode
 {
-    WorkingDirectory,
-    RecentlyUsed,
-    RemoteUrl,
-    SizeOnDisk
+    WorkingDirectory = 0,
+    RecentlyUsed = 1,
+    RemoteUrl = 2,
+    SizeOnDisk = 3
 }
 
 public enum FilterType
 {
-    None,
-    PendingChanges,
-    SubmoduleCheckout,
-    SubmoduleUninitialized,
-    SubmoduleConfigIssue,
-    DetachedHead,
-    MyRepositories,
-    LocalOnlyCommits,
-    Stale,
-    DownstreamBranches,
-    BehindRemote,
-    PublishReady
+    None = 0,
+    PendingChanges = 1,
+    SubmoduleCheckout = 2,
+    SubmoduleUninitialized = 3,
+    SubmoduleConfigIssue = 4,
+    DetachedHead = 5,
+    MyRepositories = 6,
+    LocalOnlyCommits = 7,
+    Stale = 8,
+    DownstreamBranches = 9,
+    BehindRemote = 10,
+    PublishReady = 11
 }

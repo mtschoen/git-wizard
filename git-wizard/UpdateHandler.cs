@@ -6,11 +6,11 @@ sealed class UpdateHandler : IUpdateHandler
 {
     enum CommandType
     {
-        RepositoryCreated,
-        SubmoduleCreated,
-        WorktreeCreated,
-        UninitializedSubmoduleCreated,
-        RefreshCompleted
+        RepositoryCreated = 0,
+        SubmoduleCreated = 1,
+        WorktreeCreated = 2,
+        UninitializedSubmoduleCreated = 3,
+        RefreshCompleted = 4
     }
 
     struct Command

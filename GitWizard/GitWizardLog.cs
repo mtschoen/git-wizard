@@ -12,10 +12,10 @@ public static class GitWizardLog
 {
     public enum LogType
     {
-        Verbose,
-        Info,
-        Warning,
-        Error
+        Verbose = 0,
+        Info = 1,
+        Warning = 2,
+        Error = 3
     }
 
     const string LogFileNameFormat = "GitWizardLog_{0:yyyy-MM-dd}.log";

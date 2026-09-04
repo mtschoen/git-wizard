@@ -141,19 +141,19 @@ internal readonly record struct WatchPath
 
     sealed class PathShapeComparer : IEqualityComparer<string>
     {
-        public bool Equals(string? left, string? right)
+        public bool Equals(string? x, string? y)
         {
-            if (ReferenceEquals(left, right))
+            if (ReferenceEquals(x, y))
                 return true;
-            if (left is null || right is null)
+            if (x is null || y is null)
                 return false;
 
-            return Parse(left).IsEqualTo(Parse(right));
+            return Parse(x).IsEqualTo(Parse(y));
         }
 
-        public int GetHashCode(string value)
+        public int GetHashCode(string obj)
         {
-            var path = Parse(value);
+            var path = Parse(obj);
             var comparer = path.IsWindows
                 ? System.StringComparer.OrdinalIgnoreCase
                 : System.StringComparer.Ordinal;

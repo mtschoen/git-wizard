@@ -146,6 +146,19 @@ dotnet_naming_rule.parameters_locals_camel.severity = warning
 # (incl. naming) still apply to tests.
 
 [*.cs]
+#### Curated Roslynator analysis ####
+
+# Pin individual high-signal rules so Roslynator upgrades cannot silently add new
+# build failures. Unlisted RCS rules, including broad comment rule RCS1181,
+# remain disabled by Roslynator's defaults.
+dotnet_diagnostic.RCS1161.severity = warning
+
+# Keep implementation parameter names aligned with inherited/interface contracts.
+dotnet_diagnostic.RCS1168.severity = warning
+
+# Keep three-way decisions readable instead of nesting conditional operators.
+dotnet_diagnostic.RCS1238.severity = warning
+
 #### Async and disposal analysis ####
 
 # AsyncFixer contributes the redundant-async and fire-and-forget checks that the

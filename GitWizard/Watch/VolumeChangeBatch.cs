@@ -2,7 +2,7 @@ using JetBrains.Annotations;
 
 namespace GitWizard.Watch;
 
-public enum VolumeEntryKind { Modified, Created, Deleted }
+public enum VolumeEntryKind { Modified = 0, Created = 1, Deleted = 2 }
 
 public readonly record struct VolumeChangeEntry(
     [property: UsedImplicitly] string FullPath,

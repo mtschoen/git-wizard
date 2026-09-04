@@ -8,10 +8,10 @@ namespace GitWizard.Watch.Linux;
 
 public enum FanotifyCapabilityStatus
 {
-    Available,
-    RequiresElevation,
-    UnsupportedKernel,
-    UnsupportedFileSystem
+    Available = 0,
+    RequiresElevation = 1,
+    UnsupportedKernel = 2,
+    UnsupportedFileSystem = 3
 }
 
 public readonly record struct FanotifyCapabilityResult(

@@ -24,65 +24,21 @@ static partial class CliParser
         var helpOption = app.HelpOption("-h|-?|--help");
         var versionOption = app.VersionOption("--version", "0.4.1");
 
-        var (
-            verboseOption,
-            silentOption,
-            rebuildReportOption,
-            noRefreshOption,
-            rebuildRepoListOption,
-            rebuildAllOption,
-            setupDefenderOption,
-            scanOnlyOption,
-            noMftOption,
-            noLocalCommitCountOption,
-            summaryOption,
-            sweepOption,
-            mergeOption,
-            clearCacheOption,
-            deleteAllLocalFilesOption,
-            printMinifiedOption,
-            dbSizeOption,
-            allBranchesOption,
-            watchOption,
-            filterOption,
-            pathsOption,
-            savePathOption,
-            configPathOption
-        ) = SetupOptions(app);
-
+        var rootOptions = SetupOptions(app);
         RunConfigurationResult? lastResult = null;
 
-        var tagsHelpOption = SetupTagsCommand(app, result => lastResult = result);
-        var branchesHelpOption = SetupBranchesCommand(app, result => lastResult = result);
-
-        app.OnExecute(() => lastResult = ExecuteHandler(
-            verboseOption,
-            silentOption,
-            rebuildReportOption,
-            noRefreshOption,
-            rebuildRepoListOption,
-            rebuildAllOption,
-            setupDefenderOption,
-            scanOnlyOption,
-            noMftOption,
-            noLocalCommitCountOption,
-            summaryOption,
-            sweepOption,
-            mergeOption,
-            clearCacheOption,
-            deleteAllLocalFilesOption,
-            printMinifiedOption,
-            dbSizeOption,
-            allBranchesOption,
-            watchOption,
-            filterOption,
-            pathsOption,
-            savePathOption,
-            configPathOption));
+        var (tagsHelpOption, executeTags) = SetupTagsCommand(app, result => lastResult = result);
+        var (branchesHelpOption, executeBranches) = SetupBranchesCommand(app, result => lastResult = result);
 
         try
         {
-            app.Execute(args);
+            var parseResult = app.Parse(args);
+            if (parseResult.SelectedCommand == app)
+                lastResult = ExecuteHandler(rootOptions);
+            else if (parseResult.SelectedCommand.Name == "tags")
+                executeTags();
+            else if (parseResult.SelectedCommand.Name == "branches")
+                executeBranches();
         }
         catch (CommandParsingException ex)
         {
@@ -104,31 +60,32 @@ static partial class CliParser
         return lastResult ?? CreateDefaultResult();
     }
 
-    static (
-        CommandOption verbose,
-        CommandOption silent,
-        CommandOption rebuildReport,
-        CommandOption noRefresh,
-        CommandOption rebuildRepoList,
-        CommandOption rebuildAll,
-        CommandOption setupDefender,
-        CommandOption scanOnly,
-        CommandOption noMft,
-        CommandOption noLocalCommitCount,
-        CommandOption summary,
-        CommandOption sweep,
-        CommandOption merge,
-        CommandOption clearCache,
-        CommandOption deleteAllLocalFiles,
-        CommandOption printMinified,
-        CommandOption dbSize,
-        CommandOption allBranches,
-        CommandOption watch,
-        CommandOption filter,
-        CommandOption paths,
-        CommandOption savePath,
-        CommandOption configPath
-    ) SetupOptions(CommandLineApplication app)
+    sealed record RootOptions(
+        CommandOption Verbose,
+        CommandOption Silent,
+        CommandOption RebuildReport,
+        CommandOption NoRefresh,
+        CommandOption RebuildRepoList,
+        CommandOption RebuildAll,
+        CommandOption SetupDefender,
+        CommandOption ScanOnly,
+        CommandOption NoMft,
+        CommandOption NoLocalCommitCount,
+        CommandOption Summary,
+        CommandOption Sweep,
+        CommandOption Merge,
+        CommandOption ClearCache,
+        CommandOption DeleteAllLocalFiles,
+        CommandOption PrintMinified,
+        CommandOption DbSize,
+        CommandOption AllBranches,
+        CommandOption Watch,
+        CommandOption Filter,
+        CommandOption Paths,
+        CommandOption SavePath,
+        CommandOption ConfigPath);
+
+    static RootOptions SetupOptions(CommandLineApplication app)
     {
         // Boolean flags
         var verboseOption = app.Option("-v|--verbose", "Enable verbose logging.", CommandOptionType.NoValue);
@@ -148,8 +105,8 @@ static partial class CliParser
         var deleteAllLocalFilesOption = app.Option("--delete-all-local-files", "Delete all files created by GitWizard before running (includes files deleted by --clear-cache; combine with --no-refresh to avoid creating any more local files)", CommandOptionType.NoValue);
         var printMinifiedOption = app.Option("--print-minified", "Print the output to the console as minified JSON", CommandOptionType.NoValue);
         var dbSizeOption = app.Option("--db-size", "Show the size of the GitWizard local files folder (~/.GitWizard/) and exit", CommandOptionType.NoValue);
-        var allBranchesOption = app.Option("--all-branches", "Include all local branches (default + already-merged) in each repo's Branches list, not just actionable ones", CommandOptionType.NoValue);
-        var watchOption = app.Option("--watch", "Watch tracked repositories for changes via platform volume change detection (Windows USN journal or Linux fanotify; triggers one elevation prompt) and print a line per repo that changes. Runs until Ctrl-C.", CommandOptionType.NoValue);
+        var allBranchesOption = app.Option("--all-branches", "Include all branches (even clean/merged/no-work branches) in the report instead of only actionable ones", CommandOptionType.NoValue);
+        var watchOption = app.Option("--watch", "Watch search paths for filesystem changes and output JSON change events to stdout as they occur", CommandOptionType.NoValue);
 
         // String options - use MultipleValue to allow missing args and duplicates (last value wins).
         var filterOption = app.Option("-f|--filter <PATTERN>", "Filter output to repositories whose path contains <PATTERN> (case-insensitive)", CommandOptionType.MultipleValue);
@@ -157,7 +114,7 @@ static partial class CliParser
         var savePathOption = app.Option("--save-path <PATH>", "Path where the report will be saved to disk (otherwise it is only printed to the console)", CommandOptionType.MultipleValue);
         var configPathOption = app.Option("--config-path <PATH>", "Path to custom configuration file (otherwise global or default configuration is used)", CommandOptionType.MultipleValue);
 
-        return (
+        return new RootOptions(
             verboseOption,
             silentOption,
             rebuildReportOption,
@@ -183,76 +140,53 @@ static partial class CliParser
             configPathOption);
     }
 
-    static RunConfigurationResult ExecuteHandler(
-        CommandOption verboseOption,
-        CommandOption silentOption,
-        CommandOption rebuildReportOption,
-        CommandOption noRefreshOption,
-        CommandOption rebuildRepoListOption,
-        CommandOption rebuildAllOption,
-        CommandOption setupDefenderOption,
-        CommandOption scanOnlyOption,
-        CommandOption noMftOption,
-        CommandOption noLocalCommitCountOption,
-        CommandOption summaryOption,
-        CommandOption sweepOption,
-        CommandOption mergeOption,
-        CommandOption clearCacheOption,
-        CommandOption deleteAllLocalFilesOption,
-        CommandOption printMinifiedOption,
-        CommandOption dbSizeOption,
-        CommandOption allBranchesOption,
-        CommandOption watchOption,
-        CommandOption filterOption,
-        CommandOption pathsOption,
-        CommandOption savePathOption,
-        CommandOption configPathOption)
+    static RunConfigurationResult ExecuteHandler(RootOptions options)
     {
         var hasError = false;
 
         // Apply side-effects first (logging mode).
-        GitWizardLog.VerboseMode = verboseOption.HasValue();
-        GitWizardLog.SilentMode = silentOption.HasValue();
-        if (scanOnlyOption.HasValue())
+        GitWizardLog.VerboseMode = options.Verbose.HasValue();
+        GitWizardLog.SilentMode = options.Silent.HasValue();
+        if (options.ScanOnly.HasValue())
             GitWizardLog.LogMethod = Console.Error.WriteLine;
 
-        var savePath = GetLastValue(savePathOption);
-        var configPath = GetLastValue(configPathOption);
-        var filterValue = GetLastValue(filterOption);
-        var pathsValue = GetLastValue(pathsOption);
+        var savePath = GetLastValue(options.SavePath);
+        var configPath = GetLastValue(options.ConfigPath);
+        var filterValue = GetLastValue(options.Filter);
+        var pathsValue = GetLastValue(options.Paths);
 
         ValidateSavePath(ref savePath, ref hasError);
         ValidateConfigPath(ref configPath, ref hasError);
 
         // --scan-only implies --rebuild-repo-list.
-        var scanOnly = scanOnlyOption.HasValue();
-        var rebuildRepoList = scanOnly || rebuildRepoListOption.HasValue() || rebuildAllOption.HasValue();
+        var scanOnly = options.ScanOnly.HasValue();
+        var rebuildRepoList = scanOnly || options.RebuildRepoList.HasValue() || options.RebuildAll.HasValue();
 
         // --rebuild-all implies --rebuild-report.
-        var rebuildAll = rebuildAllOption.HasValue();
-        var rebuildReport = rebuildAll || rebuildReportOption.HasValue();
+        var rebuildAll = options.RebuildAll.HasValue();
+        var rebuildReport = rebuildAll || options.RebuildReport.HasValue();
 
         return new RunConfigurationResult(
             rebuildRepoList,
             rebuildReport,
-            clearCacheOption.HasValue(),
-            deleteAllLocalFilesOption.HasValue(),
-            setupDefenderOption.HasValue(),
+            options.ClearCache.HasValue(),
+            options.DeleteAllLocalFiles.HasValue(),
+            options.SetupDefender.HasValue(),
             scanOnly,
-            noMftOption.HasValue(),
+            options.NoMft.HasValue(),
             filterValue,
             pathsValue,
-            summaryOption.HasValue(),
-            sweepOption.HasValue(),
-            mergeOption.HasValue(),
-            !noRefreshOption.HasValue(),
-            printMinifiedOption.HasValue(),
+            options.Summary.HasValue(),
+            options.Sweep.HasValue(),
+            options.Merge.HasValue(),
+            !options.NoRefresh.HasValue(),
+            options.PrintMinified.HasValue(),
             savePath,
             configPath,
-            dbSizeOption.HasValue(),
-            allBranchesOption.HasValue(),
-            watchOption.HasValue(),
-            noLocalCommitCountOption.HasValue(),
+            options.DbSize.HasValue(),
+            options.AllBranches.HasValue(),
+            options.Watch.HasValue(),
+            options.NoLocalCommitCount.HasValue(),
             hasError);
     }
 

@@ -359,7 +359,7 @@ public class SettingsViewModelTests
         await vm.SaveAsync();
 
         // Configuration should have been saved; reload and verify
-        var loaded = GitWizardConfiguration.GetGlobalConfiguration();
+        var loaded = await GitWizardConfiguration.GetGlobalConfigurationAsync();
         Assert.That(loaded.SearchPaths, Does.Contain("/saved/search"));
     }
 

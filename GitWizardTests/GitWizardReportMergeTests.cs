@@ -275,4 +275,56 @@ public class GitWizardReportMergeTests
             if (File.Exists(savePath)) File.Delete(savePath);
         }
     }
+
+    [Test]
+    public void Merge_LargeExistingFile_ReadsCompletelyAndMerges()
+    {
+        GitWizardLog.SilentMode = true;
+        using var repo = TempRepoFixture.CreateWithInitialCommit();
+        var savePath = TempReportPath();
+        var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
+
+        // Seed a large report (> 100KB) with many repository entries
+        var repositoriesNode = new JsonObject();
+        for (var i = 0; i < 500; i++)
+        {
+            var path = $"/large/test/repository/path/number/{i:D4}";
+            repositoriesNode[path] = new JsonObject
+            {
+                ["Path"] = path,
+                ["WorkingDirectory"] = path,
+                ["RemoteUrls"] = new JsonArray("https://example.com/repo/" + i),
+                ["CurrentBranch"] = "main",
+                ["Branches"] = new JsonArray(
+                    new JsonObject { ["Name"] = "main", ["IsCurrent"] = true, ["IsTracking"] = true }
+                )
+            };
+        }
+
+        var seed = new JsonObject
+        {
+            ["SchemaVersion"] = GitWizardReport.CurrentSchemaVersion,
+            ["Repositories"] = repositoriesNode
+        };
+        File.WriteAllText(savePath, seed.ToJsonString());
+
+        try
+        {
+            var merged = GitWizardReport.MergeIntoFile(savePath, configuration,
+                new List<string> { repo.Path });
+
+            Assert.That(merged.Repositories.ContainsKey(repo.Path), Is.True);
+            Assert.That(merged.Repositories.Count, Is.EqualTo(501));
+
+            var onDisk = JsonNode.Parse(File.ReadAllText(savePath))!.AsObject();
+            var onDiskRepos = onDisk["Repositories"]!.AsObject();
+            Assert.That(onDiskRepos.Count, Is.EqualTo(501));
+            Assert.That(onDiskRepos.ContainsKey(repo.Path), Is.True);
+            Assert.That(onDiskRepos.ContainsKey("/large/test/repository/path/number/0250"), Is.True);
+        }
+        finally
+        {
+            if (File.Exists(savePath)) File.Delete(savePath);
+        }
+    }
 }

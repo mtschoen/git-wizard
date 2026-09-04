@@ -37,7 +37,7 @@ public static partial class Program
         if (repositoryPaths == null)
             await GitWizardApi.SaveCachedRepositoryPathsAsync(report.GetRepositoryPaths());
 
-        SaveReport(runConfiguration, report);
+        await SaveReportAsync(runConfiguration, report).ConfigureAwait(false);
 
         var filteredReport = ApplyFilter(runConfiguration, report);
         var needsAttention = ReportNeedsAttention(filteredReport);
@@ -113,10 +113,10 @@ public static partial class Program
         updateHandler.PrintSummary();
     }
 
-    static void SaveReport(RunConfiguration runConfiguration, GitWizardReport report)
+    static async Task SaveReportAsync(RunConfiguration runConfiguration, GitWizardReport report)
     {
         // Always save a cache
-        report.Save(GitWizardReport.GetCachedReportPath());
+        await report.SaveAsync(GitWizardReport.GetCachedReportPath()).ConfigureAwait(false);
 
         var savePath = runConfiguration.SavePath;
         if (savePath == null)
@@ -124,7 +124,7 @@ public static partial class Program
 
         GitWizardLog.Log($"Saving report to {savePath}");
 
-        report.Save(savePath);
+        await report.SaveAsync(savePath).ConfigureAwait(false);
     }
 
     static string SerializeReport(RunConfiguration runConfiguration, GitWizardReport report)

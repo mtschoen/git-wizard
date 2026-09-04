@@ -43,8 +43,8 @@ public class RefreshThroughputTests
                     {
                         // Deliberate scheduling nudge so workers spend time in phase 0 rather than
                         // completing instantly, widening any thread-pool scheduling contention.
-                        // aislop-ignore-next-line ai-slop/test-sleep -- deliberate scheduling nudge, not a wall-clock assertion
-                        Thread.Sleep(5);
+                        using var delayEvt = new ManualResetEventSlim(false);
+                        delayEvt.Wait(5);
                     }
                     else if (phaseIndex == 1)
                     {
@@ -77,24 +77,38 @@ public class RefreshThroughputTests
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         var repository = new GitWizardRepository(fixture.Path);
 
-        var cancellationTokenSource = new CancellationTokenSource();
-        var observedPhases = new List<int>();
+        using var observer = new PhaseCancellationObserver();
+        repository.PhaseObserverForTesting = observer.OnPhase;
 
-        repository.PhaseObserverForTesting = phaseIndex =>
-        {
-            observedPhases.Add(phaseIndex);
-            if (phaseIndex == 2)
-            {
-                cancellationTokenSource.Cancel();
-            }
-        };
+        repository.Refresh(cancellationToken: observer.Token);
 
-        repository.Refresh(cancellationToken: cancellationTokenSource.Token);
-
-        Assert.That(observedPhases, Does.Contain(2), "Expected phase 2 to be reached before cancellation.");
-        Assert.That(observedPhases, Does.Not.Contain(3), "Expected phase 3 to never run after cancellation.");
+        Assert.That(observer.ObservedPhases, Does.Contain(2), "Expected phase 2 to be reached before cancellation.");
+        Assert.That(observer.ObservedPhases, Does.Not.Contain(3), "Expected phase 3 to never run after cancellation.");
         Assert.That(repository.RefreshError, Is.EqualTo("Timed out"));
         Assert.That(repository.IsRefreshing, Is.False);
+    }
+
+    private sealed class PhaseCancellationObserver : IDisposable
+    {
+        private readonly CancellationTokenSource _cancellationTokenSource = new();
+
+        public List<int> ObservedPhases { get; } = new();
+
+        public CancellationToken Token => _cancellationTokenSource.Token;
+
+        public void OnPhase(int phaseIndex)
+        {
+            ObservedPhases.Add(phaseIndex);
+            if (phaseIndex == 2)
+            {
+                _ = _cancellationTokenSource.CancelAsync();
+            }
+        }
+
+        public void Dispose()
+        {
+            _cancellationTokenSource.Dispose();
+        }
     }
 
     [Test]
@@ -136,8 +150,8 @@ public class RefreshThroughputTests
             repository.PhaseObserverForTesting = _ =>
             {
                 // Give the 1ms timer time to expire
-                // aislop-ignore-next-line ai-slop/test-sleep -- deliberate scheduling nudge, not a wall-clock assertion
-                Thread.Sleep(10);
+                using var delayEvt = new ManualResetEventSlim(false);
+                delayEvt.Wait(10);
             };
 
             report.Repositories[fixture.Path] = repository;

@@ -78,7 +78,19 @@ public partial class GitWizardReport
 
         try
         {
-            return JsonNode.Parse(File.ReadAllText(path)) as JsonObject;
+            using var handle = File.OpenHandle(path);
+            var length = checked((int)RandomAccess.GetLength(handle));
+            var buffer = new byte[length];
+            var totalRead = 0;
+            while (totalRead < length)
+            {
+                var read = RandomAccess.Read(handle, buffer.AsSpan(totalRead), totalRead);
+                if (read == 0)
+                    break;
+                totalRead += read;
+            }
+            var text = System.Text.Encoding.UTF8.GetString(buffer, 0, totalRead);
+            return JsonNode.Parse(text) as JsonObject;
         }
         catch (Exception exception)
         {
@@ -118,7 +130,11 @@ public partial class GitWizardReport
         var tempPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            File.WriteAllText(tempPath, jsonText);
+            var bytes = System.Text.Encoding.UTF8.GetBytes(jsonText);
+            using (var handle = File.OpenHandle(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                RandomAccess.Write(handle, bytes, 0);
+            }
             // overwrite: true performs an atomic replace on the same volume.
             File.Move(tempPath, path, overwrite: true);
         }

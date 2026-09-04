@@ -35,7 +35,7 @@ public partial class MainViewModel
         }
     }
 
-    void OpenInFork(RepositoryNodeViewModel? node)
+    async Task OpenInForkAsync(RepositoryNodeViewModel? node)
     {
         if (node == null || string.IsNullOrEmpty(node.WorkingDirectory))
             return;
@@ -46,7 +46,7 @@ public partial class MainViewModel
             return;
         }
 
-        var configuration = GitWizardConfiguration.GetGlobalConfiguration();
+        var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync().ConfigureAwait(false);
         string? forkPath = configuration.ForkPath;
 
         if (string.IsNullOrWhiteSpace(forkPath))

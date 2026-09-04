@@ -97,7 +97,7 @@ public sealed class RepositoryWatchService
         void OnSourceDied(string reason)
         {
             _onDied(reason);
-            _cts.Cancel();
+            _ = _cts.CancelAsync();
         }
 
         public void Dispose()

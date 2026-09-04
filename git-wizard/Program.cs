@@ -329,7 +329,7 @@ git-wizard Session Started
         // If it's a file, read lines from it
         if (File.Exists(argument))
         {
-            return File.ReadAllLines(argument)
+            return File.ReadLines(argument)
                 .Where(line => !string.IsNullOrWhiteSpace(line))
                 .Select(line => line.Trim())
                 .ToArray();

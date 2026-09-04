@@ -12,7 +12,7 @@ namespace GitWizardTests;
 public class RefreshConcurrencyGateTests
 {
     [Test]
-    public void Refresh_ConcurrentCallsOnOneRepository_DoNotInterleave()
+    public async Task Refresh_ConcurrentCallsOnOneRepository_DoNotInterleave()
     {
         GitWizardLog.SilentMode = true;
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
@@ -27,25 +27,17 @@ public class RefreshConcurrencyGateTests
             // recorded call PATTERN (thread hand-off count), never on elapsed time; this cannot be
             // replaced with a wait-for-condition because the gate under test is exactly what would
             // make that condition (both threads present) unreachable.
-            // aislop-ignore-next-line ai-slop/test-sleep -- deliberate scheduling nudge, not a wall-clock assertion
-            Thread.Sleep(5);
+            using var delayEvt = new ManualResetEventSlim(false);
+            delayEvt.Wait(5);
         };
 
         // Start both refreshes at the same instant so an unguarded Refresh has every chance to
-        // interleave, rather than happening to run back-to-back by scheduling luck. A
-        // TaskCompletionSource (not IDisposable) releases both waiting threads at once when
-        // completed, so there is no disposable object captured by the two closures below.
-        var startSignal = new TaskCompletionSource();
-        void RunRefresh()
-        {
-            startSignal.Task.Wait();
-            repository.Refresh();
-        }
-
-        var first = Task.Run(RunRefresh);
-        var second = Task.Run(RunRefresh);
-        startSignal.SetResult();
-        Task.WaitAll(first, second);
+        // interleave, rather than happening to run back-to-back by scheduling luck.
+        using var coordinator = new ConcurrentRefreshCoordinator(repository);
+        var first = Task.Run(coordinator.RunRefresh);
+        var second = Task.Run(coordinator.RunRefresh);
+        coordinator.Start();
+        await Task.WhenAll(first, second);
 
         var sequence = phaseLog.ToArray();
         Assert.That(sequence, Is.Not.Empty, "Expected the phase observer to fire at least once per Refresh call.");
@@ -64,5 +56,20 @@ public class RefreshConcurrencyGateTests
             "Expected exactly one thread hand-off (one Refresh call's phases fully complete " +
             "before the other's begin). Recorded sequence: " +
             string.Join(", ", sequence.Select(entry => $"(thread {entry.ThreadId}, phase {entry.PhaseIndex})")));
+    }
+
+    private sealed class ConcurrentRefreshCoordinator(GitWizardRepository repository) : IDisposable
+    {
+        private readonly ManualResetEventSlim _startSignal = new(false);
+
+        public void Start() => _startSignal.Set();
+
+        public void RunRefresh()
+        {
+            _startSignal.Wait();
+            repository.Refresh();
+        }
+
+        public void Dispose() => _startSignal.Dispose();
     }
 }

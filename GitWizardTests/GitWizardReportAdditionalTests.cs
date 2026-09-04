@@ -239,7 +239,7 @@ public class GitWizardReportAdditionalTests
     {
         var report = new GitWizardReport();
         var jsonPath = GitWizardReport.GetCachedReportPath();
-        report.Save(jsonPath);
+        await report.SaveAsync(jsonPath);
 
         var first = await GitWizardReport.GetCachedReportAsync();
         var second = await GitWizardReport.GetCachedReportAsync();

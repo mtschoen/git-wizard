@@ -9,10 +9,11 @@ name: aislop
 # and run the built CLI. Gitea is the canonical source - the pin is bumped by
 # pushes that land there first - and github.com/mtschoen/aislop is a mirror
 # that can lag behind, so a freshly bumped sha may not exist on GitHub yet.
-# The C# lint engine shells out to the `roslynator` and `jb` (ReSharper CLT)
-# dotnet global tools, so dotnet, roslynator, and jb are set up here, and the
-# solution is restored so jb inspectcode can build it. The pin is bumped by
-# the aislop fork's sync-consumers workflow via PR; a manual bump = edit
+# Project-backed C# checks (compiler, Roslyn analyzers including AsyncFixer,
+# Meziantou, and IDisposableAnalyzers under TreatWarningsAsErrors, dotnet format,
+# and JetBrains InspectCode) run directly in ci.yml during normal build and
+# verification, keeping this quality gate lightweight and fast. The pin is bumped
+# by the aislop fork's sync-consumers workflow via PR; a manual bump = edit
 # .aislop/fork-commit.
 on:
   pull_request:
@@ -55,14 +56,6 @@ jobs:
           # is 22/24. The built CLI still targets node18, so this is aislop's
           # build floor, not its runtime floor.
           node-version: 22
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-      - name: Install C# lint engines (roslynator + jb / ReSharper CLT)
-        run: |
-          dotnet tool update -g roslynator.dotnet.cli --version 0.12.0 --allow-downgrade
-          dotnet tool update -g JetBrains.ReSharper.GlobalTools --version 2026.2.0 --allow-downgrade
-          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
       - name: Build C#-capable aislop (pinned fork commit)
         # Cloned outside the workspace so aislop does not scan the fork's own source.
         # From Gitea (canonical, always current), not the github.com mirror (can lag
@@ -74,14 +67,6 @@ jobs:
           git clone https://gitea.fleet.sticktoitive.net/schoen/aislop.git "$RUNNER_TEMP/aislop"
           git -C "$RUNNER_TEMP/aislop" checkout "$AISLOP_FORK_COMMIT"
           (cd "$RUNNER_TEMP/aislop" && npx -y pnpm@10.28.0 install --frozen-lockfile)
-      # MFTLib types must resolve for jb/roslynator to load the solution; managed-only
-      # is enough for analysis (no native build here - the copy target only warns).
-      - name: Build MFTLib managed (HintPath for analysis)
-        run: |
-          dotnet build external/MFTLib/MFTLib/MFTLib.csproj -c Release -p:Platform=x64
-          dotnet build external/MFTLib/MFTLibTestExtensions/MFTLibTestExtensions.csproj -c Release -p:Platform=x64
-      - name: Build git-wizard (fully compiles the workspace for dotnet format)
-        run: dotnet build git-wizard.slnx -c Release
       - name: aislop quality gate
         # Sanity-fail if the C# engine did not actually analyze the .cs tree (avoid a
         # silent Python-only pass): require a healthy file count alongside the score gate.

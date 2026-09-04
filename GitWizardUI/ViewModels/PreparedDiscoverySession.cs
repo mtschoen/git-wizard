@@ -21,8 +21,8 @@ public sealed class PreparedDiscoverySession : IAsyncDisposable
         Drives = drives;
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        await Session.DisposeAsync().ConfigureAwait(false);
+        return Session.DisposeAsync();
     }
 }

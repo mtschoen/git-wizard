@@ -343,7 +343,7 @@ public class GitWizardApiAdditionalTests
     public async Task GetCachedRepositoryPathsAsync_ReturnsCachedPaths()
     {
         var paths = new[] { "/async/repo/1", "/async/repo/2" };
-        GitWizardApi.SaveCachedRepositoryPaths(paths);
+        await GitWizardApi.SaveCachedRepositoryPathsAsync(paths);
 
         var result = await GitWizardApi.GetCachedRepositoryPathsAsync();
         Assert.That(result, Is.Not.Null);

@@ -20,7 +20,7 @@ public class GitWizardReportErrorPathTests
         var handler = new ThrowingProgressHandler();
 
         // Every handler callback throws; Refresh must complete and still record the repository.
-        Assert.DoesNotThrow(() => report.Refresh(new[] { fixture.Path }, handler));
+        report.Refresh(new[] { fixture.Path }, handler);
 
         Assert.Multiple(() =>
         {
@@ -42,7 +42,7 @@ public class GitWizardReportErrorPathTests
             var report = new GitWizardReport();
 
             // Writing a file to a path that is an existing directory throws; Save must swallow it.
-            Assert.DoesNotThrow(() => report.Save(directoryAsPath));
+            report.Save(directoryAsPath);
         }
         finally
         {

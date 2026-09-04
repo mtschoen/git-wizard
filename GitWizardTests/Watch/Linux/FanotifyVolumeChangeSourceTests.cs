@@ -748,7 +748,7 @@ public class FanotifyVolumeChangeSourceTests
         using var cts = new CancellationTokenSource();
         var enumerator = source.WatchAsync(cts.Token).GetAsyncEnumerator(cts.Token);
 
-        cts.Cancel();
+        await cts.CancelAsync();
         Assert.CatchAsync<OperationCanceledException>(async () => await enumerator.MoveNextAsync());
 
         await source.DisposeAsync();
@@ -771,7 +771,7 @@ public class FanotifyVolumeChangeSourceTests
         var moveNextTask = enumerator.MoveNextAsync().AsTask();
 
         // Simulate LiveWatchController.StopAsync: cancel and immediately force-dispose the source concurrently.
-        cts.Cancel();
+        await cts.CancelAsync();
         await source.DisposeAsync();
 
         // MoveNextAsync should either complete with false or throw OperationCanceledException,
@@ -906,18 +906,19 @@ public class FanotifyVolumeChangeSourceTests
             Assert.That(armResult.Errors, Does.Not.ContainKey(tempDir));
 
             using var watchCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var watchToken = watchCts.Token;
             var testFile = Path.Combine(tempDir, "test.txt");
 
             var writeTask = Task.Run(async () =>
             {
-                await File.WriteAllTextAsync(testFile, "hello");
+                await File.WriteAllTextAsync(testFile, "hello", watchToken);
                 File.Delete(testFile);
-            });
+            }, watchToken);
 
             var createdObserved = false;
             var deletedObserved = false;
 
-            await foreach (var batch in source.WatchAsync(watchCts.Token))
+            await foreach (var batch in source.WatchAsync(watchToken))
             {
                 foreach (var entry in batch.Entries)
                 {

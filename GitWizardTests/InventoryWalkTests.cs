@@ -131,7 +131,7 @@ public class InventoryWalkTests
         using (var repo = new Repository(crewRepoPath))
         {
             var readme = Path.Combine(crewRepoPath, "README.md");
-            File.WriteAllText(readme, "crew repo");
+            await File.WriteAllTextAsync(readme, "crew repo").ConfigureAwait(false);
             Commands.Stage(repo, "README.md");
             var sig = new Signature("Test", "test@example.com", DateTimeOffset.Now);
             repo.Commit("initial", sig, sig);

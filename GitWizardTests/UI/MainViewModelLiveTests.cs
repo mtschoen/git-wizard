@@ -439,7 +439,7 @@ public class MainViewModelLiveTests
         Directory.CreateDirectory(tempDir);
         try
         {
-            var config = GitWizardConfiguration.GetGlobalConfiguration();
+            var config = await GitWizardConfiguration.GetGlobalConfigurationAsync();
             config.SearchPaths.Clear();
             config.SearchPaths.Add(tempDir);
 

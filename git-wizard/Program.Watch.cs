@@ -225,7 +225,7 @@ public static partial class Program
         void OnCancelKeyPress(object? sender, ConsoleCancelEventArgs eventArgs)
         {
             eventArgs.Cancel = true;
-            _source.Cancel();
+            _ = _source.CancelAsync();
         }
 
         public void Dispose()

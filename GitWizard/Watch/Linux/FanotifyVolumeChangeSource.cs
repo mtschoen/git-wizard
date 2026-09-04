@@ -116,7 +116,7 @@ public sealed class FanotifyVolumeChangeSource : IVolumeChangeSource
         {
             try
             {
-                linkedCts.Cancel();
+                await linkedCts.CancelAsync().ConfigureAwait(false);
             }
             catch (ObjectDisposedException)
             {
@@ -156,14 +156,17 @@ public sealed class FanotifyVolumeChangeSource : IVolumeChangeSource
 
     async Task StopActivePumpAsync()
     {
-        var pumpCts = Interlocked.Exchange(ref _activePumpCts, null);
-        try
+        using var pumpCts = Interlocked.Exchange(ref _activePumpCts, null);
+        if (pumpCts is not null)
         {
-            pumpCts?.Cancel();
-        }
-        catch (ObjectDisposedException)
-        {
-            // Expected if WatchAsync's finally already disposed the linked CTS.
+            try
+            {
+                await pumpCts.CancelAsync().ConfigureAwait(false);
+            }
+            catch (ObjectDisposedException)
+            {
+                // Expected if WatchAsync's finally already disposed the linked CTS.
+            }
         }
 
         var pumpTask = Interlocked.Exchange(ref _activePumpTask, null);

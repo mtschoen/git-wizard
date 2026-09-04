@@ -26,13 +26,13 @@ engines:
   architecture: false
   security: true
 
-# projectEvaluation is the required opt-in since aislop 0.14.1 for the
-# project-backed C# tools (jb inspectcode, roslynator, dotnet format) to run
-# at all - without it those engines silently skip. This repo is first-party,
-# so evaluating its own .sln/.csproj files during a scan is trusted.
+# projectEvaluation is disabled because CI (ci.yml) already carries the C#
+# compiler, analyzer (TreatWarningsAsErrors), format, and JetBrains InspectCode
+# gates. Disabling projectEvaluation in aislop prevents redundant solution-level
+# evaluation and returns the quality-gate job to its 30-60 s runtime.
 lint:
   csharp:
-    projectEvaluation: true
+    projectEvaluation: false
 
 quality:
   maxFunctionLoc: 80

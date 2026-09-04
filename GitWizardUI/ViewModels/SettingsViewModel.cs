@@ -58,7 +58,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         {
             _forkPath = value;
             OnPropertyChanged();
-            SaveImmediate();
+            Save();
         }
     }
 
@@ -70,7 +70,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         {
             _skipHiddenDirectories = value;
             OnPropertyChanged();
-            SaveImmediate();
+            Save();
         }
     }
 
@@ -89,7 +89,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         foreach (var path in _configuration.IgnoredPaths)
             IgnoredPaths.Add(path);
 
-        // Load into the backing field, not the property: the setter calls SaveImmediate(), so
+        // Load into the backing field, not the property: the setter calls SaveInternal(), so
         // assigning ForkPath here would write config.json (a fire-and-forget async save) on every
         // construction - a redundant no-op write of just-loaded data that also races test teardown.
         _forkPath = _configuration.ForkPath ?? string.Empty;
@@ -101,23 +101,23 @@ public class SettingsViewModel : INotifyPropertyChanged
         ResetToDefaultsCommand = new RelayCommand(ResetToDefaults);
     }
 
-    private void AddSearchPath()
+    public void AddSearchPath()
     {
         if (!string.IsNullOrWhiteSpace(NewSearchPath) && !SearchPaths.Contains(NewSearchPath))
         {
             SearchPaths.Add(NewSearchPath);
             NewSearchPath = string.Empty;
-            SaveImmediate();
+            Save();
         }
     }
 
-    private void AddIgnoredPath()
+    public void AddIgnoredPath()
     {
         if (!string.IsNullOrWhiteSpace(NewIgnoredPath) && !IgnoredPaths.Contains(NewIgnoredPath))
         {
             IgnoredPaths.Add(NewIgnoredPath);
             NewIgnoredPath = string.Empty;
-            SaveImmediate();
+            Save();
         }
     }
 
@@ -129,7 +129,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         if (!SearchPaths.Contains(path))
         {
             SearchPaths.Add(path);
-            await SaveImmediateAsync();
+            await SaveAsync();
         }
     }
 
@@ -138,7 +138,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         if (SelectedSearchPath is not null)
         {
             SearchPaths.Remove(SelectedSearchPath);
-            SaveImmediate();
+            Save();
         }
     }
 
@@ -150,7 +150,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         if (!IgnoredPaths.Contains(path))
         {
             IgnoredPaths.Add(path);
-            await SaveImmediateAsync();
+            await SaveAsync();
         }
     }
 
@@ -159,7 +159,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         if (SelectedIgnoredPath is not null)
         {
             IgnoredPaths.Remove(SelectedIgnoredPath);
-            SaveImmediate();
+            Save();
         }
     }
 
@@ -213,23 +213,13 @@ public class SettingsViewModel : INotifyPropertyChanged
             IgnoredPaths.Add(path);
 
         // Set the backing field directly rather than the ForkPath property: the property setter
-        // calls SaveImmediate() itself, which would save once here and again below.
+        // calls Save() itself, which would save once here and again below.
         _forkPath = string.Empty;
         OnPropertyChanged(nameof(ForkPath));
         _skipHiddenDirectories = defaults.SkipHiddenDirectories != false;
         OnPropertyChanged(nameof(SkipHiddenDirectories));
 
-        SaveImmediate();
-    }
-
-    private void SaveImmediate()
-    {
         Save();
-    }
-
-    private Task SaveImmediateAsync()
-    {
-        return SaveAsync();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

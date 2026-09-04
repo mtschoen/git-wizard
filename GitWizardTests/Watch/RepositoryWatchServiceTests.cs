@@ -253,7 +253,7 @@ public partial class RepositoryWatchServiceTests
         Assert.That(hasEvent, Is.True);
         Assert.That(enumerator.Current,
             Is.EqualTo(new RepositoryChangeEvent(@"C:\repo\a", RepositoryChangeKind.Changed)));
-        cts.Cancel();
+        await cts.CancelAsync();
     }
 
     [Test]
@@ -380,7 +380,7 @@ public partial class RepositoryWatchServiceTests
         svc.Stopped += r => reason = r;
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var enumerator = svc.RunAsync(cts.Token).GetAsyncEnumerator();
+        var enumerator = svc.RunAsync(cts.Token).GetAsyncEnumerator(cts.Token);
         var moveNextTask = enumerator.MoveNextAsync();
 
         source.KillSource("volume unmounted");
@@ -402,7 +402,7 @@ public partial class RepositoryWatchServiceTests
             debounce: TimeSpan.FromMilliseconds(10));
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var enumerator = svc.RunAsync(cts.Token).GetAsyncEnumerator();
+        var enumerator = svc.RunAsync(cts.Token).GetAsyncEnumerator(cts.Token);
         var moveNextTask = enumerator.MoveNextAsync();
 
         source.KillSource("volume unmounted");

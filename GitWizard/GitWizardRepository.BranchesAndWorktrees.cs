@@ -108,9 +108,21 @@ public partial class GitWizardRepository
                 CreateNoWindow = true
             };
 
+            var errorBuilder = new System.Text.StringBuilder();
             using var process = System.Diagnostics.Process.Start(psi);
             if (process == null)
                 return false;
+
+            process.ErrorDataReceived += (_, args) =>
+            {
+                if (args.Data != null)
+                {
+                    if (errorBuilder.Length > 0)
+                        errorBuilder.AppendLine();
+                    errorBuilder.Append(args.Data);
+                }
+            };
+            process.BeginErrorReadLine();
 
             if (!process.WaitForExit(60000))
             {
@@ -121,7 +133,7 @@ public partial class GitWizardRepository
 
             if (process.ExitCode != 0)
             {
-                var error = process.StandardError.ReadToEnd();
+                var error = errorBuilder.ToString();
                 if (!string.IsNullOrEmpty(error))
                 {
                     GitWizardLog.Log($"git fetch --all reported: {error}", GitWizardLog.LogType.Warning);
@@ -310,9 +322,21 @@ public partial class GitWizardRepository
                 CreateNoWindow = true
             };
 
+            var errorBuilder = new System.Text.StringBuilder();
             using var process = System.Diagnostics.Process.Start(psi);
             if (process != null)
             {
+                process.ErrorDataReceived += (_, args) =>
+                {
+                    if (args.Data != null)
+                    {
+                        if (errorBuilder.Length > 0)
+                            errorBuilder.AppendLine();
+                        errorBuilder.Append(args.Data);
+                    }
+                };
+                process.BeginErrorReadLine();
+
                 if (!process.WaitForExit(30000))
                 {
                     GitWizardLog.Log($"git update-index --refresh timed out for {workingDirectory}", GitWizardLog.LogType.Warning);
@@ -324,7 +348,7 @@ public partial class GitWizardRepository
                 // which is normal and expected. We only log if there's an actual error message.
                 if (process.ExitCode != 0)
                 {
-                    var error = process.StandardError.ReadToEnd();
+                    var error = errorBuilder.ToString();
                     if (!string.IsNullOrEmpty(error))
                     {
                         GitWizardLog.Log($"git update-index --refresh reported: {error}", GitWizardLog.LogType.Warning);

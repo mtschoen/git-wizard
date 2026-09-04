@@ -156,6 +156,7 @@ public partial class MainViewModel
         // gap on large repo sets where individual refreshes take a long time (issue #98).
         string[]? repositoryPaths = await GitWizardApi.GetCachedRepositoryPathsAsync().ConfigureAwait(false);
         var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync().ConfigureAwait(false);
+        var cachedReport = await GitWizardReport.GetCachedReportAsync().ConfigureAwait(false);
 
         // Clear displayed list, group state, and the backing collections so that only
         // nodes from the cached report (pre-population) + fresh scan (AddRepository)
@@ -167,13 +168,13 @@ public partial class MainViewModel
             _pendingGroups.Clear();
             _allRepositories.Clear();
             _repositoryMap.Clear();
-            PrePopulateFromReport(configuration, repositoryPaths);
+            PrePopulateFromReport(configuration, repositoryPaths, cachedReport);
         }).ConfigureAwait(false);
 
         var (deletedPaths, renamedOldPaths, nonRepositoryPaths, freshPaths) =
             await RunRefreshScanAsync(configuration, repositoryPaths, fetchRemotes).ConfigureAwait(false);
 
-        UpdateCachedPathsAfterScan(deletedPaths, renamedOldPaths, nonRepositoryPaths);
+        await UpdateCachedPathsAfterScanAsync(deletedPaths, renamedOldPaths, nonRepositoryPaths).ConfigureAwait(false);
 
         // Wait for the UI command queue to fully drain before pruning. RepositoryCreated
         // commands are queued before a refresh determines that a path is no longer a repo,
@@ -297,7 +298,7 @@ public partial class MainViewModel
             _lastRefreshMessage = refreshMsg;
 
             if (repositoryPaths == null)
-                GitWizardApi.SaveCachedRepositoryPaths(report.GetRepositoryPaths());
+                await GitWizardApi.SaveCachedRepositoryPathsAsync(report.GetRepositoryPaths()).ConfigureAwait(false);
         }).ConfigureAwait(false);
 
         return (deletedPaths, renamedOldPaths, nonRepositoryPaths, freshPaths);
@@ -306,18 +307,14 @@ public partial class MainViewModel
     // Pre-populate the UI from the cached report so repos appear immediately on launch.
     // Existing repos get updated in-place as the refresh completes; new repos discovered
     // during the scan get added normally through OnRepositoryCreated. (Issue #98.)
-    internal void PrePopulateFromReport(GitWizardConfiguration configuration, string[]? repositoryPaths)
+    internal void PrePopulateFromReport(GitWizardConfiguration configuration, string[]? repositoryPaths,
+        GitWizardReport? cachedReport)
     {
         // These collections describe only the current refresh cycle. Reset them before
         // every early return so paths from a prior refresh cannot suppress fresh rows.
         _prePopulatedNodes = null;
 
-        if (repositoryPaths == null || repositoryPaths.Length == 0)
-            return;
-
-        // Load the cached report (may be null if no cache exists).
-        var cachedReport = GitWizardReport.GetCachedReport();
-        if (cachedReport == null || cachedReport.Repositories.Count == 0)
+        if (repositoryPaths == null || repositoryPaths.Length == 0 || cachedReport == null || cachedReport.Repositories.Count == 0)
             return;
 
         var pathsSet = new HashSet<string>(repositoryPaths);
@@ -353,12 +350,13 @@ public partial class MainViewModel
     // fresh scan results (deleted) or that moved (renamed).
     internal void PruneStalePrePopulatedRepos(HashSet<string> freshPaths, HashSet<string> renamedOldPaths)
     {
-        if (_prePopulatedNodes == null)
+        if (_prePopulatedNodes == null || _prePopulatedNodes.Count == 0)
             return;
 
         var stalePaths = _prePopulatedNodes
             .Select(node => node.WorkingDirectory)
-            .Where(path => !freshPaths.Contains(path) || renamedOldPaths.Contains(path))
+            .Where(path => !string.IsNullOrEmpty(path) &&
+                           (!freshPaths.Contains(path) || renamedOldPaths.Contains(path)))
             .ToList();
 
         foreach (var path in stalePaths)
@@ -369,10 +367,10 @@ public partial class MainViewModel
 
     // Drop deleted, renamed (old path), and stale non-repo entries from the cached
     // repository-path list.
-    internal static void UpdateCachedPathsAfterScan(HashSet<string> deletedPaths, HashSet<string> renamedOldPaths,
+    internal static async Task UpdateCachedPathsAfterScanAsync(HashSet<string> deletedPaths, HashSet<string> renamedOldPaths,
         HashSet<string> nonRepositoryPaths)
     {
-        var cachedPaths = GitWizardApi.GetCachedRepositoryPaths();
+        var cachedPaths = await GitWizardApi.GetCachedRepositoryPathsAsync().ConfigureAwait(false);
         if (cachedPaths == null)
             return;
 
@@ -380,7 +378,7 @@ public partial class MainViewModel
         if (pathsToRemove.Count > 0)
         {
             var updatedPaths = cachedPaths.Where(p => !pathsToRemove.Contains(p)).ToList();
-            GitWizardApi.SaveCachedRepositoryPaths(updatedPaths);
+            await GitWizardApi.SaveCachedRepositoryPathsAsync(updatedPaths).ConfigureAwait(false);
         }
     }
 

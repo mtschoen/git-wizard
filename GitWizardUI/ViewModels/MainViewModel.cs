@@ -33,7 +33,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
     SortMode _activeSortMode = SortMode.WorkingDirectory;
     string? _lastRefreshMessage;
     const int SearchDebounceMilliseconds = 200;
-    CancellationTokenSource? _searchDebounceCts;
+    readonly SearchDebouncer _searchDebouncer = new();
     string _searchText = string.Empty;
     public string SearchText
     {
@@ -277,7 +277,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
         _dialogs = dialogs;
         _clipboard = clipboard;
         OpenInExplorerCommand = new RelayCommand<RepositoryNodeViewModel>(OpenInExplorer);
-        OpenInForkCommand = new RelayCommand<RepositoryNodeViewModel>(OpenInFork);
+        OpenInForkCommand = new AsyncRelayCommand<RepositoryNodeViewModel>(OpenInForkAsync);
         CopyToClipboardCommand = new AsyncRelayCommand<RepositoryNodeViewModel>(CopyToClipboardAsync);
         DeepRefreshCommand = new RelayCommand<RepositoryNodeViewModel>(DeepRefreshRepository);
         CheckoutMatchingBranchCommand = new RelayCommand<RepositoryNodeViewModel>(CheckoutMatchingBranch);
@@ -365,6 +365,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
         }
 
         await SetPreparedDiscoverySessionAsync(null).ConfigureAwait(false);
+        _searchDebouncer.Dispose();
         GC.SuppressFinalize(this);
     }
 

@@ -31,6 +31,33 @@ public partial class MainViewModel
 
     public void UpdateSearchText(string text) => SetSearchText(text);
 
+    sealed class SearchDebouncer : IDisposable
+    {
+        CancellationTokenSource? _cts;
+
+        public CancellationToken Restart()
+        {
+            var previous = _cts;
+            var next = new CancellationTokenSource();
+            _cts = next;
+            if (previous != null)
+            {
+                _ = previous.CancelAsync();
+            }
+            return next.Token;
+        }
+
+        public void Dispose()
+        {
+            var cts = _cts;
+            _cts = null;
+            if (cts != null)
+            {
+                _ = cts.CancelAsync();
+            }
+        }
+    }
+
     // Debounce search-driven filtering. The SearchText setter (bound two-way to the search box)
     // fires per keystroke, and ApplyFilterAndGrouping does a full off-screen rebuild + collection
     // swap - costly with 700+ repos. Coalesce rapid keystrokes into a single filter pass, mirroring
@@ -38,12 +65,8 @@ public partial class MainViewModel
     // immediate SetSearchText path is left untouched for programmatic/test callers.
     void DebounceSearch()
     {
-        var previous = _searchDebounceCts;
-        var cts = new CancellationTokenSource();
-        _searchDebounceCts = cts;
-        previous?.Cancel();
-        previous?.Dispose();
-        _ = RunSearchDebounceAsync(cts.Token);
+        var token = _searchDebouncer.Restart();
+        _ = RunSearchDebounceAsync(token);
     }
 
     async Task RunSearchDebounceAsync(CancellationToken token)

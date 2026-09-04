@@ -148,8 +148,8 @@ public class MainViewModelPreparedSessionTests
         Assert.That(session1.State, Is.EqualTo(JournalBrokerSessionState.Disposed));
         Assert.That(session2.State, Is.EqualTo(JournalBrokerSessionState.Parked));
 
-        serverSide1.Dispose();
-        serverSide2.Dispose();
+        await serverSide1.DisposeAsync();
+        await serverSide2.DisposeAsync();
     }
 
     [Test]
@@ -167,7 +167,7 @@ public class MainViewModelPreparedSessionTests
         Assert.That(viewModel.PreparedDiscoverySession, Is.Null);
         Assert.That(session.State, Is.EqualTo(JournalBrokerSessionState.Disposed));
 
-        serverSide.Dispose();
+        await serverSide.DisposeAsync();
     }
 
     [Test]
@@ -185,7 +185,7 @@ public class MainViewModelPreparedSessionTests
         Assert.That(viewModel.PreparedDiscoverySession, Is.Null);
         Assert.That(session.State, Is.EqualTo(JournalBrokerSessionState.Disposed));
 
-        serverSide.Dispose();
+        await serverSide.DisposeAsync();
     }
 
     [Test]
@@ -203,7 +203,7 @@ public class MainViewModelPreparedSessionTests
         Assert.That(viewModel.PreparedDiscoverySession, Is.Null);
         Assert.That(session.State, Is.EqualTo(JournalBrokerSessionState.Disposed));
 
-        serverSide.Dispose();
+        await serverSide.DisposeAsync();
     }
 
     [Test]
@@ -228,7 +228,7 @@ public class MainViewModelPreparedSessionTests
         });
 
         await prepared.DisposeAsync();
-        serverSide.Dispose();
+        await serverSide.DisposeAsync();
     }
 
     [Test]
@@ -246,7 +246,7 @@ public class MainViewModelPreparedSessionTests
         Assert.That(viewModel.PreparedDiscoverySession, Is.Null);
         Assert.That(session.State, Is.EqualTo(JournalBrokerSessionState.Disposed));
 
-        serverSide.Dispose();
+        await serverSide.DisposeAsync();
     }
 
     [Test]
@@ -315,7 +315,7 @@ public class MainViewModelPreparedSessionTests
             Assert.That(session.State, Is.EqualTo(JournalBrokerSessionState.Disposed), "Prepared session was disposed exactly once.");
         });
 
-        serverSide.Dispose();
+        await serverSide.DisposeAsync();
     }
 
     [Test]
@@ -365,7 +365,7 @@ public class MainViewModelPreparedSessionTests
         });
 
         // Kill the first source by disposing the server side stream
-        serverSide.Dispose();
+        await serverSide.DisposeAsync();
 
         // The controller disposes the dead source (disposing prepared session) and respawns,
         // which falls through to a fresh UsnVolumeChangeSource, launching exactly one broker.

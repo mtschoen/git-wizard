@@ -175,7 +175,7 @@ public sealed class TagInventoryReport
             if (process == null)
                 return new HashSet<string>(StringComparer.Ordinal);
 
-            using var registration = cancellationToken.Register(static state =>
+            await using var registration = cancellationToken.Register(static state =>
             {
                 if (state is Process proc)
                     TryKillProcess(proc, "cancellation");

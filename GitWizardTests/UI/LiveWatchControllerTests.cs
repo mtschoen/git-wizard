@@ -105,7 +105,7 @@ public class LiveWatchControllerTests
         firstSource.KillSource("driver hiccup");
 
         await WaitUntilAsync(() => sourceFactoryCallCount >= 2);
-        cts.Cancel();
+        await cts.CancelAsync();
         await startTask;
 
         Assert.That(sourceFactoryCallCount, Is.EqualTo(2));

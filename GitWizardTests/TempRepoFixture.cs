@@ -23,6 +23,13 @@ internal sealed class TempRepoFixture : IDisposable
         Path = path;
     }
 
+    static void WriteText(string path, string text)
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes(text);
+        using var handle = File.OpenHandle(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
+        RandomAccess.Write(handle, bytes, 0);
+    }
+
     /// <summary>
     /// Create a throwaway repository with a single initial commit (a staged README.md).
     /// </summary>
@@ -44,7 +51,7 @@ internal sealed class TempRepoFixture : IDisposable
         using (var repository = new Repository(path))
         {
             var readmePath = System.IO.Path.Combine(path, "README.md");
-            File.WriteAllText(readmePath, "initial");
+            WriteText(readmePath, "initial");
             Commands.Stage(repository, "README.md");
             repository.Commit("initial", signature, signature);
         }
@@ -55,7 +62,7 @@ internal sealed class TempRepoFixture : IDisposable
     public void AppendCommit(string fileName)
     {
         var filePath = System.IO.Path.Combine(Path, fileName);
-        File.WriteAllText(filePath, Guid.NewGuid().ToString());
+        WriteText(filePath, Guid.NewGuid().ToString());
         using var repository = new Repository(Path);
         Commands.Stage(repository, fileName);
         repository.Commit($"add {fileName}", Author, Author);
@@ -74,7 +81,7 @@ internal sealed class TempRepoFixture : IDisposable
         Commands.Checkout(repository, branch);
 
         var filePath = System.IO.Path.Combine(Path, fileName);
-        File.WriteAllText(filePath, Guid.NewGuid().ToString());
+        WriteText(filePath, Guid.NewGuid().ToString());
         Commands.Stage(repository, fileName);
         repository.Commit($"add {fileName}", Author, Author);
 
@@ -157,7 +164,7 @@ internal sealed class TempRepoFixture : IDisposable
         RunGit(System.IO.Path.GetTempPath(), "clone", originUrl, scratch);
         _extraCleanupDirs.Add(scratch);
 
-        File.WriteAllText(System.IO.Path.Combine(scratch, fileName), Guid.NewGuid().ToString());
+        WriteText(System.IO.Path.Combine(scratch, fileName), Guid.NewGuid().ToString());
         RunGit(scratch, "add", fileName);
         RunGit(scratch, "-c", "user.email=test@example.com", "-c", "user.name=Test",
             "commit", "-m", $"add {fileName}");
@@ -174,7 +181,7 @@ internal sealed class TempRepoFixture : IDisposable
     public void AddOrphanedGitmodulesEntry(string name, string path)
     {
         var gitmodulesPath = System.IO.Path.Combine(Path, ".gitmodules");
-        File.WriteAllText(gitmodulesPath,
+        WriteText(gitmodulesPath,
             $"[submodule \"{name}\"]\n\tpath = {path}\n\turl = https://example.com/{name}.git\n");
         using var repository = new Repository(Path);
         Commands.Stage(repository, ".gitmodules");
@@ -215,7 +222,7 @@ internal sealed class TempRepoFixture : IDisposable
     public void AddSubmoduleAtWrongRef(string path)
     {
         var submoduleDir = AddInitializedSubmodule(path);
-        File.WriteAllText(System.IO.Path.Combine(submoduleDir, "drift.txt"), Guid.NewGuid().ToString());
+        WriteText(System.IO.Path.Combine(submoduleDir, "drift.txt"), Guid.NewGuid().ToString());
         RunGit(submoduleDir, "-c", "user.email=test@example.com", "-c", "user.name=Test", "add", "drift.txt");
         RunGit(submoduleDir, "-c", "user.email=test@example.com", "-c", "user.name=Test", "commit", "-m", "drift");
     }
@@ -244,7 +251,7 @@ internal sealed class TempRepoFixture : IDisposable
         // Create .gitmodules entry (matches what 'git submodule add' would do).
         var name = System.IO.Path.GetFileName(path);
         var gitmodulesPath = System.IO.Path.Combine(Path, ".gitmodules");
-        File.WriteAllText(gitmodulesPath,
+        WriteText(gitmodulesPath,
             $"[submodule \"{name}\"]\n\tpath = {path}\n\turl = {upstream}\n");
         RunGit(Path, "add", ".gitmodules");
         RunGit(Path, "-c", "user.email=test@example.com", "-c", "user.name=Test",
@@ -272,7 +279,7 @@ internal sealed class TempRepoFixture : IDisposable
         RunGit(submoduleDir, "checkout", defaultBranchName);
         for (var i = 0; i < commitsBehind; i++)
         {
-            File.WriteAllText(System.IO.Path.Combine(submoduleDir, $"upstream-{i}.txt"), Guid.NewGuid().ToString());
+            WriteText(System.IO.Path.Combine(submoduleDir, $"upstream-{i}.txt"), Guid.NewGuid().ToString());
             RunGit(submoduleDir, "add", $"upstream-{i}.txt");
             RunGit(submoduleDir, "-c", "user.email=test@example.com", "-c", "user.name=Test",
                 "commit", "-m", $"upstream commit {i}");
@@ -327,13 +334,13 @@ internal sealed class TempRepoFixture : IDisposable
     /// Stage an untracked file so the working tree reports pending changes on the next refresh.
     /// </summary>
     public void AddUntrackedFile(string fileName)
-        => File.WriteAllText(System.IO.Path.Combine(Path, fileName), Guid.NewGuid().ToString());
+        => WriteText(System.IO.Path.Combine(Path, fileName), Guid.NewGuid().ToString());
 
     /// <summary>
     /// Replace a committed file's contents without staging the change.
     /// </summary>
     public void ModifyTrackedFile(string fileName)
-        => File.WriteAllText(System.IO.Path.Combine(Path, fileName), Guid.NewGuid().ToString());
+        => WriteText(System.IO.Path.Combine(Path, fileName), Guid.NewGuid().ToString());
 
     /// <summary>
     /// Create and stage a new file without committing it.
@@ -372,7 +379,7 @@ internal sealed class TempRepoFixture : IDisposable
         Repository.Init(upstream);
         using (var repository = new Repository(upstream))
         {
-            File.WriteAllText(System.IO.Path.Combine(upstream, "lib.txt"), "lib");
+            WriteText(System.IO.Path.Combine(upstream, "lib.txt"), "lib");
             Commands.Stage(repository, "lib.txt");
             repository.Commit("init upstream", Author, Author);
         }
@@ -396,13 +403,14 @@ internal sealed class TempRepoFixture : IDisposable
 
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Failed to start git");
-        // Drain stdout so a full pipe can't deadlock the child; the content is unused.
-        _ = process.StandardOutput.ReadToEnd();
-        var standardError = process.StandardError.ReadToEnd();
-        process.WaitForExit();
+        var standardErrorBuilder = new System.Text.StringBuilder();
+        process.ErrorDataReceived += (_, e) => { if (e.Data != null) standardErrorBuilder.AppendLine(e.Data); };
+        process.BeginErrorReadLine();
+        process.BeginOutputReadLine();
+        process.WaitForExit(60000);
         if (process.ExitCode != 0)
             throw new InvalidOperationException(
-                $"git {string.Join(' ', arguments)} failed (exit {process.ExitCode}): {standardError}");
+                $"git {string.Join(' ', arguments)} failed (exit {process.ExitCode}): {standardErrorBuilder}");
     }
 
     /// <summary>

@@ -150,7 +150,7 @@ public class UsnVolumeChangeSourcePreparedSessionTests
         Assert.That(armResult.Errors, Is.Empty);
         Assert.That(session.State, Is.EqualTo(JournalBrokerSessionState.Parked));
 
-        serverSide.Dispose();
+        await serverSide.DisposeAsync();
     }
 
     [Test]
@@ -174,7 +174,7 @@ public class UsnVolumeChangeSourcePreparedSessionTests
         Assert.That(brokerLaunchCalled, Is.True);
         Assert.That(session.State, Is.EqualTo(JournalBrokerSessionState.Disposed));
 
-        serverSide.Dispose();
+        await serverSide.DisposeAsync();
     }
 
     [Test]
@@ -198,7 +198,7 @@ public class UsnVolumeChangeSourcePreparedSessionTests
 
         Assert.That(brokerLaunchCalled, Is.True);
 
-        serverSide.Dispose();
+        await serverSide.DisposeAsync();
     }
 
     [Test]
@@ -211,7 +211,7 @@ public class UsnVolumeChangeSourcePreparedSessionTests
 
         Assert.That(session.State, Is.EqualTo(JournalBrokerSessionState.Disposed));
 
-        serverSide.Dispose();
+        await serverSide.DisposeAsync();
     }
 
     [Test]
@@ -268,6 +268,6 @@ public class UsnVolumeChangeSourcePreparedSessionTests
             Assert.That(batches[0].Entries[0].FullPath, Is.EqualTo("C:\\code\\repo"));
         });
 
-        serverSide.Dispose();
+        await serverSide.DisposeAsync();
     }
 }

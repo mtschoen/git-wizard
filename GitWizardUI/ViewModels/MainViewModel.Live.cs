@@ -155,8 +155,7 @@ public partial class MainViewModel
 
             if (_pendingDeletedRepos.TryGetValue(repoRoot, out var existing))
             {
-                existing.ExpireCts.Cancel();
-                existing.ExpireCts.Dispose();
+                _ = existing.ExpireCts.CancelAsync();
             }
 
             var expireCts = new CancellationTokenSource();
@@ -177,8 +176,7 @@ public partial class MainViewModel
             if (FindRenamedRepo(pending.Repository, oldPath, healthyRepos) != repoRoot)
                 continue;
 
-            pending.ExpireCts.Cancel();
-            pending.ExpireCts.Dispose();
+            _ = pending.ExpireCts.CancelAsync();
             _pendingDeletedRepos.Remove(oldPath);
             return oldPath;
         }
@@ -227,7 +225,8 @@ public partial class MainViewModel
             .Select(node => node.WorkingDirectory)
             .Where(path => !string.IsNullOrEmpty(path))
             .ToList();
-        var searchRoots = GitWizardConfiguration.GetGlobalConfiguration().SearchPaths
+        var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync().ConfigureAwait(false);
+        var searchRoots = configuration.SearchPaths
             .Select(GitWizardApi.ExpandSearchPath)
             .OfType<string>()
             .ToList();

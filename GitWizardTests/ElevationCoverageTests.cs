@@ -57,8 +57,8 @@ public class ElevationCoverageTests
             var configuration = new GitWizardConfiguration { SearchPaths = { searchRoot } };
             var paths = new SortedSet<string>();
 
-            Assert.DoesNotThrowAsync(() => GitWizardApi.TryFindAllRepositoriesUsingMftAsync(
-                configuration, paths, elevation: ElevationUtilities.DefaultProvider));
+            Assert.DoesNotThrowAsync(async () => await GitWizardApi.TryFindAllRepositoriesUsingMftAsync(
+                configuration, paths, elevation: ElevationUtilities.DefaultProvider).ConfigureAwait(false));
         }
         finally
         {

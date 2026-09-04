@@ -460,7 +460,7 @@ public class MainViewModelRefreshTests
     // ── UpdateCachedPathsAfterScan ────────────────────────────────────
 
     [Test]
-    public void UpdateCachedPathsAfterScan_RemovesNonRepositoryPaths()
+    public async Task UpdateCachedPathsAfterScan_RemovesNonRepositoryPaths()
     {
         var tempHome = TestUtilities.RedirectLocalFilesToTemp();
         TestUtilities.ResetStaticCaches();
@@ -471,16 +471,16 @@ public class MainViewModelRefreshTests
             var stalePath = "/stale/not-a-repo";
 
             // Write a repositories.txt with both valid and stale paths.
-            GitWizardApi.SaveCachedRepositoryPaths([validPath, stalePath]);
+            await GitWizardApi.SaveCachedRepositoryPathsAsync([validPath, stalePath]);
 
             // Call UpdateCachedPathsAfterScan with the stale path in NonRepositoryPaths.
-            MainViewModel.UpdateCachedPathsAfterScan(
+            await MainViewModel.UpdateCachedPathsAfterScanAsync(
                 deletedPaths: [],
                 renamedOldPaths: [],
                 nonRepositoryPaths: new HashSet<string> { stalePath });
 
             // The stale path should be removed from the cache file.
-            var cachedPaths = GitWizardApi.GetCachedRepositoryPaths();
+            var cachedPaths = await GitWizardApi.GetCachedRepositoryPathsAsync();
             Assert.That(cachedPaths, Is.Not.Null);
             Assert.That(cachedPaths, Does.Not.Contain(stalePath));
             Assert.That(cachedPaths, Does.Contain(validPath));
@@ -492,7 +492,7 @@ public class MainViewModelRefreshTests
     }
 
     [Test]
-    public void UpdateCachedPathsAfterScan_RemovesDeletedPaths()
+    public async Task UpdateCachedPathsAfterScan_RemovesDeletedPaths()
     {
         var tempHome = TestUtilities.RedirectLocalFilesToTemp();
         TestUtilities.ResetStaticCaches();
@@ -502,14 +502,14 @@ public class MainViewModelRefreshTests
             var validPath = "/valid/repo";
             var deletedPath = "/deleted/repo";
 
-            GitWizardApi.SaveCachedRepositoryPaths([validPath, deletedPath]);
+            await GitWizardApi.SaveCachedRepositoryPathsAsync([validPath, deletedPath]);
 
-            MainViewModel.UpdateCachedPathsAfterScan(
+            await MainViewModel.UpdateCachedPathsAfterScanAsync(
                 deletedPaths: new HashSet<string> { deletedPath },
                 renamedOldPaths: [],
                 nonRepositoryPaths: []);
 
-            var cachedPaths = GitWizardApi.GetCachedRepositoryPaths();
+            var cachedPaths = await GitWizardApi.GetCachedRepositoryPathsAsync();
             Assert.That(cachedPaths, Is.Not.Null);
             Assert.That(cachedPaths, Does.Not.Contain(deletedPath));
             Assert.That(cachedPaths, Does.Contain(validPath));
@@ -521,7 +521,7 @@ public class MainViewModelRefreshTests
     }
 
     [Test]
-    public void UpdateCachedPathsAfterScan_RemovesAllThreeTypes()
+    public async Task UpdateCachedPathsAfterScan_RemovesAllThreeTypes()
     {
         var tempHome = TestUtilities.RedirectLocalFilesToTemp();
         TestUtilities.ResetStaticCaches();
@@ -533,14 +533,14 @@ public class MainViewModelRefreshTests
             var stalePath = "/stale/not-a-repo";
             var renamedPath = "/old-name/repo";
 
-            GitWizardApi.SaveCachedRepositoryPaths([healthyPath, deletedPath, stalePath, renamedPath]);
+            await GitWizardApi.SaveCachedRepositoryPathsAsync([healthyPath, deletedPath, stalePath, renamedPath]);
 
-            MainViewModel.UpdateCachedPathsAfterScan(
+            await MainViewModel.UpdateCachedPathsAfterScanAsync(
                 deletedPaths: new HashSet<string> { deletedPath },
                 renamedOldPaths: new HashSet<string> { renamedPath },
                 nonRepositoryPaths: new HashSet<string> { stalePath });
 
-            var cachedPaths = GitWizardApi.GetCachedRepositoryPaths();
+            var cachedPaths = await GitWizardApi.GetCachedRepositoryPathsAsync();
             Assert.That(cachedPaths, Is.Not.Null);
             Assert.That(cachedPaths!.Length, Is.EqualTo(1));
             Assert.That(cachedPaths[0], Is.EqualTo(healthyPath));
@@ -552,7 +552,7 @@ public class MainViewModelRefreshTests
     }
 
     [Test]
-    public void UpdateCachedPathsAfterScan_NoPathsToRemove_NoChange()
+    public async Task UpdateCachedPathsAfterScan_NoPathsToRemove_NoChange()
     {
         var tempHome = TestUtilities.RedirectLocalFilesToTemp();
         TestUtilities.ResetStaticCaches();
@@ -560,11 +560,11 @@ public class MainViewModelRefreshTests
         try
         {
             var path = "/valid/repo";
-            GitWizardApi.SaveCachedRepositoryPaths([path]);
+            await GitWizardApi.SaveCachedRepositoryPathsAsync([path]);
 
-            MainViewModel.UpdateCachedPathsAfterScan([], [], []);
+            await MainViewModel.UpdateCachedPathsAfterScanAsync([], [], []);
 
-            var cachedPaths = GitWizardApi.GetCachedRepositoryPaths();
+            var cachedPaths = await GitWizardApi.GetCachedRepositoryPathsAsync();
             Assert.That(cachedPaths, Is.Not.Null);
             Assert.That(cachedPaths!.Length, Is.EqualTo(1));
             Assert.That(cachedPaths[0], Is.EqualTo(path));
@@ -576,7 +576,7 @@ public class MainViewModelRefreshTests
     }
 
     [Test]
-    public void UpdateCachedPathsAfterScan_NoCachedFile_IsNoOp()
+    public async Task UpdateCachedPathsAfterScan_NoCachedFile_IsNoOp()
     {
         var tempHome = TestUtilities.RedirectLocalFilesToTemp();
         TestUtilities.ResetStaticCaches();
@@ -584,7 +584,7 @@ public class MainViewModelRefreshTests
         try
         {
             // No repositories.txt exists; the method should not throw.
-            MainViewModel.UpdateCachedPathsAfterScan(
+            await MainViewModel.UpdateCachedPathsAfterScanAsync(
                 deletedPaths: ["/some/deleted"],
                 renamedOldPaths: [],
                 nonRepositoryPaths: []);
@@ -619,7 +619,7 @@ public class MainViewModelRefreshTests
 
             // Pre-populate from the cached report.
             var config = new GitWizardConfiguration { SearchPaths = new SortedSet<string> { "/repos" } };
-            vm.PrePopulateFromReport(config, ["/repos/alpha", "/repos/beta"]);
+            vm.PrePopulateFromReport(config, ["/repos/alpha", "/repos/beta"], report);
 
             // Both repos should appear in the UI immediately.
             Assert.That(vm.Repositories, Has.Count.EqualTo(2),
@@ -649,7 +649,7 @@ public class MainViewModelRefreshTests
             // Only path "/repos/alpha" is in the repositoryPaths list.
             var vm = CreateViewModel();
             var config = new GitWizardConfiguration { SearchPaths = new SortedSet<string> { "/repos" } };
-            vm.PrePopulateFromReport(config, ["/repos/alpha"]);
+            vm.PrePopulateFromReport(config, ["/repos/alpha"], report);
 
             Assert.That(vm.Repositories, Has.Count.EqualTo(1),
                 "Only repos in the path list should be pre-populated.");
@@ -675,7 +675,7 @@ public class MainViewModelRefreshTests
 
             var vm = CreateViewModel();
             var config = new GitWizardConfiguration { SearchPaths = new SortedSet<string> { "/repos" } };
-            vm.PrePopulateFromReport(config, ["/repos/alpha"]);
+            vm.PrePopulateFromReport(config, ["/repos/alpha"], report);
 
             Assert.That(vm.Repositories, Has.Count.EqualTo(1), "Pre-condition: one repo pre-populated.");
 
@@ -713,7 +713,7 @@ public class MainViewModelRefreshTests
             // No cached report exists.
             var vm = CreateViewModel();
             var config = new GitWizardConfiguration { SearchPaths = new SortedSet<string> { "/repos" } };
-            vm.PrePopulateFromReport(config, ["/repos/alpha"]);
+            vm.PrePopulateFromReport(config, ["/repos/alpha"], null);
 
             Assert.That(vm.Repositories, Is.Empty,
                 "Pre-population should be a no-op when no cached report exists.");
@@ -735,7 +735,7 @@ public class MainViewModelRefreshTests
         {
             var vm = CreateViewModel();
             var config = new GitWizardConfiguration { SearchPaths = new SortedSet<string> { "/repos" } };
-            vm.PrePopulateFromReport(config, null!);
+            vm.PrePopulateFromReport(config, null!, null);
 
             Assert.That(vm.Repositories, Is.Empty,
                 "Pre-population should be a no-op when repositoryPaths is null.");
@@ -760,7 +760,7 @@ public class MainViewModelRefreshTests
 
             var vm = CreateViewModel();
             var config = new GitWizardConfiguration { SearchPaths = new SortedSet<string> { "/repos" } };
-            vm.PrePopulateFromReport(config, ["/repos/alpha"]);
+            vm.PrePopulateFromReport(config, ["/repos/alpha"], report);
 
             var cachedNode = vm._allRepositories[0];
             Assert.That(vm._repositoryMap, Does.ContainKey("/repos/alpha"),
@@ -815,7 +815,7 @@ public class MainViewModelRefreshTests
             {
                 SearchPaths = new SortedSet<string> { "C:/repos" }
             };
-            viewModel.PrePopulateFromReport(configuration, ["C:/repos/alpha"]);
+            viewModel.PrePopulateFromReport(configuration, ["C:/repos/alpha"], report);
 
             var groupHeader = viewModel.Repositories.Single(candidate => candidate.IsGroupHeader);
             var cachedNode = groupHeader.Children.Single();
@@ -852,7 +852,7 @@ public class MainViewModelRefreshTests
             {
                 SearchPaths = new SortedSet<string> { "C:/repos" }
             };
-            viewModel.PrePopulateFromReport(configuration, ["C:/repos/alpha"]);
+            viewModel.PrePopulateFromReport(configuration, ["C:/repos/alpha"], report);
             viewModel.AddRepository(new GitWizardRepository("C:/repos/alpha"));
             var groupHeader = viewModel.Repositories.Single(candidate => candidate.IsGroupHeader);
 
@@ -889,7 +889,7 @@ public class MainViewModelRefreshTests
                 SearchPaths = new SortedSet<string> { "C:/repos" }
             };
 
-            viewModel.PrePopulateFromReport(configuration, ["C:/repos/alpha"]);
+            viewModel.PrePopulateFromReport(configuration, ["C:/repos/alpha"], report);
 
             Assert.That(viewModel.Repositories, Is.Empty,
                 "Grouped pre-population must not expose repositories excluded by the active filter.");
@@ -917,13 +917,13 @@ public class MainViewModelRefreshTests
             {
                 SearchPaths = new SortedSet<string> { "/repos" }
             };
-            viewModel.PrePopulateFromReport(configuration, ["/repos/alpha"]);
+            viewModel.PrePopulateFromReport(configuration, ["/repos/alpha"], report);
             Assert.That(viewModel._repositoryMap, Does.ContainKey("/repos/alpha"));
 
             viewModel.Repositories.Clear();
             viewModel._allRepositories.Clear();
             viewModel._repositoryMap.Clear();
-            viewModel.PrePopulateFromReport(configuration, []);
+            viewModel.PrePopulateFromReport(configuration, [], report);
             viewModel.AddRepository(new GitWizardRepository("/repos/alpha"));
 
             Assert.That(viewModel.Repositories, Has.Count.EqualTo(1),
@@ -953,7 +953,7 @@ public class MainViewModelRefreshTests
             var config = new GitWizardConfiguration { SearchPaths = new SortedSet<string> { "/repos" } };
 
             // First "refresh" cycle.
-            vm.PrePopulateFromReport(config, ["/repos/alpha", "/repos/beta"]);
+            vm.PrePopulateFromReport(config, ["/repos/alpha", "/repos/beta"], report);
             var freshAlpha1 = new GitWizardRepository("/repos/alpha");
             var freshBeta1 = new GitWizardRepository("/repos/beta");
             vm.AddRepository(freshAlpha1);
@@ -968,7 +968,7 @@ public class MainViewModelRefreshTests
             vm.Repositories.Clear();
             vm._allRepositories.Clear();
             vm._repositoryMap.Clear();
-            vm.PrePopulateFromReport(config, ["/repos/alpha", "/repos/beta"]);
+            vm.PrePopulateFromReport(config, ["/repos/alpha", "/repos/beta"], report);
             var freshAlpha2 = new GitWizardRepository("/repos/alpha");
             var freshBeta2 = new GitWizardRepository("/repos/beta");
             vm.AddRepository(freshAlpha2);
@@ -1002,7 +1002,7 @@ public class MainViewModelRefreshTests
             {
                 SearchPaths = new SortedSet<string> { "/repos" }
             };
-            viewModel.PrePopulateFromReport(configuration, ["/repos/old-alpha"]);
+            viewModel.PrePopulateFromReport(configuration, ["/repos/old-alpha"], report);
             viewModel.AddRepository(new GitWizardRepository("/repos/alpha"));
 
             viewModel.PruneStalePrePopulatedRepos(
@@ -1045,7 +1045,7 @@ public class MainViewModelRefreshTests
             vm._allRepositories.Clear();
             vm._repositoryMap.Clear();
             vm.Repositories.Clear();
-            vm.PrePopulateFromReport(config, ["/repos/alpha", "/repos/beta"]);
+            vm.PrePopulateFromReport(config, ["/repos/alpha", "/repos/beta"], report);
             Assert.That(vm._allRepositories, Has.Count.EqualTo(2),
                 "Pre-condition: two repos pre-populated.");
 

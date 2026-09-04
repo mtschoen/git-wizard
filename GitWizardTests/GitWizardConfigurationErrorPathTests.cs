@@ -20,7 +20,7 @@ public class GitWizardConfigurationErrorPathTests
         try
         {
             var configuration = new GitWizardConfiguration();
-            Assert.DoesNotThrow(() => configuration.Save(directoryAsPath));
+            configuration.Save(directoryAsPath);
         }
         finally
         {

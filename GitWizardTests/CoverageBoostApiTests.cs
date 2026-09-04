@@ -175,9 +175,9 @@ public class CoverageBoostApiTests
     }
 
     [Test]
-    public async Task SaveCachedRepositoryPathsAsync_ThenLoadSync_Works()
+    public void SaveCachedRepositoryPathsAsync_ThenLoadSync_Works()
     {
-        await GitWizardApi.SaveCachedRepositoryPathsAsync(new[] { "/async/to/sync" });
+        GitWizardApi.SaveCachedRepositoryPathsAsync(new[] { "/async/to/sync" }).GetAwaiter().GetResult();
         var loaded = GitWizardApi.GetCachedRepositoryPaths();
         Assert.That(loaded, Is.Not.Null);
         Assert.That(loaded!, Does.Contain("/async/to/sync"));

@@ -85,7 +85,7 @@ public class UsnVolumeChangeSourceTests
         }
         finally
         {
-            watchCts.Cancel();
+            await watchCts.CancelAsync();
             File.Delete(tempPath);
         }
     }

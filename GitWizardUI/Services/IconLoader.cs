@@ -10,8 +10,15 @@ static class IconLoader
     public static WindowIcon Load()
     {
         if (_cached is not null) return _cached;
-        using var stream = AssetLoader.Open(new Uri("avares://GitWizardUI/Assets/appicon.png"));
-        _cached = new WindowIcon(stream);
-        return _cached;
+        var rawStream = AssetLoader.Open(new Uri("avares://GitWizardUI/Assets/appicon.png"));
+        try
+        {
+            _cached = new WindowIcon(rawStream);
+            return _cached;
+        }
+        finally
+        {
+            ((IDisposable)rawStream).Dispose();
+        }
     }
 }

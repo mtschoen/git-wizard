@@ -5,9 +5,10 @@ using McMaster.Extensions.CommandLineUtils;
 
 static partial class CliParser
 {
-    static CommandOption? SetupTagsCommand(CommandLineApplication app, Action<RunConfigurationResult> onExecute)
+    static (CommandOption? HelpOption, Action Execute) SetupTagsCommand(CommandLineApplication app, Action<RunConfigurationResult> onExecute)
     {
         CommandOption? tagsHelpOption = null;
+        Action execute = () => { };
         app.Command("tags", tagsApp =>
         {
             tagsApp.Description = "Scan all clones for tags matching a pattern and report whether they exist on remotes.";
@@ -22,7 +23,7 @@ static partial class CliParser
             var silentOption = tagsApp.Option("-s|--silent", "Do not print to the console", CommandOptionType.NoValue);
             tagsHelpOption = tagsApp.HelpOption("-h|-?|--help");
 
-            tagsApp.OnExecute(() =>
+            execute = () =>
             {
                 var hasError = false;
                 GitWizardLog.VerboseMode = verboseOption.HasValue();
@@ -63,15 +64,17 @@ static partial class CliParser
                     Tags = true,
                     TagMatchPattern = matchValue
                 });
-            });
+            };
+            tagsApp.OnExecute(() => execute());
         });
 
-        return tagsHelpOption;
+        return (tagsHelpOption, execute);
     }
 
-    static CommandOption? SetupBranchesCommand(CommandLineApplication app, Action<RunConfigurationResult> onExecute)
+    static (CommandOption? HelpOption, Action Execute) SetupBranchesCommand(CommandLineApplication app, Action<RunConfigurationResult> onExecute)
     {
         CommandOption? branchesHelpOption = null;
+        Action execute = () => { };
         app.Command("branches", branchesApp =>
         {
             branchesApp.Description = "Scan all clones for local branches and report upstream divergence and unique commit counts.";
@@ -87,7 +90,7 @@ static partial class CliParser
             var silentOption = branchesApp.Option("-s|--silent", "Do not print to the console", CommandOptionType.NoValue);
             branchesHelpOption = branchesApp.HelpOption("-h|-?|--help");
 
-            branchesApp.OnExecute(() =>
+            execute = () =>
             {
                 var hasError = false;
                 GitWizardLog.VerboseMode = verboseOption.HasValue();
@@ -134,9 +137,10 @@ static partial class CliParser
                     NotMergedBranch = baseBranch,
                     NotMergedOnly = notMergedOnly
                 });
-            });
+            };
+            branchesApp.OnExecute(() => execute());
         });
 
-        return branchesHelpOption;
+        return (branchesHelpOption, execute);
     }
 }

@@ -91,6 +91,37 @@ public class MainViewModelTests
         });
     }
 
+    [Test]
+    public async Task CancelAndDisposeAsync_DisposesOnlyAfterCancellationCallbacksComplete()
+    {
+        var callbackStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseCallback = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var source = new CancellationTokenSource();
+#pragma warning disable MA0045 // Synchronous block required inside cancellation callback to simulate in-flight callback
+        await using var registration = source.Token.Register(() =>
+        {
+            callbackStarted.TrySetResult();
+            releaseCallback.Task.GetAwaiter().GetResult();
+        });
+#pragma warning restore MA0045
+
+        var cleanupTask = MainViewModel.CancelAndDisposeAsync(source);
+        await callbackStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(cleanupTask.IsCompleted, Is.False,
+                "Cleanup must wait for an in-flight cancellation callback.");
+            Assert.DoesNotThrow(() => _ = source.Token,
+                "The source must remain usable until cancellation callbacks finish.");
+        });
+
+        releaseCallback.TrySetResult();
+        await cleanupTask.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+
+        Assert.Throws<ObjectDisposedException>(() => _ = source.Token);
+    }
+
     // The Avalonia sidebar dispatches Filter/Group clicks by button name through ApplyFilter/
     // ApplyGroup, which must mirror the MAUI UI's toggle: re-clicking the active button clears it.
     // The sidebar's `.active` highlight binds to ActiveFilter/ActiveGroupMode, so this also pins

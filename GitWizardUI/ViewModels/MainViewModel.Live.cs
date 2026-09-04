@@ -155,7 +155,7 @@ public partial class MainViewModel
 
             if (_pendingDeletedRepos.TryGetValue(repoRoot, out var existing))
             {
-                _ = existing.ExpireCts.CancelAsync();
+                _ = CancelAndDisposeAsync(existing.ExpireCts);
             }
 
             var expireCts = new CancellationTokenSource();
@@ -176,7 +176,7 @@ public partial class MainViewModel
             if (FindRenamedRepo(pending.Repository, oldPath, healthyRepos) != repoRoot)
                 continue;
 
-            _ = pending.ExpireCts.CancelAsync();
+            _ = CancelAndDisposeAsync(pending.ExpireCts);
             _pendingDeletedRepos.Remove(oldPath);
             return oldPath;
         }

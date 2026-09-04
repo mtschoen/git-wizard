@@ -42,7 +42,7 @@ public partial class MainViewModel
             _cts = next;
             if (previous != null)
             {
-                _ = previous.CancelAsync();
+                _ = CancelAndDisposeAsync(previous);
             }
             return next.Token;
         }
@@ -53,7 +53,7 @@ public partial class MainViewModel
             _cts = null;
             if (cts != null)
             {
-                _ = cts.CancelAsync();
+                _ = CancelAndDisposeAsync(cts);
             }
         }
     }

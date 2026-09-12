@@ -207,16 +207,25 @@ file was retired. Not yet scheduled; promote to Next Up / a Gitea issue when pic
       `LoadConfigurationAsync`; report persistence (`GitWizardReport.Persistence`:
       `ReadJsonObjectFromFile` / `WriteAtomic`) is still synchronous.*
 - [ ] **Make filters additive rather than mutually exclusive.**
-- [ ] **Review refresh concurrency/timeout** - `GitWizardReport.Refresh` still wraps sync work
-      in `Task.Run` with a per-repo timeout while mutating shared state/UI callbacks concurrently.
-      Decide between fully-async-with-cooperative-cancellation vs stricter ownership of shared
-      mutable state.
-      *Reviewed (2026-08-28): `docs/refresh-concurrency-review.md` inventories the shared state,
-      nine hazards, and recommends a third, minimal option (keep the synchronous core; add a
-      per-repository refresh gate, cooperative cancellation between phases, snapshot-on-save, and
-      drop the nested `Parallel.ForEach` over one LibGit2Sharp handle) with a six-phase sketch.
-      Option C accepted (2026-08-29). Phase 1 refresh gate: #159; phase 4 report lock and
-      snapshot-on-save: #157; phase 6 small fixes: #158. Phases 2 and 3 edit the body of
-      `GitWizardRepository.Refresh` and phase 5 builds on the phase-observer hook #159 adds, so
-      all three follow once #159 lands (phase 3 test A/B already shipped in #156). Hazard 7:
-      #161.*
+- [ ] **Review refresh concurrency/timeout** - four of the six phases in
+      `docs/refresh-concurrency-review.md` are done, phase 3 is partial, and phase 5 remains open:
+      per-repository refresh gate (`_refreshGate`, phase 1,
+      [#159](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/pulls/159));
+      cooperative cancellation between phases via a `CancellationTokenSource(RefreshTimeout)` that
+      replaced the old `Task.Run`/`Wait` pair (phase 2, landed together with the hazard 7 fix in
+      [#162](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/pulls/162)); report-dictionary
+      locking and snapshot-on-save (phase 4,
+      [#157](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/pulls/157)); and the small
+      `Interlocked`/`int?` fixes (phase 6,
+      [#158](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/pulls/158)).
+      Phase 3 is partial: `RefreshError` cleared at the top of a refresh and the recovered-path
+      pruning fix shipped in [#156](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/pulls/156),
+      but single-owner elapsed-time bookkeeping (moving the `RefreshTimeSeconds` write inside
+      `GitWizardRepository.Refresh` under `_refreshGate` rather than writing it after gate release
+      in `GitWizardReport.cs` / `MainViewModel.Commands.cs`) remains unfinished.
+      Phase 5 is also still open: `RefreshSubmodules` (`GitWizard/GitWizardRepository.Submodules.cs`)
+      and `RefreshWorktrees` (`GitWizard/GitWizardRepository.BranchesAndWorktrees.cs`) still read the
+      parent `Repository` handle (`submodule.WorkDirCommitId`,
+      `worktree.WorktreeRepository.Info.WorkingDirectory`) from inside their own
+      `Parallel.ForEach` worker bodies instead of hoisting those reads to a sequential pass first,
+      so hazard 4 (concurrent access to one LibGit2Sharp handle) is still live.

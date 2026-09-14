@@ -17,7 +17,7 @@ public partial class MainViewModel
     const int RenameCorrelationWindowMilliseconds = 300;
 
     readonly Dictionary<string, (GitWizardRepository Repository, CancellationTokenSource ExpireCts)> _pendingDeletedRepos = new();
-    readonly HashSet<string> _reportedLiveScanErrorDrives = new(StringComparer.OrdinalIgnoreCase);
+    readonly Dictionary<string, string> _reportedLiveScanErrors = new(StringComparer.OrdinalIgnoreCase);
     readonly HashSet<string> _inFlightLiveRefreshes = new(StringComparer.OrdinalIgnoreCase);
 
     LiveWatchController? _liveController;
@@ -220,7 +220,7 @@ public partial class MainViewModel
         if (IsRefreshing)
             return;
 
-        _reportedLiveScanErrorDrives.Clear();
+        _reportedLiveScanErrors.Clear();
         var trackedRoots = _allRepositories
             .Select(node => node.WorkingDirectory)
             .Where(path => !string.IsNullOrEmpty(path))
@@ -237,7 +237,6 @@ public partial class MainViewModel
             searchRoots,
             onEvent: ev =>
             {
-                _ui.Post(() => SurfaceNewLiveScanErrors(RequireLiveController()));
                 _ = ApplyLiveEventAsync(ev);
             },
             onStopped: reason => _ui.Post(() =>
@@ -247,13 +246,21 @@ public partial class MainViewModel
                 HeaderText = $"Live watch stopped: {reason}{FormatLiveScanErrorSuffix(RequireLiveController())}";
             }),
             isElevated: LiveIsElevated);
-        controller.Started += () => _ui.Post(() =>
+        void OnStarted() => _ui.Post(() =>
         {
             IsLiveStarting = false;
             IsLive = true;
             HeaderText = "Live watch active";
-            SurfaceNewLiveScanErrors(RequireLiveController());
+            _reportedLiveScanErrors.Clear();
+            SurfaceNewLiveScanErrors(controller);
         });
+        void OnScanErrorsChanged() => _ui.Post(() =>
+        {
+            if (ReferenceEquals(_liveController, controller) && (IsLive || IsLiveStarting))
+                SurfaceNewLiveScanErrors(controller);
+        });
+        controller.Started += OnStarted;
+        controller.ScanErrorsChanged += OnScanErrorsChanged;
         _liveController = controller;
 
         IsLiveStarting = true;
@@ -270,6 +277,11 @@ public partial class MainViewModel
             IsLive = false;
             HeaderText = $"Live watch could not start: {exception.Message}";
         }
+        finally
+        {
+            controller.Started -= OnStarted;
+            controller.ScanErrorsChanged -= OnScanErrorsChanged;
+        }
     }
 
     async Task StopLiveAsync()
@@ -281,9 +293,9 @@ public partial class MainViewModel
         IsLive = false;
     }
 
-    // onEvent/onStopped only ever run after ToggleLiveAsync has assigned _liveController (they
-    // are wired as part of the same construction, and neither fires until the controller starts
-    // running asynchronously afterward) - this is an invariant assertion, not a defensive no-op.
+    // Only onStopped requires the controller here; onEvent applies repository changes directly.
+    // ToggleLiveAsync assigns _liveController before starting the controller, so onStopped can
+    // rely on that assignment. This asserts the lifecycle invariant.
     LiveWatchController RequireLiveController() =>
         _liveController ?? throw new InvalidOperationException(
             "_liveController must be assigned before a Live event/stop callback can run.");
@@ -292,8 +304,10 @@ public partial class MainViewModel
     {
         foreach (var (drive, message) in controller.ScanErrors)
         {
-            if (_reportedLiveScanErrorDrives.Add(drive))
-                HeaderText = $"Live scan error on {drive}: {message}";
+            if (_reportedLiveScanErrors.TryGetValue(drive, out var previous) && previous == message)
+                continue;
+            _reportedLiveScanErrors[drive] = message;
+            HeaderText = $"Live scan error on {drive}: {message}";
         }
     }
 
@@ -312,9 +326,9 @@ public partial class MainViewModel
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                var prepared = TakePreparedDiscoverySession();
+                var prepared = TakePreparedDiscoveryIndex();
                 if (prepared != null)
-                    return VolumeChangeSourceFactory.Create(prepared.Session, prepared.ScanRecords, prepared.Drives);
+                    return VolumeChangeSourceFactory.Create(prepared);
             }
 
             return VolumeChangeSourceFactory.Create();

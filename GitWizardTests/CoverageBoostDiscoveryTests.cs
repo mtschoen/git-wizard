@@ -1,12 +1,11 @@
 using GitWizard;
-using MFTLib;
 
 namespace GitWizardTests;
 
 /// <summary>
 /// Coverage-boost tests for <see cref="GitWizardApi"/> Discovery partial:
 /// non-MFT fallback, GetRepositoryPaths edge cases, TryFindAllRepositoriesUsingMft
-/// with fake elevation providers.
+/// behavior.
 /// </summary>
 public class CoverageBoostDiscoveryTests
 {
@@ -109,15 +108,14 @@ public class CoverageBoostDiscoveryTests
     }
 
     [Test]
-    public async Task TryFindAllRepositoriesUsingMftAsync_ElevatedProvider_EmptySearchPaths_ReturnsFalse()
+    public async Task TryFindAllRepositoriesUsingMftAsync_EmptySearchPaths_ReturnsFalse()
     {
         if (!OperatingSystem.IsWindows())
             Assert.Ignore("MFT is Windows-only.");
 
         var config = new GitWizardConfiguration(); // empty search paths
         var paths = new SortedSet<string>();
-        var fakeProvider = new FakeElevationProvider(isElevated: true);
-        var result = await GitWizardApi.TryFindAllRepositoriesUsingMftAsync(config, paths, elevation: fakeProvider);
+        var result = await GitWizardApi.TryFindAllRepositoriesUsingMftAsync(config, paths);
         Assert.That(result, Is.False);
     }
 
@@ -214,26 +212,5 @@ public class CoverageBoostDiscoveryTests
         public void OnWorktreeCreated(GitWizardRepository worktree) { }
         public void OnUninitializedSubmoduleCreated(GitWizardRepository parent, string submodulePath) { }
         public void OnRepositoryRefreshCompleted(GitWizardRepository gitWizardRepository) { }
-    }
-
-    /// <summary>
-    /// Fake elevation provider for testing MFT discovery paths.
-    /// Note: .git directory tests here are valid because GetRepositoryPaths with noMft:true
-    /// detects repos by .git directory presence, not by LibGit2Sharp validation.
-    /// </summary>
-    sealed class FakeElevationProvider : IElevationProvider
-    {
-        readonly bool _isElevated;
-        readonly bool _tryRunResult;
-
-        public FakeElevationProvider(bool isElevated, bool tryRunResult = false)
-        {
-            _isElevated = isElevated;
-            _tryRunResult = tryRunResult;
-        }
-
-        public bool IsElevated() => _isElevated;
-        public bool CanSelfElevate() => true;
-        public bool TryRunElevated(string arguments, int timeoutMs = 60000) => _tryRunResult;
     }
 }

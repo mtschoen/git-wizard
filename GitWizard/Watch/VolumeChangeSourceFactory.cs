@@ -7,7 +7,7 @@ namespace GitWizard.Watch;
 
 /// <summary>
 /// Platform-aware factory for creating the appropriate <see cref="IVolumeChangeSource"/> implementation
-/// (<see cref="UsnVolumeChangeSource"/> on Windows, <see cref="FanotifyVolumeChangeSource"/> on Linux)
+/// (<see cref="IndexVolumeChangeSource"/> on Windows, <see cref="FanotifyVolumeChangeSource"/> on Linux)
 /// and checking process elevation status across platforms.
 /// </summary>
 public static partial class VolumeChangeSourceFactory
@@ -49,7 +49,7 @@ public static partial class VolumeChangeSourceFactory
     /// <exception cref="PlatformNotSupportedException">
     /// Thrown when the current operating system is not Windows or Linux.
     /// </exception>
-    public static IVolumeChangeSource Create() => Create(null, null);
+    public static IVolumeChangeSource Create() => Create(null);
 
     /// <summary>
     /// Creates the platform-appropriate <see cref="IVolumeChangeSource"/> implementation,
@@ -59,21 +59,16 @@ public static partial class VolumeChangeSourceFactory
     /// Thrown when the current operating system is not Windows or Linux.
     /// </exception>
     public static IVolumeChangeSource Create(
-        JournalBrokerScanSession? preparedSession,
-        IReadOnlyList<ScanRecord>? scanRecords,
-        IReadOnlyList<string>? preparedDrives = null,
+        MftIndexSession? preparedIndex,
         Func<string, bool>? brokerLauncher = null)
     {
         if (_sourceFactoryOverride != null)
             return _sourceFactoryOverride();
 
-        if (IsWindows() && OperatingSystem.IsWindows())
+        if (IsWindows())
         {
-            brokerLauncher ??= BrokerLauncher.Launch;
-            if (preparedSession != null && scanRecords != null)
-                return new UsnVolumeChangeSource(preparedSession, scanRecords, brokerLauncher, preparedDrives);
-
-            return new UsnVolumeChangeSource(brokerLauncher);
+            return new IndexVolumeChangeSource((drives, cancellationToken) =>
+                OpenWindowsIndexAsync(drives, brokerLauncher, cancellationToken), preparedIndex);
         }
 
         if (IsLinux() && OperatingSystem.IsLinux())
@@ -82,6 +77,14 @@ public static partial class VolumeChangeSourceFactory
         }
 
         throw new PlatformNotSupportedException("Live mode currently requires Windows or Linux.");
+    }
+
+    static Task<MftIndexSession> OpenWindowsIndexAsync(IReadOnlyList<string> drives,
+        Func<string, bool>? brokerLauncher, CancellationToken cancellationToken)
+    {
+        if (!OperatingSystem.IsWindows())
+            throw new PlatformNotSupportedException("Opening a Windows index requires Windows.");
+        return MftIndexSession.OpenWindowsAsync(drives, brokerLauncher ?? BrokerLauncher.Launch, cancellationToken);
     }
 
     static bool IsWindows() => _isWindowsOverride?.Invoke() ?? RuntimeInformation.IsOSPlatform(OSPlatform.Windows);

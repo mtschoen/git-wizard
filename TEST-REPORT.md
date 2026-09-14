@@ -1,5 +1,100 @@
 # Test & Coverage Report - git-wizard
 
+## Packed-index port: Task 11 Linux verification
+
+Measured 2026-09-13 on Linux, Release, in the Task 11 worktree. Base `6dbcbde` is controller-supplied; no git commands were run. Mode: dispatch-defined 55% line floor plus no regression against Phase 1.
+
+| Evidence tier | Result |
+| --- | --- |
+| Linux, measured by this lane | **PASS**: 1164 printed definitions, 1154 passed, 0 failed, 10 named skips. Initial, post-format and final coverage runs reconcile with the dispatch baseline. |
+| Windows non-admin | **PENDING controller** at the exact final published reference; no result supplied. |
+| Elevated / RequiresAdmin | **NOT RUN, owner attended**: the four strengthened Task 9 cases listed below. |
+| Linux privileged fanotify | **NOT RUN, owner attended**: two named cases skipped. |
+
+The real VSTest summary is `Failed: 0, Passed: 1154, Skipped: 3, Total: 1157`, while its output names ten skips. The printed definition count is 1164 without de-duplication, and 1154 + 10 = 1164. Baseline and final definition lists match exactly. The plan's older 1163/1153 ledger is superseded by the dispatch's measured 1164/1154 base. This lane adds no definitions.
+
+## Linux coverage comparison
+
+| Metric | Phase 1 (`9eacde5`, controller supplied) | Final, measured here | Difference |
+| --- | ---: | ---: | ---: |
+| Lines covered / valid | 4002 / 4836 | 4264 / 5005 | +262 covered / +169 valid |
+| Line coverage | 82.75% | **85.19%** | +2.44 percentage points |
+| Branches covered / valid | 1831 / 2292 | 2000 / 2431 | +169 covered / +139 valid |
+| Branch coverage | 79.88% | **82.27%** | +2.39 percentage points |
+
+The 55% gate and aggregate Phase 1 ratchet pass. Covered counts and denominators both grow; this is not an improvement caused by denominator reduction. Removing the obsolete exclusion cannot change effective scope because its source file was already deleted: both this lane's initial full-run report and final report have 5005 valid lines / 2431 valid branches. The initial run covered 4266 lines; the final run covers 4264. The two hit differences are MainViewModel.Live.cs:240-241 in the unchanged onEvent callback. Branch totals are unchanged. This within-lane variation is recorded, not hidden by repeating the run.
+
+Final Cobertura: `TestResults/final/6be87ff8-302f-4c59-98d3-591358a104fc/coverage.cobertura.xml`. Exactly one report matches the final gate glob; no merged stale/focused report contributes. SHA-256: `38d3d124471b35a1cd21c2550c4a038ceb2fbc5479bcec1eda720bd6226119f3`. Detailed production-path counts are in LANE-REPORT.md. Phase 1 per-path XML was not supplied, so a path-by-path historical comparison remains pending controller evidence; aggregate totals alone do not prove all replacement behavior.
+
+The surviving ExcludeByFile entries remain exactly `**/Program.Watch.cs,**/WindowsDefender.cs,**/MainWindow.axaml.cs,**/SettingsWindow.axaml.cs`. No replacement exclusion or other exclusion change was added.
+
+## Quality and external gates
+
+| Gate | Result / owner |
+| --- | --- |
+| MFTLib, MFTLibTestExtensions, whole solution Release builds | PASS, exit 0. Existing pinned-submodule NU1902 / empty SourceLink warnings and optional missing native-library warnings remain; consumer analyzer errors: 0. |
+| dotnet format | **PASS, lane-owned under P19**. Initial verify: 10 findings, exit 2, in the four dispatch-named test files. Apply and final verify: exit 0; final verify emitted no findings. |
+| Pinned C#-capable aislop | PENDING controller; require 100/100, >=10 files, zero findings. |
+| jb inspectcode and parser | PENDING controller on Windows; require zero actionable findings. |
+| Obsolete-symbol/source/exclusion sweeps | PASS: no requested matches after the edit. Named P7 successors are present. |
+| Submodule pin, diff scope, whitespace, fanotify and recursive runtime-body audit | PENDING controller git checks. No production source changed during this lane, verified against starting file hashes; no historical diff or pin conclusion is claimed. |
+| Attended memory/performance | PENDING controller/owner: same 21.3M-file machine, before/after, DirectoryIndex fixture/profile, cold settled client <1 GB, scan-relative cold duration, warm name query <200 ms. Campaign tool/path is controller-provided. |
+| Warm persistent opening / <300 MB persistent warm target | NOT APPLICABLE to plan 4 under production NoCache; separate persistent-cache campaign only. |
+
+Required external gates must complete before the controller marks the whole port verified or merges.
+
+## Named Linux skips
+
+- `TryFindAllRepositoriesUsingMftAsync_EmptySearchPaths_ReturnsFalse`
+- `TryFindAllRepositoriesUsingMftAsync_Elevated_FindsPreExistingRepository`
+- `TryFindAllRepositoriesUsingMftAsync_EmptySearchPaths_DoesNotInvokeConnectionFactory`
+- `GetRepositoryPaths_SkipsHiddenAttributeDirectory`
+- `CreateDefaultConfiguration_SearchPath_ContainsUserProfile_OnWindows`
+- `ArmAndCatchUpAsync_RealBroker_ReturnsUsableDriveStatus`
+- `WatchAsync_RealBroker_DetectsCreatedFile`
+- `WatchAsync_RealBroker_ReplaysFileCreatedBetweenScanAndWatch`
+- `Probe_RealFanotify_MarksAndUnmarksTemporaryFilesystem`
+- `RealFanotify_DetectsFileCreationAndDeletion`
+
+## Four strengthened Task 9 attended cases
+
+- `ElevationCoverageTests.TryFindAllRepositoriesUsingMftAsync_Elevated_FindsPreExistingRepository`
+- `IndexVolumeChangeSourceWindowsTests.ArmAndCatchUpAsync_RealBroker_ReturnsUsableDriveStatus`
+- `IndexVolumeChangeSourceWindowsTests.WatchAsync_RealBroker_DetectsCreatedFile`
+- `IndexVolumeChangeSourceWindowsTests.WatchAsync_RealBroker_ReplaysFileCreatedBetweenScanAndWatch`
+
+These are NOT RUN here. Owner evidence must cover actual MFT discovery paths, usable real-drive status, delivered file creation, scan-to-watch replay, UAC, and broker/native deployment.
+
+## Commands measured by this lane
+
+```bash
+dotnet build external/MFTLib/MFTLib/MFTLib.csproj -c Release -p:Platform=x64
+dotnet build external/MFTLib/MFTLibTestExtensions/MFTLibTestExtensions.csproj -c Release -p:Platform=x64
+dotnet build GitWizardTests/GitWizardTests.csproj -c Release
+dotnet build git-wizard.slnx -c Release
+dotnet test GitWizardTests/GitWizardTests.csproj -c Release --no-build
+dotnet test GitWizardTests/GitWizardTests.csproj -c Release --no-build --list-tests
+dotnet test GitWizardTests/GitWizardTests.csproj -c Release --no-build --filter FullyQualifiedName~MftIndexSessionTests.CancellationClosesClient
+dotnet format git-wizard.slnx --verify-no-changes
+dotnet format git-wizard.slnx
+dotnet format git-wizard.slnx --verify-no-changes
+dotnet build git-wizard.slnx -c Release
+dotnet test GitWizardTests/GitWizardTests.csproj -c Release --no-build
+dotnet test GitWizardTests/GitWizardTests.csproj -c Release --no-build --list-tests
+dotnet test GitWizardTests/GitWizardTests.csproj -c Release --collect:"XPlat Code Coverage" --results-directory TestResults/final
+python3 ci/post-coverage-status.py --cobertura "TestResults/final/**/coverage.cobertura.xml" --gate-line 55 --summary --skip-post
+```
+
+The cancellation matcher red/green probe, exact command output, count reconciliation, scope audit, and limitations are preserved in LANE-REPORT.md. No git, Windows verification, aislop, jb or inspectcode command was run by this lane. No HOME or GITWIZARD_HOME override was used.
+
+## Historical report: 2026-08-21 Windows, different branch
+
+Everything below this heading is retained historical evidence for `feat/watch-in-ui-revive`,
+including its earlier lint rollout and coverage instructions. Its runtime names, test counts,
+coverage percentages, and gate results describe that branch at that time, not the packed-index
+port. In particular, its retired watch/discovery types do not describe the current consumer.
+Current architecture and build instructions are in [AGENTS.md](AGENTS.md).
+
 **Status:** PASS - 1000 non-admin tests pass, **0 build/analyzer findings** (analyzer gate + `dotnet format` + jb inspectcode clean). aislop not re-scored locally (the C# engine lives in the pinned fork the `aislop.yml` workflow builds); the gate runs in CI.
 **Mode:** coverage gate = pass (**85.67%** line ≥ 55%). The watch pipeline is covered end to end with fakes: the `IVolumeChangeSource` seam, `RepositoryWatchService` mapping / debounce / rename surfacing, `RepositoryChangeFilter.Classify` on both Windows and POSIX path shapes, the CLI `--watch` loop, `LiveWatchController`, and the `MainViewModel` Live wiring. The real-broker `UsnVolumeChangeSource` tests and the real-kernel `FanotifyInterop` test are `RequiresAdmin`/`RequiresRoot` and self-skip when unprivileged.
 **Change:** Revived the shelved watch-in-UI work on top of current main. Ported `UsnVolumeChangeSource` from the removed raw `JournalBrokerClient` API to `JournalBrokerScanSession`, wired the UI Live-mode toggle through `LiveWatchController`, added the Linux `FanotifyInterop` capability probe, and replaced the Classify path normalization with syntax-preserving `WatchPath` comparisons.

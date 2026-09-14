@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using JetBrains.Annotations;
@@ -19,17 +20,26 @@ public sealed class RepositoryWatchService
     readonly IReadOnlyCollection<string> _searchRoots;
     readonly TimeSpan _debounce;
 
+    readonly Lock _errorsLock = new();
+    FrozenDictionary<string, string> _scanErrors = FrozenDictionary<string, string>.Empty;
+
+    public event Action? ScanErrorsChanged;
     public event Action? Started;
     public event Action<string>? Stopped;
 
     /// <summary>
-    /// Per-drive scan failures from the most recent <see cref="RunAsync"/>'s arm step, keyed
-    /// by drive letter. Set before the first event is yielded. A drive present here was not
-    /// armed and is not watched; watching continues on the drives that armed successfully.
+    /// Immutable snapshot of initial scan failures and subsequent watch failures, keyed by drive.
+    /// A failed watch does not imply that the drive's index is unavailable for queries.
     /// </summary>
     [UsedImplicitly]
-    public IReadOnlyDictionary<string, string> ScanErrors { get; private set; } =
-        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    public IReadOnlyDictionary<string, string> ScanErrors
+    {
+        get
+        {
+            lock (_errorsLock)
+                return _scanErrors;
+        }
+    }
 
     public RepositoryWatchService(
         IVolumeChangeSource source,
@@ -44,6 +54,26 @@ public sealed class RepositoryWatchService
     }
 
     public async IAsyncEnumerable<RepositoryChangeEvent> RunAsync(
+        [EnumeratorCancellation] CancellationToken ct)
+    {
+        lock (_errorsLock)
+            _scanErrors = FrozenDictionary<string, string>.Empty;
+        var diagnostics = _source as IVolumeChangeDiagnostics;
+        if (diagnostics is not null)
+            diagnostics.DriveFailed += OnDriveFailed;
+        try
+        {
+            await foreach (var changeEvent in RunCoreAsync(ct).ConfigureAwait(false))
+                yield return changeEvent;
+        }
+        finally
+        {
+            if (diagnostics is not null)
+                diagnostics.DriveFailed -= OnDriveFailed;
+        }
+    }
+
+    async IAsyncEnumerable<RepositoryChangeEvent> RunCoreAsync(
         [EnumeratorCancellation] CancellationToken ct)
     {
         var filtersByVolume = await BuildFiltersByVolumeAsync(ct).ConfigureAwait(false);
@@ -67,15 +97,45 @@ public sealed class RepositoryWatchService
         }
         finally
         {
+            // An early consumer exit must stop the pending source read before awaiting the pump.
+            await deathSignal.CancelAsync().ConfigureAwait(false);
             await pumpTask.ConfigureAwait(false);
         }
+    }
+
+    void OnDriveFailed(string drive, string message)
+    {
+        lock (_errorsLock)
+        {
+            if (_scanErrors.TryGetValue(drive, out var previous) && previous == message)
+                return;
+            var errors = new Dictionary<string, string>(_scanErrors, StringComparer.OrdinalIgnoreCase)
+            {
+                [drive] = message
+            };
+            _scanErrors = errors.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+        }
+        ScanErrorsChanged?.Invoke();
+    }
+
+    void SetArmErrors(IReadOnlyDictionary<string, string> armErrors)
+    {
+        lock (_errorsLock)
+        {
+            // A diagnostic raised during arming is newer than the initial scan result.
+            var errors = new Dictionary<string, string>(armErrors, StringComparer.OrdinalIgnoreCase);
+            foreach (var (drive, message) in _scanErrors)
+                errors[drive] = message;
+            _scanErrors = errors.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+        }
+        ScanErrorsChanged?.Invoke();
     }
 
     // Owns the linked CancellationTokenSource used to fold source death into cancellation.
     // The SourceDied handler is an instance method reading instance fields, not a closure
     // capturing a local that this type later disposes - keeping the source-death wiring out
-    // of RunAsync's own scope avoids a disposed-closure hazard there. Takes the death callback
-    // directly (rather than exposing its own event) since RunAsync is its only caller and
+    // of RunCoreAsync's own scope avoids a disposed-closure hazard there. Takes the death callback
+    // directly (rather than exposing its own event) since RunCoreAsync is its only caller and
     // always attaches exactly one handler - a nullable event here would just be an
     // unreachable null-check branch.
     sealed class SourceDeathSignal : IDisposable
@@ -93,6 +153,7 @@ public sealed class RepositoryWatchService
         }
 
         public CancellationToken Token => _cts.Token;
+        public Task CancelAsync() => _cts.CancelAsync();
 
         void OnSourceDied(string reason)
         {
@@ -117,7 +178,7 @@ public sealed class RepositoryWatchService
             .ToArray();
 
         var armResult = await _source.ArmAndCatchUpAsync(volumes, ct).ConfigureAwait(false);
-        ScanErrors = armResult.Errors;
+        SetArmErrors(armResult.Errors);
 
         var filters = new Dictionary<string, RepositoryChangeFilter>(StringComparer.OrdinalIgnoreCase);
         foreach (var volume in volumes)

@@ -1,46 +1,28 @@
-using MFTLib;
+using System.Text.Json.Serialization;
+using MFTLib.Index;
 
 namespace GitWizard;
 
-/// <summary>
-/// Result of an MFT-backed repository discovery pass, carrying discovered repository state along
-/// with optional ownership of the elevated <see cref="JournalBrokerScanSession"/> used for the scan.
-/// </summary>
+/// <summary>Owns the discovery index session until ownership is transferred to a consumer.</summary>
 public sealed class MftDiscoveryResult : IAsyncDisposable
 {
+    MftIndexSession? _indexSession;
     public bool Success { get; }
-    public JournalBrokerScanSession? Session { get; private set; }
-    public IReadOnlyList<ScanRecord>? ScanRecords { get; }
-    public IReadOnlyList<string>? Drives { get; }
+    [JsonIgnore]
+    public FileIndex? Index => _indexSession?.Index;
 
-    public MftDiscoveryResult(
-        bool success,
-        JournalBrokerScanSession? session = null,
-        IReadOnlyList<ScanRecord>? scanRecords = null,
-        IReadOnlyList<string>? drives = null)
+    public MftDiscoveryResult(bool success, MftIndexSession? indexSession = null)
     {
         Success = success;
-        Session = session;
-        ScanRecords = scanRecords;
-        Drives = drives;
+        _indexSession = indexSession;
     }
 
-    /// <summary>
-    /// Transfers ownership of the session to the caller. The result will no longer dispose it.
-    /// </summary>
-    public JournalBrokerScanSession? DetachSession()
-    {
-        var session = Session;
-        Session = null;
-        return session;
-    }
+    public MftIndexSession? DetachIndexSession() => Interlocked.Exchange(ref _indexSession, null);
 
     public async ValueTask DisposeAsync()
     {
-        if (Session is not null)
-        {
-            await Session.DisposeAsync().ConfigureAwait(false);
-            Session = null;
-        }
+        var owner = DetachIndexSession();
+        if (owner is not null)
+            await owner.DisposeAsync().ConfigureAwait(false);
     }
 }

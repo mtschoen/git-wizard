@@ -19,6 +19,7 @@ public sealed class LiveWatchController
     readonly Func<bool> _isElevated;
 
     public event Action? Started;
+    public event Action? ScanErrorsChanged;
 
     // Guards the read-modify-write of the mutable run state below. StartAsync's loop and a
     // concurrent StopAsync both touch _stopRequested/_runCts/_source; without this a StopAsync
@@ -168,7 +169,9 @@ public sealed class LiveWatchController
     {
         string? deathReason = null;
         service.Started += OnStarted;
-        service.Stopped += reason => deathReason = reason;
+        void OnStopped(string reason) => deathReason = reason;
+        service.Stopped += OnStopped;
+        service.ScanErrorsChanged += OnScanErrorsChanged;
 
         try
         {
@@ -179,9 +182,16 @@ public sealed class LiveWatchController
         {
             // Expected on caller-initiated cancellation (StopAsync or the caller's own token).
         }
+        finally
+        {
+            service.Started -= OnStarted;
+            service.Stopped -= OnStopped;
+            service.ScanErrorsChanged -= OnScanErrorsChanged;
+        }
 
         return deathReason;
     }
 
     void OnStarted() => Started?.Invoke();
+    void OnScanErrorsChanged() => ScanErrorsChanged?.Invoke();
 }

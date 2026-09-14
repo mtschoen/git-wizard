@@ -32,6 +32,30 @@ dotnet build GitWizardUI/GitWizardUI.csproj
 
 On first run, configure your search paths in Settings. GitWizard will scan those paths for git repositories and cache the results for fast subsequent launches.
 
+### Windows discovery scope and caching
+
+Windows MFT discovery gathers filtered metadata across each whole selected volume: directories
+plus `.git` marker files. This can include other users' directory names, even outside your
+configured search paths. Search and ignore settings filter the repository candidates after
+that metadata is gathered. During Live monitoring, hydration may add metadata for observed
+ordinary files. A process running as your user can read the mapped or backing metadata.
+
+GitWizard selects no-cache mode for this index, so it adds no persistent inventory cache.
+Temporary block files still touch disk: the operating system deletes them when the last handle
+closes, including on process exit. The existing `~/.GitWizard/repositories.txt` repository list
+and `~/.GitWizard/report.json` cached report still persist; index no-cache mode does not disable
+them. Recursive discovery on Linux and with `--no-mft` is unchanged.
+
+### Live monitoring
+
+On Windows, discovery and the transfer into Live share one UAC prompt when the prepared index
+is reusable. A watch failure on one drive is reported while healthy drives stay live. Stopping
+Live releases its resources; restarting can require a new scan and elevation prompt. Linux
+fanotify monitoring is unchanged by this port.
+
+The green Live state means "the pump started", never "catch-up has drained". Changes can still
+be catching up after Live appears active; see [MFTLib#139](https://gitea.fleet.sticktoitive.net/schoen/MFTLib/issues/139).
+
 ### Machine-readable safety sweep
 
 Use the focused sweep mode before travel, migration, or machine maintenance:

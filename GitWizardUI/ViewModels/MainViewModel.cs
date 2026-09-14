@@ -321,39 +321,39 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
         }
     }
 
-    readonly Lock _preparedSessionLock = new();
-    PreparedDiscoverySession? _preparedDiscoverySession;
+    readonly Lock _preparedIndexLock = new();
+    MftIndexSession? _preparedDiscoveryIndex;
 
-    internal PreparedDiscoverySession? PreparedDiscoverySession
+    internal MftIndexSession? PreparedDiscoveryIndex
     {
         get
         {
-            lock (_preparedSessionLock)
-                return _preparedDiscoverySession;
+            lock (_preparedIndexLock)
+                return _preparedDiscoveryIndex;
         }
     }
 
-    internal PreparedDiscoverySession? TakePreparedDiscoverySession()
+    internal MftIndexSession? TakePreparedDiscoveryIndex()
     {
-        lock (_preparedSessionLock)
+        lock (_preparedIndexLock)
         {
-            var session = _preparedDiscoverySession;
-            _preparedDiscoverySession = null;
+            var session = _preparedDiscoveryIndex;
+            _preparedDiscoveryIndex = null;
             return session;
         }
     }
 
-    internal async Task SetPreparedDiscoverySessionAsync(PreparedDiscoverySession? nextSession)
+    internal async Task SetPreparedDiscoveryIndexAsync(MftIndexSession? nextIndex)
     {
-        PreparedDiscoverySession? oldSession;
-        lock (_preparedSessionLock)
+        MftIndexSession? oldIndex;
+        lock (_preparedIndexLock)
         {
-            oldSession = _preparedDiscoverySession;
-            _preparedDiscoverySession = nextSession;
+            oldIndex = _preparedDiscoveryIndex;
+            _preparedDiscoveryIndex = nextIndex;
         }
 
-        if (oldSession != null)
-            await oldSession.DisposeAsync().ConfigureAwait(false);
+        if (oldIndex != null && !ReferenceEquals(oldIndex, nextIndex))
+            await oldIndex.DisposeAsync().ConfigureAwait(false);
     }
 
     public async ValueTask DisposeAsync()
@@ -364,7 +364,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
             _liveController = null;
         }
 
-        await SetPreparedDiscoverySessionAsync(null).ConfigureAwait(false);
+        await SetPreparedDiscoveryIndexAsync(null).ConfigureAwait(false);
         _searchDebouncer.Dispose();
         GC.SuppressFinalize(this);
     }

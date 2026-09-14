@@ -1,12 +1,69 @@
+using GitWizard;
 using GitWizard.Watch;
+using GitWizardTests.TestSupport;
 using GitWizardTests.Watch;
 using GitWizardUI.Services;
+using MFTLib.Index;
 
 namespace GitWizardTests.UI;
 
 [TestFixture]
 public class LiveWatchControllerTests
 {
+    [Test]
+    public async Task DriveFailureDoesNotRespawnController()
+    {
+        var sourceReady = new TaskCompletionSource<DiagnosticVolumeChangeSource>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var creations = 0;
+        var stopped = new List<string>();
+        var changed = new TaskCompletionSource<RepositoryChangeEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var controller = new LiveWatchController(() =>
+        {
+            creations++;
+            var source = new DiagnosticVolumeChangeSource();
+            sourceReady.TrySetResult(source);
+            return source;
+        },
+            [@"X:\repo", @"Y:\repo"], [], change => changed.TrySetResult(change), stopped.Add, () => true);
+        var errorUpdates = new List<IReadOnlyDictionary<string, string>>();
+        controller.ScanErrorsChanged += () => errorUpdates.Add(controller.ScanErrors);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var running = controller.StartAsync(cancellation.Token);
+        RepositoryWatchService service;
+        try
+        {
+            var source = await sourceReady.Task.WaitAsync(cancellation.Token);
+            await source.Started;
+            service = WatchSubscriptionProbe.Service(controller);
+            Assert.That(WatchSubscriptionProbe.ScanErrorsSubscribers(service), Is.EqualTo(1));
+            source.FailDrive("X", "watch failed");
+            Assert.That(controller.ScanErrors, Does.ContainKey("X").WithValue("watch failed"));
+            Assert.That(errorUpdates.Last(), Does.ContainKey("X").WithValue("watch failed"));
+            source.Publish(new VolumeChangeBatch("Y",
+                [new VolumeChangeEntry(@"Y:\repo\file", VolumeEntryKind.Modified)]));
+            Assert.That((await changed.Task.WaitAsync(cancellation.Token)).RepoRoot, Is.EqualTo(@"Y:\repo"));
+            Assert.That(creations, Is.EqualTo(1));
+            Assert.That(stopped, Is.Empty);
+            Assert.That(running.IsCompleted, Is.False);
+        }
+        finally
+        {
+            try
+            {
+                await controller.StopAsync();
+            }
+            finally
+            {
+                await running;
+            }
+        }
+        var completedSource = await sourceReady.Task;
+        Assert.That(completedSource.DiagnosticSubscribers, Is.Zero);
+        Assert.That(WatchSubscriptionProbe.ScanErrorsSubscribers(service), Is.Zero,
+            "The controller must detach from the service after shutdown.");
+    }
+
     static VolumeChangeBatch Batch(string path, VolumeEntryKind kind) =>
         new("C", new[] { new VolumeChangeEntry(path, kind) });
 
@@ -297,6 +354,35 @@ public class LiveWatchControllerTests
         await startTask;
 
         Assert.That(controller.ScanErrors, Does.ContainKey("D").WithValue("drive not ready"));
+    }
+
+    [Test]
+    public async Task Start_WhenNoDrivesWatchable_CallsOnStopped()
+    {
+        using var files = new PackedIndexFixture();
+        await using var failedIndex = await FileIndex.OpenAsync(new FileIndexOptions
+        {
+            Drives = [new IndexedDrive('X', files.TreePath, 1)],
+            CacheDirectory = files.BlockDirectory,
+            NoCache = true,
+            ProducerPolicy = ProducerPolicy.Mft,
+            MftProducer = (_, _) => throw new IOException("cannot scan X")
+        }, CancellationToken.None);
+        var owner = new MftIndexSession(failedIndex, null, ["X"], new Dictionary<string, string>());
+        var stoppedReasons = new List<string>();
+        var controller = new LiveWatchController(
+            () => new IndexVolumeChangeSource((_, _) => Task.FromResult(owner)),
+            trackedRoots: [@"X:\repo"],
+            searchRoots: [],
+            onEvent: _ => { },
+            onStopped: stoppedReasons.Add,
+            isElevated: () => false);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await controller.StartAsync(cts.Token);
+
+        Assert.That(stoppedReasons, Has.Count.EqualTo(1));
+        Assert.That(stoppedReasons[0], Is.EqualTo("No requested drives could be watched."));
     }
 
     static async Task WaitUntilAsync(Func<bool> condition)

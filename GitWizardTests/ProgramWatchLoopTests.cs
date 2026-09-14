@@ -1,6 +1,9 @@
+using GitWizard;
 using GitWizard.CLI;
 using GitWizard.Watch;
+using GitWizardTests.TestSupport;
 using GitWizardTests.Watch;
+using MFTLib.Index;
 
 namespace GitWizardTests;
 
@@ -9,8 +12,8 @@ namespace GitWizardTests;
 // line format for each event kind, scan errors, and broker death can be asserted without a real
 // elevated broker or Environment.Exit.
 // An IVolumeChangeSource whose ArmAndCatchUpAsync throws InvalidOperationException, standing in
-// for JournalBrokerScanSession.StartAsync's UAC-decline / launch-failure throw that
-// UsnVolumeChangeSource surfaces from the first WatchAsync-arming MoveNextAsync.
+// for MftIndexSession opening's UAC-decline / launch-failure throw that
+// IndexVolumeChangeSource surfaces from the first WatchAsync-arming MoveNextAsync.
 internal sealed class ThrowingArmVolumeChangeSource : IVolumeChangeSource
 {
     readonly string _message;
@@ -35,6 +38,47 @@ internal sealed class ThrowingArmVolumeChangeSource : IVolumeChangeSource
 [TestFixture]
 public class ProgramWatchLoopTests
 {
+    [Test]
+    public async Task DriveFailurePrintsWhileOtherDriveContinues()
+    {
+        await using var source = new DiagnosticVolumeChangeSource();
+        var service = new RepositoryWatchService(source, [@"X:\repo", @"Y:\repo"], [], TimeSpan.Zero);
+        var lines = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var running = Program.RunWatchLoopAsync(service, line =>
+        {
+            lines.Enqueue(line);
+            if (line.StartsWith("changed:", StringComparison.Ordinal))
+                changed.TrySetResult();
+        }, NoExit, cancellation.Token);
+        await source.Started;
+        try
+        {
+            Assert.That(WatchSubscriptionProbe.ScanErrorsSubscribers(service), Is.EqualTo(1));
+            source.FailDrive("X", "watch failed");
+            Assert.That(lines, Is.EqualTo(new[] { "scan error on X: watch failed" }));
+            source.FailDrive("x", "watch failed");
+            source.FailDrive("X", "watch failed again");
+            source.Publish(new VolumeChangeBatch("Y",
+                [new VolumeChangeEntry(@"Y:\repo\file", VolumeEntryKind.Modified)]));
+            await changed.Task.WaitAsync(cancellation.Token);
+            Assert.That(running.IsCompleted, Is.False);
+            Assert.That(lines, Is.EqualTo(new[]
+            {
+                "scan error on X: watch failed", "scan error on X: watch failed again", @"changed: Y:\repo"
+            }));
+        }
+        finally
+        {
+            source.Complete();
+            await running;
+        }
+        Assert.That(source.DiagnosticSubscribers, Is.Zero);
+        Assert.That(WatchSubscriptionProbe.ScanErrorsSubscribers(service), Is.Zero,
+            "The CLI must detach from the service after shutdown.");
+    }
+
     [Test]
     public async Task RunWatchLoopAsync_PrintsScanErrorsThenChangedCreatedDeletedLines()
     {
@@ -153,6 +197,34 @@ public class ProgramWatchLoopTests
             Assert.That(lines, Does.Contain(@"changed: C:\repo\a"));
             Assert.That(lines, Does.Contain("Broker died: pipe broken unexpectedly"));
         });
+    }
+
+    [Test]
+    public async Task RunWatchLoopAsync_NoWatchableDrives_PrintsBrokerDiedAndReturnsTrue()
+    {
+        using var files = new PackedIndexFixture();
+        await using var failedIndex = await FileIndex.OpenAsync(new FileIndexOptions
+        {
+            Drives = [new IndexedDrive('X', files.TreePath, 1)],
+            CacheDirectory = files.BlockDirectory,
+            NoCache = true,
+            ProducerPolicy = ProducerPolicy.Mft,
+            MftProducer = (_, _) => throw new IOException("cannot scan X")
+        }, CancellationToken.None);
+        var owner = new MftIndexSession(failedIndex, null, ["X"], new Dictionary<string, string>());
+        var source = new IndexVolumeChangeSource((_, _) => Task.FromResult(owner));
+        var service = new RepositoryWatchService(
+            source,
+            trackedRoots: [@"X:\repo"],
+            searchRoots: [],
+            debounce: TimeSpan.FromMilliseconds(10));
+
+        var lines = new List<string>();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var stopped = await Program.RunWatchLoopAsync(service, lines.Add, NoExit, cts.Token);
+
+        Assert.That(stopped, Is.True);
+        Assert.That(lines, Does.Contain("Broker died: No requested drives could be watched."));
     }
 }
 

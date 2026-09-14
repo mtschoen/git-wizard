@@ -45,22 +45,22 @@ public class ElevationDecisionTests
         Assert.That(fake.RunElevatedCalls[0].TimeoutMs, Is.EqualTo(30000));
     }
 
-    // --- MFT (Windows-only decision logic; the fake controls elevation, no real scan) ---
-
     [Test]
     [Platform("Win")]
-    public async Task TryFindAllRepositoriesUsingMftAsync_ElevatedWithEmptySearchPaths_ReturnsFalse()
+    public async Task TryFindAllRepositoriesUsingMftAsync_EmptySearchPaths_DoesNotInvokeConnectionFactory()
     {
-        // Already-elevated branch: scans directly, no broker child. Empty search paths ⇒ no
-        // real MftVolume.Open and no broker spawn. This branch needs the injected provider
-        // because IsElevated does a real token check.
-        var fake = new FakeElevationProvider { Elevated = true };
+        var calls = 0;
         var paths = new SortedSet<string>();
-
-        var result = await GitWizardApi.TryFindAllRepositoriesUsingMftAsync(
-            new GitWizardConfiguration(), paths, elevation: fake);
-
-        Assert.That(result, Is.False);
+        await using var result = await GitWizardApi.DiscoverRepositoriesWithIndexAsync(
+            new GitWizardConfiguration(), paths, [], [], new IndexDiscoveryComposition(
+                _ =>
+                {
+                    calls++;
+                    throw new AssertionException("Empty search paths must not connect.");
+                },
+                _ => true));
+        Assert.That(result.Success, Is.False);
+        Assert.That(calls, Is.Zero);
         Assert.That(paths, Is.Empty);
     }
 }

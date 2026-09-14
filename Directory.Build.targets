@@ -3,7 +3,7 @@
   <!-- ============================================================================
        TEMPORARY - MFTLib 0.3.0 bridge (git submodule at external/MFTLib).
 
-       git-wizard needs MFTLib 0.3.0 (IElevationProvider), which is not yet on NuGet. MFTLib is a
+       git-wizard needs MFTLib 0.3.0 (FileIndex and IElevationProvider), not yet on NuGet. MFTLib is a
        git submodule pinned at external/MFTLib and built FROM SOURCE on each platform:
          - native: MSVC vcxproj on Windows / CMake into external/MFTLib/build-linux on Linux
          - managed: `dotnet build external/MFTLib/MFTLib/MFTLib.csproj -p:Platform=x64`
@@ -12,7 +12,7 @@
        `dotnet` cannot load (MSB4278). Publishing against the source-built submodule is fine (the
        old vendored-dll publish guard is gone with the vendored dlls).
 
-       RETIRE when MFTLib 0.3.0 ships to NuGet: delete this file and the external/MFTLib
+       RETIRE when MFTLib 0.3.0 ships to NuGet (git-wizard#134): delete this file and the external/MFTLib
        submodule, then add `<PackageReference Include="MFTLib" Version="0.3.0" />` to
        GitWizard/GitWizard.csproj (it flows transitively and its buildTransitive targets place the
        native library automatically).
@@ -32,15 +32,25 @@
     <ProjectReference Remove="..\MFTLibNative\MFTLibNative.vcxproj" />
   </ItemGroup>
 
+  <!-- (0) The target framework of MFTLib's build output, in ONE place. Both managed references
+       below are resolved by PATH, and the TFM appears in those paths as a directory name, so it
+       tracks the submodule pin rather than this repository's own TargetFramework. A sweep over
+       <TargetFramework> elements does not see it. When the pin moves to an MFTLib that targets a
+       different framework, change this property and nothing else; see _VerifyMFTLibReferences
+       below for the check that turns a miss into one clear error instead of a pile of CS0246s. -->
+  <PropertyGroup>
+    <_MFTLibTfm>net10.0</_MFTLibTfm>
+  </PropertyGroup>
+
   <!-- (1) Managed reference - the MFTLib.dll built from the submodule. Prefer the active
        configuration but fall back to whichever is actually built: `dotnet format` loads projects
        in Debug even when CI built only Release; without the fallback it cannot resolve MFTLib's
        types (CS0246) and the lint step fails (file-wizard precedent). -->
   <PropertyGroup Condition="'$(IsMFTLibSubmodule)' != 'true' And '$(MSBuildProjectExtension)' == '.csproj'">
-    <_MFTLibBin>$(MSBuildThisFileDirectory)external\MFTLib\MFTLib\bin\x64</_MFTLibBin>
-    <_MFTLibDll>$(_MFTLibBin)\$(Configuration)\net8.0\MFTLib.dll</_MFTLibDll>
-    <_MFTLibDll Condition="!Exists('$(_MFTLibDll)') And Exists('$(_MFTLibBin)\Release\net8.0\MFTLib.dll')">$(_MFTLibBin)\Release\net8.0\MFTLib.dll</_MFTLibDll>
-    <_MFTLibDll Condition="!Exists('$(_MFTLibDll)') And Exists('$(_MFTLibBin)\Debug\net8.0\MFTLib.dll')">$(_MFTLibBin)\Debug\net8.0\MFTLib.dll</_MFTLibDll>
+    <_MFTLibBin>$(MSBuildThisFileDirectory)external/MFTLib/MFTLib/bin/x64</_MFTLibBin>
+    <_MFTLibDll>$(_MFTLibBin)/$(Configuration)/$(_MFTLibTfm)/MFTLib.dll</_MFTLibDll>
+    <_MFTLibDll Condition="!Exists('$(_MFTLibDll)') And Exists('$(_MFTLibBin)/Release/$(_MFTLibTfm)/MFTLib.dll')">$(_MFTLibBin)/Release/$(_MFTLibTfm)/MFTLib.dll</_MFTLibDll>
+    <_MFTLibDll Condition="!Exists('$(_MFTLibDll)') And Exists('$(_MFTLibBin)/Debug/$(_MFTLibTfm)/MFTLib.dll')">$(_MFTLibBin)/Debug/$(_MFTLibTfm)/MFTLib.dll</_MFTLibDll>
   </PropertyGroup>
   <ItemGroup Condition="'$(IsMFTLibSubmodule)' != 'true' And '$(MSBuildProjectExtension)' == '.csproj'">
     <Reference Include="MFTLib">
@@ -51,12 +61,12 @@
 
   <!-- (1b) Test-harness reference - MFTLibTestExtensions.dll, scoped to GitWizardTests only.
        Same configuration-fallback shape as the managed MFTLib reference above; consumed by
-       BrokerDiscoveryTests to build a JournalBrokerScanSession over a fake broker client. -->
+       the packed-block broker fixtures through ScanSessionTestHarness and DuplexStream. -->
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'GitWizardTests'">
-    <_MFTLibTestExtensionsBin>$(MSBuildThisFileDirectory)external\MFTLib\MFTLibTestExtensions\bin\x64</_MFTLibTestExtensionsBin>
-    <_MFTLibTestExtensionsDll>$(_MFTLibTestExtensionsBin)\$(Configuration)\net8.0\MFTLibTestExtensions.dll</_MFTLibTestExtensionsDll>
-    <_MFTLibTestExtensionsDll Condition="!Exists('$(_MFTLibTestExtensionsDll)') And Exists('$(_MFTLibTestExtensionsBin)\Release\net8.0\MFTLibTestExtensions.dll')">$(_MFTLibTestExtensionsBin)\Release\net8.0\MFTLibTestExtensions.dll</_MFTLibTestExtensionsDll>
-    <_MFTLibTestExtensionsDll Condition="!Exists('$(_MFTLibTestExtensionsDll)') And Exists('$(_MFTLibTestExtensionsBin)\Debug\net8.0\MFTLibTestExtensions.dll')">$(_MFTLibTestExtensionsBin)\Debug\net8.0\MFTLibTestExtensions.dll</_MFTLibTestExtensionsDll>
+    <_MFTLibTestExtensionsBin>$(MSBuildThisFileDirectory)external/MFTLib/MFTLibTestExtensions/bin/x64</_MFTLibTestExtensionsBin>
+    <_MFTLibTestExtensionsDll>$(_MFTLibTestExtensionsBin)/$(Configuration)/$(_MFTLibTfm)/MFTLibTestExtensions.dll</_MFTLibTestExtensionsDll>
+    <_MFTLibTestExtensionsDll Condition="!Exists('$(_MFTLibTestExtensionsDll)') And Exists('$(_MFTLibTestExtensionsBin)/Release/$(_MFTLibTfm)/MFTLibTestExtensions.dll')">$(_MFTLibTestExtensionsBin)/Release/$(_MFTLibTfm)/MFTLibTestExtensions.dll</_MFTLibTestExtensionsDll>
+    <_MFTLibTestExtensionsDll Condition="!Exists('$(_MFTLibTestExtensionsDll)') And Exists('$(_MFTLibTestExtensionsBin)/Debug/$(_MFTLibTfm)/MFTLibTestExtensions.dll')">$(_MFTLibTestExtensionsBin)/Debug/$(_MFTLibTfm)/MFTLibTestExtensions.dll</_MFTLibTestExtensionsDll>
   </PropertyGroup>
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'GitWizardTests'">
     <Reference Include="MFTLibTestExtensions">
@@ -64,6 +74,22 @@
       <Private>true</Private>
     </Reference>
   </ItemGroup>
+
+  <!-- (1c) Both references above are resolved by path, so an unbuilt submodule or a stale
+       $(_MFTLibTfm) yields a HintPath that does not exist. MSBuild only WARNS about that: it
+       silently drops the reference, and the build then fails much later as a pile of CS0246s
+       naming MFTLib types, which reads like a source problem rather than a missing reference.
+       Moving the submodule pin in 9b25adb without updating the TFM above produced exactly that,
+       47 errors naming four types this repository never changed. Fail here instead, once, saying
+       what to run. Restore does not resolve references, so this cannot fire during the restore
+       that precedes the first MFTLib build. -->
+  <Target Name="_VerifyMFTLibReferences" BeforeTargets="ResolveAssemblyReferences"
+          Condition="'$(IsMFTLibSubmodule)' != 'true' And '$(MSBuildProjectExtension)' == '.csproj' And '$(TargetFramework)' != ''">
+    <Error Condition="!Exists('$(_MFTLibDll)')"
+           Text="MFTLib.dll ($(_MFTLibTfm)) not found at $(_MFTLibDll). Build the submodule first: dotnet build external/MFTLib/MFTLib/MFTLib.csproj -c $(Configuration) -p:Platform=x64. If MFTLib has changed target framework, update _MFTLibTfm in Directory.Build.targets. Also ensure the submodule is checked out (git submodule update --init --recursive)." />
+    <Error Condition="'$(MSBuildProjectName)' == 'GitWizardTests' And !Exists('$(_MFTLibTestExtensionsDll)')"
+           Text="MFTLibTestExtensions.dll ($(_MFTLibTfm)) not found at $(_MFTLibTestExtensionsDll). Build it first: dotnet build external/MFTLib/MFTLibTestExtensions/MFTLibTestExtensions.csproj -c $(Configuration) -p:Platform=x64. If MFTLib has changed target framework, update _MFTLibTfm in Directory.Build.targets. Also ensure the submodule is checked out (git submodule update --init --recursive)." />
+  </Target>
 
   <!-- (2a) Windows native lib - copied into each project's output so MFTLib's P/Invoke resolves
        it at runtime. Glob for the vcxproj-built DLL under the submodule, scoped to the active

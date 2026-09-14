@@ -170,7 +170,7 @@ public partial class GitWizardReport : IAsyncDisposable
             if (repositoryPaths == null)
             {
                 repositoryPaths = new SortedSet<string>();
-                await report.GetRepositoryPathsAsync(repositoryPaths, updateHandler, options.NoMft, options.RetainDiscoverySession).ConfigureAwait(false);
+                await report.GetRepositoryPathsAsync(repositoryPaths, updateHandler, options.NoMft, options.RetainDiscoveryIndex).ConfigureAwait(false);
             }
 
             report.Refresh(repositoryPaths, updateHandler, options.FetchRemotes, options.DeepRefresh, options.AllBranches, options.ComputeLocalCommitCount);

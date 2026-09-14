@@ -244,25 +244,11 @@ public partial class MainViewModel
                 {
                     FetchRemotes = fetchRemotes,
                     DeepRefresh = fetchRemotes,
-                    RetainDiscoverySession = true
+                    RetainDiscoveryIndex = true
                 }).ConfigureAwait(false);
             _stopwatch.Stop();
 
-            var (session, records, drives) = report.DetachDiscoverySession();
-            PreparedDiscoverySession? preparedSession = null;
-            if (session != null)
-            {
-                if (records != null)
-                {
-                    preparedSession = new PreparedDiscoverySession(session, records, drives);
-                }
-                else
-                {
-                    await session.DisposeAsync().ConfigureAwait(false);
-                }
-            }
-
-            await SetPreparedDiscoverySessionAsync(preparedSession).ConfigureAwait(false);
+            await SetPreparedDiscoveryIndexAsync(report.DetachDiscoveryIndex()).ConfigureAwait(false);
 
             // Capture deleted and stale non-repo paths for cache cleanup on main thread
             deletedPaths = new HashSet<string>(report.DeletedPaths);

@@ -27,7 +27,7 @@ public class GitWizardReportOptions
     /// <summary>When false, skip the expensive per-branch local-only-commit count (LocalCommitCount/LocalOnlyCommits). Default is true.</summary>
     public bool ComputeLocalCommitCount { get; set; } = true;
 
-    /// <summary>When true, retain any elevated JournalBrokerScanSession created during MFT discovery on the report.</summary>
+    /// <summary>When true, retain any elevated MftIndexSession created during MFT discovery on the report.</summary>
     [UsedImplicitly]
-    public bool RetainDiscoverySession { get; set; }
+    public bool RetainDiscoveryIndex { get; set; }
 }

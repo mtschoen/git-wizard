@@ -1,59 +1,33 @@
 using System.Text.Json.Serialization;
-using MFTLib;
+using MFTLib.Index;
 
 namespace GitWizard;
 
 public partial class GitWizardReport
 {
-    /// <summary>
-    /// Transient elevated scan session retained from a cold MFT discovery pass when requested.
-    /// Never serialized into report.json.
-    /// </summary>
-    [JsonIgnore]
-    public JournalBrokerScanSession? DiscoverySession { get; private set; }
+    MftIndexSession? _discoveryIndex;
 
-    /// <summary>
-    /// Scan records from the cold discovery scan associated with <see cref="DiscoverySession"/>.
-    /// </summary>
+    /// <summary>Borrowed query access, valid while the report owns the discovery session.</summary>
     [JsonIgnore]
-    public IReadOnlyList<ScanRecord>? DiscoveryScanRecords { get; private set; }
+    public FileIndex? DiscoveryIndex => _discoveryIndex?.Index;
 
-    /// <summary>
-    /// Drive letters scanned by <see cref="DiscoverySession"/>.
-    /// </summary>
-    [JsonIgnore]
-    public IReadOnlyList<string>? DiscoveryDrives { get; private set; }
+    public MftIndexSession? DetachDiscoveryIndex() => Interlocked.Exchange(ref _discoveryIndex, null);
 
-    /// <summary>
-    /// Transfers ownership of the retained discovery session, records, and drives to the caller.
-    /// </summary>
-    public (JournalBrokerScanSession? Session, IReadOnlyList<ScanRecord>? ScanRecords, IReadOnlyList<string>? Drives)
-        DetachDiscoverySession()
+    internal async Task SetDiscoveryIndexAsync(MftIndexSession? nextIndex)
     {
-        var session = DiscoverySession;
-        var records = DiscoveryScanRecords;
-        var drives = DiscoveryDrives;
-        DiscoverySession = null;
-        DiscoveryScanRecords = null;
-        DiscoveryDrives = null;
-        return (session, records, drives);
+        var previous = Interlocked.Exchange(ref _discoveryIndex, nextIndex);
+        if (previous is not null && !ReferenceEquals(previous, nextIndex))
+            await previous.DisposeAsync().ConfigureAwait(false);
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (DiscoverySession is not null)
-        {
-            await DiscoverySession.DisposeAsync().ConfigureAwait(false);
-            DiscoverySession = null;
-            DiscoveryScanRecords = null;
-            DiscoveryDrives = null;
-        }
-
+        await SetDiscoveryIndexAsync(null).ConfigureAwait(false);
         GC.SuppressFinalize(this);
     }
 
     public async Task GetRepositoryPathsAsync(ICollection<string> repositoryPaths,
-        IUpdateHandler? updateHandler = null, bool noMft = false, bool retainDiscoverySession = false)
+        IUpdateHandler? updateHandler = null, bool noMft = false, bool retainDiscoveryIndex = false)
     {
         var configuration = new GitWizardConfiguration
         {
@@ -62,15 +36,13 @@ public partial class GitWizardReport
             SkipHiddenDirectories = SkipHiddenDirectories
         };
 
-        if (retainDiscoverySession)
+        if (retainDiscoveryIndex)
         {
-            var discoveryResult = await GitWizardApi.TryDiscoverRepositoriesUsingMftAsync(
+            await using var discoveryResult = await GitWizardApi.TryDiscoverRepositoriesUsingMftAsync(
                 configuration, repositoryPaths, updateHandler, noMft).ConfigureAwait(false);
             if (discoveryResult.Success)
             {
-                DiscoverySession = discoveryResult.DetachSession();
-                DiscoveryScanRecords = discoveryResult.ScanRecords;
-                DiscoveryDrives = discoveryResult.Drives;
+                await SetDiscoveryIndexAsync(discoveryResult.DetachIndexSession()).ConfigureAwait(false);
                 return;
             }
         }

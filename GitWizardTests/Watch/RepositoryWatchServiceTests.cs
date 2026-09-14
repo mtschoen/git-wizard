@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using GitWizard.Watch;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests.Watch;
 
@@ -103,6 +104,54 @@ internal sealed class HangingVolumeChangeSource : IVolumeChangeSource
 [TestFixture]
 public partial class RepositoryWatchServiceTests
 {
+    [Test]
+    public async Task DriveFailureKeepsHealthyEvents()
+    {
+        await using var source = new DiagnosticVolumeChangeSource();
+        var service = new RepositoryWatchService(source, [@"X:\repo", @"Y:\repo"], [], TimeSpan.Zero);
+        var updates = new List<IReadOnlyDictionary<string, string>>();
+        service.ScanErrorsChanged += () => updates.Add(service.ScanErrors);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var reader = service.RunAsync(cancellation.Token).GetAsyncEnumerator();
+        var pending = reader.MoveNextAsync().AsTask();
+        try
+        {
+            await source.Started;
+            var previous = service.ScanErrors;
+            source.FailDrive("X", "watch failed");
+            Assert.That(service.ScanErrors, Does.ContainKey("X").WithValue("watch failed"));
+            Assert.That(updates.Last(), Is.SameAs(service.ScanErrors));
+            Assert.That(previous, Is.Empty);
+            var firstFailure = service.ScanErrors;
+            source.FailDrive("X", "changed failure");
+            Assert.That(firstFailure["X"], Is.EqualTo("watch failed"));
+            Assert.That(service.ScanErrors["X"], Is.EqualTo("changed failure"));
+            Assert.Throws<NotSupportedException>(() =>
+                ((IDictionary<string, string>)service.ScanErrors).Add("Z", "mutation"));
+            source.Publish(new VolumeChangeBatch("Y",
+                [new VolumeChangeEntry(@"Y:\repo\file", VolumeEntryKind.Modified)]));
+            Assert.That(await pending, Is.True);
+            Assert.That(reader.Current.RepoRoot, Is.EqualTo(@"Y:\repo"));
+        }
+        finally
+        {
+            source.Complete();
+            try
+            {
+                await pending;
+            }
+            finally
+            {
+                await reader.DisposeAsync();
+            }
+        }
+        Assert.That(source.DiagnosticSubscribers, Is.Zero);
+        await WatchFailureAssertions.VerifyQueryableIndexAsync();
+        await WatchFailureAssertions.VerifyShutdownAsync();
+        await WatchFailureAssertions.VerifyArmingSnapshotAsync();
+        await WatchFailureAssertions.VerifyEarlyStopAsync();
+    }
+
     static async Task<List<RepositoryChangeEvent>> DrainAsync(RepositoryWatchService svc)
     {
         var events = new List<RepositoryChangeEvent>();
@@ -333,13 +382,9 @@ public partial class RepositoryWatchServiceTests
         Assert.That(svc.ScanErrors, Is.Empty);
     }
 
-    // FakeVolumeChangeSource yields its scripted WatchAsync batches in order with no
-    // distinction between "catch-up" and "live" - which is exactly the contract
-    // UsnVolumeChangeSource.WatchAsync must uphold: catch-up entries are just that drive's
-    // first batch, processed through the identical path as every later live batch. This
-    // exercises that a leading batch (standing in for catch-up entries) and a later batch
-    // (standing in for live entries) both classify and coalesce normally, with no special
-    // casing required downstream of IVolumeChangeSource.
+    // IVolumeChangeSource preserves ordered batches. FileIndex owns replay and live changes;
+    // starting its pump is not a startup catch-up fence (MFTLib#139).
+    // The service classifies an initial replay batch exactly as it does a later live batch.
     [Test]
     public async Task CatchUpStyleLeadingBatch_ClassifiesTheSameAsLiveBatch()
     {

@@ -5,8 +5,8 @@ namespace GitWizardTests;
 
 /// <summary>
 /// Exercises the real-privilege code path the fake-injected <see cref="ElevationDecisionTests"/>
-/// deliberately cannot reach: the already-elevated branch of
-/// <see cref="GitWizardApi.TryFindAllRepositoriesUsingMftAsync"/> doing a real <c>MftVolume</c> scan.
+/// deliberately cannot reach: the broker-backed discovery path of
+/// <see cref="GitWizardApi.TryFindAllRepositoriesUsingMftAsync"/> opening a real packed index.
 ///
 /// Runs only when the test process is genuinely elevated. A normal non-elevated
 /// <c>dotnet test</c> short-circuits each test to Inconclusive (no UAC, no failure);
@@ -40,25 +40,26 @@ public class ElevationCoverageTests
     public void TearDown() => TestUtilities.ClearLocalFilesRedirect(_tempRoot);
 
     [Test]
-    public void TryFindAllRepositoriesUsingMftAsync_Elevated_RealMftScanDoesNotThrow()
+    public async Task TryFindAllRepositoriesUsingMftAsync_Elevated_FindsPreExistingRepository()
     {
         // Guard FIRST, in the body (NUnit does not reliably skip the body from a SetUp guard).
         if (!ElevationUtilities.IsElevated()) { Assert.Inconclusive("Requires admin"); return; }
 
-        // Real MftVolume scan via the already-elevated branch (the default provider reports elevated
-        // here, so no broker child spawns). Exercises FindGitRepositoriesUsingMft (Open + FindRecords
-        // + filter). We do NOT assert it discovers the freshly-created .git: the raw MFT read can lag
-        // a just-made directory, so asserting discovery would be timing-flaky. The coverage goal is
-        // exercising the real scan path without throwing.
         var searchRoot = Path.Combine(Path.GetTempPath(), "GitWizardMftScan", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(Path.Combine(searchRoot, "repo", ".git"));
+        var repositoryPath = Path.Combine(searchRoot, "repo");
+        Directory.CreateDirectory(Path.Combine(repositoryPath, ".git"));
         try
         {
             var configuration = new GitWizardConfiguration { SearchPaths = { searchRoot } };
             var paths = new SortedSet<string>();
 
-            Assert.DoesNotThrowAsync(async () => await GitWizardApi.TryFindAllRepositoriesUsingMftAsync(
-                configuration, paths, elevation: ElevationUtilities.DefaultProvider).ConfigureAwait(false));
+            var discovered = await GitWizardApi.TryFindAllRepositoriesUsingMftAsync(configuration, paths);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(discovered, Is.True);
+                Assert.That(paths, Does.Contain(repositoryPath).IgnoreCase);
+            }
         }
         finally
         {

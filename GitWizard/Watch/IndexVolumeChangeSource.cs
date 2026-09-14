@@ -1,0 +1,266 @@
+using System.Runtime.CompilerServices;
+using System.Threading.Channels;
+using MFTLib.Index;
+
+namespace GitWizard.Watch;
+
+/// <summary>Owns an index session and translates its live changes into repository-watch batches.</summary>
+public sealed class IndexVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDiagnostics
+{
+    readonly Func<IReadOnlyList<string>, CancellationToken, Task<MftIndexSession>> _openSession;
+    readonly Channel<VolumeChangeBatch> _output = Channel.CreateUnbounded<VolumeChangeBatch>();
+    readonly Lock _lifecycleLock = new();
+    readonly Lock _faultLock = new();
+    readonly HashSet<Exception> _reportedFaults = new(ReferenceEqualityComparer.Instance);
+    readonly HashSet<char> _usableDrives = [];
+    MftIndexSession? _owner;
+    Task<VolumeArmResult>? _arming;
+    TaskCompletionSource? _armFinished;
+    Task? _stopping;
+    Task? _disposal;
+    bool _disposed;
+    bool _watchClaimed;
+    FileIndex? _watchedIndex;
+    int _deathReported;
+
+    public event Action<string>? SourceDied;
+    public event Action<string, string>? DriveFailed;
+
+    public IndexVolumeChangeSource(
+        Func<IReadOnlyList<string>, CancellationToken, Task<MftIndexSession>> openSession,
+        MftIndexSession? preparedIndex = null)
+    {
+        ArgumentNullException.ThrowIfNull(openSession);
+        _openSession = openSession;
+        _owner = preparedIndex;
+    }
+
+    public Task<VolumeArmResult> ArmAndCatchUpAsync(IReadOnlyCollection<string> volumes, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(volumes);
+        lock (_lifecycleLock)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_arming is not null)
+                throw new InvalidOperationException("This source has already been armed.");
+            var armFinished = _armFinished =
+                new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            return _arming = ArmCoreAsync(volumes.ToArray(), armFinished, ct);
+        }
+    }
+
+    async Task<VolumeArmResult> ArmCoreAsync(IReadOnlyCollection<string> volumes,
+        TaskCompletionSource armFinished, CancellationToken cancellationToken)
+    {
+        // Yield so the lifecycle task is published before opening can invoke caller code.
+        await Task.Yield();
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var requested = NormalizeDrives(volumes);
+            if (_owner is null || _owner.IsDisposed || _owner.IsFaulted ||
+                !requested.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(NormalizeDrives(_owner.Drives)))
+            {
+                var prepared = _owner;
+                _owner = null;
+                if (prepared is not null)
+                    await prepared.DisposeAsync().ConfigureAwait(false);
+                _owner = await _openSession(requested, cancellationToken).ConfigureAwait(false);
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            var errors = new Dictionary<string, string>(_owner.ScanErrors, StringComparer.OrdinalIgnoreCase);
+            foreach (var drive in _owner.Index.Drives)
+            {
+                if (drive.State is DriveState.Failed or DriveState.Offline)
+                    errors[drive.DriveLetter.ToString()] = drive.MftProducerFailureMessage ?? $"Drive is {drive.State}.";
+                else if (drive.WatchSupported)
+                    _usableDrives.Add(char.ToUpperInvariant(drive.DriveLetter));
+            }
+            return new VolumeArmResult(errors);
+        }
+        catch
+        {
+            var owner = _owner;
+            _owner = null;
+            if (owner is not null)
+                await owner.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
+        finally
+        {
+            armFinished.TrySetResult();
+        }
+    }
+
+    static string[] NormalizeDrives(IEnumerable<string> volumes) => volumes
+        .Select(volume => (WatchPath.Parse(volume.Trim()).Volume ?? volume.Trim().TrimEnd(':', '\\', '/'))
+            .ToUpperInvariant())
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
+    public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync([EnumeratorCancellation] CancellationToken ct)
+    {
+        var claimed = false;
+        try
+        {
+            Task started;
+            bool hasWatchableDrives;
+            lock (_lifecycleLock)
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                if (_arming?.IsCompletedSuccessfully != true)
+                    throw new InvalidOperationException("ArmAndCatchUpAsync must finish before WatchAsync.");
+                if (_watchClaimed)
+                    throw new InvalidOperationException("This source already has a watch reader.");
+                _watchClaimed = claimed = true;
+                var owner = _owner;
+                hasWatchableDrives = owner is not null && _usableDrives.Count > 0;
+                started = owner is not null && _usableDrives.Count > 0
+                    ? StartWatch(owner, ct)
+                    : Task.CompletedTask;
+            }
+            await started.ConfigureAwait(false);
+            if (!hasWatchableDrives)
+            {
+                var reason = _owner?.ScanErrors.Values.FirstOrDefault() is { Length: > 0 } error
+                    ? $"No requested drives could be watched: {error}"
+                    : "No requested drives could be watched.";
+                ReportDeath(reason);
+                yield break;
+            }
+            await foreach (var batch in _output.Reader.ReadAllAsync(ct).ConfigureAwait(false))
+                yield return batch;
+        }
+        finally
+        {
+            if (claimed)
+                await StopOnceAsync().ConfigureAwait(false);
+        }
+    }
+
+    Task StartWatch(MftIndexSession owner, CancellationToken cancellationToken)
+    {
+        var index = owner.Index;
+        index.Changed += OnChanged;
+        index.WatchFaulted += OnWatchFaulted;
+        _watchedIndex = index;
+        // Starting means the library pump was scheduled, not that catch-up has drained.
+        return index.StartWatchingAsync(cancellationToken);
+    }
+
+    void OnChanged(FileChange change)
+    {
+        var volume = WatchPath.Parse(change.Path).Volume
+            ?? throw new InvalidDataException($"Index change has no volume: {change.Path}");
+        _output.Writer.TryWrite(new VolumeChangeBatch(volume, IndexChangeMapping.Map(change)));
+    }
+
+    void OnWatchFaulted(WatchFault fault)
+    {
+        bool terminal;
+        lock (_faultLock)
+        {
+            _reportedFaults.Add(fault.Exception);
+            if (fault.Kind == WatchFaultKind.Subscriber)
+            {
+                // A handler error reaches the reader as an error, never as a broker death.
+                _output.Writer.TryComplete(fault.Exception);
+                return;
+            }
+            if (fault.DriveLetter is { } drive)
+                _usableDrives.Remove(char.ToUpperInvariant(drive));
+            terminal = fault.DriveLetter is null || _usableDrives.Count == 0;
+        }
+        try
+        {
+            if (fault.DriveLetter is { } drive)
+                DriveFailed?.Invoke(drive.ToString(), fault.Exception.Message);
+        }
+        catch (Exception exception)
+        {
+            // MFTLib discards fault-reporter exceptions, so route them to our reader explicitly.
+            _output.Writer.TryComplete(exception);
+        }
+        if (terminal)
+            ReportDeath(fault.Exception.Message);
+    }
+
+    void ReportDeath(string reason)
+    {
+        if (Interlocked.Exchange(ref _deathReported, 1) != 0)
+            return;
+        try
+        {
+            SourceDied?.Invoke(reason);
+        }
+        catch (Exception exception)
+        {
+            _output.Writer.TryComplete(exception);
+        }
+        finally
+        {
+            _output.Writer.TryComplete();
+        }
+    }
+
+    Task StopOnceAsync()
+    {
+        lock (_lifecycleLock)
+            return _stopping ??= StopCoreAsync();
+    }
+
+    async Task StopCoreAsync()
+    {
+        // Never await a pump while holding the lock that publishes lifecycle tasks.
+        await Task.Yield();
+        var index = _watchedIndex;
+        if (index is null)
+            return;
+        index.Changed -= OnChanged;
+        index.WatchFaulted -= OnWatchFaulted;
+        try
+        {
+            await index.StopWatchingAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (WasReported(exception))
+        {
+            // Stop rethrows the exact fault already delivered through diagnostics or the reader.
+        }
+        finally
+        {
+            _output.Writer.TryComplete();
+        }
+    }
+
+    bool WasReported(Exception exception)
+    {
+        lock (_faultLock)
+            return _reportedFaults.Contains(exception);
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        lock (_lifecycleLock)
+        {
+            _disposed = true;
+            _output.Writer.TryComplete();
+            return new ValueTask(_disposal ??= DisposeCoreAsync(_armFinished?.Task));
+        }
+    }
+
+    async Task DisposeCoreAsync(Task? armFinished)
+    {
+        await Task.Yield();
+        if (armFinished is not null)
+            await armFinished.ConfigureAwait(false);
+        try
+        {
+            await StopOnceAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            if (_owner is not null)
+                await _owner.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+}

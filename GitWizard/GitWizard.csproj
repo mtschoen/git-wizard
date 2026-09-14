@@ -13,15 +13,15 @@
     </PackageReference>
     <PackageReference Include="LibGit2Sharp" Version="0.31.0" />
     <!-- MFTLib (0.3.0) is referenced centrally for the whole tree in the repo-root
-         Directory.Build.targets — a TEMPORARY source-build bridge to the external/MFTLib
+         Directory.Build.targets - a TEMPORARY source-build bridge to the external/MFTLib
          submodule while 0.3.0 is unpublished. See Directory.Build.targets' header for the
          retire-to-NuGet steps, and AGENTS.md's MFTLib Local Development section for local dev. -->
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Expose internals to the test project: the pure ScanRecord-to-repository-root mapping
-         seam (SelectGitEntryPaths, ResolveRepositoryRootCandidates) so the .git-file discovery
-         path can be exercised with synthetic ScanRecords on any OS, and the broker discovery
+    <!-- Expose internals to the test project: the pure native-block-to-repository-root mapping
+         seam (SelectGitEntries, ResolveRepositoryRootCandidates) so the .git-file discovery
+         path can be exercised with enumeration-produced blocks on any OS, and the broker discovery
          profile/keep-file-name constants so the wire-level ArmAndScan assertion can reuse them
          instead of repeating literals. -->
     <InternalsVisibleTo Include="GitWizardTests" />

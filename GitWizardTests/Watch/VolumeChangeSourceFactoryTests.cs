@@ -1,4 +1,5 @@
 using GitWizard.Watch;
+using GitWizardTests.TestSupport;
 using MFTLib;
 
 namespace GitWizardTests.Watch;
@@ -62,7 +63,7 @@ public class VolumeChangeSourceFactoryTests
         await using var source = VolumeChangeSourceFactory.Create();
 
         if (OperatingSystem.IsWindows())
-            Assert.That(source.GetType().Name, Is.EqualTo("UsnVolumeChangeSource"));
+            Assert.That(source.GetType().Name, Is.EqualTo("IndexVolumeChangeSource"));
         else if (OperatingSystem.IsLinux())
             Assert.That(source.GetType().Name, Is.EqualTo("FanotifyVolumeChangeSource"));
         else
@@ -89,12 +90,24 @@ public class VolumeChangeSourceFactoryTests
     }
 
     [Test]
-    public async Task Create_WindowsWithPreparedSession_CreatesUsnVolumeChangeSource()
+    public async Task Create_WindowsWithPreparedIndex_CreatesIndexVolumeChangeSource()
     {
-        if (!OperatingSystem.IsWindows())
-            Assert.Ignore("Windows-only test.");
-
-        await using var source = VolumeChangeSourceFactory.Create(null, null, null, _ => true);
-        Assert.That(source.GetType().Name, Is.EqualTo("UsnVolumeChangeSource"));
+        VolumeChangeSourceFactory._isWindowsOverride = () => true;
+        VolumeChangeSourceFactory._isLinuxOverride = () => false;
+        await using var fixture = new IndexOwnerFixture();
+        await fixture.StartAsync();
+        var source = VolumeChangeSourceFactory.Create(fixture.Owner,
+            _ => throw new AssertionException("Construction must not connect"));
+        try
+        {
+            Assert.That(source.GetType().Name, Is.EqualTo("IndexVolumeChangeSource"));
+            await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
+            Assert.That(fixture.Owner.IsDisposed, Is.False);
+        }
+        finally
+        {
+            await source.DisposeAsync();
+        }
+        Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
     }
 }

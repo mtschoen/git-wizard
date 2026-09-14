@@ -15,6 +15,22 @@ The `SchemaVersion` field at the top of every report indicates the schema versio
 
 The report is written with `System.Text.Json`'s `DefaultIgnoreCondition = WhenWritingDefault`. **Numeric fields equal to `0`, boolean fields equal to `false`, and reference fields equal to `null` are omitted from the JSON output.** Consumers should treat absent fields as their default value (`0`/`false`/`null`), not as "unknown". Every non-nullable field documented below is guaranteed to be present *in spirit* - the serializer may simply elide it. (Empty non-null collections are still written, e.g. `[]`.)
 
+### Discovery resources are not report data
+
+The packed-index port changes how repositories are found; report schema remains **2.1** and
+Git metadata ownership and the fields below are unchanged. Git repository inspection still
+supplies status, branches, remotes, and commits.
+
+`DiscoveryIndex` is non-serialized, borrowed `FileIndex` query access while the report owns its
+`MftIndexSession`. Neither `DiscoveryIndex` nor that resource owner is ever serialized. The
+single owner can transfer from discovery result to report to view model to
+`IndexVolumeChangeSource`, which disposes it when finished. Detaching clears the previous
+holder; a holder that does not transfer the owner disposes it.
+
+Index no-cache mode does not disable the existing `~/.GitWizard/repositories.txt` or cached
+`~/.GitWizard/report.json`. Saving a report persists Git report data, never the discovery index
+or its broker resources.
+
 ## Concurrency
 
 The report file has **no lockfile**. Writes are atomic at the file level - the CLI's

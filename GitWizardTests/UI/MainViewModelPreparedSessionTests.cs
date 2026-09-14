@@ -1,391 +1,184 @@
-using System.Buffers;
-using System.Buffers.Binary;
-using System.IO.Pipelines;
 using GitWizard;
 using GitWizard.Watch;
+using GitWizard.Watch.Linux;
+using GitWizardTests.TestSupport;
 using GitWizardUI.ViewModels;
 using GitWizardUI.ViewModels.Services;
-using MFTLib;
-using MFTLibTestExtensions;
+using MFTLib.Index;
 
 namespace GitWizardTests.UI;
-
-#pragma warning disable CA1416 // Testing Windows-targeted types with in-memory streams across platforms
 
 [TestFixture]
 public class MainViewModelPreparedSessionTests
 {
-    sealed class EmptyMmfReader : IMmfReader
-    {
-        public ScanRecord[] Read(string mmfName, long byteLength) => [];
-    }
-
-    sealed class NoOpDisposable : IDisposable
-    {
-        public static readonly NoOpDisposable Instance = new();
-        public void Dispose() { }
-    }
-
-    sealed class DuplexStream : Stream
-    {
-        readonly Stream _read;
-        readonly Stream _write;
-
-        DuplexStream(Stream read, Stream write)
-        {
-            _read = read;
-            _write = write;
-        }
-
-        public static (DuplexStream Client, DuplexStream Server) CreatePair()
-        {
-            var clientToServer = new Pipe();
-            var serverToClient = new Pipe();
-            var client = new DuplexStream(serverToClient.Reader.AsStream(), clientToServer.Writer.AsStream());
-            var server = new DuplexStream(clientToServer.Reader.AsStream(), serverToClient.Writer.AsStream());
-            return (client, server);
-        }
-
-        public override bool CanRead => true;
-        public override bool CanWrite => true;
-        public override bool CanSeek => false;
-        public override long Length => throw new NotSupportedException();
-        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
-
-        public override void Flush() => _write.Flush();
-        public override Task FlushAsync(CancellationToken cancellationToken) => _write.FlushAsync(cancellationToken);
-
-        public override int Read(byte[] buffer, int offset, int count) => _read.Read(buffer, offset, count);
-
-        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
-            => _read.ReadAsync(buffer, cancellationToken);
-
-        public override void Write(byte[] buffer, int offset, int count) => _write.Write(buffer, offset, count);
-
-        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
-            => _write.WriteAsync(buffer, cancellationToken);
-
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-        public override void SetLength(long value) => throw new NotSupportedException();
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                _read.Dispose();
-                _write.Dispose();
-            }
-            base.Dispose(disposing);
-        }
-    }
-
-    static async Task<BrokerFrame> ReadOneFrameAsync(Stream stream)
-    {
-        var header = new byte[4];
-        await stream.ReadExactlyAsync(header);
-        var totalLength = BinaryPrimitives.ReadInt32LittleEndian(header);
-        var frameBytes = new byte[4 + totalLength];
-        header.CopyTo(frameBytes.AsMemory());
-        await stream.ReadExactlyAsync(frameBytes.AsMemory(4, totalLength));
-        return BrokerProtocol.ReadFrame(frameBytes, out _);
-    }
-
-    static async Task<(JournalBrokerScanSession Session, DuplexStream ServerSide)> CreateParkedSessionAsync(
-        IReadOnlyList<string> drives)
-    {
-        var (clientSide, serverSide) = DuplexStream.CreatePair();
-        var client = new JournalBrokerClient(
-            pipe: clientSide,
-            mmfReader: new EmptyMmfReader(),
-            createDriveMmf: (letter, _) => ($"gw-test-{letter}", NoOpDisposable.Instance));
-
-        var brokerTask = Task.Run(async () =>
-        {
-            _ = await ReadOneFrameAsync(serverSide);
-            var response = new ArrayBufferWriter<byte>();
-
-            foreach (var drive in drives)
-            {
-                var letter = drive.TrimEnd(':', '\\', '/').ToUpperInvariant();
-                BrokerProtocol.WriteCursor(response, letter, new UsnJournalCursor(100UL, 1000L));
-                BrokerProtocol.WriteScanReady(response, $"gw-test-{letter}", 0, 0);
-                BrokerProtocol.WriteJournalBatch(response, letter, new UsnJournalCursor(100UL, 1000L), []);
-            }
-
-            await serverSide.WriteAsync(response.WrittenMemory);
-            await serverSide.FlushAsync();
-        });
-
-        var session = await ScanSessionTestHarness.StartScannedAsync(
-            _ => Task.FromResult(client), drives,
-            BrokerScanProfile.DirectoryIndex, ["git"]);
-        await brokerTask;
-
-        return (session, serverSide);
-    }
-
-    static MainViewModel NewViewModel()
-        => new(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+    static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(10);
+    static MainViewModel NewViewModel() =>
+        new(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
 
     [SetUp]
     public void SetUp() => GitWizardLog.SilentMode = true;
 
     [Test]
-    public async Task SetPreparedDiscoverySessionAsync_ReplacesAndDisposesOldSession()
+    public async Task SetPreparedDiscoveryIndexAsync_ReplacesAndDisposesOldIndex()
     {
-        var (session1, serverSide1) = await CreateParkedSessionAsync(["C:\\"]);
-        var (session2, serverSide2) = await CreateParkedSessionAsync(["C:\\"]);
-
+        await using var first = new IndexOwnerFixture();
+        await first.StartAsync();
+        await using var second = new IndexOwnerFixture();
+        await second.StartAsync();
         await using var viewModel = NewViewModel();
-
-        await viewModel.SetPreparedDiscoverySessionAsync(
-            new PreparedDiscoverySession(session1, []));
-        Assert.That(viewModel.PreparedDiscoverySession, Is.Not.Null);
-
-        await viewModel.SetPreparedDiscoverySessionAsync(
-            new PreparedDiscoverySession(session2, []));
-        Assert.That(viewModel.PreparedDiscoverySession?.Session, Is.SameAs(session2));
-        Assert.That(session1.State, Is.EqualTo(JournalBrokerSessionState.Disposed));
-        Assert.That(session2.State, Is.EqualTo(JournalBrokerSessionState.Parked));
-
-        await serverSide1.DisposeAsync();
-        await serverSide2.DisposeAsync();
+        await viewModel.SetPreparedDiscoveryIndexAsync(first.Owner);
+        await viewModel.SetPreparedDiscoveryIndexAsync(second.Owner);
+        Assert.That(first.ConnectionDisposals, Is.EqualTo(1));
+        Assert.That(viewModel.PreparedDiscoveryIndex, Is.SameAs(second.Owner));
+        Assert.That(second.Owner.IsDisposed, Is.False);
     }
 
     [Test]
-    public async Task ClearCacheAsync_DisposesPreparedDiscoverySession()
-    {
-        var (session, serverSide) = await CreateParkedSessionAsync(["C:\\"]);
-        await using var viewModel = NewViewModel();
-
-        await viewModel.SetPreparedDiscoverySessionAsync(
-            new PreparedDiscoverySession(session, []));
-        Assert.That(viewModel.PreparedDiscoverySession, Is.Not.Null);
-
-        await viewModel.ClearCacheAsync();
-
-        Assert.That(viewModel.PreparedDiscoverySession, Is.Null);
-        Assert.That(session.State, Is.EqualTo(JournalBrokerSessionState.Disposed));
-
-        await serverSide.DisposeAsync();
-    }
+    public Task ClearCacheAsync_DisposesPreparedDiscoveryIndex() =>
+        AssertReleaseAsync(viewModel => viewModel.ClearCacheAsync());
 
     [Test]
-    public async Task DeleteAllLocalFilesAsync_DisposesPreparedDiscoverySession()
-    {
-        var (session, serverSide) = await CreateParkedSessionAsync(["C:\\"]);
-        await using var viewModel = NewViewModel();
-
-        await viewModel.SetPreparedDiscoverySessionAsync(
-            new PreparedDiscoverySession(session, []));
-        Assert.That(viewModel.PreparedDiscoverySession, Is.Not.Null);
-
-        await viewModel.DeleteAllLocalFilesAsync();
-
-        Assert.That(viewModel.PreparedDiscoverySession, Is.Null);
-        Assert.That(session.State, Is.EqualTo(JournalBrokerSessionState.Disposed));
-
-        await serverSide.DisposeAsync();
-    }
+    public Task DeleteAllLocalFilesAsync_DisposesPreparedDiscoveryIndex() =>
+        AssertReleaseAsync(viewModel => viewModel.DeleteAllLocalFilesAsync());
 
     [Test]
-    public async Task DisposeAsync_DisposesPreparedDiscoverySession()
+    public Task DisposeAsync_DisposesPreparedDiscoveryIndex() =>
+        AssertReleaseAsync(viewModel => viewModel.DisposeAsync().AsTask());
+
+    [Test]
+    public async Task TakePreparedDiscoveryIndex_AtomicallyTransfersAndClears()
     {
-        var (session, serverSide) = await CreateParkedSessionAsync(["C:\\"]);
+        await using var fixture = new IndexOwnerFixture();
+        await fixture.StartAsync();
         var viewModel = NewViewModel();
-
-        await viewModel.SetPreparedDiscoverySessionAsync(
-            new PreparedDiscoverySession(session, []));
-        Assert.That(viewModel.PreparedDiscoverySession, Is.Not.Null);
-
-        await viewModel.DisposeAsync();
-
-        Assert.That(viewModel.PreparedDiscoverySession, Is.Null);
-        Assert.That(session.State, Is.EqualTo(JournalBrokerSessionState.Disposed));
-
-        await serverSide.DisposeAsync();
-    }
-
-    [Test]
-    public void TakePreparedDiscoverySession_AtomicallyTransfersAndClears()
-    {
-        var viewModel = NewViewModel();
-        Assert.That(viewModel.TakePreparedDiscoverySession(), Is.Null);
-    }
-
-    [Test]
-    public async Task PreparedDiscoverySession_PreservesDrives()
-    {
-        var (session, serverSide) = await CreateParkedSessionAsync(["C:\\"]);
-        IReadOnlyList<string> drives = ["C"];
-        var prepared = new PreparedDiscoverySession(session, [], drives);
-
-        Assert.Multiple(() =>
+        MftIndexSession? owner;
+        try
         {
-            Assert.That(prepared.Session, Is.SameAs(session));
-            Assert.That(prepared.ScanRecords, Is.Empty);
-            Assert.That(prepared.Drives, Is.EqualTo(drives));
-        });
-
-        await prepared.DisposeAsync();
-        await serverSide.DisposeAsync();
-    }
-
-    [Test]
-    public async Task SetPreparedDiscoverySessionAsync_WhenSessionNull_DisposesExistingSession()
-    {
-        var (session, serverSide) = await CreateParkedSessionAsync(["C:\\"]);
-        await using var viewModel = NewViewModel();
-
-        await viewModel.SetPreparedDiscoverySessionAsync(
-            new PreparedDiscoverySession(session, []));
-        Assert.That(viewModel.PreparedDiscoverySession, Is.Not.Null);
-
-        await viewModel.SetPreparedDiscoverySessionAsync(null);
-
-        Assert.That(viewModel.PreparedDiscoverySession, Is.Null);
-        Assert.That(session.State, Is.EqualTo(JournalBrokerSessionState.Disposed));
-
-        await serverSide.DisposeAsync();
-    }
-
-    [Test]
-    public async Task ToggleLiveAsync_TwoConsecutiveStarts_FirstAdoptsPreparedSession_SecondLaunchesBroker()
-    {
-        var (session, serverSide) = await CreateParkedSessionAsync(["C:\\"]);
-        IReadOnlyList<ScanRecord> scanRecords =
-        [
-            new(RecordNumber: 42, ParentRecordNumber: 0, 0, 0, 0, IsDirectory: true, Name: "repo", Path: "C:\\code\\repo")
-        ];
-        IReadOnlyList<string> drives = ["C"];
-
-        var brokerLaunchCount = 0;
-        bool FakeBrokerLaunch(string _)
-        {
-            brokerLaunchCount++;
-            return false;
+            await viewModel.SetPreparedDiscoveryIndexAsync(fixture.Owner);
+            owner = viewModel.TakePreparedDiscoveryIndex();
+            Assert.That(viewModel.TakePreparedDiscoveryIndex(), Is.Null);
         }
-
-        var viewModel = NewViewModel();
-        await viewModel.SetPreparedDiscoverySessionAsync(
-            new PreparedDiscoverySession(session, scanRecords, drives));
-
-        viewModel.LiveVolumeChangeSourceFactory = () =>
+        finally
         {
-            var prepared = viewModel.TakePreparedDiscoverySession();
-            if (prepared != null)
-                return new UsnVolumeChangeSource(prepared.Session, prepared.ScanRecords, FakeBrokerLaunch, prepared.Drives);
-
-            return new UsnVolumeChangeSource(FakeBrokerLaunch);
-        };
-        viewModel.LiveIsElevated = () => false;
-        viewModel.AddRepository(new GitWizardRepository(@"C:\code\repo"));
-
-        // First start: adopts prepared session with zero broker launches
-        var startTask1 = viewModel.ToggleLiveAsync();
-        var startWatchFrame = await ReadOneFrameAsync(serverSide);
-        Assert.That(startWatchFrame.Kind, Is.EqualTo(BrokerFrameKind.StartWatch));
-
-        await WaitUntilAsync(() => viewModel.IsLive);
-
-        Assert.Multiple(() =>
+            await viewModel.DisposeAsync();
+        }
+        try
         {
-            Assert.That(viewModel.IsLive, Is.True);
-            Assert.That(brokerLaunchCount, Is.EqualTo(0), "First start must adopt prepared session with zero broker launches.");
-            Assert.That(viewModel.PreparedDiscoverySession, Is.Null, "Prepared discovery session must be consumed.");
-        });
-
-        // Stop first start: disposes the adopted prepared session
-        await viewModel.ToggleLiveAsync();
-        await startTask1;
-
-        Assert.Multiple(() =>
+            Assert.That(owner, Is.SameAs(fixture.Owner));
+            Assert.That(owner!.Index.FindByName(".git").Single().Parent!.Value.Name, Is.EqualTo("repo"));
+            Assert.That(fixture.ConnectionDisposals, Is.Zero);
+        }
+        finally
         {
-            Assert.That(viewModel.IsLive, Is.False);
-            Assert.That(session.State, Is.EqualTo(JournalBrokerSessionState.Disposed), "Prepared session must be disposed after stopping.");
-        });
-
-        // Second start: falls through to a fresh UsnVolumeChangeSource and launches broker
-        await viewModel.ToggleLiveAsync();
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(viewModel.IsLive, Is.False, "Second start fails cleanly because fake broker launcher returned false.");
-            Assert.That(brokerLaunchCount, Is.EqualTo(1), "Second start must launch exactly one broker.");
-            Assert.That(session.State, Is.EqualTo(JournalBrokerSessionState.Disposed), "Prepared session was disposed exactly once.");
-        });
-
-        await serverSide.DisposeAsync();
+            if (owner is not null)
+                await owner.DisposeAsync();
+        }
+        Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
     }
 
     [Test]
-    public async Task ToggleLiveAsync_ElevatedRespawn_FirstAdoptsPreparedSession_RespawnLaunchesBroker()
+    public async Task PreparedDiscoveryIndex_PreservesDrives()
     {
-        var (session, serverSide) = await CreateParkedSessionAsync(["C:\\"]);
-        IReadOnlyList<ScanRecord> scanRecords =
-        [
-            new(RecordNumber: 42, ParentRecordNumber: 0, 0, 0, 0, IsDirectory: true, Name: "repo", Path: "C:\\code\\repo")
-        ];
-        IReadOnlyList<string> drives = ["C"];
-
-        var brokerLaunchCount = 0;
-        bool FakeBrokerLaunch(string _)
-        {
-            brokerLaunchCount++;
-            return false;
-        }
-
-        var viewModel = NewViewModel();
-        await viewModel.SetPreparedDiscoverySessionAsync(
-            new PreparedDiscoverySession(session, scanRecords, drives));
-
-        viewModel.LiveVolumeChangeSourceFactory = () =>
-        {
-            var prepared = viewModel.TakePreparedDiscoverySession();
-            if (prepared != null)
-                return new UsnVolumeChangeSource(prepared.Session, prepared.ScanRecords, FakeBrokerLaunch, prepared.Drives);
-
-            return new UsnVolumeChangeSource(FakeBrokerLaunch);
-        };
-        viewModel.LiveIsElevated = () => true;
-        viewModel.AddRepository(new GitWizardRepository(@"C:\code\repo"));
-
-        // First start: adopts prepared session with zero broker launches
-        var startTask = viewModel.ToggleLiveAsync();
-        var startWatchFrame = await ReadOneFrameAsync(serverSide);
-        Assert.That(startWatchFrame.Kind, Is.EqualTo(BrokerFrameKind.StartWatch));
-
-        await WaitUntilAsync(() => viewModel.IsLive);
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(viewModel.IsLive, Is.True);
-            Assert.That(brokerLaunchCount, Is.EqualTo(0), "First start must adopt prepared session with zero broker launches.");
-            Assert.That(viewModel.PreparedDiscoverySession, Is.Null, "Prepared discovery session must be consumed.");
-        });
-
-        // Kill the first source by disposing the server side stream
-        await serverSide.DisposeAsync();
-
-        // The controller disposes the dead source (disposing prepared session) and respawns,
-        // which falls through to a fresh UsnVolumeChangeSource, launching exactly one broker.
-        await startTask;
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(viewModel.IsLive, Is.False);
-            Assert.That(brokerLaunchCount, Is.EqualTo(1), "Respawn must launch exactly one broker.");
-            Assert.That(session.State, Is.EqualTo(JournalBrokerSessionState.Disposed), "Prepared session was disposed exactly once.");
-        });
+        await using var fixture = new IndexOwnerFixture();
+        await fixture.StartAsync();
+        await using var viewModel = NewViewModel();
+        await viewModel.SetPreparedDiscoveryIndexAsync(fixture.Owner);
+        Assert.That(viewModel.PreparedDiscoveryIndex!.Drives, Is.EqualTo(new[] { "X" }));
+        Assert.That(viewModel.PreparedDiscoveryIndex.Index, Is.SameAs(fixture.Owner.Index));
     }
+
+    [Test]
+    public Task SetPreparedDiscoveryIndexAsync_WhenNull_DisposesExistingIndex() =>
+        AssertReleaseAsync(viewModel => viewModel.SetPreparedDiscoveryIndexAsync(null));
+
+    static async Task AssertReleaseAsync(Func<MainViewModel, Task> release)
+    {
+        await using var fixture = new IndexOwnerFixture();
+        await fixture.StartAsync();
+        await using var viewModel = NewViewModel();
+        await viewModel.SetPreparedDiscoveryIndexAsync(fixture.Owner);
+        await release(viewModel);
+        Assert.That(viewModel.PreparedDiscoveryIndex, Is.Null);
+        Assert.That(fixture.Owner.IsDisposed, Is.True);
+        Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
+    }
+
+    [Test]
+    public Task ToggleLiveAsync_TwoConsecutiveStarts_FirstAdoptsPreparedIndex_SecondOpensIndex() =>
+        AssertRestartAsync(respawn: false);
+
+    [Test]
+    public Task ToggleLiveAsync_ElevatedRespawn_FirstAdoptsPreparedIndex_RespawnOpensIndex() =>
+        AssertRestartAsync(respawn: true);
+
+    static async Task AssertRestartAsync(bool respawn)
+    {
+        var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync();
+        var searchPaths = configuration.SearchPaths;
+        configuration.SearchPaths = [];
+        try
+        {
+            await ExerciseRestartAsync(respawn);
+        }
+        finally
+        {
+            configuration.SearchPaths = searchPaths;
+        }
+    }
+
+    static async Task ExerciseRestartAsync(bool respawn)
+    {
+        var scripted = new ScriptedIndexWatchSource();
+        await using var fixture = new IndexOwnerFixture();
+        await fixture.StartAsync(scripted);
+        await using var viewModel = NewViewModel();
+        await viewModel.SetPreparedDiscoveryIndexAsync(fixture.Owner);
+        var opens = 0;
+        var takePreparedDiscoveryIndex = viewModel.TakePreparedDiscoveryIndex;
+        viewModel.LiveVolumeChangeSourceFactory = () => new IndexVolumeChangeSource((_, _) =>
+        {
+            opens++;
+            throw new InvalidOperationException("Fresh index unavailable");
+        }, takePreparedDiscoveryIndex());
+        viewModel.LiveIsElevated = () => respawn;
+        viewModel.LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
+        viewModel.AddRepository(new GitWizardRepository(@"X:\repo"));
+        try
+        {
+            var starting = viewModel.ToggleLiveAsync();
+            await scripted.Started.WaitAsync(HangGuard);
+            await WaitUntilAsync(() => viewModel.IsLive);
+            Assert.That(opens, Is.Zero);
+            Assert.That(viewModel.PreparedDiscoveryIndex, Is.Null);
+            if (respawn)
+            {
+                scripted.Publish(new DriveWatchFailure('X', new IOException("source died")));
+                await starting.WaitAsync(HangGuard);
+            }
+            else
+            {
+                await viewModel.ToggleLiveAsync();
+                await starting.WaitAsync(HangGuard);
+                Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
+                await viewModel.ToggleLiveAsync();
+            }
+            Assert.That(viewModel.IsLive, Is.False);
+            Assert.That(opens, Is.EqualTo(1));
+            Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
+        }
+        finally
+        {
+            viewModel.LiveVolumeChangeSourceFactory = FailIfVolumeChangeSourceIsRequested;
+        }
+    }
+
+    static IVolumeChangeSource FailIfVolumeChangeSourceIsRequested() =>
+        throw new InvalidOperationException("The test source factory must not be used after teardown.");
 
     static async Task WaitUntilAsync(Func<bool> condition)
     {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var timeout = new CancellationTokenSource(HangGuard);
         while (!condition())
-        {
-            timeout.Token.ThrowIfCancellationRequested();
             await Task.Delay(10, timeout.Token);
-        }
     }
 }

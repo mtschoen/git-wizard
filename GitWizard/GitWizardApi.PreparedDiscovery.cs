@@ -1,159 +1,93 @@
-using System.Runtime.InteropServices;
-using System.Runtime.Versioning;
+using GitWizard.Watch;
 using MFTLib;
 
 namespace GitWizard;
 
 public static partial class GitWizardApi
 {
-    /// <summary>
-    /// Try to find all git repositories across all search paths using MFT, taking the cold
-    /// scan through MFTLib's elevated journal broker when not already elevated - one UAC
-    /// prompt for the whole run, no temp-file handoff.
-    /// </summary>
+    /// <summary>Discovers repositories with an owned packed index and releases it after querying.</summary>
     public static async Task<bool> TryFindAllRepositoriesUsingMftAsync(
         GitWizardConfiguration configuration, ICollection<string> paths,
-        IUpdateHandler? updateHandler = null, bool noMft = false, IElevationProvider? elevation = null,
-        Func<IReadOnlyList<string>, Task<IReadOnlyList<ScanRecord>>>? scanProvider = null)
+        IUpdateHandler? updateHandler = null, bool noMft = false)
     {
-        Func<IReadOnlyList<string>, Task<(JournalBrokerScanSession? Session, IReadOnlyList<ScanRecord> Records)>>?
-            sessionScanProvider = null;
-        if (scanProvider != null)
-        {
-            sessionScanProvider = async drives =>
-            {
-                var records = await scanProvider(drives).ConfigureAwait(false);
-                return (null, records);
-            };
-        }
-
         await using var result = await TryDiscoverRepositoriesUsingMftAsync(
-            configuration, paths, updateHandler, noMft, elevation, sessionScanProvider).ConfigureAwait(false);
+            configuration, paths, updateHandler, noMft).ConfigureAwait(false);
         return result.Success;
     }
 
-    /// <summary>
-    /// Rich discovery result carrying discovered repository state along with ownership of any
-    /// elevated <see cref="JournalBrokerScanSession"/> created during discovery.
-    /// </summary>
-    public static async Task<MftDiscoveryResult> TryDiscoverRepositoriesUsingMftAsync(
+    /// <summary>Transfers a successful discovery index session to the returned result.</summary>
+    public static Task<MftDiscoveryResult> TryDiscoverRepositoriesUsingMftAsync(
         GitWizardConfiguration configuration, ICollection<string> paths,
-        IUpdateHandler? updateHandler = null, bool noMft = false, IElevationProvider? elevation = null,
-        Func<IReadOnlyList<string>, Task<(JournalBrokerScanSession? Session, IReadOnlyList<ScanRecord> Records)>>?
-            sessionScanProvider = null)
+        IUpdateHandler? updateHandler = null, bool noMft = false)
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || noMft)
-            return new MftDiscoveryResult(false);
+        if (!OperatingSystem.IsWindows() || noMft)
+            return Task.FromResult(new MftDiscoveryResult(false));
 
-        elevation ??= ElevationUtilities.DefaultProvider;
-        if (elevation.IsElevated())
-            return DiscoverRepositoriesInProcess(configuration, paths, updateHandler);
-
-        return await DiscoverRepositoriesThroughBrokerAsync(
-            configuration, paths, updateHandler, sessionScanProvider).ConfigureAwait(false);
+        var roots = configuration.SearchPaths.Select(ExpandSearchPath).OfType<string>().ToArray();
+        var ignored = ExpandIgnoredPaths(configuration.IgnoredPaths);
+        return DiscoverRepositoriesWithIndexAsync(configuration, paths, roots, ignored, new IndexDiscoveryComposition(OpenWindowsDiscoveryIndexAsync, WindowsCandidateExists), updateHandler);
     }
 
-    static MftDiscoveryResult DiscoverRepositoriesInProcess(
-        GitWizardConfiguration configuration, ICollection<string> paths, IUpdateHandler? updateHandler)
+    static Task<MftIndexSession> OpenWindowsDiscoveryIndexAsync(IReadOnlyList<string> drives)
     {
-        foreach (var searchPath in configuration.SearchPaths)
-        {
-            var expanded = ExpandSearchPath(searchPath);
-            if (expanded == null)
-                continue;
-
-            FindGitRepositoriesUsingMft(expanded, paths, configuration.IgnoredPaths, updateHandler,
-                configuration.SkipHiddenDirectories);
-        }
-
-        return new MftDiscoveryResult(paths.Count > 0);
+        if (!OperatingSystem.IsWindows())
+            throw new PlatformNotSupportedException("MFT discovery requires Windows.");
+        return MftIndexSession.OpenWindowsAsync(drives, BrokerLauncher.Launch, CancellationToken.None);
     }
 
-    [SupportedOSPlatform("windows")]
-    static async Task<MftDiscoveryResult> DiscoverRepositoriesThroughBrokerAsync(
-        GitWizardConfiguration configuration, ICollection<string> paths, IUpdateHandler? updateHandler,
-        Func<IReadOnlyList<string>, Task<(JournalBrokerScanSession? Session, IReadOnlyList<ScanRecord> Records)>>?
-            sessionScanProvider)
+    static bool WindowsCandidateExists(string path)
     {
-        var expandedRoots = configuration.SearchPaths
-            .Select(ExpandSearchPath)
+        if (!OperatingSystem.IsWindows())
+            throw new PlatformNotSupportedException("Windows candidates require Windows filesystem validation.");
+        return Directory.Exists(path);
+    }
+
+    internal static async Task<MftDiscoveryResult> DiscoverRepositoriesWithIndexAsync(
+        GitWizardConfiguration configuration, ICollection<string> paths,
+        IReadOnlyCollection<string> expandedRoots, ICollection<string> expandedIgnoredPaths,
+        IndexDiscoveryComposition composition, IUpdateHandler? updateHandler = null)
+    {
+        var drives = expandedRoots.Select(WatchPath.Parse)
+            .Select(root => root.IsWindows && root.Volume is { Length: 1 } volume &&
+                char.IsAsciiLetter(volume[0]) ? volume.ToUpperInvariant() : null)
             .OfType<string>()
-            .ToList();
-        var drives = expandedRoots
-            .Select(GetDriveLetter)
-            .OfType<string>()
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        if (expandedRoots.Count == 0 || drives.Count == 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (expandedRoots.Count == 0 || drives.Length == 0)
             return new MftDiscoveryResult(false);
 
-        (JournalBrokerScanSession? Session, IReadOnlyList<ScanRecord> Records) scanResult;
+        MftIndexSession? owner = null;
         try
         {
-            if (sessionScanProvider != null)
+            owner = await composition.OpenIndex(drives).ConfigureAwait(false);
+            foreach (var error in owner.ScanErrors)
             {
-                scanResult = await sessionScanProvider(drives).ConfigureAwait(false);
+                var message = $"MFT scan error on {error.Key}: {error.Value}";
+                GitWizardLog.Log(message, GitWizardLog.LogType.Warning);
+                updateHandler?.SendUpdateMessage(message);
             }
-            else
-            {
-                var brokerResult = await BrokerScanWithSessionAsync(drives).ConfigureAwait(false);
-                scanResult = (brokerResult.Session, brokerResult.Records);
-            }
+
+            var entries = SelectGitEntries(owner.Index, includeGitFiles: true);
+            var candidates = expandedRoots.SelectMany(root => ResolveRepositoryRootCandidates(
+                entries, root, expandedIgnoredPaths, configuration.SkipHiddenDirectories))
+                .Distinct(StringComparer.OrdinalIgnoreCase).Where(composition.CandidateExists).ToArray();
+            foreach (var candidate in candidates)
+                paths.Add(candidate);
+            updateHandler?.SendUpdateMessage($"MFT search found {candidates.Length} repositories");
+            if (candidates.Length == 0)
+                return new MftDiscoveryResult(false);
+            var result = new MftDiscoveryResult(true, owner);
+            owner = null;
+            return result;
         }
-        catch (InvalidOperationException exception)
+        catch (Exception exception) when (exception is InvalidOperationException or IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            GitWizardLog.Log($"MFT broker scan unavailable: {exception.Message}", GitWizardLog.LogType.Warning);
+            GitWizardLog.Log($"MFT scan unavailable: {exception.Message}", GitWizardLog.LogType.Warning);
             return new MftDiscoveryResult(false);
         }
-
-        return await BuildDiscoveryResultAsync(
-            configuration, paths, updateHandler, expandedRoots, drives, scanResult).ConfigureAwait(false);
-    }
-
-    static async Task<MftDiscoveryResult> BuildDiscoveryResultAsync(
-        GitWizardConfiguration configuration, ICollection<string> paths, IUpdateHandler? updateHandler,
-        IReadOnlyList<string> expandedRoots, IReadOnlyList<string> drives,
-        (JournalBrokerScanSession? Session, IReadOnlyList<ScanRecord> Records) scanResult)
-    {
-        try
+        finally
         {
-            foreach (var searchPath in expandedRoots)
-            {
-                CollectGitRepositoriesFromScan(scanResult.Records, searchPath, configuration.IgnoredPaths, paths,
-                    configuration.SkipHiddenDirectories);
-            }
-
-            updateHandler?.SendUpdateMessage($"MFT search found {paths.Count} repositories");
-            if (paths.Count > 0)
-                return new MftDiscoveryResult(true, scanResult.Session, scanResult.Records, drives);
-
-            if (scanResult.Session != null)
-                await scanResult.Session.DisposeAsync().ConfigureAwait(false);
-
-            return new MftDiscoveryResult(false);
+            if (owner is not null)
+                await owner.DisposeAsync().ConfigureAwait(false);
         }
-        catch
-        {
-            if (scanResult.Session != null)
-                await scanResult.Session.DisposeAsync().ConfigureAwait(false);
-            throw;
-        }
-    }
-
-    [SupportedOSPlatform("windows")]
-    static async Task<(JournalBrokerScanSession Session, IReadOnlyList<ScanRecord> Records)>
-        BrokerScanWithSessionAsync(IReadOnlyList<string> drives)
-    {
-        var records = new List<ScanRecord>();
-        var session = await JournalBrokerScanSession
-            .StartAsync(BrokerLauncher.Launch, drives, GitDiscoveryScanProfile,
-                (batch, _) =>
-                {
-                    records.AddRange(batch);
-                    return ValueTask.CompletedTask;
-                },
-                keepFileNames: [GitEntryName], cancellationToken: CancellationToken.None).ConfigureAwait(false);
-
-        return (session, records);
     }
 }

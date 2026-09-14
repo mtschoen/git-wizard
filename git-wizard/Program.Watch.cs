@@ -117,7 +117,7 @@ public static partial class Program
     }
 
     // Drains service.RunAsync, printing one line per RepositoryChangeEvent kind plus one line
-    // per drive that failed to arm, and reports whether the underlying source died mid-run.
+    // per new or changed drive failure, and reports whether the underlying source died mid-run.
     // Internal (rather than folded into RunWatchAsync) so GitWizardTests can drive it with a
     // fake-source-backed RepositoryWatchService, a capturing sink, and a fake exit, without
     // touching the real Environment.Exit or a real elevated broker. The exit callback (defaulted
@@ -128,17 +128,45 @@ public static partial class Program
         CancellationToken cancellationToken)
     {
         var stopped = false;
-        service.Stopped += reason =>
+        var reported = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var reportingLock = new Lock();
+        void OnStopped(string reason)
         {
             stopped = true;
             writeLine($"Broker died: {reason}");
-        };
+        }
+        void OnScanErrorsChanged()
+        {
+            lock (reportingLock)
+            {
+                foreach (var (drive, message) in service.ScanErrors)
+                {
+                    if (reported.TryGetValue(drive, out var previous) && previous == message)
+                        continue;
+                    reported[drive] = message;
+                    writeLine($"scan error on {drive}: {message}");
+                }
+            }
+        }
 
-        // Drive GetAsyncEnumerator/MoveNextAsync by hand rather than `await foreach` ON PURPOSE:
-        // ScanErrors is only populated once arming completes (during the first MoveNextAsync) and
-        // is guaranteed set before the first event, so the scan-error lines must be printed
-        // between the first move and the first event. Do NOT "simplify" this back to await foreach
-        // - that would lose the ability to interleave the scan-error print at the right point.
+        service.Stopped += OnStopped;
+        service.ScanErrorsChanged += OnScanErrorsChanged;
+        try
+        {
+            return await RunWatchEventsAsync(service, writeLine, exit, () => stopped, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            service.Stopped -= OnStopped;
+            service.ScanErrorsChanged -= OnScanErrorsChanged;
+        }
+    }
+
+    static async Task<bool> RunWatchEventsAsync(
+        RepositoryWatchService service, Action<string> writeLine, Action<int> exit,
+        Func<bool> isStopped, CancellationToken cancellationToken)
+    {
         await using var enumerator = service.RunAsync(cancellationToken).GetAsyncEnumerator(cancellationToken);
 
         bool hasNext;
@@ -148,17 +176,12 @@ public static partial class Program
         }
         catch (InvalidOperationException exception)
         {
-            // Broker spawn declined (UAC) or failed: UsnVolumeChangeSource.ArmAndCatchUpAsync
-            // surfaces JournalBrokerScanSession.StartAsync's throw from this first arming
-            // MoveNextAsync. Match the prior CLI's clean message + non-zero exit instead of
-            // crashing with an unhandled stack trace.
+            // A declined or failed broker connection surfaces from the initial index arming.
+            // Report a clean startup failure rather than an unhandled stack trace.
             writeLine($"Could not start the journal broker: {exception.Message}");
             exit(1);
             return true;
         }
-
-        foreach (var (drive, message) in service.ScanErrors)
-            writeLine($"scan error on {drive}: {message}");
 
         while (hasNext)
         {
@@ -169,17 +192,14 @@ public static partial class Program
             }
             catch (InvalidOperationException exception)
             {
-                if (!stopped)
-                {
-                    stopped = true;
+                if (!isStopped())
                     writeLine($"Broker died: {exception.Message}");
-                }
 
                 return true;
             }
         }
 
-        return stopped;
+        return isStopped();
     }
 
     // Ctrl-C and broker death both cancel the token backing RunAsync's enumeration; both are

@@ -1,6 +1,8 @@
+// Live event and lifecycle cases share this fixture and its local source doubles.
 using GitWizard;
 using GitWizard.Watch;
 using GitWizard.Watch.Linux;
+using GitWizardTests.TestSupport;
 using GitWizardTests.Watch;
 using GitWizardUI.ViewModels;
 using GitWizardUI.ViewModels.Services;
@@ -16,6 +18,58 @@ namespace GitWizardTests.UI;
 /// </summary>
 public class MainViewModelLiveTests
 {
+    [Test]
+    public async Task DriveFailureUpdatesLiveWarningWithoutRepositoryEvent()
+    {
+        var sourceReady = new TaskCompletionSource<DiagnosticVolumeChangeSource>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var dispatcher = new QueuedLiveUiDispatcher();
+        var viewModel = new MainViewModel(dispatcher, new StubUserDialogs(), new StubClipboardService());
+        viewModel.LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
+        viewModel.LiveVolumeChangeSourceFactory = () =>
+        {
+            var source = new DiagnosticVolumeChangeSource();
+            sourceReady.TrySetResult(source);
+            return source;
+        };
+        viewModel.LiveIsElevated = () => false;
+        Task? running = null;
+        GitWizardUI.Services.LiveWatchController controller;
+        try
+        {
+            running = viewModel.ToggleLiveAsync();
+            var source = await sourceReady.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+            dispatcher.Drain();
+            controller = WatchSubscriptionProbe.Controller(viewModel);
+            Assert.That(WatchSubscriptionProbe.ScanErrorsSubscribers(controller), Is.EqualTo(1));
+            source.FailDrive("X", "watch failed");
+            Assert.That(viewModel.HeaderText, Is.EqualTo("Live watch active"), "Warnings must be posted to the UI.");
+            dispatcher.Drain();
+            Assert.That(viewModel.HeaderText, Is.EqualTo("Live scan error on X: watch failed"));
+            Assert.That(viewModel.IsLive, Is.True);
+            source.FailDrive("X", "watch failed again");
+            dispatcher.Drain();
+            Assert.That(viewModel.HeaderText, Is.EqualTo("Live scan error on X: watch failed again"));
+        }
+        finally
+        {
+            try
+            {
+                await viewModel.DisposeAsync();
+            }
+            finally
+            {
+                if (running is not null)
+                    await running;
+            }
+        }
+        var completedSource = await sourceReady.Task;
+        Assert.That(completedSource.DiagnosticSubscribers, Is.Zero);
+        Assert.That(WatchSubscriptionProbe.ScanErrorsSubscribers(controller), Is.Zero,
+            "The view model must detach from the controller after shutdown.");
+    }
+
     [SetUp]
     public void SetUp() => GitWizardLog.SilentMode = true;
 
@@ -468,7 +522,7 @@ public class MainViewModelLiveTests
         await using var source = viewModel.LiveVolumeChangeSourceFactory();
 
         if (OperatingSystem.IsWindows())
-            Assert.That(source.GetType().Name, Is.EqualTo("UsnVolumeChangeSource"));
+            Assert.That(source.GetType().Name, Is.EqualTo("IndexVolumeChangeSource"));
         else if (OperatingSystem.IsLinux())
             Assert.That(source.GetType().Name, Is.EqualTo("FanotifyVolumeChangeSource"));
         else

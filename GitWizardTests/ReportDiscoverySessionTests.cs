@@ -1,5 +1,6 @@
 using System.Text.Json;
 using GitWizard;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests;
 
@@ -10,80 +11,95 @@ public class ReportDiscoverySessionTests
     public void SetUp() => GitWizardLog.SilentMode = true;
 
     [Test]
-    public async Task GenerateReportAsync_CachedRepositoryPaths_DoesNotRetainSession()
+    public async Task GenerateReportAsync_CachedRepositoryPaths_DoesNotRetainIndex()
     {
-        var configuration = new GitWizardConfiguration();
-        var repositoryPaths = new List<string>();
-
-        var options = new GitWizardReportOptions
-        {
-            RetainDiscoverySession = true
-        };
-
         await using var report = await GitWizardReport.GenerateReportAsync(
-            configuration, repositoryPaths, options: options);
-
-        Assert.That(report.DiscoverySession, Is.Null);
-        Assert.That(report.DiscoveryScanRecords, Is.Null);
-        Assert.That(report.DiscoveryDrives, Is.Null);
+            new GitWizardConfiguration(), new List<string>(),
+            options: new GitWizardReportOptions { RetainDiscoveryIndex = true });
+        Assert.That(report.DiscoveryIndex, Is.Null);
     }
 
     [Test]
-    public async Task GenerateReportAsync_NoMft_DoesNotRetainSession()
+    public async Task GenerateReportAsync_NoMft_DoesNotRetainIndex()
     {
-        var configuration = new GitWizardConfiguration();
-        var options = new GitWizardReportOptions
-        {
-            NoMft = true,
-            RetainDiscoverySession = true
-        };
-
         await using var report = await GitWizardReport.GenerateReportAsync(
-            configuration, options: options);
-
-        Assert.That(report.DiscoverySession, Is.Null);
-        Assert.That(report.DiscoveryScanRecords, Is.Null);
-        Assert.That(report.DiscoveryDrives, Is.Null);
+            new GitWizardConfiguration(),
+            options: new GitWizardReportOptions { NoMft = true, RetainDiscoveryIndex = true });
+        Assert.That(report.DiscoveryIndex, Is.Null);
     }
 
     [Test]
-    public async Task DetachDiscoverySession_ClearsReportPropertiesAndTransfersOwnership()
+    public async Task DetachDiscoveryIndex_ClearsReportPropertiesAndTransfersOwnership()
     {
-        var configuration = new GitWizardConfiguration();
-        await using var report = new GitWizardReport(configuration);
-
-        var (session, records, drives) = report.DetachDiscoverySession();
-        Assert.That(session, Is.Null);
-        Assert.That(records, Is.Null);
-        Assert.That(drives, Is.Null);
-        Assert.That(report.DiscoverySession, Is.Null);
-        Assert.That(report.DiscoveryScanRecords, Is.Null);
-        Assert.That(report.DiscoveryDrives, Is.Null);
+        await using var fixture = new IndexOwnerFixture();
+        await fixture.StartAsync();
+        var report = new GitWizardReport(new GitWizardConfiguration());
+        try
+        {
+            await report.SetDiscoveryIndexAsync(fixture.Owner);
+            Assert.That(report.DetachDiscoveryIndex(), Is.SameAs(fixture.Owner));
+            Assert.That(report.DiscoveryIndex, Is.Null);
+            Assert.That(report.DetachDiscoveryIndex(), Is.Null);
+        }
+        finally
+        {
+            await report.DisposeAsync();
+        }
+        Assert.That(fixture.Owner.IsDisposed, Is.False);
     }
 
     [Test]
-    public async Task DisposeAsync_DisposesDiscoverySessionSafely()
+    public async Task DisposeAsync_DisposesDiscoveryIndexSafely()
     {
-        var configuration = new GitWizardConfiguration();
-        var report = new GitWizardReport(configuration);
-
+        await using var fixture = new IndexOwnerFixture();
+        await fixture.StartAsync();
+        await using var replacement = new IndexOwnerFixture();
+        await replacement.StartAsync();
+        var report = new GitWizardReport(new GitWizardConfiguration());
+        await report.SetDiscoveryIndexAsync(fixture.Owner);
+        await report.SetDiscoveryIndexAsync(replacement.Owner);
+        Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
         await report.DisposeAsync();
-
-        Assert.That(report.DiscoverySession, Is.Null);
-        Assert.That(report.DiscoveryScanRecords, Is.Null);
-        Assert.That(report.DiscoveryDrives, Is.Null);
+        await report.DisposeAsync();
+        Assert.That(replacement.ConnectionDisposals, Is.EqualTo(1));
+        Assert.That(report.DiscoveryIndex, Is.Null);
     }
 
     [Test]
-    public void JsonSerialization_IgnoresDiscoveryProperties()
+    public async Task JsonSerialization_IgnoresDiscoveryProperties()
     {
-        var configuration = new GitWizardConfiguration();
-        var report = new GitWizardReport(configuration);
+        await using var report = new GitWizardReport(new GitWizardConfiguration());
+        Assert.That(JsonSerializer.Serialize(report), Does.Not.Contain("DiscoveryIndex"));
+    }
 
+    [Test]
+    public async Task PopulatedIndexDetachesWithoutDisposal()
+    {
+        await using var fixture = new IndexOwnerFixture();
+        await fixture.StartAsync();
+        var report = new GitWizardReport(new GitWizardConfiguration());
+        await report.SetDiscoveryIndexAsync(fixture.Owner);
+        var owner = report.DetachDiscoveryIndex();
+        await report.DisposeAsync();
+        Assert.That(owner!.Index.FindByName(".git").Single().Parent!.Value.Name, Is.EqualTo("repo"));
+        Assert.That(fixture.ConnectionDisposals, Is.Zero);
+        await owner.DisposeAsync();
+        await owner.DisposeAsync();
+        Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task PopulatedIndexIsNotSerialized()
+    {
+        await using var fixture = new IndexOwnerFixture();
+        await fixture.StartAsync();
+        await using var report = new GitWizardReport(new GitWizardConfiguration());
+        await report.SetDiscoveryIndexAsync(fixture.Owner);
+        Assert.That(report.DiscoveryIndex!.FindByName(".git").Single().Parent!.Value.Name, Is.EqualTo("repo"));
         var json = JsonSerializer.Serialize(report);
-
-        Assert.That(json, Does.Not.Contain("DiscoverySession"));
-        Assert.That(json, Does.Not.Contain("DiscoveryScanRecords"));
-        Assert.That(json, Does.Not.Contain("DiscoveryDrives"));
+        Assert.That(json, Does.Not.Contain("DiscoveryIndex"));
+        Assert.That(json, Does.Not.Contain(".git"));
+        Assert.That(json, Does.Not.Contain("ScanErrors"));
+        Assert.That(json, Does.Not.Contain("Drives"));
     }
 }

@@ -124,14 +124,14 @@ public partial class MainViewModel
 
     public async Task ClearCacheAsync()
     {
-        await SetPreparedDiscoverySessionAsync(null).ConfigureAwait(false);
+        await SetPreparedDiscoveryIndexAsync(null).ConfigureAwait(false);
         GitWizardApi.ClearCache();
         await _dialogs.DisplayAlertAsync("Cache Cleared", "Repository cache has been cleared");
     }
 
     public async Task DeleteAllLocalFilesAsync()
     {
-        await SetPreparedDiscoverySessionAsync(null).ConfigureAwait(false);
+        await SetPreparedDiscoveryIndexAsync(null).ConfigureAwait(false);
         GitWizardApi.DeleteAllLocalFiles();
         await _dialogs.DisplayAlertAsync("Files Deleted", "All local files have been deleted");
     }

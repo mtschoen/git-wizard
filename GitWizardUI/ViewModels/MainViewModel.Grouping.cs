@@ -140,6 +140,11 @@ public partial class MainViewModel
     {
         _pendingGroups.Clear();
 
+        foreach (var repositoryNode in _allRepositories)
+        {
+            repositoryNode.ClearParentHeaders();
+        }
+
         var filtered = _activeFilter == FilterType.None
             ? _allRepositories
             : _allRepositories.Where(r => r.MatchesFilter(_activeFilter, GlobalUserEmail)).ToList();

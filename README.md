@@ -10,7 +10,8 @@ Scan, organize, and manage all the git repositories on your machine. Find duplic
 - **Status at a glance** - see pending changes, unpushed commits, and errors per repo
 - **Filter** by pending changes, detached heads, submodule issues, or repos you've committed to
 - **Group** by drive or remote URL to find duplicate clones
-- **Sort** by path, last commit date, or remote URL
+- **Sort** by path, last commit date, remote URL, or size on disk
+- **Repository sizes** appear beside every row after measurement, with totals on group headers
 - **Search** to quickly find repos by path
 - **Deep refresh** per repo with remote fetch and index update
 - **Live mode** - opt-in repository monitoring (Windows USN journal, Linux fanotify with kernel 5.9+) updates changed, created, deleted, and renamed repositories after one elevation prompt

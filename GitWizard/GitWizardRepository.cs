@@ -42,7 +42,6 @@ public partial class GitWizardRepository
     public string? MatchingBranchName { get; private set; }
     public string? DefaultBranch { get; private set; }
     public List<BranchInfo>? Branches { get; set; }
-    public long SizeOnDisk { get; private set; }
 
     /// <summary>Commits on the current branch's upstream not reachable from the current branch - i.e. how far behind the remote this checkout is. 0 when there is no upstream. See <see cref="BranchInfo.BehindDefault"/> for the unrelated local-default comparison.</summary>
     public int BehindRemoteCount { get; private set; }

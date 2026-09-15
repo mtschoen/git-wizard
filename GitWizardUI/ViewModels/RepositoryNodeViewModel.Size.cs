@@ -1,0 +1,230 @@
+using System.Collections.Specialized;
+
+namespace GitWizardUI.ViewModels;
+
+public partial class RepositoryNodeViewModel
+{
+    readonly record struct ChildState(RefreshStatus Status, long? MeasuredSize);
+
+    readonly Dictionary<RepositoryNodeViewModel, ChildState> _childStates = new();
+    readonly List<RepositoryNodeViewModel> _parentHeaders = new();
+
+    int _errorCount;
+    int _warningCount;
+    long _totalMeasuredBytes;
+    int _measuredChildCount;
+
+    internal IReadOnlyList<RepositoryNodeViewModel> ParentHeaders => _parentHeaders;
+
+    internal long? MeasuredSize => Repository.HasComputedSizeOnDisk ? Repository.SizeOnDisk : null;
+
+    internal void AddParentHeader(RepositoryNodeViewModel header)
+    {
+        if (!_parentHeaders.Contains(header))
+            _parentHeaders.Add(header);
+    }
+
+    internal void RemoveParentHeader(RepositoryNodeViewModel header)
+    {
+        _parentHeaders.Remove(header);
+    }
+
+    internal void ClearParentHeaders()
+    {
+        _parentHeaders.Clear();
+    }
+
+    void NotifyParentHeaders()
+    {
+        if (_parentHeaders.Count == 0)
+            return;
+
+        foreach (var header in _parentHeaders)
+        {
+            header.OnChildUpdated(this);
+        }
+    }
+
+    public string SizeText
+    {
+        get
+        {
+            if (_cachedSizeText != null)
+                return _cachedSizeText;
+
+            if (IsGroupHeader)
+                return _cachedSizeText = FormatSize(_measuredChildCount > 0 ? _totalMeasuredBytes : null);
+
+            return _cachedSizeText = FormatSize(MeasuredSize);
+        }
+    }
+
+    void OnChildrenCollectionChanged(object? sender, NotifyCollectionChangedEventArgs eventArguments)
+    {
+        switch (eventArguments.Action)
+        {
+            case NotifyCollectionChangedAction.Add:
+                if (eventArguments.NewItems != null)
+                {
+                    foreach (RepositoryNodeViewModel child in eventArguments.NewItems)
+                        AddChildTracking(child);
+                }
+                break;
+
+            case NotifyCollectionChangedAction.Remove:
+                if (eventArguments.OldItems != null)
+                {
+                    foreach (RepositoryNodeViewModel child in eventArguments.OldItems)
+                        RemoveChildTracking(child);
+                }
+                break;
+
+            case NotifyCollectionChangedAction.Replace:
+                if (eventArguments.OldItems != null)
+                {
+                    foreach (RepositoryNodeViewModel child in eventArguments.OldItems)
+                        RemoveChildTracking(child);
+                }
+                if (eventArguments.NewItems != null)
+                {
+                    foreach (RepositoryNodeViewModel child in eventArguments.NewItems)
+                        AddChildTracking(child);
+                }
+                break;
+
+            case NotifyCollectionChangedAction.Reset:
+                ResetAllChildrenTracking();
+                break;
+        }
+
+        if (IsGroupHeader)
+        {
+            UpdateGroupDisplayAndSize();
+        }
+    }
+
+    void AddChildTracking(RepositoryNodeViewModel child)
+    {
+        if (_childStates.ContainsKey(child))
+            return;
+
+        var status = child.Status;
+        var size = child.MeasuredSize;
+        _childStates[child] = new ChildState(status, size);
+
+        if (status == RefreshStatus.Error)
+            _errorCount++;
+        else if (status is RefreshStatus.Timeout or RefreshStatus.SubmoduleIssue)
+            _warningCount++;
+
+        if (size is { } measuredSize)
+        {
+            _totalMeasuredBytes += measuredSize;
+            _measuredChildCount++;
+        }
+
+        child.AddParentHeader(this);
+    }
+
+    void RemoveChildTracking(RepositoryNodeViewModel child)
+    {
+        if (_childStates.Remove(child, out var state))
+        {
+            if (state.Status == RefreshStatus.Error)
+                _errorCount--;
+            else if (state.Status is RefreshStatus.Timeout or RefreshStatus.SubmoduleIssue)
+                _warningCount--;
+
+            if (state.MeasuredSize is { } measuredSize)
+            {
+                _totalMeasuredBytes -= measuredSize;
+                _measuredChildCount--;
+            }
+
+            child.RemoveParentHeader(this);
+        }
+    }
+
+    internal void ResetAllChildrenTracking()
+    {
+        foreach (var child in _childStates.Keys)
+        {
+            child.RemoveParentHeader(this);
+        }
+        _childStates.Clear();
+        _errorCount = 0;
+        _warningCount = 0;
+        _totalMeasuredBytes = 0;
+        _measuredChildCount = 0;
+
+        foreach (var child in Children)
+        {
+            AddChildTracking(child);
+        }
+    }
+
+    internal void OnChildUpdated(RepositoryNodeViewModel child)
+    {
+        if (!_childStates.TryGetValue(child, out var oldState))
+            return;
+
+        var newStatus = child.Status;
+        var newSize = child.MeasuredSize;
+
+        if (oldState.Status == newStatus && oldState.MeasuredSize == newSize)
+            return;
+
+        if (oldState.Status == RefreshStatus.Error)
+            _errorCount--;
+        else if (oldState.Status is RefreshStatus.Timeout or RefreshStatus.SubmoduleIssue)
+            _warningCount--;
+
+        if (newStatus == RefreshStatus.Error)
+            _errorCount++;
+        else if (newStatus is RefreshStatus.Timeout or RefreshStatus.SubmoduleIssue)
+            _warningCount++;
+
+        if (oldState.MeasuredSize is { } oldMeasuredSize)
+        {
+            _totalMeasuredBytes -= oldMeasuredSize;
+            _measuredChildCount--;
+        }
+
+        if (newSize is { } newMeasuredSize)
+        {
+            _totalMeasuredBytes += newMeasuredSize;
+            _measuredChildCount++;
+        }
+
+        _childStates[child] = new ChildState(newStatus, newSize);
+        _cachedSizeText = null;
+    }
+
+    void UpdateGroupDisplayAndSize()
+    {
+        _cachedSizeText = FormatSize(_measuredChildCount > 0 ? _totalMeasuredBytes : null);
+        OnPropertyChanged(nameof(SizeText));
+
+        var suffix = "";
+        if (_errorCount > 0) suffix += $" {_errorCount} error{(_errorCount > 1 ? "s" : "")}";
+        if (_warningCount > 0) suffix += $" {_warningCount} warning{(_warningCount > 1 ? "s" : "")}";
+        if (suffix.Length > 0) suffix = " -" + suffix;
+        DisplayText = $"{GroupKey} ({Children.Count}){suffix}";
+        OnPropertyChanged(nameof(ExpandIndicator));
+    }
+
+    static string FormatSize(long? size)
+    {
+        if (!size.HasValue)
+            return string.Empty;
+
+        const double bytesPerKilobyte = 1024;
+        const double bytesPerMegabyte = bytesPerKilobyte * 1024;
+        const double bytesPerGigabyte = bytesPerMegabyte * 1024;
+        if (size.Value >= bytesPerGigabyte)
+            return $"{size.Value / bytesPerGigabyte:F1} GB";
+        if (size.Value >= bytesPerMegabyte)
+            return $"{size.Value / bytesPerMegabyte:F1} MB";
+        return $"{size.Value / bytesPerKilobyte:F1} KB";
+    }
+}

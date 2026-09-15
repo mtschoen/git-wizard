@@ -111,16 +111,12 @@ public partial class MainViewModel
 
             UpdateHeaderWithFilterInfo();
         }
-        // When grouping is active, update the parent group header to reflect error/warning counts
+        // A repository can appear in multiple remote groups; refresh every aggregate and status summary.
         if (_activeGroupMode != GroupMode.None)
         {
-            foreach (var item in Repositories)
+            foreach (var header in node.ParentHeaders)
             {
-                if (item.IsGroupHeader && item.Children.Contains(node))
-                {
-                    item.UpdateDisplayText();
-                    break;
-                }
+                header.UpdateDisplayText();
             }
         }
     }

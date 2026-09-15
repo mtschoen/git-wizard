@@ -5,11 +5,12 @@ using GitWizard;
 
 namespace GitWizardUI.ViewModels;
 
-public class RepositoryNodeViewModel : INotifyPropertyChanged
+public partial class RepositoryNodeViewModel : INotifyPropertyChanged
 {
     bool _isExpanded;
     RefreshStatus _status = RefreshStatus.Refreshing;
     string _displayText = string.Empty;
+    string? _cachedSizeText;
 
     public GitWizardRepository Repository { get; }
     public ObservableCollection<RepositoryNodeViewModel> Children { get; } = new();
@@ -63,6 +64,7 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
                 OnPropertyChanged(nameof(StatusColorHex));
                 OnPropertyChanged(nameof(StatusTooltip));
                 OnPropertyChanged(nameof(IsStatusVisible));
+                NotifyParentHeaders();
             }
         }
     }
@@ -175,6 +177,7 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
     public RepositoryNodeViewModel(GitWizardRepository repository)
     {
         Repository = repository;
+        Children.CollectionChanged += OnChildrenCollectionChanged;
         UpdateDisplayText();
     }
 
@@ -212,16 +215,13 @@ public class RepositoryNodeViewModel : INotifyPropertyChanged
     {
         if (IsGroupHeader)
         {
-            var errorCount = Children.Count(c => c.Status == RefreshStatus.Error);
-            var warningCount = Children.Count(c => c.Status is RefreshStatus.Timeout or RefreshStatus.SubmoduleIssue);
-            var suffix = "";
-            if (errorCount > 0) suffix += $" {errorCount} error{(errorCount > 1 ? "s" : "")}";
-            if (warningCount > 0) suffix += $" {warningCount} warning{(warningCount > 1 ? "s" : "")}";
-            if (suffix.Length > 0) suffix = " -" + suffix;
-            DisplayText = $"{GroupKey} ({Children.Count}){suffix}";
-            OnPropertyChanged(nameof(ExpandIndicator));
+            UpdateGroupDisplayAndSize();
             return;
         }
+
+        _cachedSizeText = FormatSize(MeasuredSize);
+        OnPropertyChanged(nameof(SizeText));
+        NotifyParentHeaders();
 
         var pendingChanges = Repository.HasPendingChanges;
         var localOnlyCommits = Repository.LocalOnlyCommits;

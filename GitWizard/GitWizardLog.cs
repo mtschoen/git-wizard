@@ -36,7 +36,8 @@ public static class GitWizardLog
     public static bool VerboseMode { get; set; }
 
     /// <summary>
-    /// Set SilentMode to true to disable all console logging
+    /// Suppress ordinary log messages and exception context callbacks.
+    /// Exception body callbacks and exception file records remain enabled.
     /// </summary>
     public static bool SilentMode { get; set; }
 
@@ -88,11 +89,36 @@ public static class GitWizardLog
         LogToFile(formattedMessage);
     }
 
+    /// <summary>
+    /// Queue the exception's full text and optional context as one file record.
+    /// File text uses Exception.ToString(), including aggregate children and available stacks.
+    /// Console callbacks retain separate message, stack, and inner-exception label outputs.
+    /// </summary>
+    /// <remarks>
+    /// Silent mode suppresses only the context callback for this method.
+    /// The bounded best-effort file queue may drop whole records; this method does not flush it.
+    /// </remarks>
+    /// <param name="exception">The exception to log.</param>
+    /// <param name="message">Optional context preceding the exception diagnostics.</param>
     public static void LogException(Exception exception, string? message = null)
     {
+        string? context = null;
         if (message != null)
-            Log($"{message} Exception follows:", LogType.Error);
+        {
+            context = string.Format(CultureInfo.InvariantCulture, LogMessageCompositeFormat,
+                DateTime.UtcNow, LogType.Error, $"{message} Exception follows:");
+        }
 
+        var body = exception.ToString();
+        LogToFile(context == null ? body : $"{context}{Environment.NewLine}{body}");
+
+        if (context != null && !SilentMode)
+            LogMethod(context);
+        LogExceptionToConsole(exception);
+    }
+
+    static void LogExceptionToConsole(Exception exception)
+    {
         LogMethod(exception.Message);
         LogMethod(exception.StackTrace);
 
@@ -100,7 +126,7 @@ public static class GitWizardLog
         if (innerException != null)
         {
             LogMethod("Inner exception:");
-            LogException(innerException);
+            LogExceptionToConsole(innerException);
         }
     }
 

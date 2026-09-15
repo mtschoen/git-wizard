@@ -1,12 +1,23 @@
+using System.Reflection;
+using System.Threading.Channels;
 using GitWizard;
 
 namespace GitWizardTests;
 
+[NonParallelizable]
 public class GitWizardLogTests
 {
+    Action<string?> _originalLogMethod = Console.WriteLine;
+    bool _originalSilentMode;
+    bool _originalVerboseMode;
+
     [SetUp]
     public void SetUp()
     {
+        _originalLogMethod = GitWizardLog.LogMethod;
+        _originalSilentMode = GitWizardLog.SilentMode;
+        _originalVerboseMode = GitWizardLog.VerboseMode;
+        GitWizardLog.CloseCurrentLogFile();
         GitWizardLog.VerboseMode = false;
         GitWizardLog.SilentMode = false;
     }
@@ -14,9 +25,60 @@ public class GitWizardLogTests
     [TearDown]
     public void TearDown()
     {
-        GitWizardLog.VerboseMode = false;
-        GitWizardLog.SilentMode = false;
-        GitWizardLog.LogMethod = Console.WriteLine;
+        try
+        {
+            GitWizardLog.CloseCurrentLogFile();
+        }
+        catch (ChannelClosedException)
+        {
+        }
+        finally
+        {
+            GitWizardLog.VerboseMode = _originalVerboseMode;
+            GitWizardLog.SilentMode = _originalSilentMode;
+            GitWizardLog.LogMethod = _originalLogMethod;
+        }
+    }
+
+    static async Task CompleteFileWriterAsync()
+    {
+        var flags = BindingFlags.NonPublic | BindingFlags.Static;
+        var channelField = typeof(GitWizardLog).GetField("_logChannel", flags)!;
+        var taskField = typeof(GitWizardLog).GetField("_writerTask", flags)!;
+        var channel = (Channel<string>)channelField.GetValue(null)!;
+        var writerTask = (Task)taskField.GetValue(null)!;
+        Assert.That(channel.Writer.TryComplete(), Is.True,
+            "Test must own a live channel before completing it.");
+        await writerTask.WaitAsync(TimeSpan.FromSeconds(30));
+        channelField.SetValue(null, Channel.CreateBounded<string>(1));
+    }
+
+    static async Task<string> ReadLogFilesAsync()
+    {
+        var files = Directory.GetFiles(GitWizardApi.GetLogFolderPath(), "GitWizardLog_*.log");
+        Assert.That(files, Is.Not.Empty, "The real file sink created no log file.");
+        var contents = await Task.WhenAll(files.Order(StringComparer.Ordinal)
+            .Select(path => File.ReadAllTextAsync(path)));
+        return string.Join(Environment.NewLine, contents);
+    }
+
+    static InvalidOperationException CaptureNestedException(string token)
+    {
+        try
+        {
+            try
+            {
+                throw new ArgumentException($"inner-{token}");
+            }
+            catch (ArgumentException inner)
+            {
+                throw new InvalidOperationException($"outer-{token}", inner);
+            }
+        }
+        catch (InvalidOperationException outer)
+        {
+            return outer;
+        }
     }
 
     [Test]
@@ -266,22 +328,133 @@ public class GitWizardLogTests
     }
 
     [Test]
-    public void Log_LogsMessage_ToLogFile()
+    public async Task Log_LogsMessage_ToLogFile()
     {
+        var marker = $"ordinary-{Guid.NewGuid():N}";
+        GitWizardLog.LogMethod = _ => { };
+        GitWizardLog.Log(marker);
+        await CompleteFileWriterAsync();
+        Assert.That(await ReadLogFilesAsync(), Does.Contain(marker),
+            "Ordinary marker missing after writer completion; investigate the sink independently.");
+    }
+
+    [TestCase("nested", false)]
+    [TestCase("nested", true)]
+    [TestCase("no-context", false)]
+    [TestCase("no-context", true)]
+    [TestCase("never-thrown", false)]
+    [TestCase("never-thrown", true)]
+    [TestCase("aggregate", false)]
+    [TestCase("aggregate", true)]
+    public async Task LogException_PersistsCompleteRecord(string scenario, bool silent)
+    {
+        var token = Guid.NewGuid().ToString("N");
+        var first = CaptureNestedException($"first-{token}");
+        var second = CaptureNestedException($"second-{token}");
+        Exception exception = scenario switch
+        {
+            "never-thrown" => new InvalidOperationException($"unthrown-{token}"),
+            "aggregate" => new AggregateException($"aggregate-{token}", first, second),
+            _ => first
+        };
+        var context = scenario == "no-context" ? null : $"context-{token}";
+        var before = $"before-{token}";
+        var after = $"after-{token}";
+        var suppressed = $"suppressed-{token}";
+        var outputs = new List<string?>();
+        GitWizardLog.LogMethod = _ => { };
+        GitWizardLog.Log(before);
+        GitWizardLog.LogMethod = outputs.Add;
+        GitWizardLog.SilentMode = silent;
+        GitWizardLog.LogException(exception, context);
+
+        var expected = new List<string?>();
+        if (context != null && !silent)
+        {
+            Assert.That(outputs[0], Does.Contain($"Error: {context} Exception follows:"));
+            expected.Add(outputs[0]);
+        }
+        for (Exception? current = exception; current != null; current = current.InnerException)
+        {
+            if (current != exception)
+                expected.Add("Inner exception:");
+            expected.Add(current.Message);
+            expected.Add(current.StackTrace);
+        }
+        Assert.That(outputs, Is.EqualTo(expected));
+        GitWizardLog.LogMethod = _ => { };
+        if (silent)
+            GitWizardLog.Log(suppressed);
         GitWizardLog.SilentMode = false;
-        GitWizardLog.LogMethod = _ => { }; // suppress console
+        GitWizardLog.Log(after);
+        await CompleteFileWriterAsync();
+        var content = await ReadLogFilesAsync();
+        var start = content.IndexOf(before, StringComparison.Ordinal);
+        var end = content.IndexOf(after, StringComparison.Ordinal);
+        Assert.That(start, Is.GreaterThanOrEqualTo(0), "Ordinary leading marker missing.");
+        Assert.That(end, Is.GreaterThan(start), "Ordinary trailing marker missing or reordered.");
+        var record = content[(start + before.Length)..end];
+        Assert.That(record, Does.Contain(exception.ToString()));
+        Assert.That(record, Does.Not.Contain(suppressed));
+        if (context == null)
+            Assert.That(record, Does.Not.Contain("Exception follows:"));
+        else
+        {
+            var header = record.IndexOf($"{context} Exception follows:", StringComparison.Ordinal);
+            Assert.That(header, Is.GreaterThanOrEqualTo(0));
+            Assert.That(record.IndexOf(exception.Message, StringComparison.Ordinal), Is.GreaterThan(header));
+        }
+        Exception[] details = scenario switch
+        {
+            "aggregate" => [exception, first, first.InnerException!, second, second.InnerException!],
+            "never-thrown" => [exception],
+            _ => [first, first.InnerException!]
+        };
+        foreach (var detail in details)
+        {
+            Assert.That(record, Does.Contain(detail.GetType().FullName!));
+            Assert.That(record, Does.Contain(detail.Message));
+            if (detail.StackTrace != null)
+            {
+                Assert.That(detail.StackTrace, Does.Contain(nameof(CaptureNestedException)));
+                Assert.That(record, Does.Contain(detail.StackTrace));
+            }
+        }
+        if (scenario == "never-thrown")
+            Assert.That(exception.StackTrace, Is.Null);
+        else
+        {
+            Assert.That(first.StackTrace, Is.Not.Null);
+            Assert.That(first.InnerException!.StackTrace, Is.Not.Null);
+            if (scenario == "aggregate")
+            {
+                Assert.That(second.StackTrace, Is.Not.Null);
+                Assert.That(second.InnerException!.StackTrace, Is.Not.Null);
+            }
+        }
+    }
 
-        // Other fixtures redirect GITWIZARD_HOME. Start with a fresh writer so this test's message
-        // is written under the home directory it inspects below.
-        GitWizardLog.CloseCurrentLogFile();
-        GitWizardLog.Log("async file log test message");
-        GitWizardLog.CloseCurrentLogFile();
-
-        var logFolder = GitWizardApi.GetLogFolderPath();
-        var files = Directory.GetFiles(logFolder, "GitWizardLog_*.log");
-        Assert.That(files.Length, Is.GreaterThan(0));
-        var content = File.ReadAllText(files[0]);
-        Assert.That(content, Does.Contain("async file log test message"));
+    [Test]
+    public async Task LogException_CallbackLogging_DoesNotSplitFileRecord()
+    {
+        var token = Guid.NewGuid().ToString("N");
+        var context = $"context-{token}";
+        var marker = $"intervening-{token}";
+        var exception = CaptureNestedException(token);
+        GitWizardLog.LogMethod = text =>
+        {
+            if (text == exception.Message)
+                GitWizardLog.Log(marker);
+        };
+        GitWizardLog.LogException(exception, context);
+        await CompleteFileWriterAsync();
+        var content = await ReadLogFilesAsync();
+        var header = content.IndexOf($"{context} Exception follows:", StringComparison.Ordinal);
+        var end = content.IndexOf(marker, StringComparison.Ordinal);
+        Assert.That(end, Is.GreaterThanOrEqualTo(0), "Intervening ordinary marker missing.");
+        Assert.That(header, Is.GreaterThanOrEqualTo(0), "Exception context missing.");
+        Assert.That(end, Is.GreaterThan(header));
+        Assert.That(content[header..end], Does.Contain(exception.ToString()));
     }
 
     [Test]

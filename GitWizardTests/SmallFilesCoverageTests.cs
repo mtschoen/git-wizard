@@ -462,9 +462,7 @@ public class SmallFilesCoverageTests
     [Test]
     public void LogException_SilentMode_WithMessage_LogsMessageViaLog()
     {
-        // When SilentMode is true, the Log() call inside LogException for
-        // the context message will be suppressed, but the exception itself
-        // is still output via LogMethod.
+        // Silent mode suppresses the context callback, but retains exception callbacks.
         GitWizardLog.SilentMode = true;
         var outputs = new List<string>();
         GitWizardLog.LogMethod = msg => { if (msg is not null) outputs.Add(msg); };
@@ -472,8 +470,6 @@ public class SmallFilesCoverageTests
         var exception = new InvalidOperationException("error detail");
         GitWizardLog.LogException(exception, "Context info");
 
-        // The context message goes through Log() which is suppressed in silent mode,
-        // but the exception message/stack go through LogMethod directly
         Assert.That(string.Join("\n", outputs), Does.Contain("error detail"));
     }
 

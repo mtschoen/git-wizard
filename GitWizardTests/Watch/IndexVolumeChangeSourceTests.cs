@@ -30,11 +30,15 @@ public class IndexVolumeChangeSourceTests
         var change = await observed.Task.WaitAsync(HangGuard);
         await index.StopWatchingAsync(CancellationToken.None);
         await TestContext.Out.WriteLineAsync($"Entry.Path = '{change.Entry.Path}'; Path = '{change.Path}'");
+        // This test subscribes to MFTLib's raw FileIndex.Changed event directly, bypassing
+        // IndexVolumeChangeSource's drive-letter-root rewrite, so every path here renders
+        // MFTLib's real indexed root directory rather than the synthetic "X:\" shape (MFTLib #143).
+        var root = index.Root('X').Path;
         Assert.That(change.Kind, Is.EqualTo(FileChangeKind.Renamed));
         Assert.That(change.Entry.Path, Is.Not.EqualTo(change.Path));
-        Assert.That(change.Path, Is.EqualTo(@"X:\first"));
-        Assert.That(change.Entry.Path, Is.EqualTo(@"X:\second"));
-        Assert.That(change.PreviousPath, Is.EqualTo(@"X:\repo"));
+        Assert.That(change.Path, Is.EqualTo(Path.Combine(root, "first")));
+        Assert.That(change.Entry.Path, Is.EqualTo(Path.Combine(root, "second")));
+        Assert.That(change.PreviousPath, Is.EqualTo(Path.Combine(root, "repo")));
     }
 
     [Test]
@@ -156,6 +160,8 @@ public class IndexVolumeChangeSourceTests
             new IndexWatchTarget('X', PackedIndexFixture.JournalId, PackedIndexFixture.NextUsn),
             new IndexWatchTarget('Y', PackedIndexFixture.JournalId, PackedIndexFixture.NextUsn)
         }));
+        // Routed through IndexVolumeChangeSource, which rewrites every path back onto its own
+        // configured drive letter (MFTLib #143), so these stay the pre-existing synthetic shape.
         scripted.Publish(new JournalBatch('X',
         [
             Entry(50, 6, "file.txt", UsnReason.FileCreate),
@@ -213,6 +219,8 @@ public class IndexVolumeChangeSourceTests
             PackedIndexFixture.JournalId, 1002));
         Assert.That(await pending, Is.True);
         Assert.That(reader.Current.Volume, Is.EqualTo("X"));
+        // Routed through IndexVolumeChangeSource, which rewrites this back onto its own
+        // configured drive letter (MFTLib #143), so this stays the pre-existing synthetic shape.
         Assert.That(reader.Current.Entries.Single(), Is.EqualTo(new VolumeChangeEntry(@"X:\repo\ordinary.txt", expected)));
         var change = await observed.Task.WaitAsync(HangGuard);
         Assert.That(change.Entry.Name, Is.EqualTo("ordinary.txt"));

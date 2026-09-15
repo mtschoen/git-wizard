@@ -88,6 +88,8 @@ public class IndexVolumeChangeSourcePreparedIndexTests
         await using var reader = source.WatchAsync(timeout.Token).GetAsyncEnumerator();
         Assert.That(await reader.MoveNextAsync(), Is.True);
         Assert.That(reader.Current.Volume, Is.EqualTo("X"));
+        // Routed through IndexVolumeChangeSource, which rewrites this back onto its own
+        // configured drive letter (MFTLib #143), so this stays the pre-existing synthetic shape.
         Assert.That(reader.Current.Entries.Single().FullPath, Is.EqualTo(@"X:\code\repo\child"));
         Assert.That(owner.Index.FindByName("child").Single().Parent!.Value.Name, Is.EqualTo("repo"));
         Assert.That(broker.ConnectionCount, Is.EqualTo(1));

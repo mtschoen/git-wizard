@@ -13,6 +13,7 @@ public sealed class IndexVolumeChangeSource : IVolumeChangeSource, IVolumeChange
     readonly Lock _faultLock = new();
     readonly HashSet<Exception> _reportedFaults = new(ReferenceEqualityComparer.Instance);
     readonly HashSet<char> _usableDrives = [];
+    readonly Dictionary<char, string> _driveRealRoots = new();
     MftIndexSession? _owner;
     Task<VolumeArmResult>? _arming;
     TaskCompletionSource? _armFinished;
@@ -72,9 +73,18 @@ public sealed class IndexVolumeChangeSource : IVolumeChangeSource, IVolumeChange
             foreach (var drive in _owner.Index.Drives)
             {
                 if (drive.State is DriveState.Failed or DriveState.Offline)
+                {
                     errors[drive.DriveLetter.ToString()] = drive.MftProducerFailureMessage ?? $"Drive is {drive.State}.";
+                }
                 else if (drive.WatchSupported)
-                    _usableDrives.Add(char.ToUpperInvariant(drive.DriveLetter));
+                {
+                    var letter = char.ToUpperInvariant(drive.DriveLetter);
+                    _usableDrives.Add(letter);
+                    // Cache the drive's real indexed root directory so OnChanged can rewrite a live
+                    // change's path back onto this drive's own "<letter>:\" form, regardless of
+                    // whether IndexedDrive.RootDirectory is the drive root (MFTLib #143).
+                    _driveRealRoots[letter] = _owner.Index.Root(drive.DriveLetter, cancellationToken).Path;
+                }
             }
             return new VolumeArmResult(errors);
         }
@@ -150,9 +160,41 @@ public sealed class IndexVolumeChangeSource : IVolumeChangeSource, IVolumeChange
 
     void OnChanged(FileChange change)
     {
-        var volume = WatchPath.Parse(change.Path).Volume
-            ?? throw new InvalidDataException($"Index change has no volume: {change.Path}");
-        _output.Writer.TryWrite(new VolumeChangeBatch(volume, IndexChangeMapping.Map(change)));
+        // FileEntry.Id.DriveLetter is the stable drive key MFTLib assigns, unlike change.Path,
+        // which renders the drive's real indexed root directory and only reads back as a
+        // "<letter>:\" volume when that root directory happens to be the drive root (MFTLib #143).
+        var letter = char.ToUpperInvariant(change.Entry.Id.DriveLetter);
+        var rewritten = _driveRealRoots.TryGetValue(letter, out var realRoot)
+            ? change with
+            {
+                Path = RewriteToDriveLetterRoot(change.Path, realRoot, letter),
+                PreviousPath = change.PreviousPath is null
+                    ? null
+                    : RewriteToDriveLetterRoot(change.PreviousPath, realRoot, letter)
+            }
+            : change;
+        _output.Writer.TryWrite(new VolumeChangeBatch(letter.ToString(), IndexChangeMapping.Map(rewritten)));
+    }
+
+    /// <summary>
+    /// Rewrites a real path rooted at <paramref name="realRoot" /> back onto
+    /// <paramref name="driveLetter" />'s own "&lt;letter&gt;:\" form, so every path this source
+    /// hands to a consumer (<see cref="RepositoryWatchService" /> among them) stays in the
+    /// drive-letter-rooted coordinate space those consumers expect. A no-op on a real Windows
+    /// volume, where the indexed root directory already is "&lt;letter&gt;:\".
+    /// </summary>
+    static string RewriteToDriveLetterRoot(string realPath, string realRoot, char driveLetter)
+    {
+        if (!realPath.StartsWith(realRoot, StringComparison.OrdinalIgnoreCase))
+            return realPath;
+        if (realPath.Length > realRoot.Length &&
+            !realRoot.EndsWith('/') && !realRoot.EndsWith('\\') &&
+            realPath[realRoot.Length] is not ('/' or '\\'))
+        {
+            return realPath;
+        }
+        var relative = realPath[realRoot.Length..].TrimStart('\\', '/').Replace('/', '\\');
+        return relative.Length == 0 ? $"{driveLetter}:\\" : $"{driveLetter}:\\{relative}";
     }
 
     void OnWatchFaulted(WatchFault fault)

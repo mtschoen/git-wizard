@@ -16,7 +16,7 @@ public class BrokerDiscoveryTests
         var paths = new List<string>();
         await using var result = await DiscoverAsync(fixture, paths);
         Assert.That(result.Success, Is.True);
-        Assert.That(paths, Is.EqualTo(new[] { @"X:\repo" }));
+        Assert.That(paths, Is.EqualTo(new[] { Path.Combine(fixture.Owner.Index.Root('X').Path, "repo") }));
         Assert.That(result.Index, Is.SameAs(fixture.Owner.Index));
     }
 

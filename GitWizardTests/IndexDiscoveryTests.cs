@@ -138,8 +138,8 @@ public class IndexDiscoveryTests
         });
         var entries = GitWizardApi.SelectGitEntries(index, includeGitFiles: true);
         Assert.That(entries, Has.Count.EqualTo(2));
-        var candidates = GitWizardApi.ResolveRepositoryRootCandidates(entries, @"X:\", Array.Empty<string>()).ToArray();
-        Assert.That(candidates, Is.EqualTo(new[] { @"X:\validrepo" }));
+        var candidates = GitWizardApi.ResolveRepositoryRootCandidates(index, entries, @"X:\", Array.Empty<string>()).ToArray();
+        Assert.That(candidates, Is.EqualTo(new[] { Path.Combine(files.TreePath, "validrepo") }));
     }
 
     static Task<FileIndex> OpenRowsAsync(PackedIndexFixture files, Action<BlockFile, BlockWriter> writeRows) =>

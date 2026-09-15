@@ -51,7 +51,7 @@ public class GitFileIndexMappingTests
         var entries = GitWizardApi.SelectGitEntries(index, true);
         Assert.That(entries.Single().Name, Is.EqualTo(".git"));
         Assert.That(entries.Single().IsDirectory, Is.False);
-        var candidates = GitWizardApi.ResolveRepositoryRootCandidates(entries, root, []).ToArray();
+        var candidates = GitWizardApi.ResolveRepositoryRootCandidates(index, entries, root, []).ToArray();
         Assert.That(candidates, Has.Length.EqualTo(1));
     }
 
@@ -65,7 +65,7 @@ public class GitFileIndexMappingTests
         var entries = GitWizardApi.SelectGitEntries(index, true);
         Assert.That(entries.Single().Name, Is.EqualTo(".git"));
         Assert.That(entries.Single().IsDirectory, Is.False);
-        var candidates = GitWizardApi.ResolveRepositoryRootCandidates(entries, root, []).ToArray();
+        var candidates = GitWizardApi.ResolveRepositoryRootCandidates(index, entries, root, []).ToArray();
         Assert.That(candidates, Is.Empty);
     }
 
@@ -79,10 +79,10 @@ public class GitFileIndexMappingTests
         var entries = GitWizardApi.SelectGitEntries(index, true);
         Assert.That(entries.Single().Name, Is.EqualTo(".git"));
         Assert.That(entries.Single().IsDirectory, Is.False);
-        var candidates = GitWizardApi.ResolveRepositoryRootCandidates(entries, root, ["X:/scope/ignored"]).ToArray();
+        var candidates = GitWizardApi.ResolveRepositoryRootCandidates(index, entries, root, ["X:/scope/ignored"]).ToArray();
         Assert.That(candidates, Is.Empty);
-        Assert.That(GitWizardApi.ResolveRepositoryRootCandidates(entries, root, []), Is.Not.Empty);
-        Assert.That(GitWizardApi.ResolveRepositoryRootCandidates(entries, root, [root]), Is.Empty);
+        Assert.That(GitWizardApi.ResolveRepositoryRootCandidates(index, entries, root, []), Is.Not.Empty);
+        Assert.That(GitWizardApi.ResolveRepositoryRootCandidates(index, entries, root, [root]), Is.Empty);
     }
 
     [Test]
@@ -95,7 +95,7 @@ public class GitFileIndexMappingTests
         var entries = GitWizardApi.SelectGitEntries(index, true);
         Assert.That(entries.Single().Name, Is.EqualTo(".git"));
         Assert.That(entries.Single().IsDirectory, Is.False);
-        var candidates = GitWizardApi.ResolveRepositoryRootCandidates(entries, root, []).ToArray();
+        var candidates = GitWizardApi.ResolveRepositoryRootCandidates(index, entries, root, []).ToArray();
         Assert.That(candidates, Is.Empty);
     }
 
@@ -109,7 +109,7 @@ public class GitFileIndexMappingTests
         var entries = GitWizardApi.SelectGitEntries(index, true);
         Assert.That(entries.Single().Name, Is.EqualTo(".git"));
         Assert.That(entries.Single().IsDirectory, Is.False);
-        var candidates = GitWizardApi.ResolveRepositoryRootCandidates(entries, root, [], false).ToArray();
+        var candidates = GitWizardApi.ResolveRepositoryRootCandidates(index, entries, root, [], false).ToArray();
         Assert.That(candidates, Has.Length.EqualTo(1));
     }
 
@@ -123,7 +123,7 @@ public class GitFileIndexMappingTests
         var entries = GitWizardApi.SelectGitEntries(index, true);
         Assert.That(entries.Single().Name, Is.EqualTo(".git"));
         Assert.That(entries.Single().IsDirectory, Is.False);
-        var candidates = GitWizardApi.ResolveRepositoryRootCandidates(entries, root, []).ToArray();
+        var candidates = GitWizardApi.ResolveRepositoryRootCandidates(index, entries, root, []).ToArray();
         Assert.That(candidates, Has.Length.EqualTo(1));
         Assert.That(entries.Single().Parent!.Value.Name, Is.EqualTo("worktree"));
         // The recursive collector receives an independent host path, never an index path.
@@ -142,7 +142,7 @@ public class GitFileIndexMappingTests
         var entries = GitWizardApi.SelectGitEntries(index, true);
         Assert.That(entries.Single().Name, Is.EqualTo(".git"));
         Assert.That(entries.Single().IsDirectory, Is.False);
-        var candidates = GitWizardApi.ResolveRepositoryRootCandidates(entries, root, []).ToArray();
+        var candidates = GitWizardApi.ResolveRepositoryRootCandidates(index, entries, root, []).ToArray();
         Assert.That(candidates, Is.Empty);
     }
 
@@ -155,6 +155,6 @@ public class GitFileIndexMappingTests
         await using var index = await fixture.OpenIndexAsync();
         var entries = GitWizardApi.SelectGitEntries(index, true);
         Assert.That(entries.Select(entry => entry.Parent!.Value.Name), Is.EquivalentTo(new[] { "outer", "worktree" }));
-        Assert.That(GitWizardApi.ResolveRepositoryRootCandidates(entries, "X:/outer", []).Count(), Is.EqualTo(2));
+        Assert.That(GitWizardApi.ResolveRepositoryRootCandidates(index, entries, "X:/outer", []).Count(), Is.EqualTo(2));
     }
 }

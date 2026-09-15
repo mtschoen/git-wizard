@@ -5,10 +5,14 @@ namespace GitWizard;
 
 public static class WindowsDefender
 {
-    static readonly string[] ProcessExclusions = ["dotnet.exe", "git.exe", "git-lfs.exe", "git-wizard.exe"];
+    static readonly string[] ProcessExclusions =
+        ["dotnet.exe", "git.exe", "git-lfs.exe", "git-wizard.exe", "GitWizardUI.exe"];
+
+    public static string ExclusionsAddedMessage =>
+        $"Windows Defender process exclusions added: {string.Join(", ", ProcessExclusions)}.";
 
     /// <summary>
-    /// Add Windows Defender process exclusions for git and dotnet.
+    /// Add Windows Defender process exclusions for GitWizard applications and their external tools.
     /// If already elevated, runs directly. Otherwise, launches an elevated copy of this process.
     /// Falls back to elevated PowerShell if self-elevation is not available (e.g., dotnet run).
     /// </summary>
@@ -34,7 +38,7 @@ public static class WindowsDefender
     public static bool RunDefenderCommands()
     {
         var commands = ProcessExclusions
-            .Select(p => $"Add-MpPreference -ExclusionProcess '{p}'");
+            .Select(p => $"Add-MpPreference -ExclusionProcess '{p}' -ErrorAction Stop");
         var script = string.Join("; ", commands);
 
         try
@@ -55,7 +59,7 @@ public static class WindowsDefender
             var success = process.ExitCode == 0;
 
             if (success)
-                GitWizardLog.Log("Windows Defender exclusions added successfully.");
+                GitWizardLog.Log(ExclusionsAddedMessage);
             else
                 GitWizardLog.Log($"Windows Defender exclusions failed with exit code {process.ExitCode}",
                     GitWizardLog.LogType.Error);
@@ -73,7 +77,7 @@ public static class WindowsDefender
     static bool RunDefenderCommandsViaElevatedPowerShell()
     {
         var commands = ProcessExclusions
-            .Select(p => $"Add-MpPreference -ExclusionProcess '{p}'");
+            .Select(p => $"Add-MpPreference -ExclusionProcess '{p}' -ErrorAction Stop");
         var script = string.Join("; ", commands);
 
         try
@@ -95,7 +99,7 @@ public static class WindowsDefender
             var success = process.ExitCode == 0;
 
             if (success)
-                GitWizardLog.Log("Windows Defender exclusions added successfully.");
+                GitWizardLog.Log(ExclusionsAddedMessage);
             else
                 GitWizardLog.Log($"Windows Defender exclusions failed with exit code {process.ExitCode}",
                     GitWizardLog.LogType.Error);

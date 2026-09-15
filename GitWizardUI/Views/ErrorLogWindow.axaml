@@ -8,7 +8,7 @@
         WindowStartupLocation="CenterOwner">
   <Grid RowDefinitions="Auto,*,Auto" Margin="10">
     <TextBlock Grid.Row="0" Margin="0,0,0,5"
-               Text="Errors caught while scanning, refreshing, or acting on repositories. Newest first." />
+               Text="Errors from repository actions and Windows Defender setup results. Newest first." />
     <ListBox Grid.Row="1" ItemsSource="{Binding Entries}">
       <ListBox.ItemTemplate>
         <DataTemplate x:DataType="vm:ErrorLogEntry">

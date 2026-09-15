@@ -70,11 +70,13 @@ public partial class MainWindow : Window, IAsyncDisposable
         if (!OperatingSystem.IsWindows()) return;
 
         var success = await Task.Run(() => WindowsDefender.AddExclusions());
+        var message = success
+            ? WindowsDefender.ExclusionsAddedMessage
+            : "Failed to add Windows Defender exclusions. You may need to run as administrator.";
+        GitWizardLog.Log(message, success ? GitWizardLog.LogType.Info : GitWizardLog.LogType.Error);
+        _viewModel.LogError(message);
         await new AvaloniaUserDialogs().DisplayAlertAsync(
-            success ? "Defender Exclusions Added" : "Defender Setup Failed",
-            success
-                ? "Process exclusions for dotnet, git, git-lfs, and git-wizard have been added."
-                : "Failed to add Windows Defender exclusions. You may need to run as administrator.");
+            success ? "Defender Exclusions Added" : "Defender Setup Failed", message);
     }
 
     void ClearCacheMenuItem_Click(object? sender, RoutedEventArgs e)

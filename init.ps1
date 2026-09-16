@@ -94,19 +94,35 @@ if (-not (Test-CommandAvailable 'dotnet')) {
     exit 1
 }
 
-# external/MFTLib is a git submodule that a fresh clone or a post-clean checkout
-# leaves empty. Nothing here builds until it is checked out, so restore it
-# unconditionally rather than only under -Build.
-$mftlibMarker = Join-Path $repositoryRoot 'external/MFTLib/MFTLib/MFTLib.csproj'
-if (-not (Test-Path $mftlibMarker)) {
-    Write-Host 'Initializing external/MFTLib submodule...' -ForegroundColor Cyan
-    & git -C $repositoryRoot submodule update --init --recursive
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host 'Submodule checkout failed.' -ForegroundColor Red
-        exit 1
-    }
-    $completedSteps.Add('external/MFTLib submodule checked out')
+# external/MFTLib is a git submodule. A populated submodule directory does not
+# mean a synced one: merging a base branch that moved the gitlink leaves the
+# working tree checked out at the previous commit until the submodule is
+# updated again, and a marker-file check would see the leftover files and skip
+# that update. Run the sync unconditionally instead - it is a fast no-op when
+# the submodule already matches the pinned commit, and a real correction when
+# it does not.
+Write-Host 'Synchronizing external/MFTLib submodule...' -ForegroundColor Cyan
+& git -C $repositoryRoot submodule update --init --recursive
+if ($LASTEXITCODE -ne 0) {
+    Write-Host 'Submodule checkout failed.' -ForegroundColor Red
+    exit 1
 }
+
+# Confirm the sync actually landed. `git submodule status` prefixes a line with
+# '-' when a submodule is still uninitialized, with '+' when the checked-out
+# commit does not match the commit recorded in the superproject's index, and
+# with 'U' when the submodule has an unresolved merge conflict - all of which
+# indicate the update above did not bring the submodule in sync.
+$submoduleStatusLines = & git -C $repositoryRoot submodule status -- external/MFTLib
+$outOfSyncLines = $submoduleStatusLines | Where-Object { $_ -match '^[-+U]' }
+if ($outOfSyncLines) {
+    Write-Host 'external/MFTLib submodule did not sync to the pinned commit:' -ForegroundColor Red
+    foreach ($line in $outOfSyncLines) {
+        Write-Host "  $line"
+    }
+    exit 1
+}
+$completedSteps.Add('external/MFTLib submodule synced')
 
 Write-Host ''
 Write-Host 'Restoring NuGet packages...' -ForegroundColor Cyan
@@ -251,3 +267,12 @@ if (-not $Build) {
     Write-Host 'Next: .\init.ps1 -Build (.\init.bat -Build from cmd.exe),'
     Write-Host '      or .\scripts\run-coverage.ps1 for the full test run.'
 }
+
+# Every failure path above exits 1 before reaching here, so reaching this line means
+# success. The optional provisioner step is allowed to fail without failing the
+# script, and PowerShell has no success exit code of its own to fall back on: without
+# this line, the process exit code trails whatever native command last set
+# $LASTEXITCODE, which can be the provisioner's non-zero status even though the run
+# succeeded. That breaks the documented `git clean -ffxd && .\init.ps1` chain on a
+# successful run, so make the exit code explicit.
+exit 0

@@ -231,6 +231,14 @@ The automation-focused sweep is a separate contract from the cached report above
 
 `git-wizard branches` inspects every clone for local branches, comparing against the specified base branch (`--not-merged <base>` / `--not <base>`) or each repository's default branch. It calculates upstream tracking divergence and a `UniqueCommitCount` that proves zero data loss before branch deletion.
 
+Upstream tracking is resolved only when the branch's configured remote exactly
+matches a configured remote name. URL-valued remotes, missing remote names, and
+the local-upstream value `.` are reported as untracked rather than failing the
+repository inventory. In those cases `HasUpstream` is false, `UpstreamBranch` is
+null, and both upstream divergence counts are zero. Base-branch divergence and
+`UniqueCommitCount` are still calculated normally. When a configured remote's
+tracking branch reference is absent locally, upstream divergence counts are zero.
+
 ```json
 {
   "SchemaVersion": "1.0",

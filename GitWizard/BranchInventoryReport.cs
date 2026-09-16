@@ -119,7 +119,11 @@ public sealed class BranchInventoryReport
         if (notMergedOnly && isMerged)
             return null;
 
-        var trackedBranch = branch.TrackedBranch;
+        var remoteName = branch.RemoteName;
+        // URL-valued branch remotes are valid Git config but cannot be resolved by TrackedBranch.
+        var hasConfiguredRemote = repository.Network.Remotes.Any(remote =>
+            string.Equals(remote.Name, remoteName, StringComparison.Ordinal));
+        var trackedBranch = hasConfiguredRemote ? branch.TrackedBranch : null;
         var hasUpstream = trackedBranch != null;
         var upstreamBranch = trackedBranch?.FriendlyName;
         var aheadUpstream = 0;

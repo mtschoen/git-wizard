@@ -64,4 +64,33 @@ public class MainWindowLiveTests
             Assert.That(ToolTip.GetTip(button), Does.Contain("kernel 5.9"));
         });
     }
+
+    [AvaloniaTest]
+    public void LiveScanProgress_ReflectsViewModelState()
+    {
+        var window = new MainWindow();
+        var viewModel = (MainViewModel)window.DataContext!;
+        var panel = window.FindControl<StackPanel>("LiveScanProgressPanel");
+        var bar = window.FindControl<ProgressBar>("LiveScanProgressBar");
+        var text = window.FindControl<TextBlock>("LiveScanProgressText");
+
+        Assert.That(panel, Is.Not.Null);
+        Assert.That(panel!.IsVisible, Is.False);
+
+        viewModel.IsLiveScanProgressVisible = true;
+        viewModel.LiveScanProgressText = "Scanning D: (2 of 5), 1.2M of 2.4M records";
+        viewModel.LiveScanProgressValue = 0.3;
+        viewModel.IsLiveScanProgressIndeterminate = false;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(panel.IsVisible, Is.True);
+            Assert.That(bar!.Value, Is.EqualTo(0.3).Within(0.001));
+            Assert.That(bar.IsIndeterminate, Is.False);
+            Assert.That(text!.Text, Is.EqualTo("Scanning D: (2 of 5), 1.2M of 2.4M records"));
+        });
+
+        viewModel.IsLiveScanProgressVisible = false;
+        Assert.That(panel.IsVisible, Is.False);
+    }
 }

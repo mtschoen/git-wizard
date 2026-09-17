@@ -38,12 +38,12 @@ public class IndexVolumeChangeSourceWindowsTests
 
         var drive = GetFixtureDrive(Path.GetTempPath());
         var launches = 0;
-        await using var source = new IndexVolumeChangeSource((drives, cancellationToken) =>
+        await using var source = new IndexVolumeChangeSource((drives, progress, cancellationToken) =>
             GitWizard.MftIndexSession.OpenWindowsAsync(drives, arguments =>
             {
                 launches++;
                 return UiBrokerLauncher.LaunchUiBroker(arguments);
-            }, cancellationToken));
+            }, null, progress, cancellationToken));
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         var arm = await source.ArmAndCatchUpAsync([drive], cancellation.Token);
         Assert.That(arm.Errors, Does.Not.ContainKey(drive));
@@ -76,10 +76,10 @@ public class IndexVolumeChangeSourceWindowsTests
 
         var drive = GetFixtureDrive(Path.GetTempPath());
         GitWizard.MftIndexSession? session = null;
-        await using var source = new IndexVolumeChangeSource(async (drives, cancellationToken) =>
+        await using var source = new IndexVolumeChangeSource(async (drives, progress, cancellationToken) =>
         {
             session = await GitWizard.MftIndexSession.OpenWindowsAsync(
-                drives, UiBrokerLauncher.LaunchUiBroker, cancellationToken);
+                drives, UiBrokerLauncher.LaunchUiBroker, null, progress, cancellationToken);
             return session;
         });
         using var armCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(120));
@@ -107,8 +107,8 @@ public class IndexVolumeChangeSourceWindowsTests
 
         var temporaryPath = Path.Combine(Path.GetTempPath(), $"git-wizard-gap-{Guid.NewGuid():N}.tmp");
         var drive = GetFixtureDrive(temporaryPath);
-        await using var source = new IndexVolumeChangeSource((drives, cancellationToken) =>
-            GitWizard.MftIndexSession.OpenWindowsAsync(drives, UiBrokerLauncher.LaunchUiBroker, cancellationToken));
+        await using var source = new IndexVolumeChangeSource((drives, progress, cancellationToken) =>
+            GitWizard.MftIndexSession.OpenWindowsAsync(drives, UiBrokerLauncher.LaunchUiBroker, null, progress, cancellationToken));
         using var armCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         var armResult = await source.ArmAndCatchUpAsync(new[] { drive }, armCancellation.Token);
         Assert.That(armResult.Errors, Does.Not.ContainKey(drive));
@@ -136,8 +136,8 @@ public class IndexVolumeChangeSourceWindowsTests
 
         var temporaryPath = Path.Combine(Path.GetTempPath(), $"git-wizard-watch-{Guid.NewGuid():N}.tmp");
         var drive = GetFixtureDrive(temporaryPath);
-        await using var source = new IndexVolumeChangeSource((drives, cancellationToken) =>
-            GitWizard.MftIndexSession.OpenWindowsAsync(drives, UiBrokerLauncher.LaunchUiBroker, cancellationToken));
+        await using var source = new IndexVolumeChangeSource((drives, progress, cancellationToken) =>
+            GitWizard.MftIndexSession.OpenWindowsAsync(drives, UiBrokerLauncher.LaunchUiBroker, null, progress, cancellationToken));
         using var armCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         var armResult = await source.ArmAndCatchUpAsync(new[] { drive }, armCancellation.Token);
         Assert.That(armResult.Errors, Does.Not.ContainKey(drive));

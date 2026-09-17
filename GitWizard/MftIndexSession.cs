@@ -32,7 +32,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
 
     internal static async Task<MftIndexSession> OpenAsync(IReadOnlyList<IndexedDrive> drives,
         Func<CancellationToken, Task<JournalBrokerClient>> connectAsync,
-        string cacheDirectory, CancellationToken cancellationToken)
+        string cacheDirectory, IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken)
     {
         var connection = new BrokerConnection(connectAsync);
         var transferred = false;
@@ -52,7 +52,8 @@ public sealed partial class MftIndexSession : IAsyncDisposable
                 NoCache = true,
                 ProducerPolicy = ProducerPolicy.Mft,
                 MftProducer = producer.CreateProducer(),
-                WatchSource = producer.CreateWatchSource()
+                WatchSource = producer.CreateWatchSource(),
+                Progress = progress
             }, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             var errors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

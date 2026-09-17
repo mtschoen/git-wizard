@@ -13,7 +13,7 @@ public class IndexVolumeChangeSourcePreparedIndexTests
     {
         await using var fixture = new IndexOwnerFixture();
         await fixture.StartAsync();
-        await using var source = new IndexVolumeChangeSource((_, _) =>
+        await using var source = new IndexVolumeChangeSource((_, _, _) =>
             throw new AssertionException("Prepared index must be reused"), fixture.Owner);
         var result = await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         Assert.That(result.Errors, Is.Empty);
@@ -38,7 +38,7 @@ public class IndexVolumeChangeSourcePreparedIndexTests
         if (disposeFirst)
             await fixture.Owner.DisposeAsync();
         var opens = 0;
-        await using var source = new IndexVolumeChangeSource((drives, _) =>
+        await using var source = new IndexVolumeChangeSource((drives, _, _) =>
         {
             opens++;
             Assert.That(fixture.Owner.IsDisposed, Is.True);
@@ -56,7 +56,7 @@ public class IndexVolumeChangeSourcePreparedIndexTests
     {
         await using var fixture = new IndexOwnerFixture();
         await fixture.StartAsync();
-        var source = new IndexVolumeChangeSource((_, _) =>
+        var source = new IndexVolumeChangeSource((_, _, _) =>
             throw new AssertionException("Must not open"), fixture.Owner);
         await source.DisposeAsync();
         await source.DisposeAsync();
@@ -80,8 +80,8 @@ public class IndexVolumeChangeSourcePreparedIndexTests
         await using var broker = new BlockBrokerFixture([entry]);
         broker.WatchEntries = [entry];
         var owner = await MftIndexSession.OpenAsync([broker.Drive('X')], broker.ConnectAsync,
-            broker.CacheDirectory, CancellationToken.None);
-        await using var source = new IndexVolumeChangeSource((_, _) =>
+            broker.CacheDirectory, null, CancellationToken.None);
+        await using var source = new IndexVolumeChangeSource((_, _, _) =>
             throw new AssertionException("Must reuse owner"), owner);
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));

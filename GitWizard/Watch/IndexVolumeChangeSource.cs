@@ -5,9 +5,9 @@ using MFTLib.Index;
 namespace GitWizard.Watch;
 
 /// <summary>Owns an index session and translates its live changes into repository-watch batches.</summary>
-public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDiagnostics, IUsnJournalGrower
+public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDiagnostics, IUsnJournalGrower, IVolumeScanProgress
 {
-    readonly Func<IReadOnlyList<string>, CancellationToken, Task<MftIndexSession>> _openSession;
+    readonly Func<IReadOnlyList<string>, IProgress<IndexScanProgress>, CancellationToken, Task<MftIndexSession>> _openSession;
     readonly Channel<VolumeChangeBatch> _output = Channel.CreateUnbounded<VolumeChangeBatch>();
     readonly Lock _lifecycleLock = new();
     readonly Lock _faultLock = new();
@@ -26,9 +26,10 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
 
     public event Action<string>? SourceDied;
     public event Action<string, string>? DriveFailed;
+    public event Action<VolumeScanProgress>? ScanProgress;
 
     public IndexVolumeChangeSource(
-        Func<IReadOnlyList<string>, CancellationToken, Task<MftIndexSession>> openSession,
+        Func<IReadOnlyList<string>, IProgress<IndexScanProgress>, CancellationToken, Task<MftIndexSession>> openSession,
         MftIndexSession? preparedIndex = null)
     {
         ArgumentNullException.ThrowIfNull(openSession);
@@ -82,7 +83,8 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
                 _owner = null;
                 if (prepared is not null)
                     await prepared.DisposeAsync().ConfigureAwait(false);
-                _owner = await _openSession(requested, cancellationToken).ConfigureAwait(false);
+                _owner = await _openSession(requested, new ArmScanProgress(requested, ReportScanProgress),
+                    cancellationToken).ConfigureAwait(false);
             }
             cancellationToken.ThrowIfCancellationRequested();
             var errors = new Dictionary<string, string>(_owner.ScanErrors, StringComparer.OrdinalIgnoreCase);
@@ -324,6 +326,46 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         {
             if (_owner is not null)
                 await _owner.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    void ReportScanProgress(VolumeScanProgress sample)
+    {
+        try
+        {
+            ScanProgress?.Invoke(sample);
+        }
+        catch (Exception exception)
+        {
+            // Progress is best-effort; a subscriber fault must never fail a scan.
+            GitWizardLog.LogException(exception, "A Live scan-progress subscriber failed.");
+        }
+    }
+
+    // Reports synchronously on the broker client's receive thread, so samples reach subscribers
+    // in frame order; marshalling to a UI thread belongs to the subscriber, per MFTLib's
+    // IProgress<T> convention. The broker throttles ScanProgress frames to one per 250 ms, so
+    // no further coalescing happens here.
+    sealed class ArmScanProgress(IReadOnlyList<string> requestedDrives, Action<VolumeScanProgress> sink)
+        : IProgress<IndexScanProgress>
+    {
+        public void Report(IndexScanProgress value)
+        {
+            var letter = char.ToUpperInvariant(value.DriveLetter).ToString();
+            var ordinal = 0;
+            for (var i = 0; i < requestedDrives.Count; i++)
+            {
+                if (string.Equals(requestedDrives[i], letter, StringComparison.OrdinalIgnoreCase))
+                {
+                    ordinal = i + 1;
+                    break;
+                }
+            }
+
+            // A sample naming a drive outside the requested set should not exist; clamp rather
+            // than report a nonsensical "0 of N".
+            sink(new VolumeScanProgress(letter, Math.Max(ordinal, 1), requestedDrives.Count,
+                value.RowsWritten, value.TotalRows));
         }
     }
 }

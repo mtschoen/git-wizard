@@ -21,6 +21,7 @@ public sealed class LiveWatchController
     public event Action? Started;
     public event Action? ScanErrorsChanged;
     public event Action? ScanWarningsChanged;
+    public event Action<VolumeScanProgress>? ScanProgress;
 
     // Guards the read-modify-write of the mutable run state below. StartAsync's loop and a
     // concurrent StopAsync both touch _stopRequested/_runCts/_source; without this a StopAsync
@@ -188,6 +189,7 @@ public sealed class LiveWatchController
     {
         string? deathReason = null;
         service.Started += OnStarted;
+        service.ScanProgress += OnScanProgress;
         void OnStopped(string reason) => deathReason = reason;
         service.Stopped += OnStopped;
         service.ScanErrorsChanged += OnScanErrorsChanged;
@@ -205,6 +207,7 @@ public sealed class LiveWatchController
         finally
         {
             service.Started -= OnStarted;
+            service.ScanProgress -= OnScanProgress;
             service.Stopped -= OnStopped;
             service.ScanErrorsChanged -= OnScanErrorsChanged;
             service.ScanWarningsChanged -= OnScanWarningsChanged;
@@ -214,6 +217,7 @@ public sealed class LiveWatchController
     }
 
     void OnStarted() => Started?.Invoke();
+    void OnScanProgress(VolumeScanProgress sample) => ScanProgress?.Invoke(sample);
     void OnScanErrorsChanged() => ScanErrorsChanged?.Invoke();
     void OnScanWarningsChanged() => ScanWarningsChanged?.Invoke();
 }

@@ -236,7 +236,7 @@ public class ProgramWatchLoopTests
             MftProducer = (_, _) => throw new IOException("cannot scan X")
         }, CancellationToken.None);
         var owner = new MftIndexSession(failedIndex, null, ["X"], [], new Dictionary<string, string>());
-        var source = new IndexVolumeChangeSource((_, _) => Task.FromResult(owner));
+        var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         var service = new RepositoryWatchService(
             source,
             trackedRoots: [@"X:\repo"],

@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using GitWizard.Watch.Linux;
 using MFTLib;
+using MFTLib.Index;
 
 namespace GitWizard.Watch;
 
@@ -67,8 +68,8 @@ public static partial class VolumeChangeSourceFactory
 
         if (IsWindows())
         {
-            return new IndexVolumeChangeSource((drives, cancellationToken) =>
-                OpenWindowsIndexAsync(drives, brokerLauncher, cancellationToken), preparedIndex);
+            return new IndexVolumeChangeSource((drives, progress, cancellationToken) =>
+                OpenWindowsIndexAsync(drives, brokerLauncher, progress, cancellationToken), preparedIndex);
         }
 
         if (IsLinux() && OperatingSystem.IsLinux())
@@ -80,11 +81,12 @@ public static partial class VolumeChangeSourceFactory
     }
 
     static Task<MftIndexSession> OpenWindowsIndexAsync(IReadOnlyList<string> drives,
-        Func<string, bool>? brokerLauncher, CancellationToken cancellationToken)
+        Func<string, bool>? brokerLauncher, IProgress<IndexScanProgress> progress, CancellationToken cancellationToken)
     {
         if (!OperatingSystem.IsWindows())
             throw new PlatformNotSupportedException("Opening a Windows index requires Windows.");
-        return MftIndexSession.OpenWindowsAsync(drives, brokerLauncher ?? BrokerLauncher.Launch, cancellationToken);
+        return MftIndexSession.OpenWindowsAsync(drives, brokerLauncher ?? BrokerLauncher.Launch,
+            null, progress, cancellationToken);
     }
 
     static bool IsWindows() => _isWindowsOverride?.Invoke() ?? RuntimeInformation.IsOSPlatform(OSPlatform.Windows);

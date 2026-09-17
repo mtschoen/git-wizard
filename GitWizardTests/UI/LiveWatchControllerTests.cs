@@ -371,7 +371,7 @@ public class LiveWatchControllerTests
         var owner = new MftIndexSession(failedIndex, null, ["X"], [], new Dictionary<string, string>());
         var stoppedReasons = new List<string>();
         var controller = new LiveWatchController(
-            () => new IndexVolumeChangeSource((_, _) => Task.FromResult(owner)),
+            () => new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner)),
             trackedRoots: [@"X:\repo"],
             searchRoots: [],
             onEvent: _ => { },
@@ -383,6 +383,32 @@ public class LiveWatchControllerTests
 
         Assert.That(stoppedReasons, Has.Count.EqualTo(1));
         Assert.That(stoppedReasons[0], Is.EqualTo("No requested drives could be watched."));
+    }
+
+    [Test]
+    public async Task Start_ForwardsScanProgressFromSource()
+    {
+        var source = new HangingKillableSource();
+        var samples = new List<VolumeScanProgress>();
+        var controller = new LiveWatchController(
+            () => source,
+            trackedRoots: new[] { @"C:\repo" },
+            searchRoots: Array.Empty<string>(),
+            onEvent: _ => { },
+            onStopped: _ => { },
+            isElevated: () => false);
+        controller.ScanProgress += samples.Add;
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var startTask = controller.StartAsync(cts.Token);
+        await WaitUntilAsync(() => source.IsArmed);
+        var sample = new VolumeScanProgress("C", 1, 1, 600_000u, 1_200_000u);
+        source.ReportScanProgress(sample);
+        await WaitUntilAsync(() => samples.Count >= 1);
+        await controller.StopAsync();
+        await startTask;
+
+        Assert.That(samples, Is.EqualTo(new[] { sample }));
     }
 
     static async Task WaitUntilAsync(Func<bool> condition)
@@ -399,9 +425,10 @@ public class LiveWatchControllerTests
 // A source whose WatchAsync hangs until cancelled or killed, and that records whether it was
 // armed/disposed - used to deterministically observe LiveWatchController's respawn/stop wiring
 // without racing a scripted batch against a kill signal.
-internal sealed class HangingKillableSource : IVolumeChangeSource
+internal sealed class HangingKillableSource : IVolumeChangeSource, IVolumeScanProgress
 {
     public event Action<string>? SourceDied;
+    public event Action<VolumeScanProgress>? ScanProgress;
 
     public bool IsArmed { get; private set; }
     public int DisposeCount { get; private set; }
@@ -422,6 +449,8 @@ internal sealed class HangingKillableSource : IVolumeChangeSource
     }
 
     public void KillSource(string reason) => SourceDied?.Invoke(reason);
+
+    public void ReportScanProgress(VolumeScanProgress sample) => ScanProgress?.Invoke(sample);
 
     public ValueTask DisposeAsync()
     {

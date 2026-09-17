@@ -135,7 +135,7 @@ public class MainViewModelPreparedSessionTests
         await viewModel.SetPreparedDiscoveryIndexAsync(fixture.Owner);
         var opens = 0;
         var takePreparedDiscoveryIndex = viewModel.TakePreparedDiscoveryIndex;
-        viewModel.LiveVolumeChangeSourceFactory = () => new IndexVolumeChangeSource((_, _) =>
+        viewModel.LiveVolumeChangeSourceFactory = () => new IndexVolumeChangeSource((_, _, _) =>
         {
             opens++;
             throw new InvalidOperationException("Fresh index unavailable");

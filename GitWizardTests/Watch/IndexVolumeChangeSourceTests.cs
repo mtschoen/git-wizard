@@ -17,7 +17,7 @@ public class IndexVolumeChangeSourceTests
         try
         {
             await owner.StartAsync();
-            var source = new IndexVolumeChangeSource((_, _) => Task.FromResult(owner.Owner), owner.Owner);
+            var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner.Owner), owner.Owner);
             var exception = Assert.ThrowsAsync<InvalidOperationException>(() => source.GrowUsnJournalAsync('C', 1000, 100, CancellationToken.None));
             Assert.That(exception.Message, Is.EqualTo("No broker connection available."));
         }
@@ -67,7 +67,7 @@ public class IndexVolumeChangeSourceTests
         var connection = new CountingOwner();
         var owner = new MftIndexSession(await files.OpenIndexAsync(), connection, ["X"], [],
             new Dictionary<string, string> { ["Z"] = "scan denied" });
-        var source = new IndexVolumeChangeSource((_, _) =>
+        var source = new IndexVolumeChangeSource((_, _, _) =>
             throw new AssertionException("Matching prepared owner must be reused."), owner);
         try
         {
@@ -102,7 +102,7 @@ public class IndexVolumeChangeSourceTests
             var requested = disposePrepared ? "X" : "Y";
             var fresh = Owner(await files.OpenIndexAsync(), requested);
             var opens = 0;
-            await using (var source = new IndexVolumeChangeSource((drives, cancellationToken) =>
+            await using (var source = new IndexVolumeChangeSource((drives, _, cancellationToken) =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Assert.That(oldOwner.IsDisposed, Is.True);
@@ -128,7 +128,7 @@ public class IndexVolumeChangeSourceTests
             MftProducer = (_, _) => throw new IOException("cannot scan X")
         }, CancellationToken.None);
         var failedOwner = Owner(failedIndex, "X");
-        await using var failedSource = new IndexVolumeChangeSource((_, _) => Task.FromResult(failedOwner));
+        await using var failedSource = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(failedOwner));
         var failedArm = await failedSource.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         Assert.That(failedArm.Errors["X"], Is.EqualTo("cannot scan X"));
         var deaths = new List<string>();
@@ -147,7 +147,7 @@ public class IndexVolumeChangeSourceTests
         var owner = new MftIndexSession(await files.OpenIndexAsync(), connection, ["X"], [],
             new Dictionary<string, string>());
         var opens = 0;
-        var source = new IndexVolumeChangeSource((_, _) =>
+        var source = new IndexVolumeChangeSource((_, _, _) =>
         {
             opens++;
             return Task.FromResult(owner);
@@ -166,7 +166,7 @@ public class IndexVolumeChangeSourceTests
         files.AddMarker("repo");
         var scripted = new ScriptedIndexWatchSource();
         var owner = Owner(await files.OpenMftIndexAsync(scripted, 'X', 'Y'), "X", "Y");
-        await using var source = new IndexVolumeChangeSource((_, _) => Task.FromResult(owner));
+        await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
         Assert.That(scripted.Started.IsCompleted, Is.False, "Arming must not start the watch.");
         using var cancellation = new CancellationTokenSource(HangGuard);
@@ -227,7 +227,7 @@ public class IndexVolumeChangeSourceTests
         Assert.That(owner.Index.FindByName("ordinary.txt"), Is.Empty);
         var observed = new TaskCompletionSource<FileChange>(TaskCreationOptions.RunContinuationsAsynchronously);
         owner.Index.Changed += change => observed.TrySetResult(change);
-        await using var source = new IndexVolumeChangeSource((_, _) => Task.FromResult(owner));
+        await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         using var cancellation = new CancellationTokenSource(HangGuard);
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
@@ -256,7 +256,7 @@ public class IndexVolumeChangeSourceTests
         {
             var scripted = new ScriptedIndexWatchSource();
             var owner = Owner(await files.OpenMftIndexAsync(scripted, 'X'), "X");
-            var source = new IndexVolumeChangeSource((_, _) => Task.FromResult(owner));
+            var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
             var deaths = 0;
             source.SourceDied += _ => deaths++;
             try
@@ -303,7 +303,7 @@ public class IndexVolumeChangeSourceTests
         files.AddMarker("repo");
         var scripted = new ScriptedIndexWatchSource();
         var owner = Owner(await files.OpenMftIndexAsync(scripted, 'X', 'Y'), "X", "Y");
-        var source = new IndexVolumeChangeSource((_, _) => Task.FromResult(owner));
+        var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         try
         {
             await AssertFaultCoreAsync(source, scripted, owner, scenario);
@@ -381,6 +381,38 @@ public class IndexVolumeChangeSourceTests
         await source.DisposeAsync();
         Assert.That(deaths, Has.Count.EqualTo(1));
         Assert.That(owner.IsDisposed, Is.True);
+    }
+
+    [Test]
+    public async Task FreshOpen_ReportsScanProgressWithDriveOrdinal()
+    {
+        using var files = new PackedIndexFixture();
+        files.AddMarker("repo");
+        var owner = Owner(await files.OpenIndexAsync(), "X", "Y");
+        IProgress<IndexScanProgress>? capturedProgress = null;
+        await using var source = new IndexVolumeChangeSource((drives, progress, _) =>
+        {
+            Assert.That(drives, Is.EqualTo(new[] { "X", "Y" }));
+            capturedProgress = progress;
+            return Task.FromResult(owner);
+        });
+        var samples = new List<VolumeScanProgress>();
+        source.ScanProgress += samples.Add;
+
+        await source.ArmAndCatchUpAsync([@"x:\", "Y:"], CancellationToken.None);
+
+        Assert.That(capturedProgress, Is.Not.Null);
+        capturedProgress!.Report(new IndexScanProgress
+        {
+            DriveLetter = 'y',
+            Phase = IndexScanPhase.ParsingMft,
+            RowsWritten = 600_000,
+            TotalRows = 1_200_000
+        });
+        Assert.That(samples, Is.EqualTo(new[]
+        {
+            new VolumeScanProgress("Y", 2, 2, 600_000u, 1_200_000u)
+        }));
     }
 
     static MftIndexSession Owner(FileIndex index, params string[] drives) =>

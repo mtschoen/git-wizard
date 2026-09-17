@@ -28,6 +28,7 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
     public List<BrokerFrame> ScanFrames { get; } = [];
     public string? FailedDrive { get; set; }
     public Action? ScanReceived { get; set; }
+    public BrokerScanProgress? ScanProgressToEmit { get; set; }
     public Func<Task>? MidScanAsync { get; set; }
     public int RowsWritten { get; private set; }
     public bool ServedToCompletion { get; private set; }
@@ -261,6 +262,11 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
             catch (ObjectDisposedException) when (IsCancelledOrClosed)
             {
                 return false;
+            }
+
+            if (ScanProgressToEmit is { } scanProgress)
+            {
+                BrokerProtocol.WriteScanProgress(response, scanProgress);
             }
 
             BrokerProtocol.WriteCursor(response, drive, Cursor);

@@ -28,6 +28,7 @@ public sealed class RepositoryWatchService
     public event Action? ScanWarningsChanged;
     public event Action? Started;
     public event Action<string>? Stopped;
+    public event Action<VolumeScanProgress>? ScanProgress;
 
     /// <summary>
     /// Immutable snapshot of initial scan failures and subsequent watch failures, keyed by drive.
@@ -76,6 +77,9 @@ public sealed class RepositoryWatchService
         var diagnostics = _source as IVolumeChangeDiagnostics;
         if (diagnostics is not null)
             diagnostics.DriveFailed += OnDriveFailed;
+        var scanProgress = _source as IVolumeScanProgress;
+        if (scanProgress is not null)
+            scanProgress.ScanProgress += OnScanProgress;
         try
         {
             await foreach (var changeEvent in RunCoreAsync(ct).ConfigureAwait(false))
@@ -85,6 +89,8 @@ public sealed class RepositoryWatchService
         {
             if (diagnostics is not null)
                 diagnostics.DriveFailed -= OnDriveFailed;
+            if (scanProgress is not null)
+                scanProgress.ScanProgress -= OnScanProgress;
         }
     }
 
@@ -132,6 +138,8 @@ public sealed class RepositoryWatchService
         }
         ScanErrorsChanged?.Invoke();
     }
+
+    void OnScanProgress(VolumeScanProgress sample) => ScanProgress?.Invoke(sample);
 
     void SetArmResult(VolumeArmResult armResult)
     {

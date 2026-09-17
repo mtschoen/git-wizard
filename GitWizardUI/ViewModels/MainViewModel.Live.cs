@@ -222,8 +222,30 @@ public partial class MainViewModel
 
         _reportedLiveScanErrors.Clear();
         var (trackedRoots, searchRoots) = await GetLiveRootsAsync().ConfigureAwait(false);
+        var controller = CreateConfiguredLiveController(trackedRoots, searchRoots);
+        var detachHandlers = AttachLiveControllerHandlers(controller);
+        _liveController = controller;
 
-        var controller = new LiveWatchController(
+        await _ui.InvokeAsync(() =>
+        {
+            IsLiveStarting = true;
+            ClearLiveScanProgress();
+            HeaderText = "Starting Live watch...";
+        }).ConfigureAwait(false);
+
+        try
+        {
+            await RunLiveControllerAsync(controller).ConfigureAwait(false);
+        }
+        finally
+        {
+            detachHandlers();
+        }
+    }
+
+    LiveWatchController CreateConfiguredLiveController(List<string> trackedRoots, List<string> searchRoots)
+    {
+        return new LiveWatchController(
             LiveVolumeChangeSourceFactory,
             trackedRoots,
             searchRoots,
@@ -235,16 +257,22 @@ public partial class MainViewModel
             {
                 IsLiveStarting = false;
                 IsLive = false;
+                ClearLiveScanProgress();
                 JournalWarnings.Clear();
                 HeaderText = $"Live watch stopped: {reason}{FormatLiveScanErrorSuffix(RequireLiveController())}";
             }),
             isElevated: LiveIsElevated);
+    }
+
+    Action AttachLiveControllerHandlers(LiveWatchController controller)
+    {
         void OnStarted() => _ui.Post(() =>
         {
             if (!ReferenceEquals(_liveController, controller) || (!IsLive && !IsLiveStarting))
                 return;
             IsLiveStarting = false;
             IsLive = true;
+            ClearLiveScanProgress();
             HeaderText = "Live watch active";
             _reportedLiveScanErrors.Clear();
             SurfaceNewLiveScanErrors(controller);
@@ -260,27 +288,25 @@ public partial class MainViewModel
             if (ReferenceEquals(_liveController, controller) && (IsLive || IsLiveStarting))
                 SurfaceNewLiveScanErrors(controller);
         });
+        void OnLiveScanProgress(VolumeScanProgress sample) => _ui.Post(() =>
+        {
+            if (!ReferenceEquals(_liveController, controller) || (!IsLive && !IsLiveStarting))
+                return;
+            ApplyLiveScanProgress(sample);
+        });
+
         controller.Started += OnStarted;
         controller.ScanErrorsChanged += OnScanErrorsChanged;
         controller.ScanWarningsChanged += OnScanWarningsChanged;
-        _liveController = controller;
+        controller.ScanProgress += OnLiveScanProgress;
 
-        await _ui.InvokeAsync(() =>
-        {
-            IsLiveStarting = true;
-            HeaderText = "Starting Live watch...";
-        }).ConfigureAwait(false);
-
-        try
-        {
-            await RunLiveControllerAsync(controller).ConfigureAwait(false);
-        }
-        finally
+        return () =>
         {
             controller.Started -= OnStarted;
             controller.ScanErrorsChanged -= OnScanErrorsChanged;
             controller.ScanWarningsChanged -= OnScanWarningsChanged;
-        }
+            controller.ScanProgress -= OnLiveScanProgress;
+        };
     }
 
     async Task RunLiveControllerAsync(LiveWatchController controller)
@@ -297,6 +323,7 @@ public partial class MainViewModel
             {
                 IsLiveStarting = false;
                 IsLive = false;
+                ClearLiveScanProgress();
                 JournalWarnings.Clear();
                 HeaderText = $"Live watch could not start: {exception.Message}";
             }).ConfigureAwait(false);
@@ -322,6 +349,7 @@ public partial class MainViewModel
         {
             IsLiveStarting = false;
             IsLive = false;
+            ClearLiveScanProgress();
             JournalWarnings.Clear();
         }).ConfigureAwait(false);
     }

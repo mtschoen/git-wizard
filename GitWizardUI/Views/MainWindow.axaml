@@ -75,6 +75,15 @@
                 Classes.live="{Binding IsLive}" Classes.liveStarting="{Binding IsLiveStarting}"
                 IsEnabled="{Binding CanToggleLive}"
                 ToolTip.Tip="{Binding LiveTooltip}" />
+        <StackPanel x:Name="LiveScanProgressPanel" Orientation="Horizontal" Spacing="6"
+                    VerticalAlignment="Center" IsVisible="{Binding IsLiveScanProgressVisible}">
+          <ProgressBar x:Name="LiveScanProgressBar" Width="140" Height="8" Minimum="0" Maximum="1"
+                       VerticalAlignment="Center"
+                       Value="{Binding LiveScanProgressValue}"
+                       IsIndeterminate="{Binding IsLiveScanProgressIndeterminate}" />
+          <TextBlock x:Name="LiveScanProgressText" Text="{Binding LiveScanProgressText}"
+                     VerticalAlignment="Center" FontSize="12" Foreground="Gray" />
+        </StackPanel>
       </StackPanel>
 
       <StackPanel Grid.Row="1" Margin="10,0,0,0">

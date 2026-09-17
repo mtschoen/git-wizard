@@ -14,13 +14,13 @@ public class MftIndexSessionTests
     {
         await using var broker = new BlockBrokerFixture();
         await using (var empty = await MftIndexSession.OpenAsync([], broker.ConnectAsync,
-            broker.CacheDirectory, CancellationToken.None))
+            broker.CacheDirectory, null, CancellationToken.None))
         {
             Assert.That(empty.Drives, Is.Empty);
             Assert.That(broker.ConnectionCount, Is.Zero);
         }
         await using var session = await MftIndexSession.OpenAsync([broker.Drive('X'), broker.Drive('Y')],
-            broker.ConnectAsync, broker.CacheDirectory, CancellationToken.None);
+            broker.ConnectAsync, broker.CacheDirectory, null, CancellationToken.None);
         Assert.That(broker.ConnectionCount, Is.EqualTo(1));
         Assert.That(session.Drives, Is.EqualTo(new[] { "X", "Y" }));
         Assert.That(session.Index.Drives.Select(drive => drive.State), Is.All.EqualTo(DriveState.Ready));
@@ -32,7 +32,7 @@ public class MftIndexSessionTests
     {
         await using var broker = new BlockBrokerFixture();
         var session = await MftIndexSession.OpenAsync([broker.Drive('X')],
-            broker.ConnectAsync, broker.CacheDirectory, CancellationToken.None);
+            broker.ConnectAsync, broker.CacheDirectory, null, CancellationToken.None);
         try
         {
             await session.Index.StartWatchingAsync(CancellationToken.None);
@@ -90,7 +90,7 @@ public class MftIndexSessionTests
         var cacheDirectory = broker.CacheDirectory;
         var cancellationToken = cancellation.Token;
         var openTask = MftIndexSession.OpenAsync([drive], connectAsync,
-            cacheDirectory, cancellationToken);
+            cacheDirectory, null, cancellationToken);
         try
         {
             var reached = await Task.WhenAny(midWriteReached.Task, openTask).WaitAsync(TimeSpan.FromSeconds(10));
@@ -122,7 +122,7 @@ public class MftIndexSessionTests
         await using var watchBroker = new BlockBrokerFixture();
         using var watchCancellation = new CancellationTokenSource();
         var session = await MftIndexSession.OpenAsync([watchBroker.Drive('X')],
-            watchBroker.ConnectAsync, watchBroker.CacheDirectory, CancellationToken.None);
+            watchBroker.ConnectAsync, watchBroker.CacheDirectory, null, CancellationToken.None);
         await session.Index.StartWatchingAsync(watchCancellation.Token);
         await watchBroker.WatchStarted.WaitAsync(TimeSpan.FromSeconds(10));
         var cancelling = watchCancellation.CancelAsync();
@@ -148,7 +148,7 @@ public class MftIndexSessionTests
         var cancellationToken = cancellation.Token;
         Assert.That(async () =>
             await MftIndexSession.OpenAsync([drive], connectAsync,
-                cacheDirectory, cancellationToken), Throws.InstanceOf<OperationCanceledException>());
+                cacheDirectory, null, cancellationToken), Throws.InstanceOf<OperationCanceledException>());
         await broker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.That(broker.ConnectionCount, Is.EqualTo(1));
         Assert.That(broker.SectionDisposals, Is.EqualTo(1));
@@ -163,7 +163,7 @@ public class MftIndexSessionTests
         await using var session = await MftIndexSession.OpenSelectedVolumesAsync(
             ["w:/", "X:", "x:\\", "Y", @"\\server\share", "C:not-root", ""],
             drive => drive == "W" ? throw new IOException("identity denied") : broker.Drive(drive[0]),
-            broker.ConnectAsync, broker.CacheDirectory, CancellationToken.None);
+            broker.ConnectAsync, broker.CacheDirectory, null, CancellationToken.None);
         Assert.That(session.Drives, Is.EqualTo(new[] { "W", "X", "Y" }));
         Assert.That(session.ScanErrors["W"], Does.Contain("identity denied"));
         Assert.That(session.ScanErrors["X"], Does.Contain("volume denied"));
@@ -178,7 +178,7 @@ public class MftIndexSessionTests
         await using (var broker = new BlockBrokerFixture(scanError: "volume denied"))
         {
             var session = await MftIndexSession.OpenAsync([broker.Drive('X'), broker.Drive('Y')],
-                broker.ConnectAsync, broker.CacheDirectory, CancellationToken.None);
+                broker.ConnectAsync, broker.CacheDirectory, null, CancellationToken.None);
             Assert.That(session.ScanErrors.Keys, Is.EquivalentTo(new[] { "X", "Y" }));
             await session.DisposeAsync();
             await broker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
@@ -187,7 +187,7 @@ public class MftIndexSessionTests
         await using (var broker = new BlockBrokerFixture { DisconnectOnScan = true })
         {
             await using var session = await MftIndexSession.OpenAsync([broker.Drive('X')],
-                broker.ConnectAsync, broker.CacheDirectory, CancellationToken.None);
+                broker.ConnectAsync, broker.CacheDirectory, null, CancellationToken.None);
             Assert.That(session.IsFaulted, Is.True, "Broker death during opening must remain latched.");
             Assert.That(session.ScanErrors, Has.Count.EqualTo(1));
         }
@@ -195,7 +195,7 @@ public class MftIndexSessionTests
         {
             await using var session = await MftIndexSession.OpenSelectedVolumesAsync(["X", "Y"],
                 _ => throw new IOException("identity denied"), broker.ConnectAsync,
-                broker.CacheDirectory, CancellationToken.None);
+                broker.CacheDirectory, null, CancellationToken.None);
             Assert.That(session.ScanErrors, Has.Count.EqualTo(2));
             Assert.That(broker.ConnectionCount, Is.Zero);
         }
@@ -206,7 +206,7 @@ public class MftIndexSessionTests
     {
         await using var broker = new BlockBrokerFixture();
         await using var session = await MftIndexSession.OpenAsync([broker.Drive('X')],
-            broker.ConnectAsync, broker.CacheDirectory, CancellationToken.None);
+            broker.ConnectAsync, broker.CacheDirectory, null, CancellationToken.None);
         Assert.That(broker.ScanFrame.DrivesSpec!.Split(':')[^1],
             Is.EqualTo(((int)BrokerScanProfile.DirectoryIndex).ToString(CultureInfo.InvariantCulture)));
         Assert.That(broker.ScanFrame.KeepFileNames, Is.EqualTo(new[] { ".git" }));
@@ -218,13 +218,39 @@ public class MftIndexSessionTests
     {
         await using var broker = new BlockBrokerFixture();
         var session = await MftIndexSession.OpenAsync([broker.Drive('X')],
-            broker.ConnectAsync, broker.CacheDirectory, CancellationToken.None);
+            broker.ConnectAsync, broker.CacheDirectory, null, CancellationToken.None);
         var options = broker.SectionOptions.Single();
         Assert.That(options.DeleteOnClose, Is.True);
         Assert.That(session.Index.CacheDirectoryPath, Is.EqualTo(broker.CacheDirectory));
         Assert.That(Directory.GetFiles(broker.CacheDirectory), Is.Empty);
         await session.DisposeAsync();
         Assert.That(File.Exists(options.Path), Is.False);
+    }
+
+    [Test]
+    public async Task ScanProgressFrameReachesOpenProgress()
+    {
+        await using var broker = new BlockBrokerFixture();
+        broker.ScanProgressToEmit = new BrokerScanProgress("X", 600_000, 0, 1_200_000, null, TimeSpan.Zero);
+        var samples = new List<IndexScanProgress>();
+        await using var session = await MftIndexSession.OpenAsync([broker.Drive('X')],
+            broker.ConnectAsync, broker.CacheDirectory, new ProgressSink<IndexScanProgress>(samples.Add),
+            CancellationToken.None);
+
+        Assert.That(samples, Has.Count.EqualTo(1));
+        var sample = samples[0];
+        Assert.Multiple(() =>
+        {
+            Assert.That(sample.DriveLetter, Is.EqualTo('X'));
+            Assert.That(sample.Phase, Is.EqualTo(IndexScanPhase.ParsingMft));
+            Assert.That(sample.RowsWritten, Is.EqualTo(600_000u));
+            Assert.That(sample.TotalRows, Is.EqualTo(1_200_000u));
+        });
+    }
+
+    sealed class ProgressSink<T>(Action<T> onReport) : IProgress<T>
+    {
+        public void Report(T value) => onReport(value);
     }
 
     sealed class CountingLifetime(Action onDispose) : IAsyncDisposable

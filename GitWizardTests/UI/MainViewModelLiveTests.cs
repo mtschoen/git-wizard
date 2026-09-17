@@ -542,6 +542,73 @@ public class MainViewModelLiveTests
         Assert.That(source.GetType().Name, Is.EqualTo("FanotifyVolumeChangeSource"));
     }
 
+    [Test]
+    public async Task ToggleLiveAsync_ScanProgress_ShowsWhileStartingAndClearsWhenStarted()
+    {
+        var viewModel = NewViewModel();
+        var source = new GatedProgressVolumeChangeSource();
+        viewModel.LiveVolumeChangeSourceFactory = () => source;
+        viewModel.LiveIsElevated = () => false;
+
+        var startTask = viewModel.ToggleLiveAsync();
+        await source.ArmStarted.WaitAsync(TimeSpan.FromSeconds(5));
+        source.ReportScanProgress(new VolumeScanProgress("D", 2, 5, 1_200_000, 2_400_000));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.IsLiveStarting, Is.True);
+            Assert.That(viewModel.IsLiveScanProgressVisible, Is.True);
+            Assert.That(viewModel.LiveScanProgressText,
+                Is.EqualTo("Scanning D: (2 of 5), 1.2M of 2.4M records"));
+            Assert.That(viewModel.LiveScanProgressValue, Is.EqualTo(0.3).Within(0.001));
+            Assert.That(viewModel.IsLiveScanProgressIndeterminate, Is.False);
+        });
+
+        source.ReleaseArm();
+        await WaitUntilAsync(() => viewModel.IsLive);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.IsLiveScanProgressVisible, Is.False);
+            Assert.That(viewModel.LiveScanProgressText, Is.Empty);
+        });
+
+        await viewModel.ToggleLiveAsync();
+        await startTask;
+    }
+
+    [Test]
+    public async Task ToggleLiveAsync_ScanProgressThenArmFailure_ClearsProgress()
+    {
+        var viewModel = NewViewModel();
+        var source = new GatedProgressVolumeChangeSource(new InvalidOperationException("scan blew up"));
+        viewModel.LiveVolumeChangeSourceFactory = () => source;
+        viewModel.LiveIsElevated = () => false;
+
+        var startTask = viewModel.ToggleLiveAsync();
+        await source.ArmStarted.WaitAsync(TimeSpan.FromSeconds(5));
+        source.ReportScanProgress(new VolumeScanProgress("D", 1, 2, 750_000, null));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.IsLiveScanProgressVisible, Is.True);
+            Assert.That(viewModel.LiveScanProgressText, Is.EqualTo("Scanning D: (1 of 2), 750.0k records"));
+            Assert.That(viewModel.IsLiveScanProgressIndeterminate, Is.True);
+        });
+
+        source.ReleaseArm();
+        await startTask;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.IsLive, Is.False);
+            Assert.That(viewModel.IsLiveStarting, Is.False);
+            Assert.That(viewModel.IsLiveScanProgressVisible, Is.False);
+            Assert.That(viewModel.LiveScanProgressText, Is.Empty);
+            Assert.That(viewModel.HeaderText, Does.Contain("Live watch could not start: scan blew up"));
+        });
+    }
+
     #endregion
 }
 
@@ -604,5 +671,50 @@ internal sealed class KillableSourceWithErrors : IVolumeChangeSource
 
     public void KillSource(string reason) => SourceDied?.Invoke(reason);
 
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+}
+
+// Arms only when ReleaseArm is called, so a test can observe the amber mid-arm state, and
+// reports IVolumeScanProgress samples on demand. With a non-null armFailure the release throws
+// it from ArmAndCatchUpAsync, taking the same InvalidOperationException path as a real open
+// failure (MainViewModel.RunLiveControllerAsync's catch).
+internal sealed class GatedProgressVolumeChangeSource : IVolumeChangeSource, IVolumeScanProgress
+{
+    readonly TaskCompletionSource _armStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    readonly TaskCompletionSource _armReleased = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    readonly Exception? _armFailure;
+
+    public GatedProgressVolumeChangeSource(Exception? armFailure = null) => _armFailure = armFailure;
+
+    event Action<string>? IVolumeChangeSource.SourceDied
+    {
+        add { }
+        remove { }
+    }
+
+    public event Action<VolumeScanProgress>? ScanProgress;
+
+    public Task ArmStarted => _armStarted.Task;
+
+    public async Task<VolumeArmResult> ArmAndCatchUpAsync(
+        IReadOnlyCollection<string> volumes, CancellationToken ct)
+    {
+        _armStarted.TrySetResult();
+        await _armReleased.Task.WaitAsync(ct);
+        if (_armFailure is not null)
+            throw _armFailure;
+        return new VolumeArmResult(
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), []);
+    }
+
+    public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync(
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+        yield break;
+    }
+
+    public void ReportScanProgress(VolumeScanProgress sample) => ScanProgress?.Invoke(sample);
+    public void ReleaseArm() => _armReleased.TrySetResult();
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }

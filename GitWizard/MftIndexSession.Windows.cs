@@ -10,24 +10,32 @@ public sealed partial class MftIndexSession
     public static Task<MftIndexSession> OpenWindowsAsync(IReadOnlyList<string> drives,
         Func<string, bool> brokerLauncher, CancellationToken cancellationToken)
     {
-        return OpenWindowsAsync(drives, brokerLauncher, null, cancellationToken);
+        return OpenWindowsAsync(drives, brokerLauncher, null, null, cancellationToken);
     }
 
     [SupportedOSPlatform("windows")]
     public static Task<MftIndexSession> OpenWindowsAsync(IReadOnlyList<string> drives,
         Func<string, bool> brokerLauncher, TimeSpan? connectTimeout, CancellationToken cancellationToken)
     {
+        return OpenWindowsAsync(drives, brokerLauncher, connectTimeout, null, cancellationToken);
+    }
+
+    [SupportedOSPlatform("windows")]
+    public static Task<MftIndexSession> OpenWindowsAsync(IReadOnlyList<string> drives,
+        Func<string, bool> brokerLauncher, TimeSpan? connectTimeout,
+        IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken)
+    {
         return OpenSelectedVolumesAsync(drives, IndexedDrive.FromWindowsVolume,
             token => connectTimeout.HasValue
                 ? JournalBrokerClient.SpawnAndConnectAsync(brokerLauncher, connectTimeout.Value, token)
                 : JournalBrokerClient.SpawnAndConnectAsync(brokerLauncher, token),
-            Path.Combine(GitWizardApi.GetLocalFilesPath(), "mft-index"), cancellationToken);
+            Path.Combine(GitWizardApi.GetLocalFilesPath(), "mft-index"), progress, cancellationToken);
     }
 
     internal static async Task<MftIndexSession> OpenSelectedVolumesAsync(IReadOnlyList<string> drives,
         Func<string, IndexedDrive> acquireIdentity,
         Func<CancellationToken, Task<JournalBrokerClient>> connectAsync,
-        string cacheDirectory, CancellationToken cancellationToken)
+        string cacheDirectory, IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken)
     {
         var requested = drives.Select(NormalizeVolume).OfType<string>()
             .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
@@ -46,7 +54,7 @@ public sealed partial class MftIndexSession
             }
         }
 
-        var session = await OpenAsync(identities, connectAsync, cacheDirectory, cancellationToken).ConfigureAwait(false);
+        var session = await OpenAsync(identities, connectAsync, cacheDirectory, progress, cancellationToken).ConfigureAwait(false);
         try
         {
             foreach (var error in session.ScanErrors)

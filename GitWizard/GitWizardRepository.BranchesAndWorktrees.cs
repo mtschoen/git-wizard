@@ -238,6 +238,8 @@ public partial class GitWizardRepository
                 if (!allBranches && boring)
                     continue;
 
+                var hasUpstream = ResolveTrackedBranch(repository, branch) != null;
+
                 collected.Add(new BranchInfo
                 {
                     Name = branch.FriendlyName,
@@ -246,7 +248,7 @@ public partial class GitWizardRepository
                     AheadOfDefault = ahead,
                     BehindDefault = behind,
                     LastCommitDate = branch.Tip.Author.When,
-                    HasUpstream = branch.TrackedBranch != null,
+                    HasUpstream = hasUpstream,
                 });
             }
             catch (Exception exception)
@@ -279,8 +281,11 @@ public partial class GitWizardRepository
         try
         {
             var head = repository.Head;
-            var trackedTip = head.TrackedBranch?.Tip;
-            if (head.Tip == null || trackedTip == null)
+            if (head.Tip == null)
+                return;
+
+            var trackedTip = ResolveTrackedBranch(repository, head)?.Tip;
+            if (trackedTip == null)
                 return;
 
             var divergence = repository.ObjectDatabase.CalculateHistoryDivergence(head.Tip, trackedTip);

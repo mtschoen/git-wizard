@@ -118,7 +118,7 @@ A local branch's relationship to the repository's default branch. By default the
 | `AheadOfDefault` | `int` | Commits on this branch not reachable from the default branch |
 | `BehindDefault` | `int` | Commits in the default branch not reachable from this branch |
 | `LastCommitDate` | `string` (ISO 8601) | Author timestamp of the branch tip; null if the branch has no commits |
-| `HasUpstream` | `bool` | True when the branch tracks a remote (false ⇒ unpushed local work) |
+| `HasUpstream` | `bool` | True when the branch tracks a remote (false ⇒ unpushed local work). A branch whose `branch.<name>.remote` is a URL or names a remote that is not configured reports false (git-wizard#185), matching git, which does not treat a URL-valued remote as tracking anything. |
 
 ## CommitInfo object
 

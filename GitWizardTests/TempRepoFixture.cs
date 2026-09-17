@@ -389,7 +389,7 @@ internal sealed class TempRepoFixture : IDisposable
         return upstream.Replace('\\', '/');
     }
 
-    static void RunGit(string workingDirectory, params string[] arguments)
+    internal static void RunGit(string workingDirectory, params string[] arguments)
     {
         var startInfo = new ProcessStartInfo("git")
         {

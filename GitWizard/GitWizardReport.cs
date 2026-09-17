@@ -203,19 +203,22 @@ public partial class GitWizardReport : IAsyncDisposable
             GitWizardLog.LogException(exception, "Exception thrown by Refresh StartProgress callback.");
         }
 
-        Parallel.ForEach(validPaths, parallelOptions, path =>
+        using (GitWizardRepository.UnresolvedUpstreamDiagnosticScope.Open())
         {
-            RefreshSingleRepository(path, updateHandler, fetchRemotes, deepRefresh, allBranches, computeLocalCommitCount);
+            Parallel.ForEach(validPaths, parallelOptions, path =>
+            {
+                RefreshSingleRepository(path, updateHandler, fetchRemotes, deepRefresh, allBranches, computeLocalCommitCount);
 
-            try
-            {
-                updateHandler?.UpdateProgress(Interlocked.Increment(ref count));
-            }
-            catch (Exception exception)
-            {
-                GitWizardLog.LogException(exception, "Exception thrown by Refresh UpdateProgress callback.");
-            }
-        });
+                try
+                {
+                    updateHandler?.UpdateProgress(Interlocked.Increment(ref count));
+                }
+                catch (Exception exception)
+                {
+                    GitWizardLog.LogException(exception, "Exception thrown by Refresh UpdateProgress callback.");
+                }
+            });
+        }
 
         PruneNonRepositoryPaths(validPaths);
     }

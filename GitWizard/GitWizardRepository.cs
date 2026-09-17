@@ -131,6 +131,7 @@ public partial class GitWizardRepository
         // RefreshWorktrees recurse into Refresh on DIFFERENT GitWizardRepository objects (their
         // own submodule/worktree instances, each with their own _refreshGate), so taking this
         // lock here cannot self-deadlock.
+        using var diagnosticScope = UnresolvedUpstreamDiagnosticScope.Open();
         lock (_refreshGate)
         {
             RefreshLocked(updateHandler, fetchRemotes, deepRefresh, allBranches, computeLocalCommitCount, cancellationToken);

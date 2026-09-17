@@ -9,9 +9,12 @@ namespace GitWizard.Watch;
 /// Watches a set of volumes for filesystem changes via an <see cref="IVolumeChangeSource"/>
 /// and maps them to <see cref="RepositoryChangeEvent"/>s for the tracked/search repository
 /// roots. Repeated changes to the same root within one debounce window coalesce into a
-/// single <see cref="RepositoryChangeKind.Changed"/> event. Rename correlation (matching a
-/// <see cref="RepositoryChangeKind.Deleted"/> against a <see cref="RepositoryChangeKind.Created"/>)
-/// is deliberately left to the consumer - this service never inspects git remotes.
+/// single <see cref="RepositoryChangeKind.Changed"/> event. A repository whose .git directory
+/// creation classifies under a search root is adopted into that volume's running filter, so
+/// its later edits classify as <see cref="RepositoryChangeKind.Changed"/> without a watch
+/// restart. Rename correlation (matching a <see cref="RepositoryChangeKind.Deleted"/> against
+/// a <see cref="RepositoryChangeKind.Created"/>) is deliberately left to the consumer - this
+/// service never inspects git remotes.
 /// </summary>
 public sealed class RepositoryWatchService
 {
@@ -332,9 +335,32 @@ public sealed class RepositoryWatchService
         if (!filtersByVolume.TryGetValue(batch.Volume, out var filter))
             return false;
 
-        var result = filter.Classify(batch.Entries);
-        pending.Merge(result);
-        return result.Changed.Count > 0 || result.Created.Count > 0 || result.Deleted.Count > 0;
+        var hasRelevantChanges = false;
+        foreach (var entry in batch.Entries)
+        {
+            var classification = filter.ClassifyEntry(entry);
+            if (classification is null)
+                continue;
+
+            hasRelevantChanges = true;
+            var (kind, root) = classification.Value;
+            switch (kind)
+            {
+                case RepositoryChangeKind.Created:
+                    filter.AddRepositoryRoot(root);
+                    pending.Add(root, RepositoryChangeKind.Created);
+                    break;
+                case RepositoryChangeKind.Deleted:
+                    filter.RemoveRepositoryRoot(root);
+                    pending.Add(root, RepositoryChangeKind.Deleted);
+                    break;
+                case RepositoryChangeKind.Changed:
+                    pending.Add(root, RepositoryChangeKind.Changed);
+                    break;
+            }
+        }
+
+        return hasRelevantChanges;
     }
 
     static async Task FlushAsync(
@@ -344,36 +370,66 @@ public sealed class RepositoryWatchService
             await writer.WriteAsync(changeEvent, ct).ConfigureAwait(false);
     }
 
-    // Accumulates one debounce window's worth of classified roots. Changed roots dedupe
-    // across every batch merged into the window, matching the "single Changed per window"
-    // coalescing contract; Created/Deleted roots dedupe the same way rather than being
-    // treated as ordered events, since a repository root is only meaningfully created or
-    // deleted once per window.
+    // Accumulates one debounce window's worth of classified events. Repeated Changed
+    // events for the same root coalesce into a single Changed event per debounce window
+    // (or per lifecycle phase), while lifecycle transitions (Created/Deleted) are emitted
+    // in the exact order they occurred.
     sealed class PendingChanges
     {
-        readonly HashSet<string> _changed = new(WatchPath.StringComparer);
-        readonly HashSet<string> _created = new(WatchPath.StringComparer);
-        readonly HashSet<string> _deleted = new(WatchPath.StringComparer);
-
-        public void Merge(FilterResult result)
+        sealed class RootPendingState
         {
-            _changed.UnionWith(result.Changed);
-            _created.UnionWith(result.Created);
-            _deleted.UnionWith(result.Deleted);
+            public RepositoryChangeKind? LastEvent { get; set; }
+            public bool HasChangedSinceLifecycle { get; set; }
         }
 
-        public IEnumerable<RepositoryChangeEvent> DrainEvents()
-        {
-            foreach (var root in _changed)
-                yield return new RepositoryChangeEvent(root, RepositoryChangeKind.Changed);
-            foreach (var root in _created)
-                yield return new RepositoryChangeEvent(root, RepositoryChangeKind.Created);
-            foreach (var root in _deleted)
-                yield return new RepositoryChangeEvent(root, RepositoryChangeKind.Deleted);
+        readonly List<RepositoryChangeEvent> _events = [];
+        readonly Dictionary<string, RootPendingState> _stateByRoot = new(WatchPath.StringComparer);
 
-            _changed.Clear();
-            _created.Clear();
-            _deleted.Clear();
+        public void Add(string root, RepositoryChangeKind kind)
+        {
+            if (!_stateByRoot.TryGetValue(root, out var state))
+            {
+                state = new RootPendingState();
+                _stateByRoot[root] = state;
+            }
+
+            switch (kind)
+            {
+                case RepositoryChangeKind.Created:
+                    if (state.LastEvent == RepositoryChangeKind.Created)
+                        return;
+
+                    state.LastEvent = RepositoryChangeKind.Created;
+                    state.HasChangedSinceLifecycle = false;
+                    _events.Add(new RepositoryChangeEvent(root, RepositoryChangeKind.Created));
+                    break;
+
+                case RepositoryChangeKind.Deleted:
+                    if (state.LastEvent == RepositoryChangeKind.Deleted)
+                        return;
+
+                    state.LastEvent = RepositoryChangeKind.Deleted;
+                    state.HasChangedSinceLifecycle = false;
+                    _events.Add(new RepositoryChangeEvent(root, RepositoryChangeKind.Deleted));
+                    break;
+
+                case RepositoryChangeKind.Changed:
+                    if (state.HasChangedSinceLifecycle)
+                        return;
+
+                    state.LastEvent = RepositoryChangeKind.Changed;
+                    state.HasChangedSinceLifecycle = true;
+                    _events.Add(new RepositoryChangeEvent(root, RepositoryChangeKind.Changed));
+                    break;
+            }
+        }
+
+        public RepositoryChangeEvent[] DrainEvents()
+        {
+            var events = _events.ToArray();
+            _events.Clear();
+            _stateByRoot.Clear();
+            return events;
         }
     }
 }

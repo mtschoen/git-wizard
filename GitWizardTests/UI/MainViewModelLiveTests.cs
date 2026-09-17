@@ -202,6 +202,111 @@ public class MainViewModelLiveTests
     }
 
     [Test]
+    public async Task ApplyLiveEvent_DeletedThenCreatedSamePath_CancelsExpiryAndRetainsNode()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var viewModel = NewViewModel();
+        viewModel.AddRepository(new GitWizardRepository(fixture.Path));
+        viewModel.AddRepository(Repo("/marker"));
+
+        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Deleted));
+        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
+        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent("/marker", RepositoryChangeKind.Deleted));
+
+        // When the marker repository's correlation window expires and it is removed,
+        // the earlier correlation window for the recreated repository has also elapsed.
+        await WaitUntilAsync(() => viewModel.Repositories.All(node => node.WorkingDirectory != "/marker"));
+
+        Assert.That(viewModel.Repositories, Has.Count.EqualTo(1));
+        Assert.That(viewModel.Repositories.Single().WorkingDirectory, Is.EqualTo(fixture.Path));
+    }
+
+    [Test]
+    public async Task ApplyLiveEvent_DeletedThenCreatedThenDeletedSamePath_RemovesNode()
+    {
+        var dispatcher = new QueuedLiveUiDispatcher();
+        var viewModel = new MainViewModel(dispatcher, new StubUserDialogs(), new StubClipboardService());
+        viewModel.AddRepository(Repo("/a"));
+
+        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent("/a", RepositoryChangeKind.Deleted));
+        var createdTask = viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent("/a", RepositoryChangeKind.Created));
+        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent("/a", RepositoryChangeKind.Deleted));
+        await createdTask;
+
+        dispatcher.Drain();
+        await WaitUntilAsync(() =>
+        {
+            dispatcher.Drain();
+            return viewModel.Repositories.Count == 0;
+        });
+
+        Assert.That(viewModel.Repositories, Is.Empty);
+    }
+
+    [Test]
+    public async Task ApplyLiveEvent_DeletedThenCreatedThenDeletedSamePath_Direct_RemovesNode()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var viewModel = NewViewModel();
+        viewModel.AddRepository(new GitWizardRepository(fixture.Path));
+
+        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Deleted));
+        var createdTask = viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
+        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Deleted));
+        await createdTask;
+
+        await WaitUntilAsync(() => viewModel.Repositories.Count == 0);
+        Assert.That(viewModel.Repositories, Is.Empty);
+    }
+
+    [Test]
+    public async Task ApplyLiveEvent_CreatedApplicationAfterNewerDeleteExpires_DoesNotRestoreNode()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var dispatcher = new QueuedLiveUiDispatcher();
+        var viewModel = new MainViewModel(dispatcher, new StubUserDialogs(), new StubClipboardService());
+        viewModel.AddRepository(Repo(fixture.Path));
+
+        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Deleted));
+        dispatcher.Drain();
+        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
+        // Hold the final UI application, the same boundary reached by a slow refresh.
+        var applyCreated = dispatcher.TakeNext();
+        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Deleted));
+        dispatcher.Drain();
+        await WaitUntilAsync(() =>
+        {
+            dispatcher.Drain();
+            return viewModel.Repositories.Count == 0;
+        });
+
+        applyCreated();
+        Assert.That(viewModel.Repositories, Is.Empty);
+
+        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
+        dispatcher.Drain();
+        Assert.That(viewModel.Repositories.Single().WorkingDirectory, Is.EqualTo(fixture.Path),
+            "A later genuine recreation must still be accepted.");
+    }
+
+    [Test]
+    public async Task ApplyLiveEvent_OlderCreatedApplication_DoesNotReplaceNewerCreation()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var dispatcher = new QueuedLiveUiDispatcher();
+        var viewModel = new MainViewModel(dispatcher, new StubUserDialogs(), new StubClipboardService());
+
+        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
+        var applyOlderCreation = dispatcher.TakeNext();
+        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
+
+        applyOlderCreation();
+        Assert.That(viewModel.Repositories, Is.Empty);
+        dispatcher.Drain();
+        Assert.That(viewModel.Repositories.Single().WorkingDirectory, Is.EqualTo(fixture.Path));
+    }
+
+    [Test]
     public async Task ApplyLiveEvent_Changed_ConcurrentEvents_HandledCleanly()
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();

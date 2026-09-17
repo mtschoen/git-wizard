@@ -16,9 +16,11 @@ public partial class MainViewModel
     // window mainly bridges the rarer case where they land in different debounce flushes.
     const int RenameCorrelationWindowMilliseconds = 300;
 
-    readonly Dictionary<string, (GitWizardRepository Repository, CancellationTokenSource ExpireCts)> _pendingDeletedRepos = new();
+    readonly Dictionary<string, (GitWizardRepository Repository, CancellationTokenSource ExpireCts, long SequenceNumber)> _pendingDeletedRepos = new();
+    readonly Dictionary<string, long> _pendingCreateSequenceNumbers = new();
     readonly Dictionary<string, string> _reportedLiveScanErrors = new(StringComparer.OrdinalIgnoreCase);
     readonly HashSet<string> _inFlightLiveRefreshes = new(StringComparer.OrdinalIgnoreCase);
+    long _liveEventSequenceNumber;
 
     LiveWatchController? _liveController;
 
@@ -84,16 +86,17 @@ public partial class MainViewModel
 
     internal async Task ApplyLiveEventAsync(RepositoryChangeEvent ev)
     {
+        var sequenceNumber = Interlocked.Increment(ref _liveEventSequenceNumber);
         switch (ev.Kind)
         {
             case RepositoryChangeKind.Changed:
                 await ApplyLiveChangedAsync(ev.RepoRoot).ConfigureAwait(false);
                 break;
             case RepositoryChangeKind.Created:
-                await ApplyLiveCreatedAsync(ev.RepoRoot).ConfigureAwait(false);
+                await ApplyLiveCreatedAsync(ev.RepoRoot, sequenceNumber).ConfigureAwait(false);
                 break;
             case RepositoryChangeKind.Deleted:
-                ApplyLiveDeleted(ev.RepoRoot);
+                ApplyLiveDeleted(ev.RepoRoot, sequenceNumber);
                 break;
             case RepositoryChangeKind.Renamed:
                 // RepositoryWatchService never emits this kind (see its class doc): rename
@@ -131,13 +134,31 @@ public partial class MainViewModel
         _ui.Post(() => UpdateCompletedRepository(repository));
     }
 
-    async Task ApplyLiveCreatedAsync(string repoRoot)
+    async Task ApplyLiveCreatedAsync(string repoRoot, long sequenceNumber)
     {
+        await _ui.InvokeAsync(() => _pendingCreateSequenceNumbers[repoRoot] = sequenceNumber).ConfigureAwait(false);
         var repository = new GitWizardRepository(repoRoot);
         await Task.Run(() => repository.Refresh()).ConfigureAwait(false);
 
         _ui.Post(() =>
         {
+            if (!_pendingCreateSequenceNumbers.TryGetValue(repoRoot, out var pendingSequenceNumber)
+                || pendingSequenceNumber != sequenceNumber)
+            {
+                // Deletion invalidates the creation itself, so expiry cannot make it valid again.
+                return;
+            }
+            _pendingCreateSequenceNumbers.Remove(repoRoot);
+
+            if (_pendingDeletedRepos.TryGetValue(repoRoot, out var pending))
+            {
+                if (pending.SequenceNumber < sequenceNumber)
+                {
+                    _pendingDeletedRepos.Remove(repoRoot);
+                    _ = CancelAndDisposeAsync(pending.ExpireCts);
+                }
+            }
+
             var renamedFrom = TryCorrelateRename(repoRoot, repository);
             if (renamedFrom != null)
                 RemoveRepositoryByPath(renamedFrom);
@@ -146,10 +167,14 @@ public partial class MainViewModel
         });
     }
 
-    void ApplyLiveDeleted(string repoRoot)
+    void ApplyLiveDeleted(string repoRoot, long sequenceNumber)
     {
         _ui.Post(() =>
         {
+            if (_pendingCreateSequenceNumbers.TryGetValue(repoRoot, out var pendingSequenceNumber)
+                && pendingSequenceNumber < sequenceNumber)
+                _pendingCreateSequenceNumbers.Remove(repoRoot);
+
             if (!_repositoryMap.TryGetValue(repoRoot, out var node))
                 return;
 
@@ -159,7 +184,7 @@ public partial class MainViewModel
             }
 
             var expireCts = new CancellationTokenSource();
-            _pendingDeletedRepos[repoRoot] = (node.Repository, expireCts);
+            _pendingDeletedRepos[repoRoot] = (node.Repository, expireCts, sequenceNumber);
             _ = ExpirePendingDeleteAsync(repoRoot, expireCts.Token);
         });
     }
@@ -199,7 +224,9 @@ public partial class MainViewModel
         _ui.Post(() =>
         {
             if (_pendingDeletedRepos.Remove(repoRoot))
+            {
                 RemoveRepositoryByPath(repoRoot);
+            }
         });
     }
 

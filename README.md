@@ -50,7 +50,7 @@ them. Recursive discovery on Linux and with `--no-mft` is unchanged.
 ### Live monitoring
 
 On Windows, discovery and the transfer into Live share one UAC prompt when the prepared index
-is reusable. A watch failure on one drive is reported while healthy drives stay live. If a drive's
+is reusable. A watch failure on one drive is reported while healthy drives stay live. A repository created under a configured search path while Live runs is discovered and tracked from that point on; Live does not need a restart for it. If a drive's
 USN journal is below MFTLib's recommendation, Live shows a warning for that drive with its current
 and recommended maximum sizes. CLI `--watch` prints the warning once per drive at startup.
 An undersized journal can wrap during heavy filesystem activity, faulting that drive's watch

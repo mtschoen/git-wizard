@@ -14,6 +14,8 @@ internal sealed class QueuedLiveUiDispatcher : IUiDispatcher
         return Task.CompletedTask;
     }
     public Task InvokeAsync(Func<Task> action) => action();
+    public Action TakeNext() => _posted.TryDequeue(out var action)
+        ? action : throw new InvalidOperationException("No UI callback is queued.");
     public void Drain()
     {
         while (_posted.TryDequeue(out var action))

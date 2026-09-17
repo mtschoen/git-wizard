@@ -14,12 +14,18 @@ public readonly record struct FilterResult(
 /// Maps raw volume change batches back to tracked and search repository roots.
 /// </summary>
 /// <remarks>
-/// Pure and cross-platform-testable: it only consumes <see cref="VolumeChangeEntry"/> records
-/// and never touches the filesystem, so it can be exercised with synthetic entries on any OS.
+/// I/O-free and cross-platform-testable: classification only consumes
+/// <see cref="VolumeChangeEntry"/> records and never touches the filesystem, so it can be
+/// exercised with synthetic entries on any OS. The tracked root set is mutable across a
+/// watch run via <see cref="AddRepositoryRoot"/> and <see cref="RemoveRepositoryRoot"/>;
+/// search roots are fixed at construction. Mutation is single-threaded (the watch pump
+/// thread) and never runs concurrently with <see cref="Classify"/>.
 /// </remarks>
 public sealed class RepositoryChangeFilter
 {
-    readonly WatchPath[] _orderedRepositoryRoots;
+    readonly Dictionary<int, List<WatchPath>> _rootsByLength = new();
+    readonly SortedSet<int> _descendingLengths = new(Comparer<int>.Create((a, b) => b.CompareTo(a)));
+    readonly HashSet<string> _trackedRootsSet = new(WatchPath.StringComparer);
     readonly WatchPath[] _orderedSearchRoots;
 
     /// <summary>
@@ -34,14 +40,66 @@ public sealed class RepositoryChangeFilter
         IReadOnlyCollection<string> repositoryRootPaths,
         IReadOnlyCollection<string>? searchRoots = null)
     {
-        _orderedRepositoryRoots = OrderRootsForClassify(repositoryRootPaths);
+        foreach (var rootPath in repositoryRootPaths)
+        {
+            AddRepositoryRoot(rootPath);
+        }
+
         _orderedSearchRoots = OrderRootsForClassify(searchRoots ?? []);
+    }
+
+    /// <summary>
+    /// Classifies a single volume change entry without mutating the filter's tracked roots.
+    /// Returns the classified change kind and matching repository root, or <see langword="null"/>
+    /// if the entry is not relevant to any tracked or search root.
+    /// </summary>
+    public (RepositoryChangeKind Kind, string Root)? ClassifyEntry(VolumeChangeEntry entry)
+    {
+        var path = WatchPath.Parse(entry.FullPath);
+        switch (entry.Kind)
+        {
+            case VolumeEntryKind.Modified:
+                {
+                    var root = FindContainingTrackedRoot(path);
+                    return root is not null ? (RepositoryChangeKind.Changed, root.Value.Original) : null;
+                }
+            case VolumeEntryKind.Created:
+                {
+                    var trackedRoot = FindContainingTrackedRoot(path);
+                    if (trackedRoot is not null)
+                        return (RepositoryChangeKind.Changed, trackedRoot.Value.Original);
+
+                    if (path.TryGetGitDirectoryParent(out var parent)
+                        && FindContainingRoot(parent, _orderedSearchRoots) is not null)
+                    {
+                        return (RepositoryChangeKind.Created, parent.Original);
+                    }
+
+                    return null;
+                }
+            case VolumeEntryKind.Deleted:
+                {
+                    foreach (var length in _descendingLengths)
+                    {
+                        foreach (var root in _rootsByLength[length])
+                        {
+                            if (path.IsEqualTo(root) || path.IsEqualToChildOf(root, ".git"))
+                                return (RepositoryChangeKind.Deleted, root.Original);
+                        }
+                    }
+
+                    var rootChanged = FindContainingTrackedRoot(path);
+                    return rootChanged is not null ? (RepositoryChangeKind.Changed, rootChanged.Value.Original) : null;
+                }
+            default:
+                return null;
+        }
     }
 
     /// <summary>
     /// Classifies a batch of raw volume change entries into modified tracked roots, new
     /// repository roots discovered under a search root, and tracked roots whose repository
-    /// was deleted.
+    /// was deleted. Does not mutate the filter's tracked roots.
     /// </summary>
     public FilterResult Classify(IReadOnlyList<VolumeChangeEntry> entries)
     {
@@ -51,17 +109,21 @@ public sealed class RepositoryChangeFilter
 
         foreach (var entry in entries)
         {
-            var path = WatchPath.Parse(entry.FullPath);
-            switch (entry.Kind)
+            var classification = ClassifyEntry(entry);
+            if (classification is null)
+                continue;
+
+            var (kind, root) = classification.Value;
+            switch (kind)
             {
-                case VolumeEntryKind.Modified:
-                    ClassifyChanged(changed, path);
+                case RepositoryChangeKind.Changed:
+                    changed.Add(root);
                     break;
-                case VolumeEntryKind.Created:
-                    ClassifyCreated(changed, created, path);
+                case RepositoryChangeKind.Created:
+                    created.Add(root);
                     break;
-                case VolumeEntryKind.Deleted:
-                    ClassifyDeleted(changed, deleted, path);
+                case RepositoryChangeKind.Deleted:
+                    deleted.Add(root);
                     break;
             }
         }
@@ -69,45 +131,94 @@ public sealed class RepositoryChangeFilter
         return new FilterResult(changed, created, deleted);
     }
 
-    void ClassifyChanged(HashSet<string> changed, WatchPath path)
+    /// <summary>
+    /// Adds <paramref name="rootPath"/> to the tracked repository roots mid-run. The watch
+    /// service calls this when a repository is created under a search root, so later edits
+    /// inside it classify as Changed without a watch restart. A root that is already tracked
+    /// is not added twice. Bucketing roots by length avoids shifting an accumulated list
+    /// of roots while preserving descending length precedence across distinct lengths.
+    /// </summary>
+    public void AddRepositoryRoot(string rootPath)
     {
-        var root = FindContainingRoot(path, _orderedRepositoryRoots);
-        if (root is not null)
-            changed.Add(root.Value.Original);
+        if (!_trackedRootsSet.Add(rootPath))
+            return;
+
+        var root = WatchPath.Parse(rootPath);
+        var length = root.Comparison.Length;
+        if (_rootsByLength.TryGetValue(length, out var list))
+        {
+            list.Add(root);
+        }
+        else
+        {
+            _descendingLengths.Add(length);
+            _rootsByLength[length] = [root];
+        }
     }
 
-    void ClassifyCreated(HashSet<string> changed, HashSet<string> created, WatchPath path)
+    /// <summary>
+    /// Removes <paramref name="rootPath"/> from the tracked repository roots mid-run. The
+    /// watch service calls this when a tracked repository's root or .git directory is
+    /// deleted, so a later re-creation under a search root classifies as Created again
+    /// instead of a Changed no consumer can apply. Removing an untracked root is a no-op.
+    /// </summary>
+    public void RemoveRepositoryRoot(string rootPath)
     {
-        var trackedRoot = FindContainingRoot(path, _orderedRepositoryRoots);
-        if (trackedRoot is not null)
+        if (!_trackedRootsSet.Remove(rootPath))
+            return;
+
+        var root = WatchPath.Parse(rootPath);
+        var length = root.Comparison.Length;
+        if (!_rootsByLength.TryGetValue(length, out var list))
+            return;
+
+        for (var index = 0; index < list.Count; index++)
         {
-            changed.Add(trackedRoot.Value.Original);
+            if (!list[index].IsEqualTo(root))
+                continue;
+
+            var lastIndex = list.Count - 1;
+            if (index != lastIndex)
+            {
+                list[index] = list[lastIndex];
+            }
+            list.RemoveAt(lastIndex);
+
+            if (list.Count == 0)
+            {
+                _rootsByLength.Remove(length);
+                _descendingLengths.Remove(length);
+            }
             return;
         }
-
-        if (path.TryGetGitDirectoryParent(out var parent)
-            && FindContainingRoot(parent, _orderedSearchRoots) is not null)
-            created.Add(parent.Original);
     }
 
-    void ClassifyDeleted(HashSet<string> changed, HashSet<string> deleted, WatchPath path)
+    WatchPath? FindContainingTrackedRoot(WatchPath path)
     {
-        foreach (var root in _orderedRepositoryRoots)
+        var pathLength = path.Comparison.Length;
+        foreach (var length in _descendingLengths)
         {
-            if (path.IsEqualTo(root) || path.IsEqualToChildOf(root, ".git"))
+            if (length > pathLength)
+                continue;
+
+            foreach (var root in _rootsByLength[length])
             {
-                deleted.Add(root.Original);
-                return;
+                if (path.IsUnderOrEqual(root))
+                    return root;
             }
         }
 
-        ClassifyChanged(changed, path);
+        return null;
     }
 
-    static WatchPath? FindContainingRoot(WatchPath path, IReadOnlyList<WatchPath> orderedRoots)
+    static WatchPath? FindContainingRoot(WatchPath path, WatchPath[] orderedRoots)
     {
+        var pathLength = path.Comparison.Length;
         foreach (var root in orderedRoots)
         {
+            if (root.Comparison.Length > pathLength)
+                continue;
+
             if (path.IsUnderOrEqual(root))
                 return root;
         }

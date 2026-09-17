@@ -456,4 +456,122 @@ public partial class RepositoryWatchServiceTests
 
         Assert.That(hasNext, Is.False);
     }
+
+    [Test]
+    public async Task LiveDiscoveredRepository_SubsequentEdit_EmitsChanged()
+    {
+        var batches = new[]
+        {
+            new VolumeChangeBatch("C", new[]
+            {
+                new VolumeChangeEntry(@"C:\repo\newrepo\.git", VolumeEntryKind.Created)
+            }),
+            new VolumeChangeBatch("C", new[]
+            {
+                new VolumeChangeEntry(@"C:\repo\newrepo\a.txt", VolumeEntryKind.Modified)
+            }),
+        };
+        var svc = new RepositoryWatchService(
+            new FakeVolumeChangeSource(batches),
+            trackedRoots: Array.Empty<string>(),
+            searchRoots: new[] { @"C:\repo" },
+            debounce: TimeSpan.FromMilliseconds(10));
+
+        var events = await DrainAsync(svc);
+
+        Assert.That(events, Does.Contain(
+            new RepositoryChangeEvent(@"C:\repo\newrepo", RepositoryChangeKind.Created)));
+        Assert.That(events, Does.Contain(
+            new RepositoryChangeEvent(@"C:\repo\newrepo", RepositoryChangeKind.Changed)));
+    }
+
+    [Test]
+    public async Task TrackedRootDeletedThenRecreated_EmitsDeletedThenCreatedAgain()
+    {
+        var batches = new[]
+        {
+            new VolumeChangeBatch("C", new[]
+            {
+                new VolumeChangeEntry(@"C:\repo\gone\.git", VolumeEntryKind.Deleted)
+            }),
+            new VolumeChangeBatch("C", new[]
+            {
+                new VolumeChangeEntry(@"C:\repo\gone\.git", VolumeEntryKind.Created)
+            }),
+            new VolumeChangeBatch("C", new[]
+            {
+                new VolumeChangeEntry(@"C:\repo\gone\a.txt", VolumeEntryKind.Modified)
+            }),
+        };
+        var svc = new RepositoryWatchService(
+            new FakeVolumeChangeSource(batches),
+            trackedRoots: new[] { @"C:\repo\gone" },
+            searchRoots: new[] { @"C:\repo" },
+            debounce: TimeSpan.FromMilliseconds(10));
+
+        var events = await DrainAsync(svc);
+
+        Assert.That(events, Is.EqualTo(new[]
+        {
+            new RepositoryChangeEvent(@"C:\repo\gone", RepositoryChangeKind.Deleted),
+            new RepositoryChangeEvent(@"C:\repo\gone", RepositoryChangeKind.Created),
+            new RepositoryChangeEvent(@"C:\repo\gone", RepositoryChangeKind.Changed),
+        }));
+    }
+
+    [Test]
+    public async Task TrackedRootDeletedThenRecreatedInSameBatch_EmitsDeletedThenCreatedAndRemainsTracked()
+    {
+        var batches = new[]
+        {
+            new VolumeChangeBatch("C", new[]
+            {
+                new VolumeChangeEntry(@"C:\repo\lifecycle\.git", VolumeEntryKind.Deleted),
+                new VolumeChangeEntry(@"C:\repo\lifecycle\.git", VolumeEntryKind.Created),
+            }),
+            new VolumeChangeBatch("C", new[]
+            {
+                new VolumeChangeEntry(@"C:\repo\lifecycle\file.txt", VolumeEntryKind.Modified)
+            }),
+        };
+        var svc = new RepositoryWatchService(
+            new FakeVolumeChangeSource(batches),
+            trackedRoots: new[] { @"C:\repo\lifecycle" },
+            searchRoots: new[] { @"C:\repo" },
+            debounce: TimeSpan.FromMilliseconds(10));
+
+        var events = await DrainAsync(svc);
+
+        Assert.That(events, Is.EqualTo(new[]
+        {
+            new RepositoryChangeEvent(@"C:\repo\lifecycle", RepositoryChangeKind.Deleted),
+            new RepositoryChangeEvent(@"C:\repo\lifecycle", RepositoryChangeKind.Created),
+            new RepositoryChangeEvent(@"C:\repo\lifecycle", RepositoryChangeKind.Changed),
+        }));
+    }
+
+    [Test]
+    public async Task TrackedRootDeletedThenRecreatedAndModifiedInSameBatch_EmitsInOrder()
+    {
+        var batch = new VolumeChangeBatch("C", new[]
+        {
+            new VolumeChangeEntry(@"C:\repo\lifecycle\.git", VolumeEntryKind.Deleted),
+            new VolumeChangeEntry(@"C:\repo\lifecycle\.git", VolumeEntryKind.Created),
+            new VolumeChangeEntry(@"C:\repo\lifecycle\file.txt", VolumeEntryKind.Modified),
+        });
+        var svc = new RepositoryWatchService(
+            new FakeVolumeChangeSource(new[] { batch }),
+            trackedRoots: new[] { @"C:\repo\lifecycle" },
+            searchRoots: new[] { @"C:\repo" },
+            debounce: TimeSpan.FromMilliseconds(10));
+
+        var events = await DrainAsync(svc);
+
+        Assert.That(events, Is.EqualTo(new[]
+        {
+            new RepositoryChangeEvent(@"C:\repo\lifecycle", RepositoryChangeKind.Deleted),
+            new RepositoryChangeEvent(@"C:\repo\lifecycle", RepositoryChangeKind.Created),
+            new RepositoryChangeEvent(@"C:\repo\lifecycle", RepositoryChangeKind.Changed),
+        }));
+    }
 }

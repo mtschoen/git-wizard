@@ -61,7 +61,7 @@ public class MftIndexSessionTests
         var index = await files.OpenIndexAsync();
         var lifetime = new CountingLifetime(() =>
             Assert.Throws<ObjectDisposedException>(() => index.FindByName(".git")));
-        var session = new MftIndexSession(index, lifetime, ["X"], new Dictionary<string, string>());
+        var session = new MftIndexSession(index, lifetime, ["X"], [], new Dictionary<string, string>());
         var first = session.DisposeAsync().AsTask();
         await lifetime.Started.Task;
         var second = session.DisposeAsync().AsTask();

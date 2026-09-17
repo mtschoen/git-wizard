@@ -10,10 +10,64 @@ namespace GitWizardTests.Watch;
 // gated the same way as MFTLib's/GitWizard's other RequiresAdmin tests (Assert.Inconclusive
 // guard first in the body; scripts/run-coverage.ps1 self-elevates to include it). Skipped in
 // the non-interactive/CI run via --filter "Category!=RequiresAdmin".
+//
+// Mutating tests (such as journal enlargement) are marked [Explicit] and require explicit
+// attended opt-in via GITWIZARD_TEST_GROW_JOURNAL=1 so that default, CI, and generic elevated
+// coverage runs do not mutate persistent volume configuration.
 [Category("RequiresAdmin")]
 [Platform("Win")]
 public class IndexVolumeChangeSourceWindowsTests
 {
+    [Test]
+    [Explicit("Mutates persistent USN journal settings on the host volume; requires explicit selection and opt-in.")]
+    [Category("Attended")]
+    [SupportedOSPlatform("windows")]
+    public async Task GrowJournal_RealBroker_GrowsAndRejectsShrinkOnSameSession()
+    {
+        if (!ElevationUtilities.IsElevated())
+        {
+            Assert.Inconclusive("Requires admin");
+            return;
+        }
+
+        if (Environment.GetEnvironmentVariable("GITWIZARD_TEST_GROW_JOURNAL") != "1")
+        {
+            Assert.Inconclusive("Requires explicit opt-in via GITWIZARD_TEST_GROW_JOURNAL=1 because this test permanently mutates persistent host volume journal configuration.");
+            return;
+        }
+
+        var drive = GetFixtureDrive(Path.GetTempPath());
+        var launches = 0;
+        await using var source = new IndexVolumeChangeSource((drives, cancellationToken) =>
+            GitWizard.MftIndexSession.OpenWindowsAsync(drives, arguments =>
+            {
+                launches++;
+                return LaunchUiBroker(arguments);
+            }, cancellationToken));
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+        var arm = await source.ArmAndCatchUpAsync([drive], cancellation.Token);
+        Assert.That(arm.Errors, Does.Not.ContainKey(drive));
+        var before = source.QueryUsnJournalSettings(drive[0]);
+        Assert.That(before.MaximumSize, Is.Positive);
+        Assert.That(before.AllocationDelta, Is.Positive);
+        if (before.MaximumSize >= 1024L * 1024 * 1024)
+        {
+            Assert.Inconclusive("Journal maximum is already at or above 1 GB");
+            return;
+        }
+
+        var requested = checked(before.MaximumSize + before.AllocationDelta);
+
+        var after = await source.GrowUsnJournalAsync(drive[0], requested, before.AllocationDelta, cancellation.Token);
+
+        Assert.That(after.MaximumSize, Is.GreaterThanOrEqualTo(requested));
+        Assert.That(source.QueryUsnJournalSettings(drive[0]).MaximumSize, Is.EqualTo(after.MaximumSize));
+        Assert.ThrowsAsync<InvalidOperationException>(() => source.GrowUsnJournalAsync(
+            drive[0], before.MaximumSize, before.AllocationDelta, cancellation.Token));
+        Assert.That(source.QueryUsnJournalSettings(drive[0]).MaximumSize, Is.EqualTo(after.MaximumSize));
+        Assert.That(launches, Is.EqualTo(1));
+    }
+
     [Test]
     [SupportedOSPlatform("windows")]
     public async Task ArmAndCatchUpAsync_RealBroker_ReturnsUsableDriveStatus()

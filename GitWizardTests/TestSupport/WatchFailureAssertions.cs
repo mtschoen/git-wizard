@@ -125,7 +125,7 @@ internal static class WatchFailureAssertions
         files.AddMarker("repo");
         var scripted = new ScriptedIndexWatchSource();
         var index = await files.OpenMftIndexAsync(scripted, 'X', 'Y');
-        var owner = new MftIndexSession(index, null, ["X", "Y"], new Dictionary<string, string>());
+        var owner = new MftIndexSession(index, null, ["X", "Y"], [], new Dictionary<string, string>());
         var source = new IndexVolumeChangeSource((_, _) => Task.FromResult(owner));
         try
         {

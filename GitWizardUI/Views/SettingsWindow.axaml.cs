@@ -10,12 +10,26 @@ public partial class SettingsWindow : Window
 {
     readonly SettingsViewModel _viewModel;
 
-    public SettingsWindow()
+    public SettingsWindow() : this(null) { }
+
+    public SettingsWindow(MainViewModel? mainViewModel)
     {
         InitializeComponent();
         Icon = IconLoader.Load();
-        _viewModel = new SettingsViewModel(new AvaloniaFolderPicker());
+        _viewModel = new SettingsViewModel(new AvaloniaFolderPicker(), mainViewModel, new AvaloniaUiDispatcher());
         DataContext = _viewModel;
+    }
+
+    void EnlargeJournal_Click(object? sender, RoutedEventArgs eventArguments)
+    {
+        if (sender is Button { DataContext: JournalWarningViewModel warning })
+            _viewModel.EnlargeJournalCommand.Execute(warning);
+    }
+
+    void IgnoreJournalWarning_Click(object? sender, RoutedEventArgs eventArguments)
+    {
+        if (sender is Button { DataContext: JournalWarningViewModel warning })
+            _viewModel.IgnoreJournalWarningCommand.Execute(warning);
     }
 
     async void AddSearchPath_Click(object? sender, RoutedEventArgs e)

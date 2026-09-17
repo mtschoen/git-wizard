@@ -38,6 +38,30 @@ internal sealed class ThrowingArmVolumeChangeSource : IVolumeChangeSource
 [TestFixture]
 public class ProgramWatchLoopTests
 {
+
+    [Test]
+    public async Task JournalWarning_PrintsToConsole()
+    {
+        await using var source = new DiagnosticVolumeChangeSource();
+        source.ArmWarnings.Add(new JournalWarning("C", 12345, 1024 * 1024 * 30, 1024 * 1024 * 60, 1024 * 1024 * 10));
+        var service = new RepositoryWatchService(source, [@"C:\repo"], [], TimeSpan.Zero);
+        var lines = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var running = Program.RunWatchLoopAsync(service, line =>
+        {
+            lines.Enqueue(line);
+            if (line.Contains("USN journal maximum size"))
+                changed.TrySetResult();
+        }, _ => { }, cancellation.Token);
+
+        await changed.Task.WaitAsync(cancellation.Token);
+        await cancellation.CancelAsync();
+        try { await running; } catch (OperationCanceledException) { }
+
+        Assert.That(lines, Has.Some.Contains("warning on C: USN journal maximum size (30 MB) is below the recommended 60 MB."));
+    }
+
     [Test]
     public async Task DriveFailurePrintsWhileOtherDriveContinues()
     {
@@ -211,7 +235,7 @@ public class ProgramWatchLoopTests
             ProducerPolicy = ProducerPolicy.Mft,
             MftProducer = (_, _) => throw new IOException("cannot scan X")
         }, CancellationToken.None);
-        var owner = new MftIndexSession(failedIndex, null, ["X"], new Dictionary<string, string>());
+        var owner = new MftIndexSession(failedIndex, null, ["X"], [], new Dictionary<string, string>());
         var source = new IndexVolumeChangeSource((_, _) => Task.FromResult(owner));
         var service = new RepositoryWatchService(
             source,
@@ -241,7 +265,7 @@ internal sealed class ThrowingWatchVolumeChangeSource : IVolumeChangeSource
     }
 
     public Task<VolumeArmResult> ArmAndCatchUpAsync(IReadOnlyCollection<string> volumes, CancellationToken ct) =>
-        Task.FromResult(new VolumeArmResult(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)));
+        Task.FromResult(new VolumeArmResult(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), []));
 
     public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync(
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)

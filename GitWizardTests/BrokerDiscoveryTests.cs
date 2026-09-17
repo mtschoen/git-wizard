@@ -132,7 +132,7 @@ public class BrokerDiscoveryTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
-        var owner = new MftIndexSession(await files.OpenIndexAsync(), null, ["X", "Y"],
+        var owner = new MftIndexSession(await files.OpenIndexAsync(), null, ["X", "Y"], [],
             new Dictionary<string, string> { ["Y"] = "scan denied" });
         var updates = new RecordingUpdateHandler();
         await using var result = await GitWizardApi.DiscoverRepositoriesWithIndexAsync(

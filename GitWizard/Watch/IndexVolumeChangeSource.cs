@@ -5,7 +5,7 @@ using MFTLib.Index;
 namespace GitWizard.Watch;
 
 /// <summary>Owns an index session and translates its live changes into repository-watch batches.</summary>
-public sealed class IndexVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDiagnostics
+public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDiagnostics, IUsnJournalGrower
 {
     readonly Func<IReadOnlyList<string>, CancellationToken, Task<MftIndexSession>> _openSession;
     readonly Channel<VolumeChangeBatch> _output = Channel.CreateUnbounded<VolumeChangeBatch>();
@@ -34,6 +34,22 @@ public sealed class IndexVolumeChangeSource : IVolumeChangeSource, IVolumeChange
         ArgumentNullException.ThrowIfNull(openSession);
         _openSession = openSession;
         _owner = preparedIndex;
+    }
+
+    public UsnJournalSettings QueryUsnJournalSettings(char driveLetter)
+    {
+        if (!OperatingSystem.IsWindows())
+            throw new PlatformNotSupportedException("USN journals require Windows.");
+        var owner = _owner ?? throw new InvalidOperationException("No index session available.");
+        return owner.Index.QueryUsnJournalSettings(driveLetter);
+    }
+
+    public Task<UsnJournalSettings> GrowUsnJournalAsync(char driveLetter, long maximumSize, long allocationDelta, CancellationToken cancellationToken)
+    {
+        var broker = _owner?.GetBrokerClient();
+        if (broker == null)
+            throw new InvalidOperationException("No broker connection available.");
+        return broker.GrowUsnJournalAsync(driveLetter, maximumSize, allocationDelta, cancellationToken);
     }
 
     public Task<VolumeArmResult> ArmAndCatchUpAsync(IReadOnlyCollection<string> volumes, CancellationToken ct)
@@ -70,6 +86,9 @@ public sealed class IndexVolumeChangeSource : IVolumeChangeSource, IVolumeChange
             }
             cancellationToken.ThrowIfCancellationRequested();
             var errors = new Dictionary<string, string>(_owner.ScanErrors, StringComparer.OrdinalIgnoreCase);
+            var warnings = new List<JournalWarning>();
+            var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync(cancellationToken).ConfigureAwait(false);
+
             foreach (var drive in _owner.Index.Drives)
             {
                 if (drive.State is DriveState.Failed or DriveState.Offline)
@@ -84,9 +103,11 @@ public sealed class IndexVolumeChangeSource : IVolumeChangeSource, IVolumeChange
                     // change's path back onto this drive's own "<letter>:\" form, regardless of
                     // whether IndexedDrive.RootDirectory is the drive root (MFTLib #143).
                     _driveRealRoots[letter] = _owner.Index.Root(drive.DriveLetter, cancellationToken).Path;
+
+                    AddJournalWarning(letter, configuration, warnings);
                 }
             }
-            return new VolumeArmResult(errors);
+            return new VolumeArmResult(errors, warnings);
         }
         catch
         {

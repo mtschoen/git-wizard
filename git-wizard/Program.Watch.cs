@@ -129,6 +129,7 @@ public static partial class Program
     {
         var stopped = false;
         var reported = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var reportedWarnings = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var reportingLock = new Lock();
         void OnStopped(string reason)
         {
@@ -148,9 +149,23 @@ public static partial class Program
                 }
             }
         }
+        void OnScanWarningsChanged()
+        {
+            lock (reportingLock)
+            {
+                foreach (var warning in service.ScanWarnings)
+                {
+                    if (reportedWarnings.Contains(warning.DriveLetter))
+                        continue;
+                    reportedWarnings.Add(warning.DriveLetter);
+                    writeLine(warning.Message);
+                }
+            }
+        }
 
         service.Stopped += OnStopped;
         service.ScanErrorsChanged += OnScanErrorsChanged;
+        service.ScanWarningsChanged += OnScanWarningsChanged;
         try
         {
             return await RunWatchEventsAsync(service, writeLine, exit, () => stopped, cancellationToken)
@@ -160,6 +175,7 @@ public static partial class Program
         {
             service.Stopped -= OnStopped;
             service.ScanErrorsChanged -= OnScanErrorsChanged;
+            service.ScanWarningsChanged -= OnScanWarningsChanged;
         }
     }
 

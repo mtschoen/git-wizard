@@ -221,15 +221,7 @@ public partial class MainViewModel
             return;
 
         _reportedLiveScanErrors.Clear();
-        var trackedRoots = _allRepositories
-            .Select(node => node.WorkingDirectory)
-            .Where(path => !string.IsNullOrEmpty(path))
-            .ToList();
-        var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync().ConfigureAwait(false);
-        var searchRoots = configuration.SearchPaths
-            .Select(GitWizardApi.ExpandSearchPath)
-            .OfType<string>()
-            .ToList();
+        var (trackedRoots, searchRoots) = await GetLiveRootsAsync().ConfigureAwait(false);
 
         var controller = new LiveWatchController(
             LiveVolumeChangeSourceFactory,
@@ -243,16 +235,25 @@ public partial class MainViewModel
             {
                 IsLiveStarting = false;
                 IsLive = false;
+                JournalWarnings.Clear();
                 HeaderText = $"Live watch stopped: {reason}{FormatLiveScanErrorSuffix(RequireLiveController())}";
             }),
             isElevated: LiveIsElevated);
         void OnStarted() => _ui.Post(() =>
         {
+            if (!ReferenceEquals(_liveController, controller) || (!IsLive && !IsLiveStarting))
+                return;
             IsLiveStarting = false;
             IsLive = true;
             HeaderText = "Live watch active";
             _reportedLiveScanErrors.Clear();
             SurfaceNewLiveScanErrors(controller);
+            SurfaceNewLiveScanWarnings(controller);
+        });
+        void OnScanWarningsChanged() => _ui.Post(() =>
+        {
+            if (ReferenceEquals(_liveController, controller) && (IsLive || IsLiveStarting))
+                SurfaceNewLiveScanWarnings(controller);
         });
         void OnScanErrorsChanged() => _ui.Post(() =>
         {
@@ -261,11 +262,29 @@ public partial class MainViewModel
         });
         controller.Started += OnStarted;
         controller.ScanErrorsChanged += OnScanErrorsChanged;
+        controller.ScanWarningsChanged += OnScanWarningsChanged;
         _liveController = controller;
 
-        IsLiveStarting = true;
-        HeaderText = "Starting Live watch...";
+        await _ui.InvokeAsync(() =>
+        {
+            IsLiveStarting = true;
+            HeaderText = "Starting Live watch...";
+        }).ConfigureAwait(false);
 
+        try
+        {
+            await RunLiveControllerAsync(controller).ConfigureAwait(false);
+        }
+        finally
+        {
+            controller.Started -= OnStarted;
+            controller.ScanErrorsChanged -= OnScanErrorsChanged;
+            controller.ScanWarningsChanged -= OnScanWarningsChanged;
+        }
+    }
+
+    async Task RunLiveControllerAsync(LiveWatchController controller)
+    {
         try
         {
             await controller.StartAsync(CancellationToken.None).ConfigureAwait(false);
@@ -273,24 +292,38 @@ public partial class MainViewModel
         catch (InvalidOperationException exception)
         {
             await controller.StopAsync().ConfigureAwait(false);
-            IsLiveStarting = false;
-            IsLive = false;
-            HeaderText = $"Live watch could not start: {exception.Message}";
-        }
-        finally
-        {
-            controller.Started -= OnStarted;
-            controller.ScanErrorsChanged -= OnScanErrorsChanged;
+            GitWizardLog.LogException(exception, "Starting Live watch failed.");
+            await _ui.InvokeAsync(() =>
+            {
+                IsLiveStarting = false;
+                IsLive = false;
+                JournalWarnings.Clear();
+                HeaderText = $"Live watch could not start: {exception.Message}";
+            }).ConfigureAwait(false);
         }
     }
+
+    async Task<(List<string> Tracked, List<string> Search)> GetLiveRootsAsync()
+    {
+        var tracked = _allRepositories.Select(node => node.WorkingDirectory)
+            .Where(path => !string.IsNullOrEmpty(path)).ToList();
+        var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync().ConfigureAwait(false);
+        var search = configuration.SearchPaths.Select(GitWizardApi.ExpandSearchPath).OfType<string>().ToList();
+        return (tracked, search);
+    }
+
 
     async Task StopLiveAsync()
     {
         if (_liveController != null)
             await _liveController.StopAsync().ConfigureAwait(false);
 
-        IsLiveStarting = false;
-        IsLive = false;
+        await _ui.InvokeAsync(() =>
+        {
+            IsLiveStarting = false;
+            IsLive = false;
+            JournalWarnings.Clear();
+        }).ConfigureAwait(false);
     }
 
     // Only onStopped requires the controller here; onEvent applies repository changes directly.
@@ -299,6 +332,7 @@ public partial class MainViewModel
     LiveWatchController RequireLiveController() =>
         _liveController ?? throw new InvalidOperationException(
             "_liveController must be assigned before a Live event/stop callback can run.");
+
 
     void SurfaceNewLiveScanErrors(LiveWatchController controller)
     {
@@ -309,6 +343,8 @@ public partial class MainViewModel
             _reportedLiveScanErrors[drive] = message;
             HeaderText = $"Live scan error on {drive}: {message}";
         }
+        if (JournalWarnings.Count > 0)
+            UpdateJournalWarningHeader();
     }
 
     static string FormatLiveScanErrorSuffix(LiveWatchController controller)

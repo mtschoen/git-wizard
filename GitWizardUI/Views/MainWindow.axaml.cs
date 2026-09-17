@@ -62,8 +62,11 @@ public partial class MainWindow : Window, IAsyncDisposable
     void Window_Loaded(object? sender, RoutedEventArgs e)
         => _viewModel.RefreshCommand.Execute(null);
 
+    public Task ShowSettingsDialogAsync()
+        => new SettingsWindow(DataContext as MainViewModel).ShowDialog(this);
+
     void SettingsMenuItem_Click(object? sender, RoutedEventArgs e)
-        => new SettingsWindow().ShowDialog(this);
+        => _ = ShowSettingsDialogAsync();
 
     async void CheckWindowsDefenderMenuItem_Click(object? sender, RoutedEventArgs e)
     {

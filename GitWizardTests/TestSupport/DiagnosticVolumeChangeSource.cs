@@ -14,12 +14,13 @@ internal sealed class DiagnosticVolumeChangeSource : IVolumeChangeSource, IVolum
     public Task Started => _started.Task;
     public int DiagnosticSubscribers => DriveFailed?.GetInvocationList().Length ?? 0;
     public Dictionary<string, string> ArmErrors { get; } = [];
+    public List<JournalWarning> ArmWarnings { get; } = new();
     public Action? Arming { get; set; }
 
     public Task<VolumeArmResult> ArmAndCatchUpAsync(IReadOnlyCollection<string> volumes, CancellationToken ct)
     {
         Arming?.Invoke();
-        return Task.FromResult(new VolumeArmResult(ArmErrors));
+        return Task.FromResult(new VolumeArmResult(ArmErrors, ArmWarnings));
     }
 
     public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync([EnumeratorCancellation] CancellationToken ct)

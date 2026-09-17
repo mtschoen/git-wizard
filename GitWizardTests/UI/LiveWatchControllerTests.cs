@@ -368,7 +368,7 @@ public class LiveWatchControllerTests
             ProducerPolicy = ProducerPolicy.Mft,
             MftProducer = (_, _) => throw new IOException("cannot scan X")
         }, CancellationToken.None);
-        var owner = new MftIndexSession(failedIndex, null, ["X"], new Dictionary<string, string>());
+        var owner = new MftIndexSession(failedIndex, null, ["X"], [], new Dictionary<string, string>());
         var stoppedReasons = new List<string>();
         var controller = new LiveWatchController(
             () => new IndexVolumeChangeSource((_, _) => Task.FromResult(owner)),
@@ -411,7 +411,7 @@ internal sealed class HangingKillableSource : IVolumeChangeSource
     {
         IsArmed = true;
         return Task.FromResult(new VolumeArmResult(
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)));
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), []));
     }
 
     public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync(
@@ -446,7 +446,7 @@ internal sealed class GatedDisposeKillableSource : IVolumeChangeSource
     {
         IsArmed = true;
         return Task.FromResult(new VolumeArmResult(
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)));
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), []));
     }
 
     public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync(
@@ -488,7 +488,7 @@ internal sealed class DisposeToUnblockSource : IVolumeChangeSource
     {
         IsArmed = true;
         return Task.FromResult(new VolumeArmResult(
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)));
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), []));
     }
 
     public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync(

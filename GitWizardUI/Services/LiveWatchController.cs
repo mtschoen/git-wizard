@@ -20,6 +20,7 @@ public sealed class LiveWatchController
 
     public event Action? Started;
     public event Action? ScanErrorsChanged;
+    public event Action? ScanWarningsChanged;
 
     // Guards the read-modify-write of the mutable run state below. StartAsync's loop and a
     // concurrent StopAsync both touch _stopRequested/_runCts/_source; without this a StopAsync
@@ -52,6 +53,24 @@ public sealed class LiveWatchController
         {
             lock (_gate)
                 return _service?.ScanErrors ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    public IReadOnlyCollection<JournalWarning> ScanWarnings
+    {
+        get
+        {
+            lock (_gate)
+                return _service?.ScanWarnings ?? Array.Empty<JournalWarning>();
+        }
+    }
+
+    public IVolumeChangeSource? Source
+    {
+        get
+        {
+            lock (_gate)
+                return _source;
         }
     }
 
@@ -172,6 +191,7 @@ public sealed class LiveWatchController
         void OnStopped(string reason) => deathReason = reason;
         service.Stopped += OnStopped;
         service.ScanErrorsChanged += OnScanErrorsChanged;
+        service.ScanWarningsChanged += OnScanWarningsChanged;
 
         try
         {
@@ -187,6 +207,7 @@ public sealed class LiveWatchController
             service.Started -= OnStarted;
             service.Stopped -= OnStopped;
             service.ScanErrorsChanged -= OnScanErrorsChanged;
+            service.ScanWarningsChanged -= OnScanWarningsChanged;
         }
 
         return deathReason;
@@ -194,4 +215,5 @@ public sealed class LiveWatchController
 
     void OnStarted() => Started?.Invoke();
     void OnScanErrorsChanged() => ScanErrorsChanged?.Invoke();
+    void OnScanWarningsChanged() => ScanWarningsChanged?.Invoke();
 }

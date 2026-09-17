@@ -29,7 +29,7 @@ internal sealed class DelayedVolumeChangeSource : IVolumeChangeSource
     public Task<VolumeArmResult> ArmAndCatchUpAsync(
         IReadOnlyCollection<string> volumes, CancellationToken ct) =>
         Task.FromResult(new VolumeArmResult(
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)));
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), []));
 
     public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync(
         [EnumeratorCancellation] CancellationToken ct)
@@ -57,7 +57,7 @@ internal sealed class BusyVolumeChangeSource : IVolumeChangeSource
     public Task<VolumeArmResult> ArmAndCatchUpAsync(
         IReadOnlyCollection<string> volumes, CancellationToken ct) =>
         Task.FromResult(new VolumeArmResult(
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)));
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), []));
 
     public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync(
         [EnumeratorCancellation] CancellationToken ct)
@@ -88,7 +88,7 @@ internal sealed class HangingVolumeChangeSource : IVolumeChangeSource
     public Task<VolumeArmResult> ArmAndCatchUpAsync(
         IReadOnlyCollection<string> volumes, CancellationToken ct) =>
         Task.FromResult(new VolumeArmResult(
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)));
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), []));
 
     public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync(
         [EnumeratorCancellation] CancellationToken ct)

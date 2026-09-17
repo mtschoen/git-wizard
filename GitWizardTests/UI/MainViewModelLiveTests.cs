@@ -563,7 +563,7 @@ internal sealed class BlockingArmVolumeChangeSource : IVolumeChangeSource
         _armStarted.TrySetResult();
         await Task.Delay(Timeout.InfiniteTimeSpan, ct);
         return new VolumeArmResult(
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), []);
     }
 
     public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync(
@@ -592,7 +592,7 @@ internal sealed class KillableSourceWithErrors : IVolumeChangeSource
         IReadOnlyCollection<string> volumes, CancellationToken ct)
     {
         IsArmed = true;
-        return Task.FromResult(new VolumeArmResult(_errors));
+        return Task.FromResult(new VolumeArmResult(_errors, []));
     }
 
     public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync(

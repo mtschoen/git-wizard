@@ -41,7 +41,7 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource
 
         var errors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (volumes.Count == 0)
-            return new VolumeArmResult(errors);
+            return new VolumeArmResult(errors, Array.Empty<JournalWarning>());
 
         var initializeResult = _native.Initialize(
             FanotifyConstants.CloseOnExecute | FanotifyConstants.ReportDirectoryFileIdAndName,
@@ -53,7 +53,7 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource
             foreach (var volume in volumes)
                 errors[volume] = message;
 
-            return new VolumeArmResult(errors);
+            return new VolumeArmResult(errors, Array.Empty<JournalWarning>());
         }
 
         _descriptor?.Dispose();
@@ -87,7 +87,7 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource
         }
 
         _watchedVolumes = watched.OrderByDescending(volume => volume.Length).ToList();
-        return new VolumeArmResult(errors);
+        return new VolumeArmResult(errors, Array.Empty<JournalWarning>());
     }
 
     public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync([EnumeratorCancellation] CancellationToken ct)

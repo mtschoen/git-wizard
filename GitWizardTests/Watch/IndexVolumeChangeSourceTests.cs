@@ -9,6 +9,24 @@ namespace GitWizardTests.Watch;
 [TestFixture]
 public class IndexVolumeChangeSourceTests
 {
+
+    [Test]
+    public async Task GrowUsnJournalAsync_RequiresBrokerConnection()
+    {
+        var owner = new IndexOwnerFixture();
+        try
+        {
+            await owner.StartAsync();
+            var source = new IndexVolumeChangeSource((_, _) => Task.FromResult(owner.Owner), owner.Owner);
+            var exception = Assert.ThrowsAsync<InvalidOperationException>(() => source.GrowUsnJournalAsync('C', 1000, 100, CancellationToken.None));
+            Assert.That(exception.Message, Is.EqualTo("No broker connection available."));
+        }
+        finally
+        {
+            await owner.DisposeAsync();
+        }
+    }
+
     static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(10);
 
     [Test]
@@ -47,7 +65,7 @@ public class IndexVolumeChangeSourceTests
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
         var connection = new CountingOwner();
-        var owner = new MftIndexSession(await files.OpenIndexAsync(), connection, ["X"],
+        var owner = new MftIndexSession(await files.OpenIndexAsync(), connection, ["X"], [],
             new Dictionary<string, string> { ["Z"] = "scan denied" });
         var source = new IndexVolumeChangeSource((_, _) =>
             throw new AssertionException("Matching prepared owner must be reused."), owner);
@@ -126,7 +144,7 @@ public class IndexVolumeChangeSourceTests
     {
         using var files = new PackedIndexFixture();
         var connection = new CountingOwner();
-        var owner = new MftIndexSession(await files.OpenIndexAsync(), connection, ["X"],
+        var owner = new MftIndexSession(await files.OpenIndexAsync(), connection, ["X"], [],
             new Dictionary<string, string>());
         var opens = 0;
         var source = new IndexVolumeChangeSource((_, _) =>
@@ -366,7 +384,7 @@ public class IndexVolumeChangeSourceTests
     }
 
     static MftIndexSession Owner(FileIndex index, params string[] drives) =>
-        new(index, null, drives, new Dictionary<string, string>());
+        new(index, null, drives, [], new Dictionary<string, string>());
 
     sealed class CountingOwner : IAsyncDisposable
     {

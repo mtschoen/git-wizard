@@ -50,9 +50,19 @@ them. Recursive discovery on Linux and with `--no-mft` is unchanged.
 ### Live monitoring
 
 On Windows, discovery and the transfer into Live share one UAC prompt when the prepared index
-is reusable. A watch failure on one drive is reported while healthy drives stay live. Stopping
-Live releases its resources; restarting can require a new scan and elevation prompt. Linux
-fanotify monitoring is unchanged by this port.
+is reusable. A watch failure on one drive is reported while healthy drives stay live. If a drive's
+USN journal is below MFTLib's recommendation, Live shows a warning for that drive with its current
+and recommended maximum sizes. CLI `--watch` prints the warning once per drive at startup.
+An undersized journal can wrap during heavy filesystem activity, faulting that drive's watch
+and forcing a rescan. Nothing is resized automatically.
+
+While Live is running, Settings offers **Enlarge** for affected drives. It uses the existing
+elevated broker session without another broker or UAC prompt, rechecks the current size, and
+refuses equal or smaller targets. The result shows the actual before and after sizes in bytes;
+Windows may round the requested size upward. **Do not warn again** saves the volume serial in
+`config.json` under `ignoredJournalWarnings`, so the preference follows the volume rather than
+its drive letter. Re-arming refreshes each drive's warning. Stopping Live releases its resources;
+restarting can require a new scan and elevation prompt. Linux fanotify monitoring is unchanged.
 
 The green Live state means "the pump started", never "catch-up has drained". Changes can still
 be catching up after Live appears active; see [MFTLib#139](https://gitea.fleet.sticktoitive.net/schoen/MFTLib/issues/139).

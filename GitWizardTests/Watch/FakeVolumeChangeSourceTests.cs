@@ -19,7 +19,7 @@ internal sealed class FakeVolumeChangeSource : IVolumeChangeSource
 
     public Task<VolumeArmResult> ArmAndCatchUpAsync(
         IReadOnlyCollection<string> volumes, CancellationToken ct) =>
-        Task.FromResult(new VolumeArmResult(_errors));
+        Task.FromResult(new VolumeArmResult(_errors, []));
 
     public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync(
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)

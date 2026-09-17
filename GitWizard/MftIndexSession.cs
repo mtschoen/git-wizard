@@ -14,16 +14,18 @@ public sealed partial class MftIndexSession : IAsyncDisposable
 
     public FileIndex Index { get; }
     public IReadOnlyList<string> Drives { get; private set; }
+    public IReadOnlyList<IndexedDrive> IndexedDrives { get; private set; }
     public IReadOnlyDictionary<string, string> ScanErrors { get; private set; }
     public bool IsFaulted => _brokerConnection?.IsFaulted == true;
     public bool IsDisposed => Volatile.Read(ref _disposed) != 0;
 
     internal MftIndexSession(FileIndex index, IAsyncDisposable? connectionOwner,
-        IReadOnlyList<string> drives, IReadOnlyDictionary<string, string> scanErrors)
+        IReadOnlyList<string> drives, IReadOnlyList<IndexedDrive> indexedDrives, IReadOnlyDictionary<string, string> scanErrors)
     {
         Index = index;
         _connectionOwner = connectionOwner;
         Drives = Array.AsReadOnly(drives.ToArray());
+        IndexedDrives = Array.AsReadOnly(indexedDrives.ToArray());
         ScanErrors = new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(
             new Dictionary<string, string>(scanErrors, StringComparer.OrdinalIgnoreCase));
     }
@@ -60,7 +62,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
                     errors[drive.DriveLetter.ToString()] = drive.MftProducerFailureMessage ?? $"Drive is {drive.State}.";
             }
             var session = new MftIndexSession(index, connection.Client,
-                drives.Select(drive => char.ToUpperInvariant(drive.DriveLetter).ToString()).ToArray(), errors)
+                drives.Select(drive => char.ToUpperInvariant(drive.DriveLetter).ToString()).ToArray(), drives, errors)
             {
                 _brokerConnection = connection
             };
@@ -92,6 +94,8 @@ public sealed partial class MftIndexSession : IAsyncDisposable
         lock (_disposalLock)
             return new ValueTask(_disposal ??= DisposeCoreAsync());
     }
+
+    internal JournalBrokerClient? GetBrokerClient() => _brokerConnection?.Client;
 
     async Task DisposeCoreAsync()
     {

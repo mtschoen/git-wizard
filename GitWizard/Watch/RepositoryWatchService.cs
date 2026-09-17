@@ -22,8 +22,10 @@ public sealed class RepositoryWatchService
 
     readonly Lock _errorsLock = new();
     FrozenDictionary<string, string> _scanErrors = FrozenDictionary<string, string>.Empty;
+    FrozenSet<JournalWarning> _scanWarnings = FrozenSet<JournalWarning>.Empty;
 
     public event Action? ScanErrorsChanged;
+    public event Action? ScanWarningsChanged;
     public event Action? Started;
     public event Action<string>? Stopped;
 
@@ -38,6 +40,16 @@ public sealed class RepositoryWatchService
         {
             lock (_errorsLock)
                 return _scanErrors;
+        }
+    }
+
+    [UsedImplicitly]
+    public IReadOnlyCollection<JournalWarning> ScanWarnings
+    {
+        get
+        {
+            lock (_errorsLock)
+                return _scanWarnings;
         }
     }
 
@@ -57,7 +69,10 @@ public sealed class RepositoryWatchService
         [EnumeratorCancellation] CancellationToken ct)
     {
         lock (_errorsLock)
+        {
             _scanErrors = FrozenDictionary<string, string>.Empty;
+            _scanWarnings = FrozenSet<JournalWarning>.Empty;
+        }
         var diagnostics = _source as IVolumeChangeDiagnostics;
         if (diagnostics is not null)
             diagnostics.DriveFailed += OnDriveFailed;
@@ -118,17 +133,23 @@ public sealed class RepositoryWatchService
         ScanErrorsChanged?.Invoke();
     }
 
-    void SetArmErrors(IReadOnlyDictionary<string, string> armErrors)
+    void SetArmResult(VolumeArmResult armResult)
     {
         lock (_errorsLock)
         {
             // A diagnostic raised during arming is newer than the initial scan result.
-            var errors = new Dictionary<string, string>(armErrors, StringComparer.OrdinalIgnoreCase);
+            var errors = new Dictionary<string, string>(armResult.Errors, StringComparer.OrdinalIgnoreCase);
             foreach (var (drive, message) in _scanErrors)
                 errors[drive] = message;
             _scanErrors = errors.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+
+            var warnings = armResult.JournalWarnings
+                .GroupBy(warning => warning.DriveLetter, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.Last());
+            _scanWarnings = warnings.ToFrozenSet();
         }
         ScanErrorsChanged?.Invoke();
+        ScanWarningsChanged?.Invoke();
     }
 
     // Owns the linked CancellationTokenSource used to fold source death into cancellation.
@@ -178,7 +199,7 @@ public sealed class RepositoryWatchService
             .ToArray();
 
         var armResult = await _source.ArmAndCatchUpAsync(volumes, ct).ConfigureAwait(false);
-        SetArmErrors(armResult.Errors);
+        SetArmResult(armResult);
 
         var filters = new Dictionary<string, RepositoryChangeFilter>(StringComparer.OrdinalIgnoreCase);
         foreach (var volume in volumes)

@@ -20,6 +20,9 @@ public class GitWizardConfiguration
     public SortedSet<string> SearchPaths { get; set; } = new();
     public SortedSet<string> IgnoredPaths { get; set; } = new();
 
+    [JsonPropertyName("ignoredJournalWarnings")]
+    public SortedSet<uint> IgnoredJournalWarnings { get; set; } = new();
+
     /// <summary>
     /// Whether to skip directories whose last path segment starts with '.' during
     /// repository discovery. <c>null</c> (the default) uses the legacy hard-coded
@@ -62,6 +65,23 @@ public class GitWizardConfiguration
     public static Task SaveGlobalConfigurationAsync(GitWizardConfiguration configuration)
     {
         return configuration.SaveAsync(GetGlobalConfigurationPath());
+    }
+
+    public async Task IgnoreJournalWarningAsync(uint volumeSerial)
+    {
+        var added = IgnoredJournalWarnings.Add(volumeSerial);
+        try
+        {
+            var path = GetGlobalConfigurationPath();
+            Directory.CreateDirectory(GitWizardApi.GetLocalFilesPath());
+            await File.WriteAllTextAsync(path, JsonSerializer.Serialize(this, SerializerOptions)).ConfigureAwait(false);
+        }
+        catch
+        {
+            if (added)
+                IgnoredJournalWarnings.Remove(volumeSerial);
+            throw;
+        }
     }
 
     public static async Task<GitWizardConfiguration?> GetConfigurationAtPathAsync(string path, CancellationToken cancellationToken = default)

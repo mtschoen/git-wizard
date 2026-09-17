@@ -6,7 +6,7 @@ using GitWizardUI.ViewModels.Services;
 
 namespace GitWizardUI.ViewModels;
 
-public class SettingsViewModel : INotifyPropertyChanged
+public partial class SettingsViewModel : INotifyPropertyChanged
 {
     readonly IFolderPicker _folderPicker;
     private GitWizardConfiguration _configuration;
@@ -78,10 +78,17 @@ public class SettingsViewModel : INotifyPropertyChanged
     public ICommand AddIgnoredPathCommand { get; }
     public ICommand ResetToDefaultsCommand { get; }
 
-    public SettingsViewModel(IFolderPicker folderPicker)
+
+    public SettingsViewModel(IFolderPicker folderPicker, MainViewModel? mainViewModel, IUiDispatcher dispatcher)
     {
         _folderPicker = folderPicker;
+        _mainViewModel = mainViewModel;
+        _journalDispatcher = dispatcher;
         _configuration = GitWizardConfiguration.GetGlobalConfiguration();
+
+        JournalWarnings = mainViewModel?.JournalWarnings ?? new();
+        EnlargeJournalCommand = new AsyncRelayCommand<JournalWarningViewModel>(EnlargeJournalAsync);
+        IgnoreJournalWarningCommand = new AsyncRelayCommand<JournalWarningViewModel>(IgnoreJournalWarningAsync);
 
         foreach (var path in _configuration.SearchPaths)
             SearchPaths.Add(path);
@@ -100,6 +107,7 @@ public class SettingsViewModel : INotifyPropertyChanged
         AddIgnoredPathCommand = new RelayCommand(AddIgnoredPath);
         ResetToDefaultsCommand = new RelayCommand(ResetToDefaults);
     }
+
 
     public void AddSearchPath()
     {

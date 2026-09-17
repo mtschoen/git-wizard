@@ -18,7 +18,24 @@ public static partial class GitWizardApi
     /// Null uses the default behavior (skip hidden directories).</param>
     public static void GetRepositoryPaths(string rootPath, ICollection<string> paths,
         ICollection<string> ignoredPaths, IUpdateHandler? updateHandler = null,
-        bool? skipHiddenDirectories = null)
+        bool? skipHiddenDirectories = null) =>
+        GetRepositoryPaths(rootPath, paths, ignoredPaths, updateHandler, skipHiddenDirectories, includeTempDirectories: null);
+
+    /// <summary>
+    /// Get all sub-directory paths within <paramref name="rootPath"/> that contain .git folders we care about.
+    /// </summary>
+    /// <param name="rootPath">The path to search.</param>
+    /// <param name="paths">Collection of strings to store the results.</param>
+    /// <param name="ignoredPaths">Collection of strings containing paths to ignore.</param>
+    /// <param name="updateHandler">Optional handler for UI updates.</param>
+    /// <param name="skipHiddenDirectories">Whether to skip directories whose last path segment starts with '.'.
+    /// Null uses the default behavior (skip hidden directories).</param>
+    /// <param name="includeTempDirectories">Whether to include temp directories (any profile's
+    /// AppData\Local\Temp, the process temp roots, /tmp) as repository locations. Null or false
+    /// excludes them, unless the search root itself is inside a temp directory.</param>
+    public static void GetRepositoryPaths(string rootPath, ICollection<string> paths,
+        ICollection<string> ignoredPaths, IUpdateHandler? updateHandler,
+        bool? skipHiddenDirectories, bool? includeTempDirectories)
     {
         var expanded = ExpandSearchPath(rootPath);
         if (expanded == null)
@@ -33,7 +50,11 @@ public static partial class GitWizardApi
         // When searching a scoped path, include .git files for worktrees/submodules whose parent
         // may be outside the search scope.
         var includeGitFiles = !IsDriveRoot(rootPath);
-        var context = new DiscoveryContext(paths, ExpandIgnoredPaths(ignoredPaths), includeGitFiles, updateHandler, skipHiddenDirectories);
+        // A search root inside a temp directory opts that subtree back in: explicit scope beats
+        // the default temp exclusion (and the test suite's fixtures all live under temp).
+        var excludeTempDirectories = includeTempDirectories != true && !TempDirectories.IsTempPath(rootPath);
+        var context = new DiscoveryContext(paths, ExpandIgnoredPaths(ignoredPaths), includeGitFiles, updateHandler,
+            skipHiddenDirectories, excludeTempDirectories);
         FindGitRepositoriesRecursively(rootPath, context);
 
         try
@@ -51,7 +72,8 @@ public static partial class GitWizardApi
         ICollection<string> IgnoredPaths,
         bool IncludeGitFiles,
         IUpdateHandler? UpdateHandler,
-        bool? SkipHiddenDirectories);
+        bool? SkipHiddenDirectories,
+        bool ExcludeTempDirectories);
 
     static void FindGitRepositoriesRecursively(string rootPath, DiscoveryContext context)
     {
@@ -147,6 +169,9 @@ public static partial class GitWizardApi
             }
 
             if (context.IgnoredPaths.Any(ignored => IsSameOrChildPath(normalizedSubDirectory, ignored)))
+                return;
+
+            if (context.ExcludeTempDirectories && TempDirectories.IsTempPath(normalizedSubDirectory))
                 return;
 
             if (IsBareGitRepository(subDirectory))

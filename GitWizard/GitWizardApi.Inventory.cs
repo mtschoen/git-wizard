@@ -40,6 +40,7 @@ public static partial class GitWizardApi
                 SearchPaths = new SortedSet<string>(configuration.SearchPaths, StringComparer.Ordinal),
                 IgnoredPaths = new SortedSet<string>(configuration.IgnoredPaths, StringComparer.Ordinal),
                 SkipHiddenDirectories = configuration.SkipHiddenDirectories,
+                IncludeTempDirectories = configuration.IncludeTempDirectories,
                 ForkPath = configuration.ForkPath
             };
 

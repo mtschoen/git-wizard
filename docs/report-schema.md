@@ -57,6 +57,7 @@ merge of disjoint updates must serialize their writes externally.
 | `BranchScope` | `string` | How each repo's `Branches` list was filtered: `"actionable"` (default) or `"all"` (with `--all-branches`). Absent on reports written before 2.0. |
 | `SearchPaths` | `string[]` | Configured search paths |
 | `IgnoredPaths` | `string[]` | Configured ignored paths |
+| `IncludeTempDirectories` | `bool` | Whether this report's scan included temp directories. Absent when unset (the default: excluded). |
 | `Repositories` | `object` | Map of repo path → repository object |
 | `DeletedPaths` | `string[]` | Repo paths removed from the cache during the last refresh (no longer on disk). Usually empty/absent. |
 

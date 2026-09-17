@@ -47,6 +47,18 @@ closes, including on process exit. The existing `~/.GitWizard/repositories.txt` 
 and `~/.GitWizard/report.json` cached report still persist; index no-cache mode does not disable
 them. Recursive discovery on Linux and with `--no-mft` is unchanged.
 
+### Temp directories
+
+Discovery (MFT and recursive) and Live monitoring ignore temp directories by default: every
+profile's `AppData\Local\Temp` on Windows (any `<drive>:\Users\<name>\AppData\Local\Temp`), the
+process's own `%TEMP%`/`%TMP%`, and `/tmp` plus `$TMPDIR` on Linux. CI agents and test suites
+create hundreds of short-lived repositories there; tracking them floods the log with refresh
+errors for repositories that no longer exist. Set `"includeTempDirectories": true` in
+`~/.GitWizard/config.json` (or enable **Include temp directories** in Settings) to include
+them again. Explicit ignored paths always apply, and a search path configured inside a temp
+directory opts that subtree back in. A repository whose directory vanishes before its refresh
+runs is logged at Debug instead of Error.
+
 ### Live monitoring
 
 On Windows, discovery and the transfer into Live share one UAC prompt when the prepared index

@@ -458,6 +458,93 @@ public partial class RepositoryWatchServiceTests
     }
 
     [Test]
+    public async Task DotGitCreatedUnderTempDirectory_ExcludedByDefault()
+    {
+        var svc = new RepositoryWatchService(
+            new FakeVolumeChangeSource(
+                new[] { new VolumeChangeBatch("C", new[]
+                {
+                    new VolumeChangeEntry(@"C:\Users\gitea-runner\AppData\Local\Temp\pytest-1\repo\.git", VolumeEntryKind.Created)
+                }) }),
+            trackedRoots: Array.Empty<string>(),
+            searchRoots: new[] { @"C:\" },
+            debounce: TimeSpan.FromMilliseconds(10));
+
+        var events = await DrainAsync(svc);
+
+        Assert.That(events, Is.Empty);
+    }
+
+    [Test]
+    public async Task DotGitCreatedUnderTempDirectory_EmittedWhenIncludeTempDirectories()
+    {
+        var svc = new RepositoryWatchService(
+            new FakeVolumeChangeSource(
+                new[] { new VolumeChangeBatch("C", new[]
+                {
+                    new VolumeChangeEntry(@"C:\Users\gitea-runner\AppData\Local\Temp\pytest-1\repo\.git", VolumeEntryKind.Created)
+                }) }),
+            trackedRoots: Array.Empty<string>(),
+            searchRoots: new[] { @"C:\" },
+            debounce: TimeSpan.FromMilliseconds(10),
+            includeTempDirectories: true);
+
+        var events = await DrainAsync(svc);
+
+        Assert.That(events, Is.EqualTo(new[]
+        {
+            new RepositoryChangeEvent(@"C:\Users\gitea-runner\AppData\Local\Temp\pytest-1\repo", RepositoryChangeKind.Created),
+        }));
+    }
+
+    [Test]
+    public async Task TrackedTempDirectory_ExcludedByDefault_OnModificationAndGitRecreation()
+    {
+        const string trackedTempRepo = @"C:\Users\gitea-runner\AppData\Local\Temp\pytest-1\repo";
+        var svc = new RepositoryWatchService(
+            new FakeVolumeChangeSource(
+                new[]
+                {
+                    new VolumeChangeBatch("C", new[]
+                    {
+                        new VolumeChangeEntry(Path.Combine(trackedTempRepo, "file.txt"), VolumeEntryKind.Modified),
+                        new VolumeChangeEntry(Path.Combine(trackedTempRepo, ".git"), VolumeEntryKind.Created),
+                    })
+                }),
+            trackedRoots: new[] { trackedTempRepo },
+            searchRoots: new[] { @"C:\" },
+            debounce: TimeSpan.FromMilliseconds(10));
+
+        var events = await DrainAsync(svc);
+
+        Assert.That(events, Is.Empty);
+    }
+
+    [Test]
+    public async Task IgnoredPath_ExcludedEvenWhenIncludeTempDirectoriesTrue()
+    {
+        const string ignoredTempSubtree = @"C:\Users\gitea-runner\AppData\Local\Temp\ci-runner";
+        var svc = new RepositoryWatchService(
+            new FakeVolumeChangeSource(
+                new[]
+                {
+                    new VolumeChangeBatch("C", new[]
+                    {
+                        new VolumeChangeEntry(Path.Combine(ignoredTempSubtree, "repo", ".git"), VolumeEntryKind.Created),
+                    })
+                }),
+            trackedRoots: Array.Empty<string>(),
+            searchRoots: new[] { @"C:\" },
+            debounce: TimeSpan.FromMilliseconds(10),
+            includeTempDirectories: true,
+            ignoredPaths: new[] { ignoredTempSubtree });
+
+        var events = await DrainAsync(svc);
+
+        Assert.That(events, Is.Empty);
+    }
+
+    [Test]
     public async Task LiveDiscoveredRepository_SubsequentEdit_EmitsChanged()
     {
         var batches = new[]
@@ -575,3 +662,4 @@ public partial class RepositoryWatchServiceTests
         }));
     }
 }
+

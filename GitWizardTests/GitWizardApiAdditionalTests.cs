@@ -270,6 +270,35 @@ public class GitWizardApiAdditionalTests
     }
 
     [Test]
+    public void ExpandIgnoredPath_ExpandsPath_WithoutRequiringDirectoryExistence()
+    {
+        var nonExistentPath = Path.Combine(_tempRoot!, "non-existent-ignored-directory");
+        Assert.That(Directory.Exists(nonExistentPath), Is.False);
+
+        var result = GitWizardApi.ExpandIgnoredPath(nonExistentPath);
+
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Does.EndWith("non-existent-ignored-directory"));
+    }
+
+    [Test]
+    public void ExpandIgnoredPath_ReturnsNullForEmptyOrWhitespace()
+    {
+        Assert.That(GitWizardApi.ExpandIgnoredPath(""), Is.Null);
+        Assert.That(GitWizardApi.ExpandIgnoredPath("   "), Is.Null);
+    }
+
+    [Test]
+    public void ExpandIgnoredPaths_ExpandsCollectionAndFiltersNulls()
+    {
+        var nonExistentPath = Path.Combine(_tempRoot!, "another-non-existent-dir");
+        var result = GitWizardApi.ExpandIgnoredPaths(new[] { nonExistentPath, "", "   " });
+
+        Assert.That(result, Has.Count.EqualTo(1));
+        Assert.That(result.Single(), Does.EndWith("another-non-existent-dir"));
+    }
+
+    [Test]
     public void GetRepositoryPaths_SkipsDirectoriesStartingWithDot()
     {
         var root = Path.Combine(_tempRoot!, "root");
@@ -499,7 +528,37 @@ public class GitWizardApiAdditionalTests
         Assert.That(reloaded, Is.Not.Null);
         Assert.That(reloaded!, Has.Length.EqualTo(2));
     }
+
+    [Test]
+    public void GetRepositoryPaths_SearchRootInsideTemp_StillFindsRepositories()
+    {
+        // A search root configured inside a temp directory opts that subtree back in:
+        // explicit scope beats the default temp exclusion (TempDirectories).
+        var root = Path.Combine(_tempRoot!, "root");
+        var tempRepo = Path.Combine(root, "scratch", "repo");
+        Directory.CreateDirectory(Path.Combine(tempRepo, ".git"));
+
+        var paths = new SortedSet<string>();
+        GitWizardApi.GetRepositoryPaths(root, paths, Array.Empty<string>());
+
+        Assert.That(paths, Does.Contain(tempRepo).IgnoreCase);
+    }
+
+    [Test]
+    public void GetRepositoryPaths_SearchRootInsideTemp_StillFindsRepositories_WhenIncludeTempDirectoriesFalse()
+    {
+        var root = Path.Combine(_tempRoot!, "root");
+        var tempRepo = Path.Combine(root, "scratch", "repo");
+        Directory.CreateDirectory(Path.Combine(tempRepo, ".git"));
+
+        var paths = new SortedSet<string>();
+        GitWizardApi.GetRepositoryPaths(root, paths, Array.Empty<string>(), updateHandler: null,
+            skipHiddenDirectories: null, includeTempDirectories: false);
+
+        Assert.That(paths, Does.Contain(tempRepo).IgnoreCase);
+    }
 }
+
 
 public class TestUpdateHandler : IUpdateHandler
 {

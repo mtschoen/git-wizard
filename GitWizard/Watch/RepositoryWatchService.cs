@@ -21,7 +21,9 @@ public sealed class RepositoryWatchService
     readonly IVolumeChangeSource _source;
     readonly IReadOnlyCollection<string> _trackedRoots;
     readonly IReadOnlyCollection<string> _searchRoots;
+    readonly IReadOnlyCollection<string> _ignoredPaths;
     readonly TimeSpan _debounce;
+    readonly bool _includeTempDirectories;
 
     readonly Lock _errorsLock = new();
     FrozenDictionary<string, string> _scanErrors = FrozenDictionary<string, string>.Empty;
@@ -40,33 +42,29 @@ public sealed class RepositoryWatchService
     [UsedImplicitly]
     public IReadOnlyDictionary<string, string> ScanErrors
     {
-        get
-        {
-            lock (_errorsLock)
-                return _scanErrors;
-        }
+        get { lock (_errorsLock) return _scanErrors; }
     }
 
     [UsedImplicitly]
     public IReadOnlyCollection<JournalWarning> ScanWarnings
     {
-        get
-        {
-            lock (_errorsLock)
-                return _scanWarnings;
-        }
+        get { lock (_errorsLock) return _scanWarnings; }
     }
 
     public RepositoryWatchService(
         IVolumeChangeSource source,
         IReadOnlyCollection<string> trackedRoots,
         IReadOnlyCollection<string> searchRoots,
-        TimeSpan? debounce = null)
+        TimeSpan? debounce = null,
+        bool includeTempDirectories = false,
+        IReadOnlyCollection<string>? ignoredPaths = null)
     {
         _source = source;
         _trackedRoots = trackedRoots;
         _searchRoots = searchRoots;
         _debounce = debounce ?? TimeSpan.FromMilliseconds(500);
+        _includeTempDirectories = includeTempDirectories;
+        _ignoredPaths = ignoredPaths ?? [];
     }
 
     public async IAsyncEnumerable<RepositoryChangeEvent> RunAsync(
@@ -121,7 +119,6 @@ public sealed class RepositoryWatchService
         }
         finally
         {
-            // An early consumer exit must stop the pending source read before awaiting the pump.
             await deathSignal.CancelAsync().ConfigureAwait(false);
             await pumpTask.ConfigureAwait(false);
         }
@@ -133,11 +130,10 @@ public sealed class RepositoryWatchService
         {
             if (_scanErrors.TryGetValue(drive, out var previous) && previous == message)
                 return;
-            var errors = new Dictionary<string, string>(_scanErrors, StringComparer.OrdinalIgnoreCase)
+            _scanErrors = new Dictionary<string, string>(_scanErrors, StringComparer.OrdinalIgnoreCase)
             {
                 [drive] = message
-            };
-            _scanErrors = errors.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+            }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
         }
         ScanErrorsChanged?.Invoke();
     }
@@ -148,28 +144,21 @@ public sealed class RepositoryWatchService
     {
         lock (_errorsLock)
         {
-            // A diagnostic raised during arming is newer than the initial scan result.
             var errors = new Dictionary<string, string>(armResult.Errors, StringComparer.OrdinalIgnoreCase);
             foreach (var (drive, message) in _scanErrors)
                 errors[drive] = message;
             _scanErrors = errors.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
 
-            var warnings = armResult.JournalWarnings
+            _scanWarnings = armResult.JournalWarnings
                 .GroupBy(warning => warning.DriveLetter, StringComparer.OrdinalIgnoreCase)
-                .Select(group => group.Last());
-            _scanWarnings = warnings.ToFrozenSet();
+                .Select(group => group.Last())
+                .ToFrozenSet();
         }
         ScanErrorsChanged?.Invoke();
         ScanWarningsChanged?.Invoke();
     }
 
     // Owns the linked CancellationTokenSource used to fold source death into cancellation.
-    // The SourceDied handler is an instance method reading instance fields, not a closure
-    // capturing a local that this type later disposes - keeping the source-death wiring out
-    // of RunCoreAsync's own scope avoids a disposed-closure hazard there. Takes the death callback
-    // directly (rather than exposing its own event) since RunCoreAsync is its only caller and
-    // always attaches exactly one handler - a nullable event here would just be an
-    // unreachable null-check branch.
     sealed class SourceDeathSignal : IDisposable
     {
         readonly IVolumeChangeSource _source;
@@ -186,25 +175,15 @@ public sealed class RepositoryWatchService
 
         public CancellationToken Token => _cts.Token;
         public Task CancelAsync() => _cts.CancelAsync();
-
-        void OnSourceDied(string reason)
-        {
-            _onDied(reason);
-            _ = _cts.CancelAsync();
-        }
-
-        public void Dispose()
-        {
-            _source.SourceDied -= OnSourceDied;
-            _cts.Cancel();
-            _cts.Dispose();
-        }
+        void OnSourceDied(string reason) { _onDied(reason); _ = _cts.CancelAsync(); }
+        public void Dispose() { _source.SourceDied -= OnSourceDied; _cts.Cancel(); _cts.Dispose(); }
     }
 
     async Task<Dictionary<string, RepositoryChangeFilter>> BuildFiltersByVolumeAsync(CancellationToken ct)
     {
         var trackedByVolume = GroupRootsByVolume(_trackedRoots);
         var searchByVolume = GroupRootsByVolume(_searchRoots);
+        var ignoredByVolume = GroupRootsByVolume(_ignoredPaths);
         var volumes = trackedByVolume.Keys
             .Union(searchByVolume.Keys, StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -217,7 +196,9 @@ public sealed class RepositoryWatchService
         {
             trackedByVolume.TryGetValue(volume, out var tracked);
             searchByVolume.TryGetValue(volume, out var search);
-            filters[volume] = new RepositoryChangeFilter(tracked ?? [], search ?? []);
+            ignoredByVolume.TryGetValue(volume, out var ignored);
+            filters[volume] = new RepositoryChangeFilter(
+                tracked ?? [], search ?? [], ignored ?? [], _includeTempDirectories);
         }
 
         return filters;
@@ -303,12 +284,6 @@ public sealed class RepositoryWatchService
         }
         finally
         {
-            // If idle won the race above (or ct cancelled between iterations), nextBatch's
-            // MoveNextAsync may still be outstanding when this method returns/throws. The
-            // caller's `await using` then disposes the enumerator immediately - and a
-            // compiler-generated async-iterator enumerator throws NotSupportedException if
-            // DisposeAsync races a still-in-flight MoveNextAsync. Observing it here first
-            // (swallowing only the expected cancellation) makes that always safe.
             await ObserveCancellationAsync(nextBatch).ConfigureAwait(false);
         }
 
@@ -344,20 +319,12 @@ public sealed class RepositoryWatchService
 
             hasRelevantChanges = true;
             var (kind, root) = classification.Value;
-            switch (kind)
-            {
-                case RepositoryChangeKind.Created:
-                    filter.AddRepositoryRoot(root);
-                    pending.Add(root, RepositoryChangeKind.Created);
-                    break;
-                case RepositoryChangeKind.Deleted:
-                    filter.RemoveRepositoryRoot(root);
-                    pending.Add(root, RepositoryChangeKind.Deleted);
-                    break;
-                case RepositoryChangeKind.Changed:
-                    pending.Add(root, RepositoryChangeKind.Changed);
-                    break;
-            }
+            if (kind == RepositoryChangeKind.Created)
+                filter.AddRepositoryRoot(root);
+            else if (kind == RepositoryChangeKind.Deleted)
+                filter.RemoveRepositoryRoot(root);
+
+            pending.Add(root, kind);
         }
 
         return hasRelevantChanges;
@@ -393,34 +360,23 @@ public sealed class RepositoryWatchService
                 _stateByRoot[root] = state;
             }
 
-            switch (kind)
+            if (kind is RepositoryChangeKind.Created or RepositoryChangeKind.Deleted)
             {
-                case RepositoryChangeKind.Created:
-                    if (state.LastEvent == RepositoryChangeKind.Created)
-                        return;
+                if (state.LastEvent == kind)
+                    return;
 
-                    state.LastEvent = RepositoryChangeKind.Created;
-                    state.HasChangedSinceLifecycle = false;
-                    _events.Add(new RepositoryChangeEvent(root, RepositoryChangeKind.Created));
-                    break;
+                state.LastEvent = kind;
+                state.HasChangedSinceLifecycle = false;
+                _events.Add(new RepositoryChangeEvent(root, kind));
+            }
+            else if (kind == RepositoryChangeKind.Changed)
+            {
+                if (state.HasChangedSinceLifecycle)
+                    return;
 
-                case RepositoryChangeKind.Deleted:
-                    if (state.LastEvent == RepositoryChangeKind.Deleted)
-                        return;
-
-                    state.LastEvent = RepositoryChangeKind.Deleted;
-                    state.HasChangedSinceLifecycle = false;
-                    _events.Add(new RepositoryChangeEvent(root, RepositoryChangeKind.Deleted));
-                    break;
-
-                case RepositoryChangeKind.Changed:
-                    if (state.HasChangedSinceLifecycle)
-                        return;
-
-                    state.LastEvent = RepositoryChangeKind.Changed;
-                    state.HasChangedSinceLifecycle = true;
-                    _events.Add(new RepositoryChangeEvent(root, RepositoryChangeKind.Changed));
-                    break;
+                state.LastEvent = RepositoryChangeKind.Changed;
+                state.HasChangedSinceLifecycle = true;
+                _events.Add(new RepositoryChangeEvent(root, RepositoryChangeKind.Changed));
             }
         }
 

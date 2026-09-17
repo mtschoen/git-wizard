@@ -138,7 +138,8 @@ public class IndexDiscoveryTests
         });
         var entries = GitWizardApi.SelectGitEntries(index, includeGitFiles: true);
         Assert.That(entries, Has.Count.EqualTo(2));
-        var candidates = GitWizardApi.ResolveRepositoryRootCandidates(index, entries, @"X:\", Array.Empty<string>()).ToArray();
+        var candidates = GitWizardApi.ResolveRepositoryRootCandidates(index, entries, @"X:\", Array.Empty<string>(),
+            includeTempDirectories: true).ToArray();
         Assert.That(candidates, Is.EqualTo(new[] { Path.Combine(files.TreePath, "validrepo") }));
     }
 

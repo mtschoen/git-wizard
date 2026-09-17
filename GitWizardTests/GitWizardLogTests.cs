@@ -468,4 +468,30 @@ public class GitWizardLogTests
 
         Assert.That(output, Does.Contain("Test message for log file"));
     }
+
+    [Test]
+    public void Log_VerboseMode_DoesNotOutputDebug()
+    {
+        GitWizardLog.VerboseMode = false;
+        var output = string.Empty;
+        GitWizardLog.LogMethod = msg => { output = msg!; };
+
+        GitWizardLog.Log("Debug message", GitWizardLog.LogType.Debug);
+
+        Assert.That(output, Is.Empty);
+    }
+
+    [Test]
+    public void Log_VerboseMode_OutputsDebug()
+    {
+        GitWizardLog.VerboseMode = true;
+        var output = string.Empty;
+        GitWizardLog.LogMethod = msg => { output = msg!; };
+
+        GitWizardLog.Log("Debug message", GitWizardLog.LogType.Debug);
+
+        Assert.That(output, Does.Contain("Debug message"));
+        Assert.That(output, Does.Contain("Debug"));
+    }
 }
+

@@ -57,10 +57,13 @@ public static partial class Program
             .Select(GitWizardApi.ExpandSearchPath)
             .OfType<string>()
             .ToList();
+        var ignoredRoots = GitWizardApi.ExpandIgnoredPaths(configuration.IgnoredPaths);
 
         using var ctrlC = new CtrlCCancellation();
         await using var source = _sourceFactory();
-        var service = new RepositoryWatchService(source, repositoryPaths, searchRoots);
+        var service = new RepositoryWatchService(source, repositoryPaths, searchRoots,
+            includeTempDirectories: configuration.IncludeTempDirectories == true,
+            ignoredPaths: ignoredRoots);
 
         var stopped = await RunWatchLoopAsync(service, Console.WriteLine, Environment.Exit, ctrlC.Token)
             .ConfigureAwait(false);

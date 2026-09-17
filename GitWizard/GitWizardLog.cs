@@ -15,7 +15,13 @@ public static class GitWizardLog
         Verbose = 0,
         Info = 1,
         Warning = 2,
-        Error = 3
+        Error = 3,
+
+        /// <summary>Gated by <see cref="VerboseMode"/> exactly like <see cref="Verbose"/>, but
+        /// named for messages that diagnose an expected transient state (e.g. a repository
+        /// directory that vanished before its refresh ran), so an enabled verbose log reads at
+        /// the message's real severity. Appended to preserve existing numeric values.</summary>
+        Debug = 4
     }
 
     const string LogFileNameFormat = "GitWizardLog_{0:yyyy-MM-dd}.log";
@@ -81,7 +87,7 @@ public static class GitWizardLog
         if (SilentMode)
             return;
 
-        if (type == LogType.Verbose && !VerboseMode)
+        if ((type is LogType.Verbose or LogType.Debug) && !VerboseMode)
             return;
 
         var formattedMessage = string.Format(CultureInfo.InvariantCulture, LogMessageCompositeFormat, DateTime.UtcNow, type, message);

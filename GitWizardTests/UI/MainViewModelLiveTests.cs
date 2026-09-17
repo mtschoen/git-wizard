@@ -141,6 +141,17 @@ public class MainViewModelLiveTests
     }
 
     [Test]
+    public async Task ApplyLiveEvent_Created_VanishedRepo_IsDroppedQuietly()
+    {
+        var viewModel = NewViewModel();
+        var vanished = Path.Combine(Path.GetTempPath(), "gw-vanished-" + Guid.NewGuid().ToString("N"));
+
+        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(vanished, RepositoryChangeKind.Created));
+
+        Assert.That(viewModel.Repositories, Is.Empty);
+    }
+
+    [Test]
     public async Task ApplyLiveEvent_DeletedUncorrelated_RemovesNodeAfterCorrelationWindow()
     {
         var viewModel = NewViewModel();

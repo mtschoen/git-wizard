@@ -177,7 +177,10 @@ commit must exist on both MFTLib remotes.**
 ## Local files
 
 GitWizard stores config and cache in `~/.GitWizard/`:
-- `config.json` - Search paths, ignored paths
+- `config.json` - Search paths, ignored paths, `includeTempDirectories` (temp directories -
+  every profile's `AppData\Local\Temp` on Windows, the process's %TEMP%/%TMP%, and `/tmp` plus
+  `$TMPDIR` on Linux - are excluded from discovery and Live by default; set true to include
+  them)
 - `repositories.txt` - Cached repo list
 - `report.json` - Cached report
 
@@ -254,6 +257,12 @@ Enrollment (adding git-wizard to pr-crew's `[preview]` config on llamabox) is an
 - **Avalonia bindings don't apply the target property's `TypeConverter`** - binding a *string* to a `Thickness` property - e.g. `RepositoryNodeViewModel.ItemPaddingString` → `Padding` - throws `InvalidCastException` on every realized row during scroll. Avalonia's default converter *does* handle string→primitive, string→enum (`FontWeight`), and string→`IBrush` (`StatusColorHex`→`Foreground`), but NOT `Thickness`. Use an explicit `IValueConverter` (`StringToThicknessConverter`) and keep the VM framework-agnostic (string in, convert in the view).
 - **`LibGit2Sharp.Repository.IsValid(path)` is not fully non-throwing:** it returns `false` for a plain non-repo directory, but *throws* `LibGit2SharpException` for other conditions - notably git's "repository path ... is not owned by current user" ownership protection. `GitWizardRepository.Refresh` guards `new Repository(...)` with `IsValid` to skip stale/non-repo cache entries without spamming first-chance `RepositoryNotFoundException`, but that check lives **inside** the existing try so ownership/other errors still fall through to the catch as a normal refresh error (`RefreshConcurrencyTest` covers this). Don't hoist the `IsValid` call outside the try.
 - **Refresh vs discovery/UAC:** ordinary GUI Refresh re-checks cached repository paths (`~/.GitWizard/repositories.txt`) without MFT discovery or UAC. A missing cache triggers discovery. Shift+click Refresh clears the cache and rediscovers; replacing the prepared discovery owner disposes the previous one. Starting Live transfers that owner to the Windows source; a disposed, faulted, or mismatched owner is replaced.
+- **Temp directories are excluded by default:** discovery and Live ignore every profile's
+  `AppData\Local\Temp` (any drive/profile), the process's %TEMP%/%TMP%, and `/tmp`/`$TMPDIR`,
+  via the shared `TempDirectories.IsTempPath` check. A search root configured inside a temp
+  directory opts that subtree back in; `includeTempDirectories: true` disables the exclusion
+  globally. Test fixtures live under temp, so fixture-based discovery tests pass
+  `includeTempDirectories: true` explicitly.
 - **Avalonia UI updates:** `MainViewModel.SendUpdateMessage` coalesces status posts (at most one UI update in flight) so a large/recursive scan can't flood the dispatcher and wedge the window ("Not Responding"). Don't revert it to `_ui.Post` per message.
 - **Refresh runs `ApplyFilterAndGrouping` off the UI thread:** `RefreshAsync` awaits with `ConfigureAwait(false)`, so its tail (incl. `ApplyFilterAndGrouping` and the `Repositories` swap) runs on a thread-pool thread. Avalonia *tolerates* the off-thread collection-property swap, but visual-tree access (e.g. `ScrollViewer.Offset`) calls `VerifyAccess()` and throws `Call from invalid thread`. The swap + its `AfterRepositoriesSwap` hook are therefore marshaled to the UI thread via `_ui.Post` when `!_ui.IsOnUiThread` (the off-screen build stays off-thread for the 700-repo perf win). Keep any UI-touching swap work inside that marshaled block.
 - **Scroll preservation on refresh (RESOLVED - `MainWindow.RestoreScrollAnchor`):** the `Repositories` swap resets the `ListBox` to the top. Restoring is NOT a one-shot `ScrollViewer.Offset` set - under `VirtualizingStackPanel` the scrollable extent is an *estimate* that's wrong until layout settles (AvaloniaUI/Avalonia#17460/#17848), so a single offset set lands against a stale extent and is silently clamped (the old symptom: "scroll did nothing"). The working recipe is a **closed loop**: `ScrollIntoView(anchor)` *once* to materialize it, then a bounded `DispatcherTimer` measures the anchor row's actual Y each layout pass and corrects `offset += containerY + above` until it reaches the top (converges in 1-2 passes). Don't re-call `ScrollIntoView` each pass (it re-aligns a partly-off-top row and fights the nudge → oscillation). `ScrollIntoView` alone does NOT top-align, and a two-step ScrollIntoView trick is unreliable with variable row heights. Validated headless + real window by the `avalonia-vsp-scroll-top` spike (`~/.claude/notes/spike_avalonia-vsp-scroll-top.md`). **Headless does NOT reproduce the bug** (a single offset set sticks when layout is pumped synchronously) - validate scroll/extent timing in a real `--headed` window.

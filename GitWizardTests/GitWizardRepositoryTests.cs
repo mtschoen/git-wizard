@@ -545,4 +545,60 @@ public class GitWizardRepositoryTests
 
         throw new DirectoryNotFoundException("Could not find git repo root from working directory");
     }
+
+    [Test]
+    [NonParallelizable]
+    public void Refresh_VanishedWorkingDirectory_LogsDebugNotError()
+    {
+        var messages = new List<string>();
+        var originalLogMethod = GitWizardLog.LogMethod;
+        var originalVerboseMode = GitWizardLog.VerboseMode;
+        var originalSilentMode = GitWizardLog.SilentMode;
+        GitWizardLog.LogMethod = message => { if (message != null) messages.Add(message); };
+        GitWizardLog.VerboseMode = true;
+        GitWizardLog.SilentMode = false;
+        try
+        {
+            var missing = Path.Combine(Path.GetTempPath(), "gw-vanished-" + Guid.NewGuid().ToString("N"));
+            new GitWizardRepository(missing).Refresh();
+        }
+        finally
+        {
+            GitWizardLog.LogMethod = originalLogMethod;
+            GitWizardLog.VerboseMode = originalVerboseMode;
+            GitWizardLog.SilentMode = originalSilentMode;
+        }
+
+        // Matches<string> lambda (suite precedent: ElevationCoverageTests): a single captured
+        // line must carry both the message and the Debug level in the "[ts] - Debug: ..." format.
+        Assert.That(messages, Has.Some.Matches<string>(m => m.Contains("is invalid") && m.Contains("Debug")));
+        Assert.That(messages, Has.None.Contains("Error"));
+    }
+
+    [Test]
+    [NonParallelizable]
+    public void Refresh_VanishedWorkingDirectory_SuppressedWithoutVerboseMode()
+    {
+        var messages = new List<string>();
+        var originalLogMethod = GitWizardLog.LogMethod;
+        var originalVerboseMode = GitWizardLog.VerboseMode;
+        var originalSilentMode = GitWizardLog.SilentMode;
+        GitWizardLog.LogMethod = message => { if (message != null) messages.Add(message); };
+        GitWizardLog.VerboseMode = false;
+        GitWizardLog.SilentMode = false;
+        try
+        {
+            var missing = Path.Combine(Path.GetTempPath(), "gw-vanished-" + Guid.NewGuid().ToString("N"));
+            new GitWizardRepository(missing).Refresh();
+        }
+        finally
+        {
+            GitWizardLog.LogMethod = originalLogMethod;
+            GitWizardLog.VerboseMode = originalVerboseMode;
+            GitWizardLog.SilentMode = originalSilentMode;
+        }
+
+        Assert.That(messages, Has.None.Contains("is invalid"));
+    }
 }
+

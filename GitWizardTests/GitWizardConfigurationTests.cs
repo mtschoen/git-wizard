@@ -390,4 +390,44 @@ public class GitWizardConfigurationTests
         Assert.That(loaded, Is.Not.Null);
         Assert.That(loaded!.SearchPaths, Does.Contain("/dup"));
     }
+
+    [Test]
+    public void Save_SerializesIncludeTempDirectories_True()
+    {
+        var config = new GitWizardConfiguration { IncludeTempDirectories = true };
+        var jsonPath = Path.Combine(_tempRoot!, "include_temp_true.json");
+
+        config.Save(jsonPath);
+
+        var json = File.ReadAllText(jsonPath);
+        Assert.That(json, Does.Contain("includeTempDirectories"));
+        Assert.That(json, Does.Contain("true"));
+    }
+
+    [Test]
+    public void Save_OmitsIncludeTempDirectories_WhenNull()
+    {
+        var config = new GitWizardConfiguration();
+        var jsonPath = Path.Combine(_tempRoot!, "include_temp_default.json");
+
+        config.Save(jsonPath);
+
+        var json = File.ReadAllText(jsonPath);
+        // DefaultIgnoreCondition = WhenWritingDefault omits null (the default for bool?)
+        Assert.That(json, Does.Not.Contain("includeTempDirectories"));
+    }
+
+    [Test]
+    public void GetConfigurationAtPath_DeserializesIncludeTempDirectories_False()
+    {
+        var config = new GitWizardConfiguration { IncludeTempDirectories = false };
+        var jsonPath = Path.Combine(_tempRoot!, "load_include_temp_false.json");
+        config.Save(jsonPath);
+
+        var loaded = GitWizardConfiguration.GetConfigurationAtPath(jsonPath);
+
+        Assert.That(loaded, Is.Not.Null);
+        Assert.That(loaded!.IncludeTempDirectories, Is.False);
+    }
 }
+

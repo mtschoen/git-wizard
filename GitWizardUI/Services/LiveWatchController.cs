@@ -17,6 +17,8 @@ public sealed class LiveWatchController
     readonly Action<RepositoryChangeEvent> _onEvent;
     readonly Action<string> _onStopped;
     readonly Func<bool> _isElevated;
+    readonly bool _includeTempDirectories;
+    readonly IReadOnlyCollection<string> _ignoredPaths;
 
     public event Action? Started;
     public event Action? ScanErrorsChanged;
@@ -39,13 +41,26 @@ public sealed class LiveWatchController
         Action<RepositoryChangeEvent> onEvent,
         Action<string> onStopped,
         Func<bool> isElevated)
+        : this(sourceFactory, trackedRoots, searchRoots, onEvent, onStopped, new LiveWatchOptions { IsElevated = isElevated })
+    {
+    }
+
+    public LiveWatchController(
+        Func<IVolumeChangeSource> sourceFactory,
+        IReadOnlyCollection<string> trackedRoots,
+        IReadOnlyCollection<string> searchRoots,
+        Action<RepositoryChangeEvent> onEvent,
+        Action<string> onStopped,
+        LiveWatchOptions? options = null)
     {
         _sourceFactory = sourceFactory;
         _trackedRoots = trackedRoots;
         _searchRoots = searchRoots;
         _onEvent = onEvent;
         _onStopped = onStopped;
-        _isElevated = isElevated;
+        _isElevated = options?.IsElevated ?? (() => false);
+        _includeTempDirectories = options?.IncludeTempDirectories ?? false;
+        _ignoredPaths = options?.IgnoredPaths ?? [];
     }
 
     public IReadOnlyDictionary<string, string> ScanErrors
@@ -93,7 +108,9 @@ public sealed class LiveWatchController
                     return;
 
                 var source = _sourceFactory();
-                service = new RepositoryWatchService(source, _trackedRoots, _searchRoots);
+                service = new RepositoryWatchService(source, _trackedRoots, _searchRoots,
+                    includeTempDirectories: _includeTempDirectories,
+                    ignoredPaths: _ignoredPaths);
                 runCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 _source = source;
                 _service = service;
@@ -220,4 +237,25 @@ public sealed class LiveWatchController
     void OnScanProgress(VolumeScanProgress sample) => ScanProgress?.Invoke(sample);
     void OnScanErrorsChanged() => ScanErrorsChanged?.Invoke();
     void OnScanWarningsChanged() => ScanWarningsChanged?.Invoke();
+}
+
+/// <summary>
+/// Optional configuration settings for <see cref="LiveWatchController"/>.
+/// </summary>
+public sealed class LiveWatchOptions
+{
+    /// <summary>
+    /// Probe function indicating whether the process currently has elevated privileges.
+    /// </summary>
+    public Func<bool>? IsElevated { get; init; }
+
+    /// <summary>
+    /// When true, includes temp directories in live change tracking and discovery.
+    /// </summary>
+    public bool IncludeTempDirectories { get; init; }
+
+    /// <summary>
+    /// Configured ignored paths to exclude from live change tracking and discovery.
+    /// </summary>
+    public IReadOnlyCollection<string>? IgnoredPaths { get; init; }
 }

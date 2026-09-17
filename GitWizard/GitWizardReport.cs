@@ -45,6 +45,13 @@ public partial class GitWizardReport : IAsyncDisposable
     /// </summary>
     public bool? SkipHiddenDirectories { get; set; }
 
+    /// <summary>
+    /// Whether this report's scan includes temp directories. Mirrors
+    /// <see cref="GitWizardConfiguration.IncludeTempDirectories"/>. <c>null</c> (the default)
+    /// excludes them.
+    /// </summary>
+    public bool? IncludeTempDirectories { get; set; }
+
     public SortedDictionary<string, GitWizardRepository> Repositories { get; set; } = new();
     public HashSet<string> DeletedPaths { get; private set; } = new();
 
@@ -148,6 +155,7 @@ public partial class GitWizardReport : IAsyncDisposable
         SearchPaths = configuration.SearchPaths;
         IgnoredPaths = configuration.IgnoredPaths;
         SkipHiddenDirectories = configuration.SkipHiddenDirectories;
+        IncludeTempDirectories = configuration.IncludeTempDirectories;
     }
 
     /// <summary>
@@ -405,6 +413,7 @@ public partial class GitWizardReport : IAsyncDisposable
             SearchPaths = SearchPaths,
             IgnoredPaths = IgnoredPaths,
             SkipHiddenDirectories = SkipHiddenDirectories,
+            IncludeTempDirectories = IncludeTempDirectories,
             Repositories = repositoriesSnapshot,
             DeletedPaths = DeletedPaths,
             NonRepositoryPaths = NonRepositoryPaths,

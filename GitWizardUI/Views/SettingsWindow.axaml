@@ -6,13 +6,13 @@
         x:Class="GitWizardUI.Views.SettingsWindow"
         x:DataType="vm:SettingsViewModel"
         Title="Settings"
-        Width="600" Height="650"
+        Width="600" Height="700"
         WindowStartupLocation="CenterOwner">
   <Window.Resources>
     <converters:PathPrettyPrintConverter x:Key="PathPrettyPrintConverter" />
   </Window.Resources>
   <ScrollViewer VerticalScrollBarVisibility="Auto">
-  <Grid MinHeight="620" RowDefinitions="Auto,*,Auto,Auto,*,Auto,Auto,Auto,Auto,*,Auto,Auto,Auto,Auto" Margin="10">
+  <Grid MinHeight="670" RowDefinitions="Auto,*,Auto,Auto,*,Auto,Auto,Auto,Auto,*,Auto,Auto,Auto,Auto,Auto,Auto" Margin="10">
     <StackPanel Grid.Row="0" Margin="0,0,0,5">
       <TextBlock Text="Search Paths" FontSize="16" FontWeight="Bold" />
       <TextBlock Text="Directories to search for Git repositories" FontSize="12" Foreground="Gray" />
@@ -80,7 +80,10 @@
     <CheckBox Grid.Row="11" Content="Skip hidden directories (starting with '.')" IsChecked="{Binding SkipHiddenDirectories, Mode=TwoWay}" Margin="0,5,0,0" />
     <TextBlock Grid.Row="12" Text="When enabled, directories whose last path segment starts with '.' are skipped during repository discovery." FontSize="12" Foreground="Gray" Margin="0,2,0,0" />
 
-    <StackPanel Grid.Row="13" Spacing="3" Margin="0,10,0,0">
+    <CheckBox Grid.Row="13" Content="Include temp directories" IsChecked="{Binding IncludeTempDirectories, Mode=TwoWay}" Margin="0,5,0,0" />
+    <TextBlock Grid.Row="14" Text="When enabled, discovery and Live include temp directories (every profile's AppData\Local\Temp, %TEMP%/%TMP%, /tmp). Leave off to keep CI and test scratch repositories out of the scan and the log." FontSize="12" Foreground="Gray" Margin="0,2,0,0" TextWrapping="Wrap" />
+
+    <StackPanel Grid.Row="15" Spacing="3" Margin="0,10,0,0">
       <TextBlock Text="Tips:" FontWeight="Bold" FontSize="14" />
       <TextBlock Text="• Use environment variables like %USERPROFILE% or %APPDATA%" FontSize="12" />
       <TextBlock Text="• Changes are saved automatically" FontSize="12" />

@@ -33,7 +33,8 @@ public partial class GitWizardReport
         {
             SearchPaths = SearchPaths,
             IgnoredPaths = IgnoredPaths,
-            SkipHiddenDirectories = SkipHiddenDirectories
+            SkipHiddenDirectories = SkipHiddenDirectories,
+            IncludeTempDirectories = IncludeTempDirectories
         };
 
         if (retainDiscoveryIndex)
@@ -64,7 +65,8 @@ public partial class GitWizardReport
 
         Parallel.ForEach(SearchPaths, path =>
         {
-            GitWizardApi.GetRepositoryPaths(path, repositoryPaths, IgnoredPaths, updateHandler);
+            GitWizardApi.GetRepositoryPaths(path, repositoryPaths, IgnoredPaths, updateHandler,
+                SkipHiddenDirectories, IncludeTempDirectories);
 
             try
             {

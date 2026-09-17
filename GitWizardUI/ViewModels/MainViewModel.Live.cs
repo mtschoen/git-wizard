@@ -50,16 +50,10 @@ public partial class MainViewModel
         }
     }
 
-    public bool IsLiveSupported
-    {
-        get
-        {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || _liveCapabilityProbe != null)
-                return LiveCapabilityProbe().IsSupported;
-
-            return RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-        }
-    }
+    public bool IsLiveSupported =>
+        RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || _liveCapabilityProbe != null
+            ? LiveCapabilityProbe().IsSupported
+            : RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
 
     public string LiveTooltip
     {
@@ -67,18 +61,17 @@ public partial class MainViewModel
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || _liveCapabilityProbe != null)
             {
-                var probe = LiveCapabilityProbe();
-                if (probe.Status == FanotifyCapabilityStatus.UnsupportedKernel)
-                    return "Live mode requires Linux kernel 5.9 or newer (unsupported kernel).";
-                if (probe.Status == FanotifyCapabilityStatus.UnsupportedFileSystem)
-                    return "Live mode is unsupported on this filesystem (fanotify marks not supported).";
-            }
-            else if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                return "Live mode currently requires Windows or Linux.";
+                return LiveCapabilityProbe().Status switch
+                {
+                    FanotifyCapabilityStatus.UnsupportedKernel => "Live mode requires Linux kernel 5.9 or newer (unsupported kernel).",
+                    FanotifyCapabilityStatus.UnsupportedFileSystem => "Live mode is unsupported on this filesystem (fanotify marks not supported).",
+                    _ => "Start or stop live repository monitoring (requires elevation when starting)"
+                };
             }
 
-            return "Start or stop live repository monitoring (requires elevation when starting)";
+            return RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                ? "Start or stop live repository monitoring (requires elevation when starting)"
+                : "Live mode currently requires Windows or Linux.";
         }
     }
 
@@ -87,22 +80,12 @@ public partial class MainViewModel
     internal async Task ApplyLiveEventAsync(RepositoryChangeEvent ev)
     {
         var sequenceNumber = Interlocked.Increment(ref _liveEventSequenceNumber);
-        switch (ev.Kind)
-        {
-            case RepositoryChangeKind.Changed:
-                await ApplyLiveChangedAsync(ev.RepoRoot).ConfigureAwait(false);
-                break;
-            case RepositoryChangeKind.Created:
-                await ApplyLiveCreatedAsync(ev.RepoRoot, sequenceNumber).ConfigureAwait(false);
-                break;
-            case RepositoryChangeKind.Deleted:
-                ApplyLiveDeleted(ev.RepoRoot, sequenceNumber);
-                break;
-            case RepositoryChangeKind.Renamed:
-                // RepositoryWatchService never emits this kind (see its class doc): rename
-                // correlation happens here instead, from a Deleted+Created pair.
-                break;
-        }
+        if (ev.Kind == RepositoryChangeKind.Changed)
+            await ApplyLiveChangedAsync(ev.RepoRoot).ConfigureAwait(false);
+        else if (ev.Kind == RepositoryChangeKind.Created)
+            await ApplyLiveCreatedAsync(ev.RepoRoot, sequenceNumber).ConfigureAwait(false);
+        else if (ev.Kind == RepositoryChangeKind.Deleted)
+            ApplyLiveDeleted(ev.RepoRoot, sequenceNumber);
     }
 
     async Task ApplyLiveChangedAsync(string repoRoot)
@@ -140,23 +123,21 @@ public partial class MainViewModel
         var repository = new GitWizardRepository(repoRoot);
         await Task.Run(() => repository.Refresh()).ConfigureAwait(false);
 
+        // A short-lived repository (CI/test scratch repos) may already be gone by the time its
+        // refresh ran: drop it quietly instead of adding a phantom node.
+        if (!Directory.Exists(repoRoot))
+            return;
+
         _ui.Post(() =>
         {
-            if (!_pendingCreateSequenceNumbers.TryGetValue(repoRoot, out var pendingSequenceNumber)
-                || pendingSequenceNumber != sequenceNumber)
-            {
-                // Deletion invalidates the creation itself, so expiry cannot make it valid again.
+            if (!_pendingCreateSequenceNumbers.TryGetValue(repoRoot, out var pendingSeq) || pendingSeq != sequenceNumber)
                 return;
-            }
             _pendingCreateSequenceNumbers.Remove(repoRoot);
 
-            if (_pendingDeletedRepos.TryGetValue(repoRoot, out var pending))
+            if (_pendingDeletedRepos.TryGetValue(repoRoot, out var pending) && pending.SequenceNumber < sequenceNumber)
             {
-                if (pending.SequenceNumber < sequenceNumber)
-                {
-                    _pendingDeletedRepos.Remove(repoRoot);
-                    _ = CancelAndDisposeAsync(pending.ExpireCts);
-                }
+                _pendingDeletedRepos.Remove(repoRoot);
+                _ = CancelAndDisposeAsync(pending.ExpireCts);
             }
 
             var renamedFrom = TryCorrelateRename(repoRoot, repository);
@@ -171,17 +152,14 @@ public partial class MainViewModel
     {
         _ui.Post(() =>
         {
-            if (_pendingCreateSequenceNumbers.TryGetValue(repoRoot, out var pendingSequenceNumber)
-                && pendingSequenceNumber < sequenceNumber)
+            if (_pendingCreateSequenceNumbers.TryGetValue(repoRoot, out var pendingSeq) && pendingSeq < sequenceNumber)
                 _pendingCreateSequenceNumbers.Remove(repoRoot);
 
             if (!_repositoryMap.TryGetValue(repoRoot, out var node))
                 return;
 
             if (_pendingDeletedRepos.TryGetValue(repoRoot, out var existing))
-            {
                 _ = CancelAndDisposeAsync(existing.ExpireCts);
-            }
 
             var expireCts = new CancellationTokenSource();
             _pendingDeletedRepos[repoRoot] = (node.Repository, expireCts, sequenceNumber);
@@ -211,22 +189,13 @@ public partial class MainViewModel
 
     async Task ExpirePendingDeleteAsync(string repoRoot, CancellationToken token)
     {
-        try
-        {
-            await Task.Delay(RenameCorrelationWindowMilliseconds, token).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            // Correlated into a rename (or superseded) before the window elapsed.
-            return;
-        }
+        try { await Task.Delay(RenameCorrelationWindowMilliseconds, token).ConfigureAwait(false); }
+        catch (OperationCanceledException) { return; }
 
         _ui.Post(() =>
         {
             if (_pendingDeletedRepos.Remove(repoRoot))
-            {
                 RemoveRepositoryByPath(repoRoot);
-            }
         });
     }
 
@@ -248,8 +217,8 @@ public partial class MainViewModel
             return;
 
         _reportedLiveScanErrors.Clear();
-        var (trackedRoots, searchRoots) = await GetLiveRootsAsync().ConfigureAwait(false);
-        var controller = CreateConfiguredLiveController(trackedRoots, searchRoots);
+        var (trackedRoots, searchRoots, ignoredRoots, includeTempDirectories) = await GetLiveRootsAsync().ConfigureAwait(false);
+        var controller = CreateConfiguredLiveController(trackedRoots, searchRoots, ignoredRoots, includeTempDirectories);
         var detachHandlers = AttachLiveControllerHandlers(controller);
         _liveController = controller;
 
@@ -270,16 +239,16 @@ public partial class MainViewModel
         }
     }
 
-    LiveWatchController CreateConfiguredLiveController(List<string> trackedRoots, List<string> searchRoots)
-    {
-        return new LiveWatchController(
+    LiveWatchController CreateConfiguredLiveController(
+        List<string> trackedRoots,
+        List<string> searchRoots,
+        List<string> ignoredRoots,
+        bool includeTempDirectories) =>
+        new(
             LiveVolumeChangeSourceFactory,
             trackedRoots,
             searchRoots,
-            onEvent: ev =>
-            {
-                _ = ApplyLiveEventAsync(ev);
-            },
+            onEvent: ev => _ = ApplyLiveEventAsync(ev),
             onStopped: reason => _ui.Post(() =>
             {
                 IsLiveStarting = false;
@@ -288,15 +257,23 @@ public partial class MainViewModel
                 JournalWarnings.Clear();
                 HeaderText = $"Live watch stopped: {reason}{FormatLiveScanErrorSuffix(RequireLiveController())}";
             }),
-            isElevated: LiveIsElevated);
-    }
+            new LiveWatchOptions
+            {
+                IsElevated = LiveIsElevated,
+                IncludeTempDirectories = includeTempDirectories,
+                IgnoredPaths = ignoredRoots
+            });
 
     Action AttachLiveControllerHandlers(LiveWatchController controller)
     {
-        void OnStarted() => _ui.Post(() =>
+        void PostIfActive(Action action) => _ui.Post(() =>
         {
-            if (!ReferenceEquals(_liveController, controller) || (!IsLive && !IsLiveStarting))
-                return;
+            if (ReferenceEquals(_liveController, controller) && (IsLive || IsLiveStarting))
+                action();
+        });
+
+        void OnStarted() => PostIfActive(() =>
+        {
             IsLiveStarting = false;
             IsLive = true;
             ClearLiveScanProgress();
@@ -305,22 +282,9 @@ public partial class MainViewModel
             SurfaceNewLiveScanErrors(controller);
             SurfaceNewLiveScanWarnings(controller);
         });
-        void OnScanWarningsChanged() => _ui.Post(() =>
-        {
-            if (ReferenceEquals(_liveController, controller) && (IsLive || IsLiveStarting))
-                SurfaceNewLiveScanWarnings(controller);
-        });
-        void OnScanErrorsChanged() => _ui.Post(() =>
-        {
-            if (ReferenceEquals(_liveController, controller) && (IsLive || IsLiveStarting))
-                SurfaceNewLiveScanErrors(controller);
-        });
-        void OnLiveScanProgress(VolumeScanProgress sample) => _ui.Post(() =>
-        {
-            if (!ReferenceEquals(_liveController, controller) || (!IsLive && !IsLiveStarting))
-                return;
-            ApplyLiveScanProgress(sample);
-        });
+        void OnScanWarningsChanged() => PostIfActive(() => SurfaceNewLiveScanWarnings(controller));
+        void OnScanErrorsChanged() => PostIfActive(() => SurfaceNewLiveScanErrors(controller));
+        void OnLiveScanProgress(VolumeScanProgress sample) => PostIfActive(() => ApplyLiveScanProgress(sample));
 
         controller.Started += OnStarted;
         controller.ScanErrorsChanged += OnScanErrorsChanged;
@@ -357,15 +321,15 @@ public partial class MainViewModel
         }
     }
 
-    async Task<(List<string> Tracked, List<string> Search)> GetLiveRootsAsync()
+    async Task<(List<string> Tracked, List<string> Search, List<string> Ignored, bool IncludeTempDirectories)> GetLiveRootsAsync()
     {
         var tracked = _allRepositories.Select(node => node.WorkingDirectory)
             .Where(path => !string.IsNullOrEmpty(path)).ToList();
         var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync().ConfigureAwait(false);
         var search = configuration.SearchPaths.Select(GitWizardApi.ExpandSearchPath).OfType<string>().ToList();
-        return (tracked, search);
+        var ignored = GitWizardApi.ExpandIgnoredPaths(configuration.IgnoredPaths);
+        return (tracked, search, ignored, configuration.IncludeTempDirectories == true);
     }
-
 
     async Task StopLiveAsync()
     {
@@ -381,13 +345,9 @@ public partial class MainViewModel
         }).ConfigureAwait(false);
     }
 
-    // Only onStopped requires the controller here; onEvent applies repository changes directly.
-    // ToggleLiveAsync assigns _liveController before starting the controller, so onStopped can
-    // rely on that assignment. This asserts the lifecycle invariant.
     LiveWatchController RequireLiveController() =>
         _liveController ?? throw new InvalidOperationException(
             "_liveController must be assigned before a Live event/stop callback can run.");
-
 
     void SurfaceNewLiveScanErrors(LiveWatchController controller)
     {
@@ -402,37 +362,20 @@ public partial class MainViewModel
             UpdateJournalWarningHeader();
     }
 
-    static string FormatLiveScanErrorSuffix(LiveWatchController controller)
-    {
-        if (controller.ScanErrors.Count == 0)
-            return string.Empty;
+    static string FormatLiveScanErrorSuffix(LiveWatchController controller) =>
+        controller.ScanErrors.Count == 0
+            ? string.Empty
+            : $" (scan errors: {string.Join("; ", controller.ScanErrors.Select(pair => $"{pair.Key}: {pair.Value}"))})";
 
-        var errors = string.Join("; ", controller.ScanErrors.Select(pair => $"{pair.Key}: {pair.Value}"));
-        return $" (scan errors: {errors})";
-    }
+    Func<IVolumeChangeSource> CreateDefaultVolumeChangeSourceFactory() => () =>
+        RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && TakePreparedDiscoveryIndex() is { } prepared
+            ? VolumeChangeSourceFactory.Create(prepared)
+            : VolumeChangeSourceFactory.Create();
 
-    Func<IVolumeChangeSource> CreateDefaultVolumeChangeSourceFactory()
-    {
-        return () =>
-        {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                var prepared = TakePreparedDiscoveryIndex();
-                if (prepared != null)
-                    return VolumeChangeSourceFactory.Create(prepared);
-            }
-
-            return VolumeChangeSourceFactory.Create();
-        };
-    }
-
-    static FanotifyCapabilityResult DefaultLiveCapabilityProbe()
-    {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return ProbeLinuxCapability();
-
-        return new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
-    }
+    static FanotifyCapabilityResult DefaultLiveCapabilityProbe() =>
+        RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+            ? ProbeLinuxCapability()
+            : new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
 
     [SupportedOSPlatform("linux")]
     static FanotifyCapabilityResult ProbeLinuxCapability()

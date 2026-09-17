@@ -420,7 +420,84 @@ public class LiveWatchControllerTests
             await Task.Delay(10, timeout.Token);
         }
     }
+
+    [Test]
+    public async Task Start_TempCreatedEvent_DroppedByDefault()
+    {
+        var source = new FakeVolumeChangeSource(
+            new[] { Batch(@"C:\Users\gitea-runner\AppData\Local\Temp\pytest-1\repo\.git", VolumeEntryKind.Created) });
+
+        var events = new List<RepositoryChangeEvent>();
+        var controller = new LiveWatchController(
+            () => source,
+            trackedRoots: Array.Empty<string>(),
+            searchRoots: new[] { @"C:\" },
+            onEvent: events.Add,
+            onStopped: _ => { },
+            isElevated: () => false);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await controller.StartAsync(cts.Token);
+
+        Assert.That(events, Is.Empty);
+    }
+
+    [Test]
+    public async Task Start_TempCreatedEvent_ForwardedWhenIncluded()
+    {
+        var source = new FakeVolumeChangeSource(
+            new[] { Batch(@"C:\Users\gitea-runner\AppData\Local\Temp\pytest-1\repo\.git", VolumeEntryKind.Created) });
+
+        var events = new List<RepositoryChangeEvent>();
+        var controller = new LiveWatchController(
+            () => source,
+            trackedRoots: Array.Empty<string>(),
+            searchRoots: new[] { @"C:\" },
+            onEvent: events.Add,
+            onStopped: _ => { },
+            new LiveWatchOptions
+            {
+                IsElevated = () => false,
+                IncludeTempDirectories = true
+            });
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await controller.StartAsync(cts.Token);
+
+        Assert.That(events, Is.EqualTo(new[]
+        {
+            new RepositoryChangeEvent(@"C:\Users\gitea-runner\AppData\Local\Temp\pytest-1\repo", RepositoryChangeKind.Created),
+        }));
+    }
+
+    [Test]
+    public async Task Start_IgnoredPathCreatedEvent_DroppedEvenWhenIncludeTempDirectoriesTrue()
+    {
+        const string ignoredTempSubtree = @"C:\Users\gitea-runner\AppData\Local\Temp\ci-runner";
+        var source = new FakeVolumeChangeSource(
+            new[] { Batch(Path.Combine(ignoredTempSubtree, "repo", ".git"), VolumeEntryKind.Created) });
+
+        var events = new List<RepositoryChangeEvent>();
+        var controller = new LiveWatchController(
+            () => source,
+            trackedRoots: Array.Empty<string>(),
+            searchRoots: new[] { @"C:\" },
+            onEvent: events.Add,
+            onStopped: _ => { },
+            new LiveWatchOptions
+            {
+                IsElevated = () => false,
+                IncludeTempDirectories = true,
+                IgnoredPaths = new[] { ignoredTempSubtree },
+            });
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await controller.StartAsync(cts.Token);
+
+        Assert.That(events, Is.Empty);
+    }
 }
+
 
 // A source whose WatchAsync hangs until cancelled or killed, and that records whether it was
 // armed/disposed - used to deterministically observe LiveWatchController's respawn/stop wiring

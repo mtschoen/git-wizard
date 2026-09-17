@@ -70,23 +70,14 @@ public partial class GitWizardRepository
 
     bool IsSubmodulePublishReady()
     {
-        if (SubmoduleHealth.Count > 0)
-        {
-            foreach (var health in SubmoduleHealth.Values)
-            {
-                if (health.Status != SubmoduleHealthStatus.Healthy)
-                    return false;
-            }
-        }
+        if (SubmoduleHealth.Values.Any(health => health.Status != SubmoduleHealthStatus.Healthy))
+            return false;
 
         if (Submodules != null)
         {
-            foreach (var kvp in Submodules)
+            foreach (var sub in Submodules.Values)
             {
-                if (kvp.Value == null)
-                    continue;
-
-                if (!kvp.Value.IsSubmodulePublishReady())
+                if (sub is not null && !sub.IsSubmodulePublishReady())
                     return false;
             }
         }
@@ -143,7 +134,9 @@ public partial class GitWizardRepository
     {
         if (string.IsNullOrEmpty(WorkingDirectory) || !Directory.Exists(WorkingDirectory))
         {
-            GitWizardLog.Log($"Working directory {WorkingDirectory} is invalid.", GitWizardLog.LogType.Error);
+            // Expected for short-lived repositories (CI/test scratch repos under temp, deleted
+            // between discovery and refresh): not an error, and Live drops the entry quietly.
+            GitWizardLog.Log($"Working directory {WorkingDirectory} is invalid.", GitWizardLog.LogType.Debug);
             return;
         }
 
@@ -202,57 +195,26 @@ public partial class GitWizardRepository
     {
         var workingDirectory = WorkingDirectory ?? string.Empty;
         var phaseIndex = 0;
-        PhaseObserverForTesting?.Invoke(phaseIndex++);
-        cancellationToken.ThrowIfCancellationRequested();
-        RefreshSubmodules(updateHandler, repository, workingDirectory, cancellationToken);
+        void Step(Action action)
+        {
+            PhaseObserverForTesting?.Invoke(phaseIndex++);
+            cancellationToken.ThrowIfCancellationRequested();
+            action();
+        }
 
-        PhaseObserverForTesting?.Invoke(phaseIndex++);
-        cancellationToken.ThrowIfCancellationRequested();
-        CheckSubmoduleHealth(repository, workingDirectory);
-
-        // Worktrees can't have worktrees, and trying to refresh them will cause an infinite loop
+        Step(() => RefreshSubmodules(updateHandler, repository, workingDirectory, cancellationToken));
+        Step(() => CheckSubmoduleHealth(repository, workingDirectory));
         if (!IsWorktree)
-        {
-            PhaseObserverForTesting?.Invoke(phaseIndex++);
-            cancellationToken.ThrowIfCancellationRequested();
-            RefreshWorktrees(updateHandler, repository, cancellationToken);
-        }
-
-        PhaseObserverForTesting?.Invoke(phaseIndex++);
-        cancellationToken.ThrowIfCancellationRequested();
-        RefreshHeadInfo(repository);
-
-        PhaseObserverForTesting?.Invoke(phaseIndex++);
-        cancellationToken.ThrowIfCancellationRequested();
-        RefreshPendingChangesStatus(repository, deepRefresh);
-
-        PhaseObserverForTesting?.Invoke(phaseIndex++);
-        cancellationToken.ThrowIfCancellationRequested();
-        RefreshRemoteUrls(repository);
-
+            Step(() => RefreshWorktrees(updateHandler, repository, cancellationToken));
+        Step(() => RefreshHeadInfo(repository));
+        Step(() => RefreshPendingChangesStatus(repository, deepRefresh));
+        Step(() => RefreshRemoteUrls(repository));
         if (computeLocalCommitCount)
-        {
-            PhaseObserverForTesting?.Invoke(phaseIndex++);
-            cancellationToken.ThrowIfCancellationRequested();
-            RefreshLocalOnlyCommits(repository);
-        }
-
-        PhaseObserverForTesting?.Invoke(phaseIndex++);
-        cancellationToken.ThrowIfCancellationRequested();
-        RefreshBranchDivergence(repository, allBranches);
-
-        PhaseObserverForTesting?.Invoke(phaseIndex++);
-        cancellationToken.ThrowIfCancellationRequested();
-        RefreshRemoteDivergence(repository);
-
-        PhaseObserverForTesting?.Invoke(phaseIndex++);
-        cancellationToken.ThrowIfCancellationRequested();
-        RefreshAuthorEmails(repository);
-
-        PhaseObserverForTesting?.Invoke(phaseIndex++);
-        cancellationToken.ThrowIfCancellationRequested();
-        RefreshRecentCommits(repository);
-
+            Step(() => RefreshLocalOnlyCommits(repository));
+        Step(() => RefreshBranchDivergence(repository, allBranches));
+        Step(() => RefreshRemoteDivergence(repository));
+        Step(() => RefreshAuthorEmails(repository));
+        Step(() => RefreshRecentCommits(repository));
         PhaseObserverForTesting?.Invoke(phaseIndex);
         cancellationToken.ThrowIfCancellationRequested();
         RefreshSizeOnDisk(workingDirectory);
@@ -284,19 +246,9 @@ public partial class GitWizardRepository
             {
                 // Must match the categories that contribute to status.IsDirty so
                 // callers never see HasPendingChanges=true with a count of 0.
-                // LibGit2Sharp's IsDirty includes Added, Missing, Modified, Removed,
-                // RenamedInIndex, RenamedInWorkDir, Staged, and Untracked. Missing
-                // covers a tracked file deleted from the working directory but not
-                // yet staged; Removed covers the same deletion once it is staged.
-                NumberOfPendingChanges = 0;
-                foreach (var _ in status.Modified) NumberOfPendingChanges++;
-                foreach (var _ in status.Missing) NumberOfPendingChanges++;
-                foreach (var _ in status.Staged) NumberOfPendingChanges++;
-                foreach (var _ in status.Removed) NumberOfPendingChanges++;
-                foreach (var _ in status.Added) NumberOfPendingChanges++;
-                foreach (var _ in status.Untracked) NumberOfPendingChanges++;
-                foreach (var _ in status.RenamedInIndex) NumberOfPendingChanges++;
-                foreach (var _ in status.RenamedInWorkDir) NumberOfPendingChanges++;
+                NumberOfPendingChanges = status.Modified.Count() + status.Missing.Count() +
+                    status.Staged.Count() + status.Removed.Count() + status.Added.Count() +
+                    status.Untracked.Count() + status.RenamedInIndex.Count() + status.RenamedInWorkDir.Count();
             }
         }
         catch (Exception exception)
@@ -308,11 +260,7 @@ public partial class GitWizardRepository
     void RefreshRemoteUrls(Repository repository)
     {
         RemoteUrls.Clear();
-        foreach (var remote in repository.Network.Remotes)
-        {
-            if (!string.IsNullOrEmpty(remote.Url))
-                RemoteUrls.Add(remote.Url);
-        }
+        RemoteUrls.AddRange(repository.Network.Remotes.Select(r => r.Url).Where(url => !string.IsNullOrEmpty(url)));
     }
 
     /// <summary>
@@ -377,11 +325,9 @@ public partial class GitWizardRepository
     {
         try
         {
-            AuthorEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var commit in repository.Commits.Take(200))
-            {
-                AuthorEmails.Add(commit.Author.Email);
-            }
+            AuthorEmails = repository.Commits.Take(200)
+                .Select(commit => commit.Author.Email)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
         }
         catch (Exception exception)
         {

@@ -27,6 +27,8 @@ public sealed class RepositoryChangeFilter
     readonly SortedSet<int> _descendingLengths = new(Comparer<int>.Create((a, b) => b.CompareTo(a)));
     readonly HashSet<string> _trackedRootsSet = new(WatchPath.StringComparer);
     readonly WatchPath[] _orderedSearchRoots;
+    readonly WatchPath[] _orderedIgnoredPaths;
+    readonly bool _includeTempDirectories;
 
     /// <summary>
     /// Build the filter for one volume.
@@ -36,9 +38,18 @@ public sealed class RepositoryChangeFilter
     /// Configured discovery roots, used by <see cref="Classify"/> to recognize newly created
     /// repositories.
     /// </param>
+    /// <param name="ignoredPaths">
+    /// Configured ignored paths to exclude from classification. Any change entry or repository
+    /// under an ignored path is skipped regardless of whether temp inclusion is enabled.
+    /// </param>
+    /// <param name="includeTempDirectories">When false (the default), a repository under a temp
+    /// directory (<see cref="TempDirectories"/>) is not reported as changed or created,
+    /// unless the containing search root is itself inside a temp directory.</param>
     public RepositoryChangeFilter(
         IReadOnlyCollection<string> repositoryRootPaths,
-        IReadOnlyCollection<string>? searchRoots = null)
+        IReadOnlyCollection<string>? searchRoots = null,
+        IReadOnlyCollection<string>? ignoredPaths = null,
+        bool includeTempDirectories = false)
     {
         foreach (var rootPath in repositoryRootPaths)
         {
@@ -46,6 +57,16 @@ public sealed class RepositoryChangeFilter
         }
 
         _orderedSearchRoots = OrderRootsForClassify(searchRoots ?? []);
+        _orderedIgnoredPaths = OrderRootsForClassify(ignoredPaths ?? []);
+        _includeTempDirectories = includeTempDirectories;
+    }
+
+    public RepositoryChangeFilter(
+        IReadOnlyCollection<string> repositoryRootPaths,
+        IReadOnlyCollection<string>? searchRoots,
+        bool includeTempDirectories)
+        : this(repositoryRootPaths, searchRoots, null, includeTempDirectories)
+    {
     }
 
     /// <summary>
@@ -56,21 +77,31 @@ public sealed class RepositoryChangeFilter
     public (RepositoryChangeKind Kind, string Root)? ClassifyEntry(VolumeChangeEntry entry)
     {
         var path = WatchPath.Parse(entry.FullPath);
+        if (IsIgnored(path))
+            return null;
+
         switch (entry.Kind)
         {
             case VolumeEntryKind.Modified:
                 {
                     var root = FindContainingTrackedRoot(path);
-                    return root is not null ? (RepositoryChangeKind.Changed, root.Value.Original) : null;
+                    return root is not null && !IsExcludedTempPath(root.Value)
+                        ? (RepositoryChangeKind.Changed, root.Value.Original)
+                        : null;
                 }
             case VolumeEntryKind.Created:
                 {
                     var trackedRoot = FindContainingTrackedRoot(path);
                     if (trackedRoot is not null)
-                        return (RepositoryChangeKind.Changed, trackedRoot.Value.Original);
+                    {
+                        return !IsExcludedTempPath(trackedRoot.Value)
+                            ? (RepositoryChangeKind.Changed, trackedRoot.Value.Original)
+                            : null;
+                    }
 
                     if (path.TryGetGitDirectoryParent(out var parent)
-                        && FindContainingRoot(parent, _orderedSearchRoots) is not null)
+                        && FindContainingRoot(parent, _orderedSearchRoots) is not null
+                        && !IsExcludedTempPath(parent))
                     {
                         return (RepositoryChangeKind.Created, parent.Original);
                     }
@@ -84,12 +115,18 @@ public sealed class RepositoryChangeFilter
                         foreach (var root in _rootsByLength[length])
                         {
                             if (path.IsEqualTo(root) || path.IsEqualToChildOf(root, ".git"))
-                                return (RepositoryChangeKind.Deleted, root.Original);
+                            {
+                                return !IsExcludedTempPath(root)
+                                    ? (RepositoryChangeKind.Deleted, root.Original)
+                                    : null;
+                            }
                         }
                     }
 
                     var rootChanged = FindContainingTrackedRoot(path);
-                    return rootChanged is not null ? (RepositoryChangeKind.Changed, rootChanged.Value.Original) : null;
+                    return rootChanged is not null && !IsExcludedTempPath(rootChanged.Value)
+                        ? (RepositoryChangeKind.Changed, rootChanged.Value.Original)
+                        : null;
                 }
             default:
                 return null;
@@ -129,6 +166,24 @@ public sealed class RepositoryChangeFilter
         }
 
         return new FilterResult(changed, created, deleted);
+    }
+
+    bool IsIgnored(WatchPath path) =>
+        FindContainingRoot(path, _orderedIgnoredPaths) is not null;
+
+    bool IsExcludedTempPath(WatchPath path)
+    {
+        if (_includeTempDirectories)
+            return false;
+
+        if (!TempDirectories.IsTempPath(path.Original))
+            return false;
+
+        var searchRoot = FindContainingRoot(path, _orderedSearchRoots);
+        if (searchRoot is not null && TempDirectories.IsTempPath(searchRoot.Value.Original))
+            return false;
+
+        return true;
     }
 
     /// <summary>

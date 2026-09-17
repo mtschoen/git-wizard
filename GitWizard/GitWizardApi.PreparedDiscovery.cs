@@ -80,7 +80,8 @@ public static partial class GitWizardApi
 
             var entries = SelectGitEntries(owner.Index, includeGitFiles: true);
             var candidates = expandedRoots.SelectMany(root => ResolveRepositoryRootCandidates(
-                owner.Index, entries, root, expandedIgnoredPaths, configuration.SkipHiddenDirectories))
+                owner.Index, entries, root, expandedIgnoredPaths, configuration.SkipHiddenDirectories,
+                configuration.IncludeTempDirectories))
                 .Distinct(StringComparer.OrdinalIgnoreCase).Where(composition.CandidateExists).ToArray();
             foreach (var candidate in candidates)
                 paths.Add(candidate);

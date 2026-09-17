@@ -136,7 +136,7 @@ public class BrokerDiscoveryTests
             new Dictionary<string, string> { ["Y"] = "scan denied" });
         var updates = new RecordingUpdateHandler();
         await using var result = await GitWizardApi.DiscoverRepositoriesWithIndexAsync(
-            new GitWizardConfiguration(), new List<string>(), [@"X:\", @"Y:\"], [],
+            new GitWizardConfiguration { IncludeTempDirectories = true }, new List<string>(), [@"X:\", @"Y:\"], [],
             new IndexDiscoveryComposition(_ => Task.FromResult(owner), _ => true), updates);
         Assert.That(result.Success, Is.True);
         Assert.That(updates.Messages, Has.Some.Contains("Y: scan denied"));
@@ -179,7 +179,7 @@ public class BrokerDiscoveryTests
 
     static Task<MftDiscoveryResult> DiscoverAsync(IndexOwnerFixture fixture, ICollection<string> paths,
         Func<string, bool>? candidateExists = null) => GitWizardApi.DiscoverRepositoriesWithIndexAsync(
-        new GitWizardConfiguration(), paths, [@"X:\"], [], new IndexDiscoveryComposition(
+        new GitWizardConfiguration { IncludeTempDirectories = true }, paths, [@"X:\"], [], new IndexDiscoveryComposition(
             _ => Task.FromResult(fixture.Owner), candidateExists ?? (_ => true)));
 
     sealed class RecordingUpdateHandler : IUpdateHandler

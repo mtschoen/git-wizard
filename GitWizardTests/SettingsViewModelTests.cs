@@ -498,4 +498,35 @@ public class SettingsViewModelTests
 
         Assert.That(vm.ForkPath, Is.Empty);
     }
+
+    [Test]
+    public void Construction_LoadsIncludeTempDirectoriesDefaultUnchecked()
+    {
+        var vm = new SettingsViewModel(new StubFolderPicker(), null, new StubUiDispatcher());
+
+        Assert.That(vm.IncludeTempDirectories, Is.False);
+    }
+
+    [Test]
+    public void IncludeTempDirectories_SetsValueAndTriggersNotification()
+    {
+        var vm = new SettingsViewModel(new StubFolderPicker(), null, new StubUiDispatcher());
+        string? changedName = null;
+        vm.PropertyChanged += (_, e) => changedName = e.PropertyName;
+
+        vm.IncludeTempDirectories = true;
+
+        Assert.That(vm.IncludeTempDirectories, Is.True);
+        Assert.That(changedName, Is.EqualTo("IncludeTempDirectories"));
+    }
+
+    [Test]
+    public void ResetToDefaults_ResetsIncludeTempDirectories()
+    {
+        var vm = new SettingsViewModel(new StubFolderPicker(), null, new StubUiDispatcher()) { IncludeTempDirectories = true };
+
+        vm.ResetToDefaults();
+
+        Assert.That(vm.IncludeTempDirectories, Is.False);
+    }
 }

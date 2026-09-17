@@ -33,6 +33,15 @@ public class GitWizardConfiguration
     public bool? SkipHiddenDirectories { get; set; }
 
     /// <summary>
+    /// Whether discovery and Live include temp directories as repository locations: every
+    /// profile's <c>AppData\Local\Temp</c> on Windows, the process's %TEMP%/%TMP%, and
+    /// <c>/tmp</c> plus $TMPDIR elsewhere. <c>null</c> (the default) excludes them. Explicit
+    /// <see cref="IgnoredPaths"/> always apply regardless of this setting.
+    /// </summary>
+    [JsonPropertyName("includeTempDirectories")]
+    public bool? IncludeTempDirectories { get; set; }
+
+    /// <summary>
     /// Full path to the Fork executable. Null means use the default location.
     /// </summary>
     [JsonPropertyName("forkPath")]
@@ -205,7 +214,8 @@ public class GitWizardConfiguration
     {
         Parallel.ForEach(SearchPaths, path =>
         {
-            GitWizardApi.GetRepositoryPaths(path, paths, IgnoredPaths, updateHandler, SkipHiddenDirectories);
+            GitWizardApi.GetRepositoryPaths(path, paths, IgnoredPaths, updateHandler, SkipHiddenDirectories, IncludeTempDirectories);
         });
     }
 }
+

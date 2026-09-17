@@ -110,10 +110,34 @@ public static partial class GitWizardApi
             PathComparison);
     }
 
-    static List<string> ExpandIgnoredPaths(IEnumerable<string> ignoredPaths)
+    /// <summary>
+    /// Expand an ignored path, resolving environment variables and ~.
+    /// Unlike <see cref="ExpandSearchPath"/>, this does not validate that the directory exists.
+    /// </summary>
+    public static string? ExpandIgnoredPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return null;
+
+        path = Environment.ExpandEnvironmentVariables(path);
+
+        if (path.StartsWith("~/", StringComparison.Ordinal) || path.StartsWith("~\\", StringComparison.Ordinal))
+        {
+            path = string.Concat(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                path.AsSpan(1));
+        }
+
+        return NormalizePath(path);
+    }
+
+    /// <summary>
+    /// Expand a collection of ignored paths, resolving environment variables and ~.
+    /// </summary>
+    public static List<string> ExpandIgnoredPaths(IEnumerable<string> ignoredPaths)
     {
         return ignoredPaths
-            .Select(ExpandSearchPath)
+            .Select(ExpandIgnoredPath)
             .Where(path => !string.IsNullOrEmpty(path))
             .Cast<string>()
             .ToList();

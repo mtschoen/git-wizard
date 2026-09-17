@@ -74,6 +74,18 @@ public partial class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
+    private bool _includeTempDirectories;
+    public bool IncludeTempDirectories
+    {
+        get => _includeTempDirectories;
+        set
+        {
+            _includeTempDirectories = value;
+            OnPropertyChanged();
+            Save();
+        }
+    }
+
     public ICommand AddSearchPathCommand { get; }
     public ICommand AddIgnoredPathCommand { get; }
     public ICommand ResetToDefaultsCommand { get; }
@@ -102,6 +114,8 @@ public partial class SettingsViewModel : INotifyPropertyChanged
         _forkPath = _configuration.ForkPath ?? string.Empty;
         // null in config means "use legacy behavior (skip)" so show checked in UI.
         _skipHiddenDirectories = _configuration.SkipHiddenDirectories != false;
+        // null in config means "excluded" (the default), so show unchecked in UI.
+        _includeTempDirectories = _configuration.IncludeTempDirectories == true;
 
         AddSearchPathCommand = new RelayCommand(AddSearchPath);
         AddIgnoredPathCommand = new RelayCommand(AddIgnoredPath);
@@ -183,6 +197,7 @@ public partial class SettingsViewModel : INotifyPropertyChanged
 
         _configuration.ForkPath = string.IsNullOrWhiteSpace(ForkPath) ? null : ForkPath;
         _configuration.SkipHiddenDirectories = SkipHiddenDirectories;
+        _configuration.IncludeTempDirectories = IncludeTempDirectories;
 
         return GitWizardConfiguration.SaveGlobalConfigurationAsync(_configuration);
     }
@@ -199,6 +214,7 @@ public partial class SettingsViewModel : INotifyPropertyChanged
 
         _configuration.ForkPath = string.IsNullOrWhiteSpace(ForkPath) ? null : ForkPath;
         _configuration.SkipHiddenDirectories = SkipHiddenDirectories;
+        _configuration.IncludeTempDirectories = IncludeTempDirectories;
 
         GitWizardConfiguration.SaveGlobalConfiguration(_configuration);
     }
@@ -226,6 +242,8 @@ public partial class SettingsViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(ForkPath));
         _skipHiddenDirectories = defaults.SkipHiddenDirectories != false;
         OnPropertyChanged(nameof(SkipHiddenDirectories));
+        _includeTempDirectories = defaults.IncludeTempDirectories == true;
+        OnPropertyChanged(nameof(IncludeTempDirectories));
 
         Save();
     }

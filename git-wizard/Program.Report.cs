@@ -147,7 +147,8 @@ public static partial class Program
         {
             SchemaVersion = report.SchemaVersion,
             SearchPaths = report.SearchPaths,
-            IgnoredPaths = report.IgnoredPaths
+            IgnoredPaths = report.IgnoredPaths,
+            IncludeTempDirectories = report.IncludeTempDirectories
         };
 
         foreach (var kvp in report.Repositories)

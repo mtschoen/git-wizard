@@ -22,7 +22,8 @@ public static partial class GitWizardApi
     /// Windows volume the two coincide, so this is a no-op there.
     /// </remarks>
     internal static IEnumerable<string> ResolveRepositoryRootCandidates(FileIndex index, IEnumerable<FileEntry> entries,
-        string rootPath, ICollection<string> ignoredPaths, bool? skipHiddenDirectories = null)
+        string rootPath, ICollection<string> ignoredPaths, bool? skipHiddenDirectories = null,
+        bool? includeTempDirectories = null)
     {
         var root = WatchPath.Parse(rootPath);
         if (!root.IsWindows)
@@ -31,6 +32,9 @@ public static partial class GitWizardApi
         var translatedRoot = TranslateToRealRoot(index, root);
         var ignoredRoots = ignoredPaths.Select(WatchPath.Parse)
             .Select(ignoredRoot => TranslateToRealRoot(index, ignoredRoot)).ToArray();
+        // A search root inside a temp directory opts that subtree back in (explicit scope beats
+        // the default temp exclusion), matching the recursive walk.
+        var excludeTempDirectories = includeTempDirectories != true && !TempDirectories.IsTempPath(root.Original);
         foreach (var entry in entries)
         {
             if (entry.IsDeleted || (!includeGitFiles && !entry.IsDirectory) || entry.Parent is not { } parent)
@@ -46,6 +50,8 @@ public static partial class GitWizardApi
             }
             var candidate = WatchPath.Parse(parentPath);
             if (!candidate.IsUnderOrEqual(translatedRoot) || ignoredRoots.Any(candidate.IsUnderOrEqual))
+                continue;
+            if (excludeTempDirectories && TempDirectories.IsTempPath(candidate.Original))
                 continue;
             if (skipHiddenDirectories != false && candidate.Comparison[translatedRoot.Comparison.Length..]
                 .Split('/').Any(segment => segment.StartsWith('.')))

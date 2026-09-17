@@ -10,8 +10,17 @@ public sealed partial class MftIndexSession
     public static Task<MftIndexSession> OpenWindowsAsync(IReadOnlyList<string> drives,
         Func<string, bool> brokerLauncher, CancellationToken cancellationToken)
     {
+        return OpenWindowsAsync(drives, brokerLauncher, null, cancellationToken);
+    }
+
+    [SupportedOSPlatform("windows")]
+    public static Task<MftIndexSession> OpenWindowsAsync(IReadOnlyList<string> drives,
+        Func<string, bool> brokerLauncher, TimeSpan? connectTimeout, CancellationToken cancellationToken)
+    {
         return OpenSelectedVolumesAsync(drives, IndexedDrive.FromWindowsVolume,
-            token => JournalBrokerClient.SpawnAndConnectAsync(brokerLauncher, token),
+            token => connectTimeout.HasValue
+                ? JournalBrokerClient.SpawnAndConnectAsync(brokerLauncher, connectTimeout.Value, token)
+                : JournalBrokerClient.SpawnAndConnectAsync(brokerLauncher, token),
             Path.Combine(GitWizardApi.GetLocalFilesPath(), "mft-index"), cancellationToken);
     }
 

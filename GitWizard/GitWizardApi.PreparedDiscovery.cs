@@ -20,19 +20,31 @@ public static partial class GitWizardApi
         GitWizardConfiguration configuration, ICollection<string> paths,
         IUpdateHandler? updateHandler = null, bool noMft = false)
     {
+        return TryDiscoverRepositoriesUsingMftAsync(
+            configuration, paths, null, null, updateHandler, noMft);
+    }
+
+    internal static Task<MftDiscoveryResult> TryDiscoverRepositoriesUsingMftAsync(
+        GitWizardConfiguration configuration, ICollection<string> paths, Func<string, bool>? brokerLauncher,
+        TimeSpan? connectTimeout = null,
+        IUpdateHandler? updateHandler = null, bool noMft = false)
+    {
         if (!OperatingSystem.IsWindows() || noMft)
             return Task.FromResult(new MftDiscoveryResult(false));
 
+        brokerLauncher ??= BrokerLauncher.Launch;
         var roots = configuration.SearchPaths.Select(ExpandSearchPath).OfType<string>().ToArray();
         var ignored = ExpandIgnoredPaths(configuration.IgnoredPaths);
-        return DiscoverRepositoriesWithIndexAsync(configuration, paths, roots, ignored, new IndexDiscoveryComposition(OpenWindowsDiscoveryIndexAsync, WindowsCandidateExists), updateHandler);
+        return DiscoverRepositoriesWithIndexAsync(configuration, paths, roots, ignored, new IndexDiscoveryComposition(
+            drives => OpenWindowsDiscoveryIndexAsync(drives, brokerLauncher, connectTimeout), WindowsCandidateExists), updateHandler);
     }
 
-    static Task<MftIndexSession> OpenWindowsDiscoveryIndexAsync(IReadOnlyList<string> drives)
+    static Task<MftIndexSession> OpenWindowsDiscoveryIndexAsync(
+        IReadOnlyList<string> drives, Func<string, bool> brokerLauncher, TimeSpan? connectTimeout = null)
     {
         if (!OperatingSystem.IsWindows())
             throw new PlatformNotSupportedException("MFT discovery requires Windows.");
-        return MftIndexSession.OpenWindowsAsync(drives, BrokerLauncher.Launch, CancellationToken.None);
+        return MftIndexSession.OpenWindowsAsync(drives, brokerLauncher, connectTimeout, CancellationToken.None);
     }
 
     static bool WindowsCandidateExists(string path)
@@ -74,7 +86,7 @@ public static partial class GitWizardApi
                 paths.Add(candidate);
             updateHandler?.SendUpdateMessage($"MFT search found {candidates.Length} repositories");
             if (candidates.Length == 0)
-                return new MftDiscoveryResult(false);
+                return new MftDiscoveryResult(false, scanErrors: owner.ScanErrors);
             var result = new MftDiscoveryResult(true, owner);
             owner = null;
             return result;
@@ -82,7 +94,7 @@ public static partial class GitWizardApi
         catch (Exception exception) when (exception is InvalidOperationException or IOException or UnauthorizedAccessException or InvalidDataException)
         {
             GitWizardLog.Log($"MFT scan unavailable: {exception.Message}", GitWizardLog.LogType.Warning);
-            return new MftDiscoveryResult(false);
+            return new MftDiscoveryResult(false, scanErrors: new Dictionary<string, string> { ["*"] = exception.Message });
         }
         finally
         {

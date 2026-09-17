@@ -1,4 +1,5 @@
 using GitWizard;
+using GitWizardTests.TestSupport;
 using MFTLib;
 
 namespace GitWizardTests;
@@ -53,11 +54,26 @@ public class ElevationCoverageTests
             var configuration = new GitWizardConfiguration { SearchPaths = { searchRoot } };
             var paths = new SortedSet<string>();
 
-            var discovered = await GitWizardApi.TryFindAllRepositoriesUsingMftAsync(configuration, paths);
+            await using var result = await GitWizardApi.TryDiscoverRepositoriesUsingMftAsync(
+                configuration, paths, brokerLauncher: UiBrokerLauncher.LaunchUiBroker);
+
+            var connectionFailure = result.ScanErrors.Values.FirstOrDefault(IsBrokerConnectionFailure);
+            if (connectionFailure is not null)
+            {
+                Assert.Fail($"The UI app-host broker never connected: {connectionFailure}");
+                return;
+            }
+
+            if (result.ScanErrors.Count > 0)
+            {
+                Assert.Fail($"MFT scan failed: {string.Join("; ", result.ScanErrors.Values)}");
+                return;
+            }
 
             using (Assert.EnterMultipleScope())
             {
-                Assert.That(discovered, Is.True);
+                Assert.That(result.Success, Is.True,
+                    "The UI broker host connected, but the existing repository was not discovered.");
                 Assert.That(paths, Does.Contain(repositoryPath).IgnoreCase);
             }
         }
@@ -66,4 +82,52 @@ public class ElevationCoverageTests
             Directory.Delete(searchRoot, recursive: true);
         }
     }
+
+    [Test]
+    public async Task TryDiscoverRepositoriesUsingMftAsync_InjectedBrokerLauncher_InvokesLauncher()
+    {
+        var receivedBrokerArguments = new List<string>();
+        var configuration = new GitWizardConfiguration { SearchPaths = { Path.GetTempPath() } };
+
+        await using var result = await GitWizardApi.TryDiscoverRepositoriesUsingMftAsync(
+            configuration, new List<string>(), brokerLauncher: brokerArguments =>
+            {
+                receivedBrokerArguments.Add(brokerArguments);
+                return false;
+            });
+
+        Assert.That(result.Success, Is.False);
+        Assert.That(receivedBrokerArguments, Has.Count.EqualTo(1));
+        Assert.That(receivedBrokerArguments.Single(), Does.StartWith("--broker --pipe "));
+        Assert.That(result.ScanErrors.Values, Has.Some.Contains("Failed to launch the elevated broker"));
+        Assert.That(result.ScanErrors.Values, Has.Some.Matches<string>(IsBrokerConnectionFailure));
+    }
+
+    [Test]
+    public async Task TryDiscoverRepositoriesUsingMftAsync_BrokerNeverConnects_RecordsTimeoutInScanErrors()
+    {
+        var receivedBrokerArguments = new List<string>();
+        var configuration = new GitWizardConfiguration { SearchPaths = { Path.GetTempPath() } };
+
+        await using var result = await GitWizardApi.TryDiscoverRepositoriesUsingMftAsync(
+            configuration, new List<string>(),
+            brokerLauncher: brokerArguments =>
+            {
+                receivedBrokerArguments.Add(brokerArguments);
+                return true;
+            },
+            connectTimeout: TimeSpan.FromMilliseconds(50));
+
+        Assert.That(result.Success, Is.False);
+        Assert.That(receivedBrokerArguments, Has.Count.EqualTo(1));
+        Assert.That(receivedBrokerArguments.Single(), Does.StartWith("--broker --pipe "));
+        Assert.That(result.ScanErrors.Values, Has.Some.Contains("Timed out waiting"));
+        Assert.That(result.ScanErrors.Values, Has.Some.Contains("never connected"));
+        Assert.That(result.ScanErrors.Values, Has.Some.Matches<string>(IsBrokerConnectionFailure));
+    }
+
+    internal static bool IsBrokerConnectionFailure(string error) =>
+        error.Contains("never connected", StringComparison.OrdinalIgnoreCase) ||
+        error.Contains("Failed to launch the elevated broker", StringComparison.OrdinalIgnoreCase) ||
+        (error.Contains("timed out", StringComparison.OrdinalIgnoreCase) && error.Contains("to connect", StringComparison.OrdinalIgnoreCase));
 }

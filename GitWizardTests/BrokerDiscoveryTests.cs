@@ -141,6 +141,40 @@ public class BrokerDiscoveryTests
         Assert.That(result.Success, Is.True);
         Assert.That(updates.Messages, Has.Some.Contains("Y: scan denied"));
         Assert.That(result.Index!.FindByName(".git").Single().Parent!.Value.Name, Is.EqualTo("repo"));
+        Assert.That(result.ScanErrors, Does.ContainKey("Y"));
+        Assert.That(result.ScanErrors["Y"], Is.EqualTo("scan denied"));
+    }
+
+    [Test]
+    public async Task Discovery_AllDrivesFail_PreservesScanErrorsInResult()
+    {
+        using var files = new PackedIndexFixture();
+        var owner = new MftIndexSession(await files.OpenIndexAsync(), null, ["X"],
+            new Dictionary<string, string> { ["X"] = "Timed out waiting for broker to connect" });
+        await using var result = await GitWizardApi.DiscoverRepositoriesWithIndexAsync(
+            new GitWizardConfiguration(), new List<string>(), [@"X:\"], [],
+            new IndexDiscoveryComposition(_ => Task.FromResult(owner), _ => true));
+        Assert.That(result.Success, Is.False);
+        Assert.That(result.ScanErrors, Does.ContainKey("X"));
+        Assert.That(result.ScanErrors["X"], Is.EqualTo("Timed out waiting for broker to connect"));
+    }
+
+    [Test]
+    public void IsBrokerConnectionFailure_DistinguishesConnectionFailureFromPostConnectionFailure()
+    {
+        Assert.That(ElevationCoverageTests.IsBrokerConnectionFailure(
+            "Timed out waiting 30s for the elevated broker to connect to pipe 'mftlib-broker-1'. The broker process was launched, but never connected (headless session, unserviced UAC prompt, or broker crash before connect)."), Is.True);
+        Assert.That(ElevationCoverageTests.IsBrokerConnectionFailure(
+            "Failed to launch the elevated broker (the UAC prompt was declined?)"), Is.True);
+        Assert.That(ElevationCoverageTests.IsBrokerConnectionFailure(
+            "Timed out waiting for broker to connect"), Is.True);
+
+        Assert.That(ElevationCoverageTests.IsBrokerConnectionFailure(
+            "Broker disconnected before block scan and catch-up completed."), Is.False);
+        Assert.That(ElevationCoverageTests.IsBrokerConnectionFailure(
+            "Truncated broker frame on pipe"), Is.False);
+        Assert.That(ElevationCoverageTests.IsBrokerConnectionFailure(
+            "The broker control connection is no longer usable."), Is.False);
     }
 
     static Task<MftDiscoveryResult> DiscoverAsync(IndexOwnerFixture fixture, ICollection<string> paths,

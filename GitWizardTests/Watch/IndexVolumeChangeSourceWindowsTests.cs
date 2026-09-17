@@ -1,6 +1,6 @@
-using System.Diagnostics;
 using System.Runtime.Versioning;
 using GitWizard.Watch;
+using GitWizardTests.TestSupport;
 using MFTLib;
 using MFTLib.Index;
 
@@ -25,7 +25,7 @@ public class IndexVolumeChangeSourceWindowsTests
         await using var source = new IndexVolumeChangeSource(async (drives, cancellationToken) =>
         {
             session = await GitWizard.MftIndexSession.OpenWindowsAsync(
-                drives, LaunchUiBroker, cancellationToken);
+                drives, UiBrokerLauncher.LaunchUiBroker, cancellationToken);
             return session;
         });
         using var armCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(120));
@@ -54,7 +54,7 @@ public class IndexVolumeChangeSourceWindowsTests
         var temporaryPath = Path.Combine(Path.GetTempPath(), $"git-wizard-gap-{Guid.NewGuid():N}.tmp");
         var drive = GetFixtureDrive(temporaryPath);
         await using var source = new IndexVolumeChangeSource((drives, cancellationToken) =>
-            GitWizard.MftIndexSession.OpenWindowsAsync(drives, LaunchUiBroker, cancellationToken));
+            GitWizard.MftIndexSession.OpenWindowsAsync(drives, UiBrokerLauncher.LaunchUiBroker, cancellationToken));
         using var armCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         var armResult = await source.ArmAndCatchUpAsync(new[] { drive }, armCancellation.Token);
         Assert.That(armResult.Errors, Does.Not.ContainKey(drive));
@@ -83,7 +83,7 @@ public class IndexVolumeChangeSourceWindowsTests
         var temporaryPath = Path.Combine(Path.GetTempPath(), $"git-wizard-watch-{Guid.NewGuid():N}.tmp");
         var drive = GetFixtureDrive(temporaryPath);
         await using var source = new IndexVolumeChangeSource((drives, cancellationToken) =>
-            GitWizard.MftIndexSession.OpenWindowsAsync(drives, LaunchUiBroker, cancellationToken));
+            GitWizard.MftIndexSession.OpenWindowsAsync(drives, UiBrokerLauncher.LaunchUiBroker, cancellationToken));
         using var armCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         var armResult = await source.ArmAndCatchUpAsync(new[] { drive }, armCancellation.Token);
         Assert.That(armResult.Errors, Does.Not.ContainKey(drive));
@@ -132,21 +132,4 @@ public class IndexVolumeChangeSourceWindowsTests
         return false;
     }
 
-    [SupportedOSPlatform("windows")]
-    static bool LaunchUiBroker(string brokerArguments)
-    {
-        var testDirectory = TestContext.CurrentContext.TestDirectory;
-        var configuration = Directory.GetParent(testDirectory)?.Name
-            ?? throw new InvalidOperationException("Could not determine the test build configuration.");
-        var repositoryRoot = Path.GetFullPath(Path.Combine(testDirectory, "..", "..", "..", ".."));
-        var executablePath = Path.Combine(
-            repositoryRoot, "GitWizardUI", "bin", configuration, "net10.0", "GitWizardUI.exe");
-
-        using var process = Process.Start(new ProcessStartInfo(executablePath, brokerArguments)
-        {
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        });
-        return process is not null;
-    }
 }

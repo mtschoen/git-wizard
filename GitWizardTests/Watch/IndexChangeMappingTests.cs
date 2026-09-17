@@ -7,6 +7,8 @@ namespace GitWizardTests.Watch;
 [TestFixture]
 public class IndexChangeMappingTests
 {
+    static readonly DateTime ChangeTime = new(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+
     string _fixtureDirectory = null!;
     FileIndex? _index;
 
@@ -40,7 +42,7 @@ public class IndexChangeMappingTests
     public void CreatedMapsToCreated()
     {
         var change = new FileChange(FileChangeKind.Created, Entry("file.txt", false),
-            @"T:\captured\file.txt");
+            @"T:\captured\file.txt", ChangeTime);
 
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             IndexChangeMapping.Map(change with { Kind = (FileChangeKind)(-1) }));
@@ -54,7 +56,7 @@ public class IndexChangeMappingTests
     public void DeletedUsesCapturedPath()
     {
         var change = new FileChange(FileChangeKind.Deleted, Entry("file.txt", false),
-            @"T:\deleted\file.txt");
+            @"T:\deleted\file.txt", ChangeTime);
 
         Assert.That(change.Entry.Path, Is.Not.EqualTo(change.Path));
         Assert.That(IndexChangeMapping.Map(change), Is.EqualTo(new[]
@@ -67,7 +69,7 @@ public class IndexChangeMappingTests
     public void ModifiedUsesCapturedPath()
     {
         var change = new FileChange(FileChangeKind.Modified, Entry("file.txt", false),
-            @"T:\modified\file.txt");
+            @"T:\modified\file.txt", ChangeTime);
 
         Assert.That(change.Entry.Path, Is.Not.EqualTo(change.Path));
         Assert.That(IndexChangeMapping.Map(change), Is.EqualTo(new[]
@@ -81,7 +83,7 @@ public class IndexChangeMappingTests
     {
         // P17 constructs captured locations because enumeration blocks reject journal mutation.
         var change = new FileChange(FileChangeKind.Renamed, Entry("file.txt", false),
-            @"T:\new\file.txt", @"T:\old\file.txt");
+            @"T:\new\file.txt", ChangeTime, PreviousPath: @"T:\old\file.txt");
         ObserveDivergence(change);
         var entries = IndexChangeMapping.Map(change);
         Assert.That(entries, Is.EqualTo(new[]
@@ -95,7 +97,7 @@ public class IndexChangeMappingTests
         Assert.That(result.Deleted, Is.Empty);
 
         var markerChange = new FileChange(FileChangeKind.Renamed, Entry(".git", true),
-            @"T:\new\.git", @"T:\old\.git");
+            @"T:\new\.git", ChangeTime, PreviousPath: @"T:\old\.git");
         ObserveDivergence(markerChange);
         var markerEntries = IndexChangeMapping.Map(markerChange);
         Assert.That(markerEntries, Is.EqualTo(new[]
@@ -123,9 +125,9 @@ public class IndexChangeMappingTests
     public void SameBatchRenameDoesNotRewriteEarlierEvent()
     {
         var entry = Entry("file.txt", false);
-        var earlierChange = new FileChange(FileChangeKind.Modified, entry, @"T:\old\file.txt");
+        var earlierChange = new FileChange(FileChangeKind.Modified, entry, @"T:\old\file.txt", ChangeTime);
         var renameChange = new FileChange(FileChangeKind.Renamed, entry,
-            @"T:\current\file.txt", earlierChange.Path);
+            @"T:\current\file.txt", ChangeTime, PreviousPath: earlierChange.Path);
         ObserveDivergence(earlierChange);
         FileChange[] batch = [earlierChange, renameChange];
 

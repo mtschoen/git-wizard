@@ -42,7 +42,7 @@ public class IndexVolumeChangeSourceWindowsTests
             GitWizard.MftIndexSession.OpenWindowsAsync(drives, arguments =>
             {
                 launches++;
-                return LaunchUiBroker(arguments);
+                return UiBrokerLauncher.LaunchUiBroker(arguments);
             }, cancellationToken));
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         var arm = await source.ArmAndCatchUpAsync([drive], cancellation.Token);

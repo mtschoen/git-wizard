@@ -149,7 +149,7 @@ public class BrokerDiscoveryTests
     public async Task Discovery_AllDrivesFail_PreservesScanErrorsInResult()
     {
         using var files = new PackedIndexFixture();
-        var owner = new MftIndexSession(await files.OpenIndexAsync(), null, ["X"],
+        var owner = new MftIndexSession(await files.OpenIndexAsync(), null, ["X"], [],
             new Dictionary<string, string> { ["X"] = "Timed out waiting for broker to connect" });
         await using var result = await GitWizardApi.DiscoverRepositoriesWithIndexAsync(
             new GitWizardConfiguration(), new List<string>(), [@"X:\"], [],

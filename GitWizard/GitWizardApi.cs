@@ -127,6 +127,10 @@ public static partial class GitWizardApi
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
                 path.AsSpan(1));
         }
+        else if (path == "~")
+        {
+            path = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        }
 
         return NormalizePath(path);
     }

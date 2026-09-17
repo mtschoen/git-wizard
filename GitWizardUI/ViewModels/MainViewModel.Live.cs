@@ -321,7 +321,7 @@ public partial class MainViewModel
         }
     }
 
-    async Task<(List<string> Tracked, List<string> Search, List<string> Ignored, bool IncludeTempDirectories)> GetLiveRootsAsync()
+    internal async Task<(List<string> Tracked, List<string> Search, List<string> Ignored, bool IncludeTempDirectories)> GetLiveRootsAsync()
     {
         var tracked = _allRepositories.Select(node => node.WorkingDirectory)
             .Where(path => !string.IsNullOrEmpty(path)).ToList();

@@ -1,4 +1,5 @@
 using GitWizard;
+using GitWizard.Watch;
 
 namespace GitWizardTests;
 
@@ -107,5 +108,41 @@ public partial class RepositoryChangeFilterTests
         var result = filter.Classify([Deleted(@"c:\")]);
 
         Assert.That(result.Deleted, Is.EquivalentTo(new[] { repositoryRoot }));
+    }
+
+    [Test]
+    public void Classify_PosixMovedInUnderSearchRoot_PreservesPath()
+    {
+        var filter = new RepositoryChangeFilter([], ["/repos"]);
+
+        var result = filter.Classify([new VolumeChangeEntry("/repos/repo-renamed", VolumeEntryKind.MovedIn)]);
+
+        Assert.That(result.MovedInCandidates, Is.EquivalentTo(new[] { "/repos/repo-renamed" }));
+    }
+
+    [Test]
+    public void Classify_WindowsMovedInTrackedRootWithDifferentCasing_AddsMovedInCandidate()
+    {
+        const string repoRoot = @"C:\repos\repo-a";
+        var filter = new RepositoryChangeFilter([repoRoot], [@"C:\repos"]);
+
+        var result = filter.Classify([Deleted(repoRoot), MovedIn(@"C:\repos\Repo-A")]);
+
+        Assert.That(result.Deleted, Is.EquivalentTo(new[] { repoRoot }));
+        Assert.That(result.MovedInCandidates, Is.EquivalentTo(new[] { @"C:\repos\Repo-A" }));
+        Assert.That(result.Changed, Is.Empty);
+        Assert.That(result.Created, Is.Empty);
+    }
+
+    [Test]
+    public void Classify_WindowsMovedInTrackedRootOutsideSearchRootsWithDifferentCasing_AddsMovedInCandidate()
+    {
+        const string repoRoot = @"D:\repos\repo-a";
+        var filter = new RepositoryChangeFilter([repoRoot]);
+
+        var result = filter.Classify([MovedIn(@"D:\repos\Repo-A")]);
+
+        Assert.That(result.MovedInCandidates, Is.EquivalentTo(new[] { @"D:\repos\Repo-A" }));
+        Assert.That(result.Changed, Is.Empty);
     }
 }

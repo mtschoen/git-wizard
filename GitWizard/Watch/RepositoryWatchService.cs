@@ -10,11 +10,14 @@ namespace GitWizard.Watch;
 /// and maps them to <see cref="RepositoryChangeEvent"/>s for the tracked/search repository
 /// roots. Repeated changes to the same root within one debounce window coalesce into a
 /// single <see cref="RepositoryChangeKind.Changed"/> event. A repository whose .git directory
-/// creation classifies under a search root is adopted into that volume's running filter, so
-/// its later edits classify as <see cref="RepositoryChangeKind.Changed"/> without a watch
-/// restart. Rename correlation (matching a <see cref="RepositoryChangeKind.Deleted"/> against
-/// a <see cref="RepositoryChangeKind.Created"/>) is deliberately left to the consumer - this
-/// service never inspects git remotes.
+/// creation classifies under a search root (or is probed from a MovedIn candidate) is adopted
+/// into that volume's running filter, so its later edits classify as
+/// <see cref="RepositoryChangeKind.Changed"/> without a watch restart. Rename correlation
+/// (matching a <see cref="RepositoryChangeKind.Deleted"/> against a
+/// <see cref="RepositoryChangeKind.Created"/>) is deliberately left to the consumer - this
+/// service never inspects git remotes. Directory renames arrive as Deleted + MovedIn: an
+/// untracked MovedIn path under a search root is probed once at flush time for a .git entry
+/// (directory or gitfile) and surfaces as Created on a hit.
 /// </summary>
 public sealed class RepositoryWatchService
 {
@@ -40,16 +43,10 @@ public sealed class RepositoryWatchService
     /// A failed watch does not imply that the drive's index is unavailable for queries.
     /// </summary>
     [UsedImplicitly]
-    public IReadOnlyDictionary<string, string> ScanErrors
-    {
-        get { lock (_errorsLock) return _scanErrors; }
-    }
+    public IReadOnlyDictionary<string, string> ScanErrors { get { lock (_errorsLock) return _scanErrors; } }
 
     [UsedImplicitly]
-    public IReadOnlyCollection<JournalWarning> ScanWarnings
-    {
-        get { lock (_errorsLock) return _scanWarnings; }
-    }
+    public IReadOnlyCollection<JournalWarning> ScanWarnings { get { lock (_errorsLock) return _scanWarnings; } }
 
     public RepositoryWatchService(
         IVolumeChangeSource source,
@@ -76,11 +73,9 @@ public sealed class RepositoryWatchService
             _scanWarnings = FrozenSet<JournalWarning>.Empty;
         }
         var diagnostics = _source as IVolumeChangeDiagnostics;
-        if (diagnostics is not null)
-            diagnostics.DriveFailed += OnDriveFailed;
+        if (diagnostics is not null) diagnostics.DriveFailed += OnDriveFailed;
         var scanProgress = _source as IVolumeScanProgress;
-        if (scanProgress is not null)
-            scanProgress.ScanProgress += OnScanProgress;
+        if (scanProgress is not null) scanProgress.ScanProgress += OnScanProgress;
         try
         {
             await foreach (var changeEvent in RunCoreAsync(ct).ConfigureAwait(false))
@@ -88,28 +83,32 @@ public sealed class RepositoryWatchService
         }
         finally
         {
-            if (diagnostics is not null)
-                diagnostics.DriveFailed -= OnDriveFailed;
-            if (scanProgress is not null)
-                scanProgress.ScanProgress -= OnScanProgress;
+            if (diagnostics is not null) diagnostics.DriveFailed -= OnDriveFailed;
+            if (scanProgress is not null) scanProgress.ScanProgress -= OnScanProgress;
         }
     }
 
     async IAsyncEnumerable<RepositoryChangeEvent> RunCoreAsync(
         [EnumeratorCancellation] CancellationToken ct)
     {
-        var filtersByVolume = await BuildFiltersByVolumeAsync(ct).ConfigureAwait(false);
-        Started?.Invoke();
         var channel = Channel.CreateUnbounded<RepositoryChangeEvent>();
-        using var deathSignal = new SourceDeathSignal(
-            _source,
-            reason =>
-            {
-                Stopped?.Invoke(reason);
-                channel.Writer.TryComplete();
-            },
-            ct);
+        using var deathSignal = new SourceDeathSignal(_source, reason =>
+        {
+            Stopped?.Invoke(reason);
+            channel.Writer.TryComplete();
+        }, ct);
 
+        Dictionary<string, RepositoryChangeFilter> filtersByVolume;
+        try
+        {
+            filtersByVolume = await BuildFiltersByVolumeAsync(deathSignal.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (deathSignal.Token.IsCancellationRequested && !ct.IsCancellationRequested)
+        {
+            yield break;
+        }
+
+        Started?.Invoke();
         var pumpTask = PumpAsync(filtersByVolume, channel.Writer, deathSignal.Token);
 
         try
@@ -119,6 +118,7 @@ public sealed class RepositoryWatchService
         }
         finally
         {
+            // An early consumer exit must stop the pending source read before awaiting the pump.
             await deathSignal.CancelAsync().ConfigureAwait(false);
             await pumpTask.ConfigureAwait(false);
         }
@@ -130,10 +130,8 @@ public sealed class RepositoryWatchService
         {
             if (_scanErrors.TryGetValue(drive, out var previous) && previous == message)
                 return;
-            _scanErrors = new Dictionary<string, string>(_scanErrors, StringComparer.OrdinalIgnoreCase)
-            {
-                [drive] = message
-            }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+            var errors = new Dictionary<string, string>(_scanErrors, StringComparer.OrdinalIgnoreCase) { [drive] = message };
+            _scanErrors = errors.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
         }
         ScanErrorsChanged?.Invoke();
     }
@@ -149,16 +147,22 @@ public sealed class RepositoryWatchService
                 errors[drive] = message;
             _scanErrors = errors.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
 
-            _scanWarnings = armResult.JournalWarnings
+            var warnings = armResult.JournalWarnings
                 .GroupBy(warning => warning.DriveLetter, StringComparer.OrdinalIgnoreCase)
-                .Select(group => group.Last())
-                .ToFrozenSet();
+                .Select(group => group.Last());
+            _scanWarnings = warnings.ToFrozenSet();
         }
         ScanErrorsChanged?.Invoke();
         ScanWarningsChanged?.Invoke();
     }
 
     // Owns the linked CancellationTokenSource used to fold source death into cancellation.
+    // The SourceDied handler is an instance method reading instance fields, not a closure
+    // capturing a local that this type later disposes - keeping the source-death wiring out
+    // of RunCoreAsync's own scope avoids a disposed-closure hazard there. Takes the death callback
+    // directly (rather than exposing its own event) since RunCoreAsync is its only caller and
+    // always attaches exactly one handler - a nullable event here would just be an
+    // unreachable null-check branch.
     sealed class SourceDeathSignal : IDisposable
     {
         readonly IVolumeChangeSource _source;
@@ -175,6 +179,7 @@ public sealed class RepositoryWatchService
 
         public CancellationToken Token => _cts.Token;
         public Task CancelAsync() => _cts.CancelAsync();
+
         void OnSourceDied(string reason) { _onDied(reason); _ = _cts.CancelAsync(); }
         public void Dispose() { _source.SourceDied -= OnSourceDied; _cts.Cancel(); _cts.Dispose(); }
     }
@@ -184,24 +189,19 @@ public sealed class RepositoryWatchService
         var trackedByVolume = GroupRootsByVolume(_trackedRoots);
         var searchByVolume = GroupRootsByVolume(_searchRoots);
         var ignoredByVolume = GroupRootsByVolume(_ignoredPaths);
-        var volumes = trackedByVolume.Keys
-            .Union(searchByVolume.Keys, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+        var volumes = trackedByVolume.Keys.Union(searchByVolume.Keys, StringComparer.OrdinalIgnoreCase).ToArray();
 
         var armResult = await _source.ArmAndCatchUpAsync(volumes, ct).ConfigureAwait(false);
         SetArmResult(armResult);
 
-        var filters = new Dictionary<string, RepositoryChangeFilter>(StringComparer.OrdinalIgnoreCase);
-        foreach (var volume in volumes)
-        {
-            trackedByVolume.TryGetValue(volume, out var tracked);
-            searchByVolume.TryGetValue(volume, out var search);
-            ignoredByVolume.TryGetValue(volume, out var ignored);
-            filters[volume] = new RepositoryChangeFilter(
-                tracked ?? [], search ?? [], ignored ?? [], _includeTempDirectories);
-        }
-
-        return filters;
+        return volumes.ToDictionary(
+            volume => volume,
+            volume => new RepositoryChangeFilter(
+                trackedByVolume.GetValueOrDefault(volume) ?? [],
+                searchByVolume.GetValueOrDefault(volume) ?? [],
+                ignoredByVolume.GetValueOrDefault(volume) ?? [],
+                _includeTempDirectories),
+            StringComparer.OrdinalIgnoreCase);
     }
 
     static Dictionary<string, List<string>> GroupRootsByVolume(IReadOnlyCollection<string> roots)
@@ -210,15 +210,11 @@ public sealed class RepositoryWatchService
         foreach (var root in roots)
         {
             var volume = GetVolume(root);
-            if (volume is null)
-                continue;
-
+            if (volume is null) continue;
             if (!result.TryGetValue(volume, out var list))
                 result[volume] = list = [];
-
             list.Add(root);
         }
-
         return result;
     }
 
@@ -226,14 +222,12 @@ public sealed class RepositoryWatchService
 
     async Task PumpAsync(
         IReadOnlyDictionary<string, RepositoryChangeFilter> filtersByVolume,
-        ChannelWriter<RepositoryChangeEvent> writer,
-        CancellationToken ct)
+        ChannelWriter<RepositoryChangeEvent> writer, CancellationToken ct)
     {
-        var pending = new PendingChanges();
         try
         {
             await using var enumerator = _source.WatchAsync(ct).GetAsyncEnumerator(ct);
-            await PumpLoopAsync(enumerator, filtersByVolume, pending, writer, ct).ConfigureAwait(false);
+            await PumpLoopAsync(enumerator, filtersByVolume, new PendingChanges(), writer, ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -248,9 +242,7 @@ public sealed class RepositoryWatchService
     async Task PumpLoopAsync(
         IAsyncEnumerator<VolumeChangeBatch> enumerator,
         IReadOnlyDictionary<string, RepositoryChangeFilter> filtersByVolume,
-        PendingChanges pending,
-        ChannelWriter<RepositoryChangeEvent> writer,
-        CancellationToken ct)
+        PendingChanges pending, ChannelWriter<RepositoryChangeEvent> writer, CancellationToken ct)
     {
         var nextBatch = enumerator.MoveNextAsync().AsTask();
         var idle = Task.Delay(Timeout.InfiniteTimeSpan, ct);
@@ -265,7 +257,6 @@ public sealed class RepositoryWatchService
                 {
                     if (!await nextBatch.ConfigureAwait(false))
                         break;
-
                     var hasRelevantChanges = ApplyBatch(filtersByVolume, enumerator.Current, pending);
                     nextBatch = enumerator.MoveNextAsync().AsTask();
                     if (hasRelevantChanges && !flushScheduled)
@@ -277,35 +268,37 @@ public sealed class RepositoryWatchService
                 }
 
                 await idle.ConfigureAwait(false);
-                await FlushAsync(pending, writer, ct).ConfigureAwait(false);
+                await FlushAsync(pending, filtersByVolume, writer, ct).ConfigureAwait(false);
                 idle = Task.Delay(Timeout.InfiniteTimeSpan, ct);
                 flushScheduled = false;
             }
         }
         finally
         {
+            // If idle won the race above (or ct cancelled between iterations), nextBatch's
+            // MoveNextAsync may still be outstanding when this method returns/throws. The
+            // caller's `await using` then disposes the enumerator immediately - and a
+            // compiler-generated async-iterator enumerator throws NotSupportedException if
+            // DisposeAsync races a still-in-flight MoveNextAsync. Observing it here first
+            // (swallowing only the expected cancellation) makes that always safe.
             await ObserveCancellationAsync(nextBatch).ConfigureAwait(false);
         }
 
-        await FlushAsync(pending, writer, ct).ConfigureAwait(false);
+        await FlushAsync(pending, filtersByVolume, writer, ct).ConfigureAwait(false);
     }
 
     static async Task ObserveCancellationAsync(Task task)
     {
-        try
-        {
-            await task.ConfigureAwait(false);
-        }
+        try { await task.ConfigureAwait(false); }
         catch (OperationCanceledException)
         {
-            // Expected: this task shares the same cancellation token as the loop that awaited it.
+            // Expected: task shares the same cancellation token as the loop that awaited it.
         }
     }
 
     static bool ApplyBatch(
         IReadOnlyDictionary<string, RepositoryChangeFilter> filtersByVolume,
-        VolumeChangeBatch batch,
-        PendingChanges pending)
+        VolumeChangeBatch batch, PendingChanges pending)
     {
         if (!filtersByVolume.TryGetValue(batch.Volume, out var filter))
             return false;
@@ -313,6 +306,25 @@ public sealed class RepositoryWatchService
         var hasRelevantChanges = false;
         foreach (var entry in batch.Entries)
         {
+            if (filter.TryClassifyMovedInCandidate(entry, out var candidate))
+            {
+                hasRelevantChanges = true;
+                pending.AddMovedInCandidate(candidate);
+                continue;
+            }
+
+            if (entry.Kind == VolumeEntryKind.MovedIn)
+            {
+                var path = WatchPath.Parse(entry.FullPath);
+                var movedInCandidate = path.TryGetGitDirectoryParent(out var parent) ? parent : path;
+                if (pending.HasDeletedRoot(movedInCandidate))
+                {
+                    hasRelevantChanges = true;
+                    pending.AddMovedInCandidate(movedInCandidate.Original);
+                    continue;
+                }
+            }
+
             var classification = filter.ClassifyEntry(entry);
             if (classification is null)
                 continue;
@@ -323,7 +335,6 @@ public sealed class RepositoryWatchService
                 filter.AddRepositoryRoot(root);
             else if (kind == RepositoryChangeKind.Deleted)
                 filter.RemoveRepositoryRoot(root);
-
             pending.Add(root, kind);
         }
 
@@ -331,10 +342,44 @@ public sealed class RepositoryWatchService
     }
 
     static async Task FlushAsync(
-        PendingChanges pending, ChannelWriter<RepositoryChangeEvent> writer, CancellationToken ct)
+        PendingChanges pending,
+        IReadOnlyDictionary<string, RepositoryChangeFilter> filtersByVolume,
+        ChannelWriter<RepositoryChangeEvent> writer, CancellationToken ct)
     {
+        var createdRoots = new HashSet<string>(WatchPath.StringComparer);
         foreach (var changeEvent in pending.DrainEvents())
+        {
+            if (changeEvent.Kind == RepositoryChangeKind.Created)
+                createdRoots.Add(changeEvent.RepoRoot);
+            else if (changeEvent.Kind == RepositoryChangeKind.Deleted)
+                createdRoots.Remove(changeEvent.RepoRoot);
             await writer.WriteAsync(changeEvent, ct).ConfigureAwait(false);
+        }
+
+        // Candidates flush after the window's regular events, so a same-window rename delivers
+        // Deleted(old) before the probe-emitted Created(new) - the UI's pending-delete rename
+        // correlation depends on that order. Ignored and temp-excluded candidates were already
+        // dropped by RepositoryChangeFilter.TryClassifyMovedInCandidate, so only the repository
+        // probe remains here.
+        foreach (var candidate in pending.DrainMovedInCandidates())
+        {
+            if (createdRoots.Contains(candidate) || !LooksLikeRepository(candidate))
+                continue;
+
+            var volume = WatchPath.Parse(candidate).Volume;
+            if (volume is not null && filtersByVolume.TryGetValue(volume, out var filter))
+                filter.AddRepositoryRoot(candidate);
+
+            createdRoots.Add(candidate);
+            await writer.WriteAsync(new RepositoryChangeEvent(candidate, RepositoryChangeKind.Created), ct).ConfigureAwait(false);
+        }
+    }
+
+    // A gitfile worktree or submodule has .git as a file, not a directory.
+    static bool LooksLikeRepository(string path)
+    {
+        var gitPath = Path.Combine(path, ".git");
+        return Directory.Exists(gitPath) || File.Exists(gitPath);
     }
 
     // Accumulates one debounce window's worth of classified events. Repeated Changed
@@ -351,33 +396,33 @@ public sealed class RepositoryWatchService
 
         readonly List<RepositoryChangeEvent> _events = [];
         readonly Dictionary<string, RootPendingState> _stateByRoot = new(WatchPath.StringComparer);
+        readonly HashSet<string> _movedInCandidates = new(WatchPath.StringComparer);
+
+        public void AddMovedInCandidate(string candidate) => _movedInCandidates.Add(candidate);
+
+        public bool HasDeletedRoot(WatchPath candidate) =>
+            _stateByRoot.Any(pair => pair.Value.LastEvent == RepositoryChangeKind.Deleted && candidate.IsEqualTo(WatchPath.Parse(pair.Key)));
 
         public void Add(string root, RepositoryChangeKind kind)
         {
             if (!_stateByRoot.TryGetValue(root, out var state))
-            {
-                state = new RootPendingState();
-                _stateByRoot[root] = state;
-            }
+                _stateByRoot[root] = state = new RootPendingState();
 
-            if (kind is RepositoryChangeKind.Created or RepositoryChangeKind.Deleted)
-            {
-                if (state.LastEvent == kind)
-                    return;
-
-                state.LastEvent = kind;
-                state.HasChangedSinceLifecycle = false;
-                _events.Add(new RepositoryChangeEvent(root, kind));
-            }
-            else if (kind == RepositoryChangeKind.Changed)
+            if (kind == RepositoryChangeKind.Changed)
             {
                 if (state.HasChangedSinceLifecycle)
                     return;
-
                 state.LastEvent = RepositoryChangeKind.Changed;
                 state.HasChangedSinceLifecycle = true;
                 _events.Add(new RepositoryChangeEvent(root, RepositoryChangeKind.Changed));
+                return;
             }
+
+            if (state.LastEvent == kind)
+                return;
+            state.LastEvent = kind;
+            state.HasChangedSinceLifecycle = false;
+            _events.Add(new RepositoryChangeEvent(root, kind));
         }
 
         public RepositoryChangeEvent[] DrainEvents()
@@ -386,6 +431,15 @@ public sealed class RepositoryWatchService
             _events.Clear();
             _stateByRoot.Clear();
             return events;
+        }
+
+        // Drained after DrainEvents; the flush probes these paths for a .git entry before
+        // turning them into Created events.
+        public string[] DrainMovedInCandidates()
+        {
+            var candidates = _movedInCandidates.ToArray();
+            _movedInCandidates.Clear();
+            return candidates;
         }
     }
 }

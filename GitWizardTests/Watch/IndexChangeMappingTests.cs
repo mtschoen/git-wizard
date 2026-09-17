@@ -19,6 +19,7 @@ public class IndexChangeMappingTests
             $"index-change-mapping-{Guid.NewGuid():N}");
         var treeDirectory = Path.Combine(_fixtureDirectory, "tree");
         Directory.CreateDirectory(Path.Combine(treeDirectory, "current", ".git"));
+        Directory.CreateDirectory(Path.Combine(treeDirectory, "current", "sub"));
         await File.WriteAllTextAsync(Path.Combine(treeDirectory, "current", "file.txt"), "content");
         _index = await FileIndex.OpenAsync(new FileIndexOptions
         {
@@ -103,22 +104,51 @@ public class IndexChangeMappingTests
         Assert.That(markerEntries, Is.EqualTo(new[]
         {
             new VolumeChangeEntry(@"T:\old\.git", VolumeEntryKind.Deleted),
-            new VolumeChangeEntry(@"T:\new\.git", VolumeEntryKind.Created)
+            new VolumeChangeEntry(@"T:\new\.git", VolumeEntryKind.MovedIn)
         }));
         var markerFilter = new RepositoryChangeFilter([@"T:\old"], [@"T:\"]);
         var markerResult = markerFilter.Classify(markerEntries);
         Assert.That(markerResult.Changed, Is.Empty);
         Assert.That(markerResult.Deleted, Is.EqualTo(new[] { @"T:\old" }));
-        Assert.That(markerResult.Created, Is.EqualTo(new[] { @"T:\new" }));
+        Assert.That(markerResult.Created, Is.Empty,
+            "A directory rename no longer yields Created; MovedIn candidate classification is separate.");
 
         var withoutPreviousPath = IndexChangeMapping.Map(markerChange with { PreviousPath = null });
         Assert.That(withoutPreviousPath, Is.EqualTo(new[]
         {
-            new VolumeChangeEntry(@"T:\new\.git", VolumeEntryKind.Created)
+            new VolumeChangeEntry(@"T:\new\.git", VolumeEntryKind.MovedIn)
         }));
-        var withoutPreviousResult = markerFilter.Classify(withoutPreviousPath);
-        Assert.That(withoutPreviousResult.Deleted, Is.Empty);
-        Assert.That(withoutPreviousResult.Created, Is.EqualTo(new[] { @"T:\new" }));
+    }
+
+    [Test]
+    public void DirectoryRenameMapsToDeletedPlusMovedIn()
+    {
+        var change = new FileChange(FileChangeKind.Renamed, Entry("sub", true),
+            @"T:\current\sub-renamed", ChangeTime, PreviousPath: @"T:\current\sub");
+        ObserveDivergence(change);
+
+        var entries = IndexChangeMapping.Map(change);
+
+        Assert.That(entries, Is.EqualTo(new[]
+        {
+            new VolumeChangeEntry(@"T:\current\sub", VolumeEntryKind.Deleted),
+            new VolumeChangeEntry(@"T:\current\sub-renamed", VolumeEntryKind.MovedIn)
+        }));
+    }
+
+    [Test]
+    public void DirectoryRenameWithoutPreviousPathMapsToMovedInAlone()
+    {
+        var change = new FileChange(FileChangeKind.Renamed, Entry("sub", true),
+            @"T:\current\sub-renamed", ChangeTime);
+        ObserveDivergence(change);
+
+        var entries = IndexChangeMapping.Map(change);
+
+        Assert.That(entries, Is.EqualTo(new[]
+        {
+            new VolumeChangeEntry(@"T:\current\sub-renamed", VolumeEntryKind.MovedIn)
+        }));
     }
 
     [Test]

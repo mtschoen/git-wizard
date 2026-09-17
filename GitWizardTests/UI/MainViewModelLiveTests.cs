@@ -631,6 +631,70 @@ public class MainViewModelLiveTests
     }
 
     [Test]
+    public async Task ToggleLiveAsync_TrackedRepoRenamedWithinSearchRoot_EndsWithOneEntryAtNewPath()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AddOriginRemoteAndPush();
+        var refreshed = new GitWizardRepository(fixture.Path);
+        refreshed.Refresh();
+        var remoteUrl = refreshed.RemoteUrls.Single();
+        var searchRoot = Path.GetDirectoryName(fixture.Path)!;
+        var oldPath = Path.Combine(searchRoot, "gw-old-" + Guid.NewGuid().ToString("N"));
+
+        var config = await GitWizardConfiguration.GetGlobalConfigurationAsync();
+        config.SearchPaths.Clear();
+        config.SearchPaths.Add(searchRoot);
+
+        var volume = WatchPath.Parse(fixture.Path).Volume!;
+        var batch = new VolumeChangeBatch(volume, new[]
+        {
+            new VolumeChangeEntry(oldPath, VolumeEntryKind.Deleted),
+            new VolumeChangeEntry(fixture.Path, VolumeEntryKind.MovedIn),
+        });
+        var viewModel = NewViewModel();
+        viewModel.AddRepository(Repo(oldPath, remoteUrl));
+        viewModel.LiveVolumeChangeSourceFactory = () => new FakeVolumeChangeSource(new[] { batch });
+        viewModel.LiveIsElevated = () => false;
+
+        await viewModel.ToggleLiveAsync();
+
+        // The Created application awaits a real Refresh on a thread pool thread, and an
+        // uncorrelated Deleted only expires after the rename-correlation window, so poll for the
+        // settled end state instead of asserting intermediate counts.
+        await WaitUntilAsync(() =>
+        {
+            var paths = viewModel.Repositories.Select(node => node.WorkingDirectory).ToList();
+            return paths.Count == 1 && paths[0] == fixture.Path;
+        });
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.Repositories.Single().WorkingDirectory, Is.EqualTo(fixture.Path));
+            Assert.That(viewModel.Repositories.Select(node => node.WorkingDirectory),
+                Does.Not.Contain(oldPath));
+        });
+    }
+
+    [Test]
+    public async Task GetLiveRootsAsync_PreservesNonExistentIgnoredPaths()
+    {
+        var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync();
+        var nonExistentIgnored = Path.Combine(Path.GetTempPath(), $"gw-nonexistent-{Guid.NewGuid():N}");
+        configuration.IgnoredPaths.Add(nonExistentIgnored);
+        try
+        {
+            var viewModel = NewViewModel();
+            var (_, _, ignored, _) = await viewModel.GetLiveRootsAsync();
+
+            var expected = GitWizardApi.ExpandIgnoredPath(nonExistentIgnored);
+            Assert.That(ignored, Does.Contain(expected));
+        }
+        finally
+        {
+            configuration.IgnoredPaths.Remove(nonExistentIgnored);
+        }
+    }
+
+    [Test]
     public async Task LiveVolumeChangeSourceFactory_DefaultsToRealPlatformSourceConstructor()
     {
         var viewModel = NewViewModel();

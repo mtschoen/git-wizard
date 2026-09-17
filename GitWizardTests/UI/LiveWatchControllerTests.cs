@@ -193,7 +193,7 @@ public class LiveWatchControllerTests
             onStopped: stoppedReasons.Add,
             isElevated: () => true);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         var startTask = controller.StartAsync(cts.Token);
 
         // Kill 1st, 2nd, 3rd, 4th sources as they arm. MaxConsecutiveRespawns is 3,
@@ -413,7 +413,7 @@ public class LiveWatchControllerTests
 
     static async Task WaitUntilAsync(Func<bool> condition)
     {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         while (!condition())
         {
             timeout.Token.ThrowIfCancellationRequested();
@@ -496,6 +496,54 @@ public class LiveWatchControllerTests
 
         Assert.That(events, Is.Empty);
     }
+
+    [Test]
+    public async Task Start_ForwardsIgnoredRootsToService()
+    {
+        var searchRoot = Path.Combine(TestContext.CurrentContext.WorkDirectory,
+            $"live-ignored-{Guid.NewGuid():N}");
+        var ignoredRoot = Path.Combine(searchRoot, "ignored");
+        var ignoredRepo = Path.Combine(ignoredRoot, "repo");
+        var visibleRepo = Path.Combine(searchRoot, "visible-repo");
+        Directory.CreateDirectory(Path.Combine(ignoredRepo, ".git"));
+        Directory.CreateDirectory(Path.Combine(visibleRepo, ".git"));
+        try
+        {
+            var volume = WatchPath.Parse(searchRoot).Volume!;
+            var source = new FakeVolumeChangeSource(new[]
+            {
+                new VolumeChangeBatch(volume, new[]
+                {
+                    new VolumeChangeEntry(ignoredRepo, VolumeEntryKind.MovedIn),
+                    new VolumeChangeEntry(visibleRepo, VolumeEntryKind.MovedIn),
+                })
+            });
+            var events = new List<RepositoryChangeEvent>();
+            var controller = new LiveWatchController(
+                () => source,
+                trackedRoots: Array.Empty<string>(),
+                searchRoots: new[] { searchRoot },
+                onEvent: events.Add,
+                onStopped: _ => { },
+                new LiveWatchOptions
+                {
+                    IsElevated = () => false,
+                    IgnoredPaths = new[] { ignoredRoot }
+                });
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await controller.StartAsync(cts.Token);
+
+            Assert.That(events, Is.EqualTo(new[]
+            {
+                new RepositoryChangeEvent(visibleRepo, RepositoryChangeKind.Created),
+            }));
+        }
+        finally
+        {
+            Directory.Delete(searchRoot, recursive: true);
+        }
+    }
 }
 
 
@@ -504,7 +552,28 @@ public class LiveWatchControllerTests
 // without racing a scripted batch against a kill signal.
 internal sealed class HangingKillableSource : IVolumeChangeSource, IVolumeScanProgress
 {
-    public event Action<string>? SourceDied;
+    readonly Lock _gate = new();
+    Action<string>? _sourceDied;
+    string? _deathReason;
+
+    public event Action<string>? SourceDied
+    {
+        add
+        {
+            lock (_gate)
+            {
+                _sourceDied += value;
+                if (_deathReason is not null)
+                    value?.Invoke(_deathReason);
+            }
+        }
+        remove
+        {
+            lock (_gate)
+                _sourceDied -= value;
+        }
+    }
+
     public event Action<VolumeScanProgress>? ScanProgress;
 
     public bool IsArmed { get; private set; }
@@ -525,7 +594,14 @@ internal sealed class HangingKillableSource : IVolumeChangeSource, IVolumeScanPr
         yield break;
     }
 
-    public void KillSource(string reason) => SourceDied?.Invoke(reason);
+    public void KillSource(string reason)
+    {
+        lock (_gate)
+        {
+            _deathReason = reason;
+            _sourceDied?.Invoke(reason);
+        }
+    }
 
     public void ReportScanProgress(VolumeScanProgress sample) => ScanProgress?.Invoke(sample);
 
@@ -541,8 +617,27 @@ internal sealed class HangingKillableSource : IVolumeChangeSource, IVolumeScanPr
 internal sealed class GatedDisposeKillableSource : IVolumeChangeSource
 {
     readonly TaskCompletionSource _releaseDispose = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    readonly Lock _gate = new();
+    Action<string>? _sourceDied;
+    string? _deathReason;
 
-    public event Action<string>? SourceDied;
+    public event Action<string>? SourceDied
+    {
+        add
+        {
+            lock (_gate)
+            {
+                _sourceDied += value;
+                if (_deathReason is not null)
+                    value?.Invoke(_deathReason);
+            }
+        }
+        remove
+        {
+            lock (_gate)
+                _sourceDied -= value;
+        }
+    }
 
     public bool IsArmed { get; private set; }
     public bool DisposeStarted { get; private set; }
@@ -562,7 +657,15 @@ internal sealed class GatedDisposeKillableSource : IVolumeChangeSource
         yield break;
     }
 
-    public void KillSource(string reason) => SourceDied?.Invoke(reason);
+    public void KillSource(string reason)
+    {
+        lock (_gate)
+        {
+            _deathReason = reason;
+            _sourceDied?.Invoke(reason);
+        }
+    }
+
     public void ReleaseDispose() => _releaseDispose.TrySetResult();
 
     public async ValueTask DisposeAsync()

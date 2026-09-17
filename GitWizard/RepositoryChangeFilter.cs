@@ -1,14 +1,18 @@
+using System.Diagnostics.CodeAnalysis;
 using GitWizard.Watch;
 
 namespace GitWizard;
 
 /// <summary>
 /// Result of <see cref="RepositoryChangeFilter.Classify"/>: tracked roots with modified
-/// content, new repository roots discovered under a search root, and tracked roots whose
-/// repository was deleted.
+/// content, new repository roots discovered under a search root, tracked roots whose
+/// repository was deleted, and untracked directories renamed into a search root
+/// (<see cref="MovedInCandidates"/>, left for the service layer to probe for a .git entry -
+/// this filter never touches the filesystem).
 /// </summary>
 public readonly record struct FilterResult(
-    IReadOnlyCollection<string> Changed, IReadOnlyCollection<string> Created, IReadOnlyCollection<string> Deleted);
+    IReadOnlyCollection<string> Changed, IReadOnlyCollection<string> Created,
+    IReadOnlyCollection<string> Deleted, IReadOnlyCollection<string> MovedInCandidates);
 
 /// <summary>
 /// Maps raw volume change batches back to tracked and search repository roots.
@@ -72,7 +76,9 @@ public sealed class RepositoryChangeFilter
     /// <summary>
     /// Classifies a single volume change entry without mutating the filter's tracked roots.
     /// Returns the classified change kind and matching repository root, or <see langword="null"/>
-    /// if the entry is not relevant to any tracked or search root.
+    /// if the entry is not relevant to any tracked or search root. A <see cref="VolumeEntryKind.MovedIn"/>
+    /// entry that names a candidate for a new repository root (rather than a change under an
+    /// already-tracked one) is not classified here - see <see cref="TryClassifyMovedInCandidate"/>.
     /// </summary>
     public (RepositoryChangeKind Kind, string Root)? ClassifyEntry(VolumeChangeEntry entry)
     {
@@ -128,24 +134,100 @@ public sealed class RepositoryChangeFilter
                         ? (RepositoryChangeKind.Changed, rootChanged.Value.Original)
                         : null;
                 }
+            case VolumeEntryKind.MovedIn:
+                {
+                    var candidate = path.TryGetGitDirectoryParent(out var parent) ? parent : path;
+                    var trackedRoot = FindContainingTrackedRoot(candidate);
+                    if (trackedRoot is not null)
+                    {
+                        // A case-only rename of a tracked root itself is a moved-in candidate
+                        // (the service layer re-adds it under its new casing), not a content change.
+                        if (candidate.IsEqualTo(trackedRoot.Value)
+                            && !string.Equals(candidate.Original, trackedRoot.Value.Original, StringComparison.Ordinal))
+                        {
+                            return null;
+                        }
+
+                        return !IsExcludedTempPath(trackedRoot.Value)
+                            ? (RepositoryChangeKind.Changed, trackedRoot.Value.Original)
+                            : null;
+                    }
+
+                    return null;
+                }
             default:
                 return null;
         }
     }
 
     /// <summary>
+    /// Checks whether <paramref name="entry"/> represents a moved-in repository root candidate
+    /// (an untracked directory or .git marker renamed into a search root, or a case-only rename
+    /// of an existing tracked root). If so, returns <see langword="true"/> and outputs the
+    /// candidate path to be probed by the watch service at debounce flush. Ignored and excluded
+    /// temp paths never produce a candidate.
+    /// </summary>
+    public bool TryClassifyMovedInCandidate(VolumeChangeEntry entry, [NotNullWhen(true)] out string? candidateRoot)
+    {
+        if (entry.Kind != VolumeEntryKind.MovedIn)
+        {
+            candidateRoot = null;
+            return false;
+        }
+
+        var path = WatchPath.Parse(entry.FullPath);
+        if (IsIgnored(path))
+        {
+            candidateRoot = null;
+            return false;
+        }
+
+        var candidate = path.TryGetGitDirectoryParent(out var parent) ? parent : path;
+        var trackedRoot = FindContainingTrackedRoot(candidate);
+        if (trackedRoot is not null)
+        {
+            if (candidate.IsEqualTo(trackedRoot.Value)
+                && !string.Equals(candidate.Original, trackedRoot.Value.Original, StringComparison.Ordinal))
+            {
+                candidateRoot = candidate.Original;
+                return true;
+            }
+
+            candidateRoot = null;
+            return false;
+        }
+
+        if (FindContainingRoot(candidate, _orderedSearchRoots) is not null
+            && !IsExcludedTempPath(candidate))
+        {
+            candidateRoot = candidate.Original;
+            return true;
+        }
+
+        candidateRoot = null;
+        return false;
+    }
+
+    /// <summary>
     /// Classifies a batch of raw volume change entries into modified tracked roots, new
-    /// repository roots discovered under a search root, and tracked roots whose repository
-    /// was deleted. Does not mutate the filter's tracked roots.
+    /// repository roots discovered under a search root, tracked roots whose repository was
+    /// deleted, and untracked moved-in candidates. Does not mutate the filter's tracked roots.
     /// </summary>
     public FilterResult Classify(IReadOnlyList<VolumeChangeEntry> entries)
     {
         var changed = new HashSet<string>(WatchPath.StringComparer);
         var created = new HashSet<string>(WatchPath.StringComparer);
         var deleted = new HashSet<string>(WatchPath.StringComparer);
+        var movedInCandidates = new HashSet<string>(WatchPath.StringComparer);
 
         foreach (var entry in entries)
         {
+            if (TryClassifyMovedInCandidate(entry, out var candidate))
+            {
+                movedInCandidates.Add(candidate);
+                continue;
+            }
+
             var classification = ClassifyEntry(entry);
             if (classification is null)
                 continue;
@@ -165,7 +247,7 @@ public sealed class RepositoryChangeFilter
             }
         }
 
-        return new FilterResult(changed, created, deleted);
+        return new FilterResult(changed, created, deleted, movedInCandidates);
     }
 
     bool IsIgnored(WatchPath path) =>

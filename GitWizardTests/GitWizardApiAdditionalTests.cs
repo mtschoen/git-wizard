@@ -108,6 +108,38 @@ public class GitWizardApiAdditionalTests
     }
 
     [Test]
+    public void ExpandIgnoredPath_ReturnsExpandedPath_ForNonExistentDirectory()
+    {
+        var nonExistent = Path.Combine(_tempRoot!, "does-not-exist");
+        var result = GitWizardApi.ExpandIgnoredPath(nonExistent);
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result, Is.EqualTo(nonExistent).IgnoreCase);
+    }
+
+    [Test]
+    public void ExpandIgnoredPath_ReturnsNull_ForNullOrWhiteSpace()
+    {
+        Assert.That(GitWizardApi.ExpandIgnoredPath(""), Is.Null);
+        Assert.That(GitWizardApi.ExpandIgnoredPath("   "), Is.Null);
+    }
+
+    [Test]
+    public void ExpandIgnoredPath_ExpandsEnvironmentVariables()
+    {
+        Environment.SetEnvironmentVariable("TEST_IGNORED_PATH", _tempRoot!);
+        try
+        {
+            var result = GitWizardApi.ExpandIgnoredPath("%TEST_IGNORED_PATH%");
+            Assert.That(result, Is.Not.Null);
+            Assert.That(result, Is.EqualTo(_tempRoot).IgnoreCase);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("TEST_IGNORED_PATH", null);
+        }
+    }
+
+    [Test]
     public void PrettyPrintPath_ReturnsOriginalPath_WhenNoEnvVars()
     {
         var path = "/absolute/path/without/env";

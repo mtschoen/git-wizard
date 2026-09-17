@@ -250,6 +250,38 @@ public class ProgramWatchLoopTests
         Assert.That(stopped, Is.True);
         Assert.That(lines, Does.Contain("Broker died: No requested drives could be watched."));
     }
+
+    [Test]
+    public async Task RunWatchLoopAsync_MovedInRepository_PrintsCreatedLine()
+    {
+        var searchRoot = Path.Combine(TestContext.CurrentContext.WorkDirectory,
+            $"watch-moved-in-{Guid.NewGuid():N}");
+        var repoPath = Path.Combine(searchRoot, "repo-renamed");
+        Directory.CreateDirectory(Path.Combine(repoPath, ".git"));
+        try
+        {
+            var volume = WatchPath.Parse(repoPath).Volume!;
+            var batch = new VolumeChangeBatch(volume,
+                new[] { new VolumeChangeEntry(repoPath, VolumeEntryKind.MovedIn) });
+            var source = new FakeVolumeChangeSource(new[] { batch });
+            var service = new RepositoryWatchService(
+                source,
+                trackedRoots: Array.Empty<string>(),
+                searchRoots: new[] { searchRoot },
+                debounce: TimeSpan.FromMilliseconds(10));
+
+            var lines = new List<string>();
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var stopped = await Program.RunWatchLoopAsync(service, lines.Add, NoExit, cts.Token);
+
+            Assert.That(stopped, Is.False);
+            Assert.That(lines, Is.EqualTo(new[] { $"created: {repoPath}" }));
+        }
+        finally
+        {
+            Directory.Delete(searchRoot, recursive: true);
+        }
+    }
 }
 
 internal sealed class ThrowingWatchVolumeChangeSource : IVolumeChangeSource

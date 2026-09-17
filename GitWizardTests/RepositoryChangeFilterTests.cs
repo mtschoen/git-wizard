@@ -10,6 +10,52 @@ public partial class RepositoryChangeFilterTests
     static VolumeChangeEntry Modified(string fullPath) => new(fullPath, VolumeEntryKind.Modified);
     static VolumeChangeEntry Created(string fullPath) => new(fullPath, VolumeEntryKind.Created);
     static VolumeChangeEntry Deleted(string fullPath) => new(fullPath, VolumeEntryKind.Deleted);
+    static VolumeChangeEntry MovedIn(string fullPath) => new(fullPath, VolumeEntryKind.MovedIn);
+
+    [Test]
+    public void Classify_MovedInUnderTrackedRoot_MapsToChanged()
+    {
+        var filter = new RepositoryChangeFilter([RepoRoot], [@"C:\repos"]);
+
+        var result = filter.Classify([MovedIn(Path.Combine(RepoRoot, "src-renamed"))]);
+
+        Assert.That(result.Changed, Is.EquivalentTo(new[] { RepoRoot }));
+        Assert.That(result.MovedInCandidates, Is.Empty);
+        Assert.That(result.Created, Is.Empty);
+    }
+
+    [Test]
+    public void Classify_MovedInUntrackedDirectoryUnderSearchRoot_AddsMovedInCandidate()
+    {
+        var filter = new RepositoryChangeFilter([], [@"C:\repos"]);
+
+        var result = filter.Classify([MovedIn(@"C:\repos\repo-renamed")]);
+
+        Assert.That(result.MovedInCandidates, Is.EquivalentTo(new[] { @"C:\repos\repo-renamed" }));
+        Assert.That(result.Changed, Is.Empty);
+        Assert.That(result.Created, Is.Empty);
+        Assert.That(result.Deleted, Is.Empty);
+    }
+
+    [Test]
+    public void Classify_MovedInOutsideSearchRoots_IsIgnored()
+    {
+        var filter = new RepositoryChangeFilter([], [@"C:\repos"]);
+
+        var result = filter.Classify([MovedIn(@"C:\elsewhere\repo")]);
+
+        Assert.That(result.MovedInCandidates, Is.Empty);
+    }
+
+    [Test]
+    public void Classify_MovedInWithNoSearchRootsConfigured_IsIgnored()
+    {
+        var filter = new RepositoryChangeFilter([RepoRoot]);
+
+        var result = filter.Classify([MovedIn(@"C:\repos\repo-renamed")]);
+
+        Assert.That(result.MovedInCandidates, Is.Empty);
+    }
 
     [Test]
     public void Classify_ModifiedEntryUnderTrackedRoot_MapsToChanged()
@@ -289,6 +335,19 @@ public partial class RepositoryChangeFilterTests
     }
 
     [Test]
+    public void Classify_MovedInGitDirectoryUnderSearchRoot_AddsParentAsMovedInCandidate()
+    {
+        var searchRoot = @"C:\repos";
+        var filter = new RepositoryChangeFilter([], [searchRoot]);
+
+        var result = filter.Classify([MovedIn(@"C:\repos\new-repo\.git")]);
+
+        Assert.That(result.MovedInCandidates, Is.EquivalentTo(new[] { @"C:\repos\new-repo" }));
+        Assert.That(result.Created, Is.Empty);
+        Assert.That(result.Changed, Is.Empty);
+    }
+
+    [Test]
     public void Classify_TrackedTempRoot_EmitsChangedWhenIncludeTempDirectoriesTrue()
     {
         const string trackedTempRepo = @"C:\Users\gitea-runner\AppData\Local\Temp\pytest-12602\repo";
@@ -502,5 +561,18 @@ public partial class RepositoryChangeFilterTests
         filter.AddRepositoryRoot(@"C:\repos\temp");
         Assert.That(filter.ClassifyEntry(Modified(@"C:\repos\temp\file.txt")),
             Is.EqualTo((RepositoryChangeKind.Changed, @"C:\repos\temp")));
+    }
+
+    [Test]
+    public void Classify_MovedInGitDirectoryUnderTrackedRoot_MapsToChanged()
+    {
+        var filter = new RepositoryChangeFilter([RepoRoot], [@"C:\repos"]);
+
+        var result = filter.Classify([MovedIn(Path.Combine(RepoRoot, ".git"))]);
+
+        Assert.That(result.Changed, Is.EquivalentTo(new[] { RepoRoot }));
+        Assert.That(result.MovedInCandidates, Is.Empty);
+        Assert.That(result.Created, Is.Empty);
+        Assert.That(result.Deleted, Is.Empty);
     }
 }

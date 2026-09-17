@@ -78,17 +78,46 @@ public class MftIndexSessionTests
     {
         await using var broker = new BlockBrokerFixture();
         using var cancellation = new CancellationTokenSource();
-        broker.ScanReceived = cancellation.Cancel;
+        var midWriteReached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var resumeWrite = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        broker.MidScanAsync = async () =>
+        {
+            midWriteReached.SetResult();
+            await resumeWrite.Task;
+        };
         var drive = broker.Drive('X');
         var connectAsync = broker.ConnectAsync;
         var cacheDirectory = broker.CacheDirectory;
         var cancellationToken = cancellation.Token;
-        Assert.That(async () =>
-            await MftIndexSession.OpenAsync([drive], connectAsync,
-                cacheDirectory, cancellationToken), Throws.InstanceOf<OperationCanceledException>());
+        var openTask = MftIndexSession.OpenAsync([drive], connectAsync,
+            cacheDirectory, cancellationToken);
+        try
+        {
+            var reached = await Task.WhenAny(midWriteReached.Task, openTask).WaitAsync(TimeSpan.FromSeconds(10));
+            if (reached == openTask)
+            {
+                await using var earlySession = await openTask;
+                Assert.Fail("Opening completed before reaching the mid-scan gate.");
+            }
+        }
+        finally
+        {
+            try
+            {
+                await cancellation.CancelAsync();
+            }
+            finally
+            {
+                resumeWrite.TrySetResult();
+            }
+        }
+        Assert.That(async () => await openTask.WaitAsync(TimeSpan.FromSeconds(10)),
+            Throws.InstanceOf<OperationCanceledException>());
         await broker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.That(broker.ConnectionCount, Is.EqualTo(1));
         Assert.That(broker.SectionDisposals, Is.EqualTo(1));
+        Assert.That(broker.RowsWritten, Is.EqualTo(1));
+        Assert.That(broker.ServedToCompletion, Is.False);
 
         await using var watchBroker = new BlockBrokerFixture();
         using var watchCancellation = new CancellationTokenSource();
@@ -105,6 +134,26 @@ public class MftIndexSessionTests
         Assert.Throws<ObjectDisposedException>(() => session.Index.FindByName(".git"));
         Assert.That(watchBroker.ConnectionCount, Is.EqualTo(1));
         Assert.That(watchBroker.SectionDisposals, Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task CancellationOnScanReceivedClosesClient()
+    {
+        await using var broker = new BlockBrokerFixture();
+        using var cancellation = new CancellationTokenSource();
+        broker.ScanReceived = cancellation.Cancel;
+        var drive = broker.Drive('X');
+        var connectAsync = broker.ConnectAsync;
+        var cacheDirectory = broker.CacheDirectory;
+        var cancellationToken = cancellation.Token;
+        Assert.That(async () =>
+            await MftIndexSession.OpenAsync([drive], connectAsync,
+                cacheDirectory, cancellationToken), Throws.InstanceOf<OperationCanceledException>());
+        await broker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.That(broker.ConnectionCount, Is.EqualTo(1));
+        Assert.That(broker.SectionDisposals, Is.EqualTo(1));
+        Assert.That(broker.RowsWritten, Is.Zero);
+        Assert.That(broker.ServedToCompletion, Is.False);
     }
 
     [Test]

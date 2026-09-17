@@ -28,14 +28,35 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
     public List<BrokerFrame> ScanFrames { get; } = [];
     public string? FailedDrive { get; set; }
     public Action? ScanReceived { get; set; }
+    public Func<Task>? MidScanAsync { get; set; }
+    public int RowsWritten { get; private set; }
+    public bool ServedToCompletion { get; private set; }
     public bool DisconnectOnScan { get; set; }
     readonly TaskCompletionSource _shutdown = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public Task Shutdown => _shutdown.Task;
+    readonly CancellationTokenSource _clientCancelledSource = new();
+    CancellationToken _clientCancellationToken = CancellationToken.None;
+
+    public CancellationToken ClientCancellation
+    {
+        get => _clientCancellationToken;
+        set => _clientCancellationToken = value;
+    }
+
+    bool IsCancelledOrClosed =>
+        _cancellation.IsCancellationRequested ||
+        _clientCancelledSource.IsCancellationRequested ||
+        _clientCancellationToken.IsCancellationRequested ||
+        _serverStream.IsPeerDisposed;
 
     public Task<JournalBrokerClient> ConnectAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         ConnectionCount++;
+        if (cancellationToken.CanBeCanceled)
+        {
+            _clientCancellationToken = cancellationToken;
+        }
         return Task.FromResult(new JournalBrokerClient(_clientStream, CreateSection));
     }
 
@@ -94,9 +115,9 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
     {
         try
         {
-            while (true)
+            while (!IsCancelledOrClosed)
             {
-                var frame = await ReadFrameAsync(_serverStream, _cancellation.Token);
+                var frame = await ReadFrameAsync(_serverStream, _cancellation.Token).ConfigureAwait(false);
                 var response = new ArrayBufferWriter<byte>();
                 switch (frame.Kind)
                 {
@@ -110,21 +131,16 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
                         ScanReceived?.Invoke();
                         if (DisconnectOnScan)
                         {
-                            await _serverStream.DisposeAsync();
+                            await _serverStream.DisposeAsync().ConfigureAwait(false);
                             return;
                         }
-                        try
+                        if (IsCancelledOrClosed)
                         {
-                            WriteScan(response, frame);
+                            return;
                         }
-                        catch (ObjectDisposedException)
+                        var scanSucceeded = await WriteScanAsync(response, frame).ConfigureAwait(false);
+                        if (!scanSucceeded || IsCancelledOrClosed)
                         {
-                            // The client cancelled mid-scan and released its block section, so the
-                            // rows this scan was writing have nowhere to land. A real broker sees
-                            // the same thing when its client vanishes: end the session rather than
-                            // faulting the server task, which would surface later as an unrelated
-                            // failure from DisconnectAsync. Narrow to the scan write on purpose -
-                            // a disposed object anywhere else is still a defect.
                             return;
                         }
 
@@ -147,26 +163,41 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
                     default:
                         throw new InvalidDataException($"Unexpected client frame {frame.Kind}.");
                 }
-                await _serverStream.WriteAsync(response.WrittenMemory, _cancellation.Token);
+                if (IsCancelledOrClosed)
+                {
+                    return;
+                }
+                try
+                {
+                    await _serverStream.WriteAsync(response.WrittenMemory, _cancellation.Token).ConfigureAwait(false);
+                }
+                catch (InvalidOperationException) when (_serverStream.IsPeerDisposed)
+                {
+                    // PipeWriter rejects writes after the peer completes its reader.
+                    return;
+                }
             }
         }
-        catch (EndOfStreamException) { }
-        catch (OperationCanceledException) when (_cancellation.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (IsCancelledOrClosed) { }
+        catch (ObjectDisposedException) when (IsCancelledOrClosed) { }
+        catch (IOException) when (IsCancelledOrClosed) { }
         finally
         {
-            // Shutdown means "the server stopped serving", not "the client sent a Shutdown frame".
-            // It used to be set only by that frame, so every other exit - a cancelled client that
-            // never says goodbye, an ended stream, a fault - left anything awaiting Shutdown to
-            // time out instead of failing for its real reason. TrySetResult keeps the explicit
-            // frame path a no-op when it already fired.
+            await _serverStream.DisposeAsync().ConfigureAwait(false);
+            // Signal every exit; DisconnectAsync still propagates the broker task's failure.
             _shutdown.TrySetResult();
         }
     }
 
-    void WriteScan(ArrayBufferWriter<byte> response, BrokerFrame frame)
+    async Task<bool> WriteScanAsync(ArrayBufferWriter<byte> response, BrokerFrame frame)
     {
         foreach (var token in frame.DrivesSpec!.Split(','))
         {
+            if (IsCancelledOrClosed)
+            {
+                return false;
+            }
+
             var parts = token.Split(':');
             var drive = parts[0];
             if (_scanError != null && (FailedDrive == null || FailedDrive == drive))
@@ -177,51 +208,134 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
             var sectionName = parts[3];
             var block = _sections[sectionName];
             var writer = new BlockWriter(block);
-            WriteDirectory(writer, 5, "root", 5);
-            WriteDirectory(writer, 6, "code", 5);
-            WriteDirectory(writer, 42, "repo", 6);
-            WriteDirectory(writer, 43, ".git", 42);
-            writer.SetJournalCursor(Cursor.JournalId, Cursor.NextUsn);
-            writer.Complete(PackedIndexFixture.CompletionTimestamp);
+            if (!TryWriteDirectory(writer, 5, "root", 5))
+            {
+                return false;
+            }
+
+            if (MidScanAsync != null)
+            {
+                await MidScanAsync().ConfigureAwait(false);
+            }
+
+            if (IsCancelledOrClosed)
+            {
+                return false;
+            }
+
+            if (!TryWriteDirectory(writer, 6, "code", 5))
+            {
+                return false;
+            }
+
+            if (IsCancelledOrClosed)
+            {
+                return false;
+            }
+
+            if (!TryWriteDirectory(writer, 42, "repo", 6))
+            {
+                return false;
+            }
+
+            if (IsCancelledOrClosed)
+            {
+                return false;
+            }
+
+            if (!TryWriteDirectory(writer, 43, ".git", 42))
+            {
+                return false;
+            }
+
+            if (IsCancelledOrClosed)
+            {
+                return false;
+            }
+
+            try
+            {
+                writer.SetJournalCursor(Cursor.JournalId, Cursor.NextUsn);
+                writer.Complete(PackedIndexFixture.CompletionTimestamp);
+            }
+            catch (ObjectDisposedException) when (IsCancelledOrClosed)
+            {
+                return false;
+            }
+
             BrokerProtocol.WriteCursor(response, drive, Cursor);
             BrokerProtocol.WriteScanReady(response, sectionName, block.Header.RowCount, block.Header.NamePoolUsed, 0);
             BrokerProtocol.WriteJournalBatch(response, drive, BrokerFrame.NoArmEpoch, Cursor, _catchUpEntries);
         }
+
+        ServedToCompletion = true;
+        return true;
     }
 
-    static void WriteDirectory(BlockWriter writer, uint row, string name, uint parent)
+    bool TryWriteDirectory(BlockWriter writer, uint row, string name, uint parent)
     {
-        Assert.That(writer.TryWriteRow(row, name, new RowColumns(parent,
-            RowFlags.InUse | RowFlags.Directory, (uint)FileAttributes.Directory, 0,
-            PackedIndexFixture.CompletionTimestamp.Ticks, 1)), Is.True);
+        try
+        {
+            if (IsCancelledOrClosed)
+            {
+                return false;
+            }
+
+            var written = writer.TryWriteRow(row, name, new RowColumns(parent,
+                RowFlags.InUse | RowFlags.Directory, (uint)FileAttributes.Directory, 0,
+                PackedIndexFixture.CompletionTimestamp.Ticks, 1));
+            if (written)
+            {
+                RowsWritten++;
+            }
+
+            return written;
+        }
+        catch (ObjectDisposedException) when (IsCancelledOrClosed)
+        {
+            return false;
+        }
     }
 
     static async Task<BrokerFrame> ReadFrameAsync(Stream stream, CancellationToken cancellationToken)
     {
         var header = new byte[4];
-        await stream.ReadExactlyAsync(header, cancellationToken);
+        await stream.ReadExactlyAsync(header, cancellationToken).ConfigureAwait(false);
         var length = BinaryPrimitives.ReadInt32LittleEndian(header);
         var bytes = new byte[4 + length];
         header.CopyTo(bytes.AsMemory());
-        await stream.ReadExactlyAsync(bytes.AsMemory(4), cancellationToken);
+        await stream.ReadExactlyAsync(bytes.AsMemory(4), cancellationToken).ConfigureAwait(false);
         return BrokerProtocol.ReadFrame(bytes, out _);
     }
 
     public async Task DisconnectAsync()
     {
         await _cancellation.CancelAsync();
-        await _brokerTask;
-        await _serverStream.DisposeAsync();
+        try
+        {
+            await _brokerTask;
+        }
+        finally
+        {
+            await _serverStream.DisposeAsync();
+        }
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (_session is not null)
-            await _session.DisposeAsync();
-        await DisconnectAsync();
-        await _clientStream.DisposeAsync();
-        _cancellation.Dispose();
-        _files.Dispose();
+        try
+        {
+            if (_session is not null)
+                await _session.DisposeAsync();
+            await DisconnectAsync();
+        }
+        finally
+        {
+            await _clientStream.DisposeAsync();
+            _clientCancelledSource.Dispose();
+            _cancellation.Dispose();
+            _files.Dispose();
+        }
     }
 
     sealed class SectionLifetime(Action onDispose) : IDisposable

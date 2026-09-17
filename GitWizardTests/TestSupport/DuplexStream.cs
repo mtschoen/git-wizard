@@ -6,6 +6,13 @@ internal sealed class DuplexStream : Stream
 {
     readonly Stream _read;
     readonly Stream _write;
+    readonly CancellationTokenSource _peerDisposedSource = new();
+    DuplexStream? _peer;
+    int _disposed;
+
+    public CancellationToken PeerDisposedToken => _peerDisposedSource.Token;
+    public bool IsPeerDisposed => _peer?.IsDisposed ?? false;
+    public bool IsDisposed => Volatile.Read(ref _disposed) != 0;
 
     DuplexStream(Stream read, Stream write)
     {
@@ -19,6 +26,8 @@ internal sealed class DuplexStream : Stream
         var serverToClient = new Pipe();
         var client = new DuplexStream(serverToClient.Reader.AsStream(), clientToServer.Writer.AsStream());
         var server = new DuplexStream(clientToServer.Reader.AsStream(), serverToClient.Writer.AsStream());
+        client._peer = server;
+        server._peer = client;
         return (client, server);
     }
 
@@ -46,12 +55,38 @@ internal sealed class DuplexStream : Stream
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing)
+        if (disposing && Interlocked.Exchange(ref _disposed, 1) == 0)
         {
+            try
+            {
+                _peer?._peerDisposedSource.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+
             _read.Dispose();
             _write.Dispose();
         }
         base.Dispose(disposing);
+    }
+
+    public override async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) == 0)
+        {
+            try
+            {
+                await (_peer?._peerDisposedSource.CancelAsync() ?? Task.CompletedTask).ConfigureAwait(false);
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+
+            await _read.DisposeAsync().ConfigureAwait(false);
+            await _write.DisposeAsync().ConfigureAwait(false);
+        }
+        await base.DisposeAsync().ConfigureAwait(false);
     }
 }
 

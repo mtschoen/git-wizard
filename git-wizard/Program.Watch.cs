@@ -274,20 +274,14 @@ public static partial class Program
         }
     }
 
-    // Loads the tracked repository list from the cache, falling back to a fresh discovery
-    // scan (and re-saving the cache) when no cached list exists yet.
-    static async Task<List<string>> LoadTrackedRepositoryPathsAsync(GitWizardConfiguration configuration)
+    // Discover before arming so repositories created since the last cache write are tracked.
+    internal static async Task<List<string>> LoadTrackedRepositoryPathsAsync(GitWizardConfiguration configuration)
     {
-        var cached = await GitWizardApi.GetCachedRepositoryPathsAsync().ConfigureAwait(false);
-        if (cached is { Length: > 0 })
-            return cached.ToList();
-
         var discovered = new SortedSet<string>();
         configuration.GetRepositoryPaths(discovered);
         EnsureUsableSearchPaths(configuration);
         var paths = discovered.ToList();
-        if (paths.Count > 0)
-            await GitWizardApi.SaveCachedRepositoryPathsAsync(paths).ConfigureAwait(false);
+        await GitWizardApi.SaveCachedRepositoryPathsAsync(paths).ConfigureAwait(false);
 
         return paths;
     }

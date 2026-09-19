@@ -61,6 +61,14 @@ runs is logged at Debug instead of Error.
 
 ### Live monitoring
 
+CLI `--watch` recursively discovers repositories under the configured search paths
+on every start and replaces `repositories.txt` before arming the watch. Repositories
+created since the previous cache write are therefore tracked without a rename.
+Discovery respects the configured ignore, hidden-directory and temp-directory
+policies. This adds filesystem-scan latency at each CLI watch start; it does not
+launch an additional MFT broker or elevation prompt. An empty discovery clears the
+repository-list cache and the CLI reports that there is nothing to watch.
+
 On Windows, discovery and the transfer into Live share one UAC prompt when the prepared index
 is reusable. A watch failure on one drive is reported while healthy drives stay live. A repository created under a configured search path while Live runs is discovered and tracked from that point on; Live does not need a restart for it. If a drive's
 USN journal is below MFTLib's recommendation, Live shows a warning for that drive with its current

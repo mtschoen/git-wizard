@@ -194,8 +194,7 @@ if ($DryRun) {
     Write-Host "  1. Start 'git-wizard --watch -v' in the background; wait for the session-started banner and the"
     Write-Host "     elevated broker child (one interactive UAC prompt)."
     Write-Host "  2. Edit repo-a (created before the watch) and commit; expect 'changed: ...repo-a'."
-    Write-Host "     Currently FAILS by design of gw#219 (a repo created before the watch, after the last discovery,"
-    Write-Host "     is invisible to --watch's cached repository list)."
+    Write-Host "     Regression gw#219: fresh startup discovery must track repo-a despite the older cached list."
     Write-Host "  3. Create repo-b during the watch, then edit it; expect 'created: ...repo-b' then 'changed: ...repo-b' (gw#205)."
     Write-Host "  4. Rename repo-b to repo-b2, then edit it; expect 'deleted: ...repo-b', 'created: ...repo-b2', then"
     Write-Host "     'changed: ...repo-b2' (gw#206, gw#209)."
@@ -265,11 +264,11 @@ try {
         if ($result) {
             $logCursor = $result.NextStartLine
             Add-StepResult -Step "2. Edit repo-a (existed before the watch)" -Status "PASS" -Evidence $result.Line `
-                -Notes "gw#219 appears fixed on this build - re-verify against the issue before relying on it."
+                -Notes "Regression gw#219: a repository created after the cache write was tracked at watch startup."
         } else {
             Add-StepResult -Step "2. Edit repo-a (existed before the watch)" -Status "FAIL" `
                 -Evidence "no 'changed: ...repo-a' line within 30s" `
-                -Notes "Known issue: https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/219"
+                -Notes "Startup discovery regression: https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/219"
         }
     } catch {
         Add-StepResult -Step "2. Edit repo-a (existed before the watch)" -Status "FAIL" -Evidence $_.Exception.Message

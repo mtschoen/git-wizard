@@ -4,7 +4,7 @@ Attended verification steps that need a real Windows machine, a real elevation
 prompt, or a real desktop session, and so cannot run on CI. Run the CLI pass
 below first, before any GitWizardUI (desktop) testing - it exercises the same
 discovery and watch machinery with far less setup, and its known gaps
-(gw#219, and anything else it turns up) usually explain UI-level symptoms
+(including the stale-cache startup regression) usually explain UI-level symptoms
 before they are chased there.
 
 ## CLI live smoke (run first)
@@ -28,9 +28,12 @@ prints a reminder immediately before it expects that prompt.
 - A git-wizard cached repository list must already exist at
   `~/.GitWizard/repositories.txt` (run `git-wizard` once, or run the
   GitWizardUI app once and close it, on a first-time machine setup). Step 2
-  below depends on this: it reproduces gw#219 by editing a repository created
+  below depends on this: it guards against gw#219 by editing a repository created
   *after* that cache was last written, so an empty cache would make the step
   vacuous rather than a real reproduction.
+- The selected scratch root must be under a configured search path and outside
+  ignored paths. Fresh startup discovery applies the configured scope; a scratch
+  repository outside that scope is not an eligible stale-cache regression fixture.
 - Nothing here edits `~/.GitWizard/config.json`. Other accounts' repositories
   (for example `C:\Users\gitea-runner\.cache\act` during CI activity on the
   same machine) will still appear in the raw watch output; the script filters
@@ -52,8 +55,8 @@ repositories themselves live under
 `<ScratchDrive>:\gw-cli-smoke-<yyyyMMdd-HHmmss>` and are removed at the end of
 the run regardless of outcome.
 
-The script exits non-zero if any step fails, including the currently-expected
-gw#219 failure in step 2 - see below.
+The script exits non-zero if any step fails. Step 2 must pass: the CLI discovers
+repo-a at startup even though repo-a was created after the cache was last written.
 
 ### Steps and expectations
 
@@ -61,7 +64,7 @@ gw#219 failure in step 2 - see below.
 |---|------|-------------|-------|
 | 0 | Preflight | Scratch root created; `repo-a` created with `git init` and one commit (using `-c user.name`/`-c user.email` so the run needs no global git identity), all **before** the watch starts. | |
 | 1 | Start `git-wizard --watch -v` | The session-started banner ("git-wizard Session Started") appears on stdout, and the elevated broker child appears: another `git-wizard.exe` process whose `ParentProcessId` is the client's PID. Its command line is hidden by elevation, which is why parent-PID matching (via `Win32_Process`/CIM) is used instead of matching on arguments. | One UAC prompt for the whole run. |
-| 2 | Edit `repo-a` (append to the tracked file) and commit | Expect `changed: ...\repo-a`. | **Currently FAILS by design** of [gw#219](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/219): `--watch` only tracks the cached repository list, so a repository created after the last discovery but before the watch started is invisible to it. Report this as a real FAIL with the issue link - do not mark it expected-fail or skip it. |
+| 2 | Edit `repo-a` (append to the tracked file) and commit | Expect `changed: ...\repo-a`. | Regression for [gw#219](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/219): repo-a postdates the cached list but exists before startup discovery. It must be tracked without a rename. Report missing events as a real FAIL. |
 | 3 | Create `repo-b` during the watch, then edit it | Expect `created: ...\repo-b`, then `changed: ...\repo-b`. | Fixed by [gw#205](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/205). |
 | 4 | Rename the tracked `repo-b` to `repo-b2`, then edit it | Expect `deleted: ...\repo-b`, then `created: ...\repo-b2`, then `changed: ...\repo-b2`. | Depends on step 3 having made `repo-b` tracked first. Covered by [gw#206](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/206) and [gw#209](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/209). |
 | 5 | Delete `repo-b2` | Expect `deleted: ...\repo-b2`. | |
@@ -89,10 +92,11 @@ never from a fixed sleep.
   to the scratch root rather than editing `~/.GitWizard/config.json`'s
   `ignoredPaths` - that keeps the real configuration untouched and avoids a
   cleanup step.
-- **gw#219 is a known, currently-real failure**, not flakiness. If step 2
-  ever passes, treat that as news (the issue may have been fixed) and
-  re-verify against the tracker before assuming the smoke test itself is
-  broken.
+- **Step 2 is the regression check for gw#219 and must pass.** The watch
+  rediscovers repositories on every startup, so a repository created after
+  the last cache refresh is tracked before the watch is armed. A failure at
+  step 2 is a real regression, not flakiness: capture the watch output and
+  reopen the issue.
 - **One broker per machine, effectively.** Running the CLI watch and
   GitWizardUI's Live mode at the same time is out of scope for this smoke
   test; close GitWizardUI first.

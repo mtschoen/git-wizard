@@ -195,6 +195,13 @@ Use these to debug crashes/freezes instead of guessing. For the GUI app, run the
 
 VS2026 is installed at `C:/Program Files/Microsoft Visual Studio/18/Community/` for interactive debugging when CLI tools aren't enough.
 
+## Manual testing
+
+Attended verification steps that cannot run on CI (real elevation prompts, a real desktop
+session) live in [`docs/manual-test-plan.md`](docs/manual-test-plan.md). Run its
+**CLI live smoke** pass first on any attended re-test, before GitWizardUI testing -
+`scripts/cli-live-smoke.ps1` drives it end to end and prints PASS/FAIL per step.
+
 ## Screenshots
 
 ### CI (recommended for release prep)

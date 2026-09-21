@@ -70,18 +70,14 @@ launch an additional MFT broker or elevation prompt. An empty discovery clears t
 repository-list cache and the CLI reports that there is nothing to watch.
 
 On Windows, discovery and the transfer into Live share one UAC prompt when the prepared index
-is reusable. A watch failure on one drive is reported while healthy drives stay live. A repository created under a configured search path while Live runs is discovered and tracked from that point on; Live does not need a restart for it. If a drive's
-USN journal is below MFTLib's recommendation, Live shows a warning for that drive with its current
-and recommended maximum sizes. CLI `--watch` prints the warning once per drive at startup.
-An undersized journal can wrap during heavy filesystem activity, faulting that drive's watch
-and forcing a rescan. Nothing is resized automatically.
+is reusable. A watch failure on one drive is reported while healthy drives stay live. A repository created under a configured search path while Live runs is discovered and tracked from that point on; Live does not need a restart for it. If a drive's cached index checkpoint fell out of the USN journal, Live shows a hint for that drive: a journal of at least the named size would have avoided this rescan, alongside the current maximum size. The named size is a lower bound, rounded up to the journal's allocation unit plus one more unit of margin. When that size is too large to represent, the hint reports the rescan without naming a size. When the journal was recreated (different journal id), the hint says so and offers no size. The same hint also appears the moment a running watch dies because the journal moved past the position the watch had reached: live updates for that drive stop, its index keeps answering queries, and the hint says a rescan of the drive is needed to catch up. A hint from a faulted watch replaces the drive's earlier one, while a watch that fails for any other reason leaves it as it was. If Live ends because no drives remain watchable, the hints stay on screen. CLI `--watch` prints each drive's hint at startup and again when it changes. Nothing is resized automatically.
 
-While Live is running, Settings offers **Enlarge** for affected drives. It uses the existing
+While Live is running, Settings shows an **Enlarge** button next to each drive hint, enabled where a larger journal would help and otherwise disabled with the reason beside it. It uses the existing
 elevated broker session without another broker or UAC prompt, rechecks the current size, and
 refuses equal or smaller targets. The result shows the actual before and after sizes in bytes;
 Windows may round the requested size upward. **Do not warn again** saves the volume serial in
 `config.json` under `ignoredJournalWarnings`, so the preference follows the volume rather than
-its drive letter. Re-arming refreshes each drive's warning. Stopping Live releases its resources;
+its drive letter. Re-arming refreshes each drive's hint. Stopping Live releases its resources;
 restarting can require a new scan and elevation prompt. Linux fanotify monitoring is unchanged.
 
 The green Live state means "the pump started", never "catch-up has drained". Changes can still

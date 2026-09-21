@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
+using MFTLib.Index;
 
 namespace GitWizardTests.Watch;
 
@@ -150,6 +151,48 @@ public partial class RepositoryWatchServiceTests
         await WatchFailureAssertions.VerifyShutdownAsync();
         await WatchFailureAssertions.VerifyArmingSnapshotAsync();
         await WatchFailureAssertions.VerifyEarlyStopAsync();
+    }
+
+    [Test]
+    public async Task JournalWarningDetectedMidRun_ReplacesArmWarningAndNotifies()
+    {
+        await using var source = new DiagnosticVolumeChangeSource();
+        var armLoss = FakeJournalSettingsSource.TrimmedLoss('X', 30L * 1024 * 1024, 60L * 1024 * 1024, 10L * 1024 * 1024);
+        source.ArmWarnings.Add(new JournalWarning { DriveLetter = "X", VolumeSerial = 12345, Loss = armLoss });
+        var service = new RepositoryWatchService(source, [@"X:\repo"], [], TimeSpan.Zero);
+        var notifications = 0;
+        service.ScanWarningsChanged += () => notifications++;
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var reader = service.RunAsync(cancellation.Token).GetAsyncEnumerator();
+        var pending = reader.MoveNextAsync().AsTask();
+        try
+        {
+            await source.Started;
+            Assert.That(service.ScanWarnings.Single().Loss, Is.SameAs(armLoss));
+            Assert.That(notifications, Is.EqualTo(1));
+
+            var liveLoss = FakeJournalSettingsSource.TrimmedLoss('X', 30L * 1024 * 1024, 60L * 1024 * 1024,
+                10L * 1024 * 1024, JournalCheckpointLossDetection.LiveWatch);
+            source.RaiseJournalWarning(new JournalWarning { DriveLetter = "x", VolumeSerial = 12345, Loss = liveLoss });
+
+            // The live report is the newer fact about the same drive, so it replaces the
+            // arm-time one instead of sitting beside it, matched case-insensitively.
+            Assert.That(service.ScanWarnings.Single().Loss, Is.SameAs(liveLoss));
+            Assert.That(notifications, Is.EqualTo(2));
+        }
+        finally
+        {
+            source.Complete();
+            try
+            {
+                await pending;
+            }
+            finally
+            {
+                await reader.DisposeAsync();
+            }
+        }
+        Assert.That(source.DiagnosticSubscribers, Is.Zero);
     }
 
     static async Task<List<RepositoryChangeEvent>> DrainAsync(RepositoryWatchService svc)

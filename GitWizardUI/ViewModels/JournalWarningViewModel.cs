@@ -7,19 +7,18 @@ namespace GitWizardUI.ViewModels;
 public class JournalWarningViewModel : INotifyPropertyChanged
 {
     public JournalWarning Warning { get; private set; }
-    public bool IsBelowRecommended => Warning.MaximumSize < Warning.RecommendedSize;
+    public bool HasGrowAction => Warning.HasGrowAction;
+    public string? GrowUnavailableReason => Warning.GrowUnavailableReason;
 
-    public void ApplySettings(long maximumSize, long allocationDelta)
+    public void ApplyLoss(JournalWarning warning)
     {
-        Warning = Warning with { MaximumSize = maximumSize, AllocationDelta = allocationDelta };
+        Warning = warning;
         OnPropertyChanged(nameof(Warning));
-        OnPropertyChanged(nameof(CurrentSizeText));
-        OnPropertyChanged(nameof(IsBelowRecommended));
+        OnPropertyChanged(nameof(HasGrowAction));
+        OnPropertyChanged(nameof(GrowUnavailableReason));
     }
 
     public string DriveLetter => Warning.DriveLetter;
-    public string CurrentSizeText => $"{Warning.MaximumSize / 1024 / 1024} MB";
-    public string RecommendedSizeText => $"{Warning.RecommendedSize / 1024 / 1024} MB";
 
     private string _statusMessage = string.Empty;
     public string StatusMessage

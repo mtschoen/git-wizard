@@ -1,12 +1,26 @@
 using JetBrains.Annotations;
+using MFTLib.Index;
 
 namespace GitWizard.Watch;
 
-public sealed record JournalWarning(string DriveLetter, uint VolumeSerial, long MaximumSize, long RecommendedSize, long AllocationDelta)
+public sealed record JournalWarning
 {
-    public string Message => MaximumSize < RecommendedSize
-        ? $"warning on {DriveLetter}: USN journal maximum size ({MaximumSize / 1024 / 1024} MB) is below the recommended {RecommendedSize / 1024 / 1024} MB. A wrapped journal faults the live watch and forces a rescan."
-        : $"Drive {DriveLetter}: USN journal maximum size ({MaximumSize / 1024 / 1024} MB) meets the recommended {RecommendedSize / 1024 / 1024} MB.";
+    public required string DriveLetter { get; init; }
+    public required uint VolumeSerial { get; init; }
+    public required JournalCheckpointLoss Loss { get; init; }
+    public bool HasGrowAction => Loss.Cause == JournalCheckpointLossCause.CheckpointTrimmed
+                                 && Loss.SizeThatWouldHaveRetained > Loss.MaximumSize;
+    public string? GrowUnavailableReason => HasGrowAction
+        ? null
+        : Loss.Cause switch
+        {
+            JournalCheckpointLossCause.JournalRecreated =>
+                "The journal was recreated, so no journal size would have avoided the rescan.",
+            JournalCheckpointLossCause.CheckpointTrimmed when Loss.SizeThatWouldHaveRetained is null =>
+                "The size that would have avoided the rescan is too large to represent.",
+            _ => "The journal is already at least as large as the size that would have avoided the rescan."
+        };
+    public string Message => JournalHintBuilder.BuildHint(Loss);
 }
 
 /// <summary>

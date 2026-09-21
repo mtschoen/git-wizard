@@ -158,9 +158,10 @@ public static partial class Program
             {
                 foreach (var warning in service.ScanWarnings)
                 {
-                    if (reportedWarnings.Contains(warning.DriveLetter))
+                    // Keyed on the message rather than the drive: a live-watch loss rephrases
+                    // the drive's arm-time hint, and the new wording must print again.
+                    if (!reportedWarnings.Add(warning.Message))
                         continue;
-                    reportedWarnings.Add(warning.DriveLetter);
                     writeLine(warning.Message);
                 }
             }

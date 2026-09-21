@@ -22,7 +22,12 @@ public class JournalSettingsWindowTests
         {
             var main = window.DataContext as MainViewModel;
             Assert.That(main, Is.Not.Null);
-            var warning = new JournalWarningViewModel(new JournalWarning("C", 123, 32, 128, 8));
+            var warning = new JournalWarningViewModel(new JournalWarning
+            {
+                DriveLetter = "C",
+                VolumeSerial = 123,
+                Loss = FakeJournalSettingsSource.TrimmedLoss('C', 32, 128, 8)
+            });
             main.JournalWarnings.Add(warning);
             var list = window.FindControl<ItemsControl>("JournalWarningList");
             Assert.That(list, Is.Not.Null);
@@ -33,6 +38,47 @@ public class JournalSettingsWindowTests
         finally
         {
             await window.DisposeAsync();
+        }
+    }
+
+    [AvaloniaTest]
+    public async Task EnlargeButtonStaysVisibleButDisabledWithoutGrowAction()
+    {
+        var temporaryRoot = TestUtilities.RedirectLocalFilesToTemp();
+        TestUtilities.ResetStaticCaches();
+        var source = new FakeJournalSettingsSource();
+        source.CheckpointLosses.Clear();
+        source.CheckpointLosses.Add(FakeJournalSettingsSource.RecreatedLoss('C', 64L * 1024 * 1024));
+        var main = new MainViewModel(new AvaloniaUiDispatcher(), new StubUserDialogs(), new StubClipboardService())
+        {
+            LiveVolumeChangeSourceFactory = () => source,
+            LiveIsElevated = () => false,
+            LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0)
+        };
+        var running = main.ToggleLiveAsync();
+        SettingsWindow? window = null;
+        try
+        {
+            await source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+            Dispatcher.UIThread.RunJobs();
+            window = new SettingsWindow(main);
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            var buttons = window.GetVisualDescendants().OfType<Button>()
+                .Where(button => Equals(button.Content, "Enlarge")).ToArray();
+            Assert.That(buttons, Has.Length.EqualTo(1));
+            Assert.That(buttons[0].IsVisible, Is.True);
+            Assert.That(buttons[0].IsEnabled, Is.False);
+            Assert.That(main.JournalWarnings[0].GrowUnavailableReason, Does.Contain("journal was recreated"));
+        }
+        finally
+        {
+            window?.Close();
+            await main.DisposeAsync();
+            await running;
+            await source.DisposeAsync();
+            TestUtilities.ResetStaticCaches();
+            TestUtilities.ClearLocalFilesRedirect(temporaryRoot);
         }
     }
 

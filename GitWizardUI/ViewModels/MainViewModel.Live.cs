@@ -254,8 +254,12 @@ public partial class MainViewModel
                 IsLiveStarting = false;
                 IsLive = false;
                 ClearLiveScanProgress();
-                JournalWarnings.Clear();
-                HeaderText = $"Live watch stopped: {reason}{FormatLiveScanErrorSuffix(RequireLiveController())}";
+                var controller = RequireLiveController();
+                // A death stop keeps the drives' journal hints on screen: they explain why the
+                // watch ended, including the sole-drive case where the terminal header is all
+                // the UI shows. A user-initiated stop still clears them (StopLiveAsync).
+                SurfaceNewLiveScanWarnings(controller);
+                HeaderText = $"Live watch stopped: {reason}{FormatLiveScanErrorSuffix(controller)}";
             }),
             new LiveWatchOptions
             {

@@ -9,5 +9,6 @@ internal static class CacheDirectoryIsolationInitializer
     internal static void Initialize()
     {
         CacheDirectoryIsolation.ForbidDefaultCacheDirectory();
+        JournalIsolation.ForbidLiveJournalReads();
     }
 }

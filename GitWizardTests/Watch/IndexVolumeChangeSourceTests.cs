@@ -418,6 +418,96 @@ public class IndexVolumeChangeSourceTests
     static MftIndexSession Owner(FileIndex index, params string[] drives) =>
         new(index, null, drives, [], new Dictionary<string, string>());
 
+    [Test]
+    public async Task CacheDeclinedDriveSurfacesCheckpointLossHint()
+    {
+        using var files = new PackedIndexFixture();
+        files.AddMarker("repo");
+        var owner = new MftIndexSession(await files.OpenIndexAsync(), null, ["X"],
+            [new IndexedDrive('X', files.TreePath, 12345u)], new Dictionary<string, string>());
+        await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner), owner);
+        var loss = new JournalCheckpointLoss
+        {
+            DriveLetter = 'X',
+            DetectedDuring = JournalCheckpointLossDetection.DriveOpening,
+            Cause = JournalCheckpointLossCause.CheckpointTrimmed,
+            CheckpointUsn = 1_000_000,
+            FirstUsn = 5_000_000,
+            NextUsn = 10_000_000,
+            AllocationDelta = 8 * 1024 * 1024,
+            MaximumSize = 32L * 1024 * 1024,
+            BytesBehind = 4_000_000,
+            SizeThatWouldHaveRetained = 136L * 1024 * 1024
+        };
+        var status = new DriveStatus
+        {
+            DriveLetter = 'X',
+            ProducerKind = ProducerKind.Mft,
+            BlockSource = BlockSource.None,
+            State = DriveState.Failed,
+            RowCount = 0,
+            LiveRowCount = 0,
+            ScanTimestamp = DateTime.UtcNow,
+            CompactionNeeded = false,
+            WatchSupported = false,
+            FailureKind = DriveFailureKind.CacheDeclined,
+            MftProducerFailureMessage = "cache declined",
+            CheckpointLoss = loss
+        };
+        var errors = new Dictionary<string, string>();
+        var warnings = new List<JournalWarning>();
+
+        source.ProcessArmedDrive(status, new GitWizardConfiguration(), errors, warnings, CancellationToken.None);
+
+        Assert.That(errors, Does.ContainKey("X").WithValue("cache declined"));
+        var warning = warnings.Single();
+        Assert.That(warning.DriveLetter, Is.EqualTo("X"));
+        Assert.That(warning.Loss, Is.SameAs(loss));
+        Assert.That(warning.VolumeSerial, Is.EqualTo(12345u));
+    }
+
+    [Test]
+    public async Task FaultedDriveWithLiveWatchLoss_RaisesJournalWarning()
+    {
+        using var files = new PackedIndexFixture();
+        files.AddMarker("repo");
+        var owner = new MftIndexSession(await files.OpenIndexAsync(), null, ["X"],
+            [new IndexedDrive('X', files.TreePath, 12345u)], new Dictionary<string, string>());
+        await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner), owner);
+        var warnings = new List<JournalWarning>();
+        source.JournalWarningDetected += warnings.Add;
+        var liveLoss = FakeJournalSettingsSource.TrimmedLoss('X', 32L * 1024 * 1024, 136L * 1024 * 1024,
+            detectedDuring: JournalCheckpointLossDetection.LiveWatch);
+        var status = new DriveStatus
+        {
+            DriveLetter = 'X',
+            ProducerKind = ProducerKind.Mft,
+            BlockSource = BlockSource.ProducedByScan,
+            State = DriveState.Ready,
+            RowCount = 10,
+            LiveRowCount = 10,
+            ScanTimestamp = DateTime.UtcNow,
+            CompactionNeeded = false,
+            WatchSupported = true,
+            WatchFailureMessage = "watch reached a position the journal no longer holds",
+            CheckpointLoss = liveLoss
+        };
+
+        source.ProcessFaultedDrive(status, owner, new GitWizardConfiguration());
+
+        var warning = warnings.Single();
+        Assert.That(warning.DriveLetter, Is.EqualTo("X"));
+        Assert.That(warning.Loss, Is.SameAs(liveLoss));
+        Assert.That(warning.VolumeSerial, Is.EqualTo(12345u));
+
+        // A fault the journal did not cause reports nothing: the open's standing report and a
+        // missing report both stay out of the event.
+        var openLoss = FakeJournalSettingsSource.TrimmedLoss('X', 32L * 1024 * 1024, 136L * 1024 * 1024);
+        source.ProcessFaultedDrive(status with { CheckpointLoss = openLoss }, owner, new GitWizardConfiguration());
+        source.ProcessFaultedDrive(status with { CheckpointLoss = null }, owner, new GitWizardConfiguration());
+        Assert.That(warnings, Has.Count.EqualTo(1));
+    }
+
     sealed class CountingOwner : IAsyncDisposable
     {
         public int Disposals { get; private set; }

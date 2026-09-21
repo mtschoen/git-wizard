@@ -12,8 +12,9 @@ public class JournalReviewRegressionTests
     {
         await using var viewModel = new MainViewModel(
             new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+        var loss = FakeJournalSettingsSource.TrimmedLoss('C', 32L * 1024 * 1024, 512L * 1024 * 1024);
         Assert.ThrowsAsync<InvalidOperationException>(() => viewModel.EnlargeJournalAsync(
-            new JournalWarning("C", 123, 32 * 1024 * 1024, 512 * 1024 * 1024, 8 * 1024 * 1024)));
+            new JournalWarning { DriveLetter = "C", VolumeSerial = 123, Loss = loss }));
     }
 
     [Test]

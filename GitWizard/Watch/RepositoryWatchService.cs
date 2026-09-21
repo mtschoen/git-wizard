@@ -73,7 +73,11 @@ public sealed class RepositoryWatchService
             _scanWarnings = FrozenSet<JournalWarning>.Empty;
         }
         var diagnostics = _source as IVolumeChangeDiagnostics;
-        if (diagnostics is not null) diagnostics.DriveFailed += OnDriveFailed;
+        if (diagnostics is not null)
+        {
+            diagnostics.DriveFailed += OnDriveFailed;
+            diagnostics.JournalWarningDetected += OnJournalWarningDetected;
+        }
         var scanProgress = _source as IVolumeScanProgress;
         if (scanProgress is not null) scanProgress.ScanProgress += OnScanProgress;
         try
@@ -83,7 +87,11 @@ public sealed class RepositoryWatchService
         }
         finally
         {
-            if (diagnostics is not null) diagnostics.DriveFailed -= OnDriveFailed;
+            if (diagnostics is not null)
+            {
+                diagnostics.DriveFailed -= OnDriveFailed;
+                diagnostics.JournalWarningDetected -= OnJournalWarningDetected;
+            }
             if (scanProgress is not null) scanProgress.ScanProgress -= OnScanProgress;
         }
     }
@@ -137,6 +145,20 @@ public sealed class RepositoryWatchService
     }
 
     void OnScanProgress(VolumeScanProgress sample) => ScanProgress?.Invoke(sample);
+
+    // One slot per drive: the newer report is the current one.
+    void OnJournalWarningDetected(JournalWarning warning)
+    {
+        lock (_errorsLock)
+        {
+            _scanWarnings = _scanWarnings
+                .Where(existing => !string.Equals(existing.DriveLetter, warning.DriveLetter,
+                    StringComparison.OrdinalIgnoreCase))
+                .Append(warning)
+                .ToFrozenSet();
+        }
+        ScanWarningsChanged?.Invoke();
+    }
 
     void SetArmResult(VolumeArmResult armResult)
     {

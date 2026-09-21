@@ -11,8 +11,10 @@ internal sealed class DiagnosticVolumeChangeSource : IVolumeChangeSource, IVolum
 
     public event Action<string>? SourceDied;
     public event Action<string, string>? DriveFailed;
+    public event Action<JournalWarning>? JournalWarningDetected;
     public Task Started => _started.Task;
-    public int DiagnosticSubscribers => DriveFailed?.GetInvocationList().Length ?? 0;
+    public int DiagnosticSubscribers => (DriveFailed?.GetInvocationList().Length ?? 0)
+        + (JournalWarningDetected?.GetInvocationList().Length ?? 0);
     public Dictionary<string, string> ArmErrors { get; } = [];
     public List<JournalWarning> ArmWarnings { get; } = new();
     public Action? Arming { get; set; }
@@ -31,6 +33,7 @@ internal sealed class DiagnosticVolumeChangeSource : IVolumeChangeSource, IVolum
     }
 
     public void FailDrive(string drive, string message) => DriveFailed?.Invoke(drive, message);
+    public void RaiseJournalWarning(JournalWarning warning) => JournalWarningDetected?.Invoke(warning);
     public void KillSource(string message) => SourceDied?.Invoke(message);
     public void Publish(VolumeChangeBatch batch) => Assert.That(_batches.Writer.TryWrite(batch), Is.True);
     public void Complete() => _batches.Writer.TryComplete();

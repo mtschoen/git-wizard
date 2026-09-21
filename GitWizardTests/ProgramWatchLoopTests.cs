@@ -43,7 +43,8 @@ public class ProgramWatchLoopTests
     public async Task JournalWarning_PrintsToConsole()
     {
         await using var source = new DiagnosticVolumeChangeSource();
-        source.ArmWarnings.Add(new JournalWarning("C", 12345, 1024 * 1024 * 30, 1024 * 1024 * 60, 1024 * 1024 * 10));
+        var loss = FakeJournalSettingsSource.TrimmedLoss('C', 30L * 1024 * 1024, 60L * 1024 * 1024, 10L * 1024 * 1024);
+        source.ArmWarnings.Add(new JournalWarning { DriveLetter = "C", VolumeSerial = 12345, Loss = loss });
         var service = new RepositoryWatchService(source, [@"C:\repo"], [], TimeSpan.Zero);
         var lines = new System.Collections.Concurrent.ConcurrentQueue<string>();
         var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -51,7 +52,7 @@ public class ProgramWatchLoopTests
         var running = Program.RunWatchLoopAsync(service, line =>
         {
             lines.Enqueue(line);
-            if (line.Contains("USN journal maximum size"))
+            if (line.Contains("Hint on C:"))
                 changed.TrySetResult();
         }, _ => { }, cancellation.Token);
 
@@ -59,7 +60,8 @@ public class ProgramWatchLoopTests
         await cancellation.CancelAsync();
         try { await running; } catch (OperationCanceledException) { }
 
-        Assert.That(lines, Has.Some.Contains("warning on C: USN journal maximum size (30 MB) is below the recommended 60 MB."));
+        Assert.That(lines, Has.Some.Contains("Hint on C:"));
+        Assert.That(lines, Has.Some.Contains("60 MB"));
     }
 
     [Test]
@@ -249,6 +251,59 @@ public class ProgramWatchLoopTests
 
         Assert.That(stopped, Is.True);
         Assert.That(lines, Does.Contain("Broker died: No requested drives could be watched."));
+    }
+
+    [Test]
+    public async Task RunWatchLoopAsync_SoleCacheDeclinedDrive_PrintsHintAndBrokerDied()
+    {
+        await using var source = new DiagnosticVolumeChangeSource();
+        source.ArmErrors["X"] = "cache declined";
+        var loss = FakeJournalSettingsSource.TrimmedLoss('X', 32L * 1024 * 1024, 136L * 1024 * 1024);
+        source.ArmWarnings.Add(new JournalWarning { DriveLetter = "X", VolumeSerial = 12345, Loss = loss });
+        var service = new RepositoryWatchService(source, [@"X:\repo"], [], TimeSpan.Zero);
+        var lines = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var running = Program.RunWatchLoopAsync(service, lines.Enqueue, NoExit, cancellation.Token);
+        await source.Started;
+
+        // With no usable drive the real source reports death as soon as the watch starts.
+        source.KillSource("No requested drives could be watched: cache declined");
+        var stopped = await running;
+
+        Assert.That(stopped, Is.True);
+        Assert.That(lines, Has.Some.Contains("scan error on X: cache declined"));
+        Assert.That(lines, Has.Some.Contains("Hint on X:").And.Contains("at least 136 MB"));
+        Assert.That(lines, Has.Some.Contains("Broker died: No requested drives could be watched: cache declined"));
+    }
+
+    [Test]
+    public async Task RunWatchLoopAsync_LiveWatchLoss_PrintsUpdatedHintForSameDrive()
+    {
+        await using var source = new DiagnosticVolumeChangeSource();
+        var armLoss = FakeJournalSettingsSource.TrimmedLoss('C', 30L * 1024 * 1024, 60L * 1024 * 1024, 10L * 1024 * 1024);
+        source.ArmWarnings.Add(new JournalWarning { DriveLetter = "C", VolumeSerial = 12345, Loss = armLoss });
+        var service = new RepositoryWatchService(source, [@"C:\repo"], [], TimeSpan.Zero);
+        var lines = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        var liveHintPrinted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var running = Program.RunWatchLoopAsync(service, line =>
+        {
+            lines.Enqueue(line);
+            if (line.Contains("Live updates for this drive stopped", StringComparison.Ordinal))
+                liveHintPrinted.TrySetResult();
+        }, NoExit, cancellation.Token);
+        await source.Started;
+
+        var liveLoss = FakeJournalSettingsSource.TrimmedLoss('C', 30L * 1024 * 1024, 60L * 1024 * 1024,
+            10L * 1024 * 1024, JournalCheckpointLossDetection.LiveWatch);
+        source.RaiseJournalWarning(new JournalWarning { DriveLetter = "C", VolumeSerial = 12345, Loss = liveLoss });
+
+        // The arm-time hint for the drive was already printed; the live-watch loss rephrases it
+        // and must print again rather than be swallowed by the per-drive dedup.
+        await liveHintPrinted.Task.WaitAsync(cancellation.Token);
+        source.Complete();
+        await running;
+        Assert.That(lines.Count(line => line.Contains("Hint on C:", StringComparison.Ordinal)), Is.EqualTo(2));
     }
 
     [Test]

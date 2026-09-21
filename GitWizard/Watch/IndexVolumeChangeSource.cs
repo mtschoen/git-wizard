@@ -26,6 +26,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
 
     public event Action<string>? SourceDied;
     public event Action<string, string>? DriveFailed;
+    public event Action<JournalWarning>? JournalWarningDetected;
     public event Action<VolumeScanProgress>? ScanProgress;
 
     public IndexVolumeChangeSource(
@@ -92,23 +93,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
             var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync(cancellationToken).ConfigureAwait(false);
 
             foreach (var drive in _owner.Index.Drives)
-            {
-                if (drive.State is DriveState.Failed or DriveState.Offline)
-                {
-                    errors[drive.DriveLetter.ToString()] = drive.MftProducerFailureMessage ?? $"Drive is {drive.State}.";
-                }
-                else if (drive.WatchSupported)
-                {
-                    var letter = char.ToUpperInvariant(drive.DriveLetter);
-                    _usableDrives.Add(letter);
-                    // Cache the drive's real indexed root directory so OnChanged can rewrite a live
-                    // change's path back onto this drive's own "<letter>:\" form, regardless of
-                    // whether IndexedDrive.RootDirectory is the drive root (MFTLib #143).
-                    _driveRealRoots[letter] = _owner.Index.Root(drive.DriveLetter, cancellationToken).Path;
-
-                    AddJournalWarning(letter, configuration, warnings);
-                }
-            }
+                ProcessArmedDrive(drive, configuration, errors, warnings, cancellationToken);
             return new VolumeArmResult(errors, warnings);
         }
         catch
@@ -239,7 +224,10 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         try
         {
             if (fault.DriveLetter is { } drive)
+            {
+                RaiseFaultJournalWarning(char.ToUpperInvariant(drive));
                 DriveFailed?.Invoke(drive.ToString(), fault.Exception.Message);
+            }
         }
         catch (Exception exception)
         {

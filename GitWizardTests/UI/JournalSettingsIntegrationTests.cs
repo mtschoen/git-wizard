@@ -16,7 +16,7 @@ public class JournalSettingsIntegrationTests
     MainViewModel _main = null!;
     Task _running = null!;
     SettingsViewModel _settings = null!;
-    string WarningText => string.Join(" ", _main.JournalWarnings.Where(warning => warning.IsBelowRecommended)
+    string HintText => string.Join(" ", _main.JournalWarnings
         .Select(warning => warning.Warning.Message));
 
     [SetUp]
@@ -51,24 +51,24 @@ public class JournalSettingsIntegrationTests
     }
 
     [Test]
-    public void LiveShowsEachDriveSizeRecommendationAndConsequence()
+    public void LiveShowsEachDriveHintWithSuggestedSize()
     {
         Assert.That(_main.JournalWarnings.Select(warning => warning.DriveLetter), Is.EqualTo(new[] { "C", "D" }));
-        Assert.That(WarningText, Does.Contain("warning on C:").And.Contain("warning on D:"));
-        Assert.That(WarningText, Does.Contain("32 MB").And.Contain("64 MB")
-            .And.Contain($"{UsnJournalRecommendations.RecommendedMaximumSize / 1024 / 1024} MB")
-            .And.Contain("faults the live watch and forces a rescan"));
+        Assert.That(HintText, Does.Contain("Hint on C:").And.Contain("Hint on D:"));
+        Assert.That(HintText, Does.Contain("32 MB").And.Contain("64 MB")
+            .And.Contain("130 MB").And.Contain("200 MB")
+            .And.Contain("full rescan was needed"));
     }
 
     [Test]
-    public async Task EnlargeShowsActualBeforeAndAfterAndKeepsOtherDriveWarning()
+    public async Task EnlargeShowsActualBeforeAndAfterAndKeepsOtherDriveHint()
     {
         var warning = _settings.JournalWarnings[0];
         await _settings.EnlargeJournalAsync(warning);
         Assert.That(_source.GrowCalls, Is.EqualTo(1));
         Assert.That(warning.StatusMessage, Is.EqualTo(
             $"Before: {32 * 1024 * 1024:N0} bytes. After: {_source.Settings['C'].MaximumSize:N0} bytes."));
-        Assert.That(WarningText, Does.Not.Contain("warning on C:").And.Contain("warning on D:"));
+        Assert.That(HintText, Does.Not.Contain("Hint on C:").And.Contain("Hint on D:"));
     }
 
     [Test]
@@ -100,14 +100,14 @@ public class JournalSettingsIntegrationTests
         await _running;
         await _source.DisposeAsync();
         _source = new FakeJournalSettingsSource();
-        _source.Settings['C'] = _source.Settings['C'] with { MaximumSize = UsnJournalRecommendations.RecommendedMaximumSize };
-        _source.Settings['D'] = _source.Settings['D'] with { MaximumSize = 16 * 1024 * 1024 };
+        _source.CheckpointLosses.Clear();
+        _source.CheckpointLosses.Add(FakeJournalSettingsSource.TrimmedLoss('D', 16L * 1024 * 1024, 48L * 1024 * 1024));
         _running = _main.ToggleLiveAsync();
         await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
         _dispatcher.Drain();
         Assert.That(_settings.JournalWarnings, Has.Count.EqualTo(1));
         Assert.That(_settings.JournalWarnings[0].DriveLetter, Is.EqualTo("D"));
-        Assert.That(_settings.JournalWarnings[0].CurrentSizeText, Is.EqualTo("16 MB"));
+        Assert.That(_settings.JournalWarnings[0].Warning.Message, Does.Contain("48 MB"));
         await _settings.EnlargeJournalAsync(oldWarning);
         Assert.That(oldWarning.StatusMessage, Does.Contain("re-armed"));
         Assert.That(_source.GrowCalls, Is.Zero);
@@ -120,7 +120,7 @@ public class JournalSettingsIntegrationTests
         await _running;
         await _source.DisposeAsync();
         _source = new FakeJournalSettingsSource();
-        _source.Settings.Clear();
+        _source.CheckpointLosses.Clear();
         _running = _main.ToggleLiveAsync();
         await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
         _dispatcher.Drain();
@@ -146,18 +146,18 @@ public class JournalSettingsIntegrationTests
         }
         Assert.That(messages, Has.Some.Contains("broker refused"));
         Assert.That(warning.StatusMessage, Is.EqualTo("Failed: broker refused"));
-        Assert.That(warning.CurrentSizeText, Is.EqualTo("32 MB"));
     }
 
     [TestCase(0)]
     [TestCase(1024)]
     public async Task EnlargeRequeriesAndRefusesEqualOrLargerJournal(long additionalBytes)
     {
+        var warning = _settings.JournalWarnings[0];
+        var suggestedSize = warning.Warning.Loss.SizeThatWouldHaveRetained!.Value;
         _source.Settings['C'] = _source.Settings['C'] with
         {
-            MaximumSize = UsnJournalRecommendations.RecommendedMaximumSize + additionalBytes
+            MaximumSize = suggestedSize + additionalBytes
         };
-        var warning = _settings.JournalWarnings[0];
         await _settings.EnlargeJournalAsync(warning);
         Assert.That(_source.GrowCalls, Is.Zero);
         Assert.That(warning.StatusMessage, Does.Contain("Refusing to shrink or resize"));
@@ -174,7 +174,7 @@ public class JournalSettingsIntegrationTests
         Assert.That(saved, Is.Not.Null);
         Assert.That(saved!.IgnoredJournalWarnings, Is.EquivalentTo(new uint[] { 'C' }));
         Assert.That(saved.ForkPath, Is.EqualTo("/custom/fork"));
-        Assert.That(WarningText, Does.Not.Contain("warning on C:").And.Contain("warning on D:"));
+        Assert.That(HintText, Does.Not.Contain("Hint on C:").And.Contain("Hint on D:"));
     }
 
     [Test]
@@ -229,14 +229,122 @@ public class JournalSettingsIntegrationTests
     }
 
     [Test]
-    public async Task CliPrintsOneWarningPerDriveFromJournalSettings()
+    public async Task EnlargeButtonStaysInLayoutDisabledWithReasonWhenNoGrowAction()
+    {
+        var root = Path.GetFullPath(Path.Combine(TestContext.CurrentContext.TestDirectory, "..", "..", "..", ".."));
+        var markup = await File.ReadAllTextAsync(Path.Combine(root, "GitWizardUI", "Views", "SettingsWindow.axaml"));
+        Assert.That(markup, Does.Contain("IsEnabled=\"{Binding HasGrowAction}\""));
+        Assert.That(markup, Does.Contain("{Binding GrowUnavailableReason}"));
+        Assert.That(markup, Does.Not.Contain("IsVisible=\"{Binding HasGrowAction}\""));
+    }
+
+    [Test]
+    public async Task CliPrintsOneHintPerDriveFromCheckpointLoss()
     {
         await using var source = new FakeJournalSettingsSource { CompleteAfterArm = true };
         var service = new RepositoryWatchService(source, [@"C:\repository", @"D:\repository"], []);
         var lines = new List<string>();
         await Program.RunWatchLoopAsync(service, lines.Add, _ => Assert.Fail("Unexpected exit"), CancellationToken.None);
-        Assert.That(lines.Count(line => line.StartsWith("warning on C:", StringComparison.Ordinal)), Is.EqualTo(1));
-        Assert.That(lines.Count(line => line.StartsWith("warning on D:", StringComparison.Ordinal)), Is.EqualTo(1));
-        Assert.That(lines, Has.Some.Contains("32 MB"));
+        Assert.That(lines.Count(line => line.StartsWith("Hint on C:", StringComparison.Ordinal)), Is.EqualTo(1));
+        Assert.That(lines.Count(line => line.StartsWith("Hint on D:", StringComparison.Ordinal)), Is.EqualTo(1));
+        Assert.That(lines, Has.Some.Contains("130 MB"));
+    }
+
+    [Test]
+    public async Task RecreatedCauseShowsHintWithNoGrowAction()
+    {
+        await _main.ToggleLiveAsync();
+        await _running;
+        await _source.DisposeAsync();
+        _source = new FakeJournalSettingsSource();
+        _source.CheckpointLosses.Clear();
+        _source.CheckpointLosses.Add(FakeJournalSettingsSource.RecreatedLoss('C', 64L * 1024 * 1024));
+        _running = _main.ToggleLiveAsync();
+        await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        _dispatcher.Drain();
+        Assert.That(_settings.JournalWarnings, Has.Count.EqualTo(1));
+        Assert.That(_settings.JournalWarnings[0].HasGrowAction, Is.False);
+        Assert.That(_settings.JournalWarnings[0].Warning.Message, Does.Contain("journal was recreated"));
+        Assert.That(_settings.JournalWarnings[0].Warning.Message, Does.Not.Contain("increase the journal size"));
+    }
+
+    [Test]
+    public async Task EnlargeRecreatedCauseReportsNoSizeWouldHaveHelped()
+    {
+        await _main.ToggleLiveAsync();
+        await _running;
+        await _source.DisposeAsync();
+        _source = new FakeJournalSettingsSource();
+        _source.CheckpointLosses.Clear();
+        _source.CheckpointLosses.Add(FakeJournalSettingsSource.RecreatedLoss('C', 64L * 1024 * 1024));
+        _running = _main.ToggleLiveAsync();
+        await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        _dispatcher.Drain();
+        var warning = _settings.JournalWarnings[0];
+        await _settings.EnlargeJournalAsync(warning);
+        Assert.That(_source.GrowCalls, Is.Zero);
+        Assert.That(warning.StatusMessage, Does.Contain("no size that would have avoided the rescan"));
+    }
+
+    [Test]
+    public async Task EnlargeTrimmedWithoutSizeReportsTooLargeToRepresent()
+    {
+        await _main.ToggleLiveAsync();
+        await _running;
+        await _source.DisposeAsync();
+        _source = new FakeJournalSettingsSource();
+        _source.CheckpointLosses.Clear();
+        _source.CheckpointLosses.Add(new JournalCheckpointLoss
+        {
+            DriveLetter = 'C',
+            DetectedDuring = JournalCheckpointLossDetection.DriveOpening,
+            Cause = JournalCheckpointLossCause.CheckpointTrimmed,
+            CheckpointUsn = 0,
+            FirstUsn = 32L * 1024 * 1024,
+            NextUsn = 130L * 1024 * 1024,
+            AllocationDelta = 8 * 1024 * 1024,
+            MaximumSize = 32L * 1024 * 1024,
+            BytesBehind = 32L * 1024 * 1024,
+            SizeThatWouldHaveRetained = null
+        });
+        _running = _main.ToggleLiveAsync();
+        await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        _dispatcher.Drain();
+        var warning = _settings.JournalWarnings[0];
+        Assert.That(warning.HasGrowAction, Is.False);
+        await _settings.EnlargeJournalAsync(warning);
+        Assert.That(_source.GrowCalls, Is.Zero);
+        Assert.That(warning.StatusMessage, Does.Contain("too large to represent"));
+    }
+
+    [Test]
+    public async Task NoCheckpointLossShowsNoHint()
+    {
+        await _main.ToggleLiveAsync();
+        await _running;
+        await _source.DisposeAsync();
+        _source = new FakeJournalSettingsSource();
+        _source.CheckpointLosses.Clear();
+        _running = _main.ToggleLiveAsync();
+        await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        _dispatcher.Drain();
+        Assert.That(_main.JournalWarnings, Is.Empty);
+        Assert.That(_main.HeaderText, Is.EqualTo("Live watch active"));
+    }
+
+    [Test]
+    public async Task SuggestedSizeAtOrBelowCurrentMaximumOffersNoGrowAction()
+    {
+        await _main.ToggleLiveAsync();
+        await _running;
+        await _source.DisposeAsync();
+        _source = new FakeJournalSettingsSource();
+        _source.CheckpointLosses.Clear();
+        _source.CheckpointLosses.Add(FakeJournalSettingsSource.TrimmedLoss('C', 128L * 1024 * 1024, 128L * 1024 * 1024));
+        _running = _main.ToggleLiveAsync();
+        await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        _dispatcher.Drain();
+        Assert.That(_settings.JournalWarnings, Has.Count.EqualTo(1));
+        Assert.That(_settings.JournalWarnings[0].HasGrowAction, Is.False);
     }
 }

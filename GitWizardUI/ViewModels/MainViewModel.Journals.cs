@@ -33,18 +33,33 @@ public partial class MainViewModel
         if (!controller.ScanWarnings.Contains(warning))
             throw new InvalidOperationException("The drive was re-armed. Review its current journal warning.");
 
-        var before = grower.QueryUsnJournalSettings(warning.DriveLetter[0]);
-        if (before.MaximumSize >= warning.RecommendedSize)
-            throw new InvalidOperationException("The journal already meets the recommendation. Refusing to shrink or resize it.");
+        if (warning.Loss.Cause != JournalCheckpointLossCause.CheckpointTrimmed)
+            throw new InvalidOperationException("A recreated journal has no size that would have avoided the rescan.");
+        var suggestedSize = warning.Loss.SizeThatWouldHaveRetained
+            ?? throw new InvalidOperationException("The size that would have avoided the rescan is too large to represent.");
 
-        var after = await grower.GrowUsnJournalAsync(warning.DriveLetter[0], warning.RecommendedSize,
-            before.AllocationDelta, CancellationToken.None).ConfigureAwait(false);
+        var before = grower.QueryUsnJournalSettings(warning.DriveLetter[0]);
+        if (before.MaximumSize >= suggestedSize)
+            throw new InvalidOperationException("The journal already meets the suggested size. Refusing to shrink or resize.");
+
+        var after = await grower.GrowUsnJournalAsync(warning.DriveLetter[0], suggestedSize,
+            warning.Loss.AllocationDelta, CancellationToken.None).ConfigureAwait(false);
         await _ui.InvokeAsync(() =>
         {
             if (!ReferenceEquals(controller, _liveController))
                 return;
+            var resolved = new List<JournalWarningViewModel>();
             foreach (var row in JournalWarnings.Where(row => row.Warning == warning))
-                row.ApplySettings(after.MaximumSize, after.AllocationDelta);
+            {
+                var updatedLoss = warning.Loss with { MaximumSize = after.MaximumSize, AllocationDelta = after.AllocationDelta };
+                var updatedWarning = row.Warning with { Loss = updatedLoss };
+                if (!updatedWarning.HasGrowAction)
+                    resolved.Add(row);
+                else
+                    row.ApplyLoss(updatedWarning);
+            }
+            foreach (var row in resolved)
+                JournalWarnings.Remove(row);
             UpdateJournalWarningHeader();
         }).ConfigureAwait(false);
         return new JournalResizeResult(before, after);
@@ -73,8 +88,8 @@ public partial class MainViewModel
         if (!IsLive)
             return;
         var messages = new List<string>();
-        if (JournalWarnings.Any(warning => warning.IsBelowRecommended))
-            messages.Add("Live watch active (journal warnings)");
+        if (JournalWarnings.Any())
+            messages.Add("Live watch active (journal hints)");
         if (_liveController is { } controller)
             messages.AddRange(controller.ScanErrors.Select(error => $"Live scan error on {error.Key}: {error.Value}"));
         HeaderText = messages.Count == 0 ? "Live watch active" : string.Join(" ", messages);

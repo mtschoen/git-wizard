@@ -63,6 +63,15 @@ that environment, the controller runs the suite outside the sandbox:
 dotnet test GitWizardTests/GitWizardTests.csproj --no-build -c Release --nologo
 ```
 
+GitWizardTests activates MFTLib default-cache isolation from a module initializer.
+For the lifetime of that test process, CacheDirectory.ResolveDefaultPath() throws
+InvalidOperationException. Tests opening a FileIndex must supply an owned temporary
+FileIndexOptions.CacheDirectory, including NoCache and empty-drive opens. Referencing
+MFTLibTestExtensions alone does not activate the guard. The guard has no reset and
+is not inherited by child processes; it blocks default resolution, not explicitly
+supplied paths. This protection is separate from GlobalTestSetup's GITWIZARD_HOME
+redirect and does not change production cache behavior.
+
 ## Cleaning the working tree
 
 `git clean -ffxd` must always be safe to run. It is the check that this checkout still matches a fresh clone, so it is run before starting new work, and it must never be the thing that loses something.

@@ -4,6 +4,7 @@ using GitWizardTests.TestSupport;
 using GitWizardTests.Watch;
 using GitWizardUI.Services;
 using MFTLib.Index;
+using static GitWizardTests.TestSupport.AsyncCondition;
 
 namespace GitWizardTests.UI;
 
@@ -172,50 +173,71 @@ public class LiveWatchControllerTests
     }
 
     [Test]
-    public async Task SourceDies_Elevated_ExceedsMaxRespawns_CallsOnStopped()
-    {
-        var sources = new Queue<HangingKillableSource>(
-            Enumerable.Range(0, 5).Select(_ => new HangingKillableSource()));
-        var createdSources = new List<HangingKillableSource>();
-        Func<IVolumeChangeSource> factory = () =>
-        {
-            var next = sources.Dequeue();
-            createdSources.Add(next);
-            return next;
-        };
+    public Task SourceDies_Elevated_ExceedsMaxRespawns_CallsOnStopped() =>
+        VerifyRespawnLimitAsync();
 
+    static async Task VerifyRespawnLimitAsync()
+    {
+        var sources = Enumerable.Range(0, 5)
+            .Select(_ => new HangingKillableSource()).ToArray();
+        var sourceFactoryCallCount = 0;
         var stoppedReasons = new List<string>();
         var controller = new LiveWatchController(
-            factory,
+            () => sources[sourceFactoryCallCount++],
             trackedRoots: Array.Empty<string>(),
             searchRoots: Array.Empty<string>(),
             onEvent: _ => { },
             onStopped: stoppedReasons.Add,
             isElevated: () => true);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        var startTask = controller.StartAsync(cts.Token);
-
-        // Kill 1st, 2nd, 3rd, 4th sources as they arm. MaxConsecutiveRespawns is 3,
-        // so the 4th death must not respawn a 5th source and must call onStopped.
-        for (var i = 0; i < 4; i++)
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var running = controller.StartAsync(cancellation.Token);
+        try
         {
-            var iteration = i;
-            await WaitUntilAsync(() => createdSources.Count > iteration && createdSources[iteration].IsArmed);
-            createdSources[iteration].KillSource($"journal invalidated #{iteration + 1}");
-        }
+            for (var iteration = 0; iteration < 4; iteration++)
+            {
+                await sources[iteration].Armed.WaitAsync(cancellation.Token);
+                sources[iteration].KillSource($"journal invalidated #{iteration + 1}");
+            }
+            await running.WaitAsync(cancellation.Token);
 
-        await WaitUntilAsync(() => stoppedReasons.Count >= 1);
-        await startTask;
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(createdSources, Has.Count.EqualTo(4));
+            // Plain sequential asserts, not Assert.Multiple: this scenario also runs as up
+            // to four concurrent workers from RespawnLimit_Stress below, and NUnit's
+            // AssertionScope stack backing Assert.Multiple is not safe under concurrent use
+            // within a single test (nunit/nunit#4814, fixed upstream in 4.5.0 but not yet
+            // picked up here) - it throws "the assertion scope was disposed out of order"
+            // instead of reporting the scenario's own failure. Losing multi-assert
+            // aggregation only means a failing run reports its first violated assertion
+            // rather than every violated one.
+            Assert.That(sourceFactoryCallCount, Is.EqualTo(4));
             Assert.That(stoppedReasons, Is.EqualTo(new[] { "journal invalidated #4" }));
-            Assert.That(createdSources.Select(source => source.DisposeCount),
+            Assert.That(sources.Take(4).Select(source => source.DisposeCount),
                 Is.EqualTo(new[] { 1, 1, 1, 1 }));
-        });
+            Assert.That(sources[4].IsArmed, Is.False);
+            Assert.That(sources[4].DisposeCount, Is.Zero);
+        }
+        finally
+        {
+            await cancellation.CancelAsync();
+            try
+            {
+                await controller.StopAsync();
+            }
+            finally
+            {
+                await running;
+            }
+        }
     }
+
+    [Test, Explicit("Runs 200 respawn-limit scenarios with four concurrent workers.")]
+    [Category("Stress")]
+    public Task RespawnLimit_Stress() =>
+        Task.WhenAll(Enumerable.Range(0, 4).Select(_ => Task.Run(async () =>
+        {
+            for (var iteration = 0; iteration < 50; iteration++)
+                await VerifyRespawnLimitAsync();
+        })));
 
     [Test]
     public async Task StopAsync_DoesNotCallOnStoppedOrRespawn()
@@ -411,15 +433,7 @@ public class LiveWatchControllerTests
         Assert.That(samples, Is.EqualTo(new[] { sample }));
     }
 
-    static async Task WaitUntilAsync(Func<bool> condition)
-    {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        while (!condition())
-        {
-            timeout.Token.ThrowIfCancellationRequested();
-            await Task.Delay(10, timeout.Token);
-        }
-    }
+
 
     [Test]
     public async Task Start_TempCreatedEvent_DroppedByDefault()
@@ -544,6 +558,18 @@ public class LiveWatchControllerTests
             Directory.Delete(searchRoot, recursive: true);
         }
     }
+
+    [Test]
+    public async Task HangingSourcePublishesArmCompletion()
+    {
+        await using var source = new HangingKillableSource();
+        var armed = source.Armed;
+        Assert.That(armed.IsCompleted, Is.False);
+        await source.ArmAndCatchUpAsync([], CancellationToken.None);
+        Assert.That(armed.IsCompletedSuccessfully, Is.True);
+        await armed;
+        Assert.That(source.IsArmed, Is.True);
+    }
 }
 
 
@@ -576,13 +602,15 @@ internal sealed class HangingKillableSource : IVolumeChangeSource, IVolumeScanPr
 
     public event Action<VolumeScanProgress>? ScanProgress;
 
-    public bool IsArmed { get; private set; }
+    readonly TaskCompletionSource _armed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public Task Armed => _armed.Task;
+    public bool IsArmed => _armed.Task.IsCompletedSuccessfully;
     public int DisposeCount { get; private set; }
 
     public Task<VolumeArmResult> ArmAndCatchUpAsync(
         IReadOnlyCollection<string> volumes, CancellationToken ct)
     {
-        IsArmed = true;
+        _armed.TrySetResult();
         return Task.FromResult(new VolumeArmResult(
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), []));
     }

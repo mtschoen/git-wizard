@@ -129,6 +129,14 @@ jobs:
               --results-directory ./TestResults \
               --collect:"XPlat Code Coverage"
 
+      - name: Upload test results
+        if: always() && steps.changed-files.outputs.pin_only != 'true'
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results-linux
+          path: TestResults/*.trx
+          if-no-files-found: warn
+
       - name: Post coverage status
         if: always() && steps.changed-files.outputs.pin_only != 'true'
         env:

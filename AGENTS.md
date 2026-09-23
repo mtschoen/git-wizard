@@ -59,9 +59,36 @@ creates a temporary home under `Environment.SpecialFolder.UserProfile`; a sandbo
 read-only user profile cannot execute the suite, even when loopback sockets are allowed. In
 that environment, the controller runs the suite outside the sandbox:
 
-```bash
-dotnet test GitWizardTests/GitWizardTests.csproj --no-build -c Release --nologo
+```powershell
+$results = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) ("GitWizard/test-results/" + [Guid]::NewGuid().ToString('N'))
+dotnet test GitWizardTests/GitWizardTests.csproj --no-build -c Release --nologo --results-directory "$results"
 ```
+
+The results directory is deliberately outside a disposable checkout, so it survives a
+`git clean -ffxd` or a worktree teardown. `GitWizardTests/coverlet.runsettings` enables TRX
+logging even without a `--logger` argument. Preserve the results path VSTest prints on every
+failed run before cleaning or removing a worktree; never overwrite it with a rerun. Use a unique
+directory outside the checkout for full-suite and stress runs. On Linux, use a unique directory
+under `${XDG_STATE_HOME:-$HOME/.local/state}/git-wizard/test-results`. CI uploads
+`test-results-linux` and `test-results-windows` even when tests fail, but successful artifact
+upload and download must still be verified - the documented Linux runner CA problem (see
+"CI infrastructure", below) can still prevent retention.
+
+`LiveWatchControllerTests.RespawnLimit_Stress` is an `[Explicit]` stress entry point that runs
+the respawn-limit scenario 200 times across four concurrent workers; it is skipped by an
+ordinary run and must be selected explicitly:
+
+```powershell
+dotnet test GitWizardTests/GitWizardTests.csproj --no-build -c Release --nologo `
+    --filter "FullyQualifiedName=GitWizardTests.UI.LiveWatchControllerTests.RespawnLimit_Stress" `
+    --results-directory "$results"
+```
+
+`AsyncCondition.WaitUntilAsync` (`GitWizardTests/TestSupport/AsyncCondition.cs`) fails on the
+first predicate exception rather than retrying, and its assertion message includes the original
+exception's `ToString()` (stack included), the polled expression text, the poll count, and the
+elapsed duration - do not read a passing stress run as proof that any specific historical failure
+reproduced; it only demonstrates that this revised scenario is not itself racy.
 
 GitWizardTests activates MFTLib default-cache isolation from a module initializer.
 For the lifetime of that test process, CacheDirectory.ResolveDefaultPath() throws

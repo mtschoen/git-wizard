@@ -10,6 +10,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
     MftIndexDiagnostics? _diagnostics;
     MftBrokerConnection? _brokerConnection;
     readonly Lock _disposalLock = new();
+    readonly string? _cacheDirectory;
     Task? _disposal;
     int _disposed;
     IReadOnlyDictionary<string, string> _identityFailures =
@@ -24,7 +25,8 @@ public sealed partial class MftIndexSession : IAsyncDisposable
     public bool IsDisposed => Volatile.Read(ref _disposed) != 0;
 
     internal MftIndexSession(FileIndex index, IAsyncDisposable? connectionOwner,
-        IReadOnlyList<string> drives, IReadOnlyList<IndexedDrive> indexedDrives, IReadOnlyDictionary<string, string> scanErrors)
+        IReadOnlyList<string> drives, IReadOnlyList<IndexedDrive> indexedDrives,
+        IReadOnlyDictionary<string, string> scanErrors, string? cacheDirectory = null)
     {
         Index = index;
         _connectionOwner = connectionOwner;
@@ -32,6 +34,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
         IndexedDrives = Array.AsReadOnly(indexedDrives.ToArray());
         ScanErrors = new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(
             new Dictionary<string, string>(scanErrors, StringComparer.OrdinalIgnoreCase));
+        _cacheDirectory = cacheDirectory;
     }
 
     internal static Task<MftIndexSession> OpenAsync(IReadOnlyList<IndexedDrive> drives,
@@ -66,7 +69,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
             cancellationToken.ThrowIfCancellationRequested();
             var session = new MftIndexSession(index, connection,
                 drives.Select(drive => char.ToUpperInvariant(drive.DriveLetter).ToString()).ToArray(), drives,
-                CollectScanErrors(index))
+                CollectScanErrors(index), cacheDirectory)
             {
                 _brokerConnection = connection,
                 _diagnostics = diagnostics

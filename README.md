@@ -109,6 +109,10 @@ including after successful block clearing. Configuration and report/list files
 are not removed by **Clear Index Cache**. Recursive discovery on Linux and with
 `--no-mft` is unchanged.
 
+`git-wizard --index-cache-status` reports the current Windows MFT cache policy's directory, profile, per-volume serial identity, size, directory-entry last-write time and age, validation and availability, then exits without repository discovery, opening an index, or launching an elevated broker. Linux and other platforms report that this cache is not applicable. Do not combine the status flag with cache deletion flags. Exit 0 means the observation succeeded, even when a block is invalid or in use; exit 1 means inspection failed, and exit 2 means the arguments were invalid.
+
+The desktop **Index Cache Status** window provides the same read-only observation and can additionally identify backing owned by its active session. Refresh status updates the observation and age. Inspection can create persistent `.lock` siblings. Availability is point-in-time, not a reservation; an in-use slot does not expose its holder's PID, name, user, or whether it is CLI or UI. Directory-entry last-write time is not the scan timestamp or last successful catch-up. A normal concurrent open may cold-scan into a private block, while a cache-only open refuses with `InUse`.
+
 `DuplicateNames` and `Largest` are inapplicable to repository discovery: discovery does not
 group arbitrary duplicate names or rank file sizes. Retaining `HEAD` does not change the
 `.git`-based candidate-selection rules.

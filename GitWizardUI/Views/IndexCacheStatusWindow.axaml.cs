@@ -1,0 +1,27 @@
+using Avalonia.Controls;
+using Avalonia.Interactivity;
+using GitWizard;
+using GitWizardUI.Services;
+using GitWizardUI.ViewModels;
+
+namespace GitWizardUI.Views;
+
+public partial class IndexCacheStatusWindow : Window
+{
+    readonly IndexCacheStatusViewModel _viewModel;
+
+    public IndexCacheStatusWindow() : this(new IndexCacheStatusViewModel(
+        new AvaloniaUiDispatcher(), () => new MftIndexCacheInspection().Capture(GitWizardApi.GetLocalFilesPath())))
+    { }
+
+    public IndexCacheStatusWindow(IndexCacheStatusViewModel model)
+    {
+        InitializeComponent();
+        Icon = IconLoader.Load();
+        _viewModel = model;
+        DataContext = model;
+    }
+
+    void RefreshStatus_Click(object? sender, RoutedEventArgs arguments) =>
+        _viewModel.RefreshCommand.Execute(null);
+}

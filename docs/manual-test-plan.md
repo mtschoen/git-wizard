@@ -120,6 +120,17 @@ owners, retry and expect successful deletion. No extra elevation prompt should
 appear. Confirm the original Clear Cache remains distinct. Resize narrower and
 confirm the panel remains scrollable without widening/clipping the top toolbar.
 
+## Index cache status
+
+Run the existing CLI live smoke pass first on any attended re-test.
+
+1. Run the built CLI with `--index-cache-status` against an isolated `GITWIZARD_HOME` with no cache. Expect explicit empty inventory, exit 0, no `mft-index` directory, no UAC prompt and no repository-list/report creation.
+2. Against a known cache, record per-volume fields and a hash of an unlocked canonical test block before/after inventory. Only a persistent lock sibling may be newly present.
+3. While the UI holds a canonical test slot, run the CLI action. It must report an unidentified holder; the UI panel may name its own ownership. Refresh after stopping Live and confirm the current-session annotation clears.
+4. Use synthetic tests, not a second desktop instance, to demonstrate normal private fallback and cache-only `InUse`. The desktop's existing single-instance mutex intentionally rejects a second UI process.
+5. Verify field readability and scrolling at 500-pixel and 850-pixel window widths. Refresh has no elevation prompt. The window has no delete/clear action.
+6. On Linux run the same flag and open the panel: not applicable, no Windows-cache initialization. Retain the screenshot/terminal evidence outside the disposable checkout.
+
 ## Desktop single instance
 
 Run the existing CLI live smoke pass first, as required by this document.

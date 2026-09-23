@@ -86,6 +86,14 @@ public partial class MainWindow : Window, IAsyncDisposable
     void DeleteAllLocalFilesMenuItem_Click(object? sender, RoutedEventArgs e)
         => _ = _viewModel.DeleteAllLocalFilesAsync();
 
+    void IndexCacheStatus_Click(object? sender, RoutedEventArgs arguments)
+    {
+        var model = _viewModel.CreateIndexCacheStatusViewModel();
+        var window = new IndexCacheStatusWindow(model);
+        window.Show(this);
+        model.RefreshCommand.Execute(null);
+    }
+
     void InspectIndexCache_Click(object? sender, RoutedEventArgs e)
         => _ = _viewModel.InspectIndexCacheAsync();
 

@@ -31,6 +31,11 @@ public static partial class Program
         public readonly bool ClearIndexCache;
 
         /// <summary>
+        /// Inspect the current MFT cache policy and exit without discovery or a broker.
+        /// </summary>
+        public readonly bool IndexCacheStatus;
+
+        /// <summary>
         /// Delete all local files before doing anything else, refusing while the mft-index subtree exists.
         /// </summary>
         public readonly bool DeleteAllLocalFiles;
@@ -168,6 +173,7 @@ public static partial class Program
             RebuildReport = result.RebuildReport;
             ClearCache = result.ClearCache;
             ClearIndexCache = result.ClearIndexCache;
+            IndexCacheStatus = result.IndexCacheStatus;
             DeleteAllLocalFiles = result.DeleteAllLocalFiles;
             SetupDefender = result.SetupDefender;
             ScanOnly = result.ScanOnly;

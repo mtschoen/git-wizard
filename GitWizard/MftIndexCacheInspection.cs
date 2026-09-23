@@ -1,0 +1,73 @@
+using MFTLib.Index;
+
+namespace GitWizard;
+
+public sealed class MftIndexCacheInspection
+{
+    readonly TimeProvider _clock;
+    readonly bool _isWindows;
+    readonly Func<string, IReadOnlyList<CachedBlockStatus>> _inspect;
+
+    public MftIndexCacheInspection(TimeProvider? clock = null)
+        : this(clock ?? TimeProvider.System, OperatingSystem.IsWindows(), InspectDirectory) { }
+
+    internal MftIndexCacheInspection(TimeProvider clock, bool isWindows,
+        Func<string, IReadOnlyList<CachedBlockStatus>> inspect)
+    {
+        _clock = clock;
+        _isWindows = isWindows;
+        _inspect = inspect;
+    }
+
+    public MftIndexCacheSnapshot Capture(string localFilesPath,
+        IReadOnlyList<MftActiveCacheSession>? sessions = null)
+    {
+        var policy = MftIndexCachePolicy.Current;
+        var directory = policy.GetCacheDirectory(localFilesPath);
+        var inventory = Array.Empty<CachedBlockStatus>();
+        var errors = new List<string>();
+        if (_isWindows)
+        {
+            try
+            {
+                inventory = _inspect(directory).OrderBy(row => row.File.DriveLetter)
+                    .ThenBy(row => row.File.VolumeSerial).ToArray();
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                errors.Add($"Inspection of {directory}: {exception.Message}");
+                GitWizardLog.LogException(exception, $"Index cache inspection failed: {directory}");
+            }
+        }
+        var active = _isWindows
+            ? (sessions ?? []).Where(session => SameDirectory(session.CacheDirectory, directory))
+                .Select(session => session with { Drives = Array.AsReadOnly(session.Drives.ToArray()) }).ToArray()
+            : [];
+        return new MftIndexCacheSnapshot
+        {
+            IsApplicable = _isWindows,
+            CacheDirectory = directory,
+            Profile = policy.Profile.ToString(),
+            KeepFileNames = Array.AsReadOnly(policy.KeepFileNames.ToArray()),
+            ObservedAt = _clock.GetUtcNow(),
+            Inventory = Array.AsReadOnly(inventory),
+            Sessions = Array.AsReadOnly(active),
+            Errors = errors.AsReadOnly()
+        };
+    }
+
+    internal static IReadOnlyList<CachedBlockStatus> InspectDirectory(string directory)
+    {
+        FileAttributes attributes;
+        try { attributes = File.GetAttributes(directory); }
+        catch (DirectoryNotFoundException) { return []; }
+        catch (FileNotFoundException) { return []; }
+        if ((attributes & FileAttributes.Directory) == 0)
+            throw new IOException($"Cache path is not a directory: {directory}");
+        return CacheDirectory.InspectCached(directory);
+    }
+
+    internal static bool SameDirectory(string left, string right) => string.Equals(
+        Path.TrimEndingDirectorySeparator(Path.GetFullPath(left)),
+        Path.TrimEndingDirectorySeparator(Path.GetFullPath(right)), StringComparison.OrdinalIgnoreCase);
+}

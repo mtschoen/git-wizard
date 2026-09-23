@@ -76,6 +76,7 @@ static partial class CliParser
         CommandOption Merge,
         CommandOption ClearCache,
         CommandOption ClearIndexCache,
+        CommandOption IndexCacheStatus,
         CommandOption DeleteAllLocalFiles,
         CommandOption PrintMinified,
         CommandOption DbSize,
@@ -106,6 +107,9 @@ static partial class CliParser
         var clearIndexCacheOption = app.Option("--clear-index-cache",
             "Clear unlocked MFT index blocks in supported GitWizard policy directories, show per-drive results and fresh cache state, then exit. Takes precedence over other maintenance/report/watch flags; leaves lock files.",
             CommandOptionType.NoValue);
+        var indexCacheStatusOption = app.Option("--index-cache-status",
+            "Inspect the current MFT cache policy and exit without discovery or a broker; Windows only. Cannot combine with cache deletion flags.",
+            CommandOptionType.NoValue);
         var deleteAllLocalFilesOption = app.Option("--delete-all-local-files", "Delete local files only when no mft-index subtree exists; refuse otherwise. This command does not clear persistent index blocks (combine with --no-refresh to avoid recreating local files).", CommandOptionType.NoValue);
         var printMinifiedOption = app.Option("--print-minified", "Print the output to the console as minified JSON", CommandOptionType.NoValue);
         var dbSizeOption = app.Option("--db-size", "Show the size of the GitWizard local files folder (~/.GitWizard/) and exit", CommandOptionType.NoValue);
@@ -134,6 +138,7 @@ static partial class CliParser
             mergeOption,
             clearCacheOption,
             clearIndexCacheOption,
+            indexCacheStatusOption,
             deleteAllLocalFilesOption,
             printMinifiedOption,
             dbSizeOption,
@@ -171,6 +176,13 @@ static partial class CliParser
         var rebuildAll = options.RebuildAll.HasValue();
         var rebuildReport = rebuildAll || options.RebuildReport.HasValue();
 
+        if (options.IndexCacheStatus.HasValue() && (options.ClearIndexCache.HasValue() ||
+            options.ClearCache.HasValue() || options.DeleteAllLocalFiles.HasValue()))
+        {
+            GitWizardLog.Log("--index-cache-status cannot be combined with cache deletion flags.", GitWizardLog.LogType.Error);
+            hasError = true;
+        }
+
         return new RunConfigurationResult(
             rebuildRepoList,
             rebuildReport,
@@ -194,7 +206,8 @@ static partial class CliParser
             options.NoLocalCommitCount.HasValue(),
             hasError)
         {
-            ClearIndexCache = options.ClearIndexCache.HasValue()
+            ClearIndexCache = options.ClearIndexCache.HasValue(),
+            IndexCacheStatus = options.IndexCacheStatus.HasValue()
         };
     }
 

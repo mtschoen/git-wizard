@@ -51,6 +51,9 @@ git-wizard Session Started
             return;
         }
 
+        if (await TryHandleIndexCacheStatusAsync(runConfiguration))
+            return;
+
         if (await TryHandleIndexCacheClearAsync(runConfiguration))
             return;
 

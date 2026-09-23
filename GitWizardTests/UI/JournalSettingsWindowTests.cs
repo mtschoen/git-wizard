@@ -51,7 +51,8 @@ public class JournalSettingsWindowTests
         source.CheckpointLosses.Add(FakeJournalSettingsSource.RecreatedLoss('C', 64L * 1024 * 1024));
         var main = new MainViewModel(new AvaloniaUiDispatcher(), new StubUserDialogs(), new StubClipboardService())
         {
-            LiveVolumeChangeSourceFactory = () => source,
+            LivePrepareWatchAsync = (request, _, cancellationToken) =>
+                FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken),
             LiveIsElevated = () => false,
             LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0)
         };
@@ -90,7 +91,8 @@ public class JournalSettingsWindowTests
         var source = new FakeJournalSettingsSource();
         var main = new MainViewModel(new AvaloniaUiDispatcher(), new StubUserDialogs(), new StubClipboardService())
         {
-            LiveVolumeChangeSourceFactory = () => source,
+            LivePrepareWatchAsync = (request, _, cancellationToken) =>
+                FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken),
             LiveIsElevated = () => false,
             LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0)
         };

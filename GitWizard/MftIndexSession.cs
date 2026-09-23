@@ -158,12 +158,17 @@ public sealed partial class MftIndexSession : IAsyncDisposable
         }
     }
 
+    internal Func<IReadOnlyList<MftDriveStatus>>? DriveStatusesOverride { get; set; }
+
     /// <summary>
     /// Captures each requested drive's current index status, in requested order. Every call returns
     /// a new read-only list; a drive whose identity failed carries that reason instead of a status.
     /// </summary>
     public IReadOnlyList<MftDriveStatus> CaptureDriveStatuses()
     {
+        if (DriveStatusesOverride is not null)
+            return DriveStatusesOverride();
+
         var indexed = Index.Drives.ToDictionary(status =>
             char.ToUpperInvariant(status.DriveLetter).ToString(), StringComparer.OrdinalIgnoreCase);
         return Array.AsReadOnly(Drives.Select(drive => new MftDriveStatus(drive,

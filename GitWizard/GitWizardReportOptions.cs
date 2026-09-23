@@ -30,4 +30,13 @@ public class GitWizardReportOptions
     /// <summary>When true, retain any elevated MftIndexSession created during MFT discovery on the report.</summary>
     [UsedImplicitly]
     public bool RetainDiscoveryIndex { get; set; }
+
+    /// <summary>Purpose of the discovery pass (default is Ordinary).</summary>
+    public DiscoveryPurpose DiscoveryPurpose { get; set; } = DiscoveryPurpose.Ordinary;
+
+    /// <summary>When true, allows reading from the cached repository list.</summary>
+    public bool AllowRepositoryList { get; set; } = true;
+
+    /// <summary>Injected coordinator for testing and routing.</summary>
+    public RepositoryDiscoveryCoordinator? DiscoveryCoordinator { get; set; }
 }

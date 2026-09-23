@@ -15,6 +15,7 @@ internal sealed class ScriptedIndexWatchSource : IIndexWatchSource
     readonly TaskCompletionSource _completed = new(TaskCreationOptions.RunContinuationsAsynchronously);
     bool _running;
 
+    public bool AutoCatchUp { get; set; } = true;
     public Task<IReadOnlyList<IndexWatchTarget>> Started => _started.Task;
     public Task Completed => _completed.Task;
     public bool WasCancelled { get; private set; }
@@ -52,6 +53,11 @@ internal sealed class ScriptedIndexWatchSource : IIndexWatchSource
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         _started.TrySetResult(targets.ToArray());
+        if (AutoCatchUp)
+        {
+            foreach (var target in targets)
+                Publish(new DriveCaughtUp(target.DriveLetter));
+        }
         try
         {
             await foreach (var pending in _items.Reader.ReadAllAsync(cancellationToken))
@@ -107,6 +113,7 @@ internal sealed class ScriptedIndexWatchSource : IIndexWatchSource
     {
         JournalBatch batch => char.ToUpperInvariant(batch.DriveLetter),
         DriveWatchFailure failure => char.ToUpperInvariant(failure.DriveLetter),
+        DriveCaughtUp caughtUp => char.ToUpperInvariant(caughtUp.DriveLetter),
         _ => throw new ArgumentOutOfRangeException(nameof(item), item, "Unknown watch item.")
     };
 

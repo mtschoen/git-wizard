@@ -101,6 +101,38 @@ never from a fixed sleep.
   GitWizardUI's Live mode at the same time is out of scope for this smoke
   test; close GitWizardUI first.
 
+## Discovery outcomes and failure semantics
+
+Run the existing CLI live smoke pass first. These checks exercise the discovery
+coordinator's publication contract attended, because they need real elevation
+and a real drive mix.
+
+1. **Partial discovery keeps watching healthy drives.** With search paths on two
+   NTFS drives, make one drive's index unavailable (for example keep an external
+   index owner open on it). Run `git-wizard --watch`. Expect a scan-error line
+   for the failed drive, healthy-drive repositories still discovered, and
+   `changed:` events flowing for a healthy-drive edit. A full report run in the
+   same state must exit 3 and leave `~/.GitWizard/report.json` byte-identical;
+   a `--save-path` file must not be created. An explicit `--paths` report in the
+   same state is unaffected.
+2. **Complete-empty discovery publishes empty.** With a redirected
+   `GITWIZARD_HOME` whose search path contains no repositories, run the default
+   report. Expect exit 0, an empty report, and `repositories.txt` cleared.
+3. **`--no-mft` is explicit recursive discovery.** Run
+   `git-wizard --scan-only --no-mft`. Expect recursive directory discovery with
+   no UAC prompt and no broker child process. The help text for `--no-mft`
+   (root, `tags`, and `branches`) states this contract, including that it does
+   not promise an unelevated NTFS journal watch.
+4. **Desktop Shift+Refresh preserves prior state on failure.** With a populated
+   list and report, make discovery unusable (deny the broker at the UAC prompt),
+   then Shift+click Refresh. Expect an error header, the previous repository
+   rows still displayed, and `repositories.txt`/`report.json` unchanged. Repeat
+   with a successful scan and confirm the fresh inventory replaces the display.
+5. **Linux per-start crawl.** On a Linux desktop, start Live and `--watch` once
+   each. Expect one recursive discovery pass per start after the fanotify marks
+   install, with events queued during the crawl delivered afterward; no MFT
+   cache is created under `~/.GitWizard`.
+
 ## Index cache maintenance
 
 Run the existing CLI live smoke pass first. Then, using an intentionally owned

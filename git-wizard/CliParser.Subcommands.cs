@@ -18,7 +18,7 @@ static partial class CliParser
             var savePathOption = tagsApp.Option("--save-path <PATH>", "Path where the report will be saved to disk", CommandOptionType.MultipleValue);
             var configPathOption = tagsApp.Option("--config-path <PATH>", "Path to custom configuration file", CommandOptionType.MultipleValue);
             var printMinifiedOption = tagsApp.Option("--print-minified", "Print the output as minified JSON", CommandOptionType.NoValue);
-            var noMftOption = tagsApp.Option("--no-mft", "Skip MFT search and use recursive directory scan instead", CommandOptionType.NoValue);
+            var noMftOption = tagsApp.Option("--no-mft", "Use explicit recursive directory discovery instead of MFT index search (for users unable to accept the UAC elevation prompt); does not promise an unelevated NTFS journal watch", CommandOptionType.NoValue);
             var verboseOption = tagsApp.Option("-v|--verbose", "Enable verbose logging.", CommandOptionType.NoValue);
             var silentOption = tagsApp.Option("-s|--silent", "Do not print to the console", CommandOptionType.NoValue);
             tagsHelpOption = tagsApp.HelpOption("-h|-?|--help");
@@ -62,7 +62,8 @@ static partial class CliParser
                     HasError: hasError)
                 {
                     Tags = true,
-                    TagMatchPattern = matchValue
+                    TagMatchPattern = matchValue,
+                    Silent = silentOption.HasValue()
                 });
             };
             tagsApp.OnExecute(() => execute());
@@ -85,7 +86,7 @@ static partial class CliParser
             var savePathOption = branchesApp.Option("--save-path <PATH>", "Path where the report will be saved to disk", CommandOptionType.MultipleValue);
             var configPathOption = branchesApp.Option("--config-path <PATH>", "Path to custom configuration file", CommandOptionType.MultipleValue);
             var printMinifiedOption = branchesApp.Option("--print-minified", "Print the output as minified JSON", CommandOptionType.NoValue);
-            var noMftOption = branchesApp.Option("--no-mft", "Skip MFT search and use recursive directory scan instead", CommandOptionType.NoValue);
+            var noMftOption = branchesApp.Option("--no-mft", "Use explicit recursive directory discovery instead of MFT index search (for users unable to accept the UAC elevation prompt); does not promise an unelevated NTFS journal watch", CommandOptionType.NoValue);
             var verboseOption = branchesApp.Option("-v|--verbose", "Enable verbose logging.", CommandOptionType.NoValue);
             var silentOption = branchesApp.Option("-s|--silent", "Do not print to the console", CommandOptionType.NoValue);
             branchesHelpOption = branchesApp.HelpOption("-h|-?|--help");
@@ -135,7 +136,8 @@ static partial class CliParser
                 {
                     Branches = true,
                     NotMergedBranch = baseBranch,
-                    NotMergedOnly = notMergedOnly
+                    NotMergedOnly = notMergedOnly,
+                    Silent = silentOption.HasValue()
                 });
             };
             branchesApp.OnExecute(() => execute());

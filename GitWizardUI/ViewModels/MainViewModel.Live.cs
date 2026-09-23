@@ -24,15 +24,17 @@ public partial class MainViewModel
 
     LiveWatchController? _liveController;
 
-    // Swappable dependencies for testability: the real Windows factory spawns an elevated broker
-    // (a live UAC prompt), which an automated test can never drive. Tests substitute a fake
-    // IVolumeChangeSource / elevation answer here to exercise ToggleLiveAsync end-to-end.
-    Func<IVolumeChangeSource>? _liveVolumeChangeSourceFactory;
+    // Swappable dependency for testability: the real coordinator arms an elevated broker
+    // session (a live UAC prompt), which an automated test can never drive. Tests substitute
+    // a prepared WatchStartupResult around a fake IVolumeChangeSource to exercise
+    // ToggleLiveAsync end-to-end.
+    Func<DiscoveryRequest, MftIndexSession?, CancellationToken, Task<WatchStartupResult>>? _livePrepareWatchAsync;
 
-    internal Func<IVolumeChangeSource> LiveVolumeChangeSourceFactory
+    internal Func<DiscoveryRequest, MftIndexSession?, CancellationToken, Task<WatchStartupResult>> LivePrepareWatchAsync
     {
-        get => _liveVolumeChangeSourceFactory ??= CreateDefaultVolumeChangeSourceFactory();
-        set => _liveVolumeChangeSourceFactory = value;
+        get => _livePrepareWatchAsync ??= static (request, prepared, cancellationToken) =>
+            new RepositoryDiscoveryCoordinator().PrepareWatchAsync(request, prepared, cancellationToken);
+        set => _livePrepareWatchAsync = value;
     }
 
     internal Func<bool> LiveIsElevated { get; set; } = VolumeChangeSourceFactory.IsElevated;
@@ -198,183 +200,6 @@ public partial class MainViewModel
                 RemoveRepositoryByPath(repoRoot);
         });
     }
-
-    internal async Task ToggleLiveAsync()
-    {
-        if (IsLive || IsLiveStarting)
-        {
-            await StopLiveAsync().ConfigureAwait(false);
-            return;
-        }
-
-        if (!IsLiveSupported)
-        {
-            HeaderText = $"Live watch unavailable: {LiveTooltip}";
-            return;
-        }
-
-        if (IsRefreshing)
-            return;
-
-        _reportedLiveScanErrors.Clear();
-        var (trackedRoots, searchRoots, ignoredRoots, includeTempDirectories) = await GetLiveRootsAsync().ConfigureAwait(false);
-        var controller = CreateConfiguredLiveController(trackedRoots, searchRoots, ignoredRoots, includeTempDirectories);
-        var detachHandlers = AttachLiveControllerHandlers(controller);
-        _liveController = controller;
-
-        await _ui.InvokeAsync(() =>
-        {
-            IsLiveStarting = true;
-            ClearLiveScanProgress();
-            HeaderText = "Starting Live watch...";
-        }).ConfigureAwait(false);
-
-        try
-        {
-            await RunLiveControllerAsync(controller).ConfigureAwait(false);
-        }
-        finally
-        {
-            detachHandlers();
-        }
-    }
-
-    LiveWatchController CreateConfiguredLiveController(
-        List<string> trackedRoots,
-        List<string> searchRoots,
-        List<string> ignoredRoots,
-        bool includeTempDirectories) =>
-        new(
-            LiveVolumeChangeSourceFactory,
-            trackedRoots,
-            searchRoots,
-            onEvent: ev => _ = ApplyLiveEventAsync(ev),
-            onStopped: reason => _ui.Post(() =>
-            {
-                IsLiveStarting = false;
-                IsLive = false;
-                ClearLiveScanProgress();
-                var controller = RequireLiveController();
-                // A death stop keeps the drives' journal hints on screen: they explain why the
-                // watch ended, including the sole-drive case where the terminal header is all
-                // the UI shows. A user-initiated stop still clears them (StopLiveAsync).
-                SurfaceNewLiveScanWarnings(controller);
-                HeaderText = $"Live watch stopped: {reason}{FormatLiveScanErrorSuffix(controller)}";
-            }),
-            new LiveWatchOptions
-            {
-                IsElevated = LiveIsElevated,
-                IncludeTempDirectories = includeTempDirectories,
-                IgnoredPaths = ignoredRoots
-            });
-
-    Action AttachLiveControllerHandlers(LiveWatchController controller)
-    {
-        void PostIfActive(Action action) => _ui.Post(() =>
-        {
-            if (ReferenceEquals(_liveController, controller) && (IsLive || IsLiveStarting))
-                action();
-        });
-
-        void OnStarted() => PostIfActive(() =>
-        {
-            IsLiveStarting = false;
-            IsLive = true;
-            ClearLiveScanProgress();
-            HeaderText = "Live watch active";
-            _reportedLiveScanErrors.Clear();
-            SurfaceNewLiveScanErrors(controller);
-            SurfaceNewLiveScanWarnings(controller);
-        });
-        void OnScanWarningsChanged() => PostIfActive(() => SurfaceNewLiveScanWarnings(controller));
-        void OnScanErrorsChanged() => PostIfActive(() => SurfaceNewLiveScanErrors(controller));
-        void OnLiveScanProgress(VolumeScanProgress sample) => PostIfActive(() => ApplyLiveScanProgress(sample));
-
-        controller.Started += OnStarted;
-        controller.ScanErrorsChanged += OnScanErrorsChanged;
-        controller.ScanWarningsChanged += OnScanWarningsChanged;
-        controller.ScanProgress += OnLiveScanProgress;
-
-        return () =>
-        {
-            controller.Started -= OnStarted;
-            controller.ScanErrorsChanged -= OnScanErrorsChanged;
-            controller.ScanWarningsChanged -= OnScanWarningsChanged;
-            controller.ScanProgress -= OnLiveScanProgress;
-        };
-    }
-
-    async Task RunLiveControllerAsync(LiveWatchController controller)
-    {
-        try
-        {
-            await controller.StartAsync(CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (InvalidOperationException exception)
-        {
-            await controller.StopAsync().ConfigureAwait(false);
-            GitWizardLog.LogException(exception, "Starting Live watch failed.");
-            await _ui.InvokeAsync(() =>
-            {
-                IsLiveStarting = false;
-                IsLive = false;
-                ClearLiveScanProgress();
-                JournalWarnings.Clear();
-                HeaderText = $"Live watch could not start: {exception.Message}";
-            }).ConfigureAwait(false);
-        }
-    }
-
-    internal async Task<(List<string> Tracked, List<string> Search, List<string> Ignored, bool IncludeTempDirectories)> GetLiveRootsAsync()
-    {
-        var tracked = _allRepositories.Select(node => node.WorkingDirectory)
-            .Where(path => !string.IsNullOrEmpty(path)).ToList();
-        var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync().ConfigureAwait(false);
-        var search = configuration.SearchPaths.Select(GitWizardApi.ExpandSearchPath).OfType<string>().ToList();
-        var ignored = GitWizardApi.ExpandIgnoredPaths(configuration.IgnoredPaths);
-        return (tracked, search, ignored, configuration.IncludeTempDirectories == true);
-    }
-
-    async Task StopLiveAsync()
-    {
-        if (_liveController != null)
-            await _liveController.StopAsync().ConfigureAwait(false);
-
-        await _ui.InvokeAsync(() =>
-        {
-            IsLiveStarting = false;
-            IsLive = false;
-            ClearLiveScanProgress();
-            JournalWarnings.Clear();
-        }).ConfigureAwait(false);
-    }
-
-    LiveWatchController RequireLiveController() =>
-        _liveController ?? throw new InvalidOperationException(
-            "_liveController must be assigned before a Live event/stop callback can run.");
-
-    void SurfaceNewLiveScanErrors(LiveWatchController controller)
-    {
-        foreach (var (drive, message) in controller.ScanErrors)
-        {
-            if (_reportedLiveScanErrors.TryGetValue(drive, out var previous) && previous == message)
-                continue;
-            _reportedLiveScanErrors[drive] = message;
-            HeaderText = $"Live scan error on {drive}: {message}";
-        }
-        if (JournalWarnings.Count > 0)
-            UpdateJournalWarningHeader();
-    }
-
-    static string FormatLiveScanErrorSuffix(LiveWatchController controller) =>
-        controller.ScanErrors.Count == 0
-            ? string.Empty
-            : $" (scan errors: {string.Join("; ", controller.ScanErrors.Select(pair => $"{pair.Key}: {pair.Value}"))})";
-
-    Func<IVolumeChangeSource> CreateDefaultVolumeChangeSourceFactory() => () =>
-        RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && TakePreparedDiscoveryIndex() is { } prepared
-            ? VolumeChangeSourceFactory.Create(prepared)
-            : VolumeChangeSourceFactory.Create();
 
     static FanotifyCapabilityResult DefaultLiveCapabilityProbe() =>
         RuntimeInformation.IsOSPlatform(OSPlatform.Linux)

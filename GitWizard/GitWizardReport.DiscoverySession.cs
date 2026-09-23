@@ -26,8 +26,13 @@ public partial class GitWizardReport
         GC.SuppressFinalize(this);
     }
 
+    public Task GetRepositoryPathsAsync(ICollection<string> repositoryPaths,
+        IUpdateHandler? updateHandler = null, bool noMft = false, bool retainDiscoveryIndex = false) =>
+        GetRepositoryPathsAsync(repositoryPaths, updateHandler, noMft, retainDiscoveryIndex, null, CancellationToken.None);
+
     public async Task GetRepositoryPathsAsync(ICollection<string> repositoryPaths,
-        IUpdateHandler? updateHandler = null, bool noMft = false, bool retainDiscoveryIndex = false)
+        IUpdateHandler? updateHandler, bool noMft, bool retainDiscoveryIndex,
+        GitWizardReportOptions? options, CancellationToken cancellationToken = default)
     {
         var configuration = new GitWizardConfiguration
         {
@@ -37,45 +42,37 @@ public partial class GitWizardReport
             IncludeTempDirectories = IncludeTempDirectories
         };
 
+        var coordinator = options?.DiscoveryCoordinator ?? new RepositoryDiscoveryCoordinator();
+        var purpose = options?.DiscoveryPurpose ?? DiscoveryPurpose.Ordinary;
+        var allowList = options?.AllowRepositoryList ?? false;
+
+        var request = new DiscoveryRequest(configuration, purpose, allowList, noMft, []);
+        var result = await DiscoverRepositoryPathsAsync(request, coordinator, updateHandler, cancellationToken).ConfigureAwait(false);
+
+        foreach (var path in result.Inventory.Paths)
+            repositoryPaths.Add(path);
+
         if (retainDiscoveryIndex)
         {
-            await using var discoveryResult = await GitWizardApi.TryDiscoverRepositoriesUsingMftAsync(
-                configuration, repositoryPaths, updateHandler, noMft).ConfigureAwait(false);
-            if (discoveryResult.Success)
-            {
-                await SetDiscoveryIndexAsync(discoveryResult.DetachIndexSession()).ConfigureAwait(false);
-                return;
-            }
+            await SetDiscoveryIndexAsync(result.DetachIndexSession()).ConfigureAwait(false);
         }
-        else if (await GitWizardApi.TryFindAllRepositoriesUsingMftAsync(
-                     configuration, repositoryPaths, updateHandler, noMft).ConfigureAwait(false))
+        else
         {
-            return;
+            await result.DisposeAsync().ConfigureAwait(false);
         }
+    }
 
-        var count = 0;
-        try
-        {
-            updateHandler?.StartProgress("Getting GitWizardRepository Paths", SearchPaths.Count);
-        }
-        catch (Exception exception)
-        {
-            GitWizardLog.LogException(exception, "Exception thrown by GetRepositoryPaths StartProgress callback.");
-        }
+    public async Task<RepositoryDiscoveryResult> DiscoverRepositoryPathsAsync(
+        DiscoveryRequest request,
+        RepositoryDiscoveryCoordinator coordinator,
+        IUpdateHandler? updateHandler,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(coordinator);
 
-        Parallel.ForEach(SearchPaths, path =>
-        {
-            GitWizardApi.GetRepositoryPaths(path, repositoryPaths, IgnoredPaths, updateHandler,
-                SkipHiddenDirectories, IncludeTempDirectories);
-
-            try
-            {
-                updateHandler?.UpdateProgress(Interlocked.Increment(ref count));
-            }
-            catch (Exception exception)
-            {
-                GitWizardLog.LogException(exception, "Exception thrown by GetRepositoryPaths UpdateProgress callback.");
-            }
-        });
+        var result = await coordinator.DiscoverAsync(request, updateHandler, cancellationToken).ConfigureAwait(false);
+        DiscoveryInventory = result.Inventory;
+        return result;
     }
 }

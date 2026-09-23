@@ -161,8 +161,9 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
                         foreach (var token in frame.DrivesSpec!.Split(','))
                         {
                             var parts = token.Split(':');
-                            BrokerProtocol.WriteJournalBatch(response, parts[0],
-                                uint.Parse(parts[3], CultureInfo.InvariantCulture), Cursor, WatchEntries);
+                            var armEpoch = uint.Parse(parts[3], CultureInfo.InvariantCulture);
+                            BrokerProtocol.WriteJournalBatch(response, parts[0], armEpoch, Cursor, WatchEntries);
+                            BrokerProtocol.WriteCaughtUp(response, parts[0], armEpoch);
                         }
                         _watchStarted.TrySetResult(frame);
                         break;

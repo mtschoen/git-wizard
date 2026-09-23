@@ -5,7 +5,8 @@ namespace GitWizardTests;
 
 /// <summary>
 /// Regression coverage for hazard 8 in docs/refresh-concurrency-review.md: the discovery loop in
-/// <see cref="GitWizardReport.GetRepositoryPathsAsync"/> incremented a shared counter with a plain
+/// <see cref="GitWizardReport.GetRepositoryPathsAsync(System.Collections.Generic.ICollection{System.String},GitWizard.IUpdateHandler,bool,bool,GitWizard.GitWizardReportOptions,System.Threading.CancellationToken)"/>
+/// incremented a shared counter with a plain
 /// <c>++count</c> inside <see cref="Parallel.ForEach{TSource}(System.Collections.Generic.IEnumerable{TSource},System.Action{TSource})"/>,
 /// so concurrent workers could lose updates and the progress bar could undercount and never reach
 /// the search-path total. <see cref="RepeatAttribute"/> rather than a timing assertion makes the

@@ -168,11 +168,11 @@ public class IndexVolumeChangeSourceTests
         var owner = Owner(await files.OpenMftIndexAsync(scripted, 'X', 'Y'), "X", "Y");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
-        Assert.That(scripted.Started.IsCompleted, Is.False, "Arming must not start the watch.");
+        Assert.That(scripted.Started.IsCompleted, Is.True, "Arming must start the watch.");
+        var targets = await scripted.Started.WaitAsync(HangGuard);
         using var cancellation = new CancellationTokenSource(HangGuard);
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
         var firstRead = reader.MoveNextAsync().AsTask();
-        var targets = await scripted.Started.WaitAsync(HangGuard);
         Assert.That(targets, Is.EquivalentTo(new[]
         {
             new IndexWatchTarget('X', PackedIndexFixture.JournalId, PackedIndexFixture.NextUsn),
@@ -508,15 +508,6 @@ public class IndexVolumeChangeSourceTests
         Assert.That(warnings, Has.Count.EqualTo(1));
     }
 
-    sealed class CountingOwner : IAsyncDisposable
-    {
-        public int Disposals { get; private set; }
-        public ValueTask DisposeAsync()
-        {
-            Disposals++;
-            return ValueTask.CompletedTask;
-        }
-    }
 
     static UsnJournalEntry Entry(ulong record, ulong parent, string name, UsnReason reason,
         bool directory = false) => UsnJournalEntry.Create(new UsnJournalEntryOptions

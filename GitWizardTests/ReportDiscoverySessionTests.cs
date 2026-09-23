@@ -69,7 +69,20 @@ public class ReportDiscoverySessionTests
     public async Task JsonSerialization_IgnoresDiscoveryProperties()
     {
         await using var report = new GitWizardReport(new GitWizardConfiguration());
-        Assert.That(JsonSerializer.Serialize(report), Does.Not.Contain("DiscoveryIndex"));
+        report.DiscoveryInventory = new DiscoveryInventory
+        {
+            Outcome = DiscoveryOutcome.CompleteEmpty,
+            Route = DiscoveryRoute.Indexed,
+            Paths = [],
+            RequestedNtfsDrives = [],
+            Observations = [],
+            DriveStatuses = [],
+            Errors = new Dictionary<string, string>(),
+            WatchExcludedRoots = []
+        };
+        var json = JsonSerializer.Serialize(report);
+        Assert.That(json, Does.Not.Contain("DiscoveryIndex"));
+        Assert.That(json, Does.Not.Contain("DiscoveryInventory"));
     }
 
     [Test]

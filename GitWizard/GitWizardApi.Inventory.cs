@@ -25,46 +25,81 @@ public static partial class GitWizardApi
         bool noMft = false,
         IUpdateHandler? updateHandler = null)
     {
-        ArgumentNullException.ThrowIfNull(configuration);
+        var coordinator = new RepositoryDiscoveryCoordinator();
+        await using var result = await DiscoverAllCloneInventoryAsync(
+            configuration, explicitPaths, noMft, coordinator, updateHandler, CancellationToken.None).ConfigureAwait(false);
+        return result.Inventory.Paths;
+    }
 
-        ICollection<string> rootPaths;
+    /// <summary>
+    /// Discovers all git clones across the machine or explicit paths with full inventory and completeness tracking.
+    /// </summary>
+    public static async Task<RepositoryDiscoveryResult> DiscoverAllCloneInventoryAsync(
+        GitWizardConfiguration configuration,
+        ICollection<string>? explicitPaths,
+        bool noMft,
+        RepositoryDiscoveryCoordinator coordinator,
+        IUpdateHandler? updateHandler = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(coordinator);
 
         if (explicitPaths != null && explicitPaths.Count > 0)
         {
-            rootPaths = explicitPaths;
-        }
-        else
-        {
-            var searchConfig = new GitWizardConfiguration
+            var expandedPaths = ExpandAllClonePaths(explicitPaths);
+            var inventory = new DiscoveryInventory
             {
-                SearchPaths = new SortedSet<string>(configuration.SearchPaths, StringComparer.Ordinal),
-                IgnoredPaths = new SortedSet<string>(configuration.IgnoredPaths, StringComparer.Ordinal),
-                SkipHiddenDirectories = configuration.SkipHiddenDirectories,
-                IncludeTempDirectories = configuration.IncludeTempDirectories,
-                ForkPath = configuration.ForkPath
+                Outcome = DiscoveryOutcome.CompleteNonempty,
+                Route = DiscoveryRoute.RecursiveOnly,
+                Paths = expandedPaths,
+                RequestedNtfsDrives = [],
+                Observations = [],
+                DriveStatuses = [],
+                Errors = new Dictionary<string, string>(),
+                WatchExcludedRoots = []
             };
-
-            var prCrewReposPath = GetPrCrewReposPath();
-            if (Directory.Exists(prCrewReposPath))
-            {
-                var normalizedPrCrewPath = NormalizePath(prCrewReposPath);
-                var alreadyCovered = searchConfig.SearchPaths
-                    .Select(ExpandSearchPath)
-                    .Any(searchPath => !string.IsNullOrEmpty(searchPath) && IsSameOrChildPath(normalizedPrCrewPath, searchPath));
-
-                if (!alreadyCovered)
-                {
-                    searchConfig.SearchPaths.Add(prCrewReposPath);
-                }
-            }
-
-            var discoveredPaths = new SortedSet<string>(StringComparer.Ordinal);
-            var discoveryReport = new GitWizardReport(searchConfig);
-            await discoveryReport.GetRepositoryPathsAsync(discoveredPaths, updateHandler, noMft: noMft).ConfigureAwait(false);
-            rootPaths = discoveredPaths;
+            return new RepositoryDiscoveryResult(inventory);
         }
 
-        return ExpandAllClonePaths(rootPaths);
+        var searchConfig = new GitWizardConfiguration
+        {
+            SearchPaths = new SortedSet<string>(configuration.SearchPaths, StringComparer.Ordinal),
+            IgnoredPaths = new SortedSet<string>(configuration.IgnoredPaths, StringComparer.Ordinal),
+            SkipHiddenDirectories = configuration.SkipHiddenDirectories,
+            IncludeTempDirectories = configuration.IncludeTempDirectories,
+            ForkPath = configuration.ForkPath
+        };
+
+        var prCrewReposPath = GetPrCrewReposPath();
+        if (Directory.Exists(prCrewReposPath))
+        {
+            var normalizedPrCrewPath = NormalizePath(prCrewReposPath);
+            var alreadyCovered = searchConfig.SearchPaths
+                .Select(ExpandSearchPath)
+                .Any(searchPath => !string.IsNullOrEmpty(searchPath) && IsSameOrChildPath(normalizedPrCrewPath, searchPath));
+
+            if (!alreadyCovered)
+            {
+                searchConfig.SearchPaths.Add(prCrewReposPath);
+            }
+        }
+
+        var request = new DiscoveryRequest(
+            searchConfig,
+            DiscoveryPurpose.Ordinary,
+            false,
+            noMft,
+            []);
+
+        var discoveryResult = await coordinator.DiscoverAsync(request, updateHandler, cancellationToken).ConfigureAwait(false);
+        var expandedClonePaths = ExpandAllClonePaths(discoveryResult.Inventory.Paths);
+
+        var expandedInventory = discoveryResult.Inventory with { Paths = expandedClonePaths };
+
+        var session = discoveryResult.DetachIndexSession();
+        await discoveryResult.DisposeAsync().ConfigureAwait(false);
+        return new RepositoryDiscoveryResult(expandedInventory, session);
     }
 
     /// <summary>

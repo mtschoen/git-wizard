@@ -6,7 +6,7 @@ public static partial class Program
     /// <summary>
     /// Struct containing configuration details specified in command line arguments
     /// </summary>
-    struct RunConfiguration
+    internal struct RunConfiguration
     {
         /// <summary>
         /// Rebuild the list of repositories (instead of using cache).
@@ -164,11 +164,20 @@ public static partial class Program
         public readonly bool ExitRequested;
 
         /// <summary>
+        /// Suppress console output (errors still print to stderr).
+        /// </summary>
+        public readonly bool Silent;
+
+        /// <summary>
         /// Initialize a RunConfiguration using Environment.GetCommandLineArgs
         /// </summary>
         public RunConfiguration()
+            : this(CliParser.ParseProcessArgs(Environment.GetCommandLineArgs()))
         {
-            var result = CliParser.ParseProcessArgs(Environment.GetCommandLineArgs());
+        }
+
+        internal RunConfiguration(RunConfigurationResult result)
+        {
             RebuildRepositoryList = result.RebuildRepositoryList;
             RebuildReport = result.RebuildReport;
             ClearCache = result.ClearCache;
@@ -198,6 +207,7 @@ public static partial class Program
             NoLocalCommitCount = result.NoLocalCommitCount;
             HasParseError = result.HasError;
             ExitRequested = result.ExitRequested;
+            Silent = result.Silent;
         }
     }
 }

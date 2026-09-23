@@ -5,6 +5,10 @@ namespace GitWizardUI.ViewModels;
 
 public partial class MainViewModel
 {
+    // Test seam: lets a test drive refresh discovery through a coordinator backed by fake
+    // dependencies instead of the real platform index. Null in production.
+    internal RepositoryDiscoveryCoordinator? RefreshDiscoveryCoordinator { get; set; }
+
     internal void AddRepository(GitWizardRepository repository)
     {
         // The first repository to surface ends the "Scanning..." gap; rows now stream into the list.
@@ -160,20 +164,20 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// Hard refresh: clear the cached repository list and report, then refresh.
-    /// With no cache present, the refresh runs a full MFT discovery scan, which
-    /// self-elevates via UAC on Windows. Bound to Shift+click on the Refresh button.
+    /// Hard refresh: force a fresh discovery scan (rebuild purpose), then refresh. The cached
+    /// repository list and report are left in place until the scan's outcome is known - an
+    /// unusable or partial discovery preserves them rather than clearing them up front.
+    /// Bound to Shift+click on the Refresh button.
     /// </summary>
     public async Task HardRefreshAsync()
     {
         if (IsRefreshing)
             return;
 
-        GitWizardApi.ClearCache();
-        await RefreshAsync(background: false);
+        await RefreshAsync(background: false, rebuild: true).ConfigureAwait(false);
     }
 
-    public async Task RefreshAsync(bool background = false, bool fetchRemotes = false)
+    public async Task RefreshAsync(bool background = false, bool fetchRemotes = false, bool rebuild = false)
     {
         if (IsRefreshing)
             return;
@@ -188,9 +192,13 @@ public partial class MainViewModel
         // Pre-populate UI from cached report so repos appear immediately while the
         // full refresh runs in the background. This eliminates the 30+ second empty-list
         // gap on large repo sets where individual refreshes take a long time (issue #98).
-        string[]? repositoryPaths = await GitWizardApi.GetCachedRepositoryPathsAsync().ConfigureAwait(false);
+        var cachedPaths = await GitWizardApi.GetCachedRepositoryPathsAsync().ConfigureAwait(false);
         var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync().ConfigureAwait(false);
         var cachedReport = await GitWizardReport.GetCachedReportAsync().ConfigureAwait(false);
+
+        // A rebuild runs discovery instead of re-checking the cached paths; the cached paths
+        // still drive pre-population, and the coordinator's inventory decides what is persisted.
+        var repositoryPaths = rebuild ? null : cachedPaths;
 
         // Clear displayed list, group state, and the backing collections so that only
         // nodes from the cached report (pre-population) + fresh scan (AddRepository)
@@ -202,11 +210,11 @@ public partial class MainViewModel
             _pendingGroups.Clear();
             _allRepositories.Clear();
             _repositoryMap.Clear();
-            PrePopulateFromReport(configuration, repositoryPaths, cachedReport);
+            PrePopulateFromReport(configuration, cachedPaths, cachedReport);
         }).ConfigureAwait(false);
 
-        var (deletedPaths, renamedOldPaths, nonRepositoryPaths, freshPaths) =
-            await RunRefreshScanAsync(configuration, repositoryPaths, fetchRemotes).ConfigureAwait(false);
+        var (deletedPaths, renamedOldPaths, nonRepositoryPaths, freshPaths, publishable) =
+            await RunRefreshScanAsync(configuration, repositoryPaths, fetchRemotes, rebuild).ConfigureAwait(false);
 
         await UpdateCachedPathsAfterScanAsync(deletedPaths, renamedOldPaths, nonRepositoryPaths).ConfigureAwait(false);
 
@@ -218,7 +226,11 @@ public partial class MainViewModel
 
         await _ui.InvokeAsync(() =>
         {
-            PruneStalePrePopulatedRepos(freshPaths, renamedOldPaths);
+            // Only a publishable inventory observed every configured root, so only then may
+            // pre-populated rows be pruned for missing from the fresh scan. An incomplete
+            // discovery retains the rows its scope did not cover.
+            if (publishable)
+                PruneStalePrePopulatedRepos(freshPaths, renamedOldPaths);
             RemoveRenamedReposFromUi(renamedOldPaths);
         }).ConfigureAwait(false);
 
@@ -267,14 +279,16 @@ public partial class MainViewModel
     }
 
     // Run the CPU-bound git scan on the thread pool; returns the deleted, renamed-old, and stale
-    // non-repo paths, plus the set of healthy repo paths discovered by the scan.
-    async Task<(HashSet<string> DeletedPaths, HashSet<string> RenamedOldPaths, HashSet<string> NonRepositoryPaths, HashSet<string> FreshPaths)> RunRefreshScanAsync(
-        GitWizardConfiguration configuration, string[]? repositoryPaths, bool fetchRemotes)
+    // non-repo paths, the set of healthy repo paths discovered by the scan, and whether the
+    // discovery inventory may publish a full inventory (false for partial/unusable outcomes).
+    async Task<(HashSet<string> DeletedPaths, HashSet<string> RenamedOldPaths, HashSet<string> NonRepositoryPaths, HashSet<string> FreshPaths, bool Publishable)> RunRefreshScanAsync(
+        GitWizardConfiguration configuration, string[]? repositoryPaths, bool fetchRemotes, bool rebuild = false)
     {
         var deletedPaths = new HashSet<string>();
         var renamedOldPaths = new HashSet<string>();
         var nonRepositoryPaths = new HashSet<string>();
         var freshPaths = new HashSet<string>();
+        var publishable = true;
 
         await Task.Run(async () =>
         {
@@ -284,11 +298,15 @@ public partial class MainViewModel
                 {
                     FetchRemotes = fetchRemotes,
                     DeepRefresh = fetchRemotes,
-                    RetainDiscoveryIndex = true
+                    RetainDiscoveryIndex = true,
+                    DiscoveryPurpose = rebuild ? DiscoveryPurpose.Rebuild : DiscoveryPurpose.Ordinary,
+                    DiscoveryCoordinator = RefreshDiscoveryCoordinator
                 }).ConfigureAwait(false);
             _stopwatch.Stop();
 
             await SetPreparedDiscoveryIndexAsync(report.DetachDiscoveryIndex()).ConfigureAwait(false);
+
+            publishable = report.DiscoveryInventory is not { CanPublishFullInventory: false };
 
             // Capture deleted and stale non-repo paths for cache cleanup on main thread
             deletedPaths = new HashSet<string>(report.DeletedPaths);
@@ -321,13 +339,20 @@ public partial class MainViewModel
                 refreshMsg += $", {renamedOldPaths.Count} renamed";
             if (nonRepositoryPaths.Count > 0)
                 refreshMsg += $", {nonRepositoryPaths.Count} stale";
+            if (!publishable)
+            {
+                refreshMsg += " - discovery incomplete; previous entries preserved";
+                LogError("Discovery was incomplete; the previous repository list and report were preserved.");
+            }
             _lastRefreshMessage = refreshMsg;
 
-            if (repositoryPaths == null)
+            // Only a publishable discovery may replace the cached list; an unusable or partial
+            // outcome leaves the coordinator's reconciled list (and the prior entries) intact.
+            if (repositoryPaths == null && publishable)
                 await GitWizardApi.SaveCachedRepositoryPathsAsync(report.GetRepositoryPaths()).ConfigureAwait(false);
         }).ConfigureAwait(false);
 
-        return (deletedPaths, renamedOldPaths, nonRepositoryPaths, freshPaths);
+        return (deletedPaths, renamedOldPaths, nonRepositoryPaths, freshPaths, publishable);
     }
 
     // Pre-populate the UI from the cached report so repos appear immediately on launch.

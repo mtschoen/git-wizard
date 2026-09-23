@@ -47,11 +47,11 @@ public static partial class GitWizardApi
         return MftIndexSession.OpenWindowsAsync(drives, brokerLauncher, connectTimeout, CancellationToken.None);
     }
 
-    static bool WindowsCandidateExists(string path)
+    static bool WindowsCandidateExists(string path, RepositoryCandidateKind kind)
     {
         if (!OperatingSystem.IsWindows())
             throw new PlatformNotSupportedException("Windows candidates require Windows filesystem validation.");
-        return Directory.Exists(path);
+        return RepositoryCandidateProbe.Exists(path, kind);
     }
 
     internal static async Task<MftDiscoveryResult> DiscoverRepositoriesWithIndexAsync(
@@ -80,11 +80,15 @@ public static partial class GitWizardApi
                 updateHandler?.SendUpdateMessage(message);
             }
 
-            var entries = SelectGitEntries(owner.Index, includeGitFiles: true);
-            var candidates = expandedRoots.SelectMany(root => ResolveRepositoryRootCandidates(
-                owner.Index, entries, root, expandedIgnoredPaths, configuration.SkipHiddenDirectories,
-                configuration.IncludeTempDirectories))
-                .Distinct(StringComparer.OrdinalIgnoreCase).Where(composition.CandidateExists).ToArray();
+            var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, false, []);
+            var scope = DiscoveryScope.CreateExpanded(request, expandedRoots.ToArray(), [], expandedIgnoredPaths.ToArray(),
+                r => new RootClassification(r, RootFileSystem.Ntfs, WatchPath.Parse(r).Volume, null));
+            var repoCandidates = SelectRepositoryCandidates(owner.Index, scope);
+            var candidates = repoCandidates
+                .Where(c => composition.CandidateExists(c.Path, c.Kind))
+                .Select(c => c.Path)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
             foreach (var candidate in candidates)
                 paths.Add(candidate);
             updateHandler?.SendUpdateMessage($"MFT search found {candidates.Length} repositories");

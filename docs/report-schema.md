@@ -157,6 +157,13 @@ A local branch's relationship to the repository's default branch. By default the
 |------|---------|
 | `0` | All repos clean, pushed, and not behind their remote |
 | `1` | At least one repo has pending changes, unpushed commits, or is behind its remote (`BehindRemoteCount > 0`) |
+| `2` | Command-line parsing or usage errors |
+| `3` | A report-producing run's discovery cannot publish a full inventory (partial or unusable outcome). The previous `~/.GitWizard/report.json` and any requested `--save-path` file are left untouched, no full-report JSON document is emitted, and the prior `repositories.txt` is preserved per the list-reconciliation rules. Runs scoped by explicit `--paths` never produce this code |
+
+Exit 3 is distinct from exit 1 on purpose: exit 1 still means "a valid, complete report was
+produced and repositories need attention", while exit 3 means "no trustworthy full inventory
+exists for this run". A complete-empty discovery is a successful empty inventory, not exit 3:
+it clears the repository list and publishes an empty report.
 
 ## Repository sweep output (`--sweep`)
 

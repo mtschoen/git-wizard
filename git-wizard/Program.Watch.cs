@@ -37,38 +37,68 @@ public static partial class Program
     /// driven through <see cref="RepositoryWatchService"/>.
     /// Prints one line per repository event as it arrives and runs until Ctrl-C or the broker dies.
     /// </summary>
-    static async Task RunWatchAsync(GitWizardConfiguration configuration)
+    internal static async Task<int> RunWatchAsync(
+        RunConfiguration runConfiguration,
+        GitWizardConfiguration configuration,
+        RepositoryDiscoveryCoordinator? coordinator = null,
+        TextWriter? stdout = null,
+        TextWriter? stderr = null,
+        CancellationToken cancellationToken = default)
     {
+        stdout ??= Console.Out;
+        stderr ??= Console.Error;
+
         if (OperatingSystem.IsLinux() && !_isElevated())
         {
-            var elevatedExitCode = await RunElevatedWatchViaPkexecAsync().ConfigureAwait(false);
-            Environment.Exit(elevatedExitCode);
-            return;
+            return await RunElevatedWatchViaPkexecAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
         }
 
-        var repositoryPaths = await LoadTrackedRepositoryPathsAsync(configuration).ConfigureAwait(false);
-        if (repositoryPaths.Count == 0)
+        if (!OperatingSystem.IsWindows() && !OperatingSystem.IsLinux())
         {
-            Console.WriteLine("No tracked repositories found; nothing to watch.");
-            return;
+            await stderr.WriteLineAsync("--watch requires Windows or Linux.").ConfigureAwait(false);
+            return 1;
         }
 
-        var searchRoots = configuration.SearchPaths
-            .Select(GitWizardApi.ExpandSearchPath)
-            .OfType<string>()
-            .ToList();
-        var ignoredRoots = GitWizardApi.ExpandIgnoredPaths(configuration.IgnoredPaths);
+        coordinator ??= new RepositoryDiscoveryCoordinator();
+
+        // Retained exact roots keep cached repositories outside the configured search roots in
+        // both discovery and the journal watch's selected drive set.
+        var retainedRoots = await ReadRetainedRootsAsync(cancellationToken).ConfigureAwait(false);
+        var request = new DiscoveryRequest(
+            configuration,
+            DiscoveryPurpose.Watch,
+            false,
+            runConfiguration.NoMft,
+            retainedRoots);
 
         using var ctrlC = new CtrlCCancellation();
-        await using var source = _sourceFactory();
-        var service = new RepositoryWatchService(source, repositoryPaths, searchRoots,
-            includeTempDirectories: configuration.IncludeTempDirectories == true,
-            ignoredPaths: ignoredRoots);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ctrlC.Token, cancellationToken);
+        var token = linkedCts.Token;
 
-        var stopped = await RunWatchLoopAsync(service, Console.WriteLine, Environment.Exit, ctrlC.Token)
-            .ConfigureAwait(false);
-        if (stopped)
-            Environment.Exit(1);
+        await using var startup = await coordinator.PrepareWatchAsync(request, null, token).ConfigureAwait(false);
+        WriteDiscoveryDiagnostics(startup.Inventory, stderr);
+
+        if (startup.Inventory.Outcome == DiscoveryOutcome.Unusable)
+            return 1;
+
+        if (startup.Source is null)
+        {
+            if (startup.Inventory.CanPublishFullInventory)
+            {
+                await stdout.WriteLineAsync("No tracked repositories found; nothing to watch.").ConfigureAwait(false);
+                return 0;
+            }
+            return 1;
+        }
+
+        var service = new RepositoryWatchService(startup);
+        int? capturedExit = null;
+        var stopped = await RunWatchLoopAsync(service, stdout.WriteLine, exitCode => capturedExit = exitCode, token).ConfigureAwait(false);
+
+        if (capturedExit is { } exitVal)
+            return exitVal;
+
+        return stopped ? 1 : 0;
     }
 
     internal static async Task<int> RunElevatedWatchViaPkexecAsync(
@@ -276,14 +306,24 @@ public static partial class Program
     }
 
     // Discover before arming so repositories created since the last cache write are tracked.
-    internal static async Task<List<string>> LoadTrackedRepositoryPathsAsync(GitWizardConfiguration configuration)
+    internal static async Task<List<string>> LoadTrackedRepositoryPathsAsync(
+        GitWizardConfiguration configuration,
+        RepositoryDiscoveryCoordinator? coordinator = null,
+        CancellationToken cancellationToken = default)
     {
-        var discovered = new SortedSet<string>();
-        configuration.GetRepositoryPaths(discovered);
-        EnsureUsableSearchPaths(configuration);
-        var paths = discovered.ToList();
-        await GitWizardApi.SaveCachedRepositoryPathsAsync(paths).ConfigureAwait(false);
+        coordinator ??= new RepositoryDiscoveryCoordinator();
+        var retainedRoots = await ReadRetainedRootsAsync(cancellationToken).ConfigureAwait(false);
+        var request = new DiscoveryRequest(
+            configuration,
+            DiscoveryPurpose.Watch,
+            false,
+            false,
+            retainedRoots);
 
-        return paths;
+        await using var startup = await coordinator.PrepareWatchAsync(request, null, cancellationToken).ConfigureAwait(false);
+        return startup.Inventory.Paths.ToList();
     }
+
+    static async Task<IReadOnlyList<string>> ReadRetainedRootsAsync(CancellationToken cancellationToken) =>
+        await GitWizardApi.GetCachedRepositoryPathsAsync(cancellationToken).ConfigureAwait(false) ?? [];
 }

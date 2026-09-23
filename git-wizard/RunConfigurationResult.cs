@@ -64,4 +64,9 @@ sealed record RunConfigurationResult(
     /// True when filtering to only branches not merged into the base branch.
     /// </summary>
     public bool NotMergedOnly { get; init; }
+
+    /// <summary>
+    /// True when --silent was specified.
+    /// </summary>
+    public bool Silent { get; init; }
 }

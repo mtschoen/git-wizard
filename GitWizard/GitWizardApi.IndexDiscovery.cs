@@ -5,12 +5,163 @@ namespace GitWizard;
 
 public static partial class GitWizardApi
 {
-    internal static IReadOnlyList<FileEntry> SelectGitEntries(FileIndex index, bool includeGitFiles)
+    internal static IReadOnlyList<FileEntry> SelectGitEntries(
+        FileIndex index, bool includeGitFiles, CancellationToken cancellationToken = default)
     {
-        return index.FindByName(GitEntryName)
+        return index.FindByName(GitEntryName, cancellationToken)
             .Where(entry => !entry.IsDeleted && (includeGitFiles || entry.IsDirectory))
             .ToArray();
     }
+
+    /// <summary>
+    /// Selects ordinary, gitfile, and bare repository candidates from the index matching the discovery scope.
+    /// </summary>
+    public static IReadOnlyList<RepositoryCandidate> SelectRepositoryCandidates(
+        FileIndex index, DiscoveryScope scope, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var results = new List<RepositoryCandidate>();
+        var seenPaths = new HashSet<string>(WatchPath.StringComparer);
+
+        var gitEntries = index.FindByName(GitEntryName, cancellationToken);
+        var headEntries = index.FindByName("HEAD", cancellationToken);
+
+        foreach (var candidateScope in BuildCandidateScopes(index, scope))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var scopeCandidates = SelectGitMarkerCandidates(gitEntries, candidateScope)
+                .Concat(SelectBareCandidates(headEntries, candidateScope, cancellationToken));
+            foreach (var candidate in scopeCandidates)
+            {
+                if (seenPaths.Add(candidate.Path))
+                    results.Add(candidate);
+            }
+        }
+
+        return results.AsReadOnly();
+    }
+
+    readonly record struct CandidateScope(
+        WatchPath TranslatedRoot,
+        bool IsExact,
+        bool CoversDriveRoot,
+        bool ExcludeTempDirectories,
+        bool SkipHiddenDirectories,
+        WatchPath[] IgnoredRoots);
+
+    static List<CandidateScope> BuildCandidateScopes(FileIndex index, DiscoveryScope scope)
+    {
+        var roots = scope.SearchRoots.Select(root => (Root: root, IsExact: false)).ToList();
+        foreach (var retainedRoot in scope.RetainedRoots)
+        {
+            var retained = WatchPath.Parse(retainedRoot);
+            if (!scope.SearchRoots.Any(searchRoot => retained.IsUnderOrEqual(WatchPath.Parse(searchRoot))))
+                roots.Add((retainedRoot, true));
+        }
+
+        var configuration = scope.Request.Configuration;
+        var ignoredRoots = scope.IgnoredRoots
+            .Select(ignoredRoot => TranslateToRealRoot(index, WatchPath.Parse(ignoredRoot)))
+            .ToArray();
+        return roots.Select(item =>
+        {
+            var root = WatchPath.Parse(item.Root);
+            return new CandidateScope(
+                TranslateToRealRoot(index, root),
+                item.IsExact,
+                !item.IsExact && IsDriveRoot(root.Original),
+                configuration.IncludeTempDirectories != true && !TempDirectories.IsTempPath(root.Original),
+                configuration.SkipHiddenDirectories != false,
+                ignoredRoots);
+        }).ToList();
+    }
+
+    static IEnumerable<RepositoryCandidate> SelectGitMarkerCandidates(
+        IEnumerable<FileEntry> gitEntries, CandidateScope candidateScope)
+    {
+        foreach (var entry in gitEntries)
+        {
+            if (entry.IsDeleted || (candidateScope.CoversDriveRoot && !entry.IsDirectory))
+                continue;
+            if (!TryGetScopedParent(entry, candidateScope, out _, out var candidate))
+                continue;
+
+            var kind = entry.IsDirectory ? RepositoryCandidateKind.Ordinary : RepositoryCandidateKind.GitFile;
+            yield return new RepositoryCandidate(candidate.Original, kind);
+        }
+    }
+
+    static IEnumerable<RepositoryCandidate> SelectBareCandidates(
+        IEnumerable<FileEntry> headEntries, CandidateScope candidateScope, CancellationToken cancellationToken)
+    {
+        foreach (var entry in headEntries)
+        {
+            if (entry.IsDeleted || entry.IsDirectory)
+                continue;
+            if (!TryGetScopedParent(entry, candidateScope, out var parent, out var candidate))
+                continue;
+            if (candidate.Comparison.Split('/').Any(segment =>
+                    string.Equals(segment, GitEntryName, StringComparison.OrdinalIgnoreCase)))
+                continue;
+            if (!HasBareRepositoryLayout(parent, cancellationToken))
+                continue;
+
+            yield return new RepositoryCandidate(candidate.Original, RepositoryCandidateKind.Bare);
+        }
+    }
+
+    static bool TryGetScopedParent(
+        FileEntry entry, CandidateScope candidateScope, out FileEntry parent, out WatchPath candidate)
+    {
+        candidate = default;
+        if (entry.Parent is not { IsDirectory: true } entryParent)
+        {
+            parent = default;
+            return false;
+        }
+
+        parent = entryParent;
+        string parentPath;
+        try
+        {
+            parentPath = parent.Path;
+        }
+        catch (InvalidDataException)
+        {
+            return false;
+        }
+
+        candidate = WatchPath.Parse(parentPath);
+        var root = candidateScope.TranslatedRoot;
+        var matches = candidateScope.IsExact ? candidate.IsEqualTo(root) : candidate.IsUnderOrEqual(root);
+        if (!matches || candidateScope.IgnoredRoots.Any(candidate.IsUnderOrEqual))
+            return false;
+        if (candidateScope.ExcludeTempDirectories && TempDirectories.IsTempPath(candidate.Original))
+            return false;
+
+        return !candidateScope.SkipHiddenDirectories ||
+               candidate.Comparison.Length <= root.Comparison.Length ||
+               !candidate.Comparison[root.Comparison.Length..].Split('/').Any(segment => segment.StartsWith('.'));
+    }
+
+    static bool HasBareRepositoryLayout(FileEntry directory, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<FileEntry> children;
+        try
+        {
+            children = directory.Children(cancellationToken);
+        }
+        catch (Exception exception) when (exception is InvalidDataException or IOException)
+        {
+            return false;
+        }
+
+        return HasChildDirectory(children, "objects") && HasChildDirectory(children, "refs");
+    }
+
+    static bool HasChildDirectory(IEnumerable<FileEntry> children, string name) =>
+        children.Any(child => !child.IsDeleted && child.IsDirectory &&
+                              string.Equals(child.Name, name, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Applies logical Windows scope policy without opening an indexed path on disk.</summary>
     /// <remarks>
@@ -85,10 +236,15 @@ public static partial class GitWizardApi
             // entries for: the caller's own scope filtering excludes it naturally.
             return path;
         }
+        var realRootPath = WatchPath.Parse(realRoot);
+        if (path.IsUnderOrEqual(realRootPath))
+            return path;
+        if (realRootPath.IsWindows && string.Equals(realRootPath.Volume, volume, StringComparison.OrdinalIgnoreCase))
+            return path;
+
         var relative = path.Comparison.Length > 3 ? path.Comparison[3..] : string.Empty;
-        var translated = relative.Length == 0
+        return WatchPath.Parse(relative.Length == 0
             ? realRoot
-            : Path.Combine(realRoot, relative.Replace('/', Path.DirectorySeparatorChar));
-        return WatchPath.Parse(translated);
+            : Path.Combine(realRoot, relative.Replace('/', Path.DirectorySeparatorChar)));
     }
 }

@@ -63,6 +63,10 @@ public partial class GitWizardReport : IAsyncDisposable
     /// </summary>
     public HashSet<string> NonRepositoryPaths { get; private set; } = new();
 
+    /// <summary>Immutable inventory from the discovery pass, or null if explicit paths were used or report was deserialized.</summary>
+    [JsonIgnore]
+    public DiscoveryInventory? DiscoveryInventory { get; internal set; }
+
     public static string GetCachedReportPath()
     {
         return Path.Combine(GitWizardApi.GetLocalFilesPath(), "report.json");
@@ -177,11 +181,22 @@ public partial class GitWizardReport : IAsyncDisposable
         {
             if (repositoryPaths == null)
             {
-                repositoryPaths = new SortedSet<string>();
-                await report.GetRepositoryPathsAsync(repositoryPaths, updateHandler, options.NoMft, options.RetainDiscoveryIndex).ConfigureAwait(false);
+                var discovered = new SortedSet<string>();
+                await report.GetRepositoryPathsAsync(discovered, updateHandler, options.NoMft, options.RetainDiscoveryIndex, options).ConfigureAwait(false);
+                repositoryPaths = discovered;
             }
 
-            report.Refresh(repositoryPaths, updateHandler, options.FetchRemotes, options.DeepRefresh, options.AllBranches, options.ComputeLocalCommitCount);
+            ICollection<string> pathsToRefresh;
+            if (report.DiscoveryInventory is { CanPublishFullInventory: false })
+            {
+                pathsToRefresh = report.DiscoveryInventory.Paths.ToList();
+            }
+            else
+            {
+                pathsToRefresh = repositoryPaths;
+            }
+
+            report.Refresh(pathsToRefresh, updateHandler, options.FetchRemotes, options.DeepRefresh, options.AllBranches, options.ComputeLocalCommitCount);
             report.BranchScope = options.AllBranches ? "all" : "actionable";
 
             return report;
@@ -349,75 +364,6 @@ public partial class GitWizardReport : IAsyncDisposable
         {
             GitWizardLog.Log($"Refresh took {repository.RefreshTimeSeconds}s for {path}", GitWizardLog.LogType.Warning);
         }
-    }
-
-    public void Save(string path)
-    {
-        var directory = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-            Directory.CreateDirectory(directory);
-
-        try
-        {
-            SchemaVersion = CurrentSchemaVersion;
-            var snapshot = CreateSnapshotForSerialization();
-            File.WriteAllText(path, JsonSerializer.Serialize(snapshot, SerializerOptions));
-        }
-        catch (Exception exception)
-        {
-            GitWizardLog.LogException(exception, $"Failed to save report to path: {path}.");
-        }
-    }
-
-    public async Task SaveAsync(string path, CancellationToken cancellationToken = default)
-    {
-        var directory = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-            Directory.CreateDirectory(directory);
-
-        try
-        {
-            SchemaVersion = CurrentSchemaVersion;
-            var snapshot = CreateSnapshotForSerialization();
-            var jsonText = JsonSerializer.Serialize(snapshot, SerializerOptions);
-            await File.WriteAllTextAsync(path, jsonText, cancellationToken).ConfigureAwait(false);
-        }
-        catch (Exception exception)
-        {
-            GitWizardLog.LogException(exception, $"Failed to save report to path: {path}.");
-        }
-    }
-
-    /// <summary>
-    /// Builds a throwaway <see cref="GitWizardReport"/> that shares this report's scalar and
-    /// set-valued state but carries a <see cref="SortedDictionary{TKey,TValue}"/> copy of
-    /// <see cref="Repositories"/> taken under <c>lock (Repositories)</c>. Used by
-    /// <see cref="Save"/>, <see cref="SaveAsync"/>, and <see cref="SaveAtomic"/> so that
-    /// serialization walks a private, immutable copy of the dictionary instead of the live
-    /// one, which an in-flight orphan refresh from a concurrent Refresh call could otherwise
-    /// still be mutating (see <see cref="RefreshSingleRepository"/>,
-    /// <see cref="PruneDeletedRepositories"/>, <see cref="PruneNonRepositoryPaths"/>).
-    /// </summary>
-    GitWizardReport CreateSnapshotForSerialization()
-    {
-        SortedDictionary<string, GitWizardRepository> repositoriesSnapshot;
-        lock (Repositories)
-        {
-            repositoriesSnapshot = new SortedDictionary<string, GitWizardRepository>(Repositories);
-        }
-
-        return new GitWizardReport
-        {
-            SchemaVersion = SchemaVersion,
-            BranchScope = BranchScope,
-            SearchPaths = SearchPaths,
-            IgnoredPaths = IgnoredPaths,
-            SkipHiddenDirectories = SkipHiddenDirectories,
-            IncludeTempDirectories = IncludeTempDirectories,
-            Repositories = repositoriesSnapshot,
-            DeletedPaths = DeletedPaths,
-            NonRepositoryPaths = NonRepositoryPaths,
-        };
     }
 
     public IEnumerable<string> GetRepositoryPaths()

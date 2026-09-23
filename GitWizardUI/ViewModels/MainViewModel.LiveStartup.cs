@@ -1,0 +1,253 @@
+using GitWizard;
+using GitWizard.Watch;
+using GitWizardUI.Services;
+
+namespace GitWizardUI.ViewModels;
+
+// Live-mode startup lifecycle: every start and respawn runs the discovery coordinator's
+// watch preparation (arm first, then reconcile membership against the watched session),
+// applies the reconciled inventory to the visible repositories, and surfaces terminal
+// startup outcomes instead of starting the pump.
+public partial class MainViewModel
+{
+    internal async Task ToggleLiveAsync()
+    {
+        if (IsLive || IsLiveStarting)
+        {
+            await StopLiveAsync().ConfigureAwait(false);
+            return;
+        }
+
+        if (!IsLiveSupported)
+        {
+            HeaderText = $"Live watch unavailable: {LiveTooltip}";
+            return;
+        }
+
+        if (IsRefreshing)
+            return;
+
+        _reportedLiveScanErrors.Clear();
+        var (trackedRoots, _, _, _) = await GetLiveRootsAsync().ConfigureAwait(false);
+        var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync().ConfigureAwait(false);
+        var controller = CreateConfiguredLiveController(configuration, trackedRoots);
+        var detachHandlers = AttachLiveControllerHandlers(controller);
+        _liveController = controller;
+
+        await _ui.InvokeAsync(() =>
+        {
+            IsLiveStarting = true;
+            ClearLiveScanProgress();
+            HeaderText = "Starting Live watch...";
+        }).ConfigureAwait(false);
+
+        try
+        {
+            await RunLiveControllerAsync(controller).ConfigureAwait(false);
+        }
+        finally
+        {
+            detachHandlers();
+        }
+    }
+
+    // Every Live start and respawn goes through the discovery coordinator with the currently
+    // tracked repositories as retained exact roots, so the watch arms the same session that
+    // reconciles membership (including repositories created while Live was closed and cached
+    // roots outside the configured search roots' drives).
+    LiveWatchController CreateConfiguredLiveController(
+        GitWizardConfiguration configuration,
+        IReadOnlyList<string> trackedRoots) =>
+        new(
+            cancellationToken => PrepareLiveWatchAsync(configuration, trackedRoots, cancellationToken),
+            onEvent: ev => _ = ApplyLiveEventAsync(ev),
+            onStopped: reason => _ui.Post(() =>
+            {
+                IsLiveStarting = false;
+                IsLive = false;
+                ClearLiveScanProgress();
+                var controller = RequireLiveController();
+                // A death stop keeps the drives' journal hints on screen: they explain why the
+                // watch ended, including the sole-drive case where the terminal header is all
+                // the UI shows. A user-initiated stop still clears them (StopLiveAsync).
+                SurfaceNewLiveScanWarnings(controller);
+                HeaderText = $"Live watch stopped: {reason}{FormatLiveScanErrorSuffix(controller)}";
+            }),
+            new LiveWatchOptions
+            {
+                IsElevated = LiveIsElevated
+            });
+
+    // The prepared discovery owner is always transferred to watch preparation, which decides
+    // per platform whether to adopt or dispose it. Withholding it here on a platform check
+    // left the view model holding an owner the first start should have consumed.
+    Task<WatchStartupResult> PrepareLiveWatchAsync(
+        GitWizardConfiguration configuration,
+        IReadOnlyList<string> trackedRoots,
+        CancellationToken cancellationToken)
+    {
+        var prepared = TakePreparedDiscoveryIndex();
+        var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Watch, false, false, trackedRoots);
+        return LivePrepareWatchAsync(request, prepared, cancellationToken);
+    }
+
+    // Applies the coordinator's reconciled startup inventory to the visible membership before
+    // Live events flow: repositories the inventory claims (including ones created while Live
+    // was closed) are added, and paths it no longer claims are removed. A partial inventory
+    // only adjusts observed scope - ReconcilePaths retains entries discovery did not observe.
+    internal async Task ApplyLiveStartupInventoryAsync(DiscoveryInventory inventory)
+    {
+        var membership = RepositoryDiscoveryCoordinator.ReconcilePaths(
+            _allRepositories.Select(node => node.WorkingDirectory).ToArray(), inventory);
+        var membershipSet = new HashSet<string>(membership, StringComparer.OrdinalIgnoreCase);
+
+        List<string> addedPaths = [];
+        await _ui.InvokeAsync(() =>
+        {
+            var current = _allRepositories.Select(node => node.WorkingDirectory).ToArray();
+            foreach (var path in current)
+            {
+                if (!membershipSet.Contains(path))
+                    RemoveRepositoryByPath(path);
+            }
+
+            var currentSet = new HashSet<string>(current, StringComparer.OrdinalIgnoreCase);
+            addedPaths = membership.Where(path => !currentSet.Contains(path)).ToList();
+        }).ConfigureAwait(false);
+
+        foreach (var path in addedPaths)
+        {
+            var repository = new GitWizardRepository(path);
+            await Task.Run(() => repository.Refresh()).ConfigureAwait(false);
+            // A short-lived repository may already be gone by the time its refresh ran.
+            if (!Directory.Exists(path))
+                continue;
+            _ui.Post(() => AddRepository(repository));
+        }
+    }
+
+    Action AttachLiveControllerHandlers(LiveWatchController controller)
+    {
+        void PostIfActive(Action action) => _ui.Post(() =>
+        {
+            if (ReferenceEquals(_liveController, controller) && (IsLive || IsLiveStarting))
+                action();
+        });
+
+        void OnStarted() => PostIfActive(() =>
+        {
+            IsLiveStarting = false;
+            IsLive = true;
+            ClearLiveScanProgress();
+            HeaderText = "Live watch active";
+            _reportedLiveScanErrors.Clear();
+            SurfaceNewLiveScanErrors(controller);
+            SurfaceNewLiveScanWarnings(controller);
+        });
+        void OnScanWarningsChanged() => PostIfActive(() => SurfaceNewLiveScanWarnings(controller));
+        void OnScanErrorsChanged() => PostIfActive(() => SurfaceNewLiveScanErrors(controller));
+        void OnLiveScanProgress(VolumeScanProgress sample) => PostIfActive(() => ApplyLiveScanProgress(sample));
+        void OnInventoryReady(DiscoveryInventory inventory) => _ = ApplyLiveStartupInventoryAsync(inventory);
+        void OnStartupUnavailable(DiscoveryInventory inventory) => PostIfActive(() =>
+        {
+            IsLiveStarting = false;
+            IsLive = false;
+            ClearLiveScanProgress();
+            JournalWarnings.Clear();
+            if (inventory.Outcome == DiscoveryOutcome.Unusable)
+            {
+                foreach (var (root, message) in inventory.Errors)
+                    LogError($"Live discovery error on {root}: {message}");
+                HeaderText = $"Live watch could not start: {inventory.Errors.Values.FirstOrDefault() ?? "discovery unusable"}";
+            }
+            else
+            {
+                HeaderText = "No tracked repositories found; nothing to watch.";
+            }
+        });
+
+        controller.Started += OnStarted;
+        controller.ScanErrorsChanged += OnScanErrorsChanged;
+        controller.ScanWarningsChanged += OnScanWarningsChanged;
+        controller.ScanProgress += OnLiveScanProgress;
+        controller.InventoryReady += OnInventoryReady;
+        controller.StartupUnavailable += OnStartupUnavailable;
+
+        return () =>
+        {
+            controller.Started -= OnStarted;
+            controller.ScanErrorsChanged -= OnScanErrorsChanged;
+            controller.ScanWarningsChanged -= OnScanWarningsChanged;
+            controller.ScanProgress -= OnLiveScanProgress;
+            controller.InventoryReady -= OnInventoryReady;
+            controller.StartupUnavailable -= OnStartupUnavailable;
+        };
+    }
+
+    async Task RunLiveControllerAsync(LiveWatchController controller)
+    {
+        try
+        {
+            await controller.StartAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (InvalidOperationException exception)
+        {
+            await controller.StopAsync().ConfigureAwait(false);
+            GitWizardLog.LogException(exception, "Starting Live watch failed.");
+            await _ui.InvokeAsync(() =>
+            {
+                IsLiveStarting = false;
+                IsLive = false;
+                ClearLiveScanProgress();
+                JournalWarnings.Clear();
+                HeaderText = $"Live watch could not start: {exception.Message}";
+            }).ConfigureAwait(false);
+        }
+    }
+
+    internal async Task<(List<string> Tracked, List<string> Search, List<string> Ignored, bool IncludeTempDirectories)> GetLiveRootsAsync()
+    {
+        var tracked = _allRepositories.Select(node => node.WorkingDirectory)
+            .Where(path => !string.IsNullOrEmpty(path)).ToList();
+        var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync().ConfigureAwait(false);
+        var search = configuration.SearchPaths.Select(GitWizardApi.ExpandSearchPath).OfType<string>().ToList();
+        var ignored = GitWizardApi.ExpandIgnoredPaths(configuration.IgnoredPaths);
+        return (tracked, search, ignored, configuration.IncludeTempDirectories == true);
+    }
+
+    async Task StopLiveAsync()
+    {
+        if (_liveController != null)
+            await _liveController.StopAsync().ConfigureAwait(false);
+
+        await _ui.InvokeAsync(() =>
+        {
+            IsLiveStarting = false;
+            IsLive = false;
+            ClearLiveScanProgress();
+            JournalWarnings.Clear();
+        }).ConfigureAwait(false);
+    }
+
+    LiveWatchController RequireLiveController() =>
+        _liveController ?? throw new InvalidOperationException(
+            "_liveController must be assigned before a Live event/stop callback can run.");
+
+    void SurfaceNewLiveScanErrors(LiveWatchController controller)
+    {
+        foreach (var (drive, message) in controller.ScanErrors)
+        {
+            if (_reportedLiveScanErrors.TryGetValue(drive, out var previous) && previous == message)
+                continue;
+            _reportedLiveScanErrors[drive] = message;
+            HeaderText = $"Live scan error on {drive}: {message}";
+        }
+        if (JournalWarnings.Count > 0)
+            UpdateJournalWarningHeader();
+    }
+
+    static string FormatLiveScanErrorSuffix(LiveWatchController controller) =>
+        controller.ScanErrors.Count == 0
+            ? string.Empty
+            : $" (scan errors: {string.Join("; ", controller.ScanErrors.Select(pair => $"{pair.Key}: {pair.Value}"))})";
+}

@@ -1,3 +1,4 @@
+using GitWizard;
 using GitWizard.Watch;
 
 namespace GitWizardUI.Services;
@@ -9,9 +10,19 @@ namespace GitWizardUI.Services;
 /// that need UI-thread marshaling must do it themselves inside <c>onEvent</c>/<c>onStopped</c> -
 /// this type never touches a dispatcher.
 /// </summary>
+/// <remarks>
+/// The primary construction takes a startup factory producing a coordinator-prepared
+/// <see cref="WatchStartupResult"/> (an already-armed source plus its reconciled inventory);
+/// every start and respawn re-runs the factory, so membership is reconciled against the exact
+/// session being watched each time. A startup with no watchable source is terminal - it is
+/// reported through <see cref="StartupUnavailable"/> without a respawn or a second elevation
+/// attempt. The source-factory construction remains for fake-source tests and arms the source
+/// inside the service, the pre-coordinator shape.
+/// </remarks>
 public sealed class LiveWatchController
 {
-    readonly Func<IVolumeChangeSource> _sourceFactory;
+    readonly Func<IVolumeChangeSource>? _sourceFactory;
+    readonly Func<CancellationToken, Task<WatchStartupResult>>? _startupFactory;
     readonly IReadOnlyCollection<string> _trackedRoots;
     readonly IReadOnlyCollection<string> _searchRoots;
     readonly Action<RepositoryChangeEvent> _onEvent;
@@ -25,14 +36,40 @@ public sealed class LiveWatchController
     public event Action? ScanWarningsChanged;
     public event Action<VolumeScanProgress>? ScanProgress;
 
+    /// <summary>Forwarded from the running service: the reconciled startup inventory, before <see cref="Started"/>.</summary>
+    public event Action<DiscoveryInventory>? InventoryReady;
+
+    /// <summary>
+    /// Raised once, terminally, when the coordinator's startup has no watchable source (an
+    /// unusable or cleanly empty discovery). No respawn follows; the consumer surfaces the
+    /// inventory's outcome and errors.
+    /// </summary>
+    public event Action<DiscoveryInventory>? StartupUnavailable;
+
     // Guards the read-modify-write of the mutable run state below. StartAsync's loop and a
-    // concurrent StopAsync both touch _stopRequested/_runCts/_source; without this a StopAsync
+    // concurrent StopAsync both touch _stopRequested/_runCts/_lifetime; without this a StopAsync
     // landing between iterations could no-op its cancel while the loop respawned a fresh source.
     readonly Lock _gate = new();
-    IVolumeChangeSource? _source;
+    IAsyncDisposable? _lifetime;
     RepositoryWatchService? _service;
     CancellationTokenSource? _runCts;
     bool _stopRequested;
+
+    public LiveWatchController(
+        Func<CancellationToken, Task<WatchStartupResult>> startupFactory,
+        Action<RepositoryChangeEvent> onEvent,
+        Action<string> onStopped,
+        LiveWatchOptions? options = null)
+    {
+        _startupFactory = startupFactory ?? throw new ArgumentNullException(nameof(startupFactory));
+        _trackedRoots = [];
+        _searchRoots = [];
+        _onEvent = onEvent;
+        _onStopped = onStopped;
+        _isElevated = options?.IsElevated ?? (() => false);
+        _includeTempDirectories = options?.IncludeTempDirectories ?? false;
+        _ignoredPaths = options?.IgnoredPaths ?? [];
+    }
 
     public LiveWatchController(
         Func<IVolumeChangeSource> sourceFactory,
@@ -86,7 +123,12 @@ public sealed class LiveWatchController
         get
         {
             lock (_gate)
-                return _source;
+                return _lifetime switch
+                {
+                    IVolumeChangeSource source => source,
+                    WatchStartupResult startup => startup.Source,
+                    _ => null
+                };
         }
     }
 
@@ -98,29 +140,65 @@ public sealed class LiveWatchController
         var consecutiveRespawns = 0;
         while (true)
         {
-            RepositoryWatchService service;
+            // Published before startup acquisition so StopAsync's cancel lands while the
+            // coordinator prepare (or a fake's blocking arm) is still in flight - a stop
+            // during acquisition must unwind the loop, not wait out the prepare.
             CancellationTokenSource runCts;
             lock (_gate)
             {
-                // Atomic top-of-iteration re-check: a StopAsync that raced the previous
-                // iteration's teardown wins here, before a new source is ever created.
                 if (_stopRequested || ct.IsCancellationRequested)
                     return;
-
-                var source = _sourceFactory();
-                service = new RepositoryWatchService(source, _trackedRoots, _searchRoots,
-                    includeTempDirectories: _includeTempDirectories,
-                    ignoredPaths: _ignoredPaths);
                 runCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                _source = source;
-                _service = service;
                 _runCts = runCts;
             }
 
-            string? died;
             try
             {
-                died = await RunOnceAsync(service, runCts.Token).ConfigureAwait(false);
+                var (startup, startRun) = await AcquireStartupAsync(runCts, ct).ConfigureAwait(false);
+                if (!startRun)
+                    return;
+
+                var service = TryBeginRun(startup);
+                if (service is null)
+                {
+                    // A stop raced the startup acquisition; abandon the prepared startup.
+                    if (startup is not null)
+                        await startup.DisposeAsync().ConfigureAwait(false);
+                    return;
+                }
+
+                string? died = await RunOnceAsync(service, runCts.Token).ConfigureAwait(false);
+
+                bool stopRequested;
+                lock (_gate)
+                    stopRequested = _stopRequested;
+
+                var elevatedRespawn =
+                    !stopRequested && !ct.IsCancellationRequested && died is not null && _isElevated()
+                    && consecutiveRespawns < MaxConsecutiveRespawns;
+
+                // Whoever ran this source owns disposing it (no-op if a concurrent StopAsync already
+                // claimed it), so both the respawn and the terminal paths leave no leaked handle.
+                await DisposeCurrentLifetimeAsync().ConfigureAwait(false);
+
+                if (elevatedRespawn)
+                {
+                    consecutiveRespawns++;
+                    try
+                    {
+                        await Task.Delay(RespawnBackoffMilliseconds, ct).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return;
+                    }
+
+                    continue;
+                }
+
+                if (!stopRequested && !ct.IsCancellationRequested && died is not null)
+                    _onStopped(died);
+                return;
             }
             finally
             {
@@ -130,43 +208,80 @@ public sealed class LiveWatchController
                     runCts.Dispose();
                 }
             }
+        }
+    }
 
-            bool stopRequested;
-            lock (_gate)
-                stopRequested = _stopRequested;
+    // Acquires the coordinator-prepared startup for this run (null in source-factory mode).
+    // StartRun is false when the loop must end: a cancelled acquisition, a terminal
+    // null-source startup (reported through StartupUnavailable with no respawn and no second
+    // elevation attempt), or a stop that raced the acquisition.
+    async Task<(WatchStartupResult? Startup, bool StartRun)> AcquireStartupAsync(
+        CancellationTokenSource runCts, CancellationToken ct)
+    {
+        if (_startupFactory is null)
+            return (null, true);
 
-            var elevatedRespawn =
-                !stopRequested && !ct.IsCancellationRequested && died is not null && _isElevated()
-                && consecutiveRespawns < MaxConsecutiveRespawns;
+        WatchStartupResult startup;
+        try
+        {
+            startup = await _startupFactory(runCts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (runCts.IsCancellationRequested)
+        {
+            return (null, false);
+        }
 
-            // Whoever ran this source owns disposing it (no-op if a concurrent StopAsync already
-            // claimed it), so both the respawn and the terminal paths leave no leaked handle.
-            await DisposeCurrentSourceAsync().ConfigureAwait(false);
+        if (startup.Source is not null)
+            return (startup, true);
 
-            if (elevatedRespawn)
+        var inventory = startup.Inventory;
+        await startup.DisposeAsync().ConfigureAwait(false);
+        if (IsStopRequested(ct))
+            return (null, false);
+        StartupUnavailable?.Invoke(inventory);
+        return (null, false);
+    }
+
+    bool IsStopRequested(CancellationToken ct)
+    {
+        lock (_gate)
+            return _stopRequested || ct.IsCancellationRequested;
+    }
+
+    // Publishes the next run's service and lifetime under the gate after the atomic
+    // top-of-run stop re-check; returns null when a stop won the race, leaving the
+    // caller to abandon the startup it acquired.
+    RepositoryWatchService? TryBeginRun(WatchStartupResult? startup)
+    {
+        lock (_gate)
+        {
+            if (_stopRequested)
+                return null;
+
+            RepositoryWatchService service;
+            if (startup is not null)
             {
-                consecutiveRespawns++;
-                try
-                {
-                    await Task.Delay(RespawnBackoffMilliseconds, ct).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException)
-                {
-                    return;
-                }
-
-                continue;
+                service = new RepositoryWatchService(startup);
+                _lifetime = startup;
+            }
+            else
+            {
+                var source = (_sourceFactory ?? throw new InvalidOperationException(
+                    "A source factory is required when no startup factory is configured."))();
+                service = new RepositoryWatchService(source, _trackedRoots, _searchRoots,
+                    includeTempDirectories: _includeTempDirectories,
+                    ignoredPaths: _ignoredPaths);
+                _lifetime = source;
             }
 
-            if (!stopRequested && !ct.IsCancellationRequested && died is not null)
-                _onStopped(died);
-            return;
+            _service = service;
+            return service;
         }
     }
 
     public async Task StopAsync()
     {
-        IVolumeChangeSource? source;
+        IAsyncDisposable? lifetime;
         lock (_gate)
         {
             _stopRequested = true;
@@ -179,27 +294,27 @@ public sealed class LiveWatchController
 #pragma warning disable CA1849
             _runCts?.Cancel();
 #pragma warning restore CA1849
-            source = _source;
-            _source = null;
+            lifetime = _lifetime;
+            _lifetime = null;
         }
 
         // Force-dispose outside the lock: a source whose WatchAsync ignores its token only
         // unwinds when its handle is disposed, so this is what actually stops the run in that case.
-        if (source is not null)
-            await source.DisposeAsync().ConfigureAwait(false);
+        if (lifetime is not null)
+            await lifetime.DisposeAsync().ConfigureAwait(false);
     }
 
-    async Task DisposeCurrentSourceAsync()
+    async Task DisposeCurrentLifetimeAsync()
     {
-        IVolumeChangeSource? source;
+        IAsyncDisposable? lifetime;
         lock (_gate)
         {
-            source = _source;
-            _source = null;
+            lifetime = _lifetime;
+            _lifetime = null;
         }
 
-        if (source is not null)
-            await source.DisposeAsync().ConfigureAwait(false);
+        if (lifetime is not null)
+            await lifetime.DisposeAsync().ConfigureAwait(false);
     }
 
     async Task<string?> RunOnceAsync(RepositoryWatchService service, CancellationToken ct)
@@ -211,6 +326,7 @@ public sealed class LiveWatchController
         service.Stopped += OnStopped;
         service.ScanErrorsChanged += OnScanErrorsChanged;
         service.ScanWarningsChanged += OnScanWarningsChanged;
+        service.InventoryReady += OnInventoryReady;
 
         try
         {
@@ -228,6 +344,7 @@ public sealed class LiveWatchController
             service.Stopped -= OnStopped;
             service.ScanErrorsChanged -= OnScanErrorsChanged;
             service.ScanWarningsChanged -= OnScanWarningsChanged;
+            service.InventoryReady -= OnInventoryReady;
         }
 
         return deathReason;
@@ -237,6 +354,7 @@ public sealed class LiveWatchController
     void OnScanProgress(VolumeScanProgress sample) => ScanProgress?.Invoke(sample);
     void OnScanErrorsChanged() => ScanErrorsChanged?.Invoke();
     void OnScanWarningsChanged() => ScanWarningsChanged?.Invoke();
+    void OnInventoryReady(DiscoveryInventory inventory) => InventoryReady?.Invoke(inventory);
 }
 
 /// <summary>

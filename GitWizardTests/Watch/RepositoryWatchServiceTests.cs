@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using GitWizard;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
 using MFTLib.Index;
@@ -151,6 +152,38 @@ public partial class RepositoryWatchServiceTests
         await WatchFailureAssertions.VerifyShutdownAsync();
         await WatchFailureAssertions.VerifyArmingSnapshotAsync();
         await WatchFailureAssertions.VerifyEarlyStopAsync();
+    }
+
+    [Test]
+    public async Task RunAsync_StartupBatches_DeliveredInOrderBeforeLiveBatches()
+    {
+        // Batches buffered while discovery armed and reconciled membership are classified first,
+        // in journal order, through the same path as live batches.
+        var startupBatches = new[]
+        {
+            new VolumeChangeBatch("C", new[] { new VolumeChangeEntry(@"C:\repo\a\buffered.txt", VolumeEntryKind.Modified) })
+        };
+        var source = new FakeVolumeChangeSource(new[]
+        {
+            new VolumeChangeBatch("C", new[] { new VolumeChangeEntry(@"C:\repo\b\live.txt", VolumeEntryKind.Modified) })
+        });
+        var request = new DiscoveryRequest(
+            new GitWizardConfiguration(), DiscoveryPurpose.Watch, false, false, []);
+        await using var startup = await FakeLiveStartup.FromSourceArmedAsync(
+            source, request, CancellationToken.None,
+            inventoryPaths: [@"C:\repo\a", @"C:\repo\b"],
+            startupBatches: startupBatches);
+        var service = new RepositoryWatchService(startup, debounce: TimeSpan.Zero);
+        var events = new List<RepositoryChangeEvent>();
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await foreach (var changeEvent in service.RunAsync(cancellation.Token))
+            events.Add(changeEvent);
+
+        Assert.That(events, Is.EqualTo(new[]
+        {
+            new RepositoryChangeEvent(@"C:\repo\a", RepositoryChangeKind.Changed),
+            new RepositoryChangeEvent(@"C:\repo\b", RepositoryChangeKind.Changed)
+        }));
     }
 
     [Test]

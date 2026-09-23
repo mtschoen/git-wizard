@@ -31,7 +31,8 @@ public class LiveTerminalJournalHintTests
         _main = new MainViewModel(_dispatcher, new StubUserDialogs(), new StubClipboardService())
         {
             LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0),
-            LiveVolumeChangeSourceFactory = () => _source,
+            LivePrepareWatchAsync = (request, _, cancellationToken) =>
+                FakeLiveStartup.FromSourceArmedAsync(_source, request, cancellationToken),
             LiveIsElevated = () => false
         };
     }

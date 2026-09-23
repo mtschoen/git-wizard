@@ -134,12 +134,17 @@ public class MainViewModelPreparedSessionTests
         await using var viewModel = NewViewModel();
         await viewModel.SetPreparedDiscoveryIndexAsync(fixture.Owner);
         var opens = 0;
-        var takePreparedDiscoveryIndex = viewModel.TakePreparedDiscoveryIndex;
-        viewModel.LiveVolumeChangeSourceFactory = () => new IndexVolumeChangeSource((_, _, _) =>
+        viewModel.LivePrepareWatchAsync = async (request, prepared, cancellationToken) =>
         {
-            opens++;
-            throw new InvalidOperationException("Fresh index unavailable");
-        }, takePreparedDiscoveryIndex());
+            var source = new IndexVolumeChangeSource((_, _, _) =>
+            {
+                opens++;
+                throw new InvalidOperationException("Fresh index unavailable");
+            }, prepared);
+            return await FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken,
+                    watchVolumes: ["X"])
+                .ConfigureAwait(false);
+        };
         viewModel.LiveIsElevated = () => respawn;
         viewModel.LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
         viewModel.AddRepository(new GitWizardRepository(@"X:\repo"));
@@ -168,12 +173,13 @@ public class MainViewModelPreparedSessionTests
         }
         finally
         {
-            viewModel.LiveVolumeChangeSourceFactory = FailIfVolumeChangeSourceIsRequested;
+            viewModel.LivePrepareWatchAsync = FailIfPrepareWatchIsRequested;
         }
     }
 
-    static IVolumeChangeSource FailIfVolumeChangeSourceIsRequested() =>
-        throw new InvalidOperationException("The test source factory must not be used after teardown.");
+    static Task<WatchStartupResult> FailIfPrepareWatchIsRequested(
+        DiscoveryRequest request, MftIndexSession? prepared, CancellationToken cancellationToken) =>
+        throw new InvalidOperationException("The test prepare seam must not be used after teardown.");
 
     static async Task WaitUntilAsync(Func<bool> condition)
     {

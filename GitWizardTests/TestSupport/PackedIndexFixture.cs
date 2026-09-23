@@ -30,9 +30,9 @@ internal sealed class PackedIndexFixture : IDisposable
         return path;
     }
 
-    public Task<FileIndex> OpenIndexAsync() => FileIndex.OpenAsync(new FileIndexOptions
+    public Task<FileIndex> OpenIndexAsync(params char[] drives) => FileIndex.OpenAsync(new FileIndexOptions
     {
-        Drives = [new IndexedDrive('X', TreePath, 1)],
+        Drives = (drives.Length == 0 ? ['X'] : drives).Select(letter => new IndexedDrive(letter, TreePath, 1)).ToArray(),
         CacheDirectory = BlockDirectory,
         NoCache = true,
         ProducerPolicy = ProducerPolicy.Enumeration
@@ -90,7 +90,9 @@ internal sealed class PackedIndexFixture : IDisposable
             WriteDirectory(writer, row, Path.GetFileName(directory), parent);
             WriteTree(writer, directory, row, ref nextRow);
         }
-        foreach (var file in Directory.EnumerateFiles(path).Where(file => Path.GetFileName(file) == ".git"))
+        foreach (var file in Directory.EnumerateFiles(path).Where(file =>
+            string.Equals(Path.GetFileName(file), ".git", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(Path.GetFileName(file), "HEAD", StringComparison.OrdinalIgnoreCase)))
         {
             Assert.That(writer.TryWriteRow(nextRow++, Path.GetFileName(file), new RowColumns(parent,
                 RowFlags.InUse | RowFlags.SizeUnknown, (uint)FileAttributes.Normal, 0,

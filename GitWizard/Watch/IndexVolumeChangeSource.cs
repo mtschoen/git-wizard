@@ -21,6 +21,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
     Task? _disposal;
     bool _disposed;
     bool _watchClaimed;
+    bool _watchStarted;
     FileIndex? _watchedIndex;
     int _deathReported;
 
@@ -89,11 +90,53 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
             }
             cancellationToken.ThrowIfCancellationRequested();
             var errors = new Dictionary<string, string>(_owner.ScanErrors, StringComparer.OrdinalIgnoreCase);
+            foreach (var status in _owner.CaptureDriveStatuses())
+            {
+                if (status.IdentityFailure is not null)
+                    errors[status.Drive] = status.IdentityFailure;
+                else if (status.IndexStatus?.MftProducerFailureMessage is { Length: > 0 } msg)
+                    errors[status.Drive] = msg;
+                else if (status.IndexStatus?.State is DriveState.Failed or DriveState.Offline)
+                    errors[status.Drive] = $"Drive is {status.IndexStatus.State}.";
+                else
+                    errors.Remove(status.Drive);
+            }
             var warnings = new List<JournalWarning>();
             var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync(cancellationToken).ConfigureAwait(false);
 
             foreach (var drive in _owner.Index.Drives)
                 ProcessArmedDrive(drive, configuration, errors, warnings, cancellationToken);
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (_usableDrives.Count > 0)
+            {
+                await EnsureWatchStartedAsync(_owner, cancellationToken).ConfigureAwait(false);
+
+                var catchUpDrives = _usableDrives.ToArray();
+                var catchUpTasks = catchUpDrives.Select(d => WaitDriveAsync(_owner, d, cancellationToken)).ToArray();
+                await Task.WhenAll(catchUpTasks).ConfigureAwait(false);
+
+                foreach (var d in catchUpDrives)
+                {
+                    var driveStatus = _owner.CaptureDriveStatuses().FirstOrDefault(s =>
+                        string.Equals(s.Drive, d.ToString(), StringComparison.OrdinalIgnoreCase));
+                    if (driveStatus?.IndexStatus is { State: DriveState.Failed or DriveState.Offline } failed)
+                    {
+                        var msg = failed.MftProducerFailureMessage ?? $"Drive is {failed.State}.";
+                        RecordStartupDriveFailure(d, msg);
+                    }
+                }
+
+                lock (_faultLock)
+                {
+                    foreach (var (drv, msg) in _startupErrors)
+                    {
+                        errors[drv.ToString()] = msg;
+                    }
+                }
+            }
+
             return new VolumeArmResult(errors, warnings);
         }
         catch
@@ -110,6 +153,17 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         }
     }
 
+    Task EnsureWatchStartedAsync(MftIndexSession owner, CancellationToken cancellationToken)
+    {
+        lock (_lifecycleLock)
+        {
+            if (_watchStarted)
+                return Task.CompletedTask;
+            _watchStarted = true;
+            return StartWatch(owner, cancellationToken);
+        }
+    }
+
     static string[] NormalizeDrives(IEnumerable<string> volumes) => volumes
         .Select(volume => (WatchPath.Parse(volume.Trim()).Volume ?? volume.Trim().TrimEnd(':', '\\', '/'))
             .ToUpperInvariant())
@@ -121,7 +175,6 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         var claimed = false;
         try
         {
-            Task started;
             bool hasWatchableDrives;
             lock (_lifecycleLock)
             {
@@ -133,11 +186,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
                 _watchClaimed = claimed = true;
                 var owner = _owner;
                 hasWatchableDrives = owner is not null && _usableDrives.Count > 0;
-                started = owner is not null && _usableDrives.Count > 0
-                    ? StartWatch(owner, ct)
-                    : Task.CompletedTask;
             }
-            await started.ConfigureAwait(false);
             if (!hasWatchableDrives)
             {
                 var reason = _owner?.ScanErrors.Values.FirstOrDefault() is { Length: > 0 } error
@@ -181,7 +230,16 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
                     : RewriteToDriveLetterRoot(change.PreviousPath, realRoot, letter)
             }
             : change;
-        _output.Writer.TryWrite(new VolumeChangeBatch(letter.ToString(), IndexChangeMapping.Map(rewritten)));
+        var batch = new VolumeChangeBatch(letter.ToString(), IndexChangeMapping.Map(rewritten));
+        lock (_startupBufferLock)
+        {
+            if (_startupBuffering && _startupBuffer is not null)
+            {
+                _startupBuffer.Add(batch);
+                return;
+            }
+        }
+        _output.Writer.TryWrite(batch);
     }
 
     /// <summary>

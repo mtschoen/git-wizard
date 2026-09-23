@@ -60,8 +60,39 @@ git-wizard Session Started
         if (TryHandleImmediateExitFlags(runConfiguration))
             return;
 
-        if (await TryHandleSubcommandsAsync(runConfiguration))
-            return;
+        var exitCode = await RunCommandCoreAsync(runConfiguration).ConfigureAwait(false);
+        if (exitCode != 0)
+            Environment.Exit(exitCode);
+    }
+
+    internal static async Task<int> RunCommandCoreAsync(
+        RunConfiguration runConfiguration,
+        GitWizardConfiguration? configuration = null,
+        RepositoryDiscoveryCoordinator? coordinator = null,
+        TextWriter? stdout = null,
+        TextWriter? stderr = null,
+        CancellationToken cancellationToken = default)
+    {
+        stdout ??= Console.Out;
+        stderr ??= Console.Error;
+
+        if (runConfiguration.Sweep)
+        {
+            configuration ??= await GetConfigurationAsync(runConfiguration).ConfigureAwait(false);
+            return await RunSweepAsync(runConfiguration, configuration, coordinator, stdout, stderr, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (runConfiguration.Tags)
+        {
+            configuration ??= await GetConfigurationAsync(runConfiguration).ConfigureAwait(false);
+            return await RunTagsAsync(runConfiguration, configuration, coordinator, stdout, stderr, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (runConfiguration.Branches)
+        {
+            configuration ??= await GetConfigurationAsync(runConfiguration).ConfigureAwait(false);
+            return await RunBranchesAsync(runConfiguration, configuration, coordinator, stdout, stderr, cancellationToken).ConfigureAwait(false);
+        }
 
         if (runConfiguration.ScanOnly)
         {
@@ -69,7 +100,7 @@ git-wizard Session Started
         }
 
         GitWizardLog.Log(SessionStartMessage);
-        var configuration = await GetConfigurationAsync(runConfiguration);
+        configuration ??= await GetConfigurationAsync(runConfiguration).ConfigureAwait(false);
 
         if (runConfiguration.SetupDefender)
         {
@@ -80,158 +111,23 @@ git-wizard Session Started
         if (runConfiguration.Merge)
         {
             RunMerge(runConfiguration, configuration);
-            Environment.Exit(0);
-            return;
+            return 0;
         }
 
         if (runConfiguration.ScanOnly)
         {
-            await RunScanOnlyAsync(runConfiguration, configuration);
-            return;
+            return await RunScanOnlyAsync(runConfiguration, configuration, coordinator, stdout, stderr, cancellationToken).ConfigureAwait(false);
         }
 
         if (runConfiguration.Watch)
         {
-            if (!OperatingSystem.IsWindows() && !OperatingSystem.IsLinux())
-            {
-                GitWizardLog.Log("--watch requires Windows or Linux.", GitWizardLog.LogType.Error);
-                Environment.Exit(1);
-                return;
-            }
-
-            await RunWatchAsync(configuration);
-            Environment.Exit(0);
-            return;
+            return await RunWatchAsync(runConfiguration, configuration, coordinator, stdout, stderr, cancellationToken).ConfigureAwait(false);
         }
 
-        await RunDefaultReportModeAsync(runConfiguration, configuration);
+        return await RunDefaultReportCoreAsync(runConfiguration, configuration, coordinator, stdout, stderr, cancellationToken).ConfigureAwait(false);
     }
 
-    static async Task<bool> TryHandleSubcommandsAsync(RunConfiguration runConfiguration)
-    {
-        if (runConfiguration.Sweep)
-        {
-            await RunSweepAsync(runConfiguration);
-            return true;
-        }
 
-        if (runConfiguration.Tags)
-        {
-            await RunTagsAsync(runConfiguration);
-            return true;
-        }
-
-        if (runConfiguration.Branches)
-        {
-            await RunBranchesAsync(runConfiguration);
-            return true;
-        }
-
-        return false;
-    }
-
-    static async Task RunSweepAsync(RunConfiguration runConfiguration)
-    {
-        // Machine mode reserves stdout for the JSON document. Any exceptional diagnostics
-        // emitted by shared configuration/discovery code are redirected to stderr.
-        GitWizardLog.SilentMode = true;
-        GitWizardLog.LogMethod = Console.Error.WriteLine;
-
-        var repositoryPaths = ParseExplicitPaths(runConfiguration);
-        if (repositoryPaths == null)
-        {
-            repositoryPaths = await GetRepositoryPathsAsync(runConfiguration);
-            if (repositoryPaths == null)
-            {
-                var configuration = await GetConfigurationAsync(runConfiguration);
-                var discoveredPaths = new SortedSet<string>();
-                await using var discoveryReport = new GitWizardReport(configuration);
-                await discoveryReport.GetRepositoryPathsAsync(discoveredPaths, noMft: runConfiguration.NoMft);
-                EnsureUsableSearchPaths(configuration);
-                repositoryPaths = discoveredPaths.ToArray();
-                await GitWizardApi.SaveCachedRepositoryPathsAsync(repositoryPaths);
-            }
-        }
-
-        if (!string.IsNullOrEmpty(runConfiguration.FilterPattern))
-        {
-            repositoryPaths = repositoryPaths
-                .Where(path => path.Contains(runConfiguration.FilterPattern, StringComparison.OrdinalIgnoreCase))
-                .ToArray();
-        }
-
-        var report = RepositorySweepReport.Scan(repositoryPaths);
-        var json = SerializeSweepReport(runConfiguration, report);
-        if (runConfiguration.SavePath != null)
-            await File.WriteAllTextAsync(runConfiguration.SavePath, json);
-
-        Console.WriteLine(json);
-    }
-
-    static async Task RunTagsAsync(RunConfiguration runConfiguration)
-    {
-        GitWizardLog.SilentMode = true;
-        GitWizardLog.LogMethod = Console.Error.WriteLine;
-
-        var configuration = await GetConfigurationAsync(runConfiguration);
-        var explicitPaths = ParseExplicitPaths(runConfiguration);
-        var allClones = await GitWizardApi.DiscoverAllClonePathsAsync(
-            configuration,
-            explicitPaths,
-            noMft: runConfiguration.NoMft);
-
-        if (!string.IsNullOrEmpty(runConfiguration.FilterPattern))
-        {
-            allClones = allClones
-                .Where(path => path.Contains(runConfiguration.FilterPattern, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-        }
-
-        var report = await TagInventoryReport.ScanAsync(
-            allClones,
-            matchPattern: runConfiguration.TagMatchPattern ?? "*");
-
-        var options = runConfiguration.Minified ? CompactSweepSerializerOptions : IndentedSweepSerializerOptions;
-        var json = JsonSerializer.Serialize(report, options);
-
-        if (runConfiguration.SavePath != null)
-            await File.WriteAllTextAsync(runConfiguration.SavePath, json);
-
-        Console.WriteLine(json);
-    }
-
-    static async Task RunBranchesAsync(RunConfiguration runConfiguration)
-    {
-        GitWizardLog.SilentMode = true;
-        GitWizardLog.LogMethod = Console.Error.WriteLine;
-
-        var configuration = await GetConfigurationAsync(runConfiguration);
-        var explicitPaths = ParseExplicitPaths(runConfiguration);
-        var allClones = await GitWizardApi.DiscoverAllClonePathsAsync(
-            configuration,
-            explicitPaths,
-            noMft: runConfiguration.NoMft);
-
-        if (!string.IsNullOrEmpty(runConfiguration.FilterPattern))
-        {
-            allClones = allClones
-                .Where(path => path.Contains(runConfiguration.FilterPattern, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-        }
-
-        var report = BranchInventoryReport.Scan(
-            allClones,
-            baseBranchName: runConfiguration.NotMergedBranch,
-            notMergedOnly: runConfiguration.NotMergedOnly);
-
-        var options = runConfiguration.Minified ? CompactSweepSerializerOptions : IndentedSweepSerializerOptions;
-        var json = JsonSerializer.Serialize(report, options);
-
-        if (runConfiguration.SavePath != null)
-            await File.WriteAllTextAsync(runConfiguration.SavePath, json);
-
-        Console.WriteLine(json);
-    }
 
     // Handle elevated helper modes (launched by self-elevation). Returns true if one of the
     // helper-mode args was found and handled, meaning the caller should return immediately.
@@ -304,25 +200,6 @@ git-wizard Session Started
         return false;
     }
 
-    static async Task RunScanOnlyAsync(RunConfiguration runConfiguration, GitWizardConfiguration configuration)
-    {
-        GitWizardLog.LogMethod = Console.Error.WriteLine;
-        await using var scanReport = new GitWizardReport(configuration);
-        var scanPaths = new SortedSet<string>();
-        await scanReport.GetRepositoryPathsAsync(scanPaths, noMft: runConfiguration.NoMft);
-        EnsureUsableSearchPaths(configuration);
-        foreach (var path in scanPaths)
-        {
-            if (string.IsNullOrEmpty(runConfiguration.FilterPattern) ||
-                path.Contains(runConfiguration.FilterPattern, StringComparison.OrdinalIgnoreCase))
-            {
-                Console.WriteLine(path);
-            }
-        }
-
-        Environment.Exit(0);
-    }
-
     static async Task<GitWizardConfiguration> GetConfigurationAsync(RunConfiguration runConfiguration)
     {
         var customConfigurationPath = runConfiguration.CustomConfigurationPath;
@@ -336,19 +213,6 @@ git-wizard Session Started
         GitWizardLog.Log($"Could not find custom configuration at path: {customConfigurationPath}", GitWizardLog.LogType.Error);
         Environment.Exit(1);
         throw new InvalidOperationException("unreachable");
-    }
-
-    static async Task<string[]?> GetRepositoryPathsAsync(RunConfiguration runConfiguration)
-    {
-        return runConfiguration.RebuildRepositoryList ? null : await GitWizardApi.GetCachedRepositoryPathsAsync().ConfigureAwait(false);
-    }
-
-    static string SerializeSweepReport(RunConfiguration runConfiguration, RepositorySweepReport report)
-    {
-        var options = runConfiguration.Minified
-            ? CompactSweepSerializerOptions
-            : IndentedSweepSerializerOptions;
-        return JsonSerializer.Serialize(report, options);
     }
 
     static string[]? ParseExplicitPaths(RunConfiguration runConfiguration)
@@ -379,6 +243,8 @@ git-wizard Session Started
         if (usableCount == 0)
         {
             GitWizardLog.SilentMode = false;
+            foreach (var searchPath in configuration.SearchPaths)
+                GitWizardLog.Log($"Could not get repository paths at {searchPath} because it is not a directory", GitWizardLog.LogType.Error);
             GitWizardLog.Log(
                 $"{usableCount} of {configuration.SearchPaths.Count} configured search paths are usable",
                 GitWizardLog.LogType.Error);

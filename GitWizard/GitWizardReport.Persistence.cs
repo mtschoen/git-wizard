@@ -107,6 +107,81 @@ public partial class GitWizardReport
         }
     }
 
+    public void Save(string path)
+    {
+        if (DiscoveryInventory is { CanPublishFullInventory: false })
+            throw new InvalidOperationException("Incomplete discovery report cannot be saved.");
+
+        var directory = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            Directory.CreateDirectory(directory);
+
+        try
+        {
+            SchemaVersion = CurrentSchemaVersion;
+            var snapshot = CreateSnapshotForSerialization();
+            File.WriteAllText(path, JsonSerializer.Serialize(snapshot, SerializerOptions));
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, $"Failed to save report to path: {path}.");
+        }
+    }
+
+    public async Task SaveAsync(string path, CancellationToken cancellationToken = default)
+    {
+        if (DiscoveryInventory is { CanPublishFullInventory: false })
+            throw new InvalidOperationException("Incomplete discovery report cannot be saved.");
+
+        var directory = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            Directory.CreateDirectory(directory);
+
+        try
+        {
+            SchemaVersion = CurrentSchemaVersion;
+            var snapshot = CreateSnapshotForSerialization();
+            var jsonText = JsonSerializer.Serialize(snapshot, SerializerOptions);
+            await File.WriteAllTextAsync(path, jsonText, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, $"Failed to save report to path: {path}.");
+        }
+    }
+
+    /// <summary>
+    /// Builds a throwaway <see cref="GitWizardReport"/> that shares this report's scalar and
+    /// set-valued state but carries a <see cref="SortedDictionary{TKey,TValue}"/> copy of
+    /// <see cref="Repositories"/> taken under <c>lock (Repositories)</c>. Used by
+    /// <see cref="Save"/>, <see cref="SaveAsync"/>, and <see cref="SaveAtomic"/> so that
+    /// serialization walks a private, immutable copy of the dictionary instead of the live
+    /// one, which an in-flight orphan refresh from a concurrent Refresh call could otherwise
+    /// still be mutating (see <see cref="RefreshSingleRepository"/>,
+    /// <see cref="PruneDeletedRepositories"/>, <see cref="PruneNonRepositoryPaths"/>).
+    /// </summary>
+    GitWizardReport CreateSnapshotForSerialization()
+    {
+        SortedDictionary<string, GitWizardRepository> repositoriesSnapshot;
+        lock (Repositories)
+        {
+            repositoriesSnapshot = new SortedDictionary<string, GitWizardRepository>(Repositories);
+        }
+
+        return new GitWizardReport
+        {
+            SchemaVersion = SchemaVersion,
+            BranchScope = BranchScope,
+            SearchPaths = SearchPaths,
+            IgnoredPaths = IgnoredPaths,
+            SkipHiddenDirectories = SkipHiddenDirectories,
+            IncludeTempDirectories = IncludeTempDirectories,
+            Repositories = repositoriesSnapshot,
+            DeletedPaths = DeletedPaths,
+            NonRepositoryPaths = NonRepositoryPaths,
+        };
+    }
+
     /// <summary>
     /// Write the report to <paramref name="path"/> atomically: serialize to a temp file in the
     /// same directory, then rename it over the destination. The rename is atomic on a single
@@ -115,6 +190,9 @@ public partial class GitWizardReport
     /// </summary>
     public void SaveAtomic(string path)
     {
+        if (DiscoveryInventory is { CanPublishFullInventory: false })
+            throw new InvalidOperationException("Incomplete discovery report cannot be saved.");
+
         SchemaVersion = CurrentSchemaVersion;
         var snapshot = CreateSnapshotForSerialization();
         WriteAtomic(path, JsonSerializer.Serialize(snapshot, SerializerOptions));

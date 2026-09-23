@@ -117,6 +117,40 @@ The desktop **Index Cache Status** window provides the same read-only observatio
 group arbitrary duplicate names or rank file sizes. Retaining `HEAD` does not change the
 `.git`-based candidate-selection rules.
 
+### Discovery sources, outcomes, and ownership
+
+Every entry point (CLI report/scan/tags/branches, `--watch`, desktop refresh, and Live) runs
+through one discovery coordinator. It classifies each expanded search root by filesystem:
+NTFS roots use the repository list, a cache-only index snapshot, or a broker scan, while
+confirmed non-NTFS roots and explicit `--no-mft` use recursive directory discovery scoped to
+those roots. `--no-mft` is the explicit choice for users unable to accept the UAC elevation
+prompt; it does not promise an unelevated NTFS journal watch. Bare repositories are found
+through retained `HEAD` markers and validated by their `objects` and `refs` layout; internal
+`.git` directories and unrelated `HEAD` files are never classified as repositories.
+
+An ordinary (non-watch) refresh reuses `repositories.txt` when the command flags allow it. On
+a list miss, Windows discovery first tries a cache-only snapshot without elevation and labels
+its scan age; a snapshot can be stale, so it is never treated as current. An explicit rebuild
+(CLI `--rebuild-repo-list`, desktop Shift+Refresh) requires a fresh scan and never silently
+reuses an old snapshot. Live and `--watch` always reconcile repository membership against the
+exact session they watch, replaying journal changes captured during arming, so repositories
+created since the last list write enter the inventory even when they produce no later edits.
+One Windows index session flows from discovery to the report to the view model to Live; a
+prepared owner that is disposed, faulted, or drive-mismatched is disposed and replaced, never
+reused.
+
+Each discovery reports one of four outcomes. Complete-empty clears `repositories.txt` and
+publishes an empty report. Complete-nonempty publishes normally. Unusable preserves the
+previous list and published report, exits the CLI nonzero, and surfaces a UI error, with no
+automatic crawl or second elevation attempt. Partial reports the failed drives, keeps
+watching healthy ones, and retains cached entries for failed or unobserved scope when
+reconciling the list; a partial zero-result is never globally empty. A report-producing CLI
+run whose discovery cannot publish a full inventory exits `3` (see
+[the report schema](docs/report-schema.md#exit-codes)); explicit `--paths` runs are
+unaffected. On Linux, Live and `--watch` install fanotify marks before one recursive
+discovery pass per start, then consume queued events; that per-start crawl adds
+filesystem-scan latency and uses no MFT cache.
+
 ### Temp directories
 
 Discovery (MFT and recursive) and Live monitoring ignore temp directories by default: every
@@ -131,13 +165,17 @@ runs is logged at Debug instead of Error.
 
 ### Live monitoring
 
-CLI `--watch` recursively discovers repositories under the configured search paths
-on every start and replaces `repositories.txt` before arming the watch. Repositories
-created since the previous cache write are therefore tracked without a rename.
-Discovery respects the configured ignore, hidden-directory and temp-directory
-policies. This adds filesystem-scan latency at each CLI watch start; it does not
+CLI `--watch` arms the platform source first (the Windows index session, or Linux fanotify
+marks), then reconciles repository membership against the exact session it watches and
+replaces `repositories.txt` only with a publishable outcome. Cached repositories retained
+outside the configured search roots stay in scope, including their drives. Repositories
+created since the previous cache write are therefore tracked without a rename, and journal
+changes captured during arming are delivered after membership is ready instead of being
+dropped. Discovery respects the configured ignore, hidden-directory and temp-directory
+policies. This adds startup latency at each CLI watch start; it does not
 launch an additional MFT broker or elevation prompt. An empty discovery clears the
-repository-list cache and the CLI reports that there is nothing to watch.
+repository-list cache and the CLI reports that there is nothing to watch; an unusable
+discovery preserves the previous list and exits nonzero.
 
 On Windows, discovery and the transfer into Live share one UAC prompt when the prepared index
 is reusable. A watch failure on one drive is reported while healthy drives stay live. A repository created under a configured search path while Live runs is discovered and tracked from that point on; Live does not need a restart for it. If a drive's cached index checkpoint fell out of the USN journal, Live shows a hint for that drive: a journal of at least the named size would have avoided this rescan, alongside the current maximum size. The named size is a lower bound, rounded up to the journal's allocation unit plus one more unit of margin. When that size is too large to represent, the hint reports the rescan without naming a size. When the journal was recreated (different journal id), the hint says so and offers no size. The same hint also appears the moment a running watch dies because the journal moved past the position the watch had reached: live updates for that drive stop, its index keeps answering queries, and the hint says a rescan of the drive is needed to catch up. A hint from a faulted watch replaces the drive's earlier one, while a watch that fails for any other reason leaves it as it was. If Live ends because no drives remain watchable, the hints stay on screen. CLI `--watch` prints each drive's hint at startup and again when it changes. Nothing is resized automatically.

@@ -68,9 +68,11 @@ public static partial class GitWizardApi
             return new MftDiscoveryResult(false);
 
         MftIndexSession? owner = null;
+        IReadOnlyList<MftDriveStatus>? openedStatuses = null;
         try
         {
             owner = await composition.OpenIndex(drives).ConfigureAwait(false);
+            openedStatuses = owner.CaptureDriveStatuses();
             foreach (var error in owner.ScanErrors)
             {
                 var message = $"MFT scan error on {error.Key}: {error.Value}";
@@ -87,7 +89,8 @@ public static partial class GitWizardApi
                 paths.Add(candidate);
             updateHandler?.SendUpdateMessage($"MFT search found {candidates.Length} repositories");
             if (candidates.Length == 0)
-                return new MftDiscoveryResult(false, scanErrors: owner.ScanErrors);
+                return new MftDiscoveryResult(false, scanErrors: owner.ScanErrors,
+                    driveStatuses: owner.CaptureDriveStatuses());
             var result = new MftDiscoveryResult(true, owner);
             owner = null;
             return result;
@@ -95,7 +98,12 @@ public static partial class GitWizardApi
         catch (Exception exception) when (exception is InvalidOperationException or IOException or UnauthorizedAccessException or InvalidDataException)
         {
             GitWizardLog.Log($"MFT scan unavailable: {exception.Message}", GitWizardLog.LogType.Warning);
-            return new MftDiscoveryResult(false, scanErrors: new Dictionary<string, string> { ["*"] = exception.Message });
+            var scanErrors = new Dictionary<string, string>(
+                owner?.ScanErrors ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase)
+            {
+                ["*"] = exception.Message
+            };
+            return new MftDiscoveryResult(false, scanErrors: scanErrors, driveStatuses: openedStatuses);
         }
         finally
         {

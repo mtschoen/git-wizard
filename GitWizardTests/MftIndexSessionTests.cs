@@ -86,9 +86,11 @@ public class MftIndexSessionTests
             await resumeWrite.Task;
         };
         var drive = broker.Drive('X');
+        var cancellationToken = cancellation.Token;
+        // The shared connection only sees disposal, so the fixture learns of the open's cancellation directly.
+        broker.ClientCancellation = cancellationToken;
         var connectAsync = broker.ConnectAsync;
         var cacheDirectory = broker.CacheDirectory;
-        var cancellationToken = cancellation.Token;
         var openTask = MftIndexSession.OpenAsync([drive], connectAsync,
             cacheDirectory, null, cancellationToken);
         try
@@ -143,9 +145,11 @@ public class MftIndexSessionTests
         using var cancellation = new CancellationTokenSource();
         broker.ScanReceived = cancellation.Cancel;
         var drive = broker.Drive('X');
+        var cancellationToken = cancellation.Token;
+        // The shared connection only sees disposal, so the fixture learns of the open's cancellation directly.
+        broker.ClientCancellation = cancellationToken;
         var connectAsync = broker.ConnectAsync;
         var cacheDirectory = broker.CacheDirectory;
-        var cancellationToken = cancellation.Token;
         Assert.That(async () =>
             await MftIndexSession.OpenAsync([drive], connectAsync,
                 cacheDirectory, null, cancellationToken), Throws.InstanceOf<OperationCanceledException>());
@@ -209,22 +213,27 @@ public class MftIndexSessionTests
             broker.ConnectAsync, broker.CacheDirectory, null, CancellationToken.None);
         Assert.That(broker.ScanFrame.DrivesSpec!.Split(':')[^1],
             Is.EqualTo(((int)BrokerScanProfile.DirectoryIndex).ToString(CultureInfo.InvariantCulture)));
-        Assert.That(broker.ScanFrame.KeepFileNames, Is.EqualTo(new[] { ".git" }));
+        Assert.That(broker.ScanFrame.KeepFileNames, Is.EqualTo(new[] { ".git", "HEAD" }));
         Assert.That(session.Index.Drives.Single().ProducerKind, Is.EqualTo(ProducerKind.Mft));
     }
 
     [Test]
-    public async Task NoCacheRequestsDeleteOnClose()
+    public async Task PersistentOpenKeepsCanonicalBlock()
     {
         await using var broker = new BlockBrokerFixture();
         var session = await MftIndexSession.OpenAsync([broker.Drive('X')],
             broker.ConnectAsync, broker.CacheDirectory, null, CancellationToken.None);
         var options = broker.SectionOptions.Single();
-        Assert.That(options.DeleteOnClose, Is.True);
+        Assert.That(options.DeleteOnClose, Is.False);
         Assert.That(session.Index.CacheDirectoryPath, Is.EqualTo(broker.CacheDirectory));
-        Assert.That(Directory.GetFiles(broker.CacheDirectory), Is.Empty);
+        Assert.That(Path.GetFullPath(options.Path), Does.StartWith(Path.GetFullPath(broker.CacheDirectory)));
         await session.DisposeAsync();
-        Assert.That(File.Exists(options.Path), Is.False);
+        Assert.That(File.Exists(options.Path), Is.True);
+        await using var reopened = await MftIndexSession.OpenAsync([broker.Drive('X')],
+            _ => throw new AssertionException("A cached block must not connect."), broker.CacheDirectory,
+            MftIndexOpenIntent.Snapshot, null, CancellationToken.None);
+        Assert.That(reopened.CaptureDriveStatuses().Single().IndexStatus!.BlockSource,
+            Is.EqualTo(BlockSource.WarmStartedFromCache));
     }
 
     [Test]

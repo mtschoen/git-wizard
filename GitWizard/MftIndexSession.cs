@@ -7,10 +7,14 @@ namespace GitWizard;
 public sealed partial class MftIndexSession : IAsyncDisposable
 {
     readonly IAsyncDisposable? _connectionOwner;
-    BrokerConnection? _brokerConnection;
+    MftIndexDiagnostics? _diagnostics;
+    MftBrokerConnection? _brokerConnection;
     readonly Lock _disposalLock = new();
     Task? _disposal;
     int _disposed;
+    IReadOnlyDictionary<string, string> _identityFailures =
+        new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
 
     public FileIndex Index { get; }
     public IReadOnlyList<string> Drives { get; private set; }
@@ -30,64 +34,138 @@ public sealed partial class MftIndexSession : IAsyncDisposable
             new Dictionary<string, string>(scanErrors, StringComparer.OrdinalIgnoreCase));
     }
 
+    internal static Task<MftIndexSession> OpenAsync(IReadOnlyList<IndexedDrive> drives,
+        Func<CancellationToken, Task<JournalBrokerClient>> connectAsync,
+        string cacheDirectory, IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken) =>
+        OpenAsync(drives, connectAsync, cacheDirectory, MftIndexOpenIntent.Persistent, progress, cancellationToken);
+
+    /// <summary>Opens the drives over <paramref name="cacheDirectory" /> without connecting the broker eagerly.</summary>
+    /// <param name="drives">Volume identities to open.</param>
+    /// <param name="connectAsync">Launches and connects the broker; invoked lazily, at most once.</param>
+    /// <param name="cacheDirectory">A fully resolved policy directory, normally from <see cref="MftIndexCachePolicy" />.</param>
+    /// <param name="intent">Whether a drive without a usable cached block is scanned or refused.</param>
+    /// <param name="progress">Receives scan progress.</param>
+    /// <param name="cancellationToken">Cancels opening.</param>
     internal static async Task<MftIndexSession> OpenAsync(IReadOnlyList<IndexedDrive> drives,
         Func<CancellationToken, Task<JournalBrokerClient>> connectAsync,
-        string cacheDirectory, IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken)
+        string cacheDirectory, MftIndexOpenIntent intent, IProgress<IndexScanProgress>? progress,
+        CancellationToken cancellationToken)
     {
-        var connection = new BrokerConnection(connectAsync);
+        if (intent is not (MftIndexOpenIntent.Persistent or MftIndexOpenIntent.Snapshot))
+            throw new ArgumentOutOfRangeException(nameof(intent));
+        var connection = new MftBrokerConnection(connectAsync);
+        MftIndexDiagnostics? diagnostics = null;
         var transferred = false;
         FileIndex? index = null;
         try
         {
+            diagnostics = MftIndexDiagnostics.CreateForGitWizardLog();
             cancellationToken.ThrowIfCancellationRequested();
-            var producer = new BrokerMftBlockProducer(connection.ConnectAsync, new BrokerScanOptions
-            {
-                Profile = BrokerScanProfile.DirectoryIndex,
-                KeepFileNames = [GitWizardApi.GitEntryName]
-            });
-            index = await FileIndex.OpenAsync(new FileIndexOptions
-            {
-                Drives = drives,
-                CacheDirectory = cacheDirectory,
-                NoCache = true,
-                ProducerPolicy = ProducerPolicy.Mft,
-                MftProducer = producer.CreateProducer(),
-                WatchSource = producer.CreateWatchSource(),
-                Progress = progress
-            }, cancellationToken).ConfigureAwait(false);
+            index = await FileIndex.OpenAsync(CreateIndexOptions(drives, connection, cacheDirectory, intent,
+                progress, diagnostics), cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            var errors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var drive in index.Drives)
+            var session = new MftIndexSession(index, connection,
+                drives.Select(drive => char.ToUpperInvariant(drive.DriveLetter).ToString()).ToArray(), drives,
+                CollectScanErrors(index))
             {
-                if (drive.State is DriveState.Failed or DriveState.Offline)
-                    errors[drive.DriveLetter.ToString()] = drive.MftProducerFailureMessage ?? $"Drive is {drive.State}.";
-            }
-            var session = new MftIndexSession(index, connection.Client,
-                drives.Select(drive => char.ToUpperInvariant(drive.DriveLetter).ToString()).ToArray(), drives, errors)
-            {
-                _brokerConnection = connection
+                _brokerConnection = connection,
+                _diagnostics = diagnostics
             };
             transferred = true;
             index = null;
+            diagnostics = null;
             return session;
         }
         finally
         {
             try
             {
-                if (index != null)
-                    await index.DisposeAsync().ConfigureAwait(false);
+                if (!transferred)
+                    await DisposeResourcesAsync(index, connection, null).ConfigureAwait(false);
             }
             finally
             {
-                if (!transferred)
-                {
-                    connection.Detach();
-                    if (connection.Client != null)
-                        await connection.Client.DisposeAsync().ConfigureAwait(false);
-                }
+                await DisposeResourcesAsync(null, null, diagnostics).ConfigureAwait(false);
             }
         }
+    }
+
+    static FileIndexOptions CreateIndexOptions(IReadOnlyList<IndexedDrive> drives, MftBrokerConnection connection,
+        string cacheDirectory, MftIndexOpenIntent intent, IProgress<IndexScanProgress>? progress,
+        MftIndexDiagnostics diagnostics)
+    {
+        var policy = MftIndexCachePolicy.Current;
+        // Connection stays lazy in both intents: a warm or snapshot open never launches the broker,
+        // while a later watch or explicit rescan connects through the same owned holder.
+        var producer = new BrokerMftBlockProducer(connection.ConnectAsync, new BrokerScanOptions
+        {
+            Profile = policy.Profile,
+            KeepFileNames = policy.KeepFileNames
+        });
+        return new FileIndexOptions
+        {
+            Drives = drives,
+            CacheDirectory = cacheDirectory,
+            NoCache = false,
+            InitialOpenCacheOnly = intent == MftIndexOpenIntent.Snapshot,
+            ProducerPolicy = ProducerPolicy.Mft,
+            MftProducer = producer.CreateProducer(),
+            WatchSource = producer.CreateWatchSource(),
+            Progress = progress,
+            Diagnostics = diagnostics.Report
+        };
+    }
+
+    static Dictionary<string, string> CollectScanErrors(FileIndex index)
+    {
+        var errors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var drive in index.Drives)
+        {
+            if (drive.State is DriveState.Failed or DriveState.Offline)
+                errors[drive.DriveLetter.ToString()] = drive.MftProducerFailureMessage ?? $"Drive is {drive.State}.";
+        }
+        return errors;
+    }
+
+    /// <summary>
+    /// Disposes in dependency order: the index stops first, so deletions it performs while closing are
+    /// still relayed and no watch uses the broker; then the broker; then the relay drains. A failure in
+    /// one step never skips the later ones.
+    /// </summary>
+    static async Task DisposeResourcesAsync(FileIndex? index, IAsyncDisposable? connection,
+        MftIndexDiagnostics? diagnostics)
+    {
+        try
+        {
+            if (index != null)
+                await index.DisposeAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            try
+            {
+                if (connection != null)
+                    await connection.DisposeAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                if (diagnostics != null)
+                    await diagnostics.DisposeAsync().ConfigureAwait(false);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Captures each requested drive's current index status, in requested order. Every call returns
+    /// a new read-only list; a drive whose identity failed carries that reason instead of a status.
+    /// </summary>
+    public IReadOnlyList<MftDriveStatus> CaptureDriveStatuses()
+    {
+        var indexed = Index.Drives.ToDictionary(status =>
+            char.ToUpperInvariant(status.DriveLetter).ToString(), StringComparer.OrdinalIgnoreCase);
+        return Array.AsReadOnly(Drives.Select(drive => new MftDriveStatus(drive,
+            indexed.TryGetValue(drive, out var status) ? status with { } : null,
+            _identityFailures.GetValueOrDefault(drive))).ToArray());
     }
 
     public ValueTask DisposeAsync()
@@ -98,48 +176,9 @@ public sealed partial class MftIndexSession : IAsyncDisposable
 
     internal JournalBrokerClient? GetBrokerClient() => _brokerConnection?.Client;
 
-    async Task DisposeCoreAsync()
+    Task DisposeCoreAsync()
     {
         Volatile.Write(ref _disposed, 1);
-        try
-        {
-            await Index.DisposeAsync().ConfigureAwait(false);
-        }
-        finally
-        {
-            _brokerConnection?.Detach();
-            if (_connectionOwner != null)
-                await _connectionOwner.DisposeAsync().ConfigureAwait(false);
-        }
-    }
-
-    sealed class BrokerConnection(Func<CancellationToken, Task<JournalBrokerClient>> connectAsync)
-    {
-        readonly Lock _connectionLock = new();
-        Task<JournalBrokerClient>? _connection;
-        public JournalBrokerClient? Client { get; private set; }
-        int _faulted;
-        public bool IsFaulted => Volatile.Read(ref _faulted) != 0;
-
-        public Task<JournalBrokerClient> ConnectAsync(CancellationToken cancellationToken)
-        {
-            lock (_connectionLock)
-                return _connection ??= ConnectCoreAsync(cancellationToken);
-        }
-
-        async Task<JournalBrokerClient> ConnectCoreAsync(CancellationToken cancellationToken)
-        {
-            Client = await connectAsync(cancellationToken).ConfigureAwait(false);
-            Client.BrokerDied += OnBrokerDied;
-            return Client;
-        }
-
-        void OnBrokerDied(string reason) => Volatile.Write(ref _faulted, 1);
-
-        public void Detach()
-        {
-            if (Client != null)
-                Client.BrokerDied -= OnBrokerDied;
-        }
+        return DisposeResourcesAsync(Index, _connectionOwner, _diagnostics);
     }
 }

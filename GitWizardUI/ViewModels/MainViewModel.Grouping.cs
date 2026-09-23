@@ -132,7 +132,11 @@ public partial class MainViewModel
     public async Task DeleteAllLocalFilesAsync()
     {
         await SetPreparedDiscoveryIndexAsync(null).ConfigureAwait(false);
-        GitWizardApi.DeleteAllLocalFiles();
+        if (!GitWizardApi.TryDeleteAllLocalFiles(out var refusal))
+        {
+            await _dialogs.DisplayAlertAsync("Files Not Deleted", refusal);
+            return;
+        }
         await _dialogs.DisplayAlertAsync("Files Deleted", "All local files have been deleted");
     }
 

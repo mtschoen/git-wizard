@@ -4,7 +4,7 @@ namespace GitWizard;
 
 public static partial class GitWizardApi
 {
-    internal const BrokerScanProfile GitDiscoveryScanProfile = BrokerScanProfile.DirectoryIndex;
+    internal const BrokerScanProfile GitDiscoveryScanProfile = MftIndexCachePolicy.DiscoveryProfile;
     internal const string GitEntryName = ".git";
 
     /// <summary>

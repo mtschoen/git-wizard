@@ -35,17 +35,42 @@ On first run, configure your search paths in Settings. GitWizard will scan those
 
 ### Windows discovery scope and caching
 
-Windows MFT discovery gathers filtered metadata across each whole selected volume: directories
-plus `.git` marker files. This can include other users' directory names, even outside your
-configured search paths. Search and ignore settings filter the repository candidates after
-that metadata is gathered. During Live monitoring, hydration may add metadata for observed
-ordinary files. A process running as your user can read the mapped or backing metadata.
+Windows discovery uses GitWizard-owned persistent index blocks below
+`GetLocalFilesPath()/mft-index/v1-<policy SHA-256 fingerprint>` (normally
+`~/.GitWizard/mft-index/...`). The identity includes the `DirectoryIndex` profile and the
+normalized retention list `[".git", "HEAD"]`. Changing either selects a different directory;
+no old blocks are migrated or deleted by GitWizard.
 
-GitWizard selects no-cache mode for this index, so it adds no persistent inventory cache.
-Temporary block files still touch disk: the operating system deletes them when the last handle
-closes, including on process exit. The existing `~/.GitWizard/repositories.txt` repository list
-and `~/.GitWizard/report.json` cached report still persist; index no-cache mode does not disable
-them. Recursive discovery on Linux and with `--no-mft` is unchanged.
+The stored metadata covers directories and retained marker names across each selected volume,
+potentially including other users' directory names. Search, ignore, hidden-directory and
+temporary-directory settings filter repository candidates after collection; they do not
+restrict the metadata written to the index. Live hydration can add metadata for observed
+ordinary files. A process running as your user can read these mapped or backing blocks. MFTLib
+protects the supplied cache directory and owns cache validation and locking.
+
+A normal open can reuse a cached block. A concurrent normal open that cannot own its canonical
+slot scans into a private delete-on-close block without modifying that canonical block.
+Snapshot opening is an explicit session API intent (`MftIndexOpenIntent.Snapshot`): it does not
+launch the broker, scan, or start watching. Missing, incompatible, in-use, offline and
+identity-failed outcomes remain visible; they are not evidence of an empty repository
+inventory. Cache opening and inspection can create lock files and perform library-managed
+housekeeping; snapshot means no scan or watch, not a filesystem read-only promise.
+
+A snapshot can be stale. `ScanTimestamp` describes the block's scan age, not a catch-up
+completion time. A valid snapshot can retain a lost journal checkpoint; it remains queryable
+but cannot resume that checkpoint until an explicit rescan. Later watch or rescan work connects
+lazily through the session's owned broker holder. Disposal stops and disposes the index before
+detaching broker events and closing the client, including a client first created after opening.
+
+Clear Cache and `--clear-cache` delete only `repositories.txt` and `report.json`; configuration
+and index blocks remain. Delete All Local Files refuses while the `mft-index` subtree exists,
+including an empty subtree. It does not implement index-cache clearing. Do not manually remove
+lock files while indexes are in use. Recursive discovery on Linux and with `--no-mft` is
+unchanged.
+
+`DuplicateNames` and `Largest` are inapplicable to repository discovery: discovery does not
+group arbitrary duplicate names or rank file sizes. Retaining `HEAD` does not change the
+`.git`-based candidate-selection rules.
 
 ### Temp directories
 

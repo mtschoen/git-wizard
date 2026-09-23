@@ -25,17 +25,40 @@ public sealed partial class MftIndexSession
         Func<string, bool> brokerLauncher, TimeSpan? connectTimeout,
         IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken)
     {
+        return OpenWindowsAsync(drives, brokerLauncher, MftIndexOpenIntent.Persistent, connectTimeout,
+            progress, cancellationToken);
+    }
+
+    /// <summary>
+    /// Opens the selected volumes over git-wizard's private cache. <see cref="MftIndexOpenIntent.Snapshot" />
+    /// adopts cached blocks only and reports every other drive as a typed refusal without launching the broker.
+    /// </summary>
+    [SupportedOSPlatform("windows")]
+    public static Task<MftIndexSession> OpenWindowsAsync(IReadOnlyList<string> drives,
+        Func<string, bool> brokerLauncher, MftIndexOpenIntent intent, TimeSpan? connectTimeout,
+        IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken)
+    {
         return OpenSelectedVolumesAsync(drives, IndexedDrive.FromWindowsVolume,
             token => connectTimeout.HasValue
                 ? JournalBrokerClient.SpawnAndConnectAsync(brokerLauncher, connectTimeout.Value, token)
                 : JournalBrokerClient.SpawnAndConnectAsync(brokerLauncher, token),
-            Path.Combine(GitWizardApi.GetLocalFilesPath(), "mft-index"), progress, cancellationToken);
+            new CacheSelection(MftIndexCachePolicy.Current.GetCacheDirectory(GitWizardApi.GetLocalFilesPath()), intent),
+            progress, cancellationToken);
     }
+
+    internal static Task<MftIndexSession> OpenSelectedVolumesAsync(IReadOnlyList<string> drives,
+        Func<string, IndexedDrive> acquireIdentity,
+        Func<CancellationToken, Task<JournalBrokerClient>> connectAsync,
+        string cacheDirectory, IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken) =>
+        OpenSelectedVolumesAsync(drives, acquireIdentity, connectAsync,
+            new CacheSelection(cacheDirectory, MftIndexOpenIntent.Persistent), progress, cancellationToken);
+
+    internal readonly record struct CacheSelection(string Directory, MftIndexOpenIntent Intent);
 
     internal static async Task<MftIndexSession> OpenSelectedVolumesAsync(IReadOnlyList<string> drives,
         Func<string, IndexedDrive> acquireIdentity,
         Func<CancellationToken, Task<JournalBrokerClient>> connectAsync,
-        string cacheDirectory, IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken)
+        CacheSelection cache, IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken)
     {
         var requested = drives.Select(NormalizeVolume).OfType<string>()
             .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
@@ -54,9 +77,12 @@ public sealed partial class MftIndexSession
             }
         }
 
-        var session = await OpenAsync(identities, connectAsync, cacheDirectory, progress, cancellationToken).ConfigureAwait(false);
+        var session = await OpenAsync(identities, connectAsync, cache.Directory, cache.Intent, progress,
+            cancellationToken).ConfigureAwait(false);
         try
         {
+            session._identityFailures = new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(
+                new Dictionary<string, string>(errors, StringComparer.OrdinalIgnoreCase));
             foreach (var error in session.ScanErrors)
                 errors[error.Key] = error.Value;
             session.Drives = Array.AsReadOnly(requested);

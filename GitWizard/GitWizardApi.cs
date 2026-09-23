@@ -180,17 +180,11 @@ public static partial class GitWizardApi
         }
     }
 
+    /// <summary>Compatibility wrapper over <see cref="TryDeleteAllLocalFiles" /> that logs a refusal.</summary>
     public static void DeleteAllLocalFiles()
     {
-        try
-        {
-            GitWizardLog.CloseCurrentLogFile();
-            Directory.Delete(GetLocalFilesPath(), true);
-        }
-        catch (Exception exception)
-        {
-            GitWizardLog.LogException(exception, "Caught exception trying to delete all local files");
-        }
+        if (!TryDeleteAllLocalFiles(out var refusal))
+            GitWizardLog.Log(refusal, GitWizardLog.LogType.Warning);
     }
 
     /// <summary>

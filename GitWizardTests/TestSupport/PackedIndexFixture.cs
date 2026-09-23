@@ -52,7 +52,7 @@ internal sealed class PackedIndexFixture : IDisposable
     public const ulong JournalId = 100;
     public const long NextUsn = 1000;
 
-    Task<MftBlockProduceResult> ProduceMftAsync(MftBlockProduceRequest request,
+    internal Task<MftBlockProduceResult> ProduceMftAsync(MftBlockProduceRequest request,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

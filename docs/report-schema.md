@@ -27,9 +27,10 @@ single owner can transfer from discovery result to report to view model to
 `IndexVolumeChangeSource`, which disposes it when finished. Detaching clears the previous
 holder; a holder that does not transfer the owner disposes it.
 
-Index no-cache mode does not disable the existing `~/.GitWizard/repositories.txt` or cached
-`~/.GitWizard/report.json`. Saving a report persists Git report data, never the discovery index
-or its broker resources.
+Persistent index blocks are independent of `repositories.txt` and `report.json`. Report schema
+remains 2.1; the discovery index, session owner, and drive-status snapshots are not serialized
+into report data. Saving a report persists Git report data, never the discovery index or its
+broker resources.
 
 ## Concurrency
 

@@ -252,7 +252,14 @@ git-wizard Session Started
 
         if (runConfiguration.DeleteAllLocalFiles)
         {
-            GitWizardApi.DeleteAllLocalFiles();
+            // A refusal is a command failure, so it is printed even under --silent.
+            if (!GitWizardApi.TryDeleteAllLocalFiles(out var refusal))
+            {
+                Console.Error.WriteLine(refusal);
+                Environment.Exit(1);
+                return true;
+            }
+
             if (!runConfiguration.RefreshReport)
             {
                 Environment.Exit(0);

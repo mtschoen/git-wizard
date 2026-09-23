@@ -19,12 +19,13 @@ public static partial class Program
         public readonly bool RebuildReport;
 
         /// <summary>
-        /// Delete cached reports and configurations before doing anything else.
+        /// Delete repositories.txt and report.json before doing anything else; configuration and
+        /// persistent index blocks are preserved.
         /// </summary>
         public readonly bool ClearCache;
 
         /// <summary>
-        /// Delete all local files before doing anything else.
+        /// Delete all local files before doing anything else, refusing while the mft-index subtree exists.
         /// </summary>
         public readonly bool DeleteAllLocalFiles;
 

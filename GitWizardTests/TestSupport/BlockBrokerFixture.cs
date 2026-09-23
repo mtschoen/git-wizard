@@ -23,6 +23,8 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
     public string CacheDirectory => _files.BlockDirectory;
     public IndexedDrive Drive(char letter) => new(letter, _files.TreePath, 1);
     public int ConnectionCount { get; private set; }
+    public int ShutdownFrames { get; private set; }
+    public bool ClientTransportDisposed => _clientStream.IsDisposed;
     public UsnJournalEntry[] WatchEntries { get; set; } = [];
     public List<BlockFileCreateOptions> SectionOptions { get; } = [];
     public List<BrokerFrame> ScanFrames { get; } = [];
@@ -37,11 +39,20 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
     public Task Shutdown => _shutdown.Task;
     readonly CancellationTokenSource _clientCancelledSource = new();
     CancellationToken _clientCancellationToken = CancellationToken.None;
+    bool _clientCancellationAssigned;
 
+    /// <summary>
+    /// The token whose cancellation the fixture treats as the client abandoning its requests. It defaults
+    /// to the last cancelable connect token; an assigned token takes precedence over later connects.
+    /// </summary>
     public CancellationToken ClientCancellation
     {
         get => _clientCancellationToken;
-        set => _clientCancellationToken = value;
+        set
+        {
+            _clientCancellationToken = value;
+            _clientCancellationAssigned = true;
+        }
     }
 
     bool IsCancelledOrClosed =>
@@ -54,7 +65,7 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
     {
         cancellationToken.ThrowIfCancellationRequested();
         ConnectionCount++;
-        if (cancellationToken.CanBeCanceled)
+        if (cancellationToken.CanBeCanceled && !_clientCancellationAssigned)
         {
             _clientCancellationToken = cancellationToken;
         }
@@ -159,6 +170,7 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
                         BrokerProtocol.WriteEndWatchAck(response);
                         break;
                     case BrokerFrameKind.Shutdown:
+                        ShutdownFrames++;
                         _shutdown.TrySetResult();
                         return;
                     default:

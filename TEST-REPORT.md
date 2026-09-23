@@ -1,19 +1,22 @@
 # git-wizard verification report
 
-2026-09-17 UTC, Windows chonkers, Release, non-elevated.
+2026-09-23 UTC, Windows chonkers, Release, non-elevated.
 
 | Field | Value |
 | --- | --- |
 | Status | PASS for the required Windows non-admin gates |
 | Mode | best-effort; configured 55% line coverage floor |
-| Git | fc7c209 plus the review changes in this commit, branch session/175-journal-size-warning |
-| Tests | VSTest: 1183 total, 1179 passed, 0 failed, 4 skipped; console also names 41 skips |
-| Coverage | 6640/10653 lines (62.33%); 2627/4524 branches (58.07%); 4013 uncovered lines |
+| Git | branch fix/249-persist-mft-index off main f12ad16 (git-wizard issue 249, persistent MFT index and snapshot opening) |
+| Tests | VSTest: 1389 total, 1385 passed, 0 failed, 4 skipped |
+| Coverage | 7789/12262 lines (63.52%); 3070/5297 branches (57.96%) |
 | Build | Native DLL, MFTLib, MFTLibTestExtensions, solution: each 0 warnings, 0 errors |
-| Lint | Roslyn/build: 0; format: 0; InspectCode: 0; aislop: 100, 0 errors, 0 warnings, 29 existing informational punctuation findings |
+| Lint | Roslyn/build: 0; format: 0; InspectCode: 0; aislop: 100 on changed files with 0 findings; full scan 100 with the existing RepositoryWatchService.cs file-size warning |
 | Exclusions | No coverage exclusions or analyzer suppressions added |
 
-The added `GrowJournal_RealBroker_GrowsAndRejectsShrinkOnSameSession` test was skipped by its first-statement admin guard. No elevated journal resize was run. Linux runtime tests were not run on this Windows host. The console/summary skip-count difference is retained as emitted by the NUnit/VSTest adapter.
+The persistent and snapshot tests use the portable in-memory broker and packed-block fixtures with
+owned temporary cache directories; no UAC, real-home cache, or live USN journal was used. Linux
+runtime tests were not run on this Windows host, so platform slot-lock behavior on Linux is covered
+only by CI. No attended cold-versus-warm timing was recorded here.
 
 ## Attended: live-after-discovery (#143, #137)
 

@@ -15,13 +15,18 @@ public sealed class MftDiscoveryResult : IAsyncDisposable
     [JsonIgnore]
     public FileIndex? Index => _indexSession?.Index;
     public IReadOnlyDictionary<string, string> ScanErrors { get; }
+    /// <summary>Per-drive outcomes captured at construction; unaffected by later owner transfer or disposal.</summary>
+    [JsonIgnore]
+    public IReadOnlyList<MftDriveStatus> DriveStatuses { get; }
 
     public MftDiscoveryResult(bool success, MftIndexSession? indexSession = null,
-        IReadOnlyDictionary<string, string>? scanErrors = null)
+        IReadOnlyDictionary<string, string>? scanErrors = null,
+        IReadOnlyList<MftDriveStatus>? driveStatuses = null)
     {
         Success = success;
         _indexSession = indexSession;
         ScanErrors = scanErrors ?? indexSession?.ScanErrors ?? EmptyScanErrors;
+        DriveStatuses = Array.AsReadOnly((driveStatuses ?? indexSession?.CaptureDriveStatuses() ?? []).ToArray());
     }
 
     public MftIndexSession? DetachIndexSession() => Interlocked.Exchange(ref _indexSession, null);

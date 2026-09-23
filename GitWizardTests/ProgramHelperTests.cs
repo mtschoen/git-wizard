@@ -708,7 +708,7 @@ public class ProgramHelperTests
     #endregion
 }
 
-public class ProgramEntryPointTests
+public partial class ProgramEntryPointTests
 {
     [Test]
     public async Task Main_Sweep_PrintsIndentedJsonToStandardOutputAndReturnsZero()

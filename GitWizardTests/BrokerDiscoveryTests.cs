@@ -160,6 +160,26 @@ public class BrokerDiscoveryTests
     }
 
     [Test]
+    public async Task Discovery_FailureAfterOpenKeepsDriveStatusesAndScanErrors()
+    {
+        using var files = new PackedIndexFixture();
+        files.AddMarker("repo");
+        var owner = new MftIndexSession(await files.OpenIndexAsync(), null, ["X", "Y"], [],
+            new Dictionary<string, string> { ["Y"] = "scan denied" });
+        var expected = owner.CaptureDriveStatuses();
+        await using var result = await GitWizardApi.DiscoverRepositoriesWithIndexAsync(
+            new GitWizardConfiguration { IncludeTempDirectories = true }, new List<string>(), [@"X:\", @"Y:\"], [],
+            new IndexDiscoveryComposition(_ => Task.FromResult(owner),
+                _ => throw new IOException("candidate probe failed")));
+        Assert.That(result.Success, Is.False);
+        Assert.That(result.Index, Is.Null);
+        Assert.That(owner.IsDisposed, Is.True);
+        Assert.That(result.DriveStatuses, Is.EqualTo(expected));
+        Assert.That(result.ScanErrors["Y"], Is.EqualTo("scan denied"));
+        Assert.That(result.ScanErrors["*"], Is.EqualTo("candidate probe failed"));
+    }
+
+    [Test]
     public void IsBrokerConnectionFailure_DistinguishesConnectionFailureFromPostConnectionFailure()
     {
         Assert.That(ElevationCoverageTests.IsBrokerConnectionFailure(

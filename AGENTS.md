@@ -203,6 +203,18 @@ commit must exist on both MFTLib remotes.**
 - **MFTLib.ElevationUtilities** - Elevation helpers from MFTLib: `IsElevated()`, `CanSelfElevate()`, `TryRunElevated(args, timeoutMs)`. `TryRunElevated` is used by WindowsDefender for adding exclusions; MFT discovery always uses the journal broker, including when the caller is already elevated.
 - **Windows Defender setup:** On Windows, Configure Windows Defender adds process-name exclusions for `dotnet.exe`, `git.exe`, `git-lfs.exe`, `git-wizard.exe`, and `GitWizardUI.exe`. The desktop executable also hosts its elevated MFT broker. The result and process list appear in the setup alert and the in-memory Errors window; this window includes successful Defender setup diagnostics as well as errors. These exclusions reduce protection for files opened by any executable with a matching name, regardless of location; they do not exclude the executable file itself or guarantee that every Defender capability is bypassed. No MFT cache-path, temporary-directory, or volume exclusion is added.
 - **Self-elevation** - Both CLI and GitWizardUI dispatch MFTLib's elevated `--broker` child mode via `ElevatedEntryPoint.TryHandle` (for broker-backed MFT discovery, `--watch`, and the UI's Live mode), plus the `--elevated-defender` hidden arg for Defender exclusions, before any normal/Avalonia startup.
+- **Desktop single instance:** `GitWizardUI.Program.Run` dispatches the MFTLib
+  broker and Defender child modes before evaluating the mutex name or touching
+  Avalonia. `DesktopInstance` uses a stable named mutex scoped to the current OS
+  user across sessions; Windows names include the user's SID. Ownership is taken
+  with `WaitOne(0)` and held synchronously through the desktop lifetime, released
+  in `finally` on the same thread. Abandonment transfers admission ownership.
+  A duplicate reports `git-wizard is already running`, shows a native Windows
+  notice where applicable, and returns 1 without starting the application.
+  Do not move this rule into MFTLib, the CLI, App initialization, or the screenshot
+  executable. It does not describe canonical-versus-private MFT backing and must
+  not change the library's private fallback. Startup tests use unique mutex names
+  and distinct threads because same-thread mutex waits are recursive.
 - **IUpdateHandler** - Interface for progress reporting, used by both CLI (UpdateHandler) and GitWizardUI (MainViewModel).
 - **Collection swap pattern** - `ApplyFilterAndGrouping()` builds a new `ObservableCollection` off-screen and swaps it in one shot to avoid per-item layout updates with 700+ repos.
 - **UI command queue** - Background refresh threads enqueue `RepositoryUICommand` structs; a UI update thread drains them in batches on the main thread every 250ms.

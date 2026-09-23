@@ -10,31 +10,35 @@ static class Program
     // SynchronizationContext-reliant code before AppMain is called: things aren't initialized
     // yet and stuff might break.
     [STAThread]
-    public static void Main(string[] args)
+    public static int Main(string[] args) => Run(args,
+        new DefaultElevatedEntryRunner(), WindowsDefender.RunDefenderCommands,
+        DesktopInstance.CreateName,
+        arguments => BuildAvaloniaApp().StartWithClassicDesktopLifetime(arguments),
+        StartupNotice.Show);
+
+    internal static int Run(string[] arguments, IElevatedEntryRunner brokerRunner,
+        Func<bool> runDefender, Func<string> getMutexName,
+        Func<string[], int> startDesktop, Action<string> showNotice)
     {
-        // MFTLib's elevated journal-broker child mode: broker-backed repository discovery
-        // relaunches THIS exe with --broker to run the elevated MFT scan over a pipe. Handle
-        // it (and the Defender child mode below) before any Avalonia init so the elevated
-        // child performs its single task and exits instead of opening a second GUI window.
-        if (ElevatedEntryPoint.TryHandle(args, new DefaultElevatedEntryRunner()))
-            return;
+        if (ElevatedEntryPoint.TryHandle(arguments, brokerRunner))
+        {
+            return 0;
+        }
 
-        if (TryHandleElevatedMode(args))
-            return;
+        if (arguments.Contains("--elevated-defender"))
+        {
+            return runDefender() ? 0 : 1;
+        }
 
-        if (Array.IndexOf(args, "-v") >= 0)
-            GitWizardLog.VerboseMode = true;
+        return DesktopInstance.Run(getMutexName(), () =>
+        {
+            if (Array.IndexOf(arguments, "-v") >= 0)
+            {
+                GitWizardLog.VerboseMode = true;
+            }
 
-        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
-    }
-
-    static bool TryHandleElevatedMode(string[] args)
-    {
-        if (!args.Contains("--elevated-defender"))
-            return false;
-
-        Environment.Exit(WindowsDefender.RunDefenderCommands() ? 0 : 1);
-        return true;
+            return startDesktop(arguments);
+        }, showNotice);
     }
 
     // Required by the Avalonia visual designer - do not remove.

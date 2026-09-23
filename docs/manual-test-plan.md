@@ -119,3 +119,34 @@ after clear. With a live index, expect InUse without Live stopping. After closin
 owners, retry and expect successful deletion. No extra elevation prompt should
 appear. Confirm the original Clear Cache remains distinct. Resize narrower and
 confirm the panel remains scrollable without widening/clipping the top toolbar.
+
+## Desktop single instance
+
+Run the existing CLI live smoke pass first, as required by this document.
+Use the Release GitWizardUI executable for the remaining checks.
+
+1. Start GitWizardUI normally and leave its window open. Launch that executable
+   again from Explorer. Confirm there is still one GitWizard main window and a
+   native `git-wizard is already running` notice. Dismiss the notice. The second
+   launch must not request UAC, discover repositories or start another watch.
+2. With the first window open, use PowerShell to capture a real second-process
+   exit: `$second = Start-Process .\GitWizardUI\bin\Release\net10.0\GitWizardUI.exe -PassThru`.
+   Dismiss its notice, then run `$second.WaitForExit(); $second.ExitCode`.
+   Expected: 1. The first window remains usable.
+3. Close the first window normally and launch again. Expect one working window,
+   no duplicate notice. Repeat after an abnormal termination of only the owned
+   test instance; OS mutex abandonment must not leave a stale-instance block.
+4. With the normal UI open, exercise its existing attended Live/cold-discovery
+   and Configure Windows Defender checks. The broker and Defender child must
+   perform their existing task without an already-running notice or extra main
+   window. Never run Defender configuration solely as an unattended unit test.
+5. On a Linux desktop, launch the Release executable from two terminals. Expect
+   one main window, the second terminal's already-running message and exit 1.
+   Close the first and verify a subsequent launch succeeds. Repeat the launch
+   check on macOS when an attended machine is available; there is no macOS CI.
+6. Where two user sessions are available, verify two different users can each
+   open one UI, while the same user in a second login session is refused. Record
+   unavailable multi-user/platform checks explicitly rather than claiming them.
+
+Record the build, platform and observed outcomes with the implementation's test
+evidence. Mutex admission is not a test of canonical cache ownership.

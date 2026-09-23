@@ -33,6 +33,23 @@ dotnet build GitWizardUI/GitWizardUI.csproj
 
 On first run, configure your search paths in Settings. GitWizard will scan those paths for git repositories and cache the results for fast subsequent launches.
 
+### One desktop instance per user
+
+GitWizardUI permits one normal desktop instance per operating-system user,
+including across login sessions and launch directories. A second launch reports
+`git-wizard is already running` and exits with status 1 without starting another
+application window, repository scan, or Live watch. On Windows the message also
+appears in a native dialog; dismiss it with OK to let the second launch exit.
+On Linux and macOS the message is written to standard error. The existing window
+is not automatically activated. Closing the first instance allows a new launch.
+
+Elevated broker and Windows Defender child modes bypass this desktop guard.
+The CLI remains independent: this rule does not change its discovery, snapshot,
+or watch behavior. The desktop mutex does not prove ownership of an MFT cache
+slot; normal library opens may still use a private block when another process
+owns that slot.
+
+
 ### Windows discovery scope and caching
 
 Windows discovery uses GitWizard-owned persistent index blocks below

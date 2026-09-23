@@ -65,6 +65,21 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
         }
     }
 
+    RepositoryNodeViewModel? _selectedRepository;
+
+    public RepositoryNodeViewModel? SelectedRepository
+    {
+        get => _selectedRepository;
+        set
+        {
+            if (_selectedRepository != value)
+            {
+                _selectedRepository = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public string HeaderText
     {
         get => _headerText;
@@ -242,6 +257,13 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
     }
 
     public Action<RepositoryNodeViewModel>? ScrollToRequest { get; set; }
+
+    /// <summary>
+    /// Optional view hook invoked (on the UI thread) immediately before the <see cref="Repositories"/>
+    /// collection is swapped, so a desktop shell can snapshot the user's scroll anchor and selection
+    /// before a refresh rebuilds the list.
+    /// </summary>
+    public Action? BeforeRepositoriesSwap { get; set; }
 
     /// <summary>
     /// Optional view hook invoked (on the UI thread) immediately after the <see cref="Repositories"/>

@@ -99,6 +99,7 @@
       <TextBox Grid.Row="2" Margin="10,2" Watermark="Search repositories..." Text="{Binding SearchText, Mode=TwoWay}" />
 
       <ListBox Grid.Row="3" x:Name="RepositoryList" ItemsSource="{Binding Repositories}"
+               SelectedItem="{Binding SelectedRepository, Mode=TwoWay}"
                Tapped="RepositoryList_Tapped" DoubleTapped="RepositoryList_DoubleTapped">
         <ListBox.Styles>
           <!-- Stretch each row container to full width and drop its own padding so the row's Grid

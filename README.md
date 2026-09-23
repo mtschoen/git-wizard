@@ -9,8 +9,8 @@ Scan, organize, and manage all the git repositories on your machine. Find duplic
 - **Fast repository discovery** - uses NTFS MFT parsing on Windows for near-instant scanning across all drives
 - **Status at a glance** - see pending changes, unpushed commits, and errors per repo
 - **Filter** by pending changes, detached heads, submodule issues, or repos you've committed to
-- **Group** by drive or remote URL to find duplicate clones
-- **Sort** by path, last commit date, remote URL, or size on disk
+- **Group** by drive or remote URL to find duplicate clones; drives group by letter regardless of path case
+- **Sort** by path, last commit date, remote URL, or size on disk. Working Directory sorts paths in ascending order (case-insensitive on Windows, ordinal elsewhere), including within groups, and keeps arriving refresh and Live rows in path order
 - **Repository sizes** appear beside every row after measurement, with totals on group headers
 - **Search** to quickly find repos by path
 - **Deep refresh** per repo with remote fetch and index update

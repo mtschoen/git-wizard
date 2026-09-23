@@ -136,7 +136,16 @@ public partial class MainViewModel
         await _dialogs.DisplayAlertAsync("Files Deleted", "All local files have been deleted");
     }
 
-    void ApplyFilterAndGrouping()
+    // suppressAnchorCapture: true only for CompleteRefresh's own final sorted-rebuild call. The
+    // anchor for a refresh is captured once, at refresh start, by the window's explicit
+    // CaptureScrollAnchor() call before RefreshAsync clears Repositories; that one rebuild's swap
+    // must not fire BeforeRepositoriesSwap again and recapture from the rebuilt streaming list,
+    // which would overwrite the anchor saved at refresh start. The value is a parameter captured
+    // by SwapInRepositories's own closure (not a shared field) so that a second,
+    // independently-triggered ApplyFilterAndGrouping call (e.g. a filter/search rebuild whose swap
+    // is posted to the UI thread ahead of this one) can never consume this call's suppression or
+    // have its own suppressed by it (pr-crew round-9 review of PR #241/#243).
+    internal void ApplyFilterAndGrouping(bool suppressAnchorCapture = false)
     {
         _pendingGroups.Clear();
 
@@ -190,9 +199,23 @@ public partial class MainViewModel
         // this method on a thread-pool thread via its ConfigureAwait(false) continuation - so an
         // inline swap there throws "Call from invalid thread", so the swap must run on the UI
         // thread while the build above stays off-thread to preserve the off-screen-build perf win.
+        // The header's repository/group count is computed here, after the swap, rather than as a
+        // separate call below: computing it on the calling thread right after posting an async
+        // swap would read the OLD Repositories collection, showing a stale group count until some
+        // later update happened to refresh it (issue #241 addendum: "953 repositories in 2 groups"
+        // while six groups were listed).
         void SwapInRepositories()
         {
+            var previousSelectedPath = SelectedRepository?.WorkingDirectory;
+            if (!suppressAnchorCapture)
+                BeforeRepositoriesSwap?.Invoke();
             Repositories = newCollection;
+            if (previousSelectedPath != null)
+            {
+                SelectedRepository = newCollection.FirstOrDefault(n => n.WorkingDirectory == previousSelectedPath)
+                    ?? _allRepositories.FirstOrDefault(n => n.WorkingDirectory == previousSelectedPath);
+            }
+            UpdateHeaderWithFilterInfo();
             AfterRepositoriesSwap?.Invoke();
         }
 
@@ -200,14 +223,15 @@ public partial class MainViewModel
             SwapInRepositories();
         else
             _ui.Post(SwapInRepositories);
-
-        UpdateHeaderWithFilterInfo();
     }
 
     List<RepositoryNodeViewModel> ApplySort(List<RepositoryNodeViewModel> repos)
     {
         return _activeSortMode switch
         {
+            SortMode.WorkingDirectory => repos
+                .OrderBy(r => r.WorkingDirectory, WorkingDirectoryComparer)
+                .ToList(),
             SortMode.RecentlyUsed => repos
                 .OrderByDescending(r => r.Repository.LastCommitDate ?? DateTimeOffset.MinValue)
                 .ToList(),
@@ -219,109 +243,12 @@ public partial class MainViewModel
             SortMode.SizeOnDisk => repos
                 .OrderByDescending(r => r.Repository.SizeOnDisk)
                 .ToList(),
-            _ => repos // WorkingDirectory - already in insertion order (alphabetical from SortedDictionary)
+            _ => repos,
         };
     }
 
-    static Dictionary<string, List<RepositoryNodeViewModel>> GroupRepositories(
-        List<RepositoryNodeViewModel> repos, GroupMode mode)
-    {
-        var groups = new Dictionary<string, List<RepositoryNodeViewModel>>();
-        foreach (var repo in repos)
-        {
-            var keys = GetGroupKeys(repo, mode);
-            foreach (var key in keys)
-            {
-                if (!groups.TryGetValue(key, out var list))
-                {
-                    list = new List<RepositoryNodeViewModel>();
-                    groups[key] = list;
-                }
-
-                list.Add(repo);
-            }
-        }
-
-        return groups;
-    }
-
-    static List<string> GetGroupKeys(RepositoryNodeViewModel repo, GroupMode mode)
-    {
-        if (mode == GroupMode.Drive)
-        {
-            var path = repo.WorkingDirectory;
-            if (string.IsNullOrEmpty(path))
-                return new List<string> { "(unknown)" };
-
-            var root = Path.GetPathRoot(path);
-            return new List<string> { string.IsNullOrEmpty(root) ? "(unknown)" : root };
-        }
-
-        if (mode == GroupMode.RemoteUrl)
-        {
-            var urls = repo.Repository.RemoteUrls;
-            if (urls.Count == 0)
-                return new List<string> { "(no remote)" };
-
-            // Normalize remote URLs for grouping (strip .git suffix, normalize casing)
-            return urls.Select(NormalizeRemoteUrl).Distinct().ToList();
-        }
-
-        return new List<string> { "(unknown)" };
-    }
-
-    static string NormalizeRemoteUrl(string url)
-    {
-        url = url.Trim();
-        if (url.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
-            url = url[..^4];
-
-        // Normalize SSH URLs (git@github.com:user/repo) to match HTTPS style for grouping
-        if (url.StartsWith("git@", StringComparison.OrdinalIgnoreCase))
-        {
-            var colonIndex = url.IndexOf(':');
-            if (colonIndex > 0)
-            {
-                var host = url[4..colonIndex];
-                var path = url[(colonIndex + 1)..];
-                url = $"{host}/{path}";
-            }
-        }
-        else if (url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-        {
-            url = url[8..];
-        }
-        else if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
-        {
-            url = url[7..];
-        }
-
-        return url.ToLowerInvariant();
-    }
-
-    static string? FindRenamedRepo(GitWizardRepository erroredRepo, string oldPath,
-        IReadOnlyDictionary<string, GitWizardRepository> healthyRepos)
-    {
-        if (erroredRepo.RemoteUrls.Count == 0)
-            return null;
-
-        foreach (var remoteUrl in erroredRepo.RemoteUrls)
-        {
-            var normalizedRemote = NormalizeRemoteUrl(remoteUrl);
-            foreach (var (path, healthyRepo) in healthyRepos)
-            {
-                if (path == oldPath)
-                    continue;
-                foreach (var healthyRemote in healthyRepo.RemoteUrls)
-                {
-                    if (NormalizeRemoteUrl(healthyRemote) == normalizedRemote)
-                        return path;
-                }
-            }
-        }
-
-        return null;
-    }
+    // GroupRepositories/GetGroupKeys/NormalizeDriveGroupKey/NormalizeRemoteUrl/FindRenamedRepo
+    // live in MainViewModel.GroupKeys.cs.
 
     void AddToGroups(RepositoryNodeViewModel node)
     {
@@ -348,16 +275,16 @@ public partial class MainViewModel
 
             if (header != null)
             {
-                header.Children.Add(node);
+                var childIndex = InsertRepositoryNode(header.Children, node);
                 header.UpdateDisplayText();
 
-                // If expanded, insert the node after the last child in the flat list
+                // If expanded, insert the node at the matching position in the flat list
                 if (header.IsExpanded)
                 {
                     var headerIndex = Repositories.IndexOf(header);
                     if (headerIndex >= 0)
                     {
-                        Repositories.Insert(headerIndex + header.Children.Count, node);
+                        InsertPositional(Repositories, headerIndex + 1 + childIndex, node);
                     }
                 }
             }
@@ -411,7 +338,11 @@ public partial class MainViewModel
         }
         else if (_activeGroupMode != GroupMode.None)
         {
-            var groupCount = Repositories.Count;
+            // Repositories can also hold an expanded group header's children as flat rows
+            // (ToggleGroupExpand / AddToGroups insert them there for display), so the group
+            // count must count headers specifically, not every row (issue #241 addendum: the
+            // header read "953 repositories in 2 groups" while six groups were listed).
+            var groupCount = Repositories.Count(r => r.IsGroupHeader);
             HeaderText = $"{_allRepositories.Count} repositories in {groupCount} groups";
         }
         else

@@ -27,11 +27,9 @@ public partial class MainWindow : Window, IAsyncDisposable
         // Scroll a specific repo into view when the view model asks (e.g. after grouping).
         _viewModel.ScrollToRequest = node => RepositoryList.ScrollIntoView(node);
 
-        // Restore the list's scroll position after a refresh rebuilds the collection. Avalonia
-        // resets a ListBox to the top when its ItemsSource is replaced (AvaloniaUI/Avalonia#5651,
-        // no KeepScrollOffset); the anchor is captured in the Refresh click handlers, before
-        // RefreshAsync clears the collection.
-        _viewModel.AfterRepositoriesSwap = RestoreScrollAnchor;
+        // Restore the list's scroll position and selection after a refresh rebuilds the collection.
+        _viewModel.BeforeRepositoriesSwap = CaptureScrollAnchor;
+        _viewModel.AfterRepositoriesSwap = RestoreScrollAndSelectionAnchor;
 
         // Button.Click drops KeyModifiers in Avalonia (AvaloniaUI/Avalonia#8900), so
         // capture the Shift state from a tunneling PointerPressed before Click is raised.
@@ -158,6 +156,7 @@ public partial class MainWindow : Window, IAsyncDisposable
     // refresh, re-applied after the final collection swap.
     string? _anchorPath;
     double _anchorAbove;   // px the anchored row was scrolled above the viewport top
+    string? _selectedPath;
     DispatcherTimer? _scrollRestoreTimer;   // drives the closed-loop offset correction after a swap
 
     // The ListBox's internal ScrollViewer (PART_ScrollViewer); only resolvable once the control
@@ -168,6 +167,8 @@ public partial class MainWindow : Window, IAsyncDisposable
     {
         _anchorPath = null;
         _anchorAbove = 0;
+        _selectedPath = (RepositoryList.SelectedItem as RepositoryNodeViewModel)?.WorkingDirectory
+            ?? _viewModel.SelectedRepository?.WorkingDirectory;
 
         var count = RepositoryList.ItemCount;
         for (var i = 0; i < count; i++)
@@ -185,6 +186,19 @@ public partial class MainWindow : Window, IAsyncDisposable
                 break;
             }
         }
+    }
+
+    void RestoreScrollAndSelectionAnchor()
+    {
+        if (_selectedPath is { } selPath)
+        {
+            var selectedIndex = IndexOfPath(selPath);
+            if (selectedIndex >= 0)
+            {
+                RepositoryList.SelectedIndex = selectedIndex;
+            }
+        }
+        RestoreScrollAnchor();
     }
 
     void RestoreScrollAnchor()

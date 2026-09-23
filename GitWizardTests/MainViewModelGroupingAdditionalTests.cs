@@ -272,9 +272,8 @@ public class MainViewModelGroupingAdditionalTests
 
         viewModel.ApplySort("SortByWorkingDirectory");
 
-        // WorkingDirectory sort preserves insertion order (already alpha from add)
         var dirs = viewModel.Repositories.Select(n => n.WorkingDirectory).ToList();
-        Assert.That(dirs, Has.Count.EqualTo(2));
+        Assert.That(dirs, Is.EqualTo(new[] { "/a", "/z" }));
     }
 
     [Test]

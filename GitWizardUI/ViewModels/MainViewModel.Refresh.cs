@@ -38,12 +38,45 @@ public partial class MainViewModel
         if (_activeGroupMode == GroupMode.None)
         {
             if (!Repositories.Any(candidate => candidate.WorkingDirectory == path))
-                Repositories.Add(node);
+            {
+                if (IsRefreshing)
+                    Repositories.Add(node);
+                else
+                    InsertRepositoryNode(Repositories, node);
+            }
         }
         else
         {
-            AddToGroups(node);
+            if (IsRefreshing)
+            {
+                foreach (var key in GetGroupKeys(node, _activeGroupMode))
+                    MergeGroupBatch(key, new List<RepositoryNodeViewModel> { node }, sort: false);
+            }
+            else
+            {
+                AddToGroups(node);
+            }
         }
+    }
+
+    // Bulk equivalent of AddRepository for a drained batch of arrivals; see
+    // MainViewModel.RefreshBatch.cs for why and how (round-2 pr-crew review of PR #241/#243).
+    internal void AddRepositoriesBatch(IReadOnlyList<GitWizardRepository> repositories)
+    {
+        if (repositories.Count == 0)
+            return;
+
+        if (repositories.Count == 1 && !IsRefreshing)
+        {
+            AddRepository(repositories[0]);
+            return;
+        }
+
+        IsScanning = false;
+
+        var newNodesByPath = ResolveBatchAgainstExistingRepositories(repositories);
+        if (newNodesByPath.Count > 0)
+            MergeNewNodesIntoDisplay(newNodesByPath.Values);
     }
 
     void ReplaceVisibleRepositoryNode(RepositoryNodeViewModel existingNode, RepositoryNodeViewModel freshNode)
@@ -107,7 +140,12 @@ public partial class MainViewModel
             if (isShown && !shouldShow)
                 Repositories.Remove(node);
             else if (!isShown && shouldShow)
-                Repositories.Add(node);
+            {
+                if (IsRefreshing)
+                    Repositories.Add(node);
+                else
+                    InsertRepositoryNode(Repositories, node);
+            }
 
             UpdateHeaderWithFilterInfo();
         }
@@ -184,13 +222,19 @@ public partial class MainViewModel
             RemoveRenamedReposFromUi(renamedOldPaths);
         }).ConfigureAwait(false);
 
-        ApplyFilterAndGrouping();
+        // CompleteRefresh runs one sorted rebuild (ApplyFilterAndGrouping) and swaps in the sorted
+        // collection while preserving selection and scroll position.
+        CompleteRefresh();
+    }
 
-        if (_activeFilter == FilterType.None && _activeGroupMode == GroupMode.None)
-            HeaderText = _lastRefreshMessage ?? $"{_allRepositories.Count} repositories";
-        else
-            UpdateHeaderWithFilterInfo();
-
+    internal void CompleteRefresh()
+    {
+        // The anchor for this refresh was already captured once, at refresh start, before
+        // Repositories was cleared; this final rebuild's own swap must not recapture it from the
+        // just-streamed, still-unsorted list. suppressAnchorCapture is a parameter captured by this
+        // one call's SwapInRepositories closure, so an unrelated ApplyFilterAndGrouping call (e.g.
+        // a filter/search rebuild) can never consume or be affected by it.
+        ApplyFilterAndGrouping(suppressAnchorCapture: true);
         IsScanning = false;
         IsRefreshing = false;
     }
@@ -301,6 +345,17 @@ public partial class MainViewModel
 
         var pathsSet = new HashSet<string>(repositoryPaths);
 
+        // Both the ungrouped display batch and each group's batch are collected here and applied
+        // once at the end (SortBatchForDisplay / MergeGroupBatch) instead of inserting or calling
+        // AddToGroups per row: this loop can process hundreds of cached rows in one synchronous
+        // burst, and a per-row insertion costs an O(n) scan-and-shift of the already-inserted,
+        // growing list on every iteration - quadratic over the whole batch (pr-crew review of PR
+        // #241/#243, rounds 1 and 2). PrePopulateFromReport always runs against empty
+        // Repositories/_pendingGroups (RefreshAsync clears both immediately before calling it), so
+        // MergeGroupBatch's fresh-header path is what actually runs here in practice.
+        List<RepositoryNodeViewModel>? ungroupedBatch = null;
+        Dictionary<string, List<RepositoryNodeViewModel>>? groupedBatches = null;
+
         foreach (var (path, repo) in cachedReport.Repositories)
         {
             if (!pathsSet.Contains(path))
@@ -319,94 +374,36 @@ public partial class MainViewModel
                 continue;
 
             if (_activeGroupMode == GroupMode.None)
-                Repositories.Add(node);
-            else
-                AddToGroups(node);
-        }
-    }
-
-    // After a full refresh, prune repos that were pre-populated but no longer exist
-    // in the fresh report (deleted, renamed, or stale non-repo paths).  _allRepositories
-    // is cleared at the start of RefreshAsync, so this method only handles cleanup
-    // from Repositories and _repositoryMap for nodes whose paths are absent from the
-    // fresh scan results (deleted) or that moved (renamed).
-    internal void PruneStalePrePopulatedRepos(HashSet<string> freshPaths, HashSet<string> renamedOldPaths)
-    {
-        if (_prePopulatedNodes == null || _prePopulatedNodes.Count == 0)
-            return;
-
-        var stalePaths = _prePopulatedNodes
-            .Select(node => node.WorkingDirectory)
-            .Where(path => !string.IsNullOrEmpty(path) &&
-                           (!freshPaths.Contains(path) || renamedOldPaths.Contains(path)))
-            .ToList();
-
-        foreach (var path in stalePaths)
-            RemoveRepositoryPathFromUi(path);
-
-        _prePopulatedNodes = null;
-    }
-
-    // Drop deleted, renamed (old path), and stale non-repo entries from the cached
-    // repository-path list.
-    internal static async Task UpdateCachedPathsAfterScanAsync(HashSet<string> deletedPaths, HashSet<string> renamedOldPaths,
-        HashSet<string> nonRepositoryPaths)
-    {
-        var cachedPaths = await GitWizardApi.GetCachedRepositoryPathsAsync().ConfigureAwait(false);
-        if (cachedPaths == null)
-            return;
-
-        var pathsToRemove = deletedPaths.Union(renamedOldPaths).Union(nonRepositoryPaths).ToHashSet();
-        if (pathsToRemove.Count > 0)
-        {
-            var updatedPaths = cachedPaths.Where(p => !pathsToRemove.Contains(p)).ToList();
-            await GitWizardApi.SaveCachedRepositoryPathsAsync(updatedPaths).ConfigureAwait(false);
-        }
-    }
-
-    // Remove renamed repos (old path entries) from the UI collections.
-    void RemoveRenamedReposFromUi(HashSet<string> renamedOldPaths)
-    {
-        if (renamedOldPaths.Count == 0)
-            return;
-
-        foreach (var path in renamedOldPaths)
-            RemoveRepositoryPathFromUi(path);
-    }
-
-    /// <summary>
-    /// Removes a single repository, by working-directory path, from every UI collection
-    /// (<c>_repositoryMap</c>, <c>_allRepositories</c>, <see cref="Repositories"/>, and any
-    /// group header holding it). No-op if the path isn't currently tracked. The internal
-    /// entry point Live mode's per-event deletion/rename handling in
-    /// <c>MainViewModel.Live.cs</c> calls; the batch-refresh rename cleanup above reaches the
-    /// same code directly.
-    /// </summary>
-    internal void RemoveRepositoryByPath(string path) => RemoveRepositoryPathFromUi(path);
-
-    void RemoveRepositoryPathFromUi(string path)
-    {
-        _repositoryMap.TryRemove(path, out _);
-        _allRepositories.RemoveAll(candidate => candidate.WorkingDirectory == path);
-
-        var groupHeaders = Repositories.Where(candidate => candidate.IsGroupHeader)
-            .Concat(_pendingGroups.Values).Distinct().ToList();
-
-        for (var index = Repositories.Count - 1; index >= 0; index--)
-        {
-            if (Repositories[index].WorkingDirectory == path)
-                Repositories.RemoveAt(index);
-        }
-
-        foreach (var groupHeader in groupHeaders)
-        {
-            for (var index = groupHeader.Children.Count - 1; index >= 0; index--)
             {
-                if (groupHeader.Children[index].WorkingDirectory == path)
-                    groupHeader.Children.RemoveAt(index);
+                ungroupedBatch ??= new List<RepositoryNodeViewModel>();
+                ungroupedBatch.Add(node);
             }
+            else
+            {
+                foreach (var key in GetGroupKeys(node, _activeGroupMode))
+                {
+                    groupedBatches ??= new Dictionary<string, List<RepositoryNodeViewModel>>();
+                    if (!groupedBatches.TryGetValue(key, out var bucket))
+                    {
+                        bucket = new List<RepositoryNodeViewModel>();
+                        groupedBatches[key] = bucket;
+                    }
 
-            groupHeader.UpdateDisplayText();
+                    bucket.Add(node);
+                }
+            }
+        }
+
+        if (ungroupedBatch != null)
+        {
+            foreach (var node in SortBatchForDisplay(ungroupedBatch))
+                Repositories.Add(node);
+        }
+
+        if (groupedBatches != null)
+        {
+            foreach (var (key, bucket) in groupedBatches)
+                MergeGroupBatch(key, bucket);
         }
     }
 }

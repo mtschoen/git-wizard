@@ -51,6 +51,9 @@ git-wizard Session Started
             return;
         }
 
+        if (await TryHandleIndexCacheClearAsync(runConfiguration))
+            return;
+
         if (TryHandleImmediateExitFlags(runConfiguration))
             return;
 
@@ -235,6 +238,24 @@ git-wizard Session Started
             return false;
 
         Environment.Exit(WindowsDefender.RunDefenderCommands() ? 0 : 1);
+        return true;
+    }
+
+    static async Task<bool> TryHandleIndexCacheClearAsync(RunConfiguration runConfiguration)
+    {
+        if (!runConfiguration.ClearIndexCache)
+        {
+            return false;
+        }
+
+        var result = MftIndexCacheMaintenance.Clear(GitWizardApi.GetLocalFilesPath());
+        Console.WriteLine(result.ToDisplayText());
+        if (!result.Succeeded)
+        {
+            await Console.Error.WriteLineAsync("Index cache clear incomplete; see per-drive outcomes and errors above.");
+        }
+
+        Environment.Exit(result.Succeeded ? 0 : 1);
         return true;
     }
 

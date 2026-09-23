@@ -34,6 +34,7 @@ public class RunConfigurationAdapterTests
             Assert.That(ReadField<bool>(actual, "RebuildRepositoryList"), Is.EqualTo(expected.RebuildRepositoryList));
             Assert.That(ReadField<bool>(actual, "RebuildReport"), Is.EqualTo(expected.RebuildReport));
             Assert.That(ReadField<bool>(actual, "ClearCache"), Is.EqualTo(expected.ClearCache));
+            Assert.That(ReadField<bool>(actual, "ClearIndexCache"), Is.EqualTo(expected.ClearIndexCache));
             Assert.That(ReadField<bool>(actual, "DeleteAllLocalFiles"), Is.EqualTo(expected.DeleteAllLocalFiles));
             Assert.That(ReadField<bool>(actual, "SetupDefender"), Is.EqualTo(expected.SetupDefender));
             Assert.That(ReadField<bool>(actual, "ScanOnly"), Is.EqualTo(expected.ScanOnly));

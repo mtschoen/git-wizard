@@ -62,11 +62,35 @@ but cannot resume that checkpoint until an explicit rescan. Later watch or resca
 lazily through the session's owned broker holder. Disposal stops and disposes the index before
 detaching broker events and closing the client, including a client first created after opening.
 
-Clear Cache and `--clear-cache` delete only `repositories.txt` and `report.json`; configuration
-and index blocks remain. Delete All Local Files refuses while the `mft-index` subtree exists,
-including an empty subtree. It does not implement index-cache clearing. Do not manually remove
-lock files while indexes are in use. Recursive discovery on Linux and with `--no-mft` is
-unchanged.
+To clear persistent index blocks, run `git-wizard --clear-index-cache`, or open
+the desktop sidebar's **Index Cache** section and click **Clear Index Cache**.
+The command exits after maintenance and takes precedence over other maintenance,
+report and watch flags; it does not scan, request elevation, rebuild a report,
+or restart Live. Help/version and invalid arguments are still handled first.
+
+The clear covers the current policy directory and existing direct
+`mft-index/v1-<64 uppercase hexadecimal characters>` policy directories,
+including superseded v1 policies. Unknown layouts and linked directories are
+not traversed. Each canonical block reports its drive, volume serial, path and
+`Deleted`, `InUse`, or `Failed` outcome. Busy blocks remain while other drives
+are attempted. Failure reasons are shown; CLI exit status is 1 for incomplete
+maintenance and 0 for success, including an empty cache. Results are printed
+even with `--silent`.
+
+The result includes a new MFTLib `InspectCached` inventory after clearing.
+Desktop **Inspect Index Cache** refreshes that inventory independently.
+Both deletion results and inventory are point-in-time observations: a different
+process can recreate a cache block immediately after deletion.
+
+Clearing never stops Live or releases prepared discovery owners. Stop Live and
+close index-owning instances before retrying an `InUse` result. MFTLib owns
+locking and deletion; persistent `.lock` siblings, policy directories, retired
+siblings and unrelated files remain. Do not manually delete the lock files.
+The old **Clear Cache** / `--clear-cache` still only clears report/list files.
+**Delete All Local Files** still refuses while the `mft-index` subtree exists,
+including after successful block clearing. Configuration and report/list files
+are not removed by **Clear Index Cache**. Recursive discovery on Linux and with
+`--no-mft` is unchanged.
 
 `DuplicateNames` and `Largest` are inapplicable to repository discovery: discovery does not
 group arbitrary duplicate names or rank file sizes. Retaining `HEAD` does not change the

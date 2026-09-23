@@ -31,6 +31,11 @@ sealed record RunConfigurationResult(
     public bool ExitRequested { get; init; }
 
     /// <summary>
+    /// True when --clear-index-cache was specified.
+    /// </summary>
+    public bool ClearIndexCache { get; init; }
+
+    /// <summary>
     /// True when the tags subcommand was invoked.
     /// </summary>
     public bool Tags { get; init; }

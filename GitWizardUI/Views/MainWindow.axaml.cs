@@ -86,6 +86,12 @@ public partial class MainWindow : Window, IAsyncDisposable
     void DeleteAllLocalFilesMenuItem_Click(object? sender, RoutedEventArgs e)
         => _ = _viewModel.DeleteAllLocalFilesAsync();
 
+    void InspectIndexCache_Click(object? sender, RoutedEventArgs e)
+        => _ = _viewModel.InspectIndexCacheAsync();
+
+    void ClearIndexCache_Click(object? sender, RoutedEventArgs e)
+        => _ = _viewModel.ClearIndexCacheAsync();
+
     void ErrorsMenuItem_Click(object? sender, RoutedEventArgs e)
         => new ErrorLogWindow(_viewModel.ErrorLog).ShowDialog(this);
 

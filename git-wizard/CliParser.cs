@@ -75,6 +75,7 @@ static partial class CliParser
         CommandOption Sweep,
         CommandOption Merge,
         CommandOption ClearCache,
+        CommandOption ClearIndexCache,
         CommandOption DeleteAllLocalFiles,
         CommandOption PrintMinified,
         CommandOption DbSize,
@@ -102,6 +103,9 @@ static partial class CliParser
         var sweepOption = app.Option("--sweep", "Output automation-focused JSON: tracked dirty files, branches with commits absent from all remote-tracking refs, and stash counts", CommandOptionType.NoValue);
         var mergeOption = app.Option("--merge", "Targeted single-repo refresh: merge the repos named by --paths into the existing report at --save-path (insert/update those entries, leave all others intact), then write back atomically. Requires --paths and --save-path.", CommandOptionType.NoValue);
         var clearCacheOption = app.Option("--clear-cache", "Delete repositories.txt and report.json only; preserve configuration and persistent index blocks (combine with --no-refresh to avoid rebuilding the report/list).", CommandOptionType.NoValue);
+        var clearIndexCacheOption = app.Option("--clear-index-cache",
+            "Clear unlocked MFT index blocks in supported GitWizard policy directories, show per-drive results and fresh cache state, then exit. Takes precedence over other maintenance/report/watch flags; leaves lock files.",
+            CommandOptionType.NoValue);
         var deleteAllLocalFilesOption = app.Option("--delete-all-local-files", "Delete local files only when no mft-index subtree exists; refuse otherwise. This command does not clear persistent index blocks (combine with --no-refresh to avoid recreating local files).", CommandOptionType.NoValue);
         var printMinifiedOption = app.Option("--print-minified", "Print the output to the console as minified JSON", CommandOptionType.NoValue);
         var dbSizeOption = app.Option("--db-size", "Show the size of the GitWizard local files folder (~/.GitWizard/) and exit", CommandOptionType.NoValue);
@@ -129,6 +133,7 @@ static partial class CliParser
             sweepOption,
             mergeOption,
             clearCacheOption,
+            clearIndexCacheOption,
             deleteAllLocalFilesOption,
             printMinifiedOption,
             dbSizeOption,
@@ -187,7 +192,10 @@ static partial class CliParser
             options.AllBranches.HasValue(),
             options.Watch.HasValue(),
             options.NoLocalCommitCount.HasValue(),
-            hasError);
+            hasError)
+        {
+            ClearIndexCache = options.ClearIndexCache.HasValue()
+        };
     }
 
     static string? GetLastValue(CommandOption opt)

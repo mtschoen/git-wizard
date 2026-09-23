@@ -25,6 +25,12 @@ public static partial class Program
         public readonly bool ClearCache;
 
         /// <summary>
+        /// Clear unlocked MFT index blocks in supported GitWizard policy directories, show
+        /// per-drive results and fresh cache state, then exit.
+        /// </summary>
+        public readonly bool ClearIndexCache;
+
+        /// <summary>
         /// Delete all local files before doing anything else, refusing while the mft-index subtree exists.
         /// </summary>
         public readonly bool DeleteAllLocalFiles;
@@ -161,6 +167,7 @@ public static partial class Program
             RebuildRepositoryList = result.RebuildRepositoryList;
             RebuildReport = result.RebuildReport;
             ClearCache = result.ClearCache;
+            ClearIndexCache = result.ClearIndexCache;
             DeleteAllLocalFiles = result.DeleteAllLocalFiles;
             SetupDefender = result.SetupDefender;
             ScanOnly = result.ScanOnly;

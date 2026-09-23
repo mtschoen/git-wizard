@@ -64,6 +64,16 @@
         <Button x:Name="SortByRecentlyUsed"     Classes.active="{Binding ActiveSortMode, Converter={StaticResource EnumEqualsConverter}, ConverterParameter=RecentlyUsed}"     ToolTip.Tip="Time of the most recent commit"             Content="Recently Used"      FontSize="12" Click="SortButton_Click" HorizontalAlignment="Stretch" />
         <Button x:Name="SortByRemoteUrl"        Classes.active="{Binding ActiveSortMode, Converter={StaticResource EnumEqualsConverter}, ConverterParameter=RemoteUrl}"        ToolTip.Tip="URL of first remote (usually origin)"        Content="Remote URL"         FontSize="12" Click="SortButton_Click" HorizontalAlignment="Stretch" />
         <Button x:Name="SortBySizeOnDisk"       Classes.active="{Binding ActiveSortMode, Converter={StaticResource EnumEqualsConverter}, ConverterParameter=SizeOnDisk}"       ToolTip.Tip="Size of repository on disk (largest first)"  Content="Size On Disk"     FontSize="12" Click="SortButton_Click" HorizontalAlignment="Stretch" />
+        <Expander Header="Index Cache" Margin="0,10,0,0" HorizontalAlignment="Stretch">
+          <StackPanel Spacing="5">
+            <Button x:Name="InspectIndexCacheButton" Content="Inspect Index Cache"
+                    IsEnabled="{Binding CanManageIndexCache}" Click="InspectIndexCache_Click" />
+            <Button x:Name="ClearIndexCacheButton" Content="Clear Index Cache"
+                    IsEnabled="{Binding CanManageIndexCache}" Click="ClearIndexCache_Click"
+                    ToolTip.Tip="Clear unlocked blocks. In-use blocks and lock files remain. Does not stop Live." />
+            <TextBlock Text="{Binding IndexCacheText}" TextWrapping="Wrap" FontSize="12" />
+          </StackPanel>
+        </Expander>
       </StackPanel>
     </ScrollViewer>
 

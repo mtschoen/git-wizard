@@ -100,3 +100,22 @@ never from a fixed sleep.
 - **One broker per machine, effectively.** Running the CLI watch and
   GitWizardUI's Live mode at the same time is out of scope for this smoke
   test; close GitWizardUI first.
+
+## Index cache maintenance
+
+Run the existing CLI live smoke pass first. Then, using an intentionally owned
+test home and two synthetic cached drives, keep a FileIndex owner open on one
+drive. Run `git-wizard --clear-index-cache --silent` in that same redirected
+home. Expect exit 1, one InUse row, one Deleted row, and an inventory containing
+the still-owned block. Verify both lock files remain and report/list/config
+sentinels are unchanged. Release the owner and retry: expect exit 0 and no
+remaining canonical blocks. These steps are automated by the index-cache CLI
+process test; do not use the real home for an unattended destructive smoke.
+
+In the desktop at its default 1100x700 size, expand Index Cache in the sidebar.
+Inspect, then Clear. Check wrapping/readability of full paths and per-drive
+results, that action buttons re-enable, and that the displayed inventory updates
+after clear. With a live index, expect InUse without Live stopping. After closing
+owners, retry and expect successful deletion. No extra elevation prompt should
+appear. Confirm the original Clear Cache remains distinct. Resize narrower and
+confirm the panel remains scrollable without widening/clipping the top toolbar.

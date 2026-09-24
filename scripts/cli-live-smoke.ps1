@@ -1,4 +1,5 @@
 #Requires -Version 7
+
 <#
 .SYNOPSIS
     Drives the CLI live smoke test for git-wizard --watch against a real, elevated broker.
@@ -14,7 +15,10 @@
 
     This needs an INTERACTIVE session. --watch self-elevates one broker child process,
     which means exactly one UAC prompt per run; the script prints a reminder right before
-    it expects that prompt and waits up to -UacTimeoutSeconds for the broker to appear.
+    it expects that prompt. -UacTimeoutSeconds bounds only the wait for the client's own
+    session-started banner, printed before the broker is launched; the wait that spans UAC
+    approval, discovery, and catch-up is bounded separately by -StartupTimeoutSeconds via
+    the ready: marker.
 
     Nothing is written into the repository working tree. Scratch repositories live under
     <ScratchDrive>:\gw-cli-smoke-<timestamp> and are removed at the end of the run. Logs and
@@ -35,8 +39,10 @@
     Drive letter (no colon) under which the scratch repositories are created. Defaults to C.
 
 .PARAMETER UacTimeoutSeconds
-    How long to wait for the interactive UAC prompt to be approved and the elevated broker
-    child process to appear. Defaults to 300 seconds.
+    How long to wait for the client process's own session-started banner to appear at
+    startup, before the elevated broker child process is even launched. Defaults to 300
+    seconds. The wait spanning interactive UAC approval, discovery, and catch-up is bounded
+    separately by -StartupTimeoutSeconds, gated on the ready: marker.
 
 .PARAMETER EvidenceDirectory
     Directory to write watch stdout/stderr logs and the run summary. Defaults to

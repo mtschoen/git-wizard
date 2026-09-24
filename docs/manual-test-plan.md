@@ -83,6 +83,12 @@ Fill one row per run from the `-v` timestamps:
 - `drives` are the `caught-up=` list.
 - `origin` per drive comes from the last `drive: <V> state=caught-up origin=<warm|cold>` line.
 UI rows come from the toolbar text and a wall clock. Automated gates do not substitute for these values.
+The UI rows are measured with `scripts/ui-live-timing.ps1`, which drives GitWizardUI through UI
+Automation, presses Live, and stamps toolbar phase transitions the same way the CLI rows are driven
+by `scripts/cli-live-smoke.ps1`. Run it once for each kind after a Release build:
+`.\scripts\ui-live-timing.ps1 -Kind cold -UiExe <path to GitWizardUI.exe> -CliExe <path to git-wizard.exe>`,
+then again with `-Kind warm` immediately after, reusing the same executables so the second run keeps
+the cache from the first.
 
 | Client | Start kind | Drives (origin) | Start stamp | Ready stamp | Start-to-ready | Notes |
 |---|---|---|---|---|---|---|

@@ -22,7 +22,7 @@ namespace GitWizardUI.Services;
 public sealed class LiveWatchController
 {
     readonly Func<IVolumeChangeSource>? _sourceFactory;
-    readonly Func<CancellationToken, Task<WatchStartupResult>>? _startupFactory;
+    readonly Func<IProgress<WatchStartupProgress>, CancellationToken, Task<WatchStartupResult>>? _startupFactory;
     readonly IReadOnlyCollection<string> _trackedRoots;
     readonly IReadOnlyCollection<string> _searchRoots;
     readonly Action<RepositoryChangeEvent> _onEvent;
@@ -35,6 +35,9 @@ public sealed class LiveWatchController
     public event Action? ScanErrorsChanged;
     public event Action? ScanWarningsChanged;
     public event Action<VolumeScanProgress>? ScanProgress;
+    public event Action<WatchReadiness>? Ready;
+    public event Action<VolumeReadinessSnapshot>? VolumeReadinessChanged;
+    public event Action<WatchStartupProgress>? StartupProgress;
 
     /// <summary>Forwarded from the running service: the reconciled startup inventory, before <see cref="Started"/>.</summary>
     public event Action<DiscoveryInventory>? InventoryReady;
@@ -55,8 +58,17 @@ public sealed class LiveWatchController
     CancellationTokenSource? _runCts;
     bool _stopRequested;
 
+    public WatchReadiness? Readiness
+    {
+        get
+        {
+            lock (_gate)
+                return _service?.Readiness;
+        }
+    }
+
     public LiveWatchController(
-        Func<CancellationToken, Task<WatchStartupResult>> startupFactory,
+        Func<IProgress<WatchStartupProgress>, CancellationToken, Task<WatchStartupResult>> startupFactory,
         Action<RepositoryChangeEvent> onEvent,
         Action<string> onStopped,
         LiveWatchOptions? options = null)
@@ -69,6 +81,15 @@ public sealed class LiveWatchController
         _isElevated = options?.IsElevated ?? (() => false);
         _includeTempDirectories = options?.IncludeTempDirectories ?? false;
         _ignoredPaths = options?.IgnoredPaths ?? [];
+    }
+
+    public LiveWatchController(
+        Func<CancellationToken, Task<WatchStartupResult>> startupFactory,
+        Action<RepositoryChangeEvent> onEvent,
+        Action<string> onStopped,
+        LiveWatchOptions? options = null)
+        : this((_, ct) => (startupFactory ?? throw new ArgumentNullException(nameof(startupFactory)))(ct), onEvent, onStopped, options)
+    {
     }
 
     public LiveWatchController(
@@ -224,7 +245,8 @@ public sealed class LiveWatchController
         WatchStartupResult startup;
         try
         {
-            startup = await _startupFactory(runCts.Token).ConfigureAwait(false);
+            var progress = new SynchronousProgress<WatchStartupProgress>(report => StartupProgress?.Invoke(report));
+            startup = await _startupFactory(progress, runCts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (runCts.IsCancellationRequested)
         {
@@ -327,6 +349,10 @@ public sealed class LiveWatchController
         service.ScanErrorsChanged += OnScanErrorsChanged;
         service.ScanWarningsChanged += OnScanWarningsChanged;
         service.InventoryReady += OnInventoryReady;
+        void OnReady(WatchReadiness readiness) => Ready?.Invoke(readiness);
+        void OnVolumeReadinessChanged(VolumeReadinessSnapshot snapshot) => VolumeReadinessChanged?.Invoke(snapshot);
+        service.Ready += OnReady;
+        service.VolumeReadinessChanged += OnVolumeReadinessChanged;
 
         try
         {
@@ -345,6 +371,8 @@ public sealed class LiveWatchController
             service.ScanErrorsChanged -= OnScanErrorsChanged;
             service.ScanWarningsChanged -= OnScanWarningsChanged;
             service.InventoryReady -= OnInventoryReady;
+            service.Ready -= OnReady;
+            service.VolumeReadinessChanged -= OnVolumeReadinessChanged;
         }
 
         return deathReason;

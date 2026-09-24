@@ -28,12 +28,12 @@ public partial class MainViewModel
     // session (a live UAC prompt), which an automated test can never drive. Tests substitute
     // a prepared WatchStartupResult around a fake IVolumeChangeSource to exercise
     // ToggleLiveAsync end-to-end.
-    Func<DiscoveryRequest, MftIndexSession?, CancellationToken, Task<WatchStartupResult>>? _livePrepareWatchAsync;
+    Func<DiscoveryRequest, MftIndexSession?, IProgress<WatchStartupProgress>?, CancellationToken, Task<WatchStartupResult>>? _livePrepareWatchAsync;
 
-    internal Func<DiscoveryRequest, MftIndexSession?, CancellationToken, Task<WatchStartupResult>> LivePrepareWatchAsync
+    internal Func<DiscoveryRequest, MftIndexSession?, IProgress<WatchStartupProgress>?, CancellationToken, Task<WatchStartupResult>> LivePrepareWatchAsync
     {
-        get => _livePrepareWatchAsync ??= static (request, prepared, cancellationToken) =>
-            new RepositoryDiscoveryCoordinator().PrepareWatchAsync(request, prepared, cancellationToken);
+        get => _livePrepareWatchAsync ??= static (request, prepared, progress, cancellationToken) =>
+            new RepositoryDiscoveryCoordinator().PrepareWatchAsync(request, prepared, progress, cancellationToken);
         set => _livePrepareWatchAsync = value;
     }
 

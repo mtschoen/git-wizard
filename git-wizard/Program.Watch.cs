@@ -75,7 +75,10 @@ public static partial class Program
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ctrlC.Token, cancellationToken);
         var token = linkedCts.Token;
 
-        await using var startup = await coordinator.PrepareWatchAsync(request, null, token).ConfigureAwait(false);
+        var verbose = GitWizardLog.VerboseMode;
+        var writer = new WatchLineWriter(stdout.WriteLine, verbose, TimeProvider.System);
+        var startupProgress = new SynchronousProgress<WatchStartupProgress>(writer.WriteStartup);
+        await using var startup = await coordinator.PrepareWatchAsync(request, null, startupProgress, token).ConfigureAwait(false);
         WriteDiscoveryDiagnostics(startup.Inventory, stderr);
 
         if (startup.Inventory.Outcome == DiscoveryOutcome.Unusable)
@@ -93,7 +96,7 @@ public static partial class Program
 
         var service = new RepositoryWatchService(startup);
         int? capturedExit = null;
-        var stopped = await RunWatchLoopAsync(service, stdout.WriteLine, exitCode => capturedExit = exitCode, token).ConfigureAwait(false);
+        var stopped = await RunWatchLoopAsync(service, stdout.WriteLine, exitCode => capturedExit = exitCode, token, verbose, TimeProvider.System).ConfigureAwait(false);
 
         if (capturedExit is { } exitVal)
             return exitVal;
@@ -158,8 +161,11 @@ public static partial class Program
     // spawn - the one terminal condition that must exit before any events flow.
     internal static async Task<bool> RunWatchLoopAsync(
         RepositoryWatchService service, Action<string> writeLine, Action<int> exit,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool verbose = false,
+        TimeProvider? clock = null)
     {
+        var writer = new WatchLineWriter(writeLine, verbose, clock ?? TimeProvider.System);
         var stopped = false;
         var reported = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var reportedWarnings = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -167,7 +173,7 @@ public static partial class Program
         void OnStopped(string reason)
         {
             stopped = true;
-            writeLine($"Broker died: {reason}");
+            writer.Write($"Broker died: {reason}");
         }
         void OnScanErrorsChanged()
         {
@@ -178,7 +184,7 @@ public static partial class Program
                     if (reported.TryGetValue(drive, out var previous) && previous == message)
                         continue;
                     reported[drive] = message;
-                    writeLine($"scan error on {drive}: {message}");
+                    writer.Write($"scan error on {drive}: {message}");
                 }
             }
         }
@@ -192,17 +198,21 @@ public static partial class Program
                     // the drive's arm-time hint, and the new wording must print again.
                     if (!reportedWarnings.Add(warning.Message))
                         continue;
-                    writeLine(warning.Message);
+                    writer.Write(warning.Message);
                 }
             }
         }
+        void OnReady(WatchReadiness readiness) => writer.Write(FormatReadyLine(readiness));
+        void OnVolumeReadinessChanged(VolumeReadinessSnapshot snapshot) => writer.WriteVolumes(snapshot);
 
         service.Stopped += OnStopped;
         service.ScanErrorsChanged += OnScanErrorsChanged;
         service.ScanWarningsChanged += OnScanWarningsChanged;
+        service.Ready += OnReady;
+        service.VolumeReadinessChanged += OnVolumeReadinessChanged;
         try
         {
-            return await RunWatchEventsAsync(service, writeLine, exit, () => stopped, cancellationToken)
+            return await RunWatchEventsAsync(service, writer, exit, () => stopped, cancellationToken)
                 .ConfigureAwait(false);
         }
         finally
@@ -210,11 +220,13 @@ public static partial class Program
             service.Stopped -= OnStopped;
             service.ScanErrorsChanged -= OnScanErrorsChanged;
             service.ScanWarningsChanged -= OnScanWarningsChanged;
+            service.Ready -= OnReady;
+            service.VolumeReadinessChanged -= OnVolumeReadinessChanged;
         }
     }
 
     static async Task<bool> RunWatchEventsAsync(
-        RepositoryWatchService service, Action<string> writeLine, Action<int> exit,
+        RepositoryWatchService service, WatchLineWriter writer, Action<int> exit,
         Func<bool> isStopped, CancellationToken cancellationToken)
     {
         await using var enumerator = service.RunAsync(cancellationToken).GetAsyncEnumerator(cancellationToken);
@@ -228,14 +240,14 @@ public static partial class Program
         {
             // A declined or failed broker connection surfaces from the initial index arming.
             // Report a clean startup failure rather than an unhandled stack trace.
-            writeLine($"Could not start the journal broker: {exception.Message}");
+            writer.Write($"Could not start the journal broker: {exception.Message}");
             exit(1);
             return true;
         }
 
         while (hasNext)
         {
-            writeLine(FormatChangeEvent(enumerator.Current));
+            writer.Write(FormatChangeEvent(enumerator.Current));
             try
             {
                 hasNext = await MoveNextIgnoringCancellationAsync(enumerator).ConfigureAwait(false);
@@ -243,7 +255,7 @@ public static partial class Program
             catch (InvalidOperationException exception)
             {
                 if (!isStopped())
-                    writeLine($"Broker died: {exception.Message}");
+                    writer.Write($"Broker died: {exception.Message}");
 
                 return true;
             }

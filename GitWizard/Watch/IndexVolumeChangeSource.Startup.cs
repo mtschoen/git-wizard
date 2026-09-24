@@ -45,6 +45,7 @@ public sealed partial class IndexVolumeChangeSource
         try
         {
             await owner.Index.WaitForCatchUpAsync(drive, token).ConfigureAwait(false);
+            PublishVolumeState(VolumeWatchStatus.CaughtUp(char.ToUpperInvariant(drive).ToString(), CurrentOrigin(owner, drive)));
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -59,6 +60,7 @@ public sealed partial class IndexVolumeChangeSource
     void RecordStartupDriveFailure(char drive, string message)
     {
         var upper = char.ToUpperInvariant(drive);
+        VolumeBlockOrigin origin;
         lock (_lifecycleLock)
         {
             _usableDrives.Remove(upper);
@@ -66,7 +68,9 @@ public sealed partial class IndexVolumeChangeSource
         lock (_faultLock)
         {
             _startupErrors[upper] = message;
+            origin = _readiness.TryGet(upper.ToString(), out var previous) ? previous.Origin : VolumeBlockOrigin.Unknown;
         }
+        PublishVolumeState(VolumeWatchStatus.Excluded(upper.ToString(), origin, message));
         DriveFailed?.Invoke(upper.ToString(), message);
     }
 }

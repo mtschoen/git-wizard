@@ -29,7 +29,7 @@ public class JournalSettingsIntegrationTests
         _main = new MainViewModel(_dispatcher, new StubUserDialogs(), new StubClipboardService())
         {
             LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0),
-            LivePrepareWatchAsync = (request, _, cancellationToken) =>
+            LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
                 FakeLiveStartup.FromSourceArmedAsync(_source, request, cancellationToken),
             LiveIsElevated = () => false
         };

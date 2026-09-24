@@ -59,13 +59,14 @@ public partial class MainViewModel
         GitWizardConfiguration configuration,
         IReadOnlyList<string> trackedRoots) =>
         new(
-            cancellationToken => PrepareLiveWatchAsync(configuration, trackedRoots, cancellationToken),
+            (progress, cancellationToken) => PrepareLiveWatchAsync(configuration, trackedRoots, progress, cancellationToken),
             onEvent: ev => _ = ApplyLiveEventAsync(ev),
             onStopped: reason => _ui.Post(() =>
             {
                 IsLiveStarting = false;
                 IsLive = false;
                 ClearLiveScanProgress();
+                ClearLiveReadiness();
                 var controller = RequireLiveController();
                 // A death stop keeps the drives' journal hints on screen: they explain why the
                 // watch ended, including the sole-drive case where the terminal header is all
@@ -84,11 +85,12 @@ public partial class MainViewModel
     Task<WatchStartupResult> PrepareLiveWatchAsync(
         GitWizardConfiguration configuration,
         IReadOnlyList<string> trackedRoots,
+        IProgress<WatchStartupProgress>? progress,
         CancellationToken cancellationToken)
     {
         var prepared = TakePreparedDiscoveryIndex();
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Watch, false, false, trackedRoots);
-        return LivePrepareWatchAsync(request, prepared, cancellationToken);
+        return LivePrepareWatchAsync(request, prepared, progress, cancellationToken);
     }
 
     // Applies the coordinator's reconciled startup inventory to the visible membership before
@@ -147,12 +149,16 @@ public partial class MainViewModel
         void OnScanWarningsChanged() => PostIfActive(() => SurfaceNewLiveScanWarnings(controller));
         void OnScanErrorsChanged() => PostIfActive(() => SurfaceNewLiveScanErrors(controller));
         void OnLiveScanProgress(VolumeScanProgress sample) => PostIfActive(() => ApplyLiveScanProgress(sample));
+        void OnReady(WatchReadiness readiness) => PostIfActive(() => ApplyLiveReady(readiness));
+        void OnVolumeReadinessChanged(VolumeReadinessSnapshot snapshot) => PostIfActive(() => ApplyLiveVolumeReadiness(snapshot));
+        void OnStartupProgress(WatchStartupProgress progress) => PostIfActive(() => ApplyLiveStartupProgress(progress));
         void OnInventoryReady(DiscoveryInventory inventory) => _ = ApplyLiveStartupInventoryAsync(inventory);
         void OnStartupUnavailable(DiscoveryInventory inventory) => PostIfActive(() =>
         {
             IsLiveStarting = false;
             IsLive = false;
             ClearLiveScanProgress();
+            ClearLiveReadiness();
             JournalWarnings.Clear();
             if (inventory.Outcome == DiscoveryOutcome.Unusable)
             {
@@ -170,6 +176,9 @@ public partial class MainViewModel
         controller.ScanErrorsChanged += OnScanErrorsChanged;
         controller.ScanWarningsChanged += OnScanWarningsChanged;
         controller.ScanProgress += OnLiveScanProgress;
+        controller.Ready += OnReady;
+        controller.VolumeReadinessChanged += OnVolumeReadinessChanged;
+        controller.StartupProgress += OnStartupProgress;
         controller.InventoryReady += OnInventoryReady;
         controller.StartupUnavailable += OnStartupUnavailable;
 
@@ -179,6 +188,9 @@ public partial class MainViewModel
             controller.ScanErrorsChanged -= OnScanErrorsChanged;
             controller.ScanWarningsChanged -= OnScanWarningsChanged;
             controller.ScanProgress -= OnLiveScanProgress;
+            controller.Ready -= OnReady;
+            controller.VolumeReadinessChanged -= OnVolumeReadinessChanged;
+            controller.StartupProgress -= OnStartupProgress;
             controller.InventoryReady -= OnInventoryReady;
             controller.StartupUnavailable -= OnStartupUnavailable;
         };
@@ -199,6 +211,7 @@ public partial class MainViewModel
                 IsLiveStarting = false;
                 IsLive = false;
                 ClearLiveScanProgress();
+                ClearLiveReadiness();
                 JournalWarnings.Clear();
                 HeaderText = $"Live watch could not start: {exception.Message}";
             }).ConfigureAwait(false);
@@ -225,6 +238,7 @@ public partial class MainViewModel
             IsLiveStarting = false;
             IsLive = false;
             ClearLiveScanProgress();
+            ClearLiveReadiness();
             JournalWarnings.Clear();
         }).ConfigureAwait(false);
     }

@@ -386,6 +386,8 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
             _liveController = null;
         }
 
+        _ui.Post(ClearLiveReadiness);
+
         await SetPreparedDiscoveryIndexAsync(null).ConfigureAwait(false);
         _searchDebouncer.Dispose();
         GC.SuppressFinalize(this);

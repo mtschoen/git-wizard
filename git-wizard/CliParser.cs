@@ -114,7 +114,7 @@ static partial class CliParser
         var printMinifiedOption = app.Option("--print-minified", "Print the output to the console as minified JSON", CommandOptionType.NoValue);
         var dbSizeOption = app.Option("--db-size", "Show the size of the GitWizard local files folder (~/.GitWizard/) and exit", CommandOptionType.NoValue);
         var allBranchesOption = app.Option("--all-branches", "Include all branches (even clean/merged/no-work branches) in the report instead of only actionable ones", CommandOptionType.NoValue);
-        var watchOption = app.Option("--watch", "Watch search paths for filesystem changes and output JSON change events to stdout as they occur", CommandOptionType.NoValue);
+        var watchOption = app.Option("--watch", "Watch search paths for filesystem changes and print one line per repository event (changed:/created:/deleted: <path>). Prints one 'ready:' line when the watch is caught up: on Windows when every requested NTFS drive has applied its USN journal backlog or been excluded, on Linux when fanotify marks are installed and startup discovery finished (no historical backlog exists). With -v, lines carry an ISO-8601 UTC timestamp and per-drive 'drive:'/'startup:' diagnostics.", CommandOptionType.NoValue);
 
         // String options - use MultipleValue to allow missing args and duplicates (last value wins).
         var filterOption = app.Option("-f|--filter <PATTERN>", "Filter output to repositories whose path contains <PATTERN> (case-insensitive)", CommandOptionType.MultipleValue);

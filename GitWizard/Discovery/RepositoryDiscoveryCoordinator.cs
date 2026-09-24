@@ -43,7 +43,7 @@ public partial class RepositoryDiscoveryCoordinator
                     await dependencies.OpenIndexAsync(
                         scope.RequestedNtfsDrives, MftIndexOpenIntent.Snapshot, null, cancellationToken).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
-                await RescanDrivesNeedingScanAsync(session, request.Purpose, accumulator, cancellationToken).ConfigureAwait(false);
+                await RescanDrivesNeedingScanAsync(session, request.Purpose, accumulator, null, cancellationToken).ConfigureAwait(false);
             }
             else if (prepared is not null)
             {
@@ -164,6 +164,7 @@ public partial class RepositoryDiscoveryCoordinator
         MftIndexSession session,
         DiscoveryPurpose purpose,
         DiscoveryAccumulator accumulator,
+        IProgress<WatchStartupProgress>? progress,
         CancellationToken cancellationToken)
     {
         foreach (var driveStatus in session.CaptureDriveStatuses())
@@ -172,6 +173,7 @@ public partial class RepositoryDiscoveryCoordinator
                 continue;
 
             cancellationToken.ThrowIfCancellationRequested();
+            progress?.Report(new WatchStartupProgress(WatchStartupPhase.Scanning, driveStatus.Drive));
             try
             {
                 await session.Index.RescanAsync(driveStatus.Drive[0], cancellationToken).ConfigureAwait(false);

@@ -47,11 +47,16 @@ internal sealed class MftBrokerConnection : IAsyncDisposable
         }
     }
 
+    public event Action? Connecting;
+    public event Action? Connected;
+
     async Task<JournalBrokerClient> ConnectCoreAsync(CancellationToken stoppingToken)
     {
         await Task.Yield();
         stoppingToken.ThrowIfCancellationRequested();
+        Connecting?.Invoke();
         var client = await _connectAsync(stoppingToken).ConfigureAwait(false);
+        Connected?.Invoke();
         bool abandoned;
         lock (_gate)
         {

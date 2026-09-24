@@ -26,7 +26,7 @@ public class MainViewModelLiveTests
         var dispatcher = new QueuedLiveUiDispatcher();
         var viewModel = new MainViewModel(dispatcher, new StubUserDialogs(), new StubClipboardService());
         viewModel.LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
-        viewModel.LivePrepareWatchAsync = (request, _, cancellationToken) =>
+        viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
         {
             var source = new DiagnosticVolumeChangeSource();
             sourceReady.TrySetResult(source);
@@ -471,7 +471,7 @@ public class MainViewModelLiveTests
     {
         var viewModel = NewViewModel();
         var source = new BlockingArmVolumeChangeSource();
-        viewModel.LivePrepareWatchAsync = (request, _, cancellationToken) =>
+        viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
         viewModel.LiveIsElevated = () => false;
 
@@ -497,7 +497,7 @@ public class MainViewModelLiveTests
     {
         var viewModel = NewViewModel();
         var source = new HangingKillableSource();
-        viewModel.LivePrepareWatchAsync = (request, _, cancellationToken) =>
+        viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
         viewModel.LiveIsElevated = () => false;
 
@@ -518,7 +518,7 @@ public class MainViewModelLiveTests
     public async Task ToggleLiveAsync_SourceFactoryThrowsInvalidOperationException_EndsNotLiveWithStatus()
     {
         var viewModel = NewViewModel();
-        viewModel.LivePrepareWatchAsync = (_, _, _) =>
+        viewModel.LivePrepareWatchAsync = (_, _, _, _) =>
             Task.FromException<WatchStartupResult>(new InvalidOperationException("declined UAC prompt"));
         viewModel.LiveIsElevated = () => false;
 
@@ -536,7 +536,7 @@ public class MainViewModelLiveTests
     {
         var viewModel = NewViewModel();
         var source = new HangingKillableSource();
-        viewModel.LivePrepareWatchAsync = (request, _, cancellationToken) =>
+        viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
         viewModel.LiveIsElevated = () => false;
 
@@ -560,7 +560,7 @@ public class MainViewModelLiveTests
 
         var viewModel = NewViewModel();
         viewModel.AddRepository(Repo(@"C:\tracked"));
-        viewModel.LivePrepareWatchAsync = (request, _, cancellationToken) =>
+        viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
         viewModel.LiveIsElevated = () => false;
 
@@ -594,7 +594,7 @@ public class MainViewModelLiveTests
         var errors = new Dictionary<string, string> { ["D"] = "drive not ready" };
         var source = new KillableSourceWithErrors(errors);
         var viewModel = NewViewModel();
-        viewModel.LivePrepareWatchAsync = (request, _, cancellationToken) =>
+        viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
         viewModel.LiveIsElevated = () => false;
 
@@ -621,7 +621,7 @@ public class MainViewModelLiveTests
 
             var source = new HangingKillableSource();
             var viewModel = NewViewModel();
-            viewModel.LivePrepareWatchAsync = (request, _, cancellationToken) =>
+            viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
                 FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
             viewModel.LiveIsElevated = () => false;
 
@@ -660,7 +660,7 @@ public class MainViewModelLiveTests
         });
         var viewModel = NewViewModel();
         viewModel.AddRepository(Repo(oldPath, remoteUrl));
-        viewModel.LivePrepareWatchAsync = (request, _, cancellationToken) =>
+        viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(new FakeVolumeChangeSource(new[] { batch }), request, cancellationToken);
         viewModel.LiveIsElevated = () => false;
 
@@ -720,7 +720,7 @@ public class MainViewModelLiveTests
     {
         var viewModel = NewViewModel();
         var source = new GatedProgressVolumeChangeSource();
-        viewModel.LivePrepareWatchAsync = (request, _, cancellationToken) =>
+        viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
         viewModel.LiveIsElevated = () => false;
 
@@ -764,7 +764,7 @@ public class MainViewModelLiveTests
     {
         var viewModel = NewViewModel();
         var source = new GatedProgressVolumeChangeSource(new InvalidOperationException("scan blew up"));
-        viewModel.LivePrepareWatchAsync = (request, _, cancellationToken) =>
+        viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
         viewModel.LiveIsElevated = () => false;
 
@@ -791,7 +791,7 @@ public class MainViewModelLiveTests
         var source = new HangingKillableSource();
         var viewModel = NewViewModel();
         viewModel.AddRepository(Repo("/stale"));
-        viewModel.LivePrepareWatchAsync = (request, _, cancellationToken) =>
+        viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken,
                 inventoryPaths: [repositoryPath]);
         viewModel.LiveIsElevated = () => false;
@@ -816,7 +816,7 @@ public class MainViewModelLiveTests
     {
         var viewModel = NewViewModel();
         viewModel.AddRepository(Repo("/keep-me"));
-        viewModel.LivePrepareWatchAsync = (request, _, _) =>
+        viewModel.LivePrepareWatchAsync = (request, _, _, _) =>
             Task.FromResult(FakeLiveStartup.Unusable(request, "X", "broker declined"));
         viewModel.LiveIsElevated = () => false;
 
@@ -832,6 +832,55 @@ public class MainViewModelLiveTests
             Assert.That(viewModel.Repositories.Select(node => node.WorkingDirectory),
                 Is.EqualTo(new[] { "/keep-me" }), "An unusable startup must not touch prior rows.");
         });
+    }
+
+    [Test]
+    public async Task ReadinessIsShownPerDriveThroughTheDispatcherWithoutChangingStarted()
+    {
+        var sourceReady = new TaskCompletionSource<ReadinessVolumeChangeSource>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var dispatcher = new QueuedLiveUiDispatcher();
+        var viewModel = new MainViewModel(dispatcher, new StubUserDialogs(), new StubClipboardService());
+        viewModel.LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
+        viewModel.LivePrepareWatchAsync = (request, _, progress, cancellationToken) =>
+        {
+            var source = new ReadinessVolumeChangeSource();
+            progress?.Report(new WatchStartupProgress(WatchStartupPhase.RequestingElevation));
+            sourceReady.TrySetResult(source);
+            return FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
+        };
+        viewModel.LiveIsElevated = () => false;
+        Task? running = null;
+        try
+        {
+            running = viewModel.ToggleLiveAsync();
+            var source = await sourceReady.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            dispatcher.TakeNext()();
+            Assert.That(viewModel.LiveScanProgressText, Is.EqualTo("Requesting elevation..."));
+            await source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+            dispatcher.Drain();
+            Assert.That(viewModel.IsLive, Is.True, "Started still drives IsLive.");
+            source.SetVolume(VolumeWatchStatus.CatchingUp("X", VolumeBlockOrigin.Cold));
+            Assert.That(viewModel.LiveVolumes, Is.Empty, "Readiness must be posted, not applied inline.");
+            dispatcher.Drain();
+            Assert.That(viewModel.LiveVolumes.Single().DisplayText, Is.EqualTo("X: catching up (cold)"));
+            Assert.That(viewModel.LiveReadinessText, Is.EqualTo("Catching up: X"));
+            source.SetVolume(VolumeWatchStatus.CaughtUp("X", VolumeBlockOrigin.Cold));
+            dispatcher.Drain();
+            Assert.That(viewModel.LiveVolumes.Single().DisplayText, Is.EqualTo("X: caught up (cold)"));
+            Assert.That(viewModel.LiveReadinessText, Is.EqualTo("Ready (journal): X"));
+            Assert.That(viewModel.HeaderText, Is.EqualTo("Live watch active"));
+            source.SetVolume(VolumeWatchStatus.Excluded("X", VolumeBlockOrigin.Cold, "watch died"));
+            dispatcher.Drain();
+            Assert.That(viewModel.LiveVolumes.Single().DisplayText, Is.EqualTo("X: excluded (cold): watch died"));
+            Assert.That(viewModel.LiveReadinessText, Is.EqualTo("Ready (journal): X"), "Readiness is once per run.");
+        }
+        finally
+        {
+            try { await viewModel.DisposeAsync(); } finally { if (running is not null) await running; }
+        }
+        dispatcher.Drain();
+        Assert.That(viewModel.LiveVolumes, Is.Empty, "Stopping clears per-drive state.");
+        Assert.That(viewModel.LiveReadinessText, Is.Empty);
     }
 
     #endregion

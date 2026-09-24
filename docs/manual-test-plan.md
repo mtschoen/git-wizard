@@ -3,9 +3,8 @@
 Attended verification steps that need a real Windows machine, a real elevation
 prompt, or a real desktop session, and so cannot run on CI. Run the CLI pass
 below first, before any GitWizardUI (desktop) testing - it exercises the same
-discovery and watch machinery with far less setup, and its known gaps
-(including the stale-cache startup regression) usually explain UI-level symptoms
-before they are chased there.
+discovery and watch machinery with far less setup, gates on the `ready:` marker,
+and its known gaps usually explain UI-level symptoms before they are chased there.
 
 ## CLI live smoke (run first)
 
@@ -63,8 +62,8 @@ repo-a at startup even though repo-a was created after the cache was last writte
 | # | Step | Expectation | Notes |
 |---|------|-------------|-------|
 | 0 | Preflight | Scratch root created; `repo-a` created with `git init` and one commit (using `-c user.name`/`-c user.email` so the run needs no global git identity), all **before** the watch starts. | |
-| 1 | Start `git-wizard --watch -v` | The session-started banner ("git-wizard Session Started") appears on stdout, and the elevated broker child appears: another `git-wizard.exe` process whose `ParentProcessId` is the client's PID. Its command line is hidden by elevation, which is why parent-PID matching (via `Win32_Process`/CIM) is used instead of matching on arguments. | One UAC prompt for the whole run. |
-| 2 | Edit `repo-a` (append to the tracked file) and commit | Expect `changed: ...\repo-a`. | Regression for [gw#219](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/219): repo-a postdates the cached list but exists before startup discovery. It must be tracked without a rename. Report missing events as a real FAIL. |
+| 1 | Start `git-wizard --watch -v` | The banner appears, then one ready: line (mode=journal) within -StartupTimeoutSeconds. The broker child is recorded as evidence only. | One UAC prompt; the script prints the last startup:/drive: line if the client exits or times out. |
+| 2 | Edit `repo-a` (append to the tracked file) and commit | Expect `changed: ...\repo-a`. | The 30-second window begins after ready:. On the machine that produced the original report the edit arrived late, not lost: the changed: line was stdout line 6, printed before step 3's created: line at line 8, because the previous step 1 gate (broker process existence) preceded catch-up. A miss is a delivery-latency finding first; treat it as a gw#219 discovery regression only when the line never appears in the whole log. |
 | 3 | Create `repo-b` during the watch, then edit it | Expect `created: ...\repo-b`, then `changed: ...\repo-b`. | Fixed by [gw#205](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/205). |
 | 4 | Rename the tracked `repo-b` to `repo-b2`, then edit it | Expect `deleted: ...\repo-b`, then `created: ...\repo-b2`, then `changed: ...\repo-b2`. | Depends on step 3 having made `repo-b` tracked first. Covered by [gw#206](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/206) and [gw#209](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/209). |
 | 5 | Delete `repo-b2` | Expect `deleted: ...\repo-b2`. | |
@@ -76,27 +75,48 @@ coalesce distinct filesystem events. Pass/fail for each step comes from
 polling the redirected stdout log for the expected line against a deadline,
 never from a fixed sleep.
 
+### Start-to-caught-up timing (record on every attended pass)
+
+Fill one row per run from the `-v` timestamps:
+- `start` is the banner line's stamp from `GitWizardLog` (`[yyyy-MM-dd|HH:mm:ss.ffff] - Info: Session Start Message`).
+- `ready` is the `ready:` line's stamp in ISO-8601 UTC format (`yyyy-MM-ddTHH:mm:ss.fffZ ready: ...`). Note that the session banner and `ready:` lines use different timestamp formats (GitWizardLog's bracketed UTC format vs. the watch line writer's standard ISO-8601 format), so calculating start-to-ready duration requires converting between the two rather than reading them as identically formatted strings.
+- `drives` are the `caught-up=` list.
+- `origin` per drive comes from the last `drive: <V> state=caught-up origin=<warm|cold>` line.
+UI rows come from the toolbar text and a wall clock. Automated gates do not substitute for these values.
+
+| Client | Start kind | Drives (origin) | Start stamp | Ready stamp | Start-to-ready | Notes |
+|---|---|---|---|---|---|---|
+| CLI | cold (index cache cleared with `--clear-index-cache`) | C, D, E, F, G (all cold) | `[2026-09-24\|06:45:39.1169]` | `2026-09-24T06:46:42.380Z` | 63.3 s (script: 64 s from process start) | chonkers, PR 264 head dea6a2b, 2026-09-23 23:45 PDT. Scanning C through G took 48 s (06:45:40 to 06:46:28), catch-up under 1 s, discovery plus reconciliation 13 s. Step 2 `changed:` arrived at 06:46:44.217Z, 1.8 s after the marker; all seven steps passed. The machine was not quiet: a pr-crew drain, a codex lane and dotnet build nodes were running, so treat these as loaded-machine numbers, not a baseline. Evidence: `~/git-wizard-cli-smoke/cold-20260923-234538`. |
+| CLI | warm (second run, cache retained) | C, D, E, F, G (all warm) | `[2026-09-24\|06:47:41.5953]` | `2026-09-24T06:48:12.015Z` | 30.4 s (script: 31 s from process start) | Same machine, run immediately after the cold pass. The UAC approval accounted for 11.8 s (requesting-elevation 06:47:45.0 to broker-connected 06:47:56.8), catch-up 0.4 s, discovery plus reconciliation 14.4 s. Step 2 `changed:` arrived at 06:48:12.163Z, 0.15 s after the marker; all seven steps passed. Evidence: `~/git-wizard-cli-smoke/warm-20260923-234741`. |
+| UI | cold | C, D, E, F, G (cache cleared with `--clear-index-cache` immediately before the Live press) | `2026-09-24T07:02:46.385Z` (Live pressed) | `2026-09-24T07:04:31.508Z` (toolbar read "Ready (journal): C, D, E, F, G") | 105.1 s | chonkers, PR 264 head 453197d, 2026-09-24 00:02 PDT, Release build of GitWizardUI. Live pressed and toolbar text read through UI Automation, stamps from the driver's wall clock polled every 250 ms. Toolbar phases: Requesting elevation 07:02:49, Broker connected 07:02:53, Scanning D through G 07:03:11 to 07:03:52, Catching up journal 07:03:52, Discovering 07:03:55, Reconciling 07:03:59. The startup refresh (2 m 44 s) finished before the press and is not counted. Machine under load, see the CLI rows. |
+| UI | warm | C, D, E, F, G (cache retained from the cold run) | `2026-09-24T07:06:43.499Z` (Live pressed) | `2026-09-24T07:07:19.929Z` (toolbar read "Ready (journal): C, D, E, F, G") | 36.4 s | Same machine and build, run immediately after the cold pass. Toolbar phases: Opening index 07:06:46, Requesting elevation 07:06:47, Broker connected 07:06:48, Discovering 07:06:50, Reconciling 07:06:53; no scanning phase and no catching-up text appeared, the warm blocks caught up within the poll interval. Reconciliation (27 s) dominated. A repeat warm pass a few minutes later, run to measure the toolbar layout fix, took 117.8 s with a 99 s reconciliation on the same loaded machine, so expect wide variance in this row until it is measured on a quiet box. That pass also confirmed through UI Automation that the readiness line and all five per-drive entries end inside the window (rightmost right edge 2121 px against a window right edge of 2245 px). |
+
+The attended pass must include a machine whose cold start exceeds 30 seconds and must show step 2
+passing after the marker on that machine. In automated CI or unattended harness environments (where
+interactive UAC approval, GUI wall-clock timing, and machines with >30s cold starts are not present),
+this table template is preserved for the operator's attended verification pass.
+
 ### Gotchas
 
 - **Output format:** `--watch` prints one line per event: `created: <path>`,
   `changed: <path>`, or `deleted: <path>` (see
   `git-wizard/Program.Watch.cs`'s `FormatChangeEvent`). The session-started
   banner is printed once at startup, before the broker is even launched.
-- **Broker discovery has no explicit marker.** The broker child is just
-  another `git-wizard.exe` process; the only reliable way to find it
-  non-elevated is `ParentProcessId` via `Get-CimInstance Win32_Process`, since
-  its elevated command line cannot be read from an unelevated session.
+- **Readiness has an explicit marker.** ready: (README grammar) is the gate;
+  ParentProcessId matching remains a diagnostic for locating the broker child.
 - **Noisy stream from other accounts.** On a shared or CI-active machine,
   other users' repositories (notably an `act_runner` checkout's `.cache`
   during Gitea Actions runs) will flow through the same watch stream. Filter
   to the scratch root rather than editing `~/.GitWizard/config.json`'s
   `ignoredPaths` - that keeps the real configuration untouched and avoids a
   cleanup step.
-- **Step 2 is the regression check for gw#219 and must pass.** The watch
-  rediscovers repositories on every startup, so a repository created after
-  the last cache refresh is tracked before the watch is armed. A failure at
-  step 2 is a real regression, not flakiness: capture the watch output and
-  reopen the issue.
+- **Step 2 is the regression check for gw#219 and must pass.** The 30-second
+  window begins after ready:. On the machine that produced the original report
+  the edit arrived late, not lost: the changed: line was stdout line 6, printed
+  before step 3's created: line at line 8, because the previous step 1 gate
+  (broker process existence) preceded catch-up. A miss is a delivery-latency
+  finding first; treat it as a gw#219 discovery regression only when the line
+  never appears in the whole log.
 - **One broker per machine, effectively.** Running the CLI watch and
   GitWizardUI's Live mode at the same time is out of scope for this smoke
   test; close GitWizardUI first.

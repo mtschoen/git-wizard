@@ -11,18 +11,45 @@ namespace GitWizard.Watch.Linux;
 /// instances, and resolves file paths via directory file handles and <c>/proc/self/fd/</c>.
 /// </summary>
 [SupportedOSPlatform("linux")]
-public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource
+public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IVolumeReadiness, IPumpLifecycle
 {
     readonly IFanotifyNative _native;
     readonly object _handleCacheLock = new();
     readonly Dictionary<FileHandleKey, string> _handleCache = [];
+    readonly Lock _readinessGate = new();
+    VolumeReadinessSnapshot _readiness = VolumeReadinessSnapshot.Empty;
 
     SafeUnixFileDescriptor? _descriptor;
     List<string> _watchedVolumes = [];
     CancellationTokenSource? _activePumpCts;
     Task? _activePumpTask;
+    TaskCompletionSource _pumpStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public event Action<string>? SourceDied;
+    public event Action<VolumeReadinessSnapshot>? ReadinessChanged;
+
+    public WatchReadinessMode Mode => WatchReadinessMode.FilesystemMarks;
+    public VolumeReadinessSnapshot Readiness { get { lock (_readinessGate) return _readiness; } }
+
+    /// <summary>Completes once <see cref="PumpEventsAsync"/> has actually begun executing on its pool thread.</summary>
+    public Task PumpStarted => Volatile.Read(ref _pumpStarted).Task;
+
+    void PublishVolumeState(VolumeWatchStatus status)
+    {
+        lock (_readinessGate)
+        {
+            var snapshot = _readiness = _readiness.With(status);
+            try { ReadinessChanged?.Invoke(snapshot); }
+            catch (Exception exception) { GitWizardLog.LogException(exception, "A Live readiness subscriber failed."); }
+        }
+    }
+
+    void ReportSourceDeath(string reason)
+    {
+        foreach (var volume in _watchedVolumes)
+            PublishVolumeState(VolumeWatchStatus.Excluded(volume, VolumeBlockOrigin.Unknown, reason));
+        SourceDied?.Invoke(reason);
+    }
 
     public FanotifyVolumeChangeSource()
         : this(FanotifyNative.Instance)
@@ -39,6 +66,9 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource
 
         await StopActivePumpAsync().ConfigureAwait(false);
 
+        lock (_readinessGate)
+            _readiness = VolumeReadinessSnapshot.Empty;
+
         var errors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (volumes.Count == 0)
             return new VolumeArmResult(errors, Array.Empty<JournalWarning>());
@@ -51,7 +81,10 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource
         {
             var message = $"fanotify_init failed (errno {initializeResult.ErrorNumber}).";
             foreach (var volume in volumes)
+            {
                 errors[volume] = message;
+                PublishVolumeState(VolumeWatchStatus.Excluded(volume, VolumeBlockOrigin.Unknown, message));
+            }
 
             return new VolumeArmResult(errors, Array.Empty<JournalWarning>());
         }
@@ -67,9 +100,15 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource
         foreach (var volume in volumes)
         {
             if (string.IsNullOrWhiteSpace(volume))
+            {
                 errors[volume] = "Volume path cannot be null or whitespace.";
+                PublishVolumeState(VolumeWatchStatus.Excluded(volume, VolumeBlockOrigin.Unknown, errors[volume]));
+            }
             else if (!Directory.Exists(volume))
+            {
                 errors[volume] = $"Directory does not exist: {volume}";
+                PublishVolumeState(VolumeWatchStatus.Excluded(volume, VolumeBlockOrigin.Unknown, errors[volume]));
+            }
             else
             {
                 var markResult = _native.Mark(
@@ -80,9 +119,15 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource
                     volume);
 
                 if (markResult.Value < 0)
+                {
                     errors[volume] = $"fanotify_mark failed on {volume} (errno {markResult.ErrorNumber}).";
+                    PublishVolumeState(VolumeWatchStatus.Excluded(volume, VolumeBlockOrigin.Unknown, errors[volume]));
+                }
                 else
+                {
                     watched.Add(volume);
+                    PublishVolumeState(VolumeWatchStatus.CaughtUp(volume, VolumeBlockOrigin.Unknown));
+                }
             }
         }
 
@@ -98,10 +143,13 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource
         if (_watchedVolumes.Count == 0)
             yield break;
 
+        var pumpStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Volatile.Write(ref _pumpStarted, pumpStarted);
+
         var channel = Channel.CreateUnbounded<VolumeChangeBatch>();
         var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var pumpCancellationToken = linkedCts.Token;
-        var pumpTask = Task.Run(() => PumpEventsAsync(channel.Writer, pumpCancellationToken), CancellationToken.None);
+        var pumpTask = Task.Run(() => PumpEventsAsync(channel.Writer, pumpStarted, pumpCancellationToken), CancellationToken.None);
 
         _activePumpCts = linkedCts;
         _activePumpTask = pumpTask;
@@ -182,14 +230,20 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource
         }
     }
 
-    async Task PumpEventsAsync(ChannelWriter<VolumeChangeBatch> writer, CancellationToken cancellationToken)
+    async Task PumpEventsAsync(ChannelWriter<VolumeChangeBatch> writer, TaskCompletionSource pumpStarted, CancellationToken cancellationToken)
     {
         var descriptor = _descriptor;
         if (descriptor is null || descriptor.IsInvalid || descriptor.IsClosed)
         {
+            // The pump never actually began reading; leave pumpStarted incomplete so a consumer
+            // racing on it never mistakes a dead descriptor for an active pump.
             writer.TryComplete();
             return;
         }
+
+        // The pump is now running on its own pool thread and about to read - this is the
+        // earliest point that is both true and observable by a consumer waiting on PumpStarted.
+        pumpStarted.TrySetResult();
 
         try
         {
@@ -203,7 +257,7 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource
                 if (pollResult < 0)
                 {
                     if (!cancellationToken.IsCancellationRequested)
-                        SourceDied?.Invoke("fanotify poll failed.");
+                        ReportSourceDeath("fanotify poll failed.");
                     break;
                 }
 
@@ -217,7 +271,7 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource
                 if (bytesRead <= 0)
                 {
                     if (!cancellationToken.IsCancellationRequested)
-                        SourceDied?.Invoke("fanotify read returned no bytes.");
+                        ReportSourceDeath("fanotify read returned no bytes.");
                     break;
                 }
 
@@ -231,7 +285,7 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource
                 if (queueOverflow)
                 {
                     if (!cancellationToken.IsCancellationRequested)
-                        SourceDied?.Invoke("fanotify event queue overflowed.");
+                        ReportSourceDeath("fanotify event queue overflowed.");
                     break;
                 }
             }
@@ -242,7 +296,7 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
-            SourceDied?.Invoke($"fanotify pump faulted: {exception.Message}");
+            ReportSourceDeath($"fanotify pump faulted: {exception.Message}");
         }
         finally
         {

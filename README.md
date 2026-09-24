@@ -177,6 +177,25 @@ launch an additional MFT broker or elevation prompt. An empty discovery clears t
 repository-list cache and the CLI reports that there is nothing to watch; an unusable
 discovery preserves the previous list and exits nonzero.
 
+`--watch` prints one `ready:` line when the run is ready and never a second one for the same run:
+
+```
+ready: mode=<journal|marks|pump> caught-up=<V[,V...]|-> excluded=<V=<json-string>[,V=<json-string>...]|->
+```
+
+`mode=journal` (Windows) means every requested NTFS drive either applied the USN journal backlog
+present when its watch armed or is listed under `excluded=` with a reason, and at least one drive
+caught up. `mode=marks` (Linux) means the fanotify marks are installed, startup discovery finished
+and the event pump is active; fanotify has no historical backlog, so no catch-up fence is claimed.
+Reasons are JSON string literals (quotes appear as `\u0022`). `V` is a drive letter on Windows and a
+root path on Linux. Total failure, an empty usable drive set, cancellation and source death print no
+`ready:` line. With `-v`, every watch line is prefixed with an ISO-8601 UTC timestamp
+(`2026-09-23T12:00:00.000Z changed: C:\repo`), and the stream also carries
+`startup: <opening|requesting-elevation|broker-connected|scanning <V>|catching-up|discovering|reconciling>`
+and `drive: <V> state=<catching-up|caught-up|excluded> origin=<warm|cold|unknown> [reason=<json-string>]`
+lines. Without `-v`, `changed:`, `created:` and `deleted:` payloads are unchanged. The broker child
+process is diagnostic information only; `ready:` is the readiness evidence.
+
 On Windows, discovery and the transfer into Live share one UAC prompt when the prepared index
 is reusable. A watch failure on one drive is reported while healthy drives stay live. A repository created under a configured search path while Live runs is discovered and tracked from that point on; Live does not need a restart for it. If a drive's cached index checkpoint fell out of the USN journal, Live shows a hint for that drive: a journal of at least the named size would have avoided this rescan, alongside the current maximum size. The named size is a lower bound, rounded up to the journal's allocation unit plus one more unit of margin. When that size is too large to represent, the hint reports the rescan without naming a size. When the journal was recreated (different journal id), the hint says so and offers no size. The same hint also appears the moment a running watch dies because the journal moved past the position the watch had reached: live updates for that drive stop, its index keeps answering queries, and the hint says a rescan of the drive is needed to catch up. A hint from a faulted watch replaces the drive's earlier one, while a watch that fails for any other reason leaves it as it was. If Live ends because no drives remain watchable, the hints stay on screen. CLI `--watch` prints each drive's hint at startup and again when it changes. Nothing is resized automatically.
 
@@ -188,8 +207,11 @@ Windows may round the requested size upward. **Do not warn again** saves the vol
 its drive letter. Re-arming refreshes each drive's hint. Stopping Live releases its resources;
 restarting can require a new scan and elevation prompt. Linux fanotify monitoring is unchanged.
 
-The green Live state means "the pump started", never "catch-up has drained". Changes can still
-be catching up after Live appears active; see [MFTLib#139](https://gitea.fleet.sticktoitive.net/schoen/MFTLib/issues/139).
+The green Live state still means "the pump started". Readiness is shown separately: while Live
+starts, the toolbar reports the phase (requesting elevation, broker connected, scanning, catching
+up, discovering) and each drive's `catching up` / `caught up` / `excluded` state with its
+`warm` (cache-adopted) or `cold` (scanned this run) origin, then `Ready (journal): C, D` once per
+run. A drive whose watch failed stays excluded even though its index remains queryable.
 
 ### Machine-readable safety sweep
 

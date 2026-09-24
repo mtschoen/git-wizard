@@ -30,6 +30,7 @@ public sealed partial class RepositoryWatchService
         }
         finally
         {
+            MarkTerminal();
             writer.TryComplete();
         }
     }
@@ -40,6 +41,29 @@ public sealed partial class RepositoryWatchService
         PendingChanges pending, ChannelWriter<RepositoryChangeEvent> writer, CancellationToken ct)
     {
         var nextBatch = enumerator.MoveNextAsync().AsTask();
+        // Captured separately from nextBatch, which the loop below reassigns on every
+        // iteration: the ContinueWith callback can run well after that reassignment, and must
+        // still judge readiness against this run's FIRST read, not whatever nextBatch currently
+        // points to.
+        var firstBatch = nextBatch;
+        // Ready must not be published before the source's read pump is confirmed active, and
+        // never when the very first read already ended the stream - that is source death, not
+        // readiness. Calling MoveNextAsync only starts the underlying pump; for a Task.Run-based
+        // pump (FanotifyVolumeChangeSource's PumpEventsAsync on Linux) that call merely queues the
+        // work, so an immediate faulted/cancelled check on firstBatch cannot tell a queued-but-
+        // not-yet-running pump from an active one. A source that implements IPumpLifecycle reports
+        // exactly when its pump began: already complete for a source that started and awaited its
+        // pump earlier, during arming (the index-backed source), or completing later, from the
+        // pump's own thread, once it has actually begun reading (the fanotify source). A source
+        // without that signal has no better proxy than its own first read having begun, so the
+        // same completed-false guard is applied to it immediately instead.
+        if (_source is IPumpLifecycle pumpLifecycle)
+            _ = pumpLifecycle.PumpStarted.ContinueWith(
+                _ => TryMarkStartupDelivered(firstBatch, ct),
+                CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        else
+            TryMarkStartupDelivered(firstBatch, ct);
+
         var idle = Task.Delay(Timeout.InfiniteTimeSpan, ct);
         var flushScheduled = false;
 
@@ -80,6 +104,19 @@ public sealed partial class RepositoryWatchService
         }
 
         await FlushAsync(pending, filtersByVolume, writer, ct).ConfigureAwait(false);
+    }
+
+    // Publishes the startup fence only when the pump is confirmed active (or, for a source with
+    // no such signal, on its first enumeration) and the first read has not already ended the
+    // stream. That last check covers a MoveNextAsync that completed successfully with false
+    // before or concurrently with the pump-started signal - source death, never readiness.
+    void TryMarkStartupDelivered(Task<bool> nextBatch, CancellationToken ct)
+    {
+        if (ct.IsCancellationRequested || nextBatch.IsFaulted || nextBatch.IsCanceled)
+            return;
+        if (nextBatch.IsCompletedSuccessfully && !nextBatch.Result)
+            return;
+        MarkStartupDelivered();
     }
 
     static async Task ObserveCancellationAsync(Task task)

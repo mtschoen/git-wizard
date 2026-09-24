@@ -7,9 +7,16 @@ public partial class RepositoryDiscoveryCoordinator
     // Takes ownership of a non-null prepared owner on every platform: callers hand it over
     // without knowing which platform branch runs, so only the Windows index path may adopt it
     // and every other branch disposes it.
+    public Task<WatchStartupResult> PrepareWatchAsync(
+        DiscoveryRequest request,
+        MftIndexSession? prepared,
+        CancellationToken cancellationToken) =>
+        PrepareWatchAsync(request, prepared, null, cancellationToken);
+
     public async Task<WatchStartupResult> PrepareWatchAsync(
         DiscoveryRequest request,
         MftIndexSession? prepared,
+        IProgress<WatchStartupProgress>? progress,
         CancellationToken cancellationToken)
     {
         var dependencies = Dependencies;
@@ -20,10 +27,10 @@ public partial class RepositoryDiscoveryCoordinator
         var scope = DiscoveryScope.Create(request, dependencies.ClassifyRoot);
 
         if (dependencies.IsWindows)
-            return await PrepareWindowsWatchAsync(request, scope, prepared, cancellationToken).ConfigureAwait(false);
+            return await PrepareWindowsWatchAsync(request, scope, prepared, progress, cancellationToken).ConfigureAwait(false);
 
         if (dependencies.IsLinux)
-            return await PrepareLinuxWatchAsync(request, scope, cancellationToken).ConfigureAwait(false);
+            return await PrepareLinuxWatchAsync(request, scope, progress, cancellationToken).ConfigureAwait(false);
 
         throw new PlatformNotSupportedException("Watch mode currently requires Windows or Linux.");
     }
@@ -32,37 +39,22 @@ public partial class RepositoryDiscoveryCoordinator
         DiscoveryRequest request,
         DiscoveryScope scope,
         MftIndexSession? prepared,
+        IProgress<WatchStartupProgress>? progress,
         CancellationToken cancellationToken)
     {
         var dependencies = Dependencies;
         var previousList = await dependencies.ReadListAsync(cancellationToken).ConfigureAwait(false) ?? [];
         var accumulator = new DiscoveryAccumulator(scope, new HashSet<string>(WatchPath.StringComparer));
-        IndexVolumeChangeSource? source = null;
-        var armResult = new VolumeArmResult(accumulator.Errors, []);
+        var (source, armResult) = await ArmWindowsWatchSourceAsync(scope, prepared, accumulator, progress, cancellationToken).ConfigureAwait(false);
 
         try
         {
-            if (scope.RequestedNtfsDrives.Count > 0)
-            {
-                source = await OpenPreparedWatchSourceAsync(scope, prepared, accumulator, cancellationToken).ConfigureAwait(false);
-                if (source is not null)
-                {
-                    source.StartStartupBuffering();
-                    armResult = await source.ArmAndCatchUpAsync(scope.RequestedNtfsDrives, cancellationToken).ConfigureAwait(false);
-                    foreach (var (drive, message) in armResult.Errors)
-                        accumulator.Errors[drive] = message;
-                }
-            }
-            else if (prepared is not null)
-            {
-                await prepared.DisposeAsync().ConfigureAwait(false);
-            }
-
             cancellationToken.ThrowIfCancellationRequested();
 
             if (source?.Session is { } session)
                 accumulator.RecordDriveStatuses(session.CaptureDriveStatuses());
 
+            progress?.Report(new WatchStartupProgress(WatchStartupPhase.Discovering));
             if (source?.Index is { } index && !request.NoMft)
                 AddIndexedCandidates(index, accumulator, cancellationToken);
 
@@ -70,7 +62,10 @@ public partial class RepositoryDiscoveryCoordinator
 
             IReadOnlyList<VolumeChangeBatch> startupBatches = [];
             if (source is not null)
+            {
+                progress?.Report(new WatchStartupProgress(WatchStartupPhase.Reconciling));
                 startupBatches = ReconcileBufferedBatches(source, accumulator, cancellationToken);
+            }
 
             accumulator.AddIndexedObservations(scope.SearchRoots, false, DiscoverySource.Replay, null);
             accumulator.AddIndexedObservations(scope.RetainedRoots, true, DiscoverySource.Replay, null);
@@ -98,10 +93,55 @@ public partial class RepositoryDiscoveryCoordinator
         }
     }
 
-    async Task<IndexVolumeChangeSource?> OpenPreparedWatchSourceAsync(
+    async Task<(IndexVolumeChangeSource? Source, VolumeArmResult ArmResult)> ArmWindowsWatchSourceAsync(
         DiscoveryScope scope,
         MftIndexSession? prepared,
         DiscoveryAccumulator accumulator,
+        IProgress<WatchStartupProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        if (scope.RequestedNtfsDrives.Count == 0)
+        {
+            if (prepared is not null)
+                await prepared.DisposeAsync().ConfigureAwait(false);
+            return (null, new VolumeArmResult(accumulator.Errors, []));
+        }
+
+        progress?.Report(new WatchStartupProgress(WatchStartupPhase.Opening));
+        var (source, detachBroker) = await OpenPreparedWatchSourceAsync(scope, prepared, accumulator, progress, cancellationToken).ConfigureAwait(false);
+        var armResult = new VolumeArmResult(accumulator.Errors, []);
+        if (source is null)
+            return (null, armResult);
+
+        void ForwardReadiness(VolumeReadinessSnapshot snapshot) =>
+            progress?.Report(new WatchStartupProgress(WatchStartupPhase.CatchingUp, null, snapshot));
+        source.ReadinessChanged += ForwardReadiness;
+        try
+        {
+            progress?.Report(new WatchStartupProgress(WatchStartupPhase.CatchingUp));
+            source.StartStartupBuffering();
+            armResult = await source.ArmAndCatchUpAsync(scope.RequestedNtfsDrives, cancellationToken).ConfigureAwait(false);
+            foreach (var (drive, message) in armResult.Errors)
+                accumulator.Errors[drive] = message;
+            return (source, armResult);
+        }
+        catch
+        {
+            await source.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
+        finally
+        {
+            source.ReadinessChanged -= ForwardReadiness;
+            detachBroker?.Invoke();
+        }
+    }
+
+    async Task<(IndexVolumeChangeSource? Source, Action? DetachBroker)> OpenPreparedWatchSourceAsync(
+        DiscoveryScope scope,
+        MftIndexSession? prepared,
+        DiscoveryAccumulator accumulator,
+        IProgress<WatchStartupProgress>? progress,
         CancellationToken cancellationToken)
     {
         var session = await ReusePreparedSessionAsync(scope, prepared).ConfigureAwait(false);
@@ -117,17 +157,40 @@ public partial class RepositoryDiscoveryCoordinator
             {
                 foreach (var drive in scope.RequestedNtfsDrives)
                     accumulator.Errors[drive] = exception.Message;
-                return null;
+                return (null, null);
             }
         }
 
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await RescanDrivesNeedingScanAsync(session, DiscoveryPurpose.Watch, accumulator, cancellationToken).ConfigureAwait(false);
-            var source = IndexVolumeChangeSource.CreatePrepared(session);
-            session = null;
-            return source;
+            void OnConnecting() => progress?.Report(new WatchStartupProgress(WatchStartupPhase.RequestingElevation));
+            void OnConnected() => progress?.Report(new WatchStartupProgress(WatchStartupPhase.BrokerConnected));
+            var connection = session.BrokerConnection;
+            Action? detach = null;
+            if (connection is not null)
+            {
+                connection.Connecting += OnConnecting;
+                connection.Connected += OnConnected;
+                detach = () =>
+                {
+                    connection.Connecting -= OnConnecting;
+                    connection.Connected -= OnConnected;
+                };
+            }
+            try
+            {
+                await RescanDrivesNeedingScanAsync(session, DiscoveryPurpose.Watch, accumulator, progress, cancellationToken).ConfigureAwait(false);
+                var source = IndexVolumeChangeSource.CreatePrepared(session);
+                session = null;
+                var sourceDetach = detach;
+                detach = null;
+                return (source, sourceDetach);
+            }
+            finally
+            {
+                detach?.Invoke();
+            }
         }
         finally
         {

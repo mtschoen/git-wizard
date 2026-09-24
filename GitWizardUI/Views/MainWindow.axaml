@@ -80,7 +80,8 @@
     </ScrollViewer>
 
     <Grid Grid.Row="1" Grid.Column="1" RowDefinitions="Auto,Auto,Auto,*,Auto">
-      <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="5" Margin="0,5">
+      <StackPanel Grid.Row="0" Margin="0,5" Spacing="2">
+       <StackPanel Orientation="Horizontal" Spacing="5">
         <Button x:Name="RefreshButton" Content="Refresh" Click="RefreshButton_Click" ToolTip.Tip="Click to refresh known repositories. Shift+click to clear the cache and rediscover all repositories." />
         <Button x:Name="FetchAndRefreshButton" Content="Fetch &amp; Refresh" Click="FetchAndRefreshButton_Click" ToolTip.Tip="Fetch all remotes before refreshing status (slower but accurate)" />
         <Button x:Name="LiveButton" Content="{Binding LiveButtonText}" Click="LiveButton_Click"
@@ -96,6 +97,26 @@
           <TextBlock x:Name="LiveScanProgressText" Text="{Binding LiveScanProgressText}"
                      VerticalAlignment="Center" FontSize="12" Foreground="Gray" />
         </StackPanel>
+       </StackPanel>
+       <!-- Readiness lives on its own line: a horizontal StackPanel measures its children with
+            infinite width, so five per-drive entries ran past the window edge (found on the
+            attended pass for git-wizard issue 251). The star column gives the drive list a finite
+            width, which is what its WrapPanel needs to wrap at. -->
+       <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding IsLive}">
+        <TextBlock x:Name="LiveReadinessText" Grid.Column="0" Text="{Binding LiveReadinessText}" VerticalAlignment="Center"
+                   FontSize="12" Foreground="Gray" Margin="0,0,8,0" />
+        <ItemsControl x:Name="LiveVolumeList" Grid.Column="1" ItemsSource="{Binding LiveVolumes}" VerticalAlignment="Center"
+                      HorizontalAlignment="Stretch">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:LiveVolumeStatusViewModel">
+              <TextBlock Text="{Binding DisplayText}" FontSize="12" Foreground="Gray" Margin="0,0,8,0" ToolTip.Tip="{Binding Reason}" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+       </Grid>
       </StackPanel>
 
       <StackPanel Grid.Row="1" Margin="10,0,0,0">

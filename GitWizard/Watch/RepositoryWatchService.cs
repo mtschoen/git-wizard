@@ -72,6 +72,8 @@ public sealed partial class RepositoryWatchService
             _scanErrors = FrozenDictionary<string, string>.Empty;
             _scanWarnings = FrozenSet<JournalWarning>.Empty;
         }
+        var readinessSource = _source as IVolumeReadiness;
+        ResetReadiness(readinessSource?.Mode ?? WatchReadinessMode.PumpActive);
         var diagnostics = _source as IVolumeChangeDiagnostics;
         if (diagnostics is not null)
         {
@@ -80,6 +82,13 @@ public sealed partial class RepositoryWatchService
         }
         var scanProgress = _source as IVolumeScanProgress;
         if (scanProgress is not null) scanProgress.ScanProgress += OnScanProgress;
+        if (readinessSource is not null)
+        {
+            // Subscribe before anything starts, then fold in the state that already exists: in the
+            // coordinator path the arm (and its catch-up) finished before this run began.
+            readinessSource.ReadinessChanged += OnVolumeReadinessChanged;
+            OnVolumeReadinessChanged(readinessSource.Readiness);
+        }
         try
         {
             await foreach (var changeEvent in RunCoreAsync(ct).ConfigureAwait(false))
@@ -87,6 +96,9 @@ public sealed partial class RepositoryWatchService
         }
         finally
         {
+            MarkTerminal();
+            if (readinessSource is not null)
+                readinessSource.ReadinessChanged -= OnVolumeReadinessChanged;
             if (diagnostics is not null)
             {
                 diagnostics.DriveFailed -= OnDriveFailed;
@@ -99,9 +111,13 @@ public sealed partial class RepositoryWatchService
     async IAsyncEnumerable<RepositoryChangeEvent> RunCoreAsync(
         [EnumeratorCancellation] CancellationToken ct)
     {
+        // Synchronous with the cancel: a pump sitting between its startup flush and its
+        // MarkStartupDelivered cannot publish Ready once the consumer has given up.
+        using var terminalOnCancel = ct.Register(MarkTerminal);
         var channel = Channel.CreateUnbounded<RepositoryChangeEvent>();
         using var deathSignal = new SourceDeathSignal(_source, reason =>
         {
+            MarkTerminal();
             Stopped?.Invoke(reason);
             channel.Writer.TryComplete();
         }, ct);
@@ -129,6 +145,7 @@ public sealed partial class RepositoryWatchService
         }
         finally
         {
+            MarkTerminal();
             // An early consumer exit must stop the pending source read before awaiting the pump.
             await deathSignal.CancelAsync().ConfigureAwait(false);
             await pumpTask.ConfigureAwait(false);
@@ -227,6 +244,10 @@ public sealed partial class RepositoryWatchService
             var armResult = await _source.ArmAndCatchUpAsync(volumes, ct).ConfigureAwait(false);
             SetArmResult(armResult);
         }
+
+        FrozenDictionary<string, string> armErrors;
+        lock (_errorsLock) armErrors = _scanErrors;
+        SetPumpVolumes(volumes.Where(volume => !armErrors.ContainsKey(volume)).ToArray());
 
         return volumes.ToDictionary(
             volume => volume,

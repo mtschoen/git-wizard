@@ -168,6 +168,41 @@ public class FanotifyVolumeChangeSourceTests
             batches.Add(batch);
 
         Assert.That(batches, Is.Empty);
+        Assert.That(source.PumpStarted.IsCompleted, Is.False,
+            "No usable volumes means PumpEventsAsync never ran; a consumer waiting on PumpStarted must not be told it did.");
+    }
+
+    [Test]
+    public async Task WatchAsync_SignalsPumpStartedOnceTheReadLoopIsActuallyRunning()
+    {
+        var native = new FakeFanotifyVolumeNative
+        {
+            InitializeResult = new FanotifyNativeCallResult(9, 0)
+        };
+        var source = new FanotifyVolumeChangeSource(native);
+        await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+
+        Assert.That(source.PumpStarted.IsCompleted, Is.False,
+            "Arming alone must not signal the pump; WatchAsync has not been called yet.");
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await using var enumerator = source.WatchAsync(cts.Token).GetAsyncEnumerator(cts.Token);
+        var moveNext = enumerator.MoveNextAsync().AsTask();
+
+        // MoveNextAsync only queues PumpEventsAsync onto a pool thread (Task.Run); that queueing
+        // alone is not the same as the pump having actually begun reading. PumpStarted must still
+        // complete promptly once the queued work actually runs, with no batch required to prove it.
+        await source.PumpStarted.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await cts.CancelAsync();
+        try
+        {
+            await moveNext;
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected: cancellation unwinds the still-pending read.
+        }
     }
 
     [Test]
@@ -946,6 +981,43 @@ public class FanotifyVolumeChangeSourceTests
         {
             if (Directory.Exists(tempDir))
                 Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Test]
+    public async Task ArmPublishesMarkReadinessPerRoot()
+    {
+        var native = new FakeFanotifyVolumeNative
+        {
+            InitializeResult = new FanotifyNativeCallResult(5, 0)
+        };
+        native.MarkResults.Enqueue(new FanotifyNativeCallResult(0, 0));
+        native.MarkResults.Enqueue(new FanotifyNativeCallResult(-1, 13));
+        var tempRoot = Path.Combine(Path.GetTempPath(), "gw-fanotify-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempRoot);
+        var okPath = Path.Combine(tempRoot, "ok");
+        Directory.CreateDirectory(okPath);
+        var brokenPath = Path.Combine(tempRoot, "broken");
+        Directory.CreateDirectory(brokenPath);
+        try
+        {
+            var source = new FanotifyVolumeChangeSource(native);
+            var snapshots = new List<VolumeReadinessSnapshot>();
+            source.ReadinessChanged += snapshots.Add;
+            Assert.That(source.Mode, Is.EqualTo(WatchReadinessMode.FilesystemMarks));
+
+            var result = await source.ArmAndCatchUpAsync(new[] { okPath, brokenPath }, CancellationToken.None);
+            Assert.That(source.Readiness.IsSettled, Is.True);
+            Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo(new[] { okPath }));
+            var excluded = source.Readiness.ExcludedVolumes.Single();
+            Assert.That(excluded.Volume, Is.EqualTo(brokenPath));
+            Assert.That(excluded.ExclusionReason, Is.EqualTo(result.Errors[brokenPath]));
+            Assert.That(snapshots, Has.Count.EqualTo(2));
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+                Directory.Delete(tempRoot, true);
         }
     }
 

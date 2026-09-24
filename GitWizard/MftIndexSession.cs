@@ -183,6 +183,11 @@ public sealed partial class MftIndexSession : IAsyncDisposable
     }
 
     internal JournalBrokerClient? GetBrokerClient() => _brokerConnection?.Client;
+    internal MftBrokerConnection? BrokerConnection
+    {
+        get => _brokerConnection;
+        set => _brokerConnection = value;
+    }
 
     Task DisposeCoreAsync()
     {

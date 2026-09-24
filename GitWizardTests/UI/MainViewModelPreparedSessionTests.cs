@@ -134,7 +134,7 @@ public class MainViewModelPreparedSessionTests
         await using var viewModel = NewViewModel();
         await viewModel.SetPreparedDiscoveryIndexAsync(fixture.Owner);
         var opens = 0;
-        viewModel.LivePrepareWatchAsync = async (request, prepared, cancellationToken) =>
+        viewModel.LivePrepareWatchAsync = async (request, prepared, _, cancellationToken) =>
         {
             var source = new IndexVolumeChangeSource((_, _, _) =>
             {
@@ -178,7 +178,7 @@ public class MainViewModelPreparedSessionTests
     }
 
     static Task<WatchStartupResult> FailIfPrepareWatchIsRequested(
-        DiscoveryRequest request, MftIndexSession? prepared, CancellationToken cancellationToken) =>
+        DiscoveryRequest request, MftIndexSession? prepared, IProgress<WatchStartupProgress>? progress, CancellationToken cancellationToken) =>
         throw new InvalidOperationException("The test prepare seam must not be used after teardown.");
 
     static async Task WaitUntilAsync(Func<bool> condition)

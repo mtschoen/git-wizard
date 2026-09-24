@@ -58,6 +58,7 @@ param(
     [string]$CliPath,
     [string]$ScratchDrive = "C",
     [int]$UacTimeoutSeconds = 300,
+    [int]$StartupTimeoutSeconds = 600,
     [string]$EvidenceDirectory,
     [switch]$DryRun
 )
@@ -69,6 +70,7 @@ $script:GitIdentityArguments = @(
     "-c", "user.email=git-wizard-cli-smoke@example.invalid"
 )
 $script:StepResults = @()
+$script:Stamp = '^(?:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z )?'
 
 function New-SmokeRepository {
     param([Parameter(Mandatory)][string]$RepositoryPath)
@@ -103,7 +105,7 @@ function Update-SmokeRepository {
 function Wait-ForBrokerProcess {
     param(
         [Parameter(Mandatory)][int]$ClientProcessId,
-        [Parameter(Mandatory)][int]$TimeoutSeconds
+        [int]$TimeoutSeconds = 0
     )
 
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
@@ -112,10 +114,24 @@ function Wait-ForBrokerProcess {
             -Filter "Name='git-wizard.exe' AND ParentProcessId=$ClientProcessId" `
             -ErrorAction SilentlyContinue
         if ($broker) { return $broker }
-        Start-Sleep -Milliseconds 500
+        if ($TimeoutSeconds -gt 0) { Start-Sleep -Milliseconds 500 }
     } while ((Get-Date) -lt $deadline)
 
     return $null
+}
+
+function Get-LastStartupLine {
+    param([Parameter(Mandatory)][string]$LogPath)
+
+    if (Test-Path -LiteralPath $LogPath) {
+        $lines = @(Get-Content -LiteralPath $LogPath -ErrorAction SilentlyContinue)
+        for ($i = $lines.Count - 1; $i -ge 0; $i--) {
+            if ($lines[$i] -match "${script:Stamp}(startup|drive): ") {
+                return $lines[$i]
+            }
+        }
+    }
+    return "<none>"
 }
 
 # Polls LogPath for a line matching Pattern, starting at line index StartLine (0-based) so
@@ -129,7 +145,8 @@ function Wait-ForLogPattern {
         [Parameter(Mandatory)][string]$Pattern,
         [Parameter(Mandatory)][int]$TimeoutSeconds,
         [int]$StartLine = 0,
-        [string]$PathFilter
+        [string]$PathFilter,
+        [int]$ClientProcessId = 0
     )
 
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
@@ -138,10 +155,24 @@ function Wait-ForLogPattern {
             $lines = @(Get-Content -LiteralPath $LogPath -ErrorAction SilentlyContinue)
             for ($index = $StartLine; $index -lt $lines.Count; $index++) {
                 $line = $lines[$index]
-                if ($PathFilter -and $line -notmatch [regex]::Escape($PathFilter)) { continue }
+                $content = $line -replace $script:Stamp, ''
+                if ($PathFilter -and $content -notmatch [regex]::Escape($PathFilter)) { continue }
                 if ($line -match $Pattern) {
-                    return [pscustomobject]@{ Line = $line; NextStartLine = $index + 1 }
+                    return [pscustomobject]@{
+                        Line = $line
+                        NextStartLine = $index + 1
+                        ClientExited = $false
+                        LastStartupLine = $null
+                    }
                 }
+            }
+        }
+        if ($ClientProcessId -gt 0 -and -not (Get-Process -Id $ClientProcessId -ErrorAction SilentlyContinue)) {
+            return [pscustomobject]@{
+                Line = $null
+                NextStartLine = $StartLine
+                ClientExited = $true
+                LastStartupLine = (Get-LastStartupLine -LogPath $LogPath)
             }
         }
         Start-Sleep -Milliseconds 500
@@ -183,16 +214,18 @@ $scratchRoot = "${ScratchDrive}:\gw-cli-smoke-$(Get-Date -Format 'yyyyMMdd-HHmms
 
 if ($DryRun) {
     Write-Host "DRY RUN - no processes will be started and nothing will be written to disk."
-    Write-Host "CliPath:           $CliPath"
-    Write-Host "ScratchDrive:      $ScratchDrive"
-    Write-Host "ScratchRoot:       $scratchRoot"
-    Write-Host "UacTimeoutSeconds: $UacTimeoutSeconds"
-    Write-Host "EvidenceDirectory: $EvidenceDirectory"
+    Write-Host "CliPath:               $CliPath"
+    Write-Host "ScratchDrive:          $ScratchDrive"
+    Write-Host "ScratchRoot:           $scratchRoot"
+    Write-Host "UacTimeoutSeconds:     $UacTimeoutSeconds"
+    Write-Host "StartupTimeoutSeconds: $StartupTimeoutSeconds"
+    Write-Host "EvidenceDirectory:     $EvidenceDirectory"
     Write-Host ""
     Write-Host "Planned steps:"
     Write-Host "  0. Preflight: create the scratch root and repo-a (git init + one commit) before starting the watch."
-    Write-Host "  1. Start 'git-wizard --watch -v' in the background; wait for the session-started banner and the"
-    Write-Host "     elevated broker child (one interactive UAC prompt)."
+    Write-Host "  1. Start 'git-wizard --watch -v' in the background; wait for the session-started banner and"
+    Write-Host "     wait for 'ready:' with -StartupTimeoutSeconds; the broker child is reported as evidence only"
+    Write-Host "     (one interactive UAC prompt)."
     Write-Host "  2. Edit repo-a (created before the watch) and commit; expect 'changed: ...repo-a'."
     Write-Host "     Regression gw#219: fresh startup discovery must track repo-a despite the older cached list."
     Write-Host "  3. Create repo-b during the watch, then edit it; expect 'created: ...repo-b' then 'changed: ...repo-b' (gw#205)."
@@ -238,28 +271,40 @@ try {
         -RedirectStandardOutput $stdOutLog -RedirectStandardError $stdErrLog -PassThru -NoNewWindow
     try {
         $bannerResult = Wait-ForLogPattern -LogPath $stdOutLog -Pattern "git-wizard Session Started" `
-            -TimeoutSeconds $UacTimeoutSeconds
-        if (-not $bannerResult) {
-            throw "session-started banner did not appear in $stdOutLog within $UacTimeoutSeconds s"
+            -TimeoutSeconds $UacTimeoutSeconds -ClientProcessId $client.Id
+        if (-not $bannerResult -or $bannerResult.ClientExited) {
+            throw "session-started banner did not appear in $stdOutLog within $UacTimeoutSeconds s (client exited: $($bannerResult.ClientExited))"
         }
         $logCursor = $bannerResult.NextStartLine
 
-        $broker = Wait-ForBrokerProcess -ClientProcessId $client.Id -TimeoutSeconds $UacTimeoutSeconds
-        if (-not $broker) {
-            throw "no elevated broker child (git-wizard.exe, parent pid $($client.Id)) appeared within " +
-                "$UacTimeoutSeconds s; the UAC prompt may have been declined or timed out"
-        }
+        # The readiness wait below performs NO broker lookup: it only checks the ready: log
+        # line and the client's exit, so a slow Get-CimInstance query can never land on a poll
+        # and delay either gate. Broker existence is diagnostic only (gw#247), and identifying
+        # it is deferred until after the outcome is already determined and printed, below.
+        $readyResult = Wait-ForLogPattern -LogPath $stdOutLog -Pattern "${script:Stamp}ready: " `
+            -TimeoutSeconds $StartupTimeoutSeconds -StartLine $logCursor -ClientProcessId $client.Id
+        $readyOutcomeTime = Get-Date
 
-        Add-StepResult -Step "1. Start watch" -Status "PASS" `
-            -Evidence "client pid $($client.Id); broker pid $($broker.ProcessId); banner: $($bannerResult.Line)"
+        if (-not $readyResult) {
+            $lastPhase = Get-LastStartupLine -LogPath $stdOutLog
+            throw "no 'ready:' line within $StartupTimeoutSeconds s; last startup phase: $lastPhase"
+        }
+        if ($readyResult.ClientExited) {
+            throw "client exited before 'ready:'; last startup phase: $($readyResult.LastStartupLine); stderr: $stdErrLog"
+        }
+        $logCursor = $readyResult.NextStartLine
+        $readySeconds = [int]($readyOutcomeTime - $watchStartTime).TotalSeconds
+
+        Add-StepResult -Step "1. Start watch (ready)" -Status "PASS" `
+            -Evidence "client pid $($client.Id); $($readyResult.Line); start-to-ready ${readySeconds}s"
     } catch {
-        Add-StepResult -Step "1. Start watch" -Status "FAIL" -Evidence $_.Exception.Message
+        Add-StepResult -Step "1. Start watch (ready)" -Status "FAIL" -Evidence $_.Exception.Message
         throw
     }
 
     try {
         Update-SmokeRepository -RepositoryPath $repoA
-        $result = Wait-ForLogPattern -LogPath $stdOutLog -Pattern "^changed: .*repo-a$" `
+        $result = Wait-ForLogPattern -LogPath $stdOutLog -Pattern "${script:Stamp}changed: .*repo-a$" `
             -TimeoutSeconds 30 -StartLine $logCursor -PathFilter $scratchRoot
         if ($result) {
             $logCursor = $result.NextStartLine
@@ -268,23 +313,31 @@ try {
         } else {
             Add-StepResult -Step "2. Edit repo-a (existed before the watch)" -Status "FAIL" `
                 -Evidence "no 'changed: ...repo-a' line within 30s" `
-                -Notes "Startup discovery regression: https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/219"
+                -Notes "Event not observed within 30s after ready:; inspect $stdOutLog for a late 'changed:' line before deciding between a discovery regression (gw#219) and a delivery-latency problem."
         }
     } catch {
         Add-StepResult -Step "2. Edit repo-a (existed before the watch)" -Status "FAIL" -Evidence $_.Exception.Message
     }
+
+    # Broker identification is diagnostic only (gw#247) and runs exactly once, here, after the
+    # readiness-gated step-2 edit has been made and observed, so a slow Get-CimInstance query can
+    # delay neither the ready/exit report nor the edit that follows the marker. It lands inside
+    # the 8-second spacing before step 3, and the PID it finds feeds the step-6 shutdown check.
+    $broker = Wait-ForBrokerProcess -ClientProcessId $client.Id
+    $brokerNote = if ($broker) { "broker pid $($broker.ProcessId)" } else { "no broker child observed" }
+    Write-Host "    $brokerNote"
     Start-Sleep -Seconds 8
 
     try {
         New-SmokeRepository -RepositoryPath $repoB
-        $createdResult = Wait-ForLogPattern -LogPath $stdOutLog -Pattern "^created: .*repo-b$" `
+        $createdResult = Wait-ForLogPattern -LogPath $stdOutLog -Pattern "${script:Stamp}created: .*repo-b$" `
             -TimeoutSeconds 60 -StartLine $logCursor -PathFilter $scratchRoot
         if (-not $createdResult) { throw "no 'created: ...repo-b' line within 60s (gw#205 regression?)" }
         $logCursor = $createdResult.NextStartLine
 
         Start-Sleep -Seconds 8
         Update-SmokeRepository -RepositoryPath $repoB
-        $changedResult = Wait-ForLogPattern -LogPath $stdOutLog -Pattern "^changed: .*repo-b$" `
+        $changedResult = Wait-ForLogPattern -LogPath $stdOutLog -Pattern "${script:Stamp}changed: .*repo-b$" `
             -TimeoutSeconds 30 -StartLine $logCursor -PathFilter $scratchRoot
         if (-not $changedResult) { throw "no 'changed: ...repo-b' line within 30s" }
         $logCursor = $changedResult.NextStartLine
@@ -300,19 +353,19 @@ try {
     try {
         Rename-Item -LiteralPath $repoB -NewName "repo-b2"
 
-        $deletedResult = Wait-ForLogPattern -LogPath $stdOutLog -Pattern "^deleted: .*repo-b$" `
+        $deletedResult = Wait-ForLogPattern -LogPath $stdOutLog -Pattern "${script:Stamp}deleted: .*repo-b$" `
             -TimeoutSeconds 60 -StartLine $logCursor -PathFilter $scratchRoot
         if (-not $deletedResult) { throw "no 'deleted: ...repo-b' line within 60s after rename (gw#206/#209 regression?)" }
         $logCursor = $deletedResult.NextStartLine
 
-        $createdResult = Wait-ForLogPattern -LogPath $stdOutLog -Pattern "^created: .*repo-b2$" `
+        $createdResult = Wait-ForLogPattern -LogPath $stdOutLog -Pattern "${script:Stamp}created: .*repo-b2$" `
             -TimeoutSeconds 30 -StartLine $logCursor -PathFilter $scratchRoot
         if (-not $createdResult) { throw "no 'created: ...repo-b2' line within 30s after rename" }
         $logCursor = $createdResult.NextStartLine
 
         Start-Sleep -Seconds 8
         Update-SmokeRepository -RepositoryPath $repoB2
-        $changedResult = Wait-ForLogPattern -LogPath $stdOutLog -Pattern "^changed: .*repo-b2$" `
+        $changedResult = Wait-ForLogPattern -LogPath $stdOutLog -Pattern "${script:Stamp}changed: .*repo-b2$" `
             -TimeoutSeconds 30 -StartLine $logCursor -PathFilter $scratchRoot
         if (-not $changedResult) { throw "no 'changed: ...repo-b2' line within 30s" }
         $logCursor = $changedResult.NextStartLine
@@ -327,7 +380,7 @@ try {
 
     try {
         Remove-Item -LiteralPath $repoB2 -Recurse -Force
-        $deletedResult = Wait-ForLogPattern -LogPath $stdOutLog -Pattern "^deleted: .*repo-b2$" `
+        $deletedResult = Wait-ForLogPattern -LogPath $stdOutLog -Pattern "${script:Stamp}deleted: .*repo-b2$" `
             -TimeoutSeconds 60 -StartLine $logCursor -PathFilter $scratchRoot
         if (-not $deletedResult) { throw "no 'deleted: ...repo-b2' line within 60s" }
         $logCursor = $deletedResult.NextStartLine

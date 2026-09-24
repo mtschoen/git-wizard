@@ -5,7 +5,7 @@ using MFTLib.Index;
 namespace GitWizard.Watch;
 
 /// <summary>Owns an index session and translates its live changes into repository-watch batches.</summary>
-public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDiagnostics, IUsnJournalGrower, IVolumeScanProgress
+public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDiagnostics, IUsnJournalGrower, IVolumeScanProgress, IPumpLifecycle
 {
     readonly Func<IReadOnlyList<string>, IProgress<IndexScanProgress>, CancellationToken, Task<MftIndexSession>> _openSession;
     readonly Channel<VolumeChangeBatch> _output = Channel.CreateUnbounded<VolumeChangeBatch>();
@@ -14,6 +14,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
     readonly HashSet<Exception> _reportedFaults = new(ReferenceEqualityComparer.Instance);
     readonly HashSet<char> _usableDrives = [];
     readonly Dictionary<char, string> _driveRealRoots = new();
+    readonly TaskCompletionSource _pumpStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
     MftIndexSession? _owner;
     Task<VolumeArmResult>? _arming;
     TaskCompletionSource? _armFinished;
@@ -29,6 +30,14 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
     public event Action<string, string>? DriveFailed;
     public event Action<JournalWarning>? JournalWarningDetected;
     public event Action<VolumeScanProgress>? ScanProgress;
+
+    /// <summary>
+    /// Completes once <c>index.StartWatchingAsync</c> has returned during arming - well before
+    /// WatchAsync can be called, since arming is awaited to completion first. A source that is
+    /// armed but never becomes watchable (no usable drives) never starts a pump, so this stays
+    /// incomplete for that run.
+    /// </summary>
+    public Task PumpStarted => _pumpStarted.Task;
 
     public IndexVolumeChangeSource(
         Func<IReadOnlyList<string>, IProgress<IndexScanProgress>, CancellationToken, Task<MftIndexSession>> openSession,
@@ -108,6 +117,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
                 ProcessArmedDrive(drive, configuration, errors, warnings, cancellationToken);
 
             cancellationToken.ThrowIfCancellationRequested();
+            PublishArmedDrives(_owner, requested, errors);
 
             if (_usableDrives.Count > 0)
             {
@@ -127,6 +137,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
                         RecordStartupDriveFailure(d, msg);
                     }
                 }
+                ExcludeDrivesWithFailedWatch(_owner, catchUpDrives);
 
                 lock (_faultLock)
                 {
@@ -212,7 +223,13 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         index.WatchFaulted += OnWatchFaulted;
         _watchedIndex = index;
         // Starting means the library pump was scheduled, not that catch-up has drained.
-        return index.StartWatchingAsync(cancellationToken);
+        return StartWatchAndSignalAsync(index, cancellationToken);
+    }
+
+    async Task StartWatchAndSignalAsync(FileIndex index, CancellationToken cancellationToken)
+    {
+        await index.StartWatchingAsync(cancellationToken).ConfigureAwait(false);
+        _pumpStarted.TrySetResult();
     }
 
     void OnChanged(FileChange change)
@@ -285,6 +302,10 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
             {
                 RaiseFaultJournalWarning(char.ToUpperInvariant(drive));
                 DriveFailed?.Invoke(drive.ToString(), fault.Exception.Message);
+                var owner = _owner;
+                var upper = char.ToUpperInvariant(drive);
+                PublishVolumeState(VolumeWatchStatus.Excluded(upper.ToString(),
+                    owner is null ? VolumeBlockOrigin.Unknown : CurrentOrigin(owner, upper), fault.Exception.Message));
             }
         }
         catch (Exception exception)

@@ -570,6 +570,62 @@ public class LiveWatchControllerTests
         await armed;
         Assert.That(source.IsArmed, Is.True);
     }
+
+    [Test]
+    public async Task ForwardsReadyOncePerRunAndDetaches()
+    {
+        var source = new ReadinessVolumeChangeSource();
+        var controller = new LiveWatchController(() => source, [@"X:\repo"], [], _ => { }, _ => { }, () => false);
+        var ready = new List<WatchReadiness>();
+        var snapshots = new List<VolumeReadinessSnapshot>();
+        controller.Ready += ready.Add;
+        controller.VolumeReadinessChanged += snapshots.Add;
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var running = controller.StartAsync(cancellation.Token);
+        RepositoryWatchService service;
+        try
+        {
+            await source.Started.WaitAsync(cancellation.Token);
+            service = WatchSubscriptionProbe.Service(controller);
+            source.SetVolume(VolumeWatchStatus.CatchingUp("X", VolumeBlockOrigin.Cold));
+            Assert.That(ready, Is.Empty);
+            Assert.That(controller.Readiness, Is.Null);
+            source.SetVolume(VolumeWatchStatus.CaughtUp("X", VolumeBlockOrigin.Cold));
+            await WaitUntilAsync(() => ready.Count == 1);
+            Assert.That(controller.Readiness, Is.SameAs(ready[0]));
+            Assert.That(snapshots.Last().CaughtUpVolumes, Is.EqualTo(new[] { "X" }));
+        }
+        finally
+        {
+            try { await controller.StopAsync(); } finally { await running; }
+        }
+        Assert.That(source.ReadinessSubscribers, Is.Zero, "The service must detach from the source.");
+        Assert.That(WatchSubscriptionProbe.ReadySubscribers(service), Is.Zero, "The controller must detach from the service.");
+    }
+
+    [Test]
+    public async Task ForwardsStartupProgressFromTheStartupFactory()
+    {
+        var source = new ReadinessVolumeChangeSource();
+        source.SetVolume(VolumeWatchStatus.CaughtUp("C", VolumeBlockOrigin.Warm));
+        var request = new DiscoveryRequest(new GitWizardConfiguration(), DiscoveryPurpose.Watch, false, false, [@"C:\repo"]);
+        var phases = new List<WatchStartupPhase>();
+        var controller = new LiveWatchController(
+            async (progress, ct) =>
+            {
+                progress.Report(new WatchStartupProgress(WatchStartupPhase.Opening));
+                progress.Report(new WatchStartupProgress(WatchStartupPhase.CatchingUp, null, source.Readiness));
+                return await FakeLiveStartup.FromSourceArmedAsync(source, request, ct);
+            },
+            _ => { }, _ => { });
+        controller.StartupProgress += report => phases.Add(report.Phase);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var running = controller.StartAsync(cancellation.Token);
+        await WaitUntilAsync(() => controller.Readiness is not null);
+        await controller.StopAsync();
+        await running;
+        Assert.That(phases, Is.EqualTo(new[] { WatchStartupPhase.Opening, WatchStartupPhase.CatchingUp }));
+    }
 }
 
 

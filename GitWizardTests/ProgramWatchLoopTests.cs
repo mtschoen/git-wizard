@@ -83,7 +83,11 @@ public class ProgramWatchLoopTests
         {
             Assert.That(WatchSubscriptionProbe.ScanErrorsSubscribers(service), Is.EqualTo(1));
             source.FailDrive("X", "watch failed");
-            Assert.That(lines, Is.EqualTo(new[] { "scan error on X: watch failed" }));
+            Assert.That(lines, Is.EqualTo(new[]
+            {
+                "ready: mode=pump caught-up=X,Y excluded=-",
+                "scan error on X: watch failed"
+            }));
             source.FailDrive("x", "watch failed");
             source.FailDrive("X", "watch failed again");
             source.Publish(new VolumeChangeBatch("Y",
@@ -92,7 +96,10 @@ public class ProgramWatchLoopTests
             Assert.That(running.IsCompleted, Is.False);
             Assert.That(lines, Is.EqualTo(new[]
             {
-                "scan error on X: watch failed", "scan error on X: watch failed again", @"changed: Y:\repo"
+                "ready: mode=pump caught-up=X,Y excluded=-",
+                "scan error on X: watch failed",
+                "scan error on X: watch failed again",
+                @"changed: Y:\repo"
             }));
         }
         finally
@@ -130,6 +137,7 @@ public class ProgramWatchLoopTests
         Assert.That(lines, Is.EqualTo(new[]
         {
             "scan error on D: drive not ready",
+            "ready: mode=pump caught-up=C excluded=-",
             @"changed: C:\repo\a",
             @"created: C:\repo\b\newrepo",
             @"deleted: C:\repo\gone",
@@ -142,7 +150,13 @@ public class ProgramWatchLoopTests
     [Test]
     public async Task RunWatchLoopAsync_NoScanErrors_PrintsNoScanErrorLine()
     {
-        var source = new FakeVolumeChangeSource(Array.Empty<VolumeChangeBatch>());
+        // A non-empty batch, not an empty list: an immediate end of stream on the first read is
+        // source death, not readiness, so an empty source would never print "ready:" here. The
+        // batch names a volume no tracked/search root maps to, so it is silently dropped and
+        // never becomes an observable line.
+        var source = new FakeVolumeChangeSource([
+            new VolumeChangeBatch("Z", [new VolumeChangeEntry(@"Z:\unwatched\path", VolumeEntryKind.Modified)])
+        ]);
         var service = new RepositoryWatchService(
             source,
             trackedRoots: Array.Empty<string>(),
@@ -154,7 +168,7 @@ public class ProgramWatchLoopTests
         var stopped = await Program.RunWatchLoopAsync(service, lines.Add, NoExit, cts.Token);
 
         Assert.That(stopped, Is.False);
-        Assert.That(lines, Is.Empty);
+        Assert.That(lines, Is.EqualTo(new[] { "ready: mode=pump caught-up=- excluded=-" }));
     }
 
     [Test]
@@ -330,7 +344,7 @@ public class ProgramWatchLoopTests
             var stopped = await Program.RunWatchLoopAsync(service, lines.Add, NoExit, cts.Token);
 
             Assert.That(stopped, Is.False);
-            Assert.That(lines, Is.EqualTo(new[] { $"created: {repoPath}" }));
+            Assert.That(lines, Is.EqualTo(new[] { $"ready: mode=pump caught-up={volume} excluded=-", $"created: {repoPath}" }));
         }
         finally
         {

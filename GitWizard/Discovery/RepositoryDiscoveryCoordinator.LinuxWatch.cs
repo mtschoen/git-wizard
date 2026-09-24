@@ -7,6 +7,7 @@ public partial class RepositoryDiscoveryCoordinator
     async Task<WatchStartupResult> PrepareLinuxWatchAsync(
         DiscoveryRequest request,
         DiscoveryScope scope,
+        IProgress<WatchStartupProgress>? progress,
         CancellationToken cancellationToken)
     {
         var dependencies = Dependencies;
@@ -16,6 +17,7 @@ public partial class RepositoryDiscoveryCoordinator
 
         try
         {
+            progress?.Report(new WatchStartupProgress(WatchStartupPhase.Opening));
             var allRoots = scope.SearchRoots.Concat(scope.RetainedRoots)
                 .Distinct(WatchPath.StringComparer)
                 .ToArray();
@@ -31,6 +33,7 @@ public partial class RepositoryDiscoveryCoordinator
                 return CreateUnmarkedLinuxStartup(armResult, accumulator);
             }
 
+            progress?.Report(new WatchStartupProgress(WatchStartupPhase.Discovering));
             await ObserveMarkedLinuxRootsAsync(request, armResult, accumulator, cancellationToken).ConfigureAwait(false);
             var inventory = accumulator.BuildInventory(DiscoveryRoute.RecursiveOnly, []);
             await PersistAsync(previousList, inventory, cancellationToken).ConfigureAwait(false);

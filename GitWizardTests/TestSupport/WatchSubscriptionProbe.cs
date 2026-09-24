@@ -20,6 +20,9 @@ internal static class WatchSubscriptionProbe
     public static int ScanErrorsSubscribers(object publisher) =>
         ReadField<Action>(publisher, "ScanErrorsChanged")?.GetInvocationList().Length ?? 0;
 
+    public static int ReadySubscribers(object publisher) =>
+        ReadField<Action<WatchReadiness>>(publisher, "Ready")?.GetInvocationList().Length ?? 0;
+
     static TValue? ReadField<TValue>(object instance, string fieldName) where TValue : class
     {
         var field = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)

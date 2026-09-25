@@ -102,6 +102,33 @@ passing after the marker on that machine. In automated CI or unattended harness 
 interactive UAC approval, GUI wall-clock timing, and machines with >30s cold starts are not present),
 this table template is preserved for the operator's attended verification pass.
 
+### Single-line Live readiness
+
+Run the CLI live smoke first, then perform the desktop pass on an attended build.
+Record build identity, OS/display scale, actual window width, and screenshots or
+UI Automation bounds. Do not replace this check with a headless-layout result.
+
+1. Open Index Cache Status before starting Live. Keep it open through startup.
+2. With five configured volumes where available, observe startup/catching up,
+   then the caught-up steady state. The toolbar contains one readiness text
+   and zero per-drive entries at every transition.
+3. At 1925, 1100, and 1076 physical pixels, use UI Automation to record the
+   readiness text's bounding rectangle and count visible readiness rows. Expect
+   one row in the steady state and no extra rows as drives change state. Long
+   summary text may ellipsize; it must not wrap or overflow the client area.
+4. Hover over the readiness text. Compare each tooltip line with the Index Cache
+   Status window: volume, state, origin, and reason must agree. The panel must
+   update without pressing Refresh status, including when opened before Live.
+5. During an available excluded/faulted-drive scenario, confirm the summary
+   names the excluded drive, the detail includes its reason, and toolbar height
+   stays unchanged. Do not deliberately damage a journal to produce a fault.
+   If no safe attended failure scenario is available, record that case as not
+   exercised; deterministic tests cover the state transition.
+6. Stop and restart Live with the panel open. Stop clears the details; restart
+   does not retain old drives/reasons. Closing and reopening the panel shows
+   current rows immediately. Repeat the binding check on Linux when available;
+   an MFT-not-applicable message must not hide Linux Live readiness details.
+
 ### Gotchas
 
 - **Output format:** `--watch` prints one line per event: `created: <path>`,

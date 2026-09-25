@@ -2,7 +2,9 @@ using Avalonia.Controls;
 using Avalonia.Headless.NUnit;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using GitWizard;
+using GitWizard.Watch;
 using GitWizardTests.TestSupport;
 using GitWizardUI.Services;
 using GitWizardUI.ViewModels;
@@ -45,6 +47,39 @@ public class IndexCacheStatusWindowTests
             Assert.That(text, Does.Contain("holder identity unavailable"));
             Assert.That(offThread, Is.False);
             Assert.That(window.FindControl<Button>("ClearIndexCacheButton"), Is.Null);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public async Task LiveDetailsUpdateWithoutRefreshingCacheInspection()
+    {
+        await using var mainWindow = new MainWindow();
+        var mainModel = (MainViewModel)mainWindow.DataContext!;
+        var panelModel = mainModel.CreateIndexCacheStatusViewModel();
+        var window = new IndexCacheStatusWindow(panelModel);
+        try
+        {
+            window.Show();
+            var list = window.FindControl<ItemsControl>("IndexCacheLiveVolumeList");
+            Assert.That(list, Is.Not.Null);
+            var inspectionText = panelModel.Text;
+            var row = new LiveVolumeStatusViewModel(
+                VolumeWatchStatus.CatchingUp("X", VolumeBlockOrigin.Cold));
+            mainModel.LiveVolumes.Add(row);
+            Dispatcher.UIThread.RunJobs();
+            Assert.That(list!.ItemsSource, Is.SameAs(panelModel.LiveVolumes));
+            Assert.That(panelModel.LiveVolumes.Single().DisplayText, Is.EqualTo("X: catching up (cold)"));
+            row.Update(VolumeWatchStatus.Excluded("X", VolumeBlockOrigin.Cold, "watch died"));
+            Dispatcher.UIThread.RunJobs();
+            Assert.That(panelModel.LiveVolumes.Single().DisplayText, Is.EqualTo("X: excluded (cold): watch died"));
+            Assert.That(panelModel.Text, Is.EqualTo(inspectionText));
+            Assert.That(panelModel.Snapshot, Is.Null);
+            Assert.That(list.GetVisualDescendants().OfType<TextBlock>().Select(control => control.Text),
+                Does.Contain("X: excluded (cold): watch died"));
+            mainModel.LiveVolumes.Clear();
+            Dispatcher.UIThread.RunJobs();
+            Assert.That(panelModel.LiveVolumes, Is.Empty);
         }
         finally { window.Close(); }
     }

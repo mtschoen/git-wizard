@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using GitWizard;
 using GitWizardUI.ViewModels.Services;
@@ -14,11 +15,17 @@ public sealed class IndexCacheStatusViewModel : INotifyPropertyChanged
     public string Text { get; private set; } = "Refresh to inspect the current policy's index cache.";
     public bool CanRefresh => Volatile.Read(ref _refreshing) == 0;
     public ICommand RefreshCommand { get; }
+    public ReadOnlyObservableCollection<LiveVolumeStatusViewModel> LiveVolumes { get; }
 
-    public IndexCacheStatusViewModel(IUiDispatcher dispatcher, Func<MftIndexCacheSnapshot> inspect)
+    public IndexCacheStatusViewModel(
+        IUiDispatcher dispatcher,
+        Func<MftIndexCacheSnapshot> inspect,
+        ReadOnlyObservableCollection<LiveVolumeStatusViewModel>? liveVolumes = null)
     {
         _dispatcher = dispatcher;
         _inspect = inspect;
+        LiveVolumes = liveVolumes ?? new ReadOnlyObservableCollection<LiveVolumeStatusViewModel>(
+            new ObservableCollection<LiveVolumeStatusViewModel>());
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => CanRefresh);
     }
 

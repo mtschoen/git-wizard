@@ -11,8 +11,18 @@
     <ScrollViewer Grid.Row="1" Margin="0,12,0,0"
                   HorizontalScrollBarVisibility="Disabled"
                   VerticalScrollBarVisibility="Auto">
-      <SelectableTextBlock x:Name="CacheStatusText" Text="{Binding Text}"
-                           TextWrapping="Wrap" FontSize="14" />
+      <StackPanel Spacing="8">
+        <TextBlock Text="Live volume readiness" FontWeight="SemiBold" />
+        <ItemsControl x:Name="IndexCacheLiveVolumeList" ItemsSource="{Binding LiveVolumes}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:LiveVolumeStatusViewModel">
+              <TextBlock Text="{Binding DisplayText}" TextWrapping="Wrap" FontSize="14" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <SelectableTextBlock x:Name="CacheStatusText" Text="{Binding Text}"
+                             TextWrapping="Wrap" FontSize="14" />
+      </StackPanel>
     </ScrollViewer>
   </Grid>
 </Window>

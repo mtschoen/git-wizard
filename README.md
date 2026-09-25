@@ -207,11 +207,7 @@ Windows may round the requested size upward. **Do not warn again** saves the vol
 its drive letter. Re-arming refreshes each drive's hint. Stopping Live releases its resources;
 restarting can require a new scan and elevation prompt. Linux fanotify monitoring is unchanged.
 
-The green Live state still means "the pump started". Readiness is shown separately: while Live
-starts, the toolbar reports the phase (requesting elevation, broker connected, scanning, catching
-up, discovering) and each drive's `catching up` / `caught up` / `excluded` state with its
-`warm` (cache-adopted) or `cold` (scanned this run) origin, then `Ready (journal): C, D` once per
-run. A drive whose watch failed stays excluded even though its index remains queryable.
+The green Live state still means "the pump started". Startup phases remain beside the Live button. The toolbar reserves one nonwrapping readiness line, for example `Ready (journal): C, D`; excluded drives are named in the summary, and later exclusions update that display without another readiness event. Hover over the readiness line or open **Index Cache Status** for each drive's `catching up`, `caught up`, or `excluded` state, its `warm`, `cold`, or `unknown` origin, and any exclusion/failure reason. Both detail views use the same live rows and update as states change. There are no per-drive entries in the toolbar, including during failures. Stopping Live clears the readiness details. A failed watch can leave its index queryable.
 
 ### Machine-readable safety sweep
 

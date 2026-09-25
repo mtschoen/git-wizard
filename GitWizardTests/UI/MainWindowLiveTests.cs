@@ -1,5 +1,8 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.NUnit;
+using Avalonia.Media;
+using GitWizard.Watch;
 using GitWizardUI.ViewModels;
 using GitWizardUI.Views;
 
@@ -92,5 +95,44 @@ public class MainWindowLiveTests
 
         viewModel.IsLiveScanProgressVisible = false;
         Assert.That(panel.IsVisible, Is.False);
+    }
+
+    [AvaloniaTest]
+    public async Task ReadinessUsesOneFixedLineAndTooltipAtNarrowWidths()
+    {
+        await using var window = new MainWindow();
+        var model = (MainViewModel)window.DataContext!;
+        foreach (var volume in new[] { "C", "D", "E", "F", "G" })
+            model.LiveVolumes.Add(new LiveVolumeStatusViewModel(
+                VolumeWatchStatus.CaughtUp(volume, VolumeBlockOrigin.Warm)));
+        model.IsLive = true;
+        model.LiveReadinessText = "Ready (journal): C, D, E, F, G";
+        // Rebind the seeded fixture; event-driven tooltip notifications are covered in Task 1.
+        window.DataContext = null;
+        window.DataContext = model;
+        var text = window.FindControl<TextBlock>("LiveReadinessText")!;
+        Assert.That(window.FindControl<ItemsControl>("LiveVolumeList"), Is.Null);
+        Assert.That(text.TextWrapping, Is.EqualTo(TextWrapping.NoWrap));
+        Assert.That(text.TextTrimming, Is.EqualTo(TextTrimming.CharacterEllipsis));
+        Assert.That(ToolTip.GetTip(text), Is.EqualTo(model.LiveReadinessTooltip));
+
+        foreach (var width in new[] { 1925d, 1100d, 1076d })
+        {
+            // Measure the existing toolbar without Show(), which would run Window_Loaded discovery.
+            var toolbar = (StackPanel)text.Parent!;
+            toolbar.Measure(new Size(width - 240, double.PositiveInfinity));
+            toolbar.Arrange(new Rect(0, 0, width - 240, toolbar.DesiredSize.Height));
+            var height = text.Bounds.Height;
+            Assert.That(height, Is.GreaterThan(0));
+            model.LiveReadinessText = "Catching up: C, D, E, F, G; excluded: H";
+            toolbar.Measure(new Size(width - 240, double.PositiveInfinity));
+            toolbar.Arrange(new Rect(0, 0, width - 240, toolbar.DesiredSize.Height));
+            Assert.That(text.Bounds.Height, Is.EqualTo(height));
+            model.LiveReadinessText = "No caught-up volumes (journal); excluded: C, D, E, F, G";
+            toolbar.Measure(new Size(width - 240, double.PositiveInfinity));
+            toolbar.Arrange(new Rect(0, 0, width - 240, toolbar.DesiredSize.Height));
+            Assert.That(text.Bounds.Height, Is.EqualTo(height));
+            model.LiveReadinessText = "Ready (journal): C, D, E, F, G";
+        }
     }
 }

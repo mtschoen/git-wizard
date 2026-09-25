@@ -98,25 +98,12 @@
                      VerticalAlignment="Center" FontSize="12" Foreground="Gray" />
         </StackPanel>
        </StackPanel>
-       <!-- Readiness lives on its own line: a horizontal StackPanel measures its children with
-            infinite width, so five per-drive entries ran past the window edge (found on the
-            attended pass for git-wizard issue 251). The star column gives the drive list a finite
-            width, which is what its WrapPanel needs to wrap at. -->
-       <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding IsLive}">
-        <TextBlock x:Name="LiveReadinessText" Grid.Column="0" Text="{Binding LiveReadinessText}" VerticalAlignment="Center"
-                   FontSize="12" Foreground="Gray" Margin="0,0,8,0" />
-        <ItemsControl x:Name="LiveVolumeList" Grid.Column="1" ItemsSource="{Binding LiveVolumes}" VerticalAlignment="Center"
-                      HorizontalAlignment="Stretch">
-          <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
-          </ItemsControl.ItemsPanel>
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:LiveVolumeStatusViewModel">
-              <TextBlock Text="{Binding DisplayText}" FontSize="12" Foreground="Gray" Margin="0,0,8,0" ToolTip.Tip="{Binding Reason}" />
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-       </Grid>
+       <!-- Reserve one line so readiness changes do not move the toolbar. -->
+       <TextBlock x:Name="LiveReadinessText" Text="{Binding LiveReadinessText}"
+                  MinHeight="18" VerticalAlignment="Center"
+                  FontSize="12" Foreground="Gray"
+                  TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                  ToolTip.Tip="{Binding LiveReadinessTooltip}" />
       </StackPanel>
 
       <StackPanel Grid.Row="1" Margin="10,0,0,0">

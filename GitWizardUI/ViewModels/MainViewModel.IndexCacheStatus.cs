@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using GitWizard;
 using GitWizard.Watch;
 
@@ -9,7 +10,8 @@ public partial class MainViewModel
     {
         var inspection = new MftIndexCacheInspection();
         return new IndexCacheStatusViewModel(_ui, () => inspection.Capture(
-            GitWizardApi.GetLocalFilesPath(), CaptureActiveCacheSessions()));
+            GitWizardApi.GetLocalFilesPath(), CaptureActiveCacheSessions()),
+            new ReadOnlyObservableCollection<LiveVolumeStatusViewModel>(LiveVolumes));
     }
 
     internal IReadOnlyList<MftActiveCacheSession> CaptureActiveCacheSessions()

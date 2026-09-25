@@ -9,6 +9,9 @@ public partial class MainViewModel
 
     public ObservableCollection<LiveVolumeStatusViewModel> LiveVolumes { get; } = new();
 
+    public string LiveReadinessTooltip =>
+        string.Join(Environment.NewLine, LiveVolumes.Select(row => row.DisplayText));
+
     public string LiveReadinessText
     {
         get => _liveReadinessText;
@@ -29,12 +32,20 @@ public partial class MainViewModel
             if (existing is null) LiveVolumes.Add(new LiveVolumeStatusViewModel(status));
             else existing.Update(status);
         }
-        // Before Ready, summarize the drives still catching up; Ready owns the text afterwards.
-        if (_liveController?.Readiness is null)
+        OnPropertyChanged(nameof(LiveReadinessTooltip));
+        if (_liveController?.Readiness is { } readiness)
         {
-            var catchingUp = snapshot.Volumes.Where(v => v.State == VolumeWatchState.CatchingUp).Select(v => v.Volume).ToArray();
-            LiveReadinessText = catchingUp.Length == 0 ? string.Empty : $"Catching up: {string.Join(", ", catchingUp)}";
+            ApplyLiveReady(new WatchReadiness(readiness.Mode, snapshot.CaughtUpVolumes, snapshot.ExcludedVolumes));
+            return;
         }
+        var catchingUp = snapshot.Volumes
+            .Where(volume => volume.State == VolumeWatchState.CatchingUp)
+            .Select(volume => volume.Volume).ToArray();
+        var excluded = snapshot.ExcludedVolumes.Select(volume => volume.Volume).ToArray();
+        var parts = new List<string>();
+        if (catchingUp.Length > 0) parts.Add($"Catching up: {string.Join(", ", catchingUp)}");
+        if (excluded.Length > 0) parts.Add($"excluded: {string.Join(", ", excluded)}");
+        LiveReadinessText = string.Join("; ", parts);
     }
 
     void ApplyLiveReady(WatchReadiness readiness)
@@ -45,9 +56,11 @@ public partial class MainViewModel
             WatchReadinessMode.FilesystemMarks => "marks",
             _ => "pump"
         };
-        var text = $"Ready ({mode}): {string.Join(", ", readiness.CaughtUpVolumes)}";
+        var text = readiness.CaughtUpVolumes.Count == 0
+            ? $"No caught-up volumes ({mode})"
+            : $"Ready ({mode}): {string.Join(", ", readiness.CaughtUpVolumes)}";
         if (readiness.ExcludedVolumes.Count > 0)
-            text += $"; excluded: {string.Join(", ", readiness.ExcludedVolumes.Select(v => v.Volume))}";
+            text += $"; excluded: {string.Join(", ", readiness.ExcludedVolumes.Select(volume => volume.Volume))}";
         LiveReadinessText = text;
     }
 
@@ -77,5 +90,6 @@ public partial class MainViewModel
     {
         LiveVolumes.Clear();
         LiveReadinessText = string.Empty;
+        OnPropertyChanged(nameof(LiveReadinessTooltip));
     }
 }

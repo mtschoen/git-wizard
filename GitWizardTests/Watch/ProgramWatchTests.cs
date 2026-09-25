@@ -4,6 +4,7 @@ using GitWizard.CLI;
 namespace GitWizardTests.Watch;
 
 [TestFixture]
+[NonParallelizable]
 public class ProgramWatchTests
 {
     [TearDown]

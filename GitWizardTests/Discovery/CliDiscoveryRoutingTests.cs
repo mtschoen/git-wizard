@@ -1,4 +1,5 @@
 using GitWizard;
+using GitWizard.CLI;
 using GitWizardTests.TestSupport;
 using MFTLib.Index;
 
@@ -8,6 +9,19 @@ namespace GitWizardTests.Discovery;
 [NonParallelizable]
 public class CliDiscoveryRoutingTests
 {
+    [SetUp]
+    public void SetUp()
+    {
+        Program.ResetWatchDependenciesToDefault();
+        Program._isWindows = () => true;
+        Program._isLinux = () => false;
+        Program._isElevated = () => false;
+        Program._startProcess = _ => throw new AssertionException("Discovery routing must not launch a process.");
+    }
+
+    [TearDown]
+    public void TearDown() => Program.ResetWatchDependenciesToDefault();
+
     [TestCase("report")]
     [TestCase("scan")]
     [TestCase("sweep")]

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using GitWizard;
 using GitWizard.CLI;
 using GitWizardTests.TestSupport;
@@ -16,6 +17,11 @@ public class ProgramWatchStartupTests
     [SetUp]
     public void SetUp()
     {
+        Program.ResetWatchDependenciesToDefault();
+        Program._isWindows = () => true;
+        Program._isLinux = () => false;
+        Program._isElevated = () => false;
+        Program._startProcess = _ => throw new AssertionException("Watch startup must not launch a process.");
         GitWizardLog.SilentMode = true;
         _home = TestUtilities.RedirectLocalFilesToTemp();
         _root = Path.Combine(_home, "search");
@@ -23,7 +29,17 @@ public class ProgramWatchStartupTests
     }
 
     [TearDown]
-    public void TearDown() => TestUtilities.ClearLocalFilesRedirect(_home);
+    public void TearDown()
+    {
+        try
+        {
+            TestUtilities.ClearLocalFilesRedirect(_home);
+        }
+        finally
+        {
+            Program.ResetWatchDependenciesToDefault();
+        }
+    }
 
     static RepositoryDiscoveryCoordinator CreateCoordinator(PackedIndexFixture files)
     {
@@ -250,9 +266,16 @@ public class ProgramWatchStartupTests
         });
     }
 
-    [Test]
-    public async Task RunWatchAsync_EmptySuccess_DoesNotConsumeWatchEvents()
+    [TestCase(true, false, false)]
+    [TestCase(true, false, true)]
+    [TestCase(false, true, true)]
+    public async Task RunWatchAsync_EmptySuccess_DoesNotConsumeWatchEvents(
+        bool isWindows, bool isLinux, bool isElevated)
     {
+        Program._isWindows = () => isWindows;
+        Program._isLinux = () => isLinux;
+        Program._isElevated = () => isElevated;
+
         using var files = new PackedIndexFixture();
         var coordinator = CreateCoordinator(files);
         var config = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
@@ -266,6 +289,66 @@ public class ProgramWatchStartupTests
         {
             Assert.That(exitCode, Is.EqualTo(0));
             Assert.That(stdout.ToString(), Does.Contain("No tracked repositories found; nothing to watch."));
+        });
+    }
+
+    [Test]
+    public async Task RunWatchAsync_UnelevatedLinux_RoutesToPkexecWithoutLaunchingProcess()
+    {
+        using var files = new PackedIndexFixture();
+        var coordinator = CreateCoordinator(files);
+        var configuration = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
+        var runConfiguration = new Program.RunConfiguration(CliParser.Parse(["--watch"]));
+        using var stdout = new StringWriter();
+        using var stderr = new StringWriter();
+        ProcessStartInfo? capturedStartInfo = null;
+        Program._isWindows = () => false;
+        Program._isLinux = () => true;
+        Program._isElevated = () => false;
+        Program._getProcessPath = () => "/test/bin/git-wizard";
+        Program._getLocalFilesPath = () => _home;
+        Program._startProcess = startInfo =>
+        {
+            capturedStartInfo = startInfo;
+            return null;
+        };
+
+        var exitCode = await Program.RunWatchAsync(
+            runConfiguration, configuration, coordinator, stdout, stderr, CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo(1));
+            Assert.That(capturedStartInfo, Is.Not.Null);
+            Assert.That(capturedStartInfo?.FileName, Is.EqualTo("pkexec"));
+            Assert.That(capturedStartInfo?.UseShellExecute, Is.False);
+            Assert.That(capturedStartInfo?.ArgumentList,
+                Does.Contain($"GITWIZARD_HOME={_home}"));
+            Assert.That(stdout.ToString(), Is.Empty);
+        });
+    }
+
+    [Test]
+    public async Task RunWatchAsync_UnsupportedPlatform_ReturnsErrorWithoutCheckingElevation()
+    {
+        using var files = new PackedIndexFixture();
+        var coordinator = CreateCoordinator(files);
+        var configuration = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
+        var runConfiguration = new Program.RunConfiguration(CliParser.Parse(["--watch"]));
+        using var stdout = new StringWriter();
+        using var stderr = new StringWriter();
+        Program._isWindows = () => false;
+        Program._isLinux = () => false;
+        Program._isElevated = () => throw new AssertionException("Unsupported platform must not check elevation.");
+
+        var exitCode = await Program.RunWatchAsync(
+            runConfiguration, configuration, coordinator, stdout, stderr, CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo(1));
+            Assert.That(stderr.ToString(), Does.Contain("--watch requires Windows or Linux."));
+            Assert.That(stdout.ToString(), Is.Empty);
         });
     }
 

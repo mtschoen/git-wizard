@@ -10,6 +10,8 @@ public static partial class Program
     internal static Func<ProcessStartInfo, Process?> _startProcess = Process.Start;
     internal static Func<string?> _getProcessPath = () => Environment.ProcessPath;
     internal static Func<bool> _isElevated = VolumeChangeSourceFactory.IsElevated;
+    internal static Func<bool> _isWindows = OperatingSystem.IsWindows;
+    internal static Func<bool> _isLinux = OperatingSystem.IsLinux;
     internal static Func<IVolumeChangeSource> _sourceFactory = VolumeChangeSourceFactory.Create;
     internal static Func<string> _getLocalFilesPath = GitWizardApi.GetLocalFilesPath;
 
@@ -18,6 +20,8 @@ public static partial class Program
         _startProcess = Process.Start;
         _getProcessPath = () => Environment.ProcessPath;
         _isElevated = VolumeChangeSourceFactory.IsElevated;
+        _isWindows = OperatingSystem.IsWindows;
+        _isLinux = OperatingSystem.IsLinux;
         _sourceFactory = VolumeChangeSourceFactory.Create;
         _getLocalFilesPath = GitWizardApi.GetLocalFilesPath;
     }
@@ -48,12 +52,12 @@ public static partial class Program
         stdout ??= Console.Out;
         stderr ??= Console.Error;
 
-        if (OperatingSystem.IsLinux() && !_isElevated())
+        if (_isLinux() && !_isElevated())
         {
             return await RunElevatedWatchViaPkexecAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
         }
 
-        if (!OperatingSystem.IsWindows() && !OperatingSystem.IsLinux())
+        if (!_isWindows() && !_isLinux())
         {
             await stderr.WriteLineAsync("--watch requires Windows or Linux.").ConfigureAwait(false);
             return 1;

@@ -40,15 +40,15 @@ public sealed partial class MftIndexSession
     {
         return OpenSelectedVolumesAsync(drives, IndexedDrive.FromWindowsVolume,
             token => connectTimeout.HasValue
-                ? JournalBrokerClient.SpawnAndConnectAsync(brokerLauncher, connectTimeout.Value, token)
-                : JournalBrokerClient.SpawnAndConnectAsync(brokerLauncher, token),
+                ? BrokerProcess.LaunchAsync(brokerLauncher, connectTimeout.Value, token)
+                : BrokerProcess.LaunchAsync(brokerLauncher, token),
             new CacheSelection(MftIndexCachePolicy.Current.GetCacheDirectory(GitWizardApi.GetLocalFilesPath()), intent),
             progress, cancellationToken);
     }
 
     internal static Task<MftIndexSession> OpenSelectedVolumesAsync(IReadOnlyList<string> drives,
         Func<string, IndexedDrive> acquireIdentity,
-        Func<CancellationToken, Task<JournalBrokerClient>> connectAsync,
+        Func<CancellationToken, Task<BrokerProcess>> connectAsync,
         string cacheDirectory, IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken) =>
         OpenSelectedVolumesAsync(drives, acquireIdentity, connectAsync,
             new CacheSelection(cacheDirectory, MftIndexOpenIntent.Persistent), progress, cancellationToken);
@@ -57,7 +57,7 @@ public sealed partial class MftIndexSession
 
     internal static async Task<MftIndexSession> OpenSelectedVolumesAsync(IReadOnlyList<string> drives,
         Func<string, IndexedDrive> acquireIdentity,
-        Func<CancellationToken, Task<JournalBrokerClient>> connectAsync,
+        Func<CancellationToken, Task<BrokerProcess>> connectAsync,
         CacheSelection cache, IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken)
     {
         var requested = drives.Select(NormalizeVolume).OfType<string>()

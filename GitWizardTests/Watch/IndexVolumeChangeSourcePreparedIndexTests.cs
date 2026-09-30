@@ -94,6 +94,7 @@ public class IndexVolumeChangeSourcePreparedIndexTests
         Assert.That(owner.Index.FindByName("child").Single().Parent!.Value.Name, Is.EqualTo("repo"));
         Assert.That(broker.ConnectionCount, Is.EqualTo(1));
         var started = await broker.WatchStarted.WaitAsync(timeout.Token);
-        Assert.That(started.DrivesSpec, Does.StartWith("X:100:1000:"));
+        Assert.That(started.Drive, Is.EqualTo("X"));
+        Assert.That(started.Since, Is.EqualTo(new UsnJournalCursor(100UL, 1000L)));
     }
 }

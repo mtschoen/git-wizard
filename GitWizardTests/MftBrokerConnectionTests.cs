@@ -26,7 +26,7 @@ public class MftBrokerConnectionTests
         using var cancellation = new CancellationTokenSource();
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        Func<CancellationToken, Task<JournalBrokerClient>> connectBroker = broker.ConnectAsync;
+        Func<CancellationToken, Task<BrokerProcess>> connectBroker = broker.ConnectAsync;
         var holder = new MftBrokerConnection(async _ =>
         {
             entered.TrySetResult();
@@ -52,8 +52,23 @@ public class MftBrokerConnectionTests
         await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(10));
         await broker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.That(broker.ConnectionCount, Is.EqualTo(1));
-        Assert.That(broker.ShutdownFrames, Is.EqualTo(1));
-        Assert.That(broker.ClientTransportDisposed, Is.True);
+    }
+
+    [Test]
+    public async Task ProcessThatEndedBeforeSubscriptionLatchesTheFault()
+    {
+        await using var broker = new BlockBrokerFixture();
+        Func<CancellationToken, Task<BrokerProcess>> connectBroker = broker.ConnectAsync;
+        var holder = new MftBrokerConnection(async token =>
+        {
+            var process = await connectBroker(token);
+            await process.DisposeAsync();
+            return process;
+        });
+        var process = await holder.ConnectAsync(CancellationToken.None);
+        Assert.That(process.HasEnded, Is.True);
+        Assert.That(holder.IsFaulted, Is.True);
+        await holder.DisposeAsync();
     }
 
     [Test]
@@ -68,18 +83,16 @@ public class MftBrokerConnectionTests
         await holder.DisposeAsync();
         await broker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.That(broker.ConnectionCount, Is.EqualTo(1));
-        Assert.That(broker.ShutdownFrames, Is.EqualTo(1));
-        Assert.That(broker.ClientTransportDisposed, Is.True);
     }
 
     [Test]
     public async Task FailedFactoryDoesNotPreventCleanup()
     {
         var holder = new MftBrokerConnection(_ =>
-            Task.FromException<JournalBrokerClient>(new IOException("launch failed")));
+            Task.FromException<BrokerProcess>(new IOException("launch failed")));
         Assert.ThrowsAsync<IOException>(() => holder.ConnectAsync(CancellationToken.None));
         await holder.DisposeAsync();
-        Assert.That(holder.Client, Is.Null);
+        Assert.That(holder.Process, Is.Null);
     }
 
     [Test]
@@ -94,11 +107,10 @@ public class MftBrokerConnectionTests
         Assert.That(async () => await cancelled, Throws.InstanceOf<OperationCanceledException>());
         release.TrySetResult();
         var client = await holder.ConnectAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.That(client, Is.SameAs(holder.Client));
+        Assert.That(client, Is.SameAs(holder.Process));
         await holder.DisposeAsync();
         await broker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.That(broker.ConnectionCount, Is.EqualTo(1));
-        Assert.That(broker.ShutdownFrames, Is.EqualTo(1));
     }
 
     [Test]
@@ -114,7 +126,7 @@ public class MftBrokerConnectionTests
         Assert.That(async () => await cancelled, Throws.InstanceOf<OperationCanceledException>());
         release.TrySetResult();
         var client = await patient.WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.That(client, Is.SameAs(holder.Client));
+        Assert.That(client, Is.SameAs(holder.Process));
         await holder.DisposeAsync();
         await broker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.That(broker.ConnectionCount, Is.EqualTo(1));
@@ -125,7 +137,7 @@ public class MftBrokerConnectionTests
     {
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        Func<CancellationToken, Task<JournalBrokerClient>> connectBroker = broker.ConnectAsync;
+        Func<CancellationToken, Task<BrokerProcess>> connectBroker = broker.ConnectAsync;
         var holder = new MftBrokerConnection(async token =>
         {
             entered.TrySetResult();

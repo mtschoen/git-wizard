@@ -1,4 +1,3 @@
-using System.Globalization;
 using GitWizard;
 using GitWizardTests.TestSupport;
 using MFTLib;
@@ -24,7 +23,7 @@ public class MftIndexSessionTests
         Assert.That(broker.ConnectionCount, Is.EqualTo(1));
         Assert.That(session.Drives, Is.EqualTo(new[] { "X", "Y" }));
         Assert.That(session.Index.Drives.Select(drive => drive.State), Is.All.EqualTo(DriveState.Ready));
-        Assert.That(broker.ScanFrames, Has.Count.EqualTo(2));
+        Assert.That(broker.ScannedDrives, Is.EquivalentTo(new[] { "X", "Y" }));
     }
 
     [Test]
@@ -36,8 +35,8 @@ public class MftIndexSessionTests
         try
         {
             await session.Index.StartWatchingAsync(CancellationToken.None);
-            var frame = await broker.WatchStarted.WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.That(frame.DrivesSpec, Does.StartWith("X:"));
+            var watchedDrive = await broker.WatchStarted.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.That(watchedDrive.Drive, Is.EqualTo("X"));
             Assert.That(broker.ConnectionCount, Is.EqualTo(1));
             Assert.That(session.IsFaulted, Is.False);
             var fault = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -79,16 +78,16 @@ public class MftIndexSessionTests
         await using var broker = new BlockBrokerFixture();
         using var cancellation = new CancellationTokenSource();
         var midWriteReached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var resumeWrite = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        broker.MidScanAsync = async () =>
+        // The host's scan holds until the cancelled open closes its channel, so the host always
+        // observes the cancellation after exactly one row.
+        broker.MidScanAsync = async hostToken =>
         {
             midWriteReached.SetResult();
-            await resumeWrite.Task;
+            await Task.Delay(Timeout.InfiniteTimeSpan, hostToken).ContinueWith(_ => { },
+                CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
         };
         var drive = broker.Drive('X');
         var cancellationToken = cancellation.Token;
-        // The shared connection only sees disposal, so the fixture learns of the open's cancellation directly.
-        broker.ClientCancellation = cancellationToken;
         var connectAsync = broker.ConnectAsync;
         var cacheDirectory = broker.CacheDirectory;
         var openTask = MftIndexSession.OpenAsync([drive], connectAsync,
@@ -104,14 +103,7 @@ public class MftIndexSessionTests
         }
         finally
         {
-            try
-            {
-                await cancellation.CancelAsync();
-            }
-            finally
-            {
-                resumeWrite.TrySetResult();
-            }
+            await cancellation.CancelAsync();
         }
         Assert.That(async () => await openTask.WaitAsync(TimeSpan.FromSeconds(10)),
             Throws.InstanceOf<OperationCanceledException>());
@@ -146,8 +138,6 @@ public class MftIndexSessionTests
         broker.ScanReceived = cancellation.Cancel;
         var drive = broker.Drive('X');
         var cancellationToken = cancellation.Token;
-        // The shared connection only sees disposal, so the fixture learns of the open's cancellation directly.
-        broker.ClientCancellation = cancellationToken;
         var connectAsync = broker.ConnectAsync;
         var cacheDirectory = broker.CacheDirectory;
         Assert.That(async () =>
@@ -156,8 +146,6 @@ public class MftIndexSessionTests
         await broker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.That(broker.ConnectionCount, Is.EqualTo(1));
         Assert.That(broker.SectionDisposals, Is.EqualTo(1));
-        Assert.That(broker.RowsWritten, Is.Zero);
-        Assert.That(broker.ServedToCompletion, Is.False);
     }
 
     [Test]
@@ -211,9 +199,8 @@ public class MftIndexSessionTests
         await using var broker = new BlockBrokerFixture();
         await using var session = await MftIndexSession.OpenAsync([broker.Drive('X')],
             broker.ConnectAsync, broker.CacheDirectory, null, CancellationToken.None);
-        Assert.That(broker.ScanFrame.DrivesSpec!.Split(':')[^1],
-            Is.EqualTo(((int)BrokerScanProfile.DirectoryIndex).ToString(CultureInfo.InvariantCulture)));
-        Assert.That(broker.ScanFrame.KeepFileNames, Is.EqualTo(new[] { ".git", "HEAD" }));
+        Assert.That(broker.LastFilter?.Profile, Is.EqualTo(BrokerScanProfile.DirectoryIndex));
+        Assert.That(broker.LastFilter?.KeepFileNames, Is.EqualTo(new[] { ".git", "HEAD" }));
         Assert.That(session.Index.Drives.Single().ProducerKind, Is.EqualTo(ProducerKind.Mft));
     }
 
@@ -246,8 +233,8 @@ public class MftIndexSessionTests
             broker.ConnectAsync, broker.CacheDirectory, new ProgressSink<IndexScanProgress>(samples.Add),
             CancellationToken.None);
 
-        Assert.That(samples, Has.Count.EqualTo(1));
-        var sample = samples[0];
+        Assert.That(samples.Where(sample => sample.Phase == IndexScanPhase.ParsingMft).ToArray(), Has.Length.EqualTo(1));
+        var sample = samples.Single(candidate => candidate.Phase == IndexScanPhase.ParsingMft);
         Assert.Multiple(() =>
         {
             Assert.That(sample.DriveLetter, Is.EqualTo('X'));

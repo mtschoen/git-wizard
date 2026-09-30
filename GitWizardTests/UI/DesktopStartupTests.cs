@@ -12,10 +12,10 @@ public class DesktopStartupTests
         public int Calls { get; private set; }
         public string? PipeName { get; private set; }
 
-        public void RunBroker(string? pipeName, bool oneShot)
+        public void RunBroker(string? controlPipeName)
         {
             Calls++;
-            PipeName = pipeName;
+            PipeName = controlPipeName;
         }
     }
 

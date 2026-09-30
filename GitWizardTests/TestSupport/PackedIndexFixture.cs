@@ -52,8 +52,21 @@ internal sealed class PackedIndexFixture : IDisposable
     public const ulong JournalId = 100;
     public const long NextUsn = 1000;
 
-    internal Task<MftBlockProduceResult> ProduceMftAsync(MftBlockProduceRequest request,
+    /// <summary>Awaited before each MFT production, so a test can hold a rescan in progress.</summary>
+    public Func<CancellationToken, Task>? BeforeProduceAsync { get; set; }
+
+    /// <summary>The catch-up loss each MFT production reports; null reports none.</summary>
+    public Func<JournalCheckpointLoss?>? CatchUpLossForProduction { get; set; }
+
+    internal async Task<MftBlockProduceResult> ProduceMftAsync(MftBlockProduceRequest request,
         CancellationToken cancellationToken)
+    {
+        if (BeforeProduceAsync is { } beforeProduce)
+            await beforeProduce(cancellationToken).ConfigureAwait(false);
+        return ProduceMft(request, cancellationToken);
+    }
+
+    MftBlockProduceResult ProduceMft(MftBlockProduceRequest request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var block = BlockFile.Create(new BlockFileCreateOptions
@@ -72,8 +85,11 @@ internal sealed class PackedIndexFixture : IDisposable
             uint row = 6;
             WriteTree(writer, TreePath, 5, ref row);
             writer.SetJournalCursor(JournalId, NextUsn);
-            writer.Complete(CompletionTimestamp);
-            return Task.FromResult(new MftBlockProduceResult(block, JournalId, NextUsn, 0, false));
+            writer.Complete(CompletionTimestamp, null);
+            return new MftBlockProduceResult(block, JournalId, NextUsn, 0, false)
+            {
+                CatchUpLoss = CatchUpLossForProduction?.Invoke()
+            };
         }
         catch
         {
@@ -125,7 +141,7 @@ internal sealed class PackedIndexFixture : IDisposable
         }).Produce(writer, null, CancellationToken.None);
         Assert.That(result.CompactionNeeded, Is.False);
         Assert.That(result.AccessDeniedSubtreeCount, Is.Zero);
-        writer.Complete(CompletionTimestamp);
+        writer.Complete(CompletionTimestamp, null);
         return block;
     }
 

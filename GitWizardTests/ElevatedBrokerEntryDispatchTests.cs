@@ -15,13 +15,10 @@ public class ElevatedBrokerEntryDispatchTests
     {
         public int CallCount { get; private set; }
         public string? PipeName { get; private set; }
-        public bool OneShot { get; private set; }
-
-        public void RunBroker(string? pipeName, bool oneShot)
+        public void RunBroker(string? controlPipeName)
         {
             CallCount++;
-            PipeName = pipeName;
-            OneShot = oneShot;
+            PipeName = controlPipeName;
         }
     }
 
@@ -36,7 +33,6 @@ public class ElevatedBrokerEntryDispatchTests
         Assert.That(handled, Is.True);
         Assert.That(runner.CallCount, Is.EqualTo(1));
         Assert.That(runner.PipeName, Is.EqualTo("gitwizard-pipe-1"));
-        Assert.That(runner.OneShot, Is.False);
     }
 
     [Test]

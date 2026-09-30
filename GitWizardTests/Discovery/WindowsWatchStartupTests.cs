@@ -47,11 +47,11 @@ public class WindowsWatchStartupTests
         Assert.That(listWrites, Is.Empty, "List writes must not happen before catch-up.");
 
         // Publish journal changes and caught up marker
-        scripted.Publish(new JournalBatch('X',
+        scripted.Publish('X', new JournalBatch(
         [
             Entry(50, 6, "ordinary.txt", UsnReason.FileCreate)
         ], PackedIndexFixture.JournalId, 1002));
-        scripted.Publish(new DriveCaughtUp('X'));
+        scripted.Publish('X', new DriveCaughtUp());
 
         await using var startup = await startupTask;
 
@@ -242,8 +242,8 @@ public class WindowsWatchStartupTests
         await scripted.Started.WaitAsync(cts.Token);
 
         // Drive X catches up, Drive Y faults
-        scripted.Publish(new DriveWatchFailure('Y', new IOException("Y journal corrupt")));
-        scripted.Publish(new DriveCaughtUp('X'));
+        scripted.LoseChannel('Y', new IOException("Y journal corrupt"));
+        scripted.Publish('X', new DriveCaughtUp());
 
         await using var startup = await startupTask;
 
@@ -320,14 +320,14 @@ public class WindowsWatchStartupTests
         await scripted.Started.WaitAsync(cts.Token);
 
         // While buffering, simulate Create followed by Delete for temp-repo
-        scripted.Publish(new JournalBatch('X',
+        scripted.Publish('X', new JournalBatch(
         [
             Entry(60, 5, "temp-repo", UsnReason.FileCreate, isDirectory: true),
             Entry(61, 60, ".git", UsnReason.FileCreate, isDirectory: true),
             Entry(61, 60, ".git", UsnReason.FileDelete, isDirectory: true),
             Entry(60, 5, "temp-repo", UsnReason.FileDelete, isDirectory: true)
         ], PackedIndexFixture.JournalId, 1002));
-        scripted.Publish(new DriveCaughtUp('X'));
+        scripted.Publish('X', new DriveCaughtUp());
 
         await using var startup = await startupTask;
 
@@ -366,11 +366,11 @@ public class WindowsWatchStartupTests
         await scripted.Started.WaitAsync(cts.Token);
 
         // A modification under the already-tracked repository arrives during catch-up.
-        scripted.Publish(new JournalBatch('X',
+        scripted.Publish('X', new JournalBatch(
         [
             Entry(50, 6, "notes.txt", UsnReason.FileCreate)
         ], PackedIndexFixture.JournalId, 1002));
-        scripted.Publish(new DriveCaughtUp('X'));
+        scripted.Publish('X', new DriveCaughtUp());
 
         await using var startup = await startupTask;
 
@@ -421,7 +421,7 @@ public class WindowsWatchStartupTests
         var startupTask = coordinator.PrepareWatchAsync(request, null, cts.Token);
         await scripted.Started.WaitAsync(cts.Token);
 
-        scripted.Publish(new JournalBatch('X',
+        scripted.Publish('X', new JournalBatch(
         [
             Entry(50, 5, "newrepo", UsnReason.FileCreate, isDirectory: true),
             Entry(51, 50, ".git", UsnReason.FileCreate, isDirectory: true),
@@ -429,7 +429,7 @@ public class WindowsWatchStartupTests
             Entry(61, 60, "repo", UsnReason.FileCreate, isDirectory: true),
             Entry(62, 61, ".git", UsnReason.FileCreate, isDirectory: true)
         ], PackedIndexFixture.JournalId, 1002));
-        scripted.Publish(new DriveCaughtUp('X'));
+        scripted.Publish('X', new DriveCaughtUp());
 
         await using var startup = await startupTask;
 

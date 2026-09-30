@@ -40,7 +40,7 @@ public class IndexVolumeChangeSourceTests
         index.Changed += change => observed.TrySetResult(change);
         await index.StartWatchingAsync(CancellationToken.None);
         await scripted.Started.WaitAsync(HangGuard);
-        scripted.Publish(new JournalBatch('X',
+        scripted.Publish('X', new JournalBatch(
         [
             Entry(6, 5, "first", UsnReason.RenameNewName, true),
             Entry(6, 5, "second", UsnReason.RenameNewName, true)
@@ -169,7 +169,7 @@ public class IndexVolumeChangeSourceTests
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
         Assert.That(scripted.Started.IsCompleted, Is.True, "Arming must start the watch.");
-        var targets = await scripted.Started.WaitAsync(HangGuard);
+        var targets = scripted.Targets;
         using var cancellation = new CancellationTokenSource(HangGuard);
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
         var firstRead = reader.MoveNextAsync().AsTask();
@@ -180,7 +180,7 @@ public class IndexVolumeChangeSourceTests
         }));
         // Routed through IndexVolumeChangeSource, which rewrites every path back onto its own
         // configured drive letter (MFTLib #143), so these stay the pre-existing synthetic shape.
-        scripted.Publish(new JournalBatch('X',
+        scripted.Publish('X', new JournalBatch(
         [
             Entry(50, 6, "file.txt", UsnReason.FileCreate),
             Entry(50, 6, "renamed.txt", UsnReason.RenameNewName),
@@ -201,7 +201,7 @@ public class IndexVolumeChangeSourceTests
         Assert.That(await reader.MoveNextAsync(), Is.True);
         Assert.That(reader.Current.Entries.Single(), Is.EqualTo(
             new VolumeChangeEntry(@"X:\repo\renamed.txt", VolumeEntryKind.Deleted)));
-        scripted.Publish(new JournalBatch('Y', [Entry(51, 6, "other.txt", UsnReason.FileCreate)],
+        scripted.Publish('Y', new JournalBatch([Entry(51, 6, "other.txt", UsnReason.FileCreate)],
             PackedIndexFixture.JournalId, 1002));
         Assert.That(await reader.MoveNextAsync(), Is.True);
         Assert.That(reader.Current.Volume, Is.EqualTo("Y"));
@@ -233,7 +233,7 @@ public class IndexVolumeChangeSourceTests
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
         var pending = reader.MoveNextAsync().AsTask();
         await scripted.Started.WaitAsync(HangGuard);
-        scripted.Publish(new JournalBatch('X', [Entry(50, 6, "ordinary.txt", reason)],
+        scripted.Publish('X', new JournalBatch([Entry(50, 6, "ordinary.txt", reason)],
             PackedIndexFixture.JournalId, 1002));
         Assert.That(await pending, Is.True);
         Assert.That(reader.Current.Volume, Is.EqualTo("X"));
@@ -291,99 +291,6 @@ public class IndexVolumeChangeSourceTests
     }
 
     [Test]
-    public async Task TerminalFaultClosesChannelOnce()
-    {
-        foreach (var scenario in new[] { "merged", "ended", "drive", "apply", "subscriber" })
-            await AssertFaultAsync(scenario);
-    }
-
-    static async Task AssertFaultAsync(string scenario)
-    {
-        using var files = new PackedIndexFixture();
-        files.AddMarker("repo");
-        var scripted = new ScriptedIndexWatchSource();
-        var owner = Owner(await files.OpenMftIndexAsync(scripted, 'X', 'Y'), "X", "Y");
-        var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
-        try
-        {
-            await AssertFaultCoreAsync(source, scripted, owner, scenario);
-        }
-        finally
-        {
-            await source.DisposeAsync();
-        }
-    }
-
-    static async Task AssertFaultCoreAsync(
-        IndexVolumeChangeSource source,
-        ScriptedIndexWatchSource scripted,
-        MftIndexSession owner,
-        string scenario)
-    {
-        var deaths = new List<string>();
-        var failures = new List<(string Drive, string Message)>();
-        var driveFailed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        source.SourceDied += deaths.Add;
-        source.DriveFailed += (drive, message) =>
-        {
-            failures.Add((drive, message));
-            driveFailed.TrySetResult();
-        };
-        await source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
-        using var cancellation = new CancellationTokenSource(HangGuard);
-        await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
-        var pending = reader.MoveNextAsync().AsTask();
-        await scripted.Started.WaitAsync(HangGuard);
-        switch (scenario)
-        {
-            case "merged":
-                scripted.Fail(new IOException("merged stream failed"));
-                break;
-            case "ended":
-                scripted.Complete();
-                break;
-            case "subscriber":
-                owner.Index.Changed += _ => throw new InvalidOperationException("subscriber failed");
-                scripted.Publish(new JournalBatch('X', [Entry(50, 6, "changed", UsnReason.FileCreate)],
-                    PackedIndexFixture.JournalId, 1002));
-                Assert.That(await pending, Is.True);
-                var exception = Assert.ThrowsAsync<InvalidOperationException>(async () => await reader.MoveNextAsync());
-                Assert.That(exception!.Message, Is.EqualTo("subscriber failed"));
-                Assert.That(deaths, Is.Empty);
-                Assert.That(failures, Is.Empty);
-                return;
-            default:
-                if (scenario == "drive")
-                    scripted.Publish(new DriveWatchFailure('X', new IOException("X failed")));
-                else
-                    scripted.Publish(new JournalBatch('X', null!, PackedIndexFixture.JournalId, 1002));
-                await driveFailed.Task.WaitAsync(HangGuard);
-                Assert.That(deaths, Is.Empty);
-                Assert.That(failures.Single().Drive, Is.EqualTo("X"));
-                Assert.That(failures.Single().Message, Is.EqualTo(owner.Index.Drives.Single(
-                    drive => drive.DriveLetter == 'X').WatchFailureMessage));
-                scripted.Publish(new JournalBatch('Y', [Entry(50, 6, "survivor", UsnReason.FileCreate)],
-                    PackedIndexFixture.JournalId, 1002));
-                Assert.That(await pending, Is.True);
-                Assert.That(reader.Current.Volume, Is.EqualTo("Y"));
-                pending = reader.MoveNextAsync().AsTask();
-                scripted.Publish(new DriveWatchFailure('Y', new IOException("Y failed")));
-                break;
-        }
-        Assert.That(await pending, Is.False);
-        Assert.That(deaths, Has.Count.EqualTo(1));
-        if (scenario == "merged")
-            Assert.That(deaths.Single(), Is.EqualTo("merged stream failed"));
-        if (scenario == "ended")
-            Assert.That(deaths.Single(), Does.Contain("ended its stream without being stopped"));
-        await scripted.Completed.WaitAsync(HangGuard);
-        await source.DisposeAsync();
-        await source.DisposeAsync();
-        Assert.That(deaths, Has.Count.EqualTo(1));
-        Assert.That(owner.IsDisposed, Is.True);
-    }
-
-    [Test]
     public async Task FreshOpen_ReportsScanProgressWithDriveOrdinal()
     {
         using var files = new PackedIndexFixture();
@@ -415,7 +322,7 @@ public class IndexVolumeChangeSourceTests
         }));
     }
 
-    static MftIndexSession Owner(FileIndex index, params string[] drives) =>
+    internal static MftIndexSession Owner(FileIndex index, params string[] drives) =>
         new(index, null, drives, [], new Dictionary<string, string>());
 
     [Test]
@@ -509,7 +416,7 @@ public class IndexVolumeChangeSourceTests
     }
 
 
-    static UsnJournalEntry Entry(ulong record, ulong parent, string name, UsnReason reason,
+    internal static UsnJournalEntry Entry(ulong record, ulong parent, string name, UsnReason reason,
         bool directory = false) => UsnJournalEntry.Create(new UsnJournalEntryOptions
         {
             RecordNumber = record,

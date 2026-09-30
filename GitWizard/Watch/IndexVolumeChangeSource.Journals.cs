@@ -21,7 +21,7 @@ public sealed partial class IndexVolumeChangeSource
             return;
 
         var letter = char.ToUpperInvariant(drive.DriveLetter);
-        _usableDrives.Add(letter);
+        AddUsableDrive(letter);
         // Cache the drive's real indexed root directory so OnChanged can rewrite a live
         // change's path back onto this drive's own "<letter>:\" form, regardless of
         // whether IndexedDrive.RootDirectory is the drive root (MFTLib #143).
@@ -31,8 +31,8 @@ public sealed partial class IndexVolumeChangeSource
     }
 
     // A watch fault on a drive asks whether the journal outran the watch: MFTLib records a
-    // LiveWatch loss on the drive before raising WatchFaulted, so the drive's hint can be
-    // refreshed in the same moment the failure is reported.
+    // live-watch or scan catch-up loss before raising WatchFaulted, so the
+    // drive's hint can be refreshed in the same moment the failure is reported.
     void RaiseFaultJournalWarning(char driveLetter)
     {
         var owner = _owner;
@@ -45,12 +45,12 @@ public sealed partial class IndexVolumeChangeSource
 
     // Internal for tests: a consumer test index never reports a CheckpointLoss (MFTLib's
     // journal isolation answers "cannot say"), so the decision is fed a drive status directly,
-    // the same way ProcessArmedDrive is tested. Only a LiveWatch loss belongs to the fault
-    // being handled; a DriveOpening report is the open's standing explanation and an unrelated
-    // fault leaves it, and this event, untouched.
+    // the same way ProcessArmedDrive is tested. A live-watch or scan catch-up loss belongs to
+    // the fault being handled; a drive-opening report is the open's standing explanation and an
+    // unrelated fault leaves it, and this event, untouched.
     internal void ProcessFaultedDrive(DriveStatus drive, MftIndexSession owner, GitWizardConfiguration configuration)
     {
-        if (drive.CheckpointLoss is not { DetectedDuring: JournalCheckpointLossDetection.LiveWatch })
+        if (drive.CheckpointLoss is not { DetectedDuring: JournalCheckpointLossDetection.LiveWatch or JournalCheckpointLossDetection.ScanCatchUp })
             return;
         if (BuildJournalWarning(drive, owner, configuration) is { } warning)
             JournalWarningDetected?.Invoke(warning);

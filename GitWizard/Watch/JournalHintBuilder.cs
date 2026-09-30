@@ -22,7 +22,14 @@ internal static class JournalHintBuilder
         {
             return $"Hint on {loss.DriveLetter}: The change journal was recreated, so the position " +
                    "the watch had reached no longer refers to anything and live updates for this " +
-                   "drive stopped. A rescan of the drive is needed to catch up. Nothing needs changing.";
+                   "drive stopped. The drive is being rescanned to catch up. Nothing needs changing.";
+        }
+
+        if (loss.DetectedDuring == JournalCheckpointLossDetection.ScanCatchUp)
+        {
+            return $"Hint on {loss.DriveLetter}: The change journal was recreated while the drive " +
+                   "was being scanned, so the scan could not catch up and the drive was scanned " +
+                   "again. Nothing needs changing.";
         }
 
         return $"Hint on {loss.DriveLetter}: The change journal was recreated, so the saved " +
@@ -45,7 +52,8 @@ internal static class JournalHintBuilder
     }
 
     // What the loss means for the drive depends on when it was found: at open the cold scan has
-    // already happened, while a live-watch loss leaves the drive behind until someone rescans it.
+    // already happened, a live-watch loss is being recovered by MFTLib rescanning the drive, and a
+    // scan catch-up loss has already made MFTLib scan the drive again.
     static string BuildRescanClause(JournalCheckpointLoss loss)
     {
         if (loss.DetectedDuring == JournalCheckpointLossDetection.LiveWatch)
@@ -53,9 +61,15 @@ internal static class JournalHintBuilder
             return loss.BytesBehind is { } liveBytesBehind
                 ? "Live updates for this drive stopped because the change journal moved " +
                   $"{ByteSizeFormatter.Format(liveBytesBehind)} past the position the watch had " +
-                  "reached, so a rescan of the drive is needed to catch up. "
+                  "reached, so the drive is being rescanned to catch up. "
                 : "Live updates for this drive stopped because the change journal moved past " +
-                  "the position the watch had reached, so a rescan of the drive is needed to catch up. ";
+                  "the position the watch had reached, so the drive is being rescanned to catch up. ";
+        }
+
+        if (loss.DetectedDuring == JournalCheckpointLossDetection.ScanCatchUp)
+        {
+            return "The change journal moved past the position recorded before the drive's scan " +
+                   "while the scan ran, so the scan could not catch up and the drive was scanned again. ";
         }
 
         return loss.BytesBehind is { } bytesBehind

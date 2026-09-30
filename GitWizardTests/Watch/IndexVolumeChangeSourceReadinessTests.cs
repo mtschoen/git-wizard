@@ -38,13 +38,13 @@ public class IndexVolumeChangeSourceReadinessTests
         }));
         Assert.That(source.Readiness.IsSettled, Is.False);
 
-        scripted.Publish(new DriveCaughtUp('X'));
+        scripted.Publish('X', new DriveCaughtUp());
         await WaitUntilAsync(() => source.Readiness.TryGet("X", out var x) && x.State == VolumeWatchState.CaughtUp);
         Assert.That(arming.IsCompleted, Is.False, "One caught-up drive does not settle a two-drive arm.");
         Assert.That(source.Readiness.HasCaughtUpVolume, Is.True);
         Assert.That(source.Readiness.IsSettled, Is.False);
 
-        scripted.Publish(new DriveWatchFailure('Y', new IOException("Y failed")));
+        scripted.LoseChannel('Y', new IOException("Y failed"));
         var result = await arming.WaitAsync(HangGuard);
         Assert.That(result.Errors["Y"], Is.EqualTo("Y failed"));
         Assert.That(source.Readiness.IsSettled, Is.True);
@@ -120,7 +120,7 @@ public class IndexVolumeChangeSourceReadinessTests
         using var cancellation = new CancellationTokenSource(HangGuard);
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
         var pending = reader.MoveNextAsync().AsTask();
-        scripted.Publish(new DriveWatchFailure('Y', new IOException("Y died later")));
+        scripted.LoseChannel('Y', new IOException("Y died later"));
         await WaitUntilAsync(() => source.Readiness.TryGet("Y", out var y) && y.State == VolumeWatchState.Excluded);
         Assert.That(source.Readiness.TryGet("Y", out var status) ? status.ExclusionReason : null, Is.EqualTo("Y died later"));
         Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo(new[] { "X" }));
@@ -148,8 +148,8 @@ public class IndexVolumeChangeSourceReadinessTests
         await WaitUntilAsync(() => snapshots.Count >= 2);
 
         Parallel.Invoke(
-            () => scripted.Publish(new DriveCaughtUp('X')),
-            () => scripted.Publish(new DriveCaughtUp('Y'))
+            () => scripted.Publish('X', new DriveCaughtUp()),
+            () => scripted.Publish('Y', new DriveCaughtUp())
         );
 
         await arming.WaitAsync(HangGuard);

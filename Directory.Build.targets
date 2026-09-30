@@ -61,7 +61,7 @@
 
   <!-- (1b) Test-harness reference - MFTLibTestExtensions.dll, scoped to GitWizardTests only.
        Same configuration-fallback shape as the managed MFTLib reference above; consumed by
-       the packed-block broker fixtures through ScanSessionTestHarness and DuplexStream. -->
+       the packed-block broker fixtures through BrokerTestHarness. -->
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'GitWizardTests'">
     <_MFTLibTestExtensionsBin>$(MSBuildThisFileDirectory)external/MFTLib/MFTLibTestExtensions/bin/x64</_MFTLibTestExtensionsBin>
     <_MFTLibTestExtensionsDll>$(_MFTLibTestExtensionsBin)/$(Configuration)/$(_MFTLibTfm)/MFTLibTestExtensions.dll</_MFTLibTestExtensionsDll>

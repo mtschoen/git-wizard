@@ -39,7 +39,7 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
         var preparing = coordinator.PrepareWatchAsync(request, session, progress, CancellationToken.None);
         await scripted.Started.WaitAsync(TimeSpan.FromSeconds(10));
         await AsyncCondition.WaitUntilAsync(() => reports.Any(r => r.Readiness?.TryGet("X", out var x) == true && x.State == VolumeWatchState.CatchingUp));
-        scripted.Publish(new DriveCaughtUp('X'));
+        scripted.Publish('X', new DriveCaughtUp());
         await using var startup = await preparing.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.That(reports.Select(r => r.Phase).Distinct(), Is.EqualTo(new[]
         {
@@ -78,7 +78,7 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
         var brokerConnection = new MftBrokerConnection(_ =>
         {
             connectionFired = true;
-            return Task.FromResult<MFTLib.JournalBrokerClient>(null!);
+            return Task.FromResult<MFTLib.BrokerProcess>(null!);
         });
         var session = new MftIndexSession(
             await files.OpenMftIndexAsync(scripted, 'X'),
@@ -112,7 +112,7 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
         await scripted.Started.WaitAsync(TimeSpan.FromSeconds(10));
         await AsyncCondition.WaitUntilAsync(() => connectionFired);
         await AsyncCondition.WaitUntilAsync(() => reports.Any(r => r.Phase == WatchStartupPhase.BrokerConnected));
-        scripted.Publish(new DriveCaughtUp('X'));
+        scripted.Publish('X', new DriveCaughtUp());
         await using var startup = await preparing.WaitAsync(TimeSpan.FromSeconds(10));
 
         Assert.That(reports.Select(r => r.Phase), Does.Contain(WatchStartupPhase.RequestingElevation));

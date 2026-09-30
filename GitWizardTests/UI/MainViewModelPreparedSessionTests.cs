@@ -4,7 +4,6 @@ using GitWizard.Watch.Linux;
 using GitWizardTests.TestSupport;
 using GitWizardUI.ViewModels;
 using GitWizardUI.ViewModels.Services;
-using MFTLib.Index;
 
 namespace GitWizardTests.UI;
 
@@ -157,7 +156,7 @@ public class MainViewModelPreparedSessionTests
             Assert.That(viewModel.PreparedDiscoveryIndex, Is.Null);
             if (respawn)
             {
-                scripted.Publish(new DriveWatchFailure('X', new IOException("source died")));
+                scripted.LoseChannel('X', new IOException("source died"));
                 await starting.WaitAsync(HangGuard);
             }
             else

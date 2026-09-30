@@ -55,9 +55,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeReadiness
             statuses.TryGetValue(drive, out var status);
             var origin = OriginOf(status?.IndexStatus);
             var letter = char.ToUpperInvariant(drive[0]);
-            bool usable;
-            lock (_lifecycleLock)
-                usable = _usableDrives.Contains(letter);
+            var usable = ContainsUsableDrive(letter);
             if (usable)
                 PublishVolumeState(VolumeWatchStatus.CatchingUp(letter.ToString(), origin));
             else
@@ -76,7 +74,8 @@ public sealed partial class IndexVolumeChangeSource : IVolumeReadiness
             if (status.IndexStatus is not { } index)
                 continue;
             var letter = char.ToUpperInvariant(status.Drive[0]);
-            if (!driveSet.Contains(letter))
+            // A recovering drive can carry its fault's message and still come back.
+            if (!driveSet.Contains(letter) || index.WatchCatchUp == WatchCatchUpState.Recovering)
                 continue;
             var message = index.WatchFailureMessage;
             if (message is { Length: > 0 } || index.WatchCatchUp == WatchCatchUpState.Faulted)

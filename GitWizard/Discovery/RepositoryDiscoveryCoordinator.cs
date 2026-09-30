@@ -167,23 +167,25 @@ public partial class RepositoryDiscoveryCoordinator
         IProgress<WatchStartupProgress>? progress,
         CancellationToken cancellationToken)
     {
-        foreach (var driveStatus in session.CaptureDriveStatuses())
-        {
-            if (!NeedsScan(purpose, driveStatus))
-                continue;
+        var drivesNeedingScan = session.CaptureDriveStatuses()
+            .Where(driveStatus => NeedsScan(purpose, driveStatus))
+            .Select(driveStatus => driveStatus.Drive)
+            .ToArray();
+        foreach (var drive in drivesNeedingScan)
+            progress?.Report(new WatchStartupProgress(WatchStartupPhase.Scanning, drive));
 
-            cancellationToken.ThrowIfCancellationRequested();
-            progress?.Report(new WatchStartupProgress(WatchStartupPhase.Scanning, driveStatus.Drive));
-            try
-            {
-                await session.Index.RescanAsync(driveStatus.Drive[0], cancellationToken).ConfigureAwait(false);
-                accumulator.RescannedDrives.Add(driveStatus.Drive);
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException ||
-                                              !cancellationToken.IsCancellationRequested)
-            {
-                accumulator.Errors[driveStatus.Drive] = exception.Message;
-            }
+        if (drivesNeedingScan.Length == 0)
+            return;
+
+        var results = await session.Index.RescanAsync(drivesNeedingScan.Select(drive => drive[0]).ToArray(),
+            cancellationToken).ConfigureAwait(false);
+        foreach (var result in results)
+        {
+            var drive = char.ToUpperInvariant(result.DriveLetter).ToString();
+            if (result.Outcome == DriveOperationOutcome.Succeeded)
+                accumulator.RescannedDrives.Add(drive);
+            else if (result.Outcome == DriveOperationOutcome.Failed)
+                accumulator.Errors[drive] = result.Failure?.Message ?? "The drive rescan failed.";
         }
     }
 

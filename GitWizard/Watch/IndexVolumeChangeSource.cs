@@ -11,7 +11,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
     readonly Channel<VolumeChangeBatch> _output = Channel.CreateUnbounded<VolumeChangeBatch>();
     readonly Lock _lifecycleLock = new();
     readonly Lock _faultLock = new();
-    readonly HashSet<Exception> _reportedFaults = new(ReferenceEqualityComparer.Instance);
+    readonly Lock _usableDrivesLock = new();
     readonly HashSet<char> _usableDrives = [];
     readonly Dictionary<char, string> _driveRealRoots = new();
     readonly TaskCompletionSource _pumpStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -58,7 +58,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
 
     public Task<UsnJournalSettings> GrowUsnJournalAsync(char driveLetter, long maximumSize, long allocationDelta, CancellationToken cancellationToken)
     {
-        var broker = _owner?.GetBrokerClient();
+        var broker = _owner?.GetBrokerProcess();
         if (broker == null)
             throw new InvalidOperationException("No broker connection available.");
         return broker.GrowUsnJournalAsync(driveLetter, maximumSize, allocationDelta, cancellationToken);
@@ -119,11 +119,11 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
             cancellationToken.ThrowIfCancellationRequested();
             PublishArmedDrives(_owner, requested, errors);
 
-            if (_usableDrives.Count > 0)
+            if (HasUsableDrives())
             {
                 await EnsureWatchStartedAsync(_owner, cancellationToken).ConfigureAwait(false);
 
-                var catchUpDrives = _usableDrives.ToArray();
+                var catchUpDrives = CaptureUsableDrives();
                 var catchUpTasks = catchUpDrives.Select(d => WaitDriveAsync(_owner, d, cancellationToken)).ToArray();
                 await Task.WhenAll(catchUpTasks).ConfigureAwait(false);
 
@@ -152,6 +152,8 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         }
         catch
         {
+            // Stop a watch this arm started before its index is disposed under it.
+            await StopOnceAsync().ConfigureAwait(false);
             var owner = _owner;
             _owner = null;
             if (owner is not null)
@@ -186,7 +188,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         var claimed = false;
         try
         {
-            bool hasWatchableDrives;
+            MftIndexSession? owner;
             lock (_lifecycleLock)
             {
                 ObjectDisposedException.ThrowIf(_disposed, this);
@@ -195,9 +197,9 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
                 if (_watchClaimed)
                     throw new InvalidOperationException("This source already has a watch reader.");
                 _watchClaimed = claimed = true;
-                var owner = _owner;
-                hasWatchableDrives = owner is not null && _usableDrives.Count > 0;
+                owner = _owner;
             }
+            var hasWatchableDrives = owner is not null && HasUsableDrives();
             if (!hasWatchableDrives)
             {
                 var reason = _owner?.ScanErrors.Values.FirstOrDefault() is { Length: > 0 } error
@@ -228,11 +230,19 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
 
     async Task StartWatchAndSignalAsync(FileIndex index, CancellationToken cancellationToken)
     {
-        await index.StartWatchingAsync(cancellationToken).ConfigureAwait(false);
+        var results = await index.StartWatchingAsync(cancellationToken).ConfigureAwait(false);
+        foreach (var result in results.Where(result => result.Outcome == DriveOperationOutcome.Failed))
+            RecordStartupDriveFailure(result.DriveLetter, result.Failure?.Message ?? "The drive watch could not start.");
         _pumpStarted.TrySetResult();
     }
 
     void OnChanged(FileChange change)
+    {
+        lock (_deliveryLock)
+            DeliverChange(change);
+    }
+
+    void DeliverChange(FileChange change)
     {
         // FileEntry.Id.DriveLetter is the stable drive key MFTLib assigns, unlike change.Path,
         // which renders the drive's real indexed root directory and only reads back as a
@@ -247,7 +257,13 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
                     : RewriteToDriveLetterRoot(change.PreviousPath, realRoot, letter)
             }
             : change;
-        var batch = new VolumeChangeBatch(letter.ToString(), IndexChangeMapping.Map(rewritten));
+        Deliver(new VolumeChangeBatch(letter.ToString(), IndexChangeMapping.Map(rewritten)));
+    }
+
+    // Startup buffers every batch until discovery has reconciled membership; afterwards batches
+    // go straight to the reader.
+    void Deliver(VolumeChangeBatch batch)
+    {
         lock (_startupBufferLock)
         {
             if (_startupBuffering && _startupBuffer is not null)
@@ -280,33 +296,39 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         return relative.Length == 0 ? $"{driveLetter}:\\" : $"{driveLetter}:\\{relative}";
     }
 
+    // A drive MFTLib is recovering (Drive, Apply, or a lost catch-up it is still retrying) stays
+    // usable and is reported quietly; every other fault ends that drive's watch until the user
+    // restarts it, and the source dies once no usable drive is left.
     void OnWatchFaulted(WatchFault fault)
     {
-        bool terminal;
-        lock (_faultLock)
+        if (fault.Kind == WatchFaultKind.Subscriber)
         {
-            _reportedFaults.Add(fault.Exception);
-            if (fault.Kind == WatchFaultKind.Subscriber)
-            {
-                // A handler error reaches the reader as an error, never as a broker death.
-                _output.Writer.TryComplete(fault.Exception);
-                return;
-            }
-            if (fault.DriveLetter is { } drive)
-                _usableDrives.Remove(char.ToUpperInvariant(drive));
-            terminal = fault.DriveLetter is null || _usableDrives.Count == 0;
+            // A handler error reaches the reader as an error, never as a broker death.
+            _output.Writer.TryComplete(fault.Exception);
+            return;
         }
+        var drive = char.ToUpperInvariant(fault.DriveLetter);
+        if (IsRecoveringFault(fault))
+        {
+            try
+            {
+                OnDriveRecovering(drive, fault);
+            }
+            catch (Exception exception)
+            {
+                _output.Writer.TryComplete(exception);
+            }
+            return;
+        }
+        RecordDriveFault(drive);
+        var terminal = !RemoveUsableDrive(drive);
         try
         {
-            if (fault.DriveLetter is { } drive)
-            {
-                RaiseFaultJournalWarning(char.ToUpperInvariant(drive));
-                DriveFailed?.Invoke(drive.ToString(), fault.Exception.Message);
-                var owner = _owner;
-                var upper = char.ToUpperInvariant(drive);
-                PublishVolumeState(VolumeWatchStatus.Excluded(upper.ToString(),
-                    owner is null ? VolumeBlockOrigin.Unknown : CurrentOrigin(owner, upper), fault.Exception.Message));
-            }
+            RaiseFaultJournalWarning(drive);
+            DriveFailed?.Invoke(drive.ToString(), fault.Exception.Message);
+            var owner = _owner;
+            PublishVolumeState(VolumeWatchStatus.Excluded(drive.ToString(),
+                owner is null ? VolumeBlockOrigin.Unknown : CurrentOrigin(owner, drive), fault.Exception.Message));
         }
         catch (Exception exception)
         {
@@ -345,6 +367,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
     {
         // Never await a pump while holding the lock that publishes lifecycle tasks.
         await Task.Yield();
+        await StopObserversAsync().ConfigureAwait(false);
         var index = _watchedIndex;
         if (index is null)
             return;
@@ -352,22 +375,18 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         index.WatchFaulted -= OnWatchFaulted;
         try
         {
-            await index.StopWatchingAsync(CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception exception) when (WasReported(exception))
-        {
-            // Stop rethrows the exact fault already delivered through diagnostics or the reader.
+            // A drive's outstanding fault comes back here once more; WatchFaulted already reported it.
+            var results = await index.StopWatchingAsync(CancellationToken.None).ConfigureAwait(false);
+            foreach (var result in results.Where(result => result.Outcome == DriveOperationOutcome.Failed))
+            {
+                GitWizardLog.Log($"Live watch on {char.ToUpperInvariant(result.DriveLetter)} stopped after a fault: " +
+                                 result.Failure?.Message, GitWizardLog.LogType.Verbose);
+            }
         }
         finally
         {
             _output.Writer.TryComplete();
         }
-    }
-
-    bool WasReported(Exception exception)
-    {
-        lock (_faultLock)
-            return _reportedFaults.Contains(exception);
     }
 
     public ValueTask DisposeAsync()
@@ -383,6 +402,8 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
     async Task DisposeCoreAsync(Task? armFinished)
     {
         await Task.Yield();
+        // An arm following a drive's recovery must not hold disposal until that recovery ends.
+        await StopObserversAsync().ConfigureAwait(false);
         if (armFinished is not null)
             await armFinished.ConfigureAwait(false);
         try
@@ -393,46 +414,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         {
             if (_owner is not null)
                 await _owner.DisposeAsync().ConfigureAwait(false);
-        }
-    }
-
-    void ReportScanProgress(VolumeScanProgress sample)
-    {
-        try
-        {
-            ScanProgress?.Invoke(sample);
-        }
-        catch (Exception exception)
-        {
-            // Progress is best-effort; a subscriber fault must never fail a scan.
-            GitWizardLog.LogException(exception, "A Live scan-progress subscriber failed.");
-        }
-    }
-
-    // Reports synchronously on the broker client's receive thread, so samples reach subscribers
-    // in frame order; marshalling to a UI thread belongs to the subscriber, per MFTLib's
-    // IProgress<T> convention. The broker throttles ScanProgress frames to one per 250 ms, so
-    // no further coalescing happens here.
-    sealed class ArmScanProgress(IReadOnlyList<string> requestedDrives, Action<VolumeScanProgress> sink)
-        : IProgress<IndexScanProgress>
-    {
-        public void Report(IndexScanProgress value)
-        {
-            var letter = char.ToUpperInvariant(value.DriveLetter).ToString();
-            var ordinal = 0;
-            for (var i = 0; i < requestedDrives.Count; i++)
-            {
-                if (string.Equals(requestedDrives[i], letter, StringComparison.OrdinalIgnoreCase))
-                {
-                    ordinal = i + 1;
-                    break;
-                }
-            }
-
-            // A sample naming a drive outside the requested set should not exist; clamp rather
-            // than report a nonsensical "0 of N".
-            sink(new VolumeScanProgress(letter, Math.Max(ordinal, 1), requestedDrives.Count,
-                value.RowsWritten, value.TotalRows));
+            _observersStopping.Dispose();
         }
     }
 }

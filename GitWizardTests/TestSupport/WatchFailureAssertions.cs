@@ -144,7 +144,7 @@ internal static class WatchFailureAssertions
             await using var reader = service.RunAsync(cancellation.Token).GetAsyncEnumerator();
             var pending = reader.MoveNextAsync().AsTask();
             await scripted.Started.WaitAsync(cancellation.Token);
-            scripted.Publish(new DriveWatchFailure('X', new IOException("X watch failed")));
+            scripted.LoseChannel('X', new IOException("X watch failed"));
             await failed.Task.WaitAsync(cancellation.Token);
             Assert.That(service.ScanErrors["X"], Is.EqualTo("X watch failed"));
             Assert.That(index.Drives.Single(drive => drive.DriveLetter == 'X').State, Is.EqualTo(DriveState.Ready));
@@ -152,7 +152,7 @@ internal static class WatchFailureAssertions
             Assert.That(markers, Has.Length.EqualTo(2), "Both the failed and healthy drive remain queryable.");
             Assert.That(markers.All(entry => entry.Parent is { Name: "repo" }), Is.True);
             Assert.That(deaths, Is.Empty);
-            scripted.Publish(new JournalBatch('Y',
+            scripted.Publish('Y', new JournalBatch(
                 [UsnJournalEntry.Create(new UsnJournalEntryOptions
                 {
                     RecordNumber = 50, ParentRecordNumber = 6, SequenceNumber = 1,
@@ -163,7 +163,7 @@ internal static class WatchFailureAssertions
             Assert.That(await pending, Is.True);
             Assert.That(reader.Current.RepoRoot, Is.EqualTo(@"Y:\repo"));
             pending = reader.MoveNextAsync().AsTask();
-            scripted.Publish(new DriveWatchFailure('Y', new IOException("Y watch failed")));
+            scripted.LoseChannel('Y', new IOException("Y watch failed"));
             Assert.That(await pending, Is.False);
             Assert.That(deaths, Has.Count.EqualTo(1));
             Assert.That(service.ScanErrors["Y"], Is.EqualTo("Y watch failed"));

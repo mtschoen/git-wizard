@@ -3,29 +3,29 @@ using MFTLib;
 namespace GitWizard;
 
 /// <summary>
-/// Lazily connects one broker client and owns whichever client it created, including a client
+/// Lazily connects one broker process and owns whichever process it created, including a process
 /// whose connection completed after the session opened or after its caller was cancelled.
 /// A caller's token only abandons that caller's wait: the shared connection is cancelled by
 /// disposal alone, so one cancelled caller never fails a concurrent or later one.
 /// </summary>
 internal sealed class MftBrokerConnection : IAsyncDisposable
 {
-    readonly Func<CancellationToken, Task<JournalBrokerClient>> _connectAsync;
+    readonly Func<CancellationToken, Task<BrokerProcess>> _connectAsync;
     readonly Lock _gate = new();
     readonly CancellationTokenSource _stopping = new();
-    Task<JournalBrokerClient>? _connection;
+    Task<BrokerProcess>? _connection;
     Task? _disposal;
-    JournalBrokerClient? _client;
+    BrokerProcess? _client;
     bool _disposed;
     int _faulted;
 
-    public MftBrokerConnection(Func<CancellationToken, Task<JournalBrokerClient>> connectAsync)
+    public MftBrokerConnection(Func<CancellationToken, Task<BrokerProcess>> connectAsync)
     {
         ArgumentNullException.ThrowIfNull(connectAsync);
         _connectAsync = connectAsync;
     }
 
-    public JournalBrokerClient? Client
+    public BrokerProcess? Process
     {
         get
         {
@@ -36,7 +36,7 @@ internal sealed class MftBrokerConnection : IAsyncDisposable
 
     public bool IsFaulted => Volatile.Read(ref _faulted) != 0;
 
-    public Task<JournalBrokerClient> ConnectAsync(CancellationToken cancellationToken)
+    public Task<BrokerProcess> ConnectAsync(CancellationToken cancellationToken)
     {
         lock (_gate)
         {
@@ -50,28 +50,32 @@ internal sealed class MftBrokerConnection : IAsyncDisposable
     public event Action? Connecting;
     public event Action? Connected;
 
-    async Task<JournalBrokerClient> ConnectCoreAsync(CancellationToken stoppingToken)
+    async Task<BrokerProcess> ConnectCoreAsync(CancellationToken stoppingToken)
     {
         await Task.Yield();
         stoppingToken.ThrowIfCancellationRequested();
         Connecting?.Invoke();
-        var client = await _connectAsync(stoppingToken).ConfigureAwait(false);
+        var process = await _connectAsync(stoppingToken).ConfigureAwait(false);
         Connected?.Invoke();
         bool abandoned;
         lock (_gate)
         {
-            _client = client;
-            client.BrokerDied += OnBrokerDied;
+            _client = process;
+            process.Ended += OnBrokerEnded;
             abandoned = _disposed;
         }
+        // Ended fires once and is not replayed, so a process that ended before the subscription
+        // latches the fault here instead.
+        if (process.HasEnded)
+            Volatile.Write(ref _faulted, 1);
         // Publish ownership before observing cancellation, because a launcher can return late.
-        // Disposal marks the holder synchronously, so a client returned after it began is never handed out.
+        // Disposal marks the holder synchronously, so a process returned after it began is never handed out.
         if (abandoned)
             throw new OperationCanceledException("The broker connection was disposed while connecting.");
-        return client;
+        return process;
     }
 
-    void OnBrokerDied(string reason) => Volatile.Write(ref _faulted, 1);
+    void OnBrokerEnded(string reason) => Volatile.Write(ref _faulted, 1);
 
     public ValueTask DisposeAsync()
     {
@@ -82,12 +86,12 @@ internal sealed class MftBrokerConnection : IAsyncDisposable
         }
     }
 
-    async Task DisposeCoreAsync(Task<JournalBrokerClient>? pending)
+    async Task DisposeCoreAsync(Task<BrokerProcess>? pending)
     {
         await Task.Yield();
         try
         {
-            // Only an in-flight connection is abandoned; an established client's token stays
+            // Only an in-flight connection is abandoned; an established process's token stays
             // uncancelled so its orderly shutdown below is not mistaken for an abort.
             if (pending is not { IsCompletedSuccessfully: true })
                 await _stopping.CancelAsync().ConfigureAwait(false);
@@ -102,11 +106,11 @@ internal sealed class MftBrokerConnection : IAsyncDisposable
             {
                 try
                 {
-                    var client = Client;
-                    if (client is not null)
+                    var process = Process;
+                    if (process is not null)
                     {
-                        client.BrokerDied -= OnBrokerDied;
-                        await client.DisposeAsync().ConfigureAwait(false);
+                        process.Ended -= OnBrokerEnded;
+                        await process.DisposeAsync().ConfigureAwait(false);
                     }
                 }
                 finally
@@ -117,7 +121,7 @@ internal sealed class MftBrokerConnection : IAsyncDisposable
         }
     }
 
-    static async Task ObserveConnectionAsync(Task<JournalBrokerClient>? pending)
+    static async Task ObserveConnectionAsync(Task<BrokerProcess>? pending)
     {
         if (pending is null)
             return;
@@ -127,7 +131,7 @@ internal sealed class MftBrokerConnection : IAsyncDisposable
         }
         catch (Exception) when (pending.IsFaulted || pending.IsCanceled)
         {
-            // ConnectAsync's caller owns the failure; cleanup only waits so a late client is reclaimed.
+            // ConnectAsync's caller owns the failure; cleanup only waits so a late process is reclaimed.
         }
     }
 }

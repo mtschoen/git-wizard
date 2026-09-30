@@ -41,7 +41,7 @@ public class MftIndexPersistenceTests
         var cache = MftIndexCachePolicy.Current.GetCacheDirectory(files.DirectoryPath);
         await SeedAsync(files, drive, cache);
         var calls = 0;
-        Task<JournalBrokerClient> Unexpected(CancellationToken cancellationToken)
+        Task<BrokerProcess> Unexpected(CancellationToken cancellationToken)
         {
             calls++;
             throw new AssertionException("A warm open must not connect.");
@@ -66,7 +66,7 @@ public class MftIndexPersistenceTests
         Assert.That(status.FailureKind, Is.EqualTo(DriveFailureKind.CacheDeclined));
         Assert.That(session.ScanErrors, Contains.Key("X"));
         Assert.That(broker.ConnectionCount, Is.Zero);
-        Assert.That(broker.ScanFrames, Is.Empty);
+        Assert.That(broker.ScannedDrives, Is.Empty);
     }
 
     [Test]
@@ -147,7 +147,7 @@ public class MftIndexPersistenceTests
         var targets = await source.Started.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.That(targets.Single().JournalId, Is.EqualTo(PackedIndexFixture.JournalId));
         Assert.That(targets.Single().NextUsn, Is.EqualTo(PackedIndexFixture.NextUsn));
-        source.Publish(new JournalBatch('X',
+        source.Publish('X', new JournalBatch(
         [
             UsnJournalEntry.Create(new UsnJournalEntryOptions
             {
@@ -174,9 +174,7 @@ public class MftIndexPersistenceTests
         var drive = broker.Drive('X');
         var cache = MftIndexCachePolicy.Current.GetCacheDirectory(files.DirectoryPath);
         await SeedAsync(files, drive, cache);
-        // The fixture treats a cancelled connect token as an abandoned client; the watch's own token is
-        // cancelled when disposal stops watching, which would hide the orderly shutdown frame under test.
-        var session = await MftIndexSession.OpenAsync([drive], _ => broker.ConnectAsync(CancellationToken.None),
+        var session = await MftIndexSession.OpenAsync([drive], broker.ConnectAsync,
             cache, MftIndexOpenIntent.Snapshot, null, CancellationToken.None);
         try
         {
@@ -184,7 +182,7 @@ public class MftIndexPersistenceTests
             await session.Index.StartWatchingAsync(CancellationToken.None);
             await broker.WatchStarted.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.That(broker.ConnectionCount, Is.EqualTo(1));
-            Assert.That(broker.ScanFrames, Is.Empty);
+            Assert.That(broker.ScannedDrives, Is.Empty);
         }
         finally
         {
@@ -192,8 +190,6 @@ public class MftIndexPersistenceTests
         }
         await session.DisposeAsync();
         await broker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.That(broker.ShutdownFrames, Is.EqualTo(1));
-        Assert.That(broker.ClientTransportDisposed, Is.True);
     }
 
     [Test]
@@ -221,7 +217,6 @@ public class MftIndexPersistenceTests
             await session.DisposeAsync();
         }
         await broker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.That(broker.ShutdownFrames, Is.EqualTo(1));
     }
 
     [Test]

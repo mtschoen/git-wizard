@@ -38,7 +38,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
     }
 
     internal static Task<MftIndexSession> OpenAsync(IReadOnlyList<IndexedDrive> drives,
-        Func<CancellationToken, Task<JournalBrokerClient>> connectAsync,
+        Func<CancellationToken, Task<BrokerProcess>> connectAsync,
         string cacheDirectory, IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken) =>
         OpenAsync(drives, connectAsync, cacheDirectory, MftIndexOpenIntent.Persistent, progress, cancellationToken);
 
@@ -50,7 +50,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
     /// <param name="progress">Receives scan progress.</param>
     /// <param name="cancellationToken">Cancels opening.</param>
     internal static async Task<MftIndexSession> OpenAsync(IReadOnlyList<IndexedDrive> drives,
-        Func<CancellationToken, Task<JournalBrokerClient>> connectAsync,
+        Func<CancellationToken, Task<BrokerProcess>> connectAsync,
         string cacheDirectory, MftIndexOpenIntent intent, IProgress<IndexScanProgress>? progress,
         CancellationToken cancellationToken)
     {
@@ -182,7 +182,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
             return new ValueTask(_disposal ??= DisposeCoreAsync());
     }
 
-    internal JournalBrokerClient? GetBrokerClient() => _brokerConnection?.Client;
+    internal BrokerProcess? GetBrokerProcess() => _brokerConnection?.Process;
     internal MftBrokerConnection? BrokerConnection
     {
         get => _brokerConnection;

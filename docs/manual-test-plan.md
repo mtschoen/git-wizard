@@ -129,6 +129,18 @@ UI Automation bounds. Do not replace this check with a headless-layout result.
    current rows immediately. Repeat the binding check on Linux when available;
    an MFT-not-applicable message must not hide Linux Live readiness details.
 
+### Live watch state transitions and history
+
+After the CLI live smoke, perform the desktop pass on an attended build:
+
+1. Run `scripts/cli-live-smoke.ps1` before desktop checks; preserve the emitted evidence.
+2. Start desktop Live and open Index Cache Status. Verify current readiness and recent events are separate and the toolbar stays one line at minimum width.
+3. During an observed real recoverable watch failure, verify Faulted then Recovering remain visible after readiness returns to CaughtUp. Do not kill the broker to simulate a recoverable drive fault; broker death is terminal channel loss.
+4. Verify recent entries disappear after their retention interval while current readiness stays visible, and that closing the dialog does not interrupt Live.
+5. Explicitly stop Live; verify history clears and delayed dispatcher/timer callbacks do not repopulate it. Restart Live and confirm new low version numbers are accepted.
+
+If no real recoverable failure can be induced safely, report that attended item as unexercised; the scripted integration tests are its deterministic verification. Do not claim an attended pass from a headless layout test.
+
 ### Gotchas
 
 - **Output format:** `--watch` prints one line per event: `created: <path>`,

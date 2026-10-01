@@ -293,9 +293,11 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
     public ICommand CleanDownstreamCommand { get; }
     public ICommand ToggleLiveCommand { get; }
 
-    public MainViewModel(IUiDispatcher ui, IUserDialogs dialogs, IClipboardService clipboard)
+    public MainViewModel(IUiDispatcher ui, IUserDialogs dialogs, IClipboardService clipboard,
+        TimeProvider? timeProvider = null)
     {
         _ui = ui;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _dialogs = dialogs;
         _clipboard = clipboard;
         OpenInExplorerCommand = new RelayCommand<RepositoryNodeViewModel>(OpenInExplorer);
@@ -386,7 +388,12 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
             _liveController = null;
         }
 
-        _ui.Post(ClearLiveReadiness);
+        await _ui.InvokeAsync(() =>
+        {
+            ClearLiveReadiness();
+            _liveWatchHistory?.Dispose();
+            _liveWatchHistory = null;
+        }).ConfigureAwait(false);
 
         await SetPreparedDiscoveryIndexAsync(null).ConfigureAwait(false);
         _searchDebouncer.Dispose();

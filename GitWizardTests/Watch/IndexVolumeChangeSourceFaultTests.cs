@@ -56,7 +56,6 @@ public class IndexVolumeChangeSourceFaultTests
 
         await WaitUntilAsync(() => harness.StatusOf('X').WatchCatchUp == WatchCatchUpState.Recovering &&
                                    harness.ReadinessOf('X') == VolumeWatchState.CatchingUp);
-        await WaitUntilAsync(() => harness.Clock.TimersCreated > 0);
         Assert.That(harness.Deaths, Is.Empty);
         Assert.That(harness.Failures, Is.Empty);
         Assert.That(harness.PendingRead.IsCompleted, Is.False, "The reader stays open while the drive recovers.");
@@ -216,7 +215,7 @@ public class IndexVolumeChangeSourceFaultTests
         try
         {
             harness.Scripted.FailDrive('X', new IOException("X failed"));
-            await WaitUntilAsync(() => harness.Clock.TimersCreated > 0);
+            await WaitUntilAsync(() => harness.StatusOf('X').WatchCatchUp == WatchCatchUpState.Recovering);
         }
         finally
         {
@@ -233,10 +232,7 @@ public class IndexVolumeChangeSourceFaultTests
         files.AddMarker("repo");
         var scripted = new ScriptedIndexWatchSource { AutoCatchUp = false };
         var owner = IndexVolumeChangeSourceTests.Owner(await files.OpenMftIndexAsync(scripted, 'X'), "X");
-        await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner))
-        {
-            TimeProvider = new ImmediateTimeProvider()
-        };
+        await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         var failures = new List<string>();
         source.DriveFailed += (drive, _) => failures.Add(drive);
 
@@ -276,7 +272,6 @@ public class IndexVolumeChangeSourceFaultTests
         public PackedIndexFixture Files => _files;
         public MftIndexSession Owner { get; }
         public IndexVolumeChangeSource Source { get; }
-        public required ImmediateTimeProvider Clock { get; init; }
         readonly List<string> _deaths = [];
         readonly List<(string Drive, string Message)> _failures = [];
 
@@ -309,9 +304,8 @@ public class IndexVolumeChangeSourceFaultTests
             if (beforeRescan is not null)
                 files.BeforeProduceAsync = beforeRescan;
             var owner = IndexVolumeChangeSourceTests.Owner(index, names);
-            var clock = new ImmediateTimeProvider();
-            var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner)) { TimeProvider = clock };
-            var harness = new FaultHarness(files, scripted, owner, source) { Clock = clock };
+            var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
+            var harness = new FaultHarness(files, scripted, owner, source);
             await source.ArmAndCatchUpAsync(names, CancellationToken.None);
             harness._reader = source.WatchAsync(harness._cancellation.Token).GetAsyncEnumerator();
             harness.PendingRead = harness._reader.MoveNextAsync().AsTask();

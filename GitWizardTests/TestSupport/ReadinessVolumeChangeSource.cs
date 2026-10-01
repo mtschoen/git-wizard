@@ -62,6 +62,12 @@ internal sealed class ReadinessVolumeChangeSource : IVolumeChangeSource, IVolume
         ReadinessChanged?.Invoke(snapshot);
     }
 
+    public void SetSnapshot(VolumeReadinessSnapshot snapshot)
+    {
+        lock (_gate) _readiness = snapshot;
+        ReadinessChanged?.Invoke(snapshot);
+    }
+
     /// <summary>Raises death and then a settling transition inside one call, the tightest race the contract must survive.</summary>
     public void KillThenSettle(string reason, VolumeWatchStatus status)
     {

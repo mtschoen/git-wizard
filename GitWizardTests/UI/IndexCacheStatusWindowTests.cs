@@ -83,4 +83,40 @@ public class IndexCacheStatusWindowTests
         }
         finally { window.Close(); }
     }
+
+    [AvaloniaTest]
+    public async Task WatchEventsRenderAndDynamicallyUpdateWithoutRefreshingCacheInspection()
+    {
+        await using var mainWindow = new MainWindow();
+        var mainModel = (MainViewModel)mainWindow.DataContext!;
+        var panelModel = mainModel.CreateIndexCacheStatusViewModel();
+        var window = new IndexCacheStatusWindow(panelModel);
+        try
+        {
+            var session = Guid.NewGuid();
+            var first = new VolumeWatchTransition(session, "X", 1, "Faulted", "read error", DateTimeOffset.UtcNow);
+            var second = new VolumeWatchTransition(session, "X", 2, "Recovering", null, DateTimeOffset.UtcNow);
+            mainModel.LiveWatchEvents.Add(first);
+            mainModel.LiveWatchEvents.Add(second);
+
+            window.Show();
+            var eventList = window.FindControl<ItemsControl>("IndexCacheWatchEventList");
+            Assert.That(eventList, Is.Not.Null);
+            Assert.That(eventList!.ItemsSource, Is.SameAs(panelModel.LiveWatchEvents));
+
+            Dispatcher.UIThread.RunJobs();
+            var texts = eventList.GetVisualDescendants().OfType<TextBlock>().Select(control => control.Text).ToList();
+            Assert.That(texts, Does.Contain("Faulted"));
+            Assert.That(texts, Does.Contain("Recovering"));
+            Assert.That(panelModel.Snapshot, Is.Null);
+
+            mainModel.LiveWatchEvents.RemoveAt(0);
+            Dispatcher.UIThread.RunJobs();
+            texts = eventList.GetVisualDescendants().OfType<TextBlock>().Select(control => control.Text).ToList();
+            Assert.That(texts, Does.Not.Contain("Faulted"));
+            Assert.That(texts, Does.Contain("Recovering"));
+            Assert.That(panelModel.Snapshot, Is.Null);
+        }
+        finally { window.Close(); }
+    }
 }

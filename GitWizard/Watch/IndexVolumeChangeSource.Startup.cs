@@ -46,15 +46,11 @@ public sealed partial class IndexVolumeChangeSource
     async Task WaitDriveAsync(MftIndexSession owner, char drive, CancellationToken token)
     {
         var upper = char.ToUpperInvariant(drive);
-        var generation = CurrentFaultGeneration(upper);
         try
         {
             await owner.Index.WaitForCatchUpAsync(upper, token).ConfigureAwait(false);
             if (StartupCatchUpSettledForTest is { } settled)
                 await settled(upper).ConfigureAwait(false);
-            // A fault after this catch-up settled supersedes it; its recovery is followed below.
-            if (TryFinishCaughtUp(owner, upper, generation, completesObservation: false))
-                return;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -62,27 +58,52 @@ public sealed partial class IndexVolumeChangeSource
         }
         catch (Exception exception)
         {
-            // The wait faults before MFTLib marks a recovering drive, so the fault is not classified
-            // here: the WatchFaulted handler keeps or excludes the drive, and the observation follows
-            // a kept drive through its recovery. ExcludeDrivesWithFailedWatch records an exclusion.
-            GitWizardLog.Log($"Live watch on {char.ToUpperInvariant(drive)}: catch-up wait ended without catching up: " +
-                             exception.Message, GitWizardLog.LogType.Verbose);
+            // Recovery state and loss information are recorded before the library faults this wait.
+            GitWizardLog.Log($"Live watch on {upper}: catch-up wait ended without catching up: " +
+                exception.Message, GitWizardLog.LogType.Verbose);
         }
-        await ObserveRecovery(upper).WaitAsync(token).ConfigureAwait(false);
+        await WaitForPublishedDriveAsync(upper, token).ConfigureAwait(false);
+    }
+
+    async Task WaitForPublishedDriveAsync(char drive, CancellationToken token)
+    {
+        while (true)
+        {
+            Task changed;
+            lock (_watchStateLock)
+            {
+                if (_watchStatesStopped || !ContainsUsableDrive(drive))
+                    return;
+                if (Readiness.TryGet(drive.ToString(), out var status) &&
+                    status.State == VolumeWatchState.CaughtUp)
+                    return;
+                changed = _watchStateChanged.Task;
+            }
+            await changed.WaitAsync(token).ConfigureAwait(false);
+        }
     }
 
     void RecordStartupDriveFailure(char drive, string message)
     {
         var upper = char.ToUpperInvariant(drive);
-        VolumeBlockOrigin origin;
-        RecordDriveFault(upper);
-        RemoveUsableDrive(upper);
-        lock (_faultLock)
+        lock (_watchStateLock)
         {
-            _startupErrors[upper] = message;
-            origin = _readiness.TryGet(upper.ToString(), out var previous) ? previous.Origin : VolumeBlockOrigin.Unknown;
+            if (_watchStatesStopped)
+                return;
+            RemoveUsableDrive(upper);
+            _recoveryBaselines.Remove(upper);
+            VolumeBlockOrigin origin;
+            lock (_faultLock)
+            {
+                _startupErrors[upper] = message;
+                origin = _readiness.TryGet(upper.ToString(), out var previous) ? previous.Origin : VolumeBlockOrigin.Unknown;
+            }
+            long? observedVersion = _watchStateVersions.TryGetValue(upper, out var value) ? value : null;
+            PublishVolumeState(VolumeWatchStatus.Excluded(upper.ToString(), origin, message)
+                with
+            { WatchStateVersion = observedVersion });
+            PulseWatchStateLocked();
         }
-        PublishVolumeState(VolumeWatchStatus.Excluded(upper.ToString(), origin, message));
         DriveFailed?.Invoke(upper.ToString(), message);
     }
 }

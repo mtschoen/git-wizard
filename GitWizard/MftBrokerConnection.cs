@@ -16,6 +16,7 @@ internal sealed class MftBrokerConnection : IAsyncDisposable
     Task<BrokerProcess>? _connection;
     Task? _disposal;
     BrokerProcess? _client;
+    Task _endObservation = Task.CompletedTask;
     bool _disposed;
     int _faulted;
 
@@ -34,7 +35,25 @@ internal sealed class MftBrokerConnection : IAsyncDisposable
         }
     }
 
-    public bool IsFaulted => Volatile.Read(ref _faulted) != 0;
+    /// <summary>
+    /// True once the owned process ended while this holder was live. Reads the process's end task
+    /// directly, so an end that has completed is visible before the end observer's continuation runs.
+    /// </summary>
+    public bool IsFaulted
+    {
+        get
+        {
+            if (Volatile.Read(ref _faulted) != 0)
+                return true;
+            lock (_gate)
+            {
+                if (_disposed || _client is null || !_client.Ended.IsCompleted)
+                    return false;
+                Volatile.Write(ref _faulted, 1);
+                return true;
+            }
+        }
+    }
 
     public Task<BrokerProcess> ConnectAsync(CancellationToken cancellationToken)
     {
@@ -61,13 +80,9 @@ internal sealed class MftBrokerConnection : IAsyncDisposable
         lock (_gate)
         {
             _client = process;
-            process.Ended += OnBrokerEnded;
+            _endObservation = ObserveEndAsync(process);
             abandoned = _disposed;
         }
-        // Ended fires once and is not replayed, so a process that ended before the subscription
-        // latches the fault here instead.
-        if (process.HasEnded)
-            Volatile.Write(ref _faulted, 1);
         // Publish ownership before observing cancellation, because a launcher can return late.
         // Disposal marks the holder synchronously, so a process returned after it began is never handed out.
         if (abandoned)
@@ -75,7 +90,15 @@ internal sealed class MftBrokerConnection : IAsyncDisposable
         return process;
     }
 
-    void OnBrokerEnded(string reason) => Volatile.Write(ref _faulted, 1);
+    async Task ObserveEndAsync(BrokerProcess process)
+    {
+        await process.Ended.ConfigureAwait(false);
+        lock (_gate)
+        {
+            if (!_disposed)
+                Volatile.Write(ref _faulted, 1);
+        }
+    }
 
     public ValueTask DisposeAsync()
     {
@@ -109,8 +132,8 @@ internal sealed class MftBrokerConnection : IAsyncDisposable
                     var process = Process;
                     if (process is not null)
                     {
-                        process.Ended -= OnBrokerEnded;
                         await process.DisposeAsync().ConfigureAwait(false);
+                        await _endObservation.ConfigureAwait(false);
                     }
                 }
                 finally

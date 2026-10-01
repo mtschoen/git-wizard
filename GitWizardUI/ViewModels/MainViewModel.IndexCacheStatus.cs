@@ -11,7 +11,8 @@ public partial class MainViewModel
         var inspection = new MftIndexCacheInspection();
         return new IndexCacheStatusViewModel(_ui, () => inspection.Capture(
             GitWizardApi.GetLocalFilesPath(), CaptureActiveCacheSessions()),
-            new ReadOnlyObservableCollection<LiveVolumeStatusViewModel>(LiveVolumes));
+            new ReadOnlyObservableCollection<LiveVolumeStatusViewModel>(LiveVolumes),
+            new ReadOnlyObservableCollection<VolumeWatchTransition>(LiveWatchEvents));
     }
 
     internal IReadOnlyList<MftActiveCacheSession> CaptureActiveCacheSessions()

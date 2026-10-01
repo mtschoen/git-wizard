@@ -26,10 +26,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         var owner = IndexVolumeChangeSourceTests.Owner(await files.OpenMftIndexAsync(scripted, 'X', 'Y'), "X", "Y");
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         files.BeforeProduceAsync = token => release.Task.WaitAsync(token);
-        var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner))
-        {
-            TimeProvider = new ImmediateTimeProvider()
-        };
+        var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await using var sourceLifetime = source;
         var service = new RepositoryWatchService(source, [@"X:\oldrepo", @"X:\keptrepo"], [@"X:\"],
             TimeSpan.Zero, includeTempDirectories: true);
@@ -79,10 +76,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         var owner = IndexVolumeChangeSourceTests.Owner(await files.OpenMftIndexAsync(scripted, 'X'), "X");
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         files.BeforeProduceAsync = token => release.Task.WaitAsync(token);
-        await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner))
-        {
-            TimeProvider = new ImmediateTimeProvider()
-        };
+        await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         // Buffering makes delivery synchronous and observable at the moment readiness changes.
         source.StartStartupBuffering();
@@ -119,21 +113,18 @@ public class IndexVolumeChangeSourceRecoveryTests
         var owner = IndexVolumeChangeSourceTests.Owner(await files.OpenMftIndexAsync(scripted, 'X'), "X");
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         files.BeforeProduceAsync = token => release.Task.WaitAsync(token);
-        await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner))
+        await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
+        source.ReconciliationCapturedForTest = _ =>
         {
-            TimeProvider = new ImmediateTimeProvider(),
-            ReconciliationCapturedForTest = _ =>
-            {
-                // The recovered block has newrepo; the journal now deletes it. MFTLib applies the
-                // batch to the block before it raises Changed, so waiting for the block here
-                // means the deletion's delivery is racing the reconciliation.
-                var marker = owner.Index.FindByName(".git").Single();
-                scripted.Publish('X', new JournalBatch(
-                    [IndexVolumeChangeSourceTests.Entry(marker.Id.RecordNumber, marker.Parent!.Value.Id.RecordNumber,
-                        ".git", UsnReason.FileDelete, directory: true)],
-                    PackedIndexFixture.JournalId, 1003));
-                Assert.That(SpinWait.SpinUntil(() => owner.Index.FindByName(".git").Count == 0, HangGuard), Is.True);
-            }
+            // The recovered block has newrepo; the journal now deletes it. MFTLib applies the
+            // batch to the block before it raises Changed, so waiting for the block here
+            // means the deletion's delivery is racing the reconciliation.
+            var marker = owner.Index.FindByName(".git").Single();
+            scripted.Publish('X', new JournalBatch(
+                [IndexVolumeChangeSourceTests.Entry(marker.Id.RecordNumber, marker.Parent!.Value.Id.RecordNumber,
+                    ".git", UsnReason.FileDelete, directory: true)],
+                PackedIndexFixture.JournalId, 1003));
+            Assert.That(SpinWait.SpinUntil(() => owner.Index.FindByName(".git").Count == 0, HangGuard), Is.True);
         };
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         using var cancellation = new CancellationTokenSource(HangGuard);
@@ -164,12 +155,15 @@ public class IndexVolumeChangeSourceRecoveryTests
         var scripted = new ScriptedIndexWatchSource();
         var owner = IndexVolumeChangeSourceTests.Owner(await files.OpenMftIndexAsync(scripted, 'X'), "X");
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        files.BeforeProduceAsync = token => release.Task.WaitAsync(token);
-        var clock = new ImmediateTimeProvider();
+        var rescanStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        files.BeforeProduceAsync = token =>
+        {
+            rescanStarted.TrySetResult();
+            return release.Task.WaitAsync(token);
+        };
         var faultedAfterCatchUp = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner))
         {
-            TimeProvider = clock,
             StartupCatchUpSettledForTest = async drive =>
             {
                 // The drive faults after its first catch-up settled and before the arm reports it.
@@ -181,15 +175,24 @@ public class IndexVolumeChangeSourceRecoveryTests
 
         var arming = source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         await faultedAfterCatchUp.Task.WaitAsync(HangGuard);
-        var pollsBefore = clock.TimersCreated;
-        await WaitUntilAsync(() => clock.TimersCreated > pollsBefore);
+        // The recovery rescan has begun and the source has published the drive as catching up, so
+        // the arm has had its chance to wrongly report the superseded catch-up.
+        await rescanStarted.Task.WaitAsync(HangGuard);
+        await WaitUntilAsync(() => source.Readiness.TryGet("X", out var published) &&
+                                   published.State == VolumeWatchState.CatchingUp);
 
         Assert.That(arming.IsCompleted, Is.False, "The arm follows the recovery the fault started.");
         Assert.That(source.Readiness.TryGet("X", out var recovering), Is.True);
         Assert.That(recovering!.State, Is.EqualTo(VolumeWatchState.CatchingUp));
 
+        var releaseIssued = new TaskCompletionSource();
+        var completedBeforeRelease = arming.ContinueWith(_ => !releaseIssued.Task.IsCompleted,
+            TaskScheduler.Default);
+        releaseIssued.SetResult();
         release.SetResult();
         var result = await arming.WaitAsync(HangGuard);
+        Assert.That(await completedBeforeRelease.WaitAsync(HangGuard), Is.False,
+            "The arm must not complete before the recovery finishes.");
         Assert.That(result.Errors, Is.Empty);
         Assert.That(owner.Index.Drives.Single().WatchCatchUp, Is.EqualTo(WatchCatchUpState.CaughtUp));
         Assert.That(source.Readiness.TryGet("X", out var recovered), Is.True);

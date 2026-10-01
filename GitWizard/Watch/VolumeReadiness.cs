@@ -29,6 +29,8 @@ public enum WatchReadinessMode
 
 public sealed record VolumeWatchStatus(string Volume, VolumeWatchState State, VolumeBlockOrigin Origin, string? ExclusionReason)
 {
+    public long? WatchStateVersion { get; init; }
+
     public static VolumeWatchStatus CatchingUp(string volume, VolumeBlockOrigin origin) => new(volume, VolumeWatchState.CatchingUp, origin, null);
     public static VolumeWatchStatus CaughtUp(string volume, VolumeBlockOrigin origin) => new(volume, VolumeWatchState.CaughtUp, origin, null);
     public static VolumeWatchStatus Excluded(string volume, VolumeBlockOrigin origin, string reason) => new(volume, VolumeWatchState.Excluded, origin, reason);
@@ -39,13 +41,17 @@ public sealed record VolumeReadinessSnapshot
 {
     public static readonly VolumeReadinessSnapshot Empty = new([]);
 
-    public VolumeReadinessSnapshot(IReadOnlyList<VolumeWatchStatus> volumes)
+    public VolumeReadinessSnapshot(IReadOnlyList<VolumeWatchStatus> volumes, IReadOnlyList<VolumeWatchTransition>? recentTransitions = null)
     {
         ArgumentNullException.ThrowIfNull(volumes);
         Volumes = Array.AsReadOnly(volumes.ToArray());
+        RecentTransitions = recentTransitions is null
+            ? Array.Empty<VolumeWatchTransition>()
+            : Array.AsReadOnly(recentTransitions.ToArray());
     }
 
     public IReadOnlyList<VolumeWatchStatus> Volumes { get; }
+    public IReadOnlyList<VolumeWatchTransition> RecentTransitions { get; }
 
     /// <summary>True once every known volume is caught up or excluded. An empty snapshot is not settled.</summary>
     public bool IsSettled => Volumes.Count > 0 && Volumes.All(volume => volume.State != VolumeWatchState.CatchingUp);
@@ -72,7 +78,13 @@ public sealed record VolumeReadinessSnapshot
             .Append(status)
             .OrderBy(existing => existing.Volume, StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        return new VolumeReadinessSnapshot(volumes);
+        return new VolumeReadinessSnapshot(volumes, RecentTransitions);
+    }
+
+    public VolumeReadinessSnapshot WithTransition(VolumeWatchTransition transition)
+    {
+        ArgumentNullException.ThrowIfNull(transition);
+        return new VolumeReadinessSnapshot(Volumes, RecentTransitions.Append(transition).TakeLast(64).ToArray());
     }
 }
 

@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:GitWizardUI.ViewModels"
+        xmlns:watch="clr-namespace:GitWizard.Watch;assembly=GitWizard"
         x:Class="GitWizardUI.Views.IndexCacheStatusWindow"
         x:DataType="vm:IndexCacheStatusViewModel"
         Title="Index Cache Status" Width="850" Height="600"
@@ -17,6 +18,21 @@
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:LiveVolumeStatusViewModel">
               <TextBlock Text="{Binding DisplayText}" TextWrapping="Wrap" FontSize="14" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Text="Recent watch events (last 30 seconds)" FontWeight="SemiBold" />
+        <ItemsControl x:Name="IndexCacheWatchEventList" ItemsSource="{Binding LiveWatchEvents}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="watch:VolumeWatchTransition">
+              <StackPanel Margin="0,0,0,4">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Text="{Binding ObservedAt, StringFormat='{}{0:HH:mm:ss}'}" />
+                  <TextBlock Text="{Binding Volume}" />
+                  <TextBlock Text="{Binding State}" />
+                </StackPanel>
+                <TextBlock Text="{Binding Reason}" TextWrapping="Wrap" />
+              </StackPanel>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>

@@ -73,6 +73,12 @@ public class MainViewModelLiveTests
     [SetUp]
     public void SetUp() => GitWizardLog.SilentMode = true;
 
+    // Frozen so the 30 second watch-event expiry never depends on how long a test takes to run.
+    sealed class FixedClock : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => DateTimeOffset.UnixEpoch;
+    }
+
     static MainViewModel NewViewModel()
         => new(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
 
@@ -914,6 +920,54 @@ public class MainViewModelLiveTests
         Assert.That(viewModel.LiveReadinessText, Is.Empty);
         Assert.That(viewModel.LiveReadinessTooltip, Is.Empty);
         Assert.That(cacheModel.LiveVolumes, Is.Empty);
+    }
+
+    [Test]
+    public async Task LiveWatchTransitionsReachTooltipAndPanelThroughDispatcherAndClearOnStop()
+    {
+        var sourceReady = new TaskCompletionSource<ReadinessVolumeChangeSource>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var dispatcher = new QueuedLiveUiDispatcher();
+        var clock = new FixedClock();
+        var viewModel = new MainViewModel(dispatcher, new StubUserDialogs(), new StubClipboardService(), clock);
+        var cacheModel = viewModel.CreateIndexCacheStatusViewModel();
+        viewModel.LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
+        viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
+        {
+            var source = new ReadinessVolumeChangeSource();
+            sourceReady.TrySetResult(source);
+            return FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
+        };
+        viewModel.LiveIsElevated = () => false;
+        Task? running = null;
+        try
+        {
+            running = viewModel.ToggleLiveAsync();
+            var source = await sourceReady.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+            dispatcher.Drain();
+
+            var session = Guid.NewGuid();
+            var transition = new VolumeWatchTransition(session, "X", 1, "Faulted", "io error", clock.GetUtcNow());
+            var snapshotWithTransition = source.Readiness.WithTransition(transition);
+
+            source.SetSnapshot(snapshotWithTransition);
+            Assert.That(viewModel.LiveWatchEvents, Is.Empty, "History must not mutate before dispatch.");
+            Assert.That(cacheModel.LiveWatchEvents, Is.Empty);
+
+            dispatcher.Drain();
+            Assert.That(viewModel.LiveWatchEvents, Has.Count.EqualTo(1));
+            Assert.That(viewModel.LiveWatchEvents[0].State, Is.EqualTo("Faulted"));
+            Assert.That(cacheModel.LiveWatchEvents, Has.Count.EqualTo(1));
+            Assert.That(viewModel.LiveReadinessTooltip, Does.Contain("Recent watch events"));
+            Assert.That(viewModel.LiveReadinessTooltip, Does.Contain("X: Faulted: io error"));
+        }
+        finally
+        {
+            try { await viewModel.DisposeAsync(); } finally { if (running is not null) await running; }
+        }
+        dispatcher.Drain();
+        Assert.That(viewModel.LiveWatchEvents, Is.Empty, "Stopping clears transition history.");
+        Assert.That(cacheModel.LiveWatchEvents, Is.Empty);
     }
 
     #endregion

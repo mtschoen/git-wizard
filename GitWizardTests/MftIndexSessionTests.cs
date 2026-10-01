@@ -180,6 +180,9 @@ public class MftIndexSessionTests
         {
             await using var session = await MftIndexSession.OpenAsync([broker.Drive('X')],
                 broker.ConnectAsync, broker.CacheDirectory, null, CancellationToken.None);
+            // The drive channels and the control pipe read EOF independently, so the open can return
+            // before the process end is observed; IsFaulted is defined once the end has completed.
+            await broker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.That(session.IsFaulted, Is.True, "Broker death during opening must remain latched.");
             Assert.That(session.ScanErrors, Has.Count.EqualTo(1));
         }

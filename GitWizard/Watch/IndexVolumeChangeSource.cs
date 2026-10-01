@@ -223,7 +223,9 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         var index = owner.Index;
         index.Changed += OnChanged;
         index.WatchFaulted += OnWatchFaulted;
+        index.WatchStateChanged += ApplyWatchState;
         _watchedIndex = index;
+        SeedWatchStates(index);
         // Starting means the library pump was scheduled, not that catch-up has drained.
         return StartWatchAndSignalAsync(index, cancellationToken);
     }
@@ -312,7 +314,10 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         {
             try
             {
-                OnDriveRecovering(drive, fault);
+                CaptureRecoveryBaseline(drive);
+                GitWizardLog.Log($"Live watch on {drive}: {fault.Kind} fault, MFTLib is rescanning the drive: " +
+                                 fault.Exception.Message, GitWizardLog.LogType.Verbose);
+                RaiseFaultJournalWarning(drive);
             }
             catch (Exception exception)
             {
@@ -320,15 +325,23 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
             }
             return;
         }
-        RecordDriveFault(drive);
-        var terminal = !RemoveUsableDrive(drive);
+        bool terminal;
+        var owner = _owner;
+        var origin = owner is null ? VolumeBlockOrigin.Unknown : CurrentOrigin(owner, drive);
+        lock (_watchStateLock)
+        {
+            terminal = !RemoveUsableDrive(drive);
+            _recoveryBaselines.Remove(drive);
+            long? observedVersion = _watchStateVersions.TryGetValue(drive, out var value) ? value : null;
+            PublishVolumeState(VolumeWatchStatus.Excluded(drive.ToString(), origin, fault.Exception.Message)
+                with
+            { WatchStateVersion = observedVersion });
+            PulseWatchStateLocked();
+        }
         try
         {
             RaiseFaultJournalWarning(drive);
             DriveFailed?.Invoke(drive.ToString(), fault.Exception.Message);
-            var owner = _owner;
-            PublishVolumeState(VolumeWatchStatus.Excluded(drive.ToString(),
-                owner is null ? VolumeBlockOrigin.Unknown : CurrentOrigin(owner, drive), fault.Exception.Message));
         }
         catch (Exception exception)
         {
@@ -354,67 +367,6 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         finally
         {
             _output.Writer.TryComplete();
-        }
-    }
-
-    Task StopOnceAsync()
-    {
-        lock (_lifecycleLock)
-            return _stopping ??= StopCoreAsync();
-    }
-
-    async Task StopCoreAsync()
-    {
-        // Never await a pump while holding the lock that publishes lifecycle tasks.
-        await Task.Yield();
-        await StopObserversAsync().ConfigureAwait(false);
-        var index = _watchedIndex;
-        if (index is null)
-            return;
-        index.Changed -= OnChanged;
-        index.WatchFaulted -= OnWatchFaulted;
-        try
-        {
-            // A drive's outstanding fault comes back here once more; WatchFaulted already reported it.
-            var results = await index.StopWatchingAsync(CancellationToken.None).ConfigureAwait(false);
-            foreach (var result in results.Where(result => result.Outcome == DriveOperationOutcome.Failed))
-            {
-                GitWizardLog.Log($"Live watch on {char.ToUpperInvariant(result.DriveLetter)} stopped after a fault: " +
-                                 result.Failure?.Message, GitWizardLog.LogType.Verbose);
-            }
-        }
-        finally
-        {
-            _output.Writer.TryComplete();
-        }
-    }
-
-    public ValueTask DisposeAsync()
-    {
-        lock (_lifecycleLock)
-        {
-            _disposed = true;
-            _output.Writer.TryComplete();
-            return new ValueTask(_disposal ??= DisposeCoreAsync(_armFinished?.Task));
-        }
-    }
-
-    async Task DisposeCoreAsync(Task? armFinished)
-    {
-        await Task.Yield();
-        // An arm following a drive's recovery must not hold disposal until that recovery ends.
-        await StopObserversAsync().ConfigureAwait(false);
-        if (armFinished is not null)
-            await armFinished.ConfigureAwait(false);
-        try
-        {
-            await StopOnceAsync().ConfigureAwait(false);
-        }
-        finally
-        {
-            if (_owner is not null)
-                await _owner.DisposeAsync().ConfigureAwait(false);
-            _observersStopping.Dispose();
         }
     }
 }

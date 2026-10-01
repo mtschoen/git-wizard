@@ -9,7 +9,7 @@ namespace GitWizard.Watch;
 public sealed partial class IndexVolumeChangeSource
 {
     // By drive: the repository marker paths of the block a recovery replaces. Guarded by
-    // _observersLock; the first fault of a recovery episode records it, and the episode's
+    // _watchStateLock; the first fault of a recovery episode records it, and the episode's
     // reconciliation or the drive's exclusion consumes it.
     readonly Dictionary<char, HashSet<string>> _recoveryBaselines = [];
 
@@ -19,26 +19,20 @@ public sealed partial class IndexVolumeChangeSource
     readonly Lock _deliveryLock = new();
 
     /// <summary>Runs inside the delivery gate between reading the recovered block and queuing its reconciliation.</summary>
-    internal Action<char>? ReconciliationCapturedForTest { get; init; }
-
-    int CurrentFaultGeneration(char drive)
-    {
-        lock (_observersLock)
-            return _faultGenerations.GetValueOrDefault(drive);
-    }
+    internal Action<char>? ReconciliationCapturedForTest { get; set; }
 
     // The baseline must come from the block the recovery replaces, so it is read in the
     // WatchFaulted handler: MFTLib starts the recovery only after the handler returns.
     void CaptureRecoveryBaseline(char drive)
     {
-        lock (_observersLock)
+        lock (_watchStateLock)
         {
             if (_recoveryBaselines.ContainsKey(drive))
                 return;
         }
         if (CaptureRepositoryMarkers(drive) is not { } markers)
             return;
-        lock (_observersLock)
+        lock (_watchStateLock)
             _recoveryBaselines.TryAdd(drive, markers);
     }
 

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using GitWizard;
+using GitWizard.Watch;
 using GitWizardUI.ViewModels.Services;
 
 namespace GitWizardUI.ViewModels;
@@ -16,16 +17,20 @@ public sealed class IndexCacheStatusViewModel : INotifyPropertyChanged
     public bool CanRefresh => Volatile.Read(ref _refreshing) == 0;
     public ICommand RefreshCommand { get; }
     public ReadOnlyObservableCollection<LiveVolumeStatusViewModel> LiveVolumes { get; }
+    public ReadOnlyObservableCollection<VolumeWatchTransition> LiveWatchEvents { get; }
 
     public IndexCacheStatusViewModel(
         IUiDispatcher dispatcher,
         Func<MftIndexCacheSnapshot> inspect,
-        ReadOnlyObservableCollection<LiveVolumeStatusViewModel>? liveVolumes = null)
+        ReadOnlyObservableCollection<LiveVolumeStatusViewModel>? liveVolumes = null,
+        ReadOnlyObservableCollection<VolumeWatchTransition>? liveWatchEvents = null)
     {
         _dispatcher = dispatcher;
         _inspect = inspect;
         LiveVolumes = liveVolumes ?? new ReadOnlyObservableCollection<LiveVolumeStatusViewModel>(
             new ObservableCollection<LiveVolumeStatusViewModel>());
+        LiveWatchEvents = liveWatchEvents ?? new ReadOnlyObservableCollection<VolumeWatchTransition>(
+            new ObservableCollection<VolumeWatchTransition>());
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => CanRefresh);
     }
 

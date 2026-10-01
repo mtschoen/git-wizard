@@ -55,7 +55,7 @@ public class MftBrokerConnectionTests
     }
 
     [Test]
-    public async Task ProcessThatEndedBeforeSubscriptionLatchesTheFault()
+    public async Task AlreadyCompletedEndTaskLatchesTheFault()
     {
         await using var broker = new BlockBrokerFixture();
         Func<CancellationToken, Task<BrokerProcess>> connectBroker = broker.ConnectAsync;
@@ -66,9 +66,35 @@ public class MftBrokerConnectionTests
             return process;
         });
         var process = await holder.ConnectAsync(CancellationToken.None);
-        Assert.That(process.HasEnded, Is.True);
+        Assert.That(process.Ended.IsCompletedSuccessfully, Is.True);
         Assert.That(holder.IsFaulted, Is.True);
         await holder.DisposeAsync();
+    }
+
+    [Test]
+    public async Task HostCrashCompletesEndTaskAndFaultsTheHolder()
+    {
+        await using var broker = new BlockBrokerFixture();
+        await using var holder = new MftBrokerConnection(broker.ConnectAsync);
+        var process = await holder.ConnectAsync(CancellationToken.None);
+        var ended = process.Ended;
+        await broker.DisconnectAsync();
+        Assert.That(await ended, Is.Not.Empty);
+        Assert.That(process.Ended, Is.SameAs(ended));
+        // No polling: an end that has completed is already a fault, whenever the observer runs.
+        Assert.That(holder.IsFaulted, Is.True);
+    }
+
+    [Test]
+    public async Task HostCrashInsideScanFailsTheChannelWithoutClientDisposal()
+    {
+        await using var broker = new BlockBrokerFixture { DisconnectOnScan = true };
+        var process = await broker.ConnectAsync(CancellationToken.None);
+        Assert.ThrowsAsync<BrokerChannelLostException>(async () =>
+            await process.ScanDriveAsync('X', broker.CreateTarget('X'),
+                BlockBrokerFixture.CreateOptions(), CancellationToken.None));
+        Assert.That(await process.Ended, Is.Not.Empty);
+        Assert.That(broker.ServedToCompletion, Is.False);
     }
 
     [Test]

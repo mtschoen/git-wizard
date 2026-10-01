@@ -22,7 +22,8 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
 
     readonly PackedIndexFixture _files = new();
     readonly ConcurrentDictionary<string, BlockFile> _sections = new(StringComparer.Ordinal);
-    readonly List<BrokerProcess> _processes = [];
+    readonly List<InProcessBrokerHandle> _processes = [];
+    InProcessBrokerHandle? _handle;
     readonly UsnJournalEntry[] _catchUpEntries;
     readonly string? _scanError;
     readonly TaskCompletionSource<(string Drive, UsnJournalCursor Since)> _watchStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -43,9 +44,6 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
     public string CacheDirectory => _files.BlockDirectory;
     public IndexedDrive Drive(char letter) => new(letter, _files.TreePath, 1);
     public int ConnectionCount { get; private set; }
-
-    /// <summary>The last process a connect returned.</summary>
-    public BrokerProcess? Process { get; private set; }
 
     /// <summary>Completes when a process this fixture started has ended, for any reason.</summary>
     public Task Shutdown => _shutdown.Task;
@@ -80,19 +78,27 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
         ConnectionCount++;
         var host = new JournalBrokerHost(QueryCursor, ScanDrive, ReadJournal, WatchDriveAsync,
             _ => new NtfsVolumeInformation(256 * 1024, 1024, 0, 0, 0, 0));
-        var process = BrokerTestHarness.StartInProcess(host, new SectionWriter(this), CreateSection);
-        process.Ended += _ => _shutdown.TrySetResult();
+        var handle = BrokerTestHarness.StartInProcess(host, new SectionWriter(this), CreateSection);
         lock (_processes)
-            _processes.Add(process);
-        Process = process;
-        return Task.FromResult(process);
+            _processes.Add(handle);
+        _handle = handle;
+        _ = ObserveShutdownAsync(handle.Process);
+        return Task.FromResult(handle.Process);
+    }
+
+    async Task ObserveShutdownAsync(BrokerProcess process)
+    {
+        await process.Ended.ConfigureAwait(false);
+        _shutdown.TrySetResult();
     }
 
     /// <summary>Ends the last process, as the elevated broker exiting would.</summary>
     public async Task DisconnectAsync()
     {
-        if (Process is { } process)
-            await process.DisposeAsync();
+        if (_handle is not { } handle)
+            return;
+        handle.Crash();
+        await handle.Process.Ended.ConfigureAwait(false);
     }
 
     public static BrokerScanOptions CreateOptions() => new()
@@ -124,9 +130,9 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
         {
             // The scan fails only once the client has seen its process end, so the failure the
             // client observes is the crash, never an ordinary scan error.
-            _ = Task.Run(DisconnectAsync, CancellationToken.None);
+            _handle!.Crash();
             Shutdown.Wait(HangGuard, CancellationToken.None);
-            throw new IOException("The broker process ended during the scan.");
+            throw new IOException("The broker host crashed during the scan.");
         }
         if (_scanError != null && (FailedDrive == null || FailedDrive == drive))
             throw new IOException(_scanError);
@@ -189,11 +195,11 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
     {
         try
         {
-            BrokerProcess[] processes;
+            InProcessBrokerHandle[] processes;
             lock (_processes)
                 processes = _processes.ToArray();
-            foreach (var process in processes)
-                await process.DisposeAsync();
+            foreach (var handle in processes)
+                await handle.DisposeAsync();
         }
         finally
         {

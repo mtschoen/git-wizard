@@ -5,12 +5,37 @@ namespace GitWizardUI.ViewModels;
 
 public partial class MainViewModel
 {
+    readonly TimeProvider _timeProvider;
     string _liveReadinessText = string.Empty;
+    LiveWatchHistoryViewModel? _liveWatchHistory;
+
+    LiveWatchHistoryViewModel LiveWatchHistory
+    {
+        get
+        {
+            if (_liveWatchHistory is not null)
+                return _liveWatchHistory;
+            _liveWatchHistory = new LiveWatchHistoryViewModel(_ui.Post, _timeProvider);
+            _liveWatchHistory.Changed += () => OnPropertyChanged(nameof(LiveReadinessTooltip));
+            return _liveWatchHistory;
+        }
+    }
+
+    public ObservableCollection<VolumeWatchTransition> LiveWatchEvents => LiveWatchHistory.Events;
 
     public ObservableCollection<LiveVolumeStatusViewModel> LiveVolumes { get; } = new();
 
-    public string LiveReadinessTooltip =>
-        string.Join(Environment.NewLine, LiveVolumes.Select(row => row.DisplayText));
+    public string LiveReadinessTooltip
+    {
+        get
+        {
+            var current = string.Join(Environment.NewLine, LiveVolumes.Select(row => row.DisplayText));
+            var recent = string.Join(Environment.NewLine, LiveWatchEvents.Select(item =>
+                $"{item.ObservedAt:HH:mm:ss} {item.Volume}: {item.State}" +
+                (item.Reason is null ? string.Empty : $": {item.Reason}")));
+            return recent.Length == 0 ? current : current + Environment.NewLine + "Recent watch events" + Environment.NewLine + recent;
+        }
+    }
 
     public string LiveReadinessText
     {
@@ -26,6 +51,7 @@ public partial class MainViewModel
     // UI thread only (callers post through PostIfActive).
     void ApplyLiveVolumeReadiness(VolumeReadinessSnapshot snapshot)
     {
+        LiveWatchHistory.Apply(snapshot.RecentTransitions);
         foreach (var status in snapshot.Volumes)
         {
             var existing = LiveVolumes.FirstOrDefault(row => string.Equals(row.Volume, status.Volume, StringComparison.OrdinalIgnoreCase));
@@ -89,6 +115,7 @@ public partial class MainViewModel
     void ClearLiveReadiness()
     {
         LiveVolumes.Clear();
+        _liveWatchHistory?.Clear();
         LiveReadinessText = string.Empty;
         OnPropertyChanged(nameof(LiveReadinessTooltip));
     }

@@ -274,4 +274,34 @@ public class RepositoryWatchServiceReadinessTests
         Assert.That(run.Ready, Is.Empty, "The first read already ended the stream; that is source death, not readiness.");
         Assert.That(run.Pump.IsFaulted, Is.False);
     }
+
+    [Test]
+    public async Task HistorySurvivesThroughServiceReadinessSnapshots()
+    {
+        await using var source = new ReadinessVolumeChangeSource();
+        var session = Guid.NewGuid();
+        var transition1 = new VolumeWatchTransition(session, "X", 1, "Faulted", "read error", DateTimeOffset.UtcNow);
+        var transition2 = new VolumeWatchTransition(session, "X", 2, "Recovering", null, DateTimeOffset.UtcNow);
+        var transition3 = new VolumeWatchTransition(session, "X", 3, "CatchingUp", null, DateTimeOffset.UtcNow);
+        var transition4 = new VolumeWatchTransition(session, "X", 4, "CaughtUp", null, DateTimeOffset.UtcNow);
+        var snapshot = VolumeReadinessSnapshot.Empty
+            .WithTransition(transition1)
+            .WithTransition(transition2)
+            .WithTransition(transition3)
+            .WithTransition(transition4);
+        source.SetSnapshot(snapshot.With(VolumeWatchStatus.CatchingUp("X", VolumeBlockOrigin.Warm)));
+
+        var service = new RepositoryWatchService(source, [@"X:\repo"], [], TimeSpan.Zero);
+        await using var run = Run.Start(service);
+        await WaitUntilAsync(() => run.StartedRaised);
+
+        var latestSnapshot = source.Readiness
+            .With(VolumeWatchStatus.CaughtUp("X", VolumeBlockOrigin.Warm));
+        source.SetSnapshot(latestSnapshot);
+
+        await WaitUntilAsync(() => run.Ready.Count == 1);
+        Assert.That(run.Ready, Has.Count.EqualTo(1));
+        Assert.That(run.Snapshots.Last().RecentTransitions.Select(t => t.State),
+            Is.EqualTo(new[] { "Faulted", "Recovering", "CatchingUp", "CaughtUp" }));
+    }
 }

@@ -43,7 +43,7 @@ public class BlockBrokerFixtureTests
 
         Assert.That(async () => await scan.WaitAsync(HangGuard), Throws.Exception);
         await broker.Shutdown.WaitAsync(HangGuard);
-        Assert.That(process.HasEnded, Is.True);
+        Assert.That(process.Ended.IsCompletedSuccessfully, Is.True);
         Assert.That(broker.RowsWritten, Is.EqualTo(1));
         Assert.That(broker.ServedToCompletion, Is.False);
     }
@@ -56,7 +56,7 @@ public class BlockBrokerFixtureTests
         var failure = Assert.CatchAsync(async () => await process.ScanDriveAsync('X', broker.CreateTarget('X'),
             BlockBrokerFixture.CreateOptions(), CancellationToken.None).WaitAsync(HangGuard));
         Assert.That(failure!.Message, Does.Contain("volume denied"));
-        Assert.That(process.HasEnded, Is.False);
+        Assert.That(process.Ended.IsCompleted, Is.False);
         Assert.That(broker.SectionDisposals, Is.EqualTo(1));
     }
 }

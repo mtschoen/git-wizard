@@ -31,8 +31,9 @@
 
     This needs an INTERACTIVE session with a real desktop: Live
     self-elevates one broker child process, which means exactly one UAC
-    prompt per run. The script prints a reminder right before it expects
-    that prompt.
+    prompt per run. The script shows a topmost heads-up dialog (with a
+    sound) and presses Live only after it is acknowledged, so a key typed
+    mid-sentence cannot deny the UAC prompt.
 
 .PARAMETER Kind
     Whether this run measures a cold start or a warm start. 'cold' clears
@@ -137,7 +138,13 @@ try {
         "$(Stamp) cache cleared (exit $clearExitCode): $clearSummary"
     }
 
-    "Approve the UAC prompt now: Live self-elevates one broker process."
+    # A UAC prompt takes focus with no buffer against keys already in flight, so a spacebar typed
+    # mid-sentence denies it. This topmost dialog blocks until it is acknowledged, before the timed
+    # interval starts, so the prompt only appears once the keyboard is set down.
+    "Acknowledge the heads-up dialog, then approve the UAC prompt: Live self-elevates one broker process."
+    [System.Media.SystemSounds]::Exclamation.Play()
+    $informationIconSystemModal = 0x1040
+    $null = (New-Object -ComObject WScript.Shell).Popup("A UAC prompt will appear next for the GitWizardUI $Kind Live timing run. Click OK when ready, then approve it.", 0, 'git-wizard UI Live timing', $informationIconSystemModal)
     $startStamp = Stamp
     $startTime = Get-Date
     $invoke.Invoke()

@@ -416,6 +416,51 @@ public class IndexVolumeChangeSourceTests
     }
 
 
+    [Test]
+    public async Task UnrelatedFaultAfterRecoveredLoss_DoesNotRaiseTheReportedLossAgain()
+    {
+        using var files = new PackedIndexFixture();
+        files.AddMarker("repo");
+        var owner = new MftIndexSession(await files.OpenIndexAsync(), null, ["X"],
+            [new IndexedDrive('X', files.TreePath, 12345u)], new Dictionary<string, string>());
+        await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner), owner);
+        var warnings = new List<JournalWarning>();
+        source.JournalWarningDetected += warnings.Add;
+        var liveLoss = FakeJournalSettingsSource.TrimmedLoss('X', 32L * 1024 * 1024, 136L * 1024 * 1024,
+            detectedDuring: JournalCheckpointLossDetection.LiveWatch);
+        var status = new DriveStatus
+        {
+            DriveLetter = 'X',
+            ProducerKind = ProducerKind.Mft,
+            BlockSource = BlockSource.ProducedByScan,
+            State = DriveState.Ready,
+            RowCount = 10,
+            LiveRowCount = 10,
+            ScanTimestamp = DateTime.UtcNow,
+            CompactionNeeded = false,
+            WatchSupported = true,
+            CheckpointLoss = liveLoss
+        };
+
+        source.ProcessFaultedDrive(status, owner, new GitWizardConfiguration());
+        // The library keeps the report after its recovery rescan, so a later fault of another
+        // kind sees the same report; it explained the earlier episode, not this one.
+        source.ProcessFaultedDrive(status, owner, new GitWizardConfiguration());
+        Assert.That(warnings, Has.Count.EqualTo(1));
+
+        // Two successive journal recreations produce distinct report instances with identical
+        // record fields. ProcessFaultedDrive uses object identity to treat the second as a new episode.
+        var recreationLoss2 = liveLoss with { };
+        Assert.That(recreationLoss2, Is.EqualTo(liveLoss));
+        Assert.That(recreationLoss2, Is.Not.SameAs(liveLoss));
+
+        source.ProcessFaultedDrive(status with { CheckpointLoss = recreationLoss2 }, owner, new GitWizardConfiguration());
+        source.ProcessFaultedDrive(status with { CheckpointLoss = recreationLoss2 }, owner, new GitWizardConfiguration());
+        Assert.That(warnings.Select(warning => warning.Loss),
+            Is.EqualTo(new[] { liveLoss, recreationLoss2 }));
+    }
+
+
     internal static UsnJournalEntry Entry(ulong record, ulong parent, string name, UsnReason reason,
         bool directory = false) => UsnJournalEntry.Create(new UsnJournalEntryOptions
         {

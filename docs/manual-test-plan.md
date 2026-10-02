@@ -141,6 +141,8 @@ After the CLI live smoke, perform the desktop pass on an attended build:
 
 If no real recoverable failure can be induced safely, report that attended item as unexercised; the scripted integration tests are its deterministic verification. Do not claim an attended pass from a headless layout test.
 
+A cache-only block with an unresumable checkpoint is rescanned before its drive is watched, and a drive already scanned at open is not scanned again. MFTLib stops retrying a drive after three consecutive catch-up losses, and Live then shows that drive as excluded; the scripted integration tests are the deterministic verification of both.
+
 ### Gotchas
 
 - **Output format:** `--watch` prints one line per event: `created: <path>`,

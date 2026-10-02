@@ -231,6 +231,14 @@ public partial class RepositoryDiscoveryCoordinator
             return true;
         if (status.FailureKind is DriveFailureKind.CacheDeclined or DriveFailureKind.CacheTagMismatch)
             return true;
-        return purpose == DiscoveryPurpose.Watch && status.CheckpointLoss is not null;
+        return purpose == DiscoveryPurpose.Watch && status.CheckpointLoss is { } loss &&
+               !IsResolvedByOpeningScan(loss, status);
     }
+
+    // CheckpointLoss is a standing report. An ordinary open that met an unresumable block already
+    // cold-scanned it and keeps the DriveOpening report as the explanation; only a cache-only open
+    // adopts the unresumable block itself (WarmStartedFromCache), which a watch must replace first.
+    static bool IsResolvedByOpeningScan(JournalCheckpointLoss loss, DriveStatus status) =>
+        loss.DetectedDuring == JournalCheckpointLossDetection.DriveOpening &&
+        status.BlockSource == BlockSource.ProducedByScan;
 }

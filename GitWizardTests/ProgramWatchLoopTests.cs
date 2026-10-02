@@ -113,6 +113,52 @@ public class ProgramWatchLoopTests
     }
 
     [Test]
+    public async Task RecoveringDrivePrintsNoErrorWhileOtherDriveStaysLive_AndReadsCaughtUpAgainAfterwards()
+    {
+        await using var source = new ReadinessVolumeChangeSource();
+        var service = new RepositoryWatchService(source, [@"X:\repo", @"Y:\repo"], [], TimeSpan.Zero);
+        var lines = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var running = Program.RunWatchLoopAsync(service, line =>
+        {
+            lines.Enqueue(line);
+            if (line.EndsWith(@"changed: Y:\repo", StringComparison.Ordinal))
+                changed.TrySetResult();
+        }, NoExit, cancellation.Token, verbose: true, new FixedTimeProvider());
+        await source.Started;
+        try
+        {
+            source.SetVolume(VolumeWatchStatus.CaughtUp("X", VolumeBlockOrigin.Warm));
+            source.SetVolume(VolumeWatchStatus.CaughtUp("Y", VolumeBlockOrigin.Warm));
+            // MFTLib recovers the faulted drive: it reads as catching up, then caught up again.
+            source.SetVolume(VolumeWatchStatus.CatchingUp("X", VolumeBlockOrigin.Cold));
+            source.Publish(new VolumeChangeBatch("Y",
+                [new VolumeChangeEntry(@"Y:\repo\file", VolumeEntryKind.Modified)]));
+            await changed.Task.WaitAsync(cancellation.Token);
+            Assert.That(running.IsCompleted, Is.False);
+            source.SetVolume(VolumeWatchStatus.CaughtUp("X", VolumeBlockOrigin.Cold));
+        }
+        finally
+        {
+            source.Complete();
+            await running;
+        }
+
+        const string stamp = "2026-10-01T00:00:00.000Z ";
+        Assert.That(lines.Where(line => line.StartsWith(stamp + "drive:", StringComparison.Ordinal)), Is.EqualTo(new[]
+        {
+            stamp + "drive: X state=caught-up origin=warm",
+            stamp + "drive: Y state=caught-up origin=warm",
+            stamp + "drive: X state=catching-up origin=cold",
+            stamp + "drive: X state=caught-up origin=cold"
+        }));
+        Assert.That(lines, Has.None.Contain("error").IgnoreCase.Or.Contain("Hint on"),
+            "A drive MFTLib recovers is not an error and leaves no error line behind.");
+        Assert.That(lines, Does.Contain(stamp + @"changed: Y:\repo"));
+    }
+
+    [Test]
     public async Task RunWatchLoopAsync_PrintsScanErrorsThenChangedCreatedDeletedLines()
     {
         var errors = new Dictionary<string, string> { ["D"] = "drive not ready" };
@@ -378,4 +424,9 @@ internal sealed class ThrowingWatchVolumeChangeSource : IVolumeChangeSource
 
     public void RaiseSourceDied(string reason) => SourceDied?.Invoke(reason);
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+}
+
+file sealed class FixedTimeProvider : TimeProvider
+{
+    public override DateTimeOffset GetUtcNow() => new(2026, 10, 1, 0, 0, 0, TimeSpan.Zero);
 }

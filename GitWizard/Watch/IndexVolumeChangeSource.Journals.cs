@@ -4,6 +4,10 @@ namespace GitWizard.Watch;
 
 public sealed partial class IndexVolumeChangeSource
 {
+    // The library keeps a live-watch or catch-up report after the drive recovers, so a later fault
+    // of another kind sees the same report. A report explains one episode: it is raised once.
+    readonly System.Collections.Concurrent.ConcurrentDictionary<char, JournalCheckpointLoss> _raisedFaultLosses = new();
+
     internal void ProcessArmedDrive(DriveStatus drive, GitWizardConfiguration configuration,
         Dictionary<string, string> errors, List<JournalWarning> warnings, CancellationToken cancellationToken)
     {
@@ -47,13 +51,20 @@ public sealed partial class IndexVolumeChangeSource
     // journal isolation answers "cannot say"), so the decision is fed a drive status directly,
     // the same way ProcessArmedDrive is tested. A live-watch or scan catch-up loss belongs to
     // the fault being handled; a drive-opening report is the open's standing explanation and an
-    // unrelated fault leaves it, and this event, untouched.
+    // unrelated fault leaves it, and this event, untouched. A retained report instance already
+    // raised for the drive is not raised again; distinct report instances (such as successive
+    // journal recreations with identical fields) represent new loss episodes and are raised.
     internal void ProcessFaultedDrive(DriveStatus drive, MftIndexSession owner, GitWizardConfiguration configuration)
     {
         if (drive.CheckpointLoss is not { DetectedDuring: JournalCheckpointLossDetection.LiveWatch or JournalCheckpointLossDetection.ScanCatchUp })
             return;
-        if (BuildJournalWarning(drive, owner, configuration) is { } warning)
-            JournalWarningDetected?.Invoke(warning);
+        var letter = char.ToUpperInvariant(drive.DriveLetter);
+        if (_raisedFaultLosses.TryGetValue(letter, out var raised) && ReferenceEquals(raised, drive.CheckpointLoss))
+            return;
+        if (BuildJournalWarning(drive, owner, configuration) is not { } warning)
+            return;
+        _raisedFaultLosses[letter] = warning.Loss;
+        JournalWarningDetected?.Invoke(warning);
     }
 
     static void AddJournalWarning(DriveStatus drive, MftIndexSession owner,

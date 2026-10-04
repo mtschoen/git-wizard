@@ -74,6 +74,7 @@ internal sealed class PackedIndexFixture : IDisposable
             Path = request.BlockPath,
             VolumeSerial = request.VolumeSerial,
             ProducerKind = ProducerKind.Mft,
+            CacheTag = request.CacheTag,
             SlotCapacity = 256,
             NamePoolCapacity = 16384,
             DeleteOnClose = request.DeleteOnClose

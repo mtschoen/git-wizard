@@ -31,7 +31,7 @@ public class MftIndexCacheStatusFormatterTests
     public async Task OwnershipRequiresDirectoryAndSerial(uint serial, bool sameDirectory, bool owned)
     {
         using var files = new PackedIndexFixture();
-        var cache = MftIndexCachePolicy.Current.GetCacheDirectory(files.DirectoryPath);
+        var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         await using var index = await FileIndex.OpenAsync(new FileIndexOptions
         {
             Drives = [new IndexedDrive('X', files.TreePath, 1)],
@@ -64,7 +64,7 @@ public class MftIndexCacheStatusFormatterTests
             ScanTimestamp = default,
             WatchFailureMessage = refused ? null : "watch stopped"
         };
-        var directory = MftIndexCachePolicy.Current.GetCacheDirectory(files.DirectoryPath);
+        var directory = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         var active = new MftActiveCacheSession(directory,
             [new(new MftDriveStatus("X", status, null), 1)]);
         var snapshot = new MftIndexCacheInspection(new FrozenCacheClock(), true,

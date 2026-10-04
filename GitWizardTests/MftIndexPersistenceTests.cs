@@ -14,6 +14,7 @@ public class MftIndexPersistenceTests
         {
             Drives = [drive],
             CacheDirectory = cache,
+            CacheTag = MftIndexCachePolicy.CacheTag,
             NoCache = false,
             ProducerPolicy = ProducerPolicy.Mft,
             MftProducer = files.ProduceMftAsync
@@ -38,7 +39,7 @@ public class MftIndexPersistenceTests
         using var files = new PackedIndexFixture();
         files.AddMarker("repository");
         var drive = new IndexedDrive('X', files.TreePath, 1);
-        var cache = MftIndexCachePolicy.Current.GetCacheDirectory(files.DirectoryPath);
+        var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         await SeedAsync(files, drive, cache);
         var calls = 0;
         Task<BrokerProcess> Unexpected(CancellationToken cancellationToken)
@@ -59,7 +60,7 @@ public class MftIndexPersistenceTests
     {
         await using var broker = new BlockBrokerFixture();
         await using var session = await MftIndexSession.OpenAsync([broker.Drive('X')], broker.ConnectAsync,
-            MftIndexCachePolicy.Current.GetCacheDirectory(broker.CacheDirectory),
+            MftIndexCachePolicy.GetCacheDirectory(broker.CacheDirectory),
             MftIndexOpenIntent.Snapshot, null, CancellationToken.None);
         var status = session.CaptureDriveStatuses().Single().IndexStatus!;
         Assert.That(status.State, Is.EqualTo(DriveState.Failed));
@@ -75,7 +76,7 @@ public class MftIndexPersistenceTests
         await using var firstBroker = new BlockBrokerFixture();
         await using var otherBroker = new BlockBrokerFixture();
         var drive = firstBroker.Drive('X');
-        var cache = MftIndexCachePolicy.Current.GetCacheDirectory(firstBroker.CacheDirectory);
+        var cache = MftIndexCachePolicy.GetCacheDirectory(firstBroker.CacheDirectory);
         // Disposed mid-test to release the canonical slot; the finally is an idempotent safety net.
         var first = await MftIndexSession.OpenAsync([drive], firstBroker.ConnectAsync,
             cache, MftIndexOpenIntent.Persistent, null, CancellationToken.None);
@@ -128,13 +129,14 @@ public class MftIndexPersistenceTests
         using var files = new PackedIndexFixture();
         files.AddMarker("repository");
         var drive = new IndexedDrive('X', files.TreePath, 1);
-        var cache = MftIndexCachePolicy.Current.GetCacheDirectory(files.DirectoryPath);
+        var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         await SeedAsync(files, drive, cache);
         var source = new ScriptedIndexWatchSource();
         await using var index = await FileIndex.OpenAsync(new FileIndexOptions
         {
             Drives = [drive],
             CacheDirectory = cache,
+            CacheTag = MftIndexCachePolicy.CacheTag,
             NoCache = false,
             ProducerPolicy = ProducerPolicy.Mft,
             MftProducer = (_, _) => throw new AssertionException("Warm open must not produce."),
@@ -172,7 +174,7 @@ public class MftIndexPersistenceTests
         using var files = new PackedIndexFixture();
         await using var broker = new BlockBrokerFixture();
         var drive = broker.Drive('X');
-        var cache = MftIndexCachePolicy.Current.GetCacheDirectory(files.DirectoryPath);
+        var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         await SeedAsync(files, drive, cache);
         var session = await MftIndexSession.OpenAsync([drive], broker.ConnectAsync,
             cache, MftIndexOpenIntent.Snapshot, null, CancellationToken.None);
@@ -196,7 +198,7 @@ public class MftIndexPersistenceTests
     public async Task SnapshotRefusalCanExplicitlyRescanThroughLazyConnection()
     {
         await using var broker = new BlockBrokerFixture();
-        var cache = MftIndexCachePolicy.Current.GetCacheDirectory(broker.CacheDirectory);
+        var cache = MftIndexCachePolicy.GetCacheDirectory(broker.CacheDirectory);
         var session = await MftIndexSession.OpenAsync([broker.Drive('X')], broker.ConnectAsync,
             cache, MftIndexOpenIntent.Snapshot, null, CancellationToken.None);
         try
@@ -226,7 +228,7 @@ public class MftIndexPersistenceTests
         await using var broker = new BlockBrokerFixture();
         await using var session = await MftIndexSession.OpenAsync(
             [new IndexedDrive('X', Path.Combine(files.DirectoryPath, "absent"), 1)],
-            broker.ConnectAsync, MftIndexCachePolicy.Current.GetCacheDirectory(files.DirectoryPath),
+            broker.ConnectAsync, MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath),
             MftIndexOpenIntent.Snapshot, null, CancellationToken.None);
         var status = session.CaptureDriveStatuses().Single().IndexStatus!;
         Assert.That(status.State, Is.EqualTo(DriveState.Offline));

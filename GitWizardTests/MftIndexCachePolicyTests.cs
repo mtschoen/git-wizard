@@ -8,43 +8,42 @@ namespace GitWizardTests;
 [TestFixture]
 public class MftIndexCachePolicyTests
 {
+    // One row per CacheTag version ever shipped. Changing the scan profile or keep list changes
+    // ScanShape and fails CurrentScanShapeIsPinnedToItsCacheTagVersion until the version in
+    // MftIndexCachePolicy is incremented and a new row is added here. Never edit an existing row.
+    static readonly Dictionary<uint, string> ScanShapeByVersion = new()
+    {
+        [1] = "DirectoryIndex|.git,HEAD"
+    };
+
     [Test]
-    public void CanonicalPolicyIsStableAndNormalized()
+    public void CurrentScanShapeIsPinnedToItsCacheTagVersion()
+    {
+        var tag = MftIndexCachePolicy.CacheTag;
+        Assert.That(ScanShapeByVersion, Does.ContainKey(tag.Version),
+            "Add a row for the new CacheTag version to ScanShapeByVersion.");
+        Assert.That(MftIndexCachePolicy.ScanShape, Is.EqualTo(ScanShapeByVersion[tag.Version]),
+            "The scan profile or keep list changed: increment CacheTagVersion in MftIndexCachePolicy.");
+        Assert.That(tag.Version, Is.EqualTo(ScanShapeByVersion.Keys.Max()));
+    }
+
+    [Test]
+    public void PolicyDefinesTheDiscoveryScanAndOneCacheDirectory()
     {
         using var files = new PackedIndexFixture();
-        var current = MftIndexCachePolicy.Current;
-        var reordered = new MftIndexCachePolicy(BrokerScanProfile.DirectoryIndex,
-            ["HEAD", ".git", "HEAD"]);
-        Assert.That(current.KeepFileNames, Is.EqualTo(new[] { ".git", "HEAD" }));
-        Assert.That(current.Profile, Is.EqualTo(BrokerScanProfile.DirectoryIndex));
-        Assert.That(current.GetCacheDirectory(files.DirectoryPath),
-            Is.EqualTo(reordered.GetCacheDirectory(files.DirectoryPath)));
-        Assert.That(Path.GetDirectoryName(current.GetCacheDirectory(files.DirectoryPath)),
+        Assert.That(MftIndexCachePolicy.KeepFileNames, Is.EqualTo(new[] { ".git", "HEAD" }));
+        Assert.That(MftIndexCachePolicy.DiscoveryProfile, Is.EqualTo(BrokerScanProfile.DirectoryIndex));
+        Assert.That(MftIndexCachePolicy.CacheTag, Is.Not.EqualTo(default(CacheTag)));
+        Assert.That(Path.GetDirectoryName(MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath)),
             Is.EqualTo(MftIndexCachePolicy.GetCacheRoot(files.DirectoryPath)));
     }
 
-    [TestCase("")]
-    [TestCase("nested/HEAD")]
-    [TestCase("nested\\HEAD")]
-    public void RetentionEntriesMustBeFileNames(string name)
-    {
-        Assert.Throws<ArgumentException>(() =>
-            _ = new MftIndexCachePolicy(BrokerScanProfile.DirectoryIndex, [".git", name]));
-    }
-
-    [TestCase(true)]
-    [TestCase(false)]
-    public async Task DifferentPolicyCannotAdoptEarlierBlock(bool changeProfile)
+    [Test]
+    public async Task DifferentCacheTagVersionCannotAdoptEarlierBlock()
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repository");
-        var original = MftIndexCachePolicy.Current;
-        var changed = new MftIndexCachePolicy(
-            changeProfile ? BrokerScanProfile.Full : BrokerScanProfile.DirectoryIndex,
-            changeProfile ? original.KeepFileNames : [".git"]);
-        var firstPath = original.GetCacheDirectory(files.DirectoryPath);
-        var nextPath = changed.GetCacheDirectory(files.DirectoryPath);
-        Assert.That(nextPath, Is.Not.EqualTo(firstPath));
+        var path = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         var calls = 0;
         MftBlockProducer produceMft = files.ProduceMftAsync;
         Task<MftBlockProduceResult> Produce(MftBlockProduceRequest request, CancellationToken token)
@@ -52,25 +51,26 @@ public class MftIndexCachePolicyTests
             calls++;
             return produceMft(request, token);
         }
-        FileIndexOptions Options(string path, bool snapshot) => new()
+        FileIndexOptions Options(uint version, bool snapshot) => new()
         {
             Drives = [new IndexedDrive('X', files.TreePath, 1)],
             CacheDirectory = path,
+            CacheTag = new CacheTag(MftIndexCachePolicy.CacheTag.FourCc, version),
             NoCache = false,
             InitialOpenCacheOnly = snapshot,
             ProducerPolicy = ProducerPolicy.Mft,
             MftProducer = Produce
         };
-        await using (var first = await FileIndex.OpenAsync(Options(firstPath, false), CancellationToken.None))
+        var version = MftIndexCachePolicy.CacheTag.Version;
+        await using (var first = await FileIndex.OpenAsync(Options(version, false), CancellationToken.None))
             Assert.That(first.Drives.Single().BlockSource, Is.EqualTo(BlockSource.ProducedByScan));
-        await using (var declined = await FileIndex.OpenAsync(Options(nextPath, true), CancellationToken.None))
-            Assert.That(declined.Drives.Single().FailureKind, Is.EqualTo(DriveFailureKind.CacheDeclined));
+        await using (var declined = await FileIndex.OpenAsync(Options(version + 1, true), CancellationToken.None))
+            Assert.That(declined.Drives.Single().FailureKind, Is.EqualTo(DriveFailureKind.CacheTagMismatch));
         Assert.That(calls, Is.EqualTo(1));
-        await using (var second = await FileIndex.OpenAsync(Options(nextPath, false), CancellationToken.None))
+        await using (var second = await FileIndex.OpenAsync(Options(version + 1, false), CancellationToken.None))
             Assert.That(second.Drives.Single().BlockSource, Is.EqualTo(BlockSource.ProducedByScan));
         Assert.That(calls, Is.EqualTo(2));
-        await using var originalAgain = await FileIndex.OpenAsync(Options(firstPath, true), CancellationToken.None);
-        Assert.That(originalAgain.Drives.Single().BlockSource, Is.EqualTo(BlockSource.WarmStartedFromCache));
-        Assert.That(calls, Is.EqualTo(2));
+        Assert.That(CacheDirectory.InspectCached(path).Single().CacheTag,
+            Is.EqualTo(new CacheTag(MftIndexCachePolicy.CacheTag.FourCc, version + 1)));
     }
 }

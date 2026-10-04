@@ -76,7 +76,7 @@ public class MftIndexCacheInspectionTests
     public void FileAtPolicyPathIsAnErrorNotEmptyInventory()
     {
         using var files = new PackedIndexFixture();
-        var cache = MftIndexCachePolicy.Current.GetCacheDirectory(files.DirectoryPath);
+        var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         Directory.CreateDirectory(Path.GetDirectoryName(cache)!);
         File.WriteAllText(cache, "not a directory");
         Assert.That(Create().Capture(files.DirectoryPath).Succeeded, Is.False);
@@ -86,7 +86,7 @@ public class MftIndexCacheInspectionTests
     public async Task AvailableInvalidAndInUseAreDifferentAndContentIsUnchanged()
     {
         using var files = new PackedIndexFixture();
-        var cache = MftIndexCachePolicy.Current.GetCacheDirectory(files.DirectoryPath);
+        var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         await using (var seed = await Open(files, cache))
             Assert.That(seed.Drives.Single().CacheSlot, Is.EqualTo(CacheSlotState.OwnedCanonical));
         var file = CacheDirectory.EnumerateCached(cache).Single();
@@ -115,7 +115,7 @@ public class MftIndexCacheInspectionTests
     public async Task ConcurrentNormalOpenIsPrivateWhileCacheOnlyRefuses()
     {
         using var files = new PackedIndexFixture();
-        var cache = MftIndexCachePolicy.Current.GetCacheDirectory(files.DirectoryPath);
+        var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         var index = await Open(files, cache);
         var ui = new MftIndexSession(index, null, ["X"],
             [new IndexedDrive('X', files.TreePath, 1)], new Dictionary<string, string>(), cache);

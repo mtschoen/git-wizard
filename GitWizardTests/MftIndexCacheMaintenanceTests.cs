@@ -1,6 +1,5 @@
 using GitWizard;
 using GitWizardTests.TestSupport;
-using MFTLib;
 using MFTLib.Index;
 
 namespace GitWizardTests;
@@ -9,14 +8,13 @@ namespace GitWizardTests;
 public class MftIndexCacheMaintenanceTests
 {
     [Test]
-    public async Task ClearPreservesOwnerDeletesOtherPoliciesAndRefreshesInventory()
+    public async Task ClearPreservesOwnerDeletesLegacyDirectoriesAndRefreshesInventory()
     {
         using var files = new IndexCacheFixture();
-        var older = new MftIndexCachePolicy(BrokerScanProfile.Full, [".git"])
-            .GetCacheDirectory(files.Home);
+        var older = Path.Combine(MftIndexCachePolicy.GetCacheRoot(files.Home), "v1-" + new string('A', 64));
         Directory.CreateDirectory(older);
         var olderBlock = Path.Combine(older, CacheDirectory.BlockFileName('Y', 1));
-        await File.WriteAllTextAsync(olderBlock, "older policy block");
+        await File.WriteAllTextAsync(olderBlock, "legacy hashed-directory block");
         var unknown = Path.Combine(MftIndexCachePolicy.GetCacheRoot(files.Home), "unrecognized");
         Directory.CreateDirectory(unknown);
         var unknownBlock = Path.Combine(unknown, CacheDirectory.BlockFileName('Z', 1));

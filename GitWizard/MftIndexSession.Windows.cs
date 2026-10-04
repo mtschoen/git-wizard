@@ -42,7 +42,7 @@ public sealed partial class MftIndexSession
             token => connectTimeout.HasValue
                 ? BrokerProcess.LaunchAsync(brokerLauncher, connectTimeout.Value, token)
                 : BrokerProcess.LaunchAsync(brokerLauncher, token),
-            new CacheSelection(MftIndexCachePolicy.Current.GetCacheDirectory(GitWizardApi.GetLocalFilesPath()), intent),
+            new CacheSelection(MftIndexCachePolicy.GetCacheDirectory(GitWizardApi.GetLocalFilesPath()), intent),
             progress, cancellationToken);
     }
 

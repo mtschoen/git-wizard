@@ -48,7 +48,7 @@ public class MftIndexDiagnosticsTests
     public async Task LibraryLifecycleDeletionReachesFakeSink()
     {
         using var files = new PackedIndexFixture();
-        var cache = MftIndexCachePolicy.Current.GetCacheDirectory(files.DirectoryPath);
+        var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         CacheDirectory.EnsureCreated(cache);
         var retired = Path.Combine(cache, CacheDirectory.BlockFileName('X', 1) + ".retired-test");
         await File.WriteAllTextAsync(retired, "retired sentinel");
@@ -58,6 +58,7 @@ public class MftIndexDiagnosticsTests
         {
             Drives = [new IndexedDrive('X', files.TreePath, 1)],
             CacheDirectory = cache,
+            CacheTag = MftIndexCachePolicy.CacheTag,
             NoCache = false,
             ProducerPolicy = ProducerPolicy.Mft,
             MftProducer = files.ProduceMftAsync,
@@ -73,7 +74,7 @@ public class MftIndexDiagnosticsTests
     public async Task SessionRoutesLifecycleToGitWizardLog()
     {
         await using var broker = new BlockBrokerFixture();
-        var cache = MftIndexCachePolicy.Current.GetCacheDirectory(broker.CacheDirectory);
+        var cache = MftIndexCachePolicy.GetCacheDirectory(broker.CacheDirectory);
         CacheDirectory.EnsureCreated(cache);
         var retired = Path.Combine(cache, CacheDirectory.BlockFileName('X', 1) + ".retired-test");
         await File.WriteAllTextAsync(retired, "retired sentinel");

@@ -97,18 +97,18 @@ public sealed partial class MftIndexSession : IAsyncDisposable
         string cacheDirectory, MftIndexOpenIntent intent, IProgress<IndexScanProgress>? progress,
         MftIndexDiagnostics diagnostics)
     {
-        var policy = MftIndexCachePolicy.Current;
         // Connection stays lazy in both intents: a warm or snapshot open never launches the broker,
         // while a later watch or explicit rescan connects through the same owned holder.
         var producer = new BrokerMftBlockProducer(connection.ConnectAsync, new BrokerScanOptions
         {
-            Profile = policy.Profile,
-            KeepFileNames = policy.KeepFileNames
+            Profile = MftIndexCachePolicy.DiscoveryProfile,
+            KeepFileNames = MftIndexCachePolicy.KeepFileNames
         });
         return new FileIndexOptions
         {
             Drives = drives,
             CacheDirectory = cacheDirectory,
+            CacheTag = MftIndexCachePolicy.CacheTag,
             NoCache = false,
             InitialOpenCacheOnly = intent == MftIndexOpenIntent.Snapshot,
             ProducerPolicy = ProducerPolicy.Mft,

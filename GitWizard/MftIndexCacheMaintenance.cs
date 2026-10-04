@@ -5,6 +5,10 @@ namespace GitWizard;
 
 public static class MftIndexCacheMaintenance
 {
+    // Earlier releases named the cache directory "v1-<64 hex SHA-256 digits>" after the scan shape.
+    // Nothing writes such a directory now; Run still lists them so Clear reclaims their blocks.
+    const string LegacyDirectoryPrefix = "v1-";
+    const int LegacyDirectoryNameLength = 67;
     static readonly SearchValues<char> HexDigits = SearchValues.Create("0123456789ABCDEF");
 
     public static MftIndexCacheMaintenanceResult Inspect(string localFilesPath) =>
@@ -19,14 +23,14 @@ public static class MftIndexCacheMaintenance
         var errors = new List<string>();
         var deletions = new List<CachedBlockDeletionResult>();
         var inventory = new List<CachedBlockStatus>();
-        foreach (var directory in GetPolicyDirectories(localFilesPath, errors))
+        foreach (var directory in GetCacheDirectories(localFilesPath, errors))
         {
             try
             {
                 if (Directory.Exists(directory) &&
                     (File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0)
                 {
-                    errors.Add($"Skipped linked policy directory: {directory}");
+                    errors.Add($"Skipped linked cache directory: {directory}");
                     continue;
                 }
 
@@ -56,12 +60,12 @@ public static class MftIndexCacheMaintenance
             errors.AsReadOnly());
     }
 
-    static string[] GetPolicyDirectories(string localFilesPath, List<string> errors)
+    static string[] GetCacheDirectories(string localFilesPath, List<string> errors)
     {
         var root = MftIndexCachePolicy.GetCacheRoot(localFilesPath);
         var directories = new HashSet<string>(StringComparer.Ordinal)
         {
-            MftIndexCachePolicy.Current.GetCacheDirectory(localFilesPath)
+            MftIndexCachePolicy.GetCacheDirectory(localFilesPath)
         };
 
         try
@@ -77,8 +81,9 @@ public static class MftIndexCacheMaintenance
                 foreach (var directory in Directory.EnumerateDirectories(root))
                 {
                     var name = Path.GetFileName(directory);
-                    if (name.Length == 67 && name.StartsWith("v1-", StringComparison.Ordinal) &&
-                        name.AsSpan(3).IndexOfAnyExcept(HexDigits) < 0)
+                    if (name.Length == LegacyDirectoryNameLength &&
+                        name.StartsWith(LegacyDirectoryPrefix, StringComparison.Ordinal) &&
+                        name.AsSpan(LegacyDirectoryPrefix.Length).IndexOfAnyExcept(HexDigits) < 0)
                     {
                         directories.Add(directory);
                     }

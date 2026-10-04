@@ -14,7 +14,7 @@ internal sealed class IndexCacheFixture : IDisposable
     public IndexCacheFixture(string? home = null)
     {
         Home = home ?? _files.DirectoryPath;
-        Cache = MftIndexCachePolicy.Current.GetCacheDirectory(Home);
+        Cache = MftIndexCachePolicy.GetCacheDirectory(Home);
         Directory.CreateDirectory(Cache);
         File.WriteAllText(FreePath, "invalid but deletable canonical block");
         File.WriteAllText(Path.Combine(Cache, "unrelated.txt"), "keep");

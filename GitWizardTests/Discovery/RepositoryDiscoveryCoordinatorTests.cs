@@ -136,7 +136,7 @@ public class RepositoryDiscoveryCoordinatorTests
     public async Task ListMiss_CacheDeclined_RescansAndUsesScanSource()
     {
         await using var broker = new BlockBrokerFixture();
-        var cache = MftIndexCachePolicy.Current.GetCacheDirectory(broker.CacheDirectory);
+        var cache = MftIndexCachePolicy.GetCacheDirectory(broker.CacheDirectory);
         var session = await MftIndexSession.OpenAsync([broker.Drive('X')], broker.ConnectAsync,
             cache, MftIndexOpenIntent.Snapshot, null, CancellationToken.None);
 

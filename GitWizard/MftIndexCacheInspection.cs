@@ -22,8 +22,7 @@ public sealed class MftIndexCacheInspection
     public MftIndexCacheSnapshot Capture(string localFilesPath,
         IReadOnlyList<MftActiveCacheSession>? sessions = null)
     {
-        var policy = MftIndexCachePolicy.Current;
-        var directory = policy.GetCacheDirectory(localFilesPath);
+        var directory = MftIndexCachePolicy.GetCacheDirectory(localFilesPath);
         var inventory = Array.Empty<CachedBlockStatus>();
         var errors = new List<string>();
         if (_isWindows)
@@ -47,8 +46,8 @@ public sealed class MftIndexCacheInspection
         {
             IsApplicable = _isWindows,
             CacheDirectory = directory,
-            Profile = policy.Profile.ToString(),
-            KeepFileNames = Array.AsReadOnly(policy.KeepFileNames.ToArray()),
+            Profile = MftIndexCachePolicy.DiscoveryProfile.ToString(),
+            KeepFileNames = Array.AsReadOnly(MftIndexCachePolicy.KeepFileNames.ToArray()),
             ObservedAt = _clock.GetUtcNow(),
             Inventory = Array.AsReadOnly(inventory),
             Sessions = Array.AsReadOnly(active),

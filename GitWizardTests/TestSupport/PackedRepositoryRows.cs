@@ -19,6 +19,7 @@ internal static class PackedRepositoryRows
                     Path = request.BlockPath,
                     VolumeSerial = request.VolumeSerial,
                     ProducerKind = ProducerKind.Mft,
+                    CacheTag = request.CacheTag,
                     RootRow = 5,
                     SlotCapacity = 256,
                     NamePoolCapacity = 16384,

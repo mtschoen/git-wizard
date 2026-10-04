@@ -77,7 +77,7 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
         cancellationToken.ThrowIfCancellationRequested();
         ConnectionCount++;
         var host = new JournalBrokerHost(QueryCursor, ScanDrive, ReadJournal, WatchDriveAsync,
-            _ => new NtfsVolumeInformation(256 * 1024, 1024, 0, 0, 0, 0));
+            _ => new NtfsVolumeInformation(256 * 1024, 1024));
         var handle = BrokerTestHarness.StartInProcess(host, new SectionWriter(this), CreateSection);
         lock (_processes)
             _processes.Add(handle);

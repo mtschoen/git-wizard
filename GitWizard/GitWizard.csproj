@@ -20,7 +20,7 @@
 
   <ItemGroup>
     <!-- Expose internals to the test project: the pure native-block-to-repository-root mapping
-         seam (SelectGitEntries, ResolveRepositoryRootCandidates) so the .git-file discovery
+         seam (SelectGitEntries, SelectRepositoryCandidates) so the .git-file discovery
          path can be exercised with enumeration-produced blocks on any OS, and the broker discovery
          profile/keep-file-name constants so the wire-level ArmAndScan assertion can reuse them
          instead of repeating literals. -->

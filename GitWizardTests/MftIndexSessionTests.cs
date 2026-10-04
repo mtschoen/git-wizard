@@ -230,7 +230,13 @@ public class MftIndexSessionTests
     public async Task ScanProgressFrameReachesOpenProgress()
     {
         await using var broker = new BlockBrokerFixture();
-        broker.ScanProgressToEmit = new BrokerScanProgress("X", 600_000, 0, 1_200_000, null, TimeSpan.Zero);
+        broker.ScanProgressToEmit = new BrokerScanProgress
+        {
+            DriveLetter = "X",
+            Phase = BrokerScanPhase.Parsing,
+            RecordsProcessed = 600_000,
+            TotalRecords = 1_200_000
+        };
         var samples = new List<IndexScanProgress>();
         await using var session = await MftIndexSession.OpenAsync([broker.Drive('X')],
             broker.ConnectAsync, broker.CacheDirectory, new ProgressSink<IndexScanProgress>(samples.Add),

@@ -124,7 +124,7 @@ public class IndexDiscoveryTests
     }
 
     [Test]
-    public async Task ResolveRepositoryRootCandidates_ExcessivePathDepth_SkipsMalformedEntry()
+    public async Task SelectRepositoryCandidates_ExcessivePathDepth_SkipsMalformedEntry()
     {
         using var files = new PackedIndexFixture();
         await using var index = await OpenRowsAsync(files, (_, writer) =>
@@ -138,8 +138,8 @@ public class IndexDiscoveryTests
         });
         var entries = GitWizardApi.SelectGitEntries(index, includeGitFiles: true);
         Assert.That(entries, Has.Count.EqualTo(2));
-        var candidates = GitWizardApi.ResolveRepositoryRootCandidates(index, entries, @"X:\", Array.Empty<string>(),
-            includeTempDirectories: true).ToArray();
+        var candidates = CandidateSelection.Paths(index, @"X:\", Array.Empty<string>(),
+            includeTempDirectories: true);
         Assert.That(candidates, Is.EqualTo(new[] { Path.Combine(files.TreePath, "validrepo") }));
     }
 

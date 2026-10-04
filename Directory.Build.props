@@ -4,9 +4,7 @@
        Applies to every project under this directory (the 4 git-wizard projects
        + tests). MFTLib lives outside this tree and is unaffected.
 
-       Rollout note: <TreatWarningsAsErrors> is intentionally NOT set here yet.
-       It is enabled once the analyzer findings are driven to zero so the
-       -warnaserror build (local MSBuild + CI) becomes the gate. -->
+       <TreatWarningsAsErrors> is set below: the build is the analyzer gate. -->
 
   <PropertyGroup>
     <!-- Make the SDK (CA*/IDE*) analyzer set explicit and pick up the full

@@ -86,7 +86,7 @@ internal sealed class PackedIndexFixture : IDisposable
             WriteTree(writer, TreePath, 5, ref row);
             writer.SetJournalCursor(JournalId, NextUsn);
             writer.Complete(CompletionTimestamp, null);
-            return new MftBlockProduceResult(block, JournalId, NextUsn, 0, false)
+            return new MftBlockProduceResult(block, JournalId, NextUsn, 0)
             {
                 CatchUpLoss = CatchUpLossForProduction?.Invoke()
             };
@@ -147,7 +147,7 @@ internal sealed class PackedIndexFixture : IDisposable
 
     public static Dictionary<string, BlockScanOutcome> Outcomes(BlockFile block, string drive = "X") => new()
     {
-        [drive] = new(string.Empty, block, block.Header.RowCount, block.Header.NamePoolUsed, 0)
+        [drive] = new(block, 0)
     };
 
     public static void AssertMarker(BlockFile block, string parentName, bool isDirectory)

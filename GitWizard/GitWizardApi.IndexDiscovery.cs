@@ -69,12 +69,18 @@ public static partial class GitWizardApi
             return new CandidateScope(
                 TranslateToRealRoot(index, root),
                 item.IsExact,
-                !item.IsExact && IsDriveRoot(root.Original),
+                !item.IsExact && IsLogicalDriveRoot(root),
                 configuration.IncludeTempDirectories != true && !TempDirectories.IsTempPath(root.Original),
                 configuration.SkipHiddenDirectories != false,
                 ignoredRoots);
         }).ToList();
     }
+
+    // A scope root is a logical Windows path even when the index was enumerated on another host, so the
+    // host-dependent IsDriveRoot alone would miss "X:/" on Linux.
+    static bool IsLogicalDriveRoot(WatchPath root) =>
+        IsDriveRoot(root.Original) ||
+        (root.IsWindows && root.Comparison is [_, ':', '/']);
 
     static IEnumerable<RepositoryCandidate> SelectGitMarkerCandidates(
         IEnumerable<FileEntry> gitEntries, CandidateScope candidateScope)
@@ -162,54 +168,6 @@ public static partial class GitWizardApi
     static bool HasChildDirectory(IEnumerable<FileEntry> children, string name) =>
         children.Any(child => !child.IsDeleted && child.IsDirectory &&
                               string.Equals(child.Name, name, StringComparison.OrdinalIgnoreCase));
-
-    /// <summary>Applies logical Windows scope policy without opening an indexed path on disk.</summary>
-    /// <remarks>
-    /// <paramref name="index" /> resolves each drive-letter-rooted path (<paramref name="rootPath" />
-    /// and <paramref name="ignoredPaths" />) onto that drive's real indexed root directory before
-    /// comparing against <see cref="FileEntry.Path" />, because <c>FileEntry.Path</c> renders the
-    /// real root directory rather than a synthetic <c>&lt;letter&gt;:\</c> path when
-    /// <c>IndexedDrive.RootDirectory</c> differs from the drive letter (MFTLib #143). On a real
-    /// Windows volume the two coincide, so this is a no-op there.
-    /// </remarks>
-    internal static IEnumerable<string> ResolveRepositoryRootCandidates(FileIndex index, IEnumerable<FileEntry> entries,
-        string rootPath, ICollection<string> ignoredPaths, bool? skipHiddenDirectories = null,
-        bool? includeTempDirectories = null)
-    {
-        var root = WatchPath.Parse(rootPath);
-        if (!root.IsWindows)
-            yield break;
-        var includeGitFiles = root.Comparison.Length != 3 || root.Comparison[1] != ':' || root.Comparison[2] != '/';
-        var translatedRoot = TranslateToRealRoot(index, root);
-        var ignoredRoots = ignoredPaths.Select(WatchPath.Parse)
-            .Select(ignoredRoot => TranslateToRealRoot(index, ignoredRoot)).ToArray();
-        // A search root inside a temp directory opts that subtree back in (explicit scope beats
-        // the default temp exclusion), matching the recursive walk.
-        var excludeTempDirectories = includeTempDirectories != true && !TempDirectories.IsTempPath(root.Original);
-        foreach (var entry in entries)
-        {
-            if (entry.IsDeleted || (!includeGitFiles && !entry.IsDirectory) || entry.Parent is not { } parent)
-                continue;
-            string parentPath;
-            try
-            {
-                parentPath = parent.Path;
-            }
-            catch (InvalidDataException)
-            {
-                continue;
-            }
-            var candidate = WatchPath.Parse(parentPath);
-            if (!candidate.IsUnderOrEqual(translatedRoot) || ignoredRoots.Any(candidate.IsUnderOrEqual))
-                continue;
-            if (excludeTempDirectories && TempDirectories.IsTempPath(candidate.Original))
-                continue;
-            if (skipHiddenDirectories != false && candidate.Comparison[translatedRoot.Comparison.Length..]
-                .Split('/').Any(segment => segment.StartsWith('.')))
-                continue;
-            yield return candidate.Original;
-        }
-    }
 
     /// <summary>
     /// Rewrites a drive-letter-rooted path onto that drive's real indexed root directory, so it can

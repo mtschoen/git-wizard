@@ -30,7 +30,7 @@ internal static class PackedRepositoryRows
                     WriteRow(writer, 5, "root", 5, RowFlags.InUse | RowFlags.Directory);
                     writeRows(block, writer);
                     writer.Complete(PackedIndexFixture.CompletionTimestamp, null);
-                    return Task.FromResult(new MftBlockProduceResult(block, 0, 0, 0, false));
+                    return Task.FromResult(new MftBlockProduceResult(block, 0, 0, 0));
                 }
                 catch
                 {

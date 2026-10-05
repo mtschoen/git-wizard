@@ -12,20 +12,25 @@ public class IndexVolumeChangeSourceTests
 {
 
     [Test]
-    public async Task GrowUsnJournalAsync_RequiresBrokerConnection()
+    public async Task GrowUsnJournalAsyncLaunchesBrokerOnFirstUse()
     {
-        var owner = new IndexOwnerFixture();
-        try
+        await using var broker = new BlockBrokerFixture();
+        broker.GrowUsnJournal = (_, maximumSize, allocationDelta) => new UsnJournalSettings
         {
-            await owner.StartAsync();
-            var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner.Owner), owner.Owner);
-            var exception = Assert.ThrowsAsync<InvalidOperationException>(() => source.GrowUsnJournalAsync('C', 1000, 100, CancellationToken.None));
-            Assert.That(exception.Message, Is.EqualTo("No broker connection available."));
-        }
-        finally
-        {
-            await owner.DisposeAsync();
-        }
+            MaximumSize = maximumSize,
+            AllocationDelta = allocationDelta
+        };
+        // Opening no drives never launches the broker; the grow is the session's first use.
+        // The source owns the prepared owner, so it is not using-declared here.
+        var owner = await MftIndexSession.OpenAsync([], broker.CreateSession(),
+            broker.CacheDirectory, null, CancellationToken.None);
+        await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner), owner);
+        Assert.That(broker.ConnectionCount, Is.Zero);
+        var settings = await source.GrowUsnJournalAsync('X', 4096, 512, CancellationToken.None)
+            .WaitAsync(HangGuard);
+        Assert.That(settings.MaximumSize, Is.EqualTo(4096));
+        Assert.That(settings.AllocationDelta, Is.EqualTo(512));
+        Assert.That(broker.ConnectionCount, Is.EqualTo(1));
     }
 
     static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(10);

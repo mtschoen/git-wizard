@@ -14,14 +14,14 @@ public class MftIndexSessionTests
     public async Task ConnectsOnceAcrossDrives()
     {
         await using var broker = new BlockBrokerFixture();
-        await using (var empty = await MftIndexSession.OpenAsync([], broker.ConnectAsync,
+        await using (var empty = await MftIndexSession.OpenAsync([], broker.CreateSession(),
             broker.CacheDirectory, null, CancellationToken.None))
         {
             Assert.That(empty.Drives, Is.Empty);
             Assert.That(broker.ConnectionCount, Is.Zero);
         }
         await using var session = await MftIndexSession.OpenAsync([broker.Drive('X'), broker.Drive('Y')],
-            broker.ConnectAsync, broker.CacheDirectory, null, CancellationToken.None);
+            broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);
         Assert.That(broker.ConnectionCount, Is.EqualTo(1));
         Assert.That(session.Drives, Is.EqualTo(new[] { "X", "Y" }));
         Assert.That(session.Index.Drives.Select(drive => drive.State), Is.All.EqualTo(DriveState.Ready));
@@ -33,7 +33,7 @@ public class MftIndexSessionTests
     {
         await using var broker = new BlockBrokerFixture();
         var session = await MftIndexSession.OpenAsync([broker.Drive('X')],
-            broker.ConnectAsync, broker.CacheDirectory, null, CancellationToken.None);
+            broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);
         try
         {
             await session.Index.StartWatchingAsync(CancellationToken.None);
@@ -90,9 +90,8 @@ public class MftIndexSessionTests
         };
         var drive = broker.Drive('X');
         var cancellationToken = cancellation.Token;
-        var connectAsync = broker.ConnectAsync;
         var cacheDirectory = broker.CacheDirectory;
-        var openTask = MftIndexSession.OpenAsync([drive], connectAsync,
+        var openTask = MftIndexSession.OpenAsync([drive], broker.CreateSession(),
             cacheDirectory, null, cancellationToken);
         try
         {
@@ -117,7 +116,7 @@ public class MftIndexSessionTests
         await using var watchBroker = new BlockBrokerFixture();
         using var watchCancellation = new CancellationTokenSource();
         var session = await MftIndexSession.OpenAsync([watchBroker.Drive('X')],
-            watchBroker.ConnectAsync, watchBroker.CacheDirectory, null, CancellationToken.None);
+            watchBroker.CreateSession(), watchBroker.CacheDirectory, null, CancellationToken.None);
         await session.Index.StartWatchingAsync(watchCancellation.Token);
         await watchBroker.WatchStarted.WaitAsync(TimeSpan.FromSeconds(10));
         var cancelling = watchCancellation.CancelAsync();
@@ -138,10 +137,10 @@ public class MftIndexSessionTests
         broker.ScanReceived = cancellation.Cancel;
         var drive = broker.Drive('X');
         var cancellationToken = cancellation.Token;
-        var connectAsync = broker.ConnectAsync;
         var cacheDirectory = broker.CacheDirectory;
+        var brokerSession = broker.CreateSession();
         Assert.That(async () =>
-            await MftIndexSession.OpenAsync([drive], connectAsync,
+            await MftIndexSession.OpenAsync([drive], brokerSession,
                 cacheDirectory, null, cancellationToken), Throws.InstanceOf<OperationCanceledException>());
         await broker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.That(broker.ConnectionCount, Is.EqualTo(1));
@@ -154,7 +153,7 @@ public class MftIndexSessionTests
         await using var session = await MftIndexSession.OpenSelectedVolumesAsync(
             ["w:/", "X:", "x:\\", "Y", @"\\server\share", "C:not-root", ""],
             drive => drive == "W" ? throw new IOException("identity denied") : broker.Drive(drive[0]),
-            broker.ConnectAsync, broker.CacheDirectory, null, CancellationToken.None);
+            broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);
         Assert.That(session.Drives, Is.EqualTo(new[] { "W", "X", "Y" }));
         Assert.That(session.ScanErrors["W"], Does.Contain("identity denied"));
         Assert.That(session.ScanErrors["X"], Does.Contain("volume denied"));
@@ -169,7 +168,7 @@ public class MftIndexSessionTests
         await using (var broker = new BlockBrokerFixture(scanError: "volume denied"))
         {
             var session = await MftIndexSession.OpenAsync([broker.Drive('X'), broker.Drive('Y')],
-                broker.ConnectAsync, broker.CacheDirectory, null, CancellationToken.None);
+                broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);
             Assert.That(session.ScanErrors.Keys, Is.EquivalentTo(new[] { "X", "Y" }));
             await session.DisposeAsync();
             await broker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
@@ -177,7 +176,7 @@ public class MftIndexSessionTests
         await using (var broker = new BlockBrokerFixture { DisconnectOnScan = true })
         {
             await using var session = await MftIndexSession.OpenAsync([broker.Drive('X')],
-                broker.ConnectAsync, broker.CacheDirectory, null, CancellationToken.None);
+                broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);
             // The drive channels and the control pipe read EOF independently, so the open can return
             // before the process end is observed; IsFaulted is defined once the end has completed.
             await broker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
@@ -187,7 +186,7 @@ public class MftIndexSessionTests
         await using (var broker = new BlockBrokerFixture())
         {
             await using var session = await MftIndexSession.OpenSelectedVolumesAsync(["X", "Y"],
-                _ => throw new IOException("identity denied"), broker.ConnectAsync,
+                _ => throw new IOException("identity denied"), broker.CreateSession(),
                 broker.CacheDirectory, null, CancellationToken.None);
             Assert.That(session.ScanErrors, Has.Count.EqualTo(2));
             Assert.That(broker.ConnectionCount, Is.Zero);
@@ -199,7 +198,7 @@ public class MftIndexSessionTests
     {
         await using var broker = new BlockBrokerFixture();
         await using var session = await MftIndexSession.OpenAsync([broker.Drive('X')],
-            broker.ConnectAsync, broker.CacheDirectory, null, CancellationToken.None);
+            broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);
         var scan = broker.Scans.Single();
         Assert.That(scan.Profile, Is.EqualTo(BrokerScanProfile.DirectoryIndex));
         Assert.That(scan.KeepFileNames, Is.EqualTo(new[] { ".git", "HEAD" }));
@@ -211,14 +210,14 @@ public class MftIndexSessionTests
     {
         await using var broker = new BlockBrokerFixture();
         var session = await MftIndexSession.OpenAsync([broker.Drive('X')],
-            broker.ConnectAsync, broker.CacheDirectory, null, CancellationToken.None);
+            broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);
         var canonical = SyntheticBlock.CachedPath(broker.CacheDirectory, 'X', 1);
         Assert.That(File.Exists(canonical), Is.True);
         await session.DisposeAsync();
         Assert.That(File.Exists(canonical), Is.True);
         await using var reopened = await MftIndexSession.OpenAsync([broker.Drive('X')],
-            _ => throw new AssertionException("A cached block must not connect."), broker.CacheDirectory,
-            MftIndexOpenIntent.Snapshot, null, CancellationToken.None);
+            BrokerTestHarness.CreateSession(_ => throw new AssertionException("A cached block must not connect.")),
+            broker.CacheDirectory, MftIndexOpenIntent.Snapshot, null, CancellationToken.None);
         Assert.That(reopened.CaptureDriveStatuses().Single().IndexStatus!.BlockSource,
             Is.EqualTo(BlockSource.WarmStartedFromCache));
     }
@@ -234,7 +233,7 @@ public class MftIndexSessionTests
         broker.AfterParseProgressAsync = _ => AsyncCondition.WaitUntilAsync(
             () => samples.Any(sample => sample.Phase == IndexScanPhase.ParsingMft));
         await using var session = await MftIndexSession.OpenAsync([broker.Drive('X')],
-            broker.ConnectAsync, broker.CacheDirectory, new ProgressSink<IndexScanProgress>(samples.Enqueue),
+            broker.CreateSession(), broker.CacheDirectory, new ProgressSink<IndexScanProgress>(samples.Enqueue),
             CancellationToken.None);
 
         Assert.That(samples.Where(sample => sample.Phase == IndexScanPhase.ParsingMft).ToArray(), Has.Length.EqualTo(1));

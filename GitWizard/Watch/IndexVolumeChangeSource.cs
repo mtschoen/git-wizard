@@ -59,10 +59,11 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
 
     public Task<UsnJournalSettings> GrowUsnJournalAsync(char driveLetter, long maximumSize, long allocationDelta, CancellationToken cancellationToken)
     {
-        var broker = _owner?.GetBrokerProcess();
-        if (broker == null)
-            throw new InvalidOperationException("No broker connection available.");
-        return broker.GrowUsnJournalAsync(driveLetter, maximumSize, allocationDelta, cancellationToken);
+        // The session launches the broker on first use, so a grow never needs a connected process up front.
+        var owner = _owner ?? throw new InvalidOperationException("No index session available.");
+        var brokerSession = owner.BrokerSession
+            ?? throw new InvalidOperationException("The index session has no broker session.");
+        return brokerSession.GrowUsnJournalAsync(driveLetter, maximumSize, allocationDelta, cancellationToken);
     }
 
     public Task<VolumeArmResult> ArmAndCatchUpAsync(IReadOnlyCollection<string> volumes, CancellationToken ct)

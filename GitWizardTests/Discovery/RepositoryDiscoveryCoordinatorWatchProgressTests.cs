@@ -1,6 +1,7 @@
 using GitWizard;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
+using MFTLib;
 using MFTLib.Index;
 using MFTLibTestExtensions;
 
@@ -51,21 +52,27 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
     }
 
     [Test]
-    public async Task BrokerConnectionFiresConnectingAndConnectedInOrder()
+    public async Task BrokerSessionFiresConnectingAndConnectedInOrder()
     {
         var events = new List<string>();
         await using var broker = new BlockBrokerFixture();
-        var connectAsync = broker.ConnectAsync;
-        await using var brokerConnection = new MftBrokerConnection(async cancellationToken =>
+        broker.GrowUsnJournal = (_, maximumSize, allocationDelta) => new UsnJournalSettings
         {
-            events.Add("connectAsync");
+            MaximumSize = maximumSize,
+            AllocationDelta = allocationDelta
+        };
+        var connectAsync = broker.ConnectAsync;
+        await using var session = BrokerTestHarness.CreateSession(async cancellationToken =>
+        {
+            events.Add("launch");
             return await connectAsync(cancellationToken);
         });
-        brokerConnection.Connecting += () => events.Add("Connecting");
-        brokerConnection.Connected += () => events.Add("Connected");
-        var client = await brokerConnection.ConnectAsync(CancellationToken.None);
-        Assert.That(client, Is.Not.Null);
-        Assert.That(events, Is.EqualTo(new[] { "Connecting", "connectAsync", "Connected" }));
+        session.Connecting += () => events.Add("Connecting");
+        session.Connected += () => events.Add("Connected");
+        // The session's ConnectAsync is internal to MFTLib; a grow is the public first use that launches.
+        await session.GrowUsnJournalAsync('X', 4096, 512, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
+        Assert.That(events, Is.EqualTo(new[] { "Connecting", "launch", "Connected" }));
+        Assert.That(broker.ConnectionCount, Is.EqualTo(1));
     }
 
     [Test]
@@ -76,10 +83,19 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
         var scripted = new ScriptedWatchSource();
         var treePath = files.TreePath;
         var connectionFired = false;
-        var brokerConnection = new MftBrokerConnection(_ =>
+        await using var broker = new BlockBrokerFixture();
+        broker.GrowUsnJournal = (_, maximumSize, allocationDelta) => new UsnJournalSettings
+        {
+            MaximumSize = maximumSize,
+            AllocationDelta = allocationDelta
+        };
+        var connectAsync = broker.ConnectAsync;
+        // Not using-declared: the catch-up trigger below captures the session in a continuation,
+        // and the fixture disposes the in-process process it launched.
+        var brokerSession = BrokerTestHarness.CreateSession(cancellationToken =>
         {
             connectionFired = true;
-            return Task.FromResult<MFTLib.BrokerProcess>(null!);
+            return connectAsync(cancellationToken);
         });
         var session = new MftIndexSession(
             await files.OpenMftIndexAsync(scripted, 'X'),
@@ -88,7 +104,7 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
             [new IndexedDrive('X', treePath, 1)],
             new Dictionary<string, string>())
         {
-            BrokerConnection = brokerConnection
+            BrokerSession = brokerSession
         };
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {
@@ -106,9 +122,9 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
         var reports = new List<WatchStartupProgress>();
         var progress = new SynchronousProgress<WatchStartupProgress>(reports.Add);
 
-        // Manually trigger broker connection during catch-up to simulate deferred warm-start watch connection
+        // Manually trigger the session's first use during catch-up to simulate deferred warm-start watch connection
         var started = scripted.WaitForStartAsync('X', 1, CancellationToken.None);
-        _ = started.ContinueWith(_ => brokerConnection.ConnectAsync(CancellationToken.None));
+        _ = started.ContinueWith(_ => brokerSession.GrowUsnJournalAsync('X', 4096, 512, CancellationToken.None));
 
         var preparing = coordinator.PrepareWatchAsync(request, session, progress, CancellationToken.None);
         await started.WaitAsync(TestTimeouts.HangGuard);

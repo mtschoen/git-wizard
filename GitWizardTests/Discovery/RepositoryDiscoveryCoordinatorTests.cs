@@ -135,7 +135,7 @@ public class RepositoryDiscoveryCoordinatorTests
     {
         await using var broker = new BlockBrokerFixture();
         var cache = MftIndexCachePolicy.GetCacheDirectory(broker.CacheDirectory);
-        var session = await MftIndexSession.OpenAsync([broker.Drive('X')], broker.ConnectAsync,
+        var session = await MftIndexSession.OpenAsync([broker.Drive('X')], broker.CreateSession(),
             cache, MftIndexOpenIntent.Snapshot, null, CancellationToken.None);
 
         var configuration = new GitWizardConfiguration { SearchPaths = { broker.Drive('X').RootDirectory } };

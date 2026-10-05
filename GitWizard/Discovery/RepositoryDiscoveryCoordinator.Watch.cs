@@ -166,16 +166,16 @@ public partial class RepositoryDiscoveryCoordinator
             cancellationToken.ThrowIfCancellationRequested();
             void OnConnecting() => progress?.Report(new WatchStartupProgress(WatchStartupPhase.RequestingElevation));
             void OnConnected() => progress?.Report(new WatchStartupProgress(WatchStartupPhase.BrokerConnected));
-            var connection = session.BrokerConnection;
+            var brokerSession = session.BrokerSession;
             Action? detach = null;
-            if (connection is not null)
+            if (brokerSession is not null)
             {
-                connection.Connecting += OnConnecting;
-                connection.Connected += OnConnected;
+                brokerSession.Connecting += OnConnecting;
+                brokerSession.Connected += OnConnected;
                 detach = () =>
                 {
-                    connection.Connecting -= OnConnecting;
-                    connection.Connected -= OnConnected;
+                    brokerSession.Connecting -= OnConnecting;
+                    brokerSession.Connected -= OnConnected;
                 };
             }
             try

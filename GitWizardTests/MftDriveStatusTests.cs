@@ -13,7 +13,7 @@ public class MftDriveStatusTests
         await using var broker = new BlockBrokerFixture(scanError: "scan refused");
         var session = await MftIndexSession.OpenSelectedVolumesAsync(["W", "X"],
             drive => drive == "W" ? throw new IOException("identity denied") : broker.Drive('X'),
-            broker.ConnectAsync, broker.CacheDirectory, null, CancellationToken.None);
+            broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);
         try
         {
             await AssertStatusesSurviveOwnerDisposalAsync(session);
@@ -46,7 +46,7 @@ public class MftDriveStatusTests
     {
         await using var broker = new BlockBrokerFixture();
         await using var session = await MftIndexSession.OpenAsync([broker.Drive('X')],
-            broker.ConnectAsync, broker.CacheDirectory, null, CancellationToken.None);
+            broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);
         var first = session.CaptureDriveStatuses();
         var second = session.CaptureDriveStatuses();
         Assert.That(second, Is.Not.SameAs(first));

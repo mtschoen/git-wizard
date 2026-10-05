@@ -39,13 +39,20 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
             QueryJournalCursor = QueryCursor,
             ScanDrive = ScanDrive,
             ReadJournal = ReadJournal,
-            WatchDrive = WatchDriveAsync
+            WatchDrive = WatchDriveAsync,
+            GrowUsnJournal = GrowJournal
         };
     }
 
     public string CacheDirectory => _files.BlockDirectory;
     public IndexedDrive Drive(char letter) => new(letter, _files.TreePath, 1);
     public int ConnectionCount { get; private set; }
+
+    /// <summary>Answers the host's grow requests; unset refuses the grow, as a host without a source does.</summary>
+    public Func<string, long, long, UsnJournalSettings>? GrowUsnJournal { get; set; }
+
+    /// <summary>A broker session whose launch starts an in-process broker of this fixture.</summary>
+    public BrokerSession CreateSession() => BrokerTestHarness.CreateSession(ConnectAsync);
 
     /// <summary>Completes when a process this fixture started has ended, for any reason.</summary>
     public Task Shutdown => _shutdown.Task;
@@ -184,6 +191,10 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
             yield return (WatchEntries, WatchCursor);
         await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
     }
+
+    UsnJournalSettings GrowJournal(string drive, long maximumSize, long allocationDelta) =>
+        GrowUsnJournal?.Invoke(drive, maximumSize, allocationDelta)
+        ?? throw new InvalidOperationException("The fixture has no grow handler.");
 
     public async ValueTask DisposeAsync()
     {

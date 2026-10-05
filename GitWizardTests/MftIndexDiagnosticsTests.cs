@@ -89,7 +89,7 @@ public class MftIndexDiagnosticsTests
         {
             GitWizardLog.LogMethod = message => messages.Enqueue(message ?? string.Empty);
             GitWizardLog.SilentMode = false;
-            var session = await MftIndexSession.OpenAsync([broker.Drive('X')], broker.ConnectAsync,
+            var session = await MftIndexSession.OpenAsync([broker.Drive('X')], broker.CreateSession(),
                 cache, null, CancellationToken.None);
             await session.DisposeAsync();
             Assert.That(messages.Any(message => message.Contains(retired, StringComparison.Ordinal) &&

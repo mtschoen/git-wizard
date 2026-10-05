@@ -39,45 +39,52 @@ public sealed partial class MftIndexSession
         IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken)
     {
         return OpenSelectedVolumesAsync(drives, IndexedDrive.FromWindowsVolume,
-            token => connectTimeout.HasValue
-                ? BrokerProcess.LaunchAsync(brokerLauncher, connectTimeout.Value, token)
-                : BrokerProcess.LaunchAsync(brokerLauncher, token),
+            new BrokerSession(brokerLauncher, connectTimeout),
             new CacheSelection(MftIndexCachePolicy.GetCacheDirectory(GitWizardApi.GetLocalFilesPath()), intent),
             progress, cancellationToken);
     }
 
     internal static Task<MftIndexSession> OpenSelectedVolumesAsync(IReadOnlyList<string> drives,
         Func<string, IndexedDrive> acquireIdentity,
-        Func<CancellationToken, Task<BrokerProcess>> connectAsync,
+        BrokerSession brokerSession,
         string cacheDirectory, IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken) =>
-        OpenSelectedVolumesAsync(drives, acquireIdentity, connectAsync,
+        OpenSelectedVolumesAsync(drives, acquireIdentity, brokerSession,
             new CacheSelection(cacheDirectory, MftIndexOpenIntent.Persistent), progress, cancellationToken);
 
     internal readonly record struct CacheSelection(string Directory, MftIndexOpenIntent Intent);
 
     internal static async Task<MftIndexSession> OpenSelectedVolumesAsync(IReadOnlyList<string> drives,
         Func<string, IndexedDrive> acquireIdentity,
-        Func<CancellationToken, Task<BrokerProcess>> connectAsync,
+        BrokerSession brokerSession,
         CacheSelection cache, IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken)
     {
         var requested = drives.Select(NormalizeVolume).OfType<string>()
             .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         var identities = new List<IndexedDrive>();
         var errors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var drive in requested)
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            try
+            foreach (var drive in requested)
             {
-                identities.Add(acquireIdentity(drive));
-            }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
-            {
-                errors[drive] = exception.Message;
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    identities.Add(acquireIdentity(drive));
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+                {
+                    errors[drive] = exception.Message;
+                }
             }
         }
+        catch
+        {
+            // OpenAsync below owns the session only once it is called; an earlier escape must not leak it.
+            await brokerSession.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
 
-        var session = await OpenAsync(identities, connectAsync, cache.Directory, cache.Intent, progress,
+        var session = await OpenAsync(identities, brokerSession, cache.Directory, cache.Intent, progress,
             cancellationToken).ConfigureAwait(false);
         try
         {

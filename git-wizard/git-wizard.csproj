@@ -17,9 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Expose the elevated-broker entry-point dispatch seam (TryHandleElevatedBrokerEntry)
-         to the test project so the watch flag's broker-mode routing can be verified with
-         a fake IElevatedEntryRunner, without spawning a real elevated process. -->
+    <!-- CLI command seams are exercised in-process by the test project. -->
     <InternalsVisibleTo Include="GitWizardTests" />
   </ItemGroup>
 

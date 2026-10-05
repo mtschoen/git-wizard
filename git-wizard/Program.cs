@@ -30,7 +30,7 @@ git-wizard Session Started
 
         // Dispatch MFTLib's elevated journal-broker child mode (launched by --watch's
         // self-elevation) before any other startup work.
-        if (TryHandleElevatedBrokerEntry(args, new DefaultElevatedEntryRunner()))
+        if (ElevatedEntryPoint.TryHandle(args))
             return;
 
         if (TryHandleElevatedHelperModes(args))

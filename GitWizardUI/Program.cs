@@ -11,16 +11,16 @@ static class Program
     // yet and stuff might break.
     [STAThread]
     public static int Main(string[] args) => Run(args,
-        new DefaultElevatedEntryRunner(), WindowsDefender.RunDefenderCommands,
+        ElevatedEntryPoint.TryHandle, WindowsDefender.RunDefenderCommands,
         DesktopInstance.CreateName,
         arguments => BuildAvaloniaApp().StartWithClassicDesktopLifetime(arguments),
         StartupNotice.Show);
 
-    internal static int Run(string[] arguments, IElevatedEntryRunner brokerRunner,
+    internal static int Run(string[] arguments, Func<string[], bool> tryHandleBroker,
         Func<bool> runDefender, Func<string> getMutexName,
         Func<string[], int> startDesktop, Action<string> showNotice)
     {
-        if (ElevatedEntryPoint.TryHandle(arguments, brokerRunner))
+        if (tryHandleBroker(arguments))
         {
             return 0;
         }

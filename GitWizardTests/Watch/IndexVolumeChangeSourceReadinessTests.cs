@@ -29,7 +29,8 @@ public class IndexVolumeChangeSourceReadinessTests
         Assert.That(source.Readiness.Volumes, Is.Empty);
 
         var arming = source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
-        await scripted.WaitForWatchesAsync(2);
+        await Task.WhenAll(scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard),
+            scripted.WaitForStartAsync('Y', 1, CancellationToken.None).WaitAsync(HangGuard));
         await WaitUntilAsync(() => source.Readiness.Volumes.Count == 2);
         Assert.That(arming.IsCompleted, Is.False, "The arm must wait for catch-up, not merely for pump start.");
         Assert.That(source.Readiness.Volumes.Select(v => (v.Volume, v.State, v.Origin)), Is.EquivalentTo(new[]
@@ -145,7 +146,8 @@ public class IndexVolumeChangeSourceReadinessTests
                 snapshots.Add(s);
         };
         var arming = source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
-        await scripted.WaitForWatchesAsync(2);
+        await Task.WhenAll(scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard),
+            scripted.WaitForStartAsync('Y', 1, CancellationToken.None).WaitAsync(HangGuard));
         await WaitUntilAsync(() => snapshots.Count >= 2);
 
         await Task.WhenAll(

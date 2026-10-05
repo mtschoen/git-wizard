@@ -43,7 +43,7 @@ public class WindowsWatchStartupTests
 
         var startupTask = coordinator.PrepareWatchAsync(request, null, cts.Token);
 
-        await scripted.WaitForWatchesAsync();
+        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard);
         Assert.That(startupTask.IsCompleted, Is.False, "Startup must withhold completion until catch-up drains.");
         Assert.That(listWrites, Is.Empty, "List writes must not happen before catch-up.");
 
@@ -239,7 +239,8 @@ public class WindowsWatchStartupTests
         using var cts = new CancellationTokenSource(HangGuard);
 
         var startupTask = coordinator.PrepareWatchAsync(request, null, cts.Token);
-        await scripted.WaitForWatchesAsync(2);
+        await Task.WhenAll(scripted.WaitForStartAsync('X', 1, cts.Token),
+            scripted.WaitForStartAsync('Y', 1, cts.Token));
 
         // Drive X catches up, Drive Y faults
         scripted.WatchFor('Y').LoseChannel(new IOException("Y journal corrupt"));
@@ -317,7 +318,7 @@ public class WindowsWatchStartupTests
         using var cts = new CancellationTokenSource(HangGuard);
 
         var startupTask = coordinator.PrepareWatchAsync(request, null, cts.Token);
-        await scripted.WaitForWatchesAsync();
+        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard);
 
         // While buffering, simulate Create followed by Delete for temp-repo
         await scripted.WatchFor('X').PublishBatchAsync([
@@ -362,7 +363,7 @@ public class WindowsWatchStartupTests
         using var cts = new CancellationTokenSource(HangGuard);
 
         var startupTask = coordinator.PrepareWatchAsync(request, null, cts.Token);
-        await scripted.WaitForWatchesAsync();
+        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard);
 
         // A modification under the already-tracked repository arrives during catch-up.
         await scripted.WatchFor('X').PublishBatchAsync([
@@ -417,7 +418,7 @@ public class WindowsWatchStartupTests
         using var cts = new CancellationTokenSource(HangGuard);
 
         var startupTask = coordinator.PrepareWatchAsync(request, null, cts.Token);
-        await scripted.WaitForWatchesAsync();
+        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard);
 
         await scripted.WatchFor('X').PublishBatchAsync([
             Entry(50, 5, "newrepo", UsnReason.FileCreate, isDirectory: true),

@@ -40,7 +40,7 @@ public class IndexVolumeChangeSourceTests
         var observed = new TaskCompletionSource<FileChange>(TaskCreationOptions.RunContinuationsAsynchronously);
         index.Changed += change => observed.TrySetResult(change);
         await index.StartWatchingAsync(CancellationToken.None);
-        await scripted.WaitForWatchesAsync();
+        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard);
         await scripted.WatchFor('X').PublishBatchAsync([
             Entry(6, 5, "first", UsnReason.RenameNewName, true),
             Entry(6, 5, "second", UsnReason.RenameNewName, true)
@@ -229,7 +229,7 @@ public class IndexVolumeChangeSourceTests
         using var cancellation = new CancellationTokenSource(HangGuard);
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
         var pending = reader.MoveNextAsync().AsTask();
-        await scripted.WaitForWatchesAsync();
+        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard);
         await scripted.WatchFor('X').PublishBatchAsync([Entry(50, 6, "ordinary.txt", reason)], new UsnJournalCursor(PackedIndexFixture.JournalId, 1002));
         Assert.That(await pending, Is.True);
         Assert.That(reader.Current.Volume, Is.EqualTo("X"));
@@ -261,7 +261,7 @@ public class IndexVolumeChangeSourceTests
                 using var cancellation = new CancellationTokenSource(HangGuard);
                 await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
                 var pending = reader.MoveNextAsync().AsTask();
-                await scripted.WaitForWatchesAsync();
+                await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard);
                 if (disposeSource)
                 {
                     await source.DisposeAsync();

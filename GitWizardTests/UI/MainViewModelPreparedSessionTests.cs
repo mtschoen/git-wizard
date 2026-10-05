@@ -151,7 +151,7 @@ public class MainViewModelPreparedSessionTests
         try
         {
             var starting = viewModel.ToggleLiveAsync();
-            await scripted.WaitForWatchesAsync();
+            await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard);
             await WaitUntilAsync(() => viewModel.IsLive);
             Assert.That(opens, Is.Zero);
             Assert.That(viewModel.PreparedDiscoveryIndex, Is.Null);

@@ -79,9 +79,11 @@ public class IndexDiscoveryTests
     {
         using var files = new PackedIndexFixture();
         await using var index = await OpenRowsAsync(files,
+            File(6, "freed", 5) with { IsFree = true },
             Directory(7, ".git", 5) with { IsTombstone = true },
             File(8, "ordinary", 5));
         Assert.That(index.FindByName("ordinary").Single().IsDirectory, Is.False);
+        Assert.That(index.FindByName("freed"), Is.Empty);
         Assert.That(index.FindByName(".git"), Is.Empty);
         Assert.That(GitWizardApi.SelectGitEntries(index, true), Is.Empty);
     }

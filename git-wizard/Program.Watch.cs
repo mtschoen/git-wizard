@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using GitWizard.Watch;
-using MFTLib;
 
 // ReSharper disable once CheckNamespace
 namespace GitWizard.CLI;
@@ -25,15 +24,6 @@ public static partial class Program
         _sourceFactory = VolumeChangeSourceFactory.Create;
         _getLocalFilesPath = GitWizardApi.GetLocalFilesPath;
     }
-
-    /// <summary>
-    /// Dispatch MFTLib's elevated journal-broker child-process mode (the <c>--broker</c>
-    /// flag). Returns true when this process was the elevated broker child - production
-    /// never returns from that path, the runner exits the process itself; a normal launch
-    /// matches no flag and returns false so <see cref="Main"/> continues its usual startup.
-    /// </summary>
-    internal static bool TryHandleElevatedBrokerEntry(string[] args, IElevatedEntryRunner runner) =>
-        ElevatedEntryPoint.TryHandle(args, runner);
 
     /// <summary>
     /// --watch: auto-detect changes in tracked repositories via platform volume change detection

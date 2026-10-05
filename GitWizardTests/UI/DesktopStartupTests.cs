@@ -1,24 +1,11 @@
 using System.Runtime.ExceptionServices;
 using GitWizardUI;
-using MFTLib;
 using UiProgram = GitWizardUI.Program;
 
 namespace GitWizardTests.UI;
 
 public class DesktopStartupTests
 {
-    sealed class RecordingRunner : IElevatedEntryRunner
-    {
-        public int Calls { get; private set; }
-        public string? PipeName { get; private set; }
-
-        public void RunBroker(string? controlPipeName)
-        {
-            Calls++;
-            PipeName = controlPipeName;
-        }
-    }
-
     static string UniqueName() => $"GitWizardUI.Tests.{Guid.NewGuid():N}";
 
     static int OnOtherThread(Func<int> action)
@@ -50,7 +37,7 @@ public class DesktopStartupTests
     }
 
     static int Start(string name, Func<string[], int> desktop, Action<string> notice)
-        => UiProgram.Run([], new RecordingRunner(),
+        => UiProgram.Run([], _ => false,
             () => throw new AssertionException("Unexpected Defender execution"),
             () => name, desktop, notice);
 
@@ -132,12 +119,12 @@ public class DesktopStartupTests
     public void ChildDispatch_PrecedesAnyMutexWork(bool broker, bool defenderSuccess,
         int expectedExitCode)
     {
-        var runner = new RecordingRunner();
+        string[]? brokerArguments = null;
         var defenderCalls = 0;
         string[] arguments = broker
             ? ["--broker", "--pipe", "test-pipe", "--elevated-defender"]
             : ["--elevated-defender"];
-        var result = UiProgram.Run(arguments, runner,
+        var result = UiProgram.Run(arguments, values => { brokerArguments = values; return broker; },
             () => { defenderCalls++; return defenderSuccess; },
             () => throw new AssertionException("Child evaluated mutex name"),
             _ => throw new AssertionException("Child started desktop"),
@@ -145,9 +132,8 @@ public class DesktopStartupTests
         Assert.Multiple(() =>
         {
             Assert.That(result, Is.EqualTo(expectedExitCode));
-            Assert.That(runner.Calls, Is.EqualTo(broker ? 1 : 0));
+            Assert.That(brokerArguments, Is.SameAs(arguments));
             Assert.That(defenderCalls, Is.EqualTo(broker ? 0 : 1));
-            Assert.That(runner.PipeName, Is.EqualTo(broker ? "test-pipe" : null));
         });
     }
 

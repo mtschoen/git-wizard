@@ -38,7 +38,7 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
         var reports = new List<WatchStartupProgress>();
         var progress = new SynchronousProgress<WatchStartupProgress>(reports.Add);
         var preparing = coordinator.PrepareWatchAsync(request, session, progress, CancellationToken.None);
-        await scripted.WaitForWatchesAsync();
+        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
         await AsyncCondition.WaitUntilAsync(() => reports.Any(r => r.Readiness?.TryGet("X", out var x) == true && x.State == VolumeWatchState.CatchingUp));
         await scripted.WatchFor('X').PublishCaughtUpAsync();
         await using var startup = await preparing.WaitAsync(TimeSpan.FromSeconds(10));
@@ -107,11 +107,11 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
         var progress = new SynchronousProgress<WatchStartupProgress>(reports.Add);
 
         // Manually trigger broker connection during catch-up to simulate deferred warm-start watch connection
-        var started = scripted.WaitForStartAsync('X', CancellationToken.None);
+        var started = scripted.WaitForStartAsync('X', 1, CancellationToken.None);
         _ = started.ContinueWith(_ => brokerConnection.ConnectAsync(CancellationToken.None));
 
         var preparing = coordinator.PrepareWatchAsync(request, session, progress, CancellationToken.None);
-        await started.WaitAsync(TimeSpan.FromSeconds(10));
+        await started.WaitAsync(TestTimeouts.HangGuard);
         await AsyncCondition.WaitUntilAsync(() => connectionFired);
         await AsyncCondition.WaitUntilAsync(() => reports.Any(r => r.Phase == WatchStartupPhase.BrokerConnected));
         await scripted.WatchFor('X').PublishCaughtUpAsync();

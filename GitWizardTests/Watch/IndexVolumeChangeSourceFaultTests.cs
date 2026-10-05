@@ -216,9 +216,9 @@ public class IndexVolumeChangeSourceFaultTests
         source.DriveFailed += (drive, _) => failures.Add(drive);
 
         var arming = source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
-        await scripted.WaitForWatchesAsync();
+        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard);
         scripted.WatchFor('X').FailDrive(new IOException("X failed during catch-up"));
-        await scripted.WaitForWatchesAsync(2);
+        await scripted.WaitForStartAsync('X', 2, CancellationToken.None).WaitAsync(HangGuard);
         await scripted.WatchFor('X').PublishCaughtUpAsync();
 
         var result = await arming.WaitAsync(HangGuard);

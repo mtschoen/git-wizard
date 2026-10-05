@@ -144,7 +144,8 @@ internal static class WatchFailureAssertions
             using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             await using var reader = service.RunAsync(cancellation.Token).GetAsyncEnumerator();
             var pending = reader.MoveNextAsync().AsTask();
-            await scripted.WaitForWatchesAsync(2);
+            await Task.WhenAll(scripted.WaitForStartAsync('X', 1, cancellation.Token),
+                scripted.WaitForStartAsync('Y', 1, cancellation.Token));
             scripted.WatchFor('X').LoseChannel(new IOException("X watch failed"));
             await failed.Task.WaitAsync(cancellation.Token);
             Assert.That(service.ScanErrors["X"], Is.EqualTo("X watch failed"));

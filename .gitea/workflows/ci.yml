@@ -173,6 +173,8 @@ jobs:
     name: Build + Test (Windows, full solution)
     runs-on: windows-latest
     timeout-minutes: 45
+    outputs:
+      pin_only: ${{ steps.changed-files.outputs.pin_only }}
 
     steps:
       - name: Checkout
@@ -224,11 +226,9 @@ jobs:
           }
           "pin_only=$($pinOnly.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
-      - name: Set up .NET 10 SDK
-        if: steps.changed-files.outputs.pin_only != 'true'
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
+      # No setup-dotnet here: windows-latest is a host-mode runner whose .NET 10 SDK
+      # is provisioned on the host (workflow provisioning policy; setup actions are
+      # permitted only in Linux containers). VS MSBuild below is located, not installed.
 
       # VS MSBuild is the only toolchain that can compile MFTLib's native C++ vcxproj
       # (file-wizard CI precedent on this runner).
@@ -318,17 +318,60 @@ jobs:
           path: TestResults/*.trx
           if-no-files-found: warn
 
-      # Genuine, reproducible verification of the post-clean init standard
-      # (AGENTS.md "Cleaning the working tree"): git clean -ffxd must be safe
-      # to run, and init.ps1/init.bat must restore the checkout from that
-      # state, twice (idempotency), through both entry points, including the
-      # -Build path. Folded into this job rather than a separate one: it
-      # reuses the .NET SDK, MSBuild, and warm NuGet cache already set up
-      # above instead of paying for that setup twice, and it runs after the
-      # job's own build+test have already passed, so the git clean below
-      # only ever discards state this job no longer needs.
+      # Verify that build, InspectCode, and tests left no tracked-file modifications
+      # before this checkout is discarded. git clean -ffxd removes build artifacts and
+      # untracked files while preserving tracked modifications, so any stray write to
+      # a tracked fixture causes git status --porcelain to fail. Main pushes only;
+      # full post-clean init restore/build verification runs in the init-verify job below.
       - name: Verify git clean -ffxd leaves a clean tree
-        if: steps.changed-files.outputs.pin_only != 'true'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.changed-files.outputs.pin_only != 'true'
+        shell: pwsh
+        run: |
+          git clean -ffxd
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::git clean -ffxd exited $LASTEXITCODE."
+            exit 1
+          }
+          $status = git status --porcelain
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::git status exited $LASTEXITCODE after git clean -ffxd - cleanliness is unverified."
+            exit 1
+          }
+          if ($status) {
+            Write-Host "::error::git clean -ffxd left untracked/modified entries behind:"
+            Write-Host $status
+            exit 1
+          }
+          Write-Host "git clean -ffxd left a clean tree."
+
+  # Post-clean init verification (AGENTS.md "Cleaning the working tree"): git clean -ffxd
+  # must be safe to run, and init.ps1/init.bat must restore the checkout from that state,
+  # twice (idempotency), through both entry points, including the -Build path.
+  #
+  # Runs on the merge to main only, never on a pull request: it repeats a full restore
+  # and build (about 46 seconds) that the test-windows job has just done. It is gated by
+  # a job-level `if:` on the event, not by workflow-level `paths`: on Gitea a `paths`
+  # filter leaves a required check permanently pending for any pull request that does
+  # not touch the matched paths (gitea issue 36895). No branch-protection check is
+  # required from this job; the required names are the two test jobs above.
+  #
+  # `needs: test-windows` keeps the old ordering (verification only after the job's own
+  # build and test pass) and carries the pin-only early exit: a fork-commit pin bump
+  # touches nothing this job exercises.
+  init-verify:
+    name: Post-clean init (Windows, main only)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    needs: test-windows
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.test-windows.outputs.pin_only != 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Verify git clean -ffxd leaves a clean tree
         shell: pwsh
         run: |
           git clean -ffxd
@@ -349,7 +392,6 @@ jobs:
           Write-Host "git clean -ffxd left a clean tree."
 
       - name: Run init.ps1 (post-clean restore, first run)
-        if: steps.changed-files.outputs.pin_only != 'true'
         shell: pwsh
         run: |
           .\init.ps1
@@ -359,7 +401,6 @@ jobs:
           }
 
       - name: Run init.ps1 again (idempotency)
-        if: steps.changed-files.outputs.pin_only != 'true'
         shell: pwsh
         run: |
           .\init.ps1
@@ -380,7 +421,6 @@ jobs:
           Write-Host "init.ps1 is idempotent: git status is clean after a second run."
 
       - name: Run init.bat via cmd.exe (documented .\ prefix)
-        if: steps.changed-files.outputs.pin_only != 'true'
         shell: cmd
         # NoDefaultCurrentDirectoryInExePath is a per-machine setting (AGENTS.md
         # documents it for the maintainer's own workstation), so this step
@@ -393,7 +433,6 @@ jobs:
           if errorlevel 1 exit /b 1
 
       - name: Run init.ps1 -Build (native + managed build path)
-        if: steps.changed-files.outputs.pin_only != 'true'
         shell: pwsh
         run: |
           .\init.ps1 -Build
@@ -403,7 +442,6 @@ jobs:
           }
 
       - name: Verify tree is clean after the full init path
-        if: steps.changed-files.outputs.pin_only != 'true'
         shell: pwsh
         run: |
           $status = git status --porcelain

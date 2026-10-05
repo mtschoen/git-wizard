@@ -33,12 +33,12 @@ public class IndexVolumeChangeSourceCheckpointLossTests
             drive => windows.TryGetValue(drive, out var window) ? window : null);
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
-        var scripted = new ScriptedIndexWatchSource();
+        var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var owner = new MftIndexSession(await files.OpenMftIndexAsync(scripted, 'X', 'Y'), null, ["X", "Y"],
             [new IndexedDrive('X', files.TreePath, 1), new IndexedDrive('Y', files.TreePath, 1)],
             new Dictionary<string, string>());
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        files.BeforeProduceAsync = token => release.Task.WaitAsync(token);
+        files.Producer.BeforeProduceAsync = (_, token) => release.Task.WaitAsync(token);
         var warnings = new ConcurrentQueue<JournalWarning>();
         using var cancellation = new CancellationTokenSource(HangGuard);
         IAsyncEnumerator<VolumeChangeBatch>? reader = null;
@@ -50,7 +50,7 @@ public class IndexVolumeChangeSourceCheckpointLossTests
             reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
 
             windows['X'] = Lost;
-            scripted.FailDrive('X', new IOException("X journal moved on"));
+            scripted.WatchFor('X').FailDrive(new IOException("X journal moved on"));
             await WaitUntilAsync(() =>
                 owner.Index.Drives.Single(drive => drive.DriveLetter == 'X').WatchCatchUp ==
                 WatchCatchUpState.Recovering &&
@@ -68,9 +68,7 @@ public class IndexVolumeChangeSourceCheckpointLossTests
                     Is.EqualTo(new[] { JournalCheckpointLossDetection.LiveWatch }));
             });
 
-            scripted.Publish('Y', new JournalBatch(
-                [IndexVolumeChangeSourceTests.Entry(50, 6, "while-x-recovers", UsnReason.FileCreate)],
-                PackedIndexFixture.JournalId, 1002));
+            await scripted.WatchFor('Y').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(50, 6, "while-x-recovers", UsnReason.FileCreate)], new UsnJournalCursor(PackedIndexFixture.JournalId, 1002));
             Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(HangGuard), Is.True);
             Assert.That(reader.Current.Volume, Is.EqualTo("Y"));
 
@@ -79,13 +77,11 @@ public class IndexVolumeChangeSourceCheckpointLossTests
             release.SetResult();
             await WaitUntilAsync(() => source.Readiness.TryGet("X", out var caughtUp) &&
                                        caughtUp.State == VolumeWatchState.CaughtUp);
-            scripted.Publish('X', new JournalBatch(
-                [IndexVolumeChangeSourceTests.Entry(51, 6, "after-recovery", UsnReason.FileCreate)],
-                PackedIndexFixture.JournalId, 1003));
+            await scripted.WatchFor('X').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(51, 6, "after-recovery", UsnReason.FileCreate)], new UsnJournalCursor(PackedIndexFixture.JournalId, 1003));
 
             Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(HangGuard), Is.True);
             Assert.That(reader.Current.Volume, Is.EqualTo("X"));
-            Assert.That(scripted.Targets.Count(target => target.DriveLetter == 'X'), Is.EqualTo(2));
+            Assert.That(scripted.Starts.Count(start => start.DriveLetter == 'X'), Is.EqualTo(2));
         }
         finally
         {

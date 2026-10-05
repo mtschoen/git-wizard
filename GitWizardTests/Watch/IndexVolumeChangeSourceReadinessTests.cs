@@ -2,6 +2,7 @@ using GitWizard;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 using static GitWizardTests.TestSupport.AsyncCondition;
 
 namespace GitWizardTests.Watch;
@@ -19,7 +20,7 @@ public class IndexVolumeChangeSourceReadinessTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
-        var scripted = new ScriptedIndexWatchSource { AutoCatchUp = false };
+        var scripted = new ScriptedWatchSource();
         var owner = Owner(await files.OpenMftIndexAsync(scripted, 'X', 'Y'), "X", "Y");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         var snapshots = new List<VolumeReadinessSnapshot>();
@@ -28,7 +29,7 @@ public class IndexVolumeChangeSourceReadinessTests
         Assert.That(source.Readiness.Volumes, Is.Empty);
 
         var arming = source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
-        await scripted.Started.WaitAsync(HangGuard);
+        await scripted.WaitForWatchesAsync(2);
         await WaitUntilAsync(() => source.Readiness.Volumes.Count == 2);
         Assert.That(arming.IsCompleted, Is.False, "The arm must wait for catch-up, not merely for pump start.");
         Assert.That(source.Readiness.Volumes.Select(v => (v.Volume, v.State, v.Origin)), Is.EquivalentTo(new[]
@@ -38,13 +39,13 @@ public class IndexVolumeChangeSourceReadinessTests
         }));
         Assert.That(source.Readiness.IsSettled, Is.False);
 
-        scripted.Publish('X', new DriveCaughtUp());
+        await scripted.WatchFor('X').PublishCaughtUpAsync();
         await WaitUntilAsync(() => source.Readiness.TryGet("X", out var x) && x.State == VolumeWatchState.CaughtUp);
         Assert.That(arming.IsCompleted, Is.False, "One caught-up drive does not settle a two-drive arm.");
         Assert.That(source.Readiness.HasCaughtUpVolume, Is.True);
         Assert.That(source.Readiness.IsSettled, Is.False);
 
-        scripted.LoseChannel('Y', new IOException("Y failed"));
+        scripted.WatchFor('Y').LoseChannel(new IOException("Y failed"));
         var result = await arming.WaitAsync(HangGuard);
         Assert.That(result.Errors["Y"], Is.EqualTo("Y failed"));
         Assert.That(source.Readiness.IsSettled, Is.True);
@@ -60,7 +61,7 @@ public class IndexVolumeChangeSourceReadinessTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
-        var scripted = new ScriptedIndexWatchSource();
+        var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var owner = Owner(await files.OpenMftIndexAsync(scripted, 'X'), "X");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
@@ -81,7 +82,7 @@ public class IndexVolumeChangeSourceReadinessTests
             CacheDirectory = files.BlockDirectory,
             NoCache = true,
             ProducerPolicy = ProducerPolicy.Mft,
-            MftProducer = (_, _) => throw new IOException("cannot scan X")
+            MftSource = SyntheticIndexSource.Create(new SyntheticMftProducer(_ => throw new IOException("cannot scan X")))
         }, CancellationToken.None);
         var owner = Owner(failedIndex, "X");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
@@ -112,7 +113,7 @@ public class IndexVolumeChangeSourceReadinessTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
-        var scripted = new ScriptedIndexWatchSource();
+        var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var owner = Owner(await files.OpenMftIndexAsync(scripted, 'X', 'Y'), "X", "Y");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
@@ -120,7 +121,7 @@ public class IndexVolumeChangeSourceReadinessTests
         using var cancellation = new CancellationTokenSource(HangGuard);
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
         var pending = reader.MoveNextAsync().AsTask();
-        scripted.LoseChannel('Y', new IOException("Y died later"));
+        scripted.WatchFor('Y').LoseChannel(new IOException("Y died later"));
         await WaitUntilAsync(() => source.Readiness.TryGet("Y", out var y) && y.State == VolumeWatchState.Excluded);
         Assert.That(source.Readiness.TryGet("Y", out var status) ? status.ExclusionReason : null, Is.EqualTo("Y died later"));
         Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo(new[] { "X" }));
@@ -133,7 +134,7 @@ public class IndexVolumeChangeSourceReadinessTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
-        var scripted = new ScriptedIndexWatchSource { AutoCatchUp = false };
+        var scripted = new ScriptedWatchSource();
         var owner = Owner(await files.OpenMftIndexAsync(scripted, 'X', 'Y'), "X", "Y");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         var snapshots = new List<VolumeReadinessSnapshot>();
@@ -144,13 +145,12 @@ public class IndexVolumeChangeSourceReadinessTests
                 snapshots.Add(s);
         };
         var arming = source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
-        await scripted.Started.WaitAsync(HangGuard);
+        await scripted.WaitForWatchesAsync(2);
         await WaitUntilAsync(() => snapshots.Count >= 2);
 
-        Parallel.Invoke(
-            () => scripted.Publish('X', new DriveCaughtUp()),
-            () => scripted.Publish('Y', new DriveCaughtUp())
-        );
+        await Task.WhenAll(
+            scripted.WatchFor('X').PublishCaughtUpAsync(),
+            scripted.WatchFor('Y').PublishCaughtUpAsync());
 
         await arming.WaitAsync(HangGuard);
         Assert.That(snapshots.Last().IsSettled, Is.True);

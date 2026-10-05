@@ -112,8 +112,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
             NoCache = false,
             InitialOpenCacheOnly = intent == MftIndexOpenIntent.Snapshot,
             ProducerPolicy = ProducerPolicy.Mft,
-            MftProducer = producer.CreateProducer(),
-            WatchSource = producer.CreateWatchSource(),
+            MftSource = producer.CreateIndexSource(),
             Progress = progress,
             Diagnostics = diagnostics.Report
         };

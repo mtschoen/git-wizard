@@ -3,6 +3,7 @@ using GitWizard.Watch;
 using GitWizardTests.TestSupport;
 using MFTLib;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests.Watch;
 
@@ -34,17 +35,16 @@ public class IndexVolumeChangeSourceTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
-        var scripted = new ScriptedIndexWatchSource();
+        var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         await using var index = await files.OpenMftIndexAsync(scripted, 'X');
         var observed = new TaskCompletionSource<FileChange>(TaskCreationOptions.RunContinuationsAsynchronously);
         index.Changed += change => observed.TrySetResult(change);
         await index.StartWatchingAsync(CancellationToken.None);
-        await scripted.Started.WaitAsync(HangGuard);
-        scripted.Publish('X', new JournalBatch(
-        [
+        await scripted.WaitForWatchesAsync();
+        await scripted.WatchFor('X').PublishBatchAsync([
             Entry(6, 5, "first", UsnReason.RenameNewName, true),
             Entry(6, 5, "second", UsnReason.RenameNewName, true)
-        ], PackedIndexFixture.JournalId, 1002));
+        ], new UsnJournalCursor(PackedIndexFixture.JournalId, 1002));
         var change = await observed.Task.WaitAsync(HangGuard);
         await index.StopWatchingAsync(CancellationToken.None);
         await TestContext.Out.WriteLineAsync($"Entry.Path = '{change.Entry.Path}'; Path = '{change.Path}'");
@@ -125,7 +125,7 @@ public class IndexVolumeChangeSourceTests
             CacheDirectory = files.BlockDirectory,
             NoCache = true,
             ProducerPolicy = ProducerPolicy.Mft,
-            MftProducer = (_, _) => throw new IOException("cannot scan X")
+            MftSource = SyntheticIndexSource.Create(new SyntheticMftProducer(_ => throw new IOException("cannot scan X")))
         }, CancellationToken.None);
         var failedOwner = Owner(failedIndex, "X");
         await using var failedSource = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(failedOwner));
@@ -164,28 +164,26 @@ public class IndexVolumeChangeSourceTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
-        var scripted = new ScriptedIndexWatchSource();
+        var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var owner = Owner(await files.OpenMftIndexAsync(scripted, 'X', 'Y'), "X", "Y");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
-        Assert.That(scripted.Started.IsCompleted, Is.True, "Arming must start the watch.");
-        var targets = scripted.Targets;
+        var starts = scripted.Starts;
         using var cancellation = new CancellationTokenSource(HangGuard);
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
         var firstRead = reader.MoveNextAsync().AsTask();
-        Assert.That(targets, Is.EquivalentTo(new[]
+        Assert.That(starts, Is.EquivalentTo(new[]
         {
-            new IndexWatchTarget('X', PackedIndexFixture.JournalId, PackedIndexFixture.NextUsn),
-            new IndexWatchTarget('Y', PackedIndexFixture.JournalId, PackedIndexFixture.NextUsn)
-        }));
+            new ScriptedWatchStart('X', new UsnJournalCursor(PackedIndexFixture.JournalId, PackedIndexFixture.NextUsn)),
+            new ScriptedWatchStart('Y', new UsnJournalCursor(PackedIndexFixture.JournalId, PackedIndexFixture.NextUsn))
+        }), "Arming must start the watch.");
         // Routed through IndexVolumeChangeSource, which rewrites every path back onto its own
         // configured drive letter (MFTLib #143), so these stay the pre-existing synthetic shape.
-        scripted.Publish('X', new JournalBatch(
-        [
+        await scripted.WatchFor('X').PublishBatchAsync([
             Entry(50, 6, "file.txt", UsnReason.FileCreate),
             Entry(50, 6, "renamed.txt", UsnReason.RenameNewName),
             Entry(50, 6, "renamed.txt", UsnReason.FileDelete)
-        ], PackedIndexFixture.JournalId, 1004));
+        ], new UsnJournalCursor(PackedIndexFixture.JournalId, 1004));
         Assert.That(await firstRead, Is.True);
         Assert.That(reader.Current, Is.EqualTo(new VolumeChangeBatch("X", reader.Current.Entries)));
         Assert.That(reader.Current.Entries, Is.EqualTo(new[]
@@ -201,8 +199,7 @@ public class IndexVolumeChangeSourceTests
         Assert.That(await reader.MoveNextAsync(), Is.True);
         Assert.That(reader.Current.Entries.Single(), Is.EqualTo(
             new VolumeChangeEntry(@"X:\repo\renamed.txt", VolumeEntryKind.Deleted)));
-        scripted.Publish('Y', new JournalBatch([Entry(51, 6, "other.txt", UsnReason.FileCreate)],
-            PackedIndexFixture.JournalId, 1002));
+        await scripted.WatchFor('Y').PublishBatchAsync([Entry(51, 6, "other.txt", UsnReason.FileCreate)], new UsnJournalCursor(PackedIndexFixture.JournalId, 1002));
         Assert.That(await reader.MoveNextAsync(), Is.True);
         Assert.That(reader.Current.Volume, Is.EqualTo("Y"));
         Assert.That(reader.Current.Entries.Single().FullPath, Is.EqualTo(@"Y:\repo\other.txt"));
@@ -222,7 +219,7 @@ public class IndexVolumeChangeSourceTests
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
         await File.WriteAllTextAsync(Path.Combine(files.TreePath, "repo", "ordinary.txt"), "omitted by profile");
-        var scripted = new ScriptedIndexWatchSource();
+        var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var owner = Owner(await files.OpenMftIndexAsync(scripted, 'X'), "X");
         Assert.That(owner.Index.FindByName("ordinary.txt"), Is.Empty);
         var observed = new TaskCompletionSource<FileChange>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -232,9 +229,8 @@ public class IndexVolumeChangeSourceTests
         using var cancellation = new CancellationTokenSource(HangGuard);
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
         var pending = reader.MoveNextAsync().AsTask();
-        await scripted.Started.WaitAsync(HangGuard);
-        scripted.Publish('X', new JournalBatch([Entry(50, 6, "ordinary.txt", reason)],
-            PackedIndexFixture.JournalId, 1002));
+        await scripted.WaitForWatchesAsync();
+        await scripted.WatchFor('X').PublishBatchAsync([Entry(50, 6, "ordinary.txt", reason)], new UsnJournalCursor(PackedIndexFixture.JournalId, 1002));
         Assert.That(await pending, Is.True);
         Assert.That(reader.Current.Volume, Is.EqualTo("X"));
         // Routed through IndexVolumeChangeSource, which rewrites this back onto its own
@@ -254,7 +250,7 @@ public class IndexVolumeChangeSourceTests
         files.AddMarker("repo");
         foreach (var disposeSource in new[] { false, true })
         {
-            var scripted = new ScriptedIndexWatchSource();
+            var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
             var owner = Owner(await files.OpenMftIndexAsync(scripted, 'X'), "X");
             var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
             var deaths = 0;
@@ -265,7 +261,7 @@ public class IndexVolumeChangeSourceTests
                 using var cancellation = new CancellationTokenSource(HangGuard);
                 await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
                 var pending = reader.MoveNextAsync().AsTask();
-                await scripted.Started.WaitAsync(HangGuard);
+                await scripted.WaitForWatchesAsync();
                 if (disposeSource)
                 {
                     await source.DisposeAsync();
@@ -277,8 +273,7 @@ public class IndexVolumeChangeSourceTests
                     await cancellation.CancelAsync();
                     Assert.CatchAsync<OperationCanceledException>(async () => await pending);
                 }
-                await scripted.Completed.WaitAsync(HangGuard);
-                Assert.That(scripted.WasCancelled, Is.True);
+                Assert.That(await scripted.WatchFor('X').ReadEnded.WaitAsync(HangGuard), Is.True);
                 Assert.That(deaths, Is.Zero);
                 await source.DisposeAsync();
                 Assert.That(owner.IsDisposed, Is.True);
@@ -338,9 +333,6 @@ public class IndexVolumeChangeSourceTests
             DriveLetter = 'X',
             DetectedDuring = JournalCheckpointLossDetection.DriveOpening,
             Cause = JournalCheckpointLossCause.CheckpointTrimmed,
-            CheckpointUsn = 1_000_000,
-            FirstUsn = 5_000_000,
-            NextUsn = 10_000_000,
             AllocationDelta = 8 * 1024 * 1024,
             MaximumSize = 32L * 1024 * 1024,
             BytesBehind = 4_000_000,
@@ -349,10 +341,8 @@ public class IndexVolumeChangeSourceTests
         var status = new DriveStatus
         {
             DriveLetter = 'X',
-            ProducerKind = ProducerKind.Mft,
             BlockSource = BlockSource.None,
             State = DriveState.Failed,
-            RowCount = 0,
             LiveRowCount = 0,
             ScanTimestamp = DateTime.UtcNow,
             CompactionNeeded = false,
@@ -388,10 +378,8 @@ public class IndexVolumeChangeSourceTests
         var status = new DriveStatus
         {
             DriveLetter = 'X',
-            ProducerKind = ProducerKind.Mft,
             BlockSource = BlockSource.ProducedByScan,
             State = DriveState.Ready,
-            RowCount = 10,
             LiveRowCount = 10,
             ScanTimestamp = DateTime.UtcNow,
             CompactionNeeded = false,
@@ -431,10 +419,8 @@ public class IndexVolumeChangeSourceTests
         var status = new DriveStatus
         {
             DriveLetter = 'X',
-            ProducerKind = ProducerKind.Mft,
             BlockSource = BlockSource.ProducedByScan,
             State = DriveState.Ready,
-            RowCount = 10,
             LiveRowCount = 10,
             ScanTimestamp = DateTime.UtcNow,
             CompactionNeeded = false,
@@ -462,7 +448,7 @@ public class IndexVolumeChangeSourceTests
 
 
     internal static UsnJournalEntry Entry(ulong record, ulong parent, string name, UsnReason reason,
-        bool directory = false) => UsnJournalEntry.Create(new UsnJournalEntryOptions
+        bool directory = false) => SyntheticJournalEntry.Create(new SyntheticJournalEntryOptions
         {
             RecordNumber = record,
             ParentRecordNumber = parent,
@@ -470,7 +456,7 @@ public class IndexVolumeChangeSourceTests
             FileName = name,
             Reason = reason,
             FileAttributes = directory ? FileAttributes.Directory : FileAttributes.Normal,
-            Timestamp = PackedIndexFixture.CompletionTimestamp,
+            TimestampUtc = PackedIndexFixture.CompletionTimestamp,
             Usn = 1001
         });
 }

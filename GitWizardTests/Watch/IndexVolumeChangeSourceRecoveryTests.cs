@@ -2,6 +2,7 @@ using GitWizard.Watch;
 using GitWizardTests.TestSupport;
 using MFTLib;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 using static GitWizardTests.TestSupport.AsyncCondition;
 
 namespace GitWizardTests.Watch;
@@ -22,10 +23,10 @@ public class IndexVolumeChangeSourceRecoveryTests
         using var files = new PackedIndexFixture();
         files.AddMarker("oldrepo");
         files.AddMarker("keptrepo");
-        var scripted = new ScriptedIndexWatchSource();
+        var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var owner = IndexVolumeChangeSourceTests.Owner(await files.OpenMftIndexAsync(scripted, 'X', 'Y'), "X", "Y");
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        files.BeforeProduceAsync = token => release.Task.WaitAsync(token);
+        files.Producer.BeforeProduceAsync = (_, token) => release.Task.WaitAsync(token);
         var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await using var sourceLifetime = source;
         var service = new RepositoryWatchService(source, [@"X:\oldrepo", @"X:\keptrepo"], [@"X:\"],
@@ -42,7 +43,7 @@ public class IndexVolumeChangeSourceRecoveryTests
             if (snapshot.TryGet("X", out var status) && status.State == VolumeWatchState.CaughtUp)
                 recoveredCaughtUp.TrySetResult();
         };
-        scripted.FailDrive('X', new IOException("X failed"));
+        scripted.WatchFor('X').FailDrive(new IOException("X failed"));
         await WaitUntilAsync(() => owner.Index.Drives.Single(drive => drive.DriveLetter == 'X').WatchCatchUp ==
                                    WatchCatchUpState.Recovering);
         Directory.Delete(Path.Combine(files.TreePath, "oldrepo"), recursive: true);
@@ -72,10 +73,10 @@ public class IndexVolumeChangeSourceRecoveryTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("oldrepo");
-        var scripted = new ScriptedIndexWatchSource();
+        var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var owner = IndexVolumeChangeSourceTests.Owner(await files.OpenMftIndexAsync(scripted, 'X'), "X");
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        files.BeforeProduceAsync = token => release.Task.WaitAsync(token);
+        files.Producer.BeforeProduceAsync = (_, token) => release.Task.WaitAsync(token);
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         // Buffering makes delivery synchronous and observable at the moment readiness changes.
@@ -90,7 +91,7 @@ public class IndexVolumeChangeSourceRecoveryTests
                 deliveredAtCaughtUp.TrySetResult(drainBuffer());
         };
 
-        scripted.FailDrive('X', new IOException("X failed"));
+        scripted.WatchFor('X').FailDrive(new IOException("X failed"));
         await WaitUntilAsync(() => owner.Index.Drives.Single().WatchCatchUp == WatchCatchUpState.Recovering);
         Directory.Delete(Path.Combine(files.TreePath, "oldrepo"), recursive: true);
         files.AddMarker("newrepo");
@@ -109,28 +110,26 @@ public class IndexVolumeChangeSourceRecoveryTests
     public async Task LiveDeletionAppliedAfterTheReconciliationRead_IsDeliveredAfterIt()
     {
         using var files = new PackedIndexFixture();
-        var scripted = new ScriptedIndexWatchSource();
+        var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var owner = IndexVolumeChangeSourceTests.Owner(await files.OpenMftIndexAsync(scripted, 'X'), "X");
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        files.BeforeProduceAsync = token => release.Task.WaitAsync(token);
+        files.Producer.BeforeProduceAsync = (_, token) => release.Task.WaitAsync(token);
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
-        source.ReconciliationCapturedForTest = _ =>
+        source.ReconciliationCapturedForTest = capturedDrive =>
         {
             // The recovered block has newrepo; the journal now deletes it. MFTLib applies the
             // batch to the block before it raises Changed, so waiting for the block here
             // means the deletion's delivery is racing the reconciliation.
             var marker = owner.Index.FindByName(".git").Single();
-            scripted.Publish('X', new JournalBatch(
-                [IndexVolumeChangeSourceTests.Entry(marker.Id.RecordNumber, marker.Parent!.Value.Id.RecordNumber,
-                    ".git", UsnReason.FileDelete, directory: true)],
-                PackedIndexFixture.JournalId, 1003));
+            _ = scripted.WatchFor('X').QueueBatch([IndexVolumeChangeSourceTests.Entry(marker.Id.RecordNumber, marker.Parent!.Value.Id.RecordNumber,
+                    ".git", UsnReason.FileDelete, directory: true)], new UsnJournalCursor(PackedIndexFixture.JournalId, 1003));
             Assert.That(SpinWait.SpinUntil(() => owner.Index.FindByName(".git").Count == 0, HangGuard), Is.True);
         };
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         using var cancellation = new CancellationTokenSource(HangGuard);
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
 
-        scripted.FailDrive('X', new IOException("X failed"));
+        scripted.WatchFor('X').FailDrive(new IOException("X failed"));
         await WaitUntilAsync(() => owner.Index.Drives.Single().WatchCatchUp == WatchCatchUpState.Recovering);
         files.AddMarker("newrepo");
         release.SetResult();
@@ -152,11 +151,11 @@ public class IndexVolumeChangeSourceRecoveryTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
-        var scripted = new ScriptedIndexWatchSource();
+        var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var owner = IndexVolumeChangeSourceTests.Owner(await files.OpenMftIndexAsync(scripted, 'X'), "X");
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var rescanStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        files.BeforeProduceAsync = token =>
+        files.Producer.BeforeProduceAsync = (_, token) =>
         {
             rescanStarted.TrySetResult();
             return release.Task.WaitAsync(token);
@@ -167,7 +166,7 @@ public class IndexVolumeChangeSourceRecoveryTests
             StartupCatchUpSettledForTest = async drive =>
             {
                 // The drive faults after its first catch-up settled and before the arm reports it.
-                scripted.FailDrive(drive, new IOException("X failed after catching up"));
+                scripted.WatchFor(drive).FailDrive(new IOException("X failed after catching up"));
                 await WaitUntilAsync(() => owner.Index.Drives.Single().WatchCatchUp == WatchCatchUpState.Recovering);
                 faultedAfterCatchUp.SetResult();
             }

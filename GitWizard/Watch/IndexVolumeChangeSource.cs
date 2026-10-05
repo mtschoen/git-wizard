@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
+using MFTLib;
 using MFTLib.Index;
 
 namespace GitWizard.Watch;

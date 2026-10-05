@@ -48,6 +48,7 @@ public sealed class MftIndexCacheInspection
             CacheDirectory = directory,
             Profile = MftIndexCachePolicy.DiscoveryProfile.ToString(),
             KeepFileNames = Array.AsReadOnly(MftIndexCachePolicy.KeepFileNames.ToArray()),
+            RequestedCacheTag = MftIndexCachePolicy.CacheTag,
             ObservedAt = _clock.GetUtcNow(),
             Inventory = Array.AsReadOnly(inventory),
             Sessions = Array.AsReadOnly(active),

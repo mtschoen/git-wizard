@@ -4,6 +4,7 @@ using GitWizard.CLI;
 using GitWizardTests.TestSupport;
 using LibGit2Sharp;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests;
 
@@ -94,7 +95,7 @@ public class ProgramWatchStartupTests
         var freshMarker = files.AddMarker("fresh");
         var fresh = GitWizardApi.NormalizePath(Path.GetDirectoryName(freshMarker)!);
 
-        var scripted = new ScriptedIndexWatchSource { AutoCatchUp = true };
+        var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var index = await files.OpenMftIndexAsync(scripted, 'C');
         var session = new MftIndexSession(index, new CountingOwner(), ["C"], [new IndexedDrive('C', files.TreePath, 1)], new Dictionary<string, string>());
 
@@ -204,7 +205,7 @@ public class ProgramWatchStartupTests
         files.AddMarker("c-repo");
         var dRoot = Directory.CreateDirectory(Path.Combine(files.DirectoryPath, "d-repos")).FullName;
 
-        var scripted = new ScriptedIndexWatchSource { AutoCatchUp = true };
+        var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var index = await files.OpenMftIndexAsync(scripted, 'C');
         var session = new MftIndexSession(index, new CountingOwner(), ["C", "D"],
             [new IndexedDrive('C', files.TreePath, 1), new IndexedDrive('D', dRoot, 1)],
@@ -214,11 +215,9 @@ public class ProgramWatchStartupTests
             new MftDriveStatus("C", new DriveStatus
             {
                 DriveLetter = 'C',
-                ProducerKind = ProducerKind.Mft,
                 BlockSource = BlockSource.ProducedByScan,
                 State = DriveState.Ready,
                 FailureKind = DriveFailureKind.None,
-                RowCount = 10,
                 LiveRowCount = 10,
                 ScanTimestamp = DateTime.UtcNow,
                 CompactionNeeded = false,
@@ -227,11 +226,9 @@ public class ProgramWatchStartupTests
             new MftDriveStatus("D", new DriveStatus
             {
                 DriveLetter = 'D',
-                ProducerKind = ProducerKind.Mft,
                 BlockSource = BlockSource.ProducedByScan,
                 State = DriveState.Failed,
                 FailureKind = DriveFailureKind.None,
-                RowCount = 0,
                 LiveRowCount = 0,
                 ScanTimestamp = DateTime.UtcNow,
                 CompactionNeeded = false,

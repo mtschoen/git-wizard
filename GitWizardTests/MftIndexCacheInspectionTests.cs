@@ -1,6 +1,7 @@
 using GitWizard;
 using GitWizardTests.TestSupport;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests;
 
@@ -89,7 +90,7 @@ public class MftIndexCacheInspectionTests
         var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         await using (var seed = await Open(files, cache))
             Assert.That(seed.Drives.Single().CacheSlot, Is.EqualTo(CacheSlotState.OwnedCanonical));
-        var file = CacheDirectory.EnumerateCached(cache).Single();
+        var file = CacheDirectory.InspectCached(cache).Single().File;
         var before = await File.ReadAllBytesAsync(file.Path);
         var available = Create().Capture(files.DirectoryPath);
         Assert.That(available.Inventory.Single().Availability, Is.EqualTo(CachedBlockAvailability.Available));
@@ -109,6 +110,31 @@ public class MftIndexCacheInspectionTests
         var invalid = Create().Capture(files.DirectoryPath).Inventory.Single();
         Assert.That(invalid.Availability, Is.EqualTo(CachedBlockAvailability.Invalid));
         Assert.That(invalid.Validation, Is.Not.Null);
+    }
+
+    [Test]
+    public async Task InventoryReportsTheStoredCacheTagNextToTheRequestedOne()
+    {
+        using var files = new PackedIndexFixture();
+        var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
+        var stored = new CacheTag("OLDT", 7);
+        SyntheticBlock.WriteCached(cache, 'X', 1, new SyntheticBlockOptions { CacheTag = stored },
+            [new SyntheticRow(5, "root", 5) { IsDirectory = true }]);
+        await File.WriteAllTextAsync(SyntheticBlock.CachedPath(cache, 'Y', 1), "invalid block fixture");
+
+        var snapshot = Create().Capture(files.DirectoryPath);
+
+        var available = snapshot.Inventory.Single(row => row.File.DriveLetter == 'X');
+        Assert.That(available.Availability, Is.EqualTo(CachedBlockAvailability.Available));
+        Assert.That(available.CacheTag, Is.EqualTo(stored));
+        Assert.That(snapshot.RequestedCacheTag, Is.EqualTo(MftIndexCachePolicy.CacheTag));
+        var lines = MftIndexCacheStatusFormatter.Format(snapshot).Split(Environment.NewLine)
+            .Where(line => line.StartsWith("  Cache tag:", StringComparison.Ordinal)).ToArray();
+        Assert.That(lines, Is.EqualTo(new[]
+        {
+            $"  Cache tag: stored {stored}; requested {MftIndexCachePolicy.CacheTag}",
+            $"  Cache tag: stored unavailable; requested {MftIndexCachePolicy.CacheTag}"
+        }));
     }
 
     [Test]

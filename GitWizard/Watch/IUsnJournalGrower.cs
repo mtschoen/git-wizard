@@ -1,4 +1,4 @@
-using MFTLib.Index;
+using MFTLib;
 
 namespace GitWizard.Watch;
 

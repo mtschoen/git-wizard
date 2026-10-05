@@ -35,11 +35,9 @@ public class RepositoryDiscoveryCoordinatorTests
         new()
         {
             DriveLetter = letter,
-            ProducerKind = ProducerKind.Mft,
             BlockSource = blockSource,
             State = state,
             FailureKind = failureKind,
-            RowCount = 10,
             LiveRowCount = 10,
             ScanTimestamp = scanTimestamp ?? DateTime.UtcNow,
             CompactionNeeded = false,

@@ -30,6 +30,11 @@ public class RepositoryDiscoveryCoordinatorCheckpointLossTests
         _productions = 0;
         _files = new PackedIndexFixture();
         _files.AddMarker("repo");
+        _files.Producer.BeforeProduceAsync = (_, _) =>
+        {
+            Interlocked.Increment(ref _productions);
+            return Task.CompletedTask;
+        };
         _windows = new ConcurrentDictionary<char, SyntheticJournalWindow>();
         _windows['X'] = Healthy;
         _scope = JournalIsolation.OverrideJournalWindow(
@@ -43,19 +48,14 @@ public class RepositoryDiscoveryCoordinatorCheckpointLossTests
         _files.Dispose();
     }
 
-    FileIndexOptions Options(bool cacheOnly, IIndexWatchSource? source = null) => new()
+    FileIndexOptions Options(bool cacheOnly, ScriptedWatchSource? source = null) => new()
     {
         Drives = [new IndexedDrive('X', _files.TreePath, 1)],
         CacheDirectory = _files.BlockDirectory,
         NoCache = false,
         InitialOpenCacheOnly = cacheOnly,
         ProducerPolicy = ProducerPolicy.Mft,
-        MftProducer = async (request, cancellationToken) =>
-        {
-            Interlocked.Increment(ref _productions);
-            return await _files.ProduceMftAsync(request, cancellationToken).ConfigureAwait(false);
-        },
-        WatchSource = source
+        MftSource = SyntheticIndexSource.Create(_files.Producer, source)
     };
 
     async Task SeedCacheAsync()
@@ -64,7 +64,7 @@ public class RepositoryDiscoveryCoordinatorCheckpointLossTests
         Assert.That(_productions, Is.EqualTo(1));
     }
 
-    async Task<MftIndexSession> OpenSessionAsync(bool cacheOnly, ScriptedIndexWatchSource source)
+    async Task<MftIndexSession> OpenSessionAsync(bool cacheOnly, ScriptedWatchSource source)
     {
         var index = await FileIndex.OpenAsync(Options(cacheOnly, source), CancellationToken.None);
         return new MftIndexSession(index, new CountingOwner(), ["X"],
@@ -92,7 +92,7 @@ public class RepositoryDiscoveryCoordinatorCheckpointLossTests
     public async Task CheckpointLoss_PreparesWatchAccordingToInitialBlockSource(
         bool cacheOnly, BlockSource expectedInitialSource, int expectedAdditionalProductions)
     {
-        var source = new ScriptedIndexWatchSource();
+        var source = new ScriptedWatchSource { CatchUpOnStart = true };
         await SeedCacheAsync();
         _windows['X'] = Lost;
         var session = await OpenSessionAsync(cacheOnly, source);
@@ -107,7 +107,7 @@ public class RepositoryDiscoveryCoordinatorCheckpointLossTests
         Assert.Multiple(() =>
         {
             Assert.That(_productions - productionsBeforeWatch, Is.EqualTo(expectedAdditionalProductions));
-            Assert.That(source.Targets, Has.Count.EqualTo(1));
+            Assert.That(source.Starts, Has.Count.EqualTo(1));
             Assert.That(startup.WatchVolumes, Is.EquivalentTo(new[] { "X" }));
         });
     }

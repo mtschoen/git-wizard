@@ -1,7 +1,9 @@
 using GitWizard;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
+using MFTLib;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 using static GitWizardTests.TestSupport.AsyncCondition;
 
 namespace GitWizardTests.Watch;
@@ -52,7 +54,7 @@ public class IndexVolumeChangeSourceCompletionTests
         await using var scenario = await Scenario.CreateAsync(['X'], faultDuringFirstReconciliation: "drive",
             faultAfterStartup: false);
         await scenario.Source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
-        scenario.Scripted.FailDrive('X', new IOException("X failed"));
+        scenario.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
 
         await scenario.SecondFaultInjected.WaitAsync(HangGuard);
         var productionsBefore = scenario.ProductionsAtSecondFault;
@@ -74,7 +76,7 @@ public class IndexVolumeChangeSourceCompletionTests
         await using var scenario = await Scenario.CreateAsync(['X', 'Y'], faultDuringFirstReconciliation: "channel",
             faultAfterStartup: false);
         await scenario.Source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
-        scenario.Scripted.FailDrive('X', new IOException("X failed"));
+        scenario.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
 
         await scenario.SecondFaultInjected.WaitAsync(HangGuard);
         await WaitUntilAsync(() => scenario.ReadinessOf('X') == VolumeWatchState.Excluded);
@@ -91,7 +93,7 @@ public class IndexVolumeChangeSourceCompletionTests
         await using var scenario = await Scenario.CreateAsync(['X', 'Y'], faultDuringFirstReconciliation: null,
             faultAfterStartup: false, faultOnRecoveredCaughtUp: kind);
         await scenario.Source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
-        scenario.Scripted.FailDrive('X', new IOException("X failed"));
+        scenario.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
 
         await scenario.SecondFaultInjected.WaitAsync(HangGuard);
         await WaitUntilAsync(() => scenario.ReadinessOf('X') == expected);
@@ -103,7 +105,7 @@ public class IndexVolumeChangeSourceCompletionTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
-        var scripted = new ScriptedIndexWatchSource();
+        var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var owner = IndexVolumeChangeSourceTests.Owner(
             await files.OpenMftIndexAsync(scripted, 'X'), "X");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
@@ -125,7 +127,7 @@ public class IndexVolumeChangeSourceCompletionTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
-        var scripted = new ScriptedIndexWatchSource();
+        var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var owner = IndexVolumeChangeSourceTests.Owner(
             await files.OpenMftIndexAsync(scripted, 'X', 'Y'), "X", "Y");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
@@ -147,7 +149,7 @@ public class IndexVolumeChangeSourceCompletionTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
-        var scripted = new ScriptedIndexWatchSource();
+        var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var owner = IndexVolumeChangeSourceTests.Owner(
             await files.OpenMftIndexAsync(scripted, 'X'), "X");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
@@ -180,10 +182,10 @@ public class IndexVolumeChangeSourceCompletionTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("oldrepo");
-        var scripted = new ScriptedIndexWatchSource();
+        var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var owner = IndexVolumeChangeSourceTests.Owner(await files.OpenMftIndexAsync(scripted, 'X'), "X");
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        files.BeforeProduceAsync = token => release.Task.WaitAsync(token);
+        files.Producer.BeforeProduceAsync = (_, token) => release.Task.WaitAsync(token);
 
         long next = 0;
         var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
@@ -198,7 +200,7 @@ public class IndexVolumeChangeSourceCompletionTests
         using var cancellation = new CancellationTokenSource(HangGuard);
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
 
-        scripted.FailDrive('X', new IOException("X failed"));
+        scripted.WatchFor('X').FailDrive(new IOException("X failed"));
         await WaitUntilAsync(() => owner.Index.Drives.Single().WatchCatchUp == WatchCatchUpState.Recovering);
         files.AddMarker("newrepo");
         release.SetResult();
@@ -260,7 +262,7 @@ public class IndexVolumeChangeSourceCompletionTests
         {
         }
 
-        public ScriptedIndexWatchSource Scripted { get; } = new();
+        public ScriptedWatchSource Scripted { get; } = new() { CatchUpOnStart = true };
         public MftIndexSession Owner { get; private set; } = null!;
         public IndexVolumeChangeSource Source { get; private set; } = null!;
         public Task SecondFaultInjected => _secondFaultInjected.Task;
@@ -279,7 +281,7 @@ public class IndexVolumeChangeSourceCompletionTests
             var scenario = new Scenario();
             scenario._files.AddMarker("repo");
             var index = await scenario._files.OpenMftIndexAsync(scenario.Scripted, drives);
-            scenario._files.BeforeProduceAsync = token =>
+            scenario._files.Producer.BeforeProduceAsync = (_, token) =>
                 (Interlocked.Increment(ref scenario._productions) == 1 ? scenario._firstRescan : scenario._heldRescan)
                 .Task.WaitAsync(token);
             // The startup fault releases the first rescan itself once it has seen the drive recovering.
@@ -305,7 +307,7 @@ public class IndexVolumeChangeSourceCompletionTests
         {
             if (Interlocked.Exchange(ref _startupFaulted, 1) != 0)
                 return Task.CompletedTask;
-            Scripted.FailDrive(drive, new IOException($"{drive} failed after its first catch-up"));
+            Scripted.WatchFor(drive).FailDrive(new IOException($"{drive} failed after its first catch-up"));
             return ReleaseFirstRescanWhenRecoveringAsync(drive);
         }
 
@@ -325,13 +327,13 @@ public class IndexVolumeChangeSourceCompletionTests
             switch (kind)
             {
                 case "drive":
-                    Scripted.FailDrive(drive, new IOException($"{drive} failed again"));
+                    Scripted.WatchFor(drive).FailDrive(new IOException($"{drive} failed again"));
                     break;
                 case "apply":
-                    Scripted.Publish(drive, new JournalBatch(null!, PackedIndexFixture.JournalId, 1002));
+                    _ = Scripted.WatchFor(drive).QueueBatch(null!, new UsnJournalCursor(PackedIndexFixture.JournalId, 1002));
                     break;
                 default:
-                    Scripted.LoseChannel(drive, new IOException($"{drive} channel lost"));
+                    Scripted.WatchFor(drive).LoseChannel(new IOException($"{drive} channel lost"));
                     break;
             }
             var settled = kind == "channel" ? WatchCatchUpState.Faulted : WatchCatchUpState.Recovering;

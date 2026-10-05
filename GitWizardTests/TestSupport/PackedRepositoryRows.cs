@@ -1,46 +1,26 @@
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests.TestSupport;
 
 internal static class PackedRepositoryRows
 {
-    public static Task<FileIndex> OpenRowsAsync(PackedIndexFixture files, Action<BlockFile, BlockWriter> writeRows) =>
+    /// <summary>Opens drive X over a block holding the root row (row 5) plus <paramref name="rows"/>.</summary>
+    public static Task<FileIndex> OpenRowsAsync(PackedIndexFixture files, params SyntheticRow[] rows) =>
         FileIndex.OpenAsync(new FileIndexOptions
         {
             Drives = [new IndexedDrive('X', files.TreePath, 1)],
             CacheDirectory = files.BlockDirectory,
             NoCache = true,
             ProducerPolicy = ProducerPolicy.Mft,
-            MftProducer = (request, cancellationToken) =>
+            MftSource = SyntheticIndexSource.Create(new SyntheticMftProducer(_ => [Directory(5, "root", 5), .. rows])
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                var block = BlockFile.Create(new BlockFileCreateOptions
-                {
-                    Path = request.BlockPath,
-                    VolumeSerial = request.VolumeSerial,
-                    ProducerKind = ProducerKind.Mft,
-                    CacheTag = request.CacheTag,
-                    RootRow = 5,
-                    SlotCapacity = 256,
-                    NamePoolCapacity = 16384,
-                    DeleteOnClose = request.DeleteOnClose
-                });
-                try
-                {
-                    var writer = new BlockWriter(block);
-                    WriteRow(writer, 5, "root", 5, RowFlags.InUse | RowFlags.Directory);
-                    writeRows(block, writer);
-                    writer.Complete(PackedIndexFixture.CompletionTimestamp, null);
-                    return Task.FromResult(new MftBlockProduceResult(block, 0, 0, 0));
-                }
-                catch
-                {
-                    block.Dispose();
-                    throw;
-                }
-            }
+                CompletedUtc = PackedIndexFixture.CompletionTimestamp
+            })
         }, CancellationToken.None);
 
-    public static void WriteRow(BlockWriter writer, uint row, string name, uint parent, RowFlags flags) =>
-        Assert.That(writer.TryWriteRow(row, name, new RowColumns(parent, flags, 0, 0, 0, 1)), Is.True);
+    public static SyntheticRow Directory(uint row, string name, uint parent) =>
+        new(row, name, parent) { IsDirectory = true };
+
+    public static SyntheticRow File(uint row, string name, uint parent) => new(row, name, parent);
 }

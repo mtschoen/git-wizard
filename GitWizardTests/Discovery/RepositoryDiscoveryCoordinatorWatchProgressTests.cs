@@ -2,6 +2,7 @@ using GitWizard;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests.Discovery;
 
@@ -13,7 +14,7 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
-        var scripted = new ScriptedIndexWatchSource { AutoCatchUp = false };
+        var scripted = new ScriptedWatchSource();
         var treePath = files.TreePath;
         var session = new MftIndexSession(
             await files.OpenMftIndexAsync(scripted, 'X'),
@@ -37,9 +38,9 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
         var reports = new List<WatchStartupProgress>();
         var progress = new SynchronousProgress<WatchStartupProgress>(reports.Add);
         var preparing = coordinator.PrepareWatchAsync(request, session, progress, CancellationToken.None);
-        await scripted.Started.WaitAsync(TimeSpan.FromSeconds(10));
+        await scripted.WaitForWatchesAsync();
         await AsyncCondition.WaitUntilAsync(() => reports.Any(r => r.Readiness?.TryGet("X", out var x) == true && x.State == VolumeWatchState.CatchingUp));
-        scripted.Publish('X', new DriveCaughtUp());
+        await scripted.WatchFor('X').PublishCaughtUpAsync();
         await using var startup = await preparing.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.That(reports.Select(r => r.Phase).Distinct(), Is.EqualTo(new[]
         {
@@ -72,7 +73,7 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
-        var scripted = new ScriptedIndexWatchSource { AutoCatchUp = false };
+        var scripted = new ScriptedWatchSource();
         var treePath = files.TreePath;
         var connectionFired = false;
         var brokerConnection = new MftBrokerConnection(_ =>
@@ -106,13 +107,14 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
         var progress = new SynchronousProgress<WatchStartupProgress>(reports.Add);
 
         // Manually trigger broker connection during catch-up to simulate deferred warm-start watch connection
-        _ = scripted.Started.ContinueWith(_ => brokerConnection.ConnectAsync(CancellationToken.None));
+        var started = scripted.WaitForStartAsync('X', CancellationToken.None);
+        _ = started.ContinueWith(_ => brokerConnection.ConnectAsync(CancellationToken.None));
 
         var preparing = coordinator.PrepareWatchAsync(request, session, progress, CancellationToken.None);
-        await scripted.Started.WaitAsync(TimeSpan.FromSeconds(10));
+        await started.WaitAsync(TimeSpan.FromSeconds(10));
         await AsyncCondition.WaitUntilAsync(() => connectionFired);
         await AsyncCondition.WaitUntilAsync(() => reports.Any(r => r.Phase == WatchStartupPhase.BrokerConnected));
-        scripted.Publish('X', new DriveCaughtUp());
+        await scripted.WatchFor('X').PublishCaughtUpAsync();
         await using var startup = await preparing.WaitAsync(TimeSpan.FromSeconds(10));
 
         Assert.That(reports.Select(r => r.Phase), Does.Contain(WatchStartupPhase.RequestingElevation));

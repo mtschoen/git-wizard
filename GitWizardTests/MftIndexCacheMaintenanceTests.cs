@@ -1,6 +1,7 @@
 using GitWizard;
 using GitWizardTests.TestSupport;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests;
 
@@ -13,11 +14,11 @@ public class MftIndexCacheMaintenanceTests
         using var files = new IndexCacheFixture();
         var older = Path.Combine(MftIndexCachePolicy.GetCacheRoot(files.Home), "v1-" + new string('A', 64));
         Directory.CreateDirectory(older);
-        var olderBlock = Path.Combine(older, CacheDirectory.BlockFileName('Y', 1));
+        var olderBlock = SyntheticBlock.CachedPath(older, 'Y', 1);
         await File.WriteAllTextAsync(olderBlock, "legacy hashed-directory block");
         var unknown = Path.Combine(MftIndexCachePolicy.GetCacheRoot(files.Home), "unrecognized");
         Directory.CreateDirectory(unknown);
-        var unknownBlock = Path.Combine(unknown, CacheDirectory.BlockFileName('Z', 1));
+        var unknownBlock = SyntheticBlock.CachedPath(unknown, 'Z', 1);
         await File.WriteAllTextAsync(unknownBlock, "keep unknown layout");
         await using (var owner = await files.OpenOwnerAsync())
         {
@@ -69,7 +70,7 @@ public class MftIndexCacheMaintenanceTests
         string? reason, bool succeeded)
     {
         using var files = new IndexCacheFixture();
-        var file = CacheDirectory.EnumerateCached(files.Cache).Single();
+        var file = CacheDirectory.InspectCached(files.Cache).Single().File;
         var result = new MftIndexCacheMaintenanceResult(
             [new CachedBlockDeletionResult(file, outcome, reason)], [], []);
         Assert.That(result.Succeeded, Is.EqualTo(succeeded));

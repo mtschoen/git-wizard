@@ -1,5 +1,5 @@
 using GitWizard;
-using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests.TestSupport;
 
@@ -12,7 +12,7 @@ internal sealed class IndexOwnerFixture : IAsyncDisposable
         throw new InvalidOperationException("The index owner fixture has not started.");
     public int ConnectionDisposals => _connection.Disposals;
 
-    public async Task StartAsync(IIndexWatchSource? watchSource = null)
+    public async Task StartAsync(ScriptedWatchSource? watchSource = null)
     {
         _files.AddMarker("repo");
         var index = watchSource is null

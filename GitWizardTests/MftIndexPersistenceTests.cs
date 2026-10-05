@@ -2,6 +2,7 @@ using GitWizard;
 using GitWizardTests.TestSupport;
 using MFTLib;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests;
 
@@ -17,7 +18,7 @@ public class MftIndexPersistenceTests
             CacheTag = MftIndexCachePolicy.CacheTag,
             NoCache = false,
             ProducerPolicy = ProducerPolicy.Mft,
-            MftProducer = files.ProduceMftAsync
+            MftSource = SyntheticIndexSource.Create(files.Producer)
         }, CancellationToken.None);
         Assert.That(seed.Drives.Single().BlockSource, Is.EqualTo(BlockSource.ProducedByScan));
     }
@@ -82,7 +83,7 @@ public class MftIndexPersistenceTests
             cache, MftIndexOpenIntent.Persistent, null, CancellationToken.None);
         try
         {
-            await AssertInUseAndPrivateCompetitorAsync(first, firstBroker, otherBroker, drive, cache);
+            await AssertInUseAndPrivateCompetitorAsync(first, otherBroker, drive, cache);
         }
         finally
         {
@@ -90,10 +91,10 @@ public class MftIndexPersistenceTests
         }
     }
 
-    static async Task AssertInUseAndPrivateCompetitorAsync(MftIndexSession first, BlockBrokerFixture firstBroker,
+    static async Task AssertInUseAndPrivateCompetitorAsync(MftIndexSession first,
         BlockBrokerFixture otherBroker, IndexedDrive drive, string cache)
     {
-        var canonical = firstBroker.SectionOptions.Single().Path;
+        var canonical = SyntheticBlock.CachedPath(cache, 'X', 1);
         var before = await ReadSharedAsync(canonical);
         await using (var refused = await MftIndexSession.OpenAsync([drive], otherBroker.ConnectAsync,
             cache, MftIndexOpenIntent.Snapshot, null, CancellationToken.None))
@@ -102,18 +103,14 @@ public class MftIndexPersistenceTests
                 Is.EqualTo(DriveFailureKind.InUse));
             Assert.That(otherBroker.ConnectionCount, Is.Zero);
         }
-        string privatePath;
         await using (var competitor = await MftIndexSession.OpenAsync([drive], otherBroker.ConnectAsync,
             cache, MftIndexOpenIntent.Persistent, null, CancellationToken.None))
         {
-            var options = otherBroker.SectionOptions.Single();
-            privatePath = options.Path;
-            Assert.That(options.DeleteOnClose, Is.True);
-            Assert.That(privatePath, Is.Not.EqualTo(canonical));
+            Assert.That(competitor.CaptureDriveStatuses().Single().IndexStatus!.CacheSlot,
+                Is.EqualTo(CacheSlotState.PrivateFallback));
             Assert.That(competitor.Index.FindByName(".git"), Has.Count.EqualTo(1));
             Assert.That(await ReadSharedAsync(canonical), Is.EqualTo(before));
         }
-        Assert.That(File.Exists(privatePath), Is.False);
         await first.DisposeAsync();
         Assert.That(await ReadSharedAsync(canonical), Is.EqualTo(before));
         await using var reopened = await MftIndexSession.OpenAsync([drive],
@@ -131,7 +128,7 @@ public class MftIndexPersistenceTests
         var drive = new IndexedDrive('X', files.TreePath, 1);
         var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         await SeedAsync(files, drive, cache);
-        var source = new ScriptedIndexWatchSource();
+        var source = new ScriptedWatchSource { CatchUpOnStart = true };
         await using var index = await FileIndex.OpenAsync(new FileIndexOptions
         {
             Drives = [drive],
@@ -139,19 +136,18 @@ public class MftIndexPersistenceTests
             CacheTag = MftIndexCachePolicy.CacheTag,
             NoCache = false,
             ProducerPolicy = ProducerPolicy.Mft,
-            MftProducer = (_, _) => throw new AssertionException("Warm open must not produce."),
-            WatchSource = source
+            MftSource = SyntheticIndexSource.Create(
+                new SyntheticMftProducer(_ => throw new AssertionException("Warm open must not produce.")), source)
         }, CancellationToken.None);
         Assert.That(index.Drives.Single().BlockSource, Is.EqualTo(BlockSource.WarmStartedFromCache));
         var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         index.Changed += _ => changed.TrySetResult();
         await index.StartWatchingAsync(CancellationToken.None);
-        var targets = await source.Started.WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.That(targets.Single().JournalId, Is.EqualTo(PackedIndexFixture.JournalId));
-        Assert.That(targets.Single().NextUsn, Is.EqualTo(PackedIndexFixture.NextUsn));
-        source.Publish('X', new JournalBatch(
-        [
-            UsnJournalEntry.Create(new UsnJournalEntryOptions
+        var start = source.Starts.Single();
+        Assert.That(start.Cursor.JournalId, Is.EqualTo(PackedIndexFixture.JournalId));
+        Assert.That(start.Cursor.NextUsn, Is.EqualTo(PackedIndexFixture.NextUsn));
+        await source.WatchFor('X').PublishBatchAsync([
+            SyntheticJournalEntry.Create(new SyntheticJournalEntryOptions
             {
                 RecordNumber = 6,
                 ParentRecordNumber = 5,
@@ -159,10 +155,10 @@ public class MftIndexPersistenceTests
                 FileName = "renamed",
                 Reason = UsnReason.RenameNewName,
                 FileAttributes = FileAttributes.Directory,
-                Timestamp = PackedIndexFixture.CompletionTimestamp,
+                TimestampUtc = PackedIndexFixture.CompletionTimestamp,
                 Usn = PackedIndexFixture.NextUsn + 1
             })
-        ], PackedIndexFixture.JournalId, PackedIndexFixture.NextUsn + 1));
+        ], new UsnJournalCursor(PackedIndexFixture.JournalId, PackedIndexFixture.NextUsn + 1));
         await changed.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.That(index.FindByName("renamed"), Has.Count.EqualTo(1));
         await index.StopWatchingAsync(CancellationToken.None);

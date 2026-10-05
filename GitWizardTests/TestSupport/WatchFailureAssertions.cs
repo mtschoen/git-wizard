@@ -2,6 +2,7 @@ using GitWizard;
 using GitWizard.Watch;
 using MFTLib;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests.TestSupport;
 
@@ -125,7 +126,7 @@ internal static class WatchFailureAssertions
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
-        var scripted = new ScriptedIndexWatchSource();
+        var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var index = await files.OpenMftIndexAsync(scripted, 'X', 'Y');
         var owner = new MftIndexSession(index, null, ["X", "Y"], [], new Dictionary<string, string>());
         var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
@@ -143,8 +144,8 @@ internal static class WatchFailureAssertions
             using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             await using var reader = service.RunAsync(cancellation.Token).GetAsyncEnumerator();
             var pending = reader.MoveNextAsync().AsTask();
-            await scripted.Started.WaitAsync(cancellation.Token);
-            scripted.LoseChannel('X', new IOException("X watch failed"));
+            await scripted.WaitForWatchesAsync(2);
+            scripted.WatchFor('X').LoseChannel(new IOException("X watch failed"));
             await failed.Task.WaitAsync(cancellation.Token);
             Assert.That(service.ScanErrors["X"], Is.EqualTo("X watch failed"));
             Assert.That(index.Drives.Single(drive => drive.DriveLetter == 'X').State, Is.EqualTo(DriveState.Ready));
@@ -152,18 +153,17 @@ internal static class WatchFailureAssertions
             Assert.That(markers, Has.Length.EqualTo(2), "Both the failed and healthy drive remain queryable.");
             Assert.That(markers.All(entry => entry.Parent is { Name: "repo" }), Is.True);
             Assert.That(deaths, Is.Empty);
-            scripted.Publish('Y', new JournalBatch(
-                [UsnJournalEntry.Create(new UsnJournalEntryOptions
+            await scripted.WatchFor('Y').PublishBatchAsync([SyntheticJournalEntry.Create(new SyntheticJournalEntryOptions
                 {
                     RecordNumber = 50, ParentRecordNumber = 6, SequenceNumber = 1,
                     FileName = "file", Reason = UsnReason.FileCreate,
                     FileAttributes = FileAttributes.Normal,
-                    Timestamp = PackedIndexFixture.CompletionTimestamp, Usn = 1001
-                })], PackedIndexFixture.JournalId, 1002));
+                    TimestampUtc = PackedIndexFixture.CompletionTimestamp, Usn = 1001
+                })], new UsnJournalCursor(PackedIndexFixture.JournalId, 1002));
             Assert.That(await pending, Is.True);
             Assert.That(reader.Current.RepoRoot, Is.EqualTo(@"Y:\repo"));
             pending = reader.MoveNextAsync().AsTask();
-            scripted.LoseChannel('Y', new IOException("Y watch failed"));
+            scripted.WatchFor('Y').LoseChannel(new IOException("Y watch failed"));
             Assert.That(await pending, Is.False);
             Assert.That(deaths, Has.Count.EqualTo(1));
             Assert.That(service.ScanErrors["Y"], Is.EqualTo("Y watch failed"));

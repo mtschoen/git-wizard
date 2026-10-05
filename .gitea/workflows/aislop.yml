@@ -21,6 +21,13 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# A newer commit on a pull request supersedes the run in flight. Every other run gets
+# a group of its own: Gitea also cancels queued runs of a shared group whatever
+# cancel-in-progress says, and a push to main gates the landing batch.
+concurrency:
+  group: aislop-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   quality-gate:
     runs-on: ubuntu-latest

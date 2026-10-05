@@ -89,11 +89,9 @@ public class CliDiscoveryRoutingTests
         new()
         {
             DriveLetter = letter,
-            ProducerKind = ProducerKind.Mft,
             BlockSource = BlockSource.ProducedByScan,
             State = state,
             FailureKind = DriveFailureKind.None,
-            RowCount = 10,
             LiveRowCount = 10,
             ScanTimestamp = DateTime.UtcNow,
             CompactionNeeded = false,

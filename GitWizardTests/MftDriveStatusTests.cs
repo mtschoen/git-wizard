@@ -65,15 +65,11 @@ public class MftDriveStatusTests
             DriveLetter = 'X',
             DetectedDuring = JournalCheckpointLossDetection.LiveWatch,
             Cause = JournalCheckpointLossCause.CheckpointTrimmed,
-            CheckpointUsn = 1000,
-            FirstUsn = 2000,
-            NextUsn = 3000,
             AllocationDelta = 1024,
             MaximumSize = 2048
         };
         var source = index.Drives.Single() with
         {
-            ProducerKind = ProducerKind.Mft,
             BlockSource = BlockSource.WarmStartedFromCache,
             WatchFailureMessage = "watch failed",
             CheckpointLoss = loss

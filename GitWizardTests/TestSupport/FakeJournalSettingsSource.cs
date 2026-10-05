@@ -1,4 +1,5 @@
 using GitWizard.Watch;
+using MFTLib;
 using MFTLib.Index;
 
 namespace GitWizardTests.TestSupport;
@@ -19,9 +20,6 @@ internal sealed class FakeJournalSettingsSource : IVolumeChangeSource, IUsnJourn
             DriveLetter = 'C',
             DetectedDuring = JournalCheckpointLossDetection.DriveOpening,
             Cause = JournalCheckpointLossCause.CheckpointTrimmed,
-            CheckpointUsn = 0,
-            FirstUsn = 32L * 1024 * 1024,
-            NextUsn = 130L * 1024 * 1024,
             AllocationDelta = 8 * 1024 * 1024,
             MaximumSize = 32L * 1024 * 1024,
             BytesBehind = 32L * 1024 * 1024,
@@ -32,9 +30,6 @@ internal sealed class FakeJournalSettingsSource : IVolumeChangeSource, IUsnJourn
             DriveLetter = 'D',
             DetectedDuring = JournalCheckpointLossDetection.DriveOpening,
             Cause = JournalCheckpointLossCause.CheckpointTrimmed,
-            CheckpointUsn = 0,
-            FirstUsn = 64L * 1024 * 1024,
-            NextUsn = 200L * 1024 * 1024,
             AllocationDelta = 8 * 1024 * 1024,
             MaximumSize = 64L * 1024 * 1024,
             BytesBehind = 64L * 1024 * 1024,
@@ -94,9 +89,6 @@ internal sealed class FakeJournalSettingsSource : IVolumeChangeSource, IUsnJourn
             DriveLetter = driveLetter,
             DetectedDuring = detectedDuring,
             Cause = JournalCheckpointLossCause.CheckpointTrimmed,
-            CheckpointUsn = 0,
-            FirstUsn = maximumSize,
-            NextUsn = suggestedSize,
             AllocationDelta = allocationDelta,
             MaximumSize = maximumSize,
             BytesBehind = maximumSize,
@@ -110,9 +102,6 @@ internal sealed class FakeJournalSettingsSource : IVolumeChangeSource, IUsnJourn
             DriveLetter = driveLetter,
             DetectedDuring = detectedDuring,
             Cause = JournalCheckpointLossCause.JournalRecreated,
-            CheckpointUsn = 0,
-            FirstUsn = 0,
-            NextUsn = maximumSize,
             AllocationDelta = allocationDelta,
             MaximumSize = maximumSize
         };

@@ -1,6 +1,7 @@
 using GitWizard;
 using GitWizardTests.TestSupport;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests;
 
@@ -77,13 +78,9 @@ public class IndexDiscoveryTests
     public async Task IgnoresFreeAndDeletedRows()
     {
         using var files = new PackedIndexFixture();
-        await using var index = await OpenRowsAsync(files, (_, writer) =>
-        {
-            WriteRow(writer, 6, ".git", 5, RowFlags.Directory);
-            WriteRow(writer, 7, ".git", 5, RowFlags.InUse | RowFlags.Directory);
-            writer.MarkTombstone(7);
-            WriteRow(writer, 8, "ordinary", 5, RowFlags.InUse);
-        });
+        await using var index = await OpenRowsAsync(files,
+            Directory(7, ".git", 5) with { IsTombstone = true },
+            File(8, "ordinary", 5));
         Assert.That(index.FindByName("ordinary").Single().IsDirectory, Is.False);
         Assert.That(index.FindByName(".git"), Is.Empty);
         Assert.That(GitWizardApi.SelectGitEntries(index, true), Is.Empty);
@@ -93,12 +90,10 @@ public class IndexDiscoveryTests
     public async Task RootRowNeedNotBeZero()
     {
         using var files = new PackedIndexFixture();
-        await using var index = await OpenRowsAsync(files, (_, writer) =>
-        {
-            WriteRow(writer, 0, "$MFT", 5, RowFlags.InUse);
-            WriteRow(writer, 7, "repository", 5, RowFlags.InUse | RowFlags.Directory);
-            WriteRow(writer, 9, ".git", 7, RowFlags.InUse | RowFlags.Directory);
-        });
+        await using var index = await OpenRowsAsync(files,
+            File(0, "$MFT", 5),
+            Directory(7, "repository", 5),
+            Directory(9, ".git", 7));
         var marker = index.FindByName(".git").Single();
         Assert.That(marker.IsDirectory, Is.True);
         Assert.That(marker.Parent!.Value.Name, Is.EqualTo("repository"));
@@ -111,13 +106,12 @@ public class IndexDiscoveryTests
     public async Task MalformedParentChainHonorsDocumentedDepthGuard()
     {
         using var files = new PackedIndexFixture();
-        await using var index = await OpenRowsAsync(files, (_, writer) =>
-        {
-            for (uint row = 6; row < 6 + BlockLayout.MaximumPathDepth; row++)
-                WriteRow(writer, row, "parent", row - 1, RowFlags.InUse | RowFlags.Directory);
-            WriteRow(writer, 6 + BlockLayout.MaximumPathDepth, ".git",
-                5 + BlockLayout.MaximumPathDepth, RowFlags.InUse | RowFlags.Directory);
-        });
+        var depth = (uint)SyntheticBlock.MaximumPathDepth;
+        var rows = new List<SyntheticRow>();
+        for (uint row = 6; row < 6 + depth; row++)
+            rows.Add(Directory(row, "parent", row - 1));
+        rows.Add(Directory(6 + depth, ".git", 5 + depth));
+        await using var index = await OpenRowsAsync(files, [.. rows]);
         var marker = index.FindByName(".git").Single();
         Assert.That(marker.Parent!.Value.Name, Is.EqualTo("parent"));
         Assert.That(() => marker.Path, Throws.TypeOf<InvalidDataException>());
@@ -127,15 +121,12 @@ public class IndexDiscoveryTests
     public async Task SelectRepositoryCandidates_ExcessivePathDepth_SkipsMalformedEntry()
     {
         using var files = new PackedIndexFixture();
-        await using var index = await OpenRowsAsync(files, (_, writer) =>
-        {
-            WriteRow(writer, 6, "validrepo", 5, RowFlags.InUse | RowFlags.Directory);
-            WriteRow(writer, 7, ".git", 6, RowFlags.InUse | RowFlags.Directory);
-            for (uint row = 8; row < 8 + BlockLayout.MaximumPathDepth; row++)
-                WriteRow(writer, row, "parent", row - 1, RowFlags.InUse | RowFlags.Directory);
-            WriteRow(writer, 8 + BlockLayout.MaximumPathDepth, ".git",
-                7 + BlockLayout.MaximumPathDepth, RowFlags.InUse | RowFlags.Directory);
-        });
+        var depth = (uint)SyntheticBlock.MaximumPathDepth;
+        var rows = new List<SyntheticRow> { Directory(6, "validrepo", 5), Directory(7, ".git", 6) };
+        for (uint row = 8; row < 8 + depth; row++)
+            rows.Add(Directory(row, "parent", row - 1));
+        rows.Add(Directory(8 + depth, ".git", 7 + depth));
+        await using var index = await OpenRowsAsync(files, [.. rows]);
         var entries = GitWizardApi.SelectGitEntries(index, includeGitFiles: true);
         Assert.That(entries, Has.Count.EqualTo(2));
         var candidates = CandidateSelection.Paths(index, @"X:\", Array.Empty<string>(),
@@ -143,9 +134,11 @@ public class IndexDiscoveryTests
         Assert.That(candidates, Is.EqualTo(new[] { Path.Combine(files.TreePath, "validrepo") }));
     }
 
-    static Task<FileIndex> OpenRowsAsync(PackedIndexFixture files, Action<BlockFile, BlockWriter> writeRows) =>
-        PackedRepositoryRows.OpenRowsAsync(files, writeRows);
+    static Task<FileIndex> OpenRowsAsync(PackedIndexFixture files, params SyntheticRow[] rows) =>
+        PackedRepositoryRows.OpenRowsAsync(files, rows);
 
-    static void WriteRow(BlockWriter writer, uint row, string name, uint parent, RowFlags flags) =>
-        PackedRepositoryRows.WriteRow(writer, row, name, parent, flags);
+    static SyntheticRow Directory(uint row, string name, uint parent) =>
+        PackedRepositoryRows.Directory(row, name, parent);
+
+    static SyntheticRow File(uint row, string name, uint parent) => PackedRepositoryRows.File(row, name, parent);
 }

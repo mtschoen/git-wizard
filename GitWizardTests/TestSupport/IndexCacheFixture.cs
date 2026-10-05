@@ -1,5 +1,6 @@
 using GitWizard;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests.TestSupport;
 
@@ -8,8 +9,8 @@ internal sealed class IndexCacheFixture : IDisposable
     readonly PackedIndexFixture _files = new();
     public string Home { get; }
     public string Cache { get; }
-    public string OwnedPath => Path.Combine(Cache, CacheDirectory.BlockFileName('X', 1));
-    public string FreePath => Path.Combine(Cache, CacheDirectory.BlockFileName('Y', 1));
+    public string OwnedPath => SyntheticBlock.CachedPath(Cache, 'X', 1);
+    public string FreePath => SyntheticBlock.CachedPath(Cache, 'Y', 1);
 
     public IndexCacheFixture(string? home = null)
     {

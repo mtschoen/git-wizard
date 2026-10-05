@@ -1,6 +1,7 @@
 using GitWizard;
 using GitWizardTests.TestSupport;
 using MFTLib;
+using MFTLib.Index;
 
 namespace GitWizardTests;
 
@@ -89,12 +90,23 @@ public class MftBrokerConnectionTests
     public async Task HostCrashInsideScanFailsTheChannelWithoutClientDisposal()
     {
         await using var broker = new BlockBrokerFixture { DisconnectOnScan = true };
-        var process = await broker.ConnectAsync(CancellationToken.None);
-        Assert.ThrowsAsync<BrokerChannelLostException>(async () =>
-            await process.ScanDriveAsync('X', broker.CreateTarget('X'),
-                BlockBrokerFixture.CreateOptions(), CancellationToken.None));
-        Assert.That(await process.Ended, Is.Not.Empty);
-        Assert.That(broker.ServedToCompletion, Is.False);
+        await using var index = await FileIndex.OpenAsync(new FileIndexOptions
+        {
+            Drives = [broker.Drive('X')],
+            CacheDirectory = broker.CacheDirectory,
+            NoCache = true,
+            ProducerPolicy = ProducerPolicy.Mft,
+            MftSource = new BrokerMftBlockProducer(broker.ConnectAsync, new BrokerScanOptions
+            {
+                Profile = GitWizardApi.GitDiscoveryScanProfile,
+                KeepFileNames = [GitWizardApi.GitEntryName]
+            }).CreateIndexSource()
+        }, CancellationToken.None);
+        var drive = index.Drives.Single();
+        Assert.That(drive.State, Is.EqualTo(DriveState.Failed));
+        Assert.That(drive.MftProducerFailureMessage, Does.Contain("scan channel closed"));
+        Assert.That(broker.ConnectionCount, Is.EqualTo(1));
+        Assert.That(broker.ScanCompleted, Is.False);
     }
 
     [Test]

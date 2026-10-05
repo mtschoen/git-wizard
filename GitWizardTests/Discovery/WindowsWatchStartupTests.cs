@@ -2,6 +2,7 @@ using GitWizard;
 using GitWizardTests.TestSupport;
 using MFTLib;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests.Discovery;
 
@@ -16,7 +17,7 @@ public class WindowsWatchStartupTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
-        var scripted = new ScriptedIndexWatchSource { AutoCatchUp = false };
+        var scripted = new ScriptedWatchSource();
         var index = await files.OpenMftIndexAsync(scripted, 'X');
         var connection = new CountingOwner();
         var session = new MftIndexSession(index, connection, ["X"], [new IndexedDrive('X', files.TreePath, 1)], new Dictionary<string, string>());
@@ -42,16 +43,15 @@ public class WindowsWatchStartupTests
 
         var startupTask = coordinator.PrepareWatchAsync(request, null, cts.Token);
 
-        await scripted.Started.WaitAsync(cts.Token);
+        await scripted.WaitForWatchesAsync();
         Assert.That(startupTask.IsCompleted, Is.False, "Startup must withhold completion until catch-up drains.");
         Assert.That(listWrites, Is.Empty, "List writes must not happen before catch-up.");
 
         // Publish journal changes and caught up marker
-        scripted.Publish('X', new JournalBatch(
-        [
+        await scripted.WatchFor('X').PublishBatchAsync([
             Entry(50, 6, "ordinary.txt", UsnReason.FileCreate)
-        ], PackedIndexFixture.JournalId, 1002));
-        scripted.Publish('X', new DriveCaughtUp());
+        ], new UsnJournalCursor(PackedIndexFixture.JournalId, 1002));
+        await scripted.WatchFor('X').PublishCaughtUpAsync();
 
         await using var startup = await startupTask;
 
@@ -67,7 +67,7 @@ public class WindowsWatchStartupTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
-        var scripted = new ScriptedIndexWatchSource { AutoCatchUp = true };
+        var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var index = await files.OpenMftIndexAsync(scripted, 'X');
         var connection = new CountingOwner();
         var session = new MftIndexSession(index, connection, ["X"], [new IndexedDrive('X', files.TreePath, 1)], new Dictionary<string, string>());
@@ -101,7 +101,7 @@ public class WindowsWatchStartupTests
     public async Task EmptyOldSnapshot_WithNoReplay_ProducesCompleteEmptyAndDisposedSource()
     {
         using var files = new PackedIndexFixture();
-        var scripted = new ScriptedIndexWatchSource { AutoCatchUp = true };
+        var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var index = await files.OpenMftIndexAsync(scripted, 'X');
         var connection = new CountingOwner();
         var session = new MftIndexSession(index, connection, ["X"], [new IndexedDrive('X', files.TreePath, 1)], new Dictionary<string, string>());
@@ -211,7 +211,7 @@ public class WindowsWatchStartupTests
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
         var yDir = Directory.CreateDirectory(Path.Combine(files.DirectoryPath, "y-repos")).FullName;
-        var scripted = new ScriptedIndexWatchSource { AutoCatchUp = false };
+        var scripted = new ScriptedWatchSource();
         var index = await files.OpenMftIndexAsync(scripted, 'X', 'Y');
         var connection = new CountingOwner();
         var session = new MftIndexSession(index, connection, ["X", "Y"], [
@@ -239,11 +239,11 @@ public class WindowsWatchStartupTests
         using var cts = new CancellationTokenSource(HangGuard);
 
         var startupTask = coordinator.PrepareWatchAsync(request, null, cts.Token);
-        await scripted.Started.WaitAsync(cts.Token);
+        await scripted.WaitForWatchesAsync(2);
 
         // Drive X catches up, Drive Y faults
-        scripted.LoseChannel('Y', new IOException("Y journal corrupt"));
-        scripted.Publish('X', new DriveCaughtUp());
+        scripted.WatchFor('Y').LoseChannel(new IOException("Y journal corrupt"));
+        await scripted.WatchFor('X').PublishCaughtUpAsync();
 
         await using var startup = await startupTask;
 
@@ -293,7 +293,7 @@ public class WindowsWatchStartupTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
-        var scripted = new ScriptedIndexWatchSource { AutoCatchUp = false };
+        var scripted = new ScriptedWatchSource();
         var index = await files.OpenMftIndexAsync(scripted, 'X');
         var connection = new CountingOwner();
         var session = new MftIndexSession(index, connection, ["X"], [new IndexedDrive('X', files.TreePath, 1)], new Dictionary<string, string>());
@@ -317,17 +317,16 @@ public class WindowsWatchStartupTests
         using var cts = new CancellationTokenSource(HangGuard);
 
         var startupTask = coordinator.PrepareWatchAsync(request, null, cts.Token);
-        await scripted.Started.WaitAsync(cts.Token);
+        await scripted.WaitForWatchesAsync();
 
         // While buffering, simulate Create followed by Delete for temp-repo
-        scripted.Publish('X', new JournalBatch(
-        [
+        await scripted.WatchFor('X').PublishBatchAsync([
             Entry(60, 5, "temp-repo", UsnReason.FileCreate, isDirectory: true),
             Entry(61, 60, ".git", UsnReason.FileCreate, isDirectory: true),
             Entry(61, 60, ".git", UsnReason.FileDelete, isDirectory: true),
             Entry(60, 5, "temp-repo", UsnReason.FileDelete, isDirectory: true)
-        ], PackedIndexFixture.JournalId, 1002));
-        scripted.Publish('X', new DriveCaughtUp());
+        ], new UsnJournalCursor(PackedIndexFixture.JournalId, 1002));
+        await scripted.WatchFor('X').PublishCaughtUpAsync();
 
         await using var startup = await startupTask;
 
@@ -339,7 +338,7 @@ public class WindowsWatchStartupTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
-        var scripted = new ScriptedIndexWatchSource { AutoCatchUp = false };
+        var scripted = new ScriptedWatchSource();
         var index = await files.OpenMftIndexAsync(scripted, 'X');
         var connection = new CountingOwner();
         var session = new MftIndexSession(index, connection, ["X"], [new IndexedDrive('X', files.TreePath, 1)], new Dictionary<string, string>());
@@ -363,14 +362,13 @@ public class WindowsWatchStartupTests
         using var cts = new CancellationTokenSource(HangGuard);
 
         var startupTask = coordinator.PrepareWatchAsync(request, null, cts.Token);
-        await scripted.Started.WaitAsync(cts.Token);
+        await scripted.WaitForWatchesAsync();
 
         // A modification under the already-tracked repository arrives during catch-up.
-        scripted.Publish('X', new JournalBatch(
-        [
+        await scripted.WatchFor('X').PublishBatchAsync([
             Entry(50, 6, "notes.txt", UsnReason.FileCreate)
-        ], PackedIndexFixture.JournalId, 1002));
-        scripted.Publish('X', new DriveCaughtUp());
+        ], new UsnJournalCursor(PackedIndexFixture.JournalId, 1002));
+        await scripted.WatchFor('X').PublishCaughtUpAsync();
 
         await using var startup = await startupTask;
 
@@ -390,7 +388,7 @@ public class WindowsWatchStartupTests
         using var files = new PackedIndexFixture();
         var plainRepo = Path.Combine(files.TreePath, "newrepo");
         var hiddenRepo = Path.Combine(files.TreePath, ".hidden", "repo");
-        var scripted = new ScriptedIndexWatchSource { AutoCatchUp = false };
+        var scripted = new ScriptedWatchSource();
         var index = await files.OpenMftIndexAsync(scripted, 'X');
         var connection = new CountingOwner();
         var session = new MftIndexSession(index, connection, ["X"], [new IndexedDrive('X', files.TreePath, 1)], new Dictionary<string, string>());
@@ -419,17 +417,16 @@ public class WindowsWatchStartupTests
         using var cts = new CancellationTokenSource(HangGuard);
 
         var startupTask = coordinator.PrepareWatchAsync(request, null, cts.Token);
-        await scripted.Started.WaitAsync(cts.Token);
+        await scripted.WaitForWatchesAsync();
 
-        scripted.Publish('X', new JournalBatch(
-        [
+        await scripted.WatchFor('X').PublishBatchAsync([
             Entry(50, 5, "newrepo", UsnReason.FileCreate, isDirectory: true),
             Entry(51, 50, ".git", UsnReason.FileCreate, isDirectory: true),
             Entry(60, 5, ".hidden", UsnReason.FileCreate, isDirectory: true),
             Entry(61, 60, "repo", UsnReason.FileCreate, isDirectory: true),
             Entry(62, 61, ".git", UsnReason.FileCreate, isDirectory: true)
-        ], PackedIndexFixture.JournalId, 1002));
-        scripted.Publish('X', new DriveCaughtUp());
+        ], new UsnJournalCursor(PackedIndexFixture.JournalId, 1002));
+        await scripted.WatchFor('X').PublishCaughtUpAsync();
 
         await using var startup = await startupTask;
 
@@ -444,7 +441,7 @@ public class WindowsWatchStartupTests
     }
 
     static UsnJournalEntry Entry(ulong recordNumber, ulong parentNumber, string name, UsnReason reason, bool isDirectory = false) =>
-        UsnJournalEntry.Create(new UsnJournalEntryOptions
+        SyntheticJournalEntry.Create(new SyntheticJournalEntryOptions
         {
             RecordNumber = recordNumber,
             ParentRecordNumber = parentNumber,
@@ -452,7 +449,7 @@ public class WindowsWatchStartupTests
             FileName = name,
             Reason = reason,
             FileAttributes = isDirectory ? FileAttributes.Directory : FileAttributes.Normal,
-            Timestamp = PackedIndexFixture.CompletionTimestamp,
+            TimestampUtc = PackedIndexFixture.CompletionTimestamp,
             Usn = 1001
         });
 }

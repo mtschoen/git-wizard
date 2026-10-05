@@ -4,6 +4,7 @@ using GitWizard.Watch.Linux;
 using GitWizardTests.TestSupport;
 using GitWizardUI.ViewModels;
 using GitWizardUI.ViewModels.Services;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests.UI;
 
@@ -127,7 +128,7 @@ public class MainViewModelPreparedSessionTests
 
     static async Task ExerciseRestartAsync(bool respawn)
     {
-        var scripted = new ScriptedIndexWatchSource();
+        var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         await using var fixture = new IndexOwnerFixture();
         await fixture.StartAsync(scripted);
         await using var viewModel = NewViewModel();
@@ -150,13 +151,13 @@ public class MainViewModelPreparedSessionTests
         try
         {
             var starting = viewModel.ToggleLiveAsync();
-            await scripted.Started.WaitAsync(HangGuard);
+            await scripted.WaitForWatchesAsync();
             await WaitUntilAsync(() => viewModel.IsLive);
             Assert.That(opens, Is.Zero);
             Assert.That(viewModel.PreparedDiscoveryIndex, Is.Null);
             if (respawn)
             {
-                scripted.LoseChannel('X', new IOException("source died"));
+                scripted.WatchFor('X').LoseChannel(new IOException("source died"));
                 await starting.WaitAsync(HangGuard);
             }
             else

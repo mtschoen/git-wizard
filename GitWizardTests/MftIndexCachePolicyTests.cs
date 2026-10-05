@@ -2,6 +2,7 @@ using GitWizard;
 using GitWizardTests.TestSupport;
 using MFTLib;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests;
 
@@ -20,11 +21,11 @@ public class MftIndexCachePolicyTests
     public void CurrentScanShapeIsPinnedToItsCacheTagVersion()
     {
         var tag = MftIndexCachePolicy.CacheTag;
-        Assert.That(ScanShapeByVersion, Does.ContainKey(tag.Version),
+        Assert.That(ScanShapeByVersion, Does.ContainKey(SyntheticCacheTag.GetVersion(tag)),
             "Add a row for the new CacheTag version to ScanShapeByVersion.");
-        Assert.That(MftIndexCachePolicy.ScanShape, Is.EqualTo(ScanShapeByVersion[tag.Version]),
+        Assert.That(MftIndexCachePolicy.ScanShape, Is.EqualTo(ScanShapeByVersion[SyntheticCacheTag.GetVersion(tag)]),
             "The scan profile or keep list changed: increment CacheTagVersion in MftIndexCachePolicy.");
-        Assert.That(tag.Version, Is.EqualTo(ScanShapeByVersion.Keys.Max()));
+        Assert.That(SyntheticCacheTag.GetVersion(tag), Is.EqualTo(ScanShapeByVersion.Keys.Max()));
     }
 
     [Test]
@@ -45,23 +46,22 @@ public class MftIndexCachePolicyTests
         files.AddMarker("repository");
         var path = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         var calls = 0;
-        MftBlockProducer produceMft = files.ProduceMftAsync;
-        Task<MftBlockProduceResult> Produce(MftBlockProduceRequest request, CancellationToken token)
+        files.Producer.BeforeProduceAsync = (_, _) =>
         {
             calls++;
-            return produceMft(request, token);
-        }
+            return Task.CompletedTask;
+        };
         FileIndexOptions Options(uint version, bool snapshot) => new()
         {
             Drives = [new IndexedDrive('X', files.TreePath, 1)],
             CacheDirectory = path,
-            CacheTag = new CacheTag(MftIndexCachePolicy.CacheTag.FourCc, version),
+            CacheTag = new CacheTag(SyntheticCacheTag.GetFourCharacterCode(MftIndexCachePolicy.CacheTag), version),
             NoCache = false,
             InitialOpenCacheOnly = snapshot,
             ProducerPolicy = ProducerPolicy.Mft,
-            MftProducer = Produce
+            MftSource = SyntheticIndexSource.Create(files.Producer)
         };
-        var version = MftIndexCachePolicy.CacheTag.Version;
+        var version = SyntheticCacheTag.GetVersion(MftIndexCachePolicy.CacheTag);
         await using (var first = await FileIndex.OpenAsync(Options(version, false), CancellationToken.None))
             Assert.That(first.Drives.Single().BlockSource, Is.EqualTo(BlockSource.ProducedByScan));
         await using (var declined = await FileIndex.OpenAsync(Options(version + 1, true), CancellationToken.None))
@@ -71,6 +71,6 @@ public class MftIndexCachePolicyTests
             Assert.That(second.Drives.Single().BlockSource, Is.EqualTo(BlockSource.ProducedByScan));
         Assert.That(calls, Is.EqualTo(2));
         Assert.That(CacheDirectory.InspectCached(path).Single().CacheTag,
-            Is.EqualTo(new CacheTag(MftIndexCachePolicy.CacheTag.FourCc, version + 1)));
+            Is.EqualTo(new CacheTag(SyntheticCacheTag.GetFourCharacterCode(MftIndexCachePolicy.CacheTag), version + 1)));
     }
 }

@@ -4,6 +4,7 @@ using GitWizard.Watch;
 using GitWizardTests.TestSupport;
 using GitWizardTests.Watch;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests;
 
@@ -295,7 +296,7 @@ public class ProgramWatchLoopTests
             CacheDirectory = files.BlockDirectory,
             NoCache = true,
             ProducerPolicy = ProducerPolicy.Mft,
-            MftProducer = (_, _) => throw new IOException("cannot scan X")
+            MftSource = SyntheticIndexSource.Create(new SyntheticMftProducer(_ => throw new IOException("cannot scan X")))
         }, CancellationToken.None);
         var owner = new MftIndexSession(failedIndex, null, ["X"], [], new Dictionary<string, string>());
         var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));

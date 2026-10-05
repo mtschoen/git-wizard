@@ -4,6 +4,7 @@ using GitWizardTests.TestSupport;
 using GitWizardTests.Watch;
 using GitWizardUI.Services;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 using static GitWizardTests.TestSupport.AsyncCondition;
 
 namespace GitWizardTests.UI;
@@ -388,7 +389,7 @@ public class LiveWatchControllerTests
             CacheDirectory = files.BlockDirectory,
             NoCache = true,
             ProducerPolicy = ProducerPolicy.Mft,
-            MftProducer = (_, _) => throw new IOException("cannot scan X")
+            MftSource = SyntheticIndexSource.Create(new SyntheticMftProducer(_ => throw new IOException("cannot scan X")))
         }, CancellationToken.None);
         var owner = new MftIndexSession(failedIndex, null, ["X"], [], new Dictionary<string, string>());
         var stoppedReasons = new List<string>();

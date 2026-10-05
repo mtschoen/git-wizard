@@ -2,6 +2,7 @@ using GitWizard;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
 using MFTLib;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests.Watch;
 
@@ -66,13 +67,13 @@ public class IndexVolumeChangeSourcePreparedIndexTests
     [Test]
     public async Task PreparedIndex_ReplaysFromArmedCursorWithResolvedPaths()
     {
-        var entry = UsnJournalEntry.Create(new UsnJournalEntryOptions
+        var entry = SyntheticJournalEntry.Create(new SyntheticJournalEntryOptions
         {
             RecordNumber = 44,
             ParentRecordNumber = 42,
             SequenceNumber = 1,
             Usn = 1001,
-            Timestamp = PackedIndexFixture.CompletionTimestamp,
+            TimestampUtc = PackedIndexFixture.CompletionTimestamp,
             FileAttributes = FileAttributes.Directory,
             Reason = UsnReason.FileCreate,
             FileName = "child"

@@ -8,6 +8,9 @@ public sealed record MftIndexCacheSnapshot
     public string CacheDirectory { get; init; } = string.Empty;
     public string Profile { get; init; } = string.Empty;
     public IReadOnlyList<string> KeepFileNames { get; init; } = [];
+
+    /// <summary>A cached block whose stored tag differs from this one is discarded on open, so the inventory shows both.</summary>
+    public CacheTag RequestedCacheTag { get; init; }
     public DateTimeOffset ObservedAt { get; init; }
     public IReadOnlyList<CachedBlockStatus> Inventory { get; init; } = [];
     public IReadOnlyList<MftActiveCacheSession> Sessions { get; init; } = [];

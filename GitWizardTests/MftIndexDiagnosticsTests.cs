@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using GitWizard;
 using GitWizardTests.TestSupport;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests;
 
@@ -50,7 +51,7 @@ public class MftIndexDiagnosticsTests
         using var files = new PackedIndexFixture();
         var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         CacheDirectory.EnsureCreated(cache);
-        var retired = Path.Combine(cache, CacheDirectory.BlockFileName('X', 1) + ".retired-test");
+        var retired = SyntheticBlock.CachedPath(cache, 'X', 1) + ".retired-test";
         await File.WriteAllTextAsync(retired, "retired sentinel");
         var messages = new ConcurrentQueue<string>();
         var relay = new MftIndexDiagnostics(messages.Enqueue);
@@ -61,7 +62,7 @@ public class MftIndexDiagnosticsTests
             CacheTag = MftIndexCachePolicy.CacheTag,
             NoCache = false,
             ProducerPolicy = ProducerPolicy.Mft,
-            MftProducer = files.ProduceMftAsync,
+            MftSource = SyntheticIndexSource.Create(files.Producer),
             Diagnostics = relay.Report
         }, CancellationToken.None))
             Assert.That(File.Exists(retired), Is.False);
@@ -76,7 +77,7 @@ public class MftIndexDiagnosticsTests
         await using var broker = new BlockBrokerFixture();
         var cache = MftIndexCachePolicy.GetCacheDirectory(broker.CacheDirectory);
         CacheDirectory.EnsureCreated(cache);
-        var retired = Path.Combine(cache, CacheDirectory.BlockFileName('X', 1) + ".retired-test");
+        var retired = SyntheticBlock.CachedPath(cache, 'X', 1) + ".retired-test";
         await File.WriteAllTextAsync(retired, "retired sentinel");
         var messages = new ConcurrentQueue<string>();
         var previousMethod = GitWizardLog.LogMethod;

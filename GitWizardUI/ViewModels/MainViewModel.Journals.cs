@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using GitWizard;
 using GitWizard.Watch;
 using GitWizardUI.Services;
+using MFTLib;
 using MFTLib.Index;
 
 namespace GitWizardUI.ViewModels;

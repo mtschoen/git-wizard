@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using GitWizard;
+using GitWizardTests.TestSupport;
 using GitWizardUI.ViewModels;
 using GitWizardUI.ViewModels.Services;
 
@@ -217,18 +218,31 @@ public class MainViewModelTests
         Assert.That(node.JustCopied, Is.True);
     }
 
-    // The indicator is transient: it lights on copy, then clears itself after the reset delay.
     [Test]
     public async Task CopyToClipboardAsync_ClearsTheCopiedIndicatorAfterTheDelay()
     {
-        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+        var clock = new ControlledDelayClock();
+        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(),
+            new StubClipboardService(), clock);
         var node = RepoNode("C:/projects/widget");
-
         var copy = vm.CopyToClipboardAsync(node);
-        Assert.That(node.JustCopied, Is.True, "Indicator must light as soon as the copy completes.");
-
-        await copy;
-        Assert.That(node.JustCopied, Is.False, "Indicator must clear after the reset delay.");
+        try
+        {
+            Assert.That(clock.Timer, Is.Not.Null, "The indicator must use the injected clock.");
+            Assert.That(node.JustCopied, Is.True);
+            Assert.That(clock.Timer!.DueTime, Is.EqualTo(TimeSpan.FromMilliseconds(1500)));
+            Assert.That(clock.Timer.Period, Is.EqualTo(Timeout.InfiniteTimeSpan));
+            Assert.That(copy.IsCompleted, Is.False);
+            clock.Timer.Fire();
+            await copy;
+            Assert.That(node.JustCopied, Is.False);
+            Assert.That(clock.Timer.IsDisposed, Is.True);
+        }
+        finally
+        {
+            clock.Timer?.Fire();
+            await copy;
+        }
     }
 
     [Test]

@@ -105,7 +105,8 @@ public partial class MainViewModel
 
         await _clipboard.SetPlainTextAsync(node.WorkingDirectory).ConfigureAwait(false);
         _ui.Post(() => node.JustCopied = true);
-        await Task.Delay(CopiedIndicatorMilliseconds).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromMilliseconds(CopiedIndicatorMilliseconds), _timeProvider)
+            .ConfigureAwait(false);
         _ui.Post(() => node.JustCopied = false);
     }
 

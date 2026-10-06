@@ -74,6 +74,8 @@ under `${XDG_STATE_HOME:-$HOME/.local/state}/git-wizard/test-results`. CI upload
 upload and download must still be verified - the documented Linux runner CA problem (see
 "CI infrastructure", below) can still prevent retention.
 
+For test-duration investigations, preserve the Windows and Linux `test-results-*` TRX artifacts from the same CI revision. Rank `UnitTestResult.duration`, retaining `testName`, its `TestDefinitions` class, and outcome. Record the CI Test-step wall clock separately from TRX start-to-finish and summed test durations. Keep runner identity and coverage settings with the comparison; do not turn these observations into elapsed-time assertions in NUnit. Individual-test duration reductions do not establish a full-step improvement under runner variability; verify and record both before and after CI Test-step timestamps and linked job/TRX evidence, and retain an incomplete disposition for the tracking issue if the required full-step reduction is not demonstrated.
+
 `LiveWatchControllerTests.RespawnLimit_Stress` is an `[Explicit]` stress entry point that runs
 the respawn-limit scenario 200 times across four concurrent workers; it is skipped by an
 ordinary run and must be selected explicitly:

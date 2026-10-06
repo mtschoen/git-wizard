@@ -1,4 +1,5 @@
 using GitWizard;
+using GitWizardTests.TestSupport;
 using GitWizardUI.ViewModels;
 using GitWizardUI.ViewModels.Services;
 
@@ -28,16 +29,26 @@ public class MainViewModelCommandAdditionalTests
     [Test]
     public async Task CopyToClipboardAsync_WritesToClipboardAndLightsJustCopied()
     {
+        var clock = new ControlledDelayClock();
         var clipboard = new StubClipboardService();
-        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), clipboard);
+        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), clipboard, clock);
         var node = RepoNode("C:/projects/widget");
-
-        var task = vm.CopyToClipboardAsync(node);
-        Assert.That(node.JustCopied, Is.True, "JustCopied must be set immediately after copy.");
-        Assert.That(clipboard.Writes, Does.Contain("C:/projects/widget"));
-
-        await task;
-        Assert.That(node.JustCopied, Is.False, "JustCopied must clear after the delay.");
+        var copy = vm.CopyToClipboardAsync(node);
+        try
+        {
+            Assert.That(clock.Timer, Is.Not.Null, "The indicator must use the injected clock.");
+            Assert.That(node.JustCopied, Is.True);
+            Assert.That(clipboard.Writes, Does.Contain("C:/projects/widget"));
+            Assert.That(copy.IsCompleted, Is.False);
+            clock.Timer!.Fire();
+            await copy;
+            Assert.That(node.JustCopied, Is.False);
+        }
+        finally
+        {
+            clock.Timer?.Fire();
+            await copy;
+        }
     }
 
     [Test]

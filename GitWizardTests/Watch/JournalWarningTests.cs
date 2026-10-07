@@ -44,6 +44,20 @@ public class JournalWarningTests
     }
 
     [Test]
+    public void GrowUnavailableReason_JournalAdvancedCause_ExplainsNoSizeWouldHaveHelped()
+    {
+        var warning = new JournalWarning
+        {
+            DriveLetter = "F",
+            VolumeSerial = 1,
+            Loss = SyntheticNotifications.CreateJournalCheckpointLoss('F', JournalCheckpointLossCause.JournalAdvanced, JournalCheckpointLossDetection.DriveOpening, 64, 8L * 1024 * 1024)
+        };
+
+        Assert.That(warning.HasGrowAction, Is.False);
+        Assert.That(warning.GrowUnavailableReason, Is.EqualTo("The journal moved while the index was closed, so no journal size would have kept the saved position."));
+    }
+
+    [Test]
     public void GrowUnavailableReason_TrimmedWithoutSize_ExplainsSizeTooLarge()
     {
         var warning = new JournalWarning

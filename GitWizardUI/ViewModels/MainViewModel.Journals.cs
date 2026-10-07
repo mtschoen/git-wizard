@@ -35,7 +35,7 @@ public partial class MainViewModel
             throw new InvalidOperationException("The drive was re-armed. Review its current journal warning.");
 
         if (warning.Loss.Cause != JournalCheckpointLossCause.CheckpointTrimmed)
-            throw new InvalidOperationException("A recreated journal has no size that would have avoided the rescan.");
+            throw new InvalidOperationException("A recreated or advanced journal has no size that would have avoided the rescan.");
         var suggestedSize = warning.Loss.SizeThatWouldHaveRetained
             ?? throw new InvalidOperationException("The size that would have avoided the rescan is too large to represent.");
 

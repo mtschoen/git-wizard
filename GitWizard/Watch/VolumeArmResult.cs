@@ -15,7 +15,9 @@ public sealed record JournalWarning
         : Loss.Cause switch
         {
             JournalCheckpointLossCause.JournalRecreated =>
-                "The journal was recreated, so no journal size would have avoided the rescan.",
+                "The journal was recreated, so no journal size would have kept the saved position.",
+            JournalCheckpointLossCause.JournalAdvanced =>
+                "The journal moved while the index was closed, so no journal size would have kept the saved position.",
             JournalCheckpointLossCause.CheckpointTrimmed when Loss.SizeThatWouldHaveRetained is null =>
                 "The size that would have avoided the rescan is too large to represent.",
             _ => "The journal is already at least as large as the size that would have avoided the rescan."

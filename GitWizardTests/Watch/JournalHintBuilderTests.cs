@@ -146,4 +146,48 @@ public class JournalHintBuilderTests
         Assert.That(hint, Does.Contain("Nothing needs changing."));
         Assert.That(hint, Does.Not.Contain("increase the journal size"));
     }
+
+    [Test]
+    public void JournalAdvanced_DriveOpening_ExplainsRescanWithNoSizeOffered()
+    {
+        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('F', JournalCheckpointLossCause.JournalAdvanced, JournalCheckpointLossDetection.DriveOpening, 64, 8L * 1024 * 1024);
+
+        var hint = JournalHintBuilder.BuildHint(loss);
+
+        Assert.That(hint, Does.StartWith("Hint on F:"));
+        Assert.That(hint, Does.Contain("The change journal moved while the index was closed, so the saved journal position could not be resumed."));
+        Assert.That(hint, Does.Contain("A full open rescans the drive; a snapshot open keeps the cached index until the next full open."));
+        Assert.That(hint, Does.Not.Contain("so the drive was rescanned"));
+        Assert.That(hint, Does.EndWith("Nothing needs changing."));
+        Assert.That(hint, Does.Not.Contain("increase the journal size"));
+        Assert.That(hint, Does.Not.Contain("Checkpoint loss detected."));
+    }
+
+    [Test]
+    public void JournalAdvanced_LiveWatch_ExplainsStoppedUpdatesWithNoSizeOffered()
+    {
+        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('F', JournalCheckpointLossCause.JournalAdvanced, JournalCheckpointLossDetection.LiveWatch, 64, 8L * 1024 * 1024);
+
+        var hint = JournalHintBuilder.BuildHint(loss);
+
+        Assert.That(hint, Does.StartWith("Hint on F:"));
+        Assert.That(hint, Does.Contain("live updates for this drive stopped"));
+        Assert.That(hint, Does.Contain("The drive is being rescanned to catch up"));
+        Assert.That(hint, Does.EndWith("Nothing needs changing."));
+        Assert.That(hint, Does.Not.Contain("increase the journal size"));
+    }
+
+    [Test]
+    public void JournalAdvanced_ScanCatchUp_ExplainsRepeatedScanWithNoSizeOffered()
+    {
+        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('F', JournalCheckpointLossCause.JournalAdvanced, JournalCheckpointLossDetection.ScanCatchUp, 64, 8L * 1024 * 1024);
+
+        var hint = JournalHintBuilder.BuildHint(loss);
+
+        Assert.That(hint, Does.StartWith("Hint on F:"));
+        Assert.That(hint, Does.Contain("moved while the drive was being scanned"));
+        Assert.That(hint, Does.Contain("the drive was scanned again"));
+        Assert.That(hint, Does.EndWith("Nothing needs changing."));
+        Assert.That(hint, Does.Not.Contain("increase the journal size"));
+    }
 }

@@ -12,6 +12,8 @@ internal static class JournalHintBuilder
 
             JournalCheckpointLossCause.CheckpointTrimmed => BuildTrimmedHint(loss),
 
+            JournalCheckpointLossCause.JournalAdvanced => BuildAdvancedHint(loss),
+
             _ => $"Hint on {loss.DriveLetter}: Checkpoint loss detected."
         };
     }
@@ -35,6 +37,27 @@ internal static class JournalHintBuilder
         return $"Hint on {loss.DriveLetter}: The change journal was recreated, so the saved " +
                "position no longer refers to anything and a full rescan was needed. " +
                "Nothing needs changing.";
+    }
+
+    static string BuildAdvancedHint(JournalCheckpointLoss loss)
+    {
+        if (loss.DetectedDuring == JournalCheckpointLossDetection.LiveWatch)
+        {
+            return $"Hint on {loss.DriveLetter}: The change journal moved while the watch was running, " +
+                   "so live updates for this drive stopped. The drive is being rescanned to catch up. " +
+                   "Nothing needs changing.";
+        }
+
+        if (loss.DetectedDuring == JournalCheckpointLossDetection.ScanCatchUp)
+        {
+            return $"Hint on {loss.DriveLetter}: The change journal moved while the drive was being " +
+                   "scanned, so the scan could not catch up and the drive was scanned again. " +
+                   "Nothing needs changing.";
+        }
+
+        return $"Hint on {loss.DriveLetter}: The change journal moved while the index was closed, " +
+               "so the saved journal position could not be resumed. A full open rescans the drive; " +
+               "a snapshot open keeps the cached index until the next full open. Nothing needs changing.";
     }
 
     static string BuildTrimmedHint(JournalCheckpointLoss loss)

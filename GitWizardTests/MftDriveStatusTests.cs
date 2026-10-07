@@ -1,6 +1,7 @@
 using GitWizard;
 using GitWizardTests.TestSupport;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests;
 
@@ -60,14 +61,7 @@ public class MftDriveStatusTests
     {
         using var files = new PackedIndexFixture();
         await using var index = await files.OpenIndexAsync();
-        var loss = new JournalCheckpointLoss
-        {
-            DriveLetter = 'X',
-            DetectedDuring = JournalCheckpointLossDetection.LiveWatch,
-            Cause = JournalCheckpointLossCause.CheckpointTrimmed,
-            AllocationDelta = 1024,
-            MaximumSize = 2048
-        };
+        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('X', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.LiveWatch, 1024, 2048);
         var source = index.Drives.Single() with
         {
             BlockSource = BlockSource.WarmStartedFromCache,

@@ -1,6 +1,5 @@
 using GitWizard;
 using GitWizardTests.TestSupport;
-using MFTLib;
 using MFTLib.Index;
 using MFTLibTestExtensions;
 
@@ -49,8 +48,8 @@ public class WindowsWatchStartupTests
 
         // Publish journal changes and caught up marker
         await scripted.WatchFor('X').PublishBatchAsync([
-            Entry(50, 6, "ordinary.txt", UsnReason.FileCreate)
-        ], new UsnJournalCursor(PackedIndexFixture.JournalId, 1002));
+            Entry(50, 6, "ordinary.txt", SyntheticJournalReason.FileCreate)
+        ], new SyntheticJournalCursor(PackedIndexFixture.JournalId, 1002));
         await scripted.WatchFor('X').PublishCaughtUpAsync();
 
         await using var startup = await startupTask;
@@ -322,11 +321,11 @@ public class WindowsWatchStartupTests
 
         // While buffering, simulate Create followed by Delete for temp-repo
         await scripted.WatchFor('X').PublishBatchAsync([
-            Entry(60, 5, "temp-repo", UsnReason.FileCreate, isDirectory: true),
-            Entry(61, 60, ".git", UsnReason.FileCreate, isDirectory: true),
-            Entry(61, 60, ".git", UsnReason.FileDelete, isDirectory: true),
-            Entry(60, 5, "temp-repo", UsnReason.FileDelete, isDirectory: true)
-        ], new UsnJournalCursor(PackedIndexFixture.JournalId, 1002));
+            Entry(60, 5, "temp-repo", SyntheticJournalReason.FileCreate, isDirectory: true),
+            Entry(61, 60, ".git", SyntheticJournalReason.FileCreate, isDirectory: true),
+            Entry(61, 60, ".git", SyntheticJournalReason.FileDelete, isDirectory: true),
+            Entry(60, 5, "temp-repo", SyntheticJournalReason.FileDelete, isDirectory: true)
+        ], new SyntheticJournalCursor(PackedIndexFixture.JournalId, 1002));
         await scripted.WatchFor('X').PublishCaughtUpAsync();
 
         await using var startup = await startupTask;
@@ -367,8 +366,8 @@ public class WindowsWatchStartupTests
 
         // A modification under the already-tracked repository arrives during catch-up.
         await scripted.WatchFor('X').PublishBatchAsync([
-            Entry(50, 6, "notes.txt", UsnReason.FileCreate)
-        ], new UsnJournalCursor(PackedIndexFixture.JournalId, 1002));
+            Entry(50, 6, "notes.txt", SyntheticJournalReason.FileCreate)
+        ], new SyntheticJournalCursor(PackedIndexFixture.JournalId, 1002));
         await scripted.WatchFor('X').PublishCaughtUpAsync();
 
         await using var startup = await startupTask;
@@ -421,12 +420,12 @@ public class WindowsWatchStartupTests
         await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard);
 
         await scripted.WatchFor('X').PublishBatchAsync([
-            Entry(50, 5, "newrepo", UsnReason.FileCreate, isDirectory: true),
-            Entry(51, 50, ".git", UsnReason.FileCreate, isDirectory: true),
-            Entry(60, 5, ".hidden", UsnReason.FileCreate, isDirectory: true),
-            Entry(61, 60, "repo", UsnReason.FileCreate, isDirectory: true),
-            Entry(62, 61, ".git", UsnReason.FileCreate, isDirectory: true)
-        ], new UsnJournalCursor(PackedIndexFixture.JournalId, 1002));
+            Entry(50, 5, "newrepo", SyntheticJournalReason.FileCreate, isDirectory: true),
+            Entry(51, 50, ".git", SyntheticJournalReason.FileCreate, isDirectory: true),
+            Entry(60, 5, ".hidden", SyntheticJournalReason.FileCreate, isDirectory: true),
+            Entry(61, 60, "repo", SyntheticJournalReason.FileCreate, isDirectory: true),
+            Entry(62, 61, ".git", SyntheticJournalReason.FileCreate, isDirectory: true)
+        ], new SyntheticJournalCursor(PackedIndexFixture.JournalId, 1002));
         await scripted.WatchFor('X').PublishCaughtUpAsync();
 
         await using var startup = await startupTask;
@@ -441,8 +440,8 @@ public class WindowsWatchStartupTests
         });
     }
 
-    static UsnJournalEntry Entry(ulong recordNumber, ulong parentNumber, string name, UsnReason reason, bool isDirectory = false) =>
-        SyntheticJournalEntry.Create(new SyntheticJournalEntryOptions
+    static SyntheticJournalRecord Entry(ulong recordNumber, ulong parentNumber, string name, SyntheticJournalReason reason, bool isDirectory = false) =>
+        new SyntheticJournalRecord
         {
             RecordNumber = recordNumber,
             ParentRecordNumber = parentNumber,
@@ -450,7 +449,7 @@ public class WindowsWatchStartupTests
             FileName = name,
             Reason = reason,
             FileAttributes = isDirectory ? FileAttributes.Directory : FileAttributes.Normal,
-            TimestampUtc = PackedIndexFixture.CompletionTimestamp,
-            Usn = 1001
-        });
+            Timestamp = PackedIndexFixture.CompletionTimestamp,
+            UpdateSequenceNumber = 1001
+        };
 }

@@ -19,7 +19,7 @@ internal sealed class PackedIndexFixture : IDisposable
         Directory.CreateDirectory(BlockDirectory);
         Producer = new SyntheticMftProducer(_ => WalkTree())
         {
-            JournalCursor = new MFTLib.UsnJournalCursor(JournalId, NextUsn),
+            JournalCursor = new SyntheticJournalCursor(JournalId, NextUsn),
             CompletedUtc = CompletionTimestamp
         };
     }

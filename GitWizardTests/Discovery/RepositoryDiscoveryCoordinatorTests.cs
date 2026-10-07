@@ -1,6 +1,7 @@
 using GitWizard;
 using GitWizardTests.TestSupport;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests.Discovery;
 
@@ -32,18 +33,7 @@ public class RepositoryDiscoveryCoordinatorTests
         DateTime? scanTimestamp = null,
         string? failureMessage = null,
         BlockSource blockSource = BlockSource.ProducedByScan) =>
-        new()
-        {
-            DriveLetter = letter,
-            BlockSource = blockSource,
-            State = state,
-            FailureKind = failureKind,
-            LiveRowCount = 10,
-            ScanTimestamp = scanTimestamp ?? DateTime.UtcNow,
-            CompactionNeeded = false,
-            WatchSupported = state == DriveState.Ready,
-            MftProducerFailureMessage = failureMessage
-        };
+        SyntheticNotifications.CreateDriveStatus(letter, state, blockSource, 10, false, scanTimestamp ?? DateTime.UtcNow) with { FailureKind = failureKind, WatchSupported = state == DriveState.Ready, MftProducerFailureMessage = failureMessage };
 
     [Test]
     public async Task OrdinaryAllowedNonemptyList_UsesList_NoIndexOpen_NoCrawler()

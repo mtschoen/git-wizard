@@ -61,7 +61,7 @@ public class MftIndexSessionTests
         using var files = new PackedIndexFixture();
         var index = await files.OpenIndexAsync();
         var lifetime = new CountingLifetime(() =>
-            Assert.Throws<ObjectDisposedException>(() => index.FindByName(".git")));
+            Assert.Throws<ObjectDisposedException>(() => index.Search(new SearchQuery(".git", NameMatchMode.Exact))));
         var session = new MftIndexSession(index, lifetime, ["X"], [], new Dictionary<string, string>());
         var first = session.DisposeAsync().AsTask();
         await lifetime.Started.Task;
@@ -125,7 +125,7 @@ public class MftIndexSessionTests
         await Task.WhenAll(cancelling, firstDisposal, secondDisposal);
         await watchBroker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.That(session.IsDisposed, Is.True);
-        Assert.Throws<ObjectDisposedException>(() => session.Index.FindByName(".git"));
+        Assert.Throws<ObjectDisposedException>(() => session.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)));
         Assert.That(watchBroker.ConnectionCount, Is.EqualTo(1));
     }
 

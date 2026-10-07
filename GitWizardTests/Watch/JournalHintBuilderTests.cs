@@ -1,6 +1,7 @@
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests.Watch;
 
@@ -37,16 +38,7 @@ public class JournalHintBuilderTests
     [Test]
     public void CheckpointTrimmed_WithoutSize_ReportsLossWithoutSizeOrGrowOffer()
     {
-        var loss = new JournalCheckpointLoss
-        {
-            DriveLetter = 'E',
-            DetectedDuring = JournalCheckpointLossDetection.DriveOpening,
-            Cause = JournalCheckpointLossCause.CheckpointTrimmed,
-            AllocationDelta = 64,
-            MaximumSize = 8L * 1024 * 1024,
-            BytesBehind = 4_000_000,
-            SizeThatWouldHaveRetained = null
-        };
+        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('E', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.DriveOpening, 64, 8L * 1024 * 1024) with { BytesBehind = 4_000_000, SizeThatWouldHaveRetained = null };
 
         var hint = JournalHintBuilder.BuildHint(loss);
 
@@ -60,16 +52,7 @@ public class JournalHintBuilderTests
     [Test]
     public void CheckpointTrimmed_IncludesBytesBehind()
     {
-        var loss = new JournalCheckpointLoss
-        {
-            DriveLetter = 'E',
-            DetectedDuring = JournalCheckpointLossDetection.DriveOpening,
-            Cause = JournalCheckpointLossCause.CheckpointTrimmed,
-            AllocationDelta = 64,
-            MaximumSize = 8L * 1024 * 1024,
-            BytesBehind = 4_000_000,
-            SizeThatWouldHaveRetained = 9_000_000
-        };
+        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('E', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.DriveOpening, 64, 8L * 1024 * 1024) with { BytesBehind = 4_000_000, SizeThatWouldHaveRetained = 9_000_000 };
 
         var hint = JournalHintBuilder.BuildHint(loss);
 
@@ -96,16 +79,7 @@ public class JournalHintBuilderTests
     [Test]
     public void LiveWatchCheckpointTrimmed_WithoutSize_ReportsLossWithoutSizeOrGrowOffer()
     {
-        var loss = new JournalCheckpointLoss
-        {
-            DriveLetter = 'E',
-            DetectedDuring = JournalCheckpointLossDetection.LiveWatch,
-            Cause = JournalCheckpointLossCause.CheckpointTrimmed,
-            AllocationDelta = 64,
-            MaximumSize = 8L * 1024 * 1024,
-            BytesBehind = 4_000_000,
-            SizeThatWouldHaveRetained = null
-        };
+        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('E', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.LiveWatch, 64, 8L * 1024 * 1024) with { BytesBehind = 4_000_000, SizeThatWouldHaveRetained = null };
 
         var hint = JournalHintBuilder.BuildHint(loss);
 

@@ -1,7 +1,7 @@
 using GitWizard;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
-using MFTLib;
+using MFTLib.Index;
 using MFTLibTestExtensions;
 
 namespace GitWizardTests.Watch;
@@ -67,17 +67,17 @@ public class IndexVolumeChangeSourcePreparedIndexTests
     [Test]
     public async Task PreparedIndex_ReplaysFromArmedCursorWithResolvedPaths()
     {
-        var entry = SyntheticJournalEntry.Create(new SyntheticJournalEntryOptions
+        var entry = new SyntheticJournalRecord
         {
             RecordNumber = 44,
             ParentRecordNumber = 42,
             SequenceNumber = 1,
-            Usn = 1001,
-            TimestampUtc = PackedIndexFixture.CompletionTimestamp,
+            UpdateSequenceNumber = 1001,
+            Timestamp = PackedIndexFixture.CompletionTimestamp,
             FileAttributes = FileAttributes.Directory,
-            Reason = UsnReason.FileCreate,
+            Reason = SyntheticJournalReason.FileCreate,
             FileName = "child"
-        });
+        };
         await using var broker = new BlockBrokerFixture([entry]);
         broker.WatchEntries = [entry];
         var owner = await MftIndexSession.OpenAsync([broker.Drive('X')], broker.CreateSession(),
@@ -92,10 +92,10 @@ public class IndexVolumeChangeSourcePreparedIndexTests
         // Routed through IndexVolumeChangeSource, which rewrites this back onto its own
         // configured drive letter (MFTLib #143), so this stays the pre-existing synthetic shape.
         Assert.That(reader.Current.Entries.Single().FullPath, Is.EqualTo(@"X:\code\repo\child"));
-        Assert.That(owner.Index.FindByName("child").Single().Parent!.Value.Name, Is.EqualTo("repo"));
+        Assert.That(owner.Index.Search(new SearchQuery("child", NameMatchMode.Exact)).Single().Parent!.Value.Name, Is.EqualTo("repo"));
         Assert.That(broker.ConnectionCount, Is.EqualTo(1));
         var started = await broker.WatchStarted.WaitAsync(timeout.Token);
         Assert.That(started.Drive, Is.EqualTo("X"));
-        Assert.That(started.Since, Is.EqualTo(new UsnJournalCursor(100UL, 1000L)));
+        Assert.That(started.Since, Is.EqualTo(new SyntheticJournalCursor(100UL, 1000L)));
     }
 }

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using GitWizard;
 using GitWizardTests.TestSupport;
+using MFTLib.Index;
 
 namespace GitWizardTests;
 
@@ -94,7 +95,7 @@ public class ReportDiscoverySessionTests
         await report.SetDiscoveryIndexAsync(fixture.Owner);
         var owner = report.DetachDiscoveryIndex();
         await report.DisposeAsync();
-        Assert.That(owner!.Index.FindByName(".git").Single().Parent!.Value.Name, Is.EqualTo("repo"));
+        Assert.That(owner!.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single().Parent!.Value.Name, Is.EqualTo("repo"));
         Assert.That(fixture.ConnectionDisposals, Is.Zero);
         await owner.DisposeAsync();
         await owner.DisposeAsync();
@@ -108,7 +109,7 @@ public class ReportDiscoverySessionTests
         await fixture.StartAsync();
         await using var report = new GitWizardReport(new GitWizardConfiguration());
         await report.SetDiscoveryIndexAsync(fixture.Owner);
-        Assert.That(report.DiscoveryIndex!.FindByName(".git").Single().Parent!.Value.Name, Is.EqualTo("repo"));
+        Assert.That(report.DiscoveryIndex!.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single().Parent!.Value.Name, Is.EqualTo("repo"));
         var json = JsonSerializer.Serialize(report);
         Assert.That(json, Does.Not.Contain("DiscoveryIndex"));
         Assert.That(json, Does.Not.Contain(".git"));

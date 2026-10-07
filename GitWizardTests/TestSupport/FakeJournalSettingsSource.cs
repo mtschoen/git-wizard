@@ -1,6 +1,7 @@
 using GitWizard.Watch;
 using MFTLib;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests.TestSupport;
 
@@ -15,26 +16,8 @@ internal sealed class FakeJournalSettingsSource : IVolumeChangeSource, IUsnJourn
     };
     public List<JournalCheckpointLoss> CheckpointLosses { get; } =
     [
-        new JournalCheckpointLoss
-        {
-            DriveLetter = 'C',
-            DetectedDuring = JournalCheckpointLossDetection.DriveOpening,
-            Cause = JournalCheckpointLossCause.CheckpointTrimmed,
-            AllocationDelta = 8 * 1024 * 1024,
-            MaximumSize = 32L * 1024 * 1024,
-            BytesBehind = 32L * 1024 * 1024,
-            SizeThatWouldHaveRetained = 130L * 1024 * 1024
-        },
-        new JournalCheckpointLoss
-        {
-            DriveLetter = 'D',
-            DetectedDuring = JournalCheckpointLossDetection.DriveOpening,
-            Cause = JournalCheckpointLossCause.CheckpointTrimmed,
-            AllocationDelta = 8 * 1024 * 1024,
-            MaximumSize = 64L * 1024 * 1024,
-            BytesBehind = 64L * 1024 * 1024,
-            SizeThatWouldHaveRetained = 200L * 1024 * 1024
-        }
+        SyntheticNotifications.CreateJournalCheckpointLoss('C', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.DriveOpening, 8 * 1024 * 1024, 32L * 1024 * 1024) with { BytesBehind = 32L * 1024 * 1024, SizeThatWouldHaveRetained = 130L * 1024 * 1024 },
+        SyntheticNotifications.CreateJournalCheckpointLoss('D', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.DriveOpening, 8 * 1024 * 1024, 64L * 1024 * 1024) with { BytesBehind = 64L * 1024 * 1024, SizeThatWouldHaveRetained = 200L * 1024 * 1024 }
     ];
     public Task Started => _changes.Started;
     public TaskCompletionSource GrowEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -84,25 +67,9 @@ internal sealed class FakeJournalSettingsSource : IVolumeChangeSource, IUsnJourn
 
     public static JournalCheckpointLoss TrimmedLoss(char driveLetter, long maximumSize, long suggestedSize,
         long allocationDelta = 8 * 1024 * 1024,
-        JournalCheckpointLossDetection detectedDuring = JournalCheckpointLossDetection.DriveOpening) => new()
-        {
-            DriveLetter = driveLetter,
-            DetectedDuring = detectedDuring,
-            Cause = JournalCheckpointLossCause.CheckpointTrimmed,
-            AllocationDelta = allocationDelta,
-            MaximumSize = maximumSize,
-            BytesBehind = maximumSize,
-            SizeThatWouldHaveRetained = suggestedSize
-        };
+        JournalCheckpointLossDetection detectedDuring = JournalCheckpointLossDetection.DriveOpening) => SyntheticNotifications.CreateJournalCheckpointLoss(driveLetter, JournalCheckpointLossCause.CheckpointTrimmed, detectedDuring, allocationDelta, maximumSize) with { BytesBehind = maximumSize, SizeThatWouldHaveRetained = suggestedSize };
 
     public static JournalCheckpointLoss RecreatedLoss(char driveLetter, long maximumSize,
         long allocationDelta = 8 * 1024 * 1024,
-        JournalCheckpointLossDetection detectedDuring = JournalCheckpointLossDetection.DriveOpening) => new()
-        {
-            DriveLetter = driveLetter,
-            DetectedDuring = detectedDuring,
-            Cause = JournalCheckpointLossCause.JournalRecreated,
-            AllocationDelta = allocationDelta,
-            MaximumSize = maximumSize
-        };
+        JournalCheckpointLossDetection detectedDuring = JournalCheckpointLossDetection.DriveOpening) => SyntheticNotifications.CreateJournalCheckpointLoss(driveLetter, JournalCheckpointLossCause.JournalRecreated, detectedDuring, allocationDelta, maximumSize);
 }

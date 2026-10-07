@@ -1,6 +1,5 @@
 using GitWizard;
 using GitWizard.Watch;
-using MFTLib;
 using MFTLib.Index;
 using MFTLibTestExtensions;
 
@@ -150,17 +149,17 @@ internal static class WatchFailureAssertions
             await failed.Task.WaitAsync(cancellation.Token);
             Assert.That(service.ScanErrors["X"], Is.EqualTo("X watch failed"));
             Assert.That(index.Drives.Single(drive => drive.DriveLetter == 'X').State, Is.EqualTo(DriveState.Ready));
-            var markers = index.FindByName(".git").ToArray();
+            var markers = index.Search(new SearchQuery(".git", NameMatchMode.Exact)).ToArray();
             Assert.That(markers, Has.Length.EqualTo(2), "Both the failed and healthy drive remain queryable.");
             Assert.That(markers.All(entry => entry.Parent is { Name: "repo" }), Is.True);
             Assert.That(deaths, Is.Empty);
-            await scripted.WatchFor('Y').PublishBatchAsync([SyntheticJournalEntry.Create(new SyntheticJournalEntryOptions
+            await scripted.WatchFor('Y').PublishBatchAsync([new SyntheticJournalRecord
                 {
                     RecordNumber = 50, ParentRecordNumber = 6, SequenceNumber = 1,
-                    FileName = "file", Reason = UsnReason.FileCreate,
+                    FileName = "file", Reason = SyntheticJournalReason.FileCreate,
                     FileAttributes = FileAttributes.Normal,
-                    TimestampUtc = PackedIndexFixture.CompletionTimestamp, Usn = 1001
-                })], new UsnJournalCursor(PackedIndexFixture.JournalId, 1002));
+                    Timestamp = PackedIndexFixture.CompletionTimestamp, UpdateSequenceNumber = 1001
+                }], new SyntheticJournalCursor(PackedIndexFixture.JournalId, 1002));
             Assert.That(await pending, Is.True);
             Assert.That(reader.Current.RepoRoot, Is.EqualTo(@"Y:\repo"));
             pending = reader.MoveNextAsync().AsTask();

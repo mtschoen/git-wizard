@@ -45,7 +45,7 @@ public static class MftIndexCacheStatusFormatter
             availability = owned ? "InUse; this session owns the cache" : "in use; holder identity unavailable";
         lines.Add($"Drive {row.File.DriveLetter}: serial {row.File.VolumeSerial:X8}; {availability}");
         lines.Add($"  Size: {row.File.SizeBytes.ToString(CultureInfo.InvariantCulture)} bytes");
-        lines.Add($"  Directory-entry last-write UTC: {row.File.LastWriteTimeUtc:O}; age: {Age(row.File.LastWriteTimeUtc, snapshot.ObservedAt)}");
+        lines.Add($"  Directory-entry last-write UTC: {row.File.LastWriteTime:O}; age: {Age(row.File.LastWriteTime, snapshot.ObservedAt)}");
         lines.Add($"  Validation: {row.Validation?.ToString() ?? "unavailable"}; producer: {row.ProducerKind?.ToString() ?? "unavailable"}");
         lines.Add($"  Cache tag: stored {row.CacheTag?.ToString() ?? "unavailable"}; requested {snapshot.RequestedCacheTag}");
     }

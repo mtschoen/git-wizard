@@ -5,6 +5,7 @@ using GitWizard.Watch.Linux;
 using GitWizardTests.TestSupport;
 using GitWizardUI.ViewModels;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests.UI;
 
@@ -295,16 +296,7 @@ public class JournalSettingsIntegrationTests
         await _source.DisposeAsync();
         _source = new FakeJournalSettingsSource();
         _source.CheckpointLosses.Clear();
-        _source.CheckpointLosses.Add(new JournalCheckpointLoss
-        {
-            DriveLetter = 'C',
-            DetectedDuring = JournalCheckpointLossDetection.DriveOpening,
-            Cause = JournalCheckpointLossCause.CheckpointTrimmed,
-            AllocationDelta = 8 * 1024 * 1024,
-            MaximumSize = 32L * 1024 * 1024,
-            BytesBehind = 32L * 1024 * 1024,
-            SizeThatWouldHaveRetained = null
-        });
+        _source.CheckpointLosses.Add(SyntheticNotifications.CreateJournalCheckpointLoss('C', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.DriveOpening, 8 * 1024 * 1024, 32L * 1024 * 1024) with { BytesBehind = 32L * 1024 * 1024, SizeThatWouldHaveRetained = null });
         _running = _main.ToggleLiveAsync();
         await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
         _dispatcher.Drain();

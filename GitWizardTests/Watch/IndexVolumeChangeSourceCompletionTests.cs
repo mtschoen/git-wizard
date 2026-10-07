@@ -1,7 +1,6 @@
 using GitWizard;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
-using MFTLib;
 using MFTLib.Index;
 using MFTLibTestExtensions;
 using static GitWizardTests.TestSupport.AsyncCondition;
@@ -111,7 +110,7 @@ public class IndexVolumeChangeSourceCompletionTests
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         var version = owner.Index.Drives.Single().WatchStateVersion + 10;
-        var fault = new WatchFault(WatchFaultKind.Drive, 'X', new IOException("recovering"));
+        var fault = SyntheticNotifications.CreateWatchFault(WatchFaultKind.Drive, 'X', new IOException("recovering"));
         source.ApplyWatchState(new DriveWatchState('X', WatchCatchUpState.Recovering, version, fault));
         source.ApplyWatchState(new DriveWatchState('X', WatchCatchUpState.CaughtUp, version - 1, null));
         source.ApplyWatchState(new DriveWatchState('X', WatchCatchUpState.CaughtUp, version, null));
@@ -135,9 +134,9 @@ public class IndexVolumeChangeSourceCompletionTests
         var versionX = owner.Index.Drives.Single(d => d.DriveLetter == 'X').WatchStateVersion;
         var versionY = owner.Index.Drives.Single(d => d.DriveLetter == 'Y').WatchStateVersion;
         source.ApplyWatchState(new DriveWatchState('X', WatchCatchUpState.Recovering, versionX + 100,
-            new WatchFault(WatchFaultKind.Drive, 'X', new IOException("X recovering"))));
+            SyntheticNotifications.CreateWatchFault(WatchFaultKind.Drive, 'X', new IOException("X recovering"))));
         source.ApplyWatchState(new DriveWatchState('Y', WatchCatchUpState.Recovering, versionY + 1,
-            new WatchFault(WatchFaultKind.Drive, 'Y', new IOException("Y recovering"))));
+            SyntheticNotifications.CreateWatchFault(WatchFaultKind.Drive, 'Y', new IOException("Y recovering"))));
         Assert.That(source.Readiness.TryGet("X", out var statusX), Is.True);
         Assert.That(statusX!.WatchStateVersion, Is.EqualTo(versionX + 100));
         Assert.That(source.Readiness.TryGet("Y", out var statusY), Is.True);
@@ -157,7 +156,7 @@ public class IndexVolumeChangeSourceCompletionTests
         var initialVersion = owner.Index.Drives.Single().WatchStateVersion;
         var intermediateVersion = initialVersion + 5;
         source.ApplyWatchState(new DriveWatchState('X', WatchCatchUpState.Recovering, intermediateVersion,
-            new WatchFault(WatchFaultKind.Drive, 'X', new IOException("recovering"))));
+            SyntheticNotifications.CreateWatchFault(WatchFaultKind.Drive, 'X', new IOException("recovering"))));
         var countBefore = source.Readiness.RecentTransitions.Count;
 
         // Deliver older event: should be ignored
@@ -193,7 +192,7 @@ public class IndexVolumeChangeSourceCompletionTests
         {
             next = owner.Index.Drives.Single(item => item.DriveLetter == drive).WatchStateVersion + 1;
             source.ApplyWatchState(new DriveWatchState(drive, WatchCatchUpState.Recovering, next,
-                new WatchFault(WatchFaultKind.Drive, drive, new IOException("newer recovery"))));
+                SyntheticNotifications.CreateWatchFault(WatchFaultKind.Drive, drive, new IOException("newer recovery"))));
         };
         await using var sourceLifetime = source;
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
@@ -201,7 +200,7 @@ public class IndexVolumeChangeSourceCompletionTests
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
 
         scripted.WatchFor('X').FailDrive(new IOException("X failed"));
-        await WaitUntilAsync(() => owner.Index.Drives.Single().WatchCatchUp == WatchCatchUpState.Recovering);
+        await WaitUntilAsync(() => owner.Index.Drives.Single().WatchCatchUpState == WatchCatchUpState.Recovering);
         files.AddMarker("newrepo");
         release.SetResult();
 
@@ -330,7 +329,7 @@ public class IndexVolumeChangeSourceCompletionTests
                     Scripted.WatchFor(drive).FailDrive(new IOException($"{drive} failed again"));
                     break;
                 case "apply":
-                    _ = Scripted.WatchFor(drive).QueueBatch(null!, new UsnJournalCursor(PackedIndexFixture.JournalId, 1002));
+                    Scripted.WatchFor(drive).FailApply(new IOException($"{drive} apply failed"));
                     break;
                 default:
                     Scripted.WatchFor(drive).LoseChannel(new IOException($"{drive} channel lost"));
@@ -360,7 +359,7 @@ public class IndexVolumeChangeSourceCompletionTests
         public void ReleaseHeldRescan() => _heldRescan.TrySetResult();
 
         public WatchCatchUpState? StateOf(char drive) =>
-            Owner.Index.Drives.FirstOrDefault(status => status.DriveLetter == drive)?.WatchCatchUp;
+            Owner.Index.Drives.FirstOrDefault(status => status.DriveLetter == drive)?.WatchCatchUpState;
 
         public VolumeWatchState? ReadinessOf(char drive) =>
             Source.Readiness.TryGet(drive.ToString(), out var status) ? status.State : null;

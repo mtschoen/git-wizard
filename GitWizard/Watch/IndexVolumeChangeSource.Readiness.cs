@@ -75,10 +75,10 @@ public sealed partial class IndexVolumeChangeSource : IVolumeReadiness
                 continue;
             var letter = char.ToUpperInvariant(status.Drive[0]);
             // A recovering drive can carry its fault's message and still come back.
-            if (!driveSet.Contains(letter) || index.WatchCatchUp == WatchCatchUpState.Recovering)
+            if (!driveSet.Contains(letter) || index.WatchCatchUpState == WatchCatchUpState.Recovering)
                 continue;
             var message = index.WatchFailureMessage;
-            if (message is { Length: > 0 } || index.WatchCatchUp == WatchCatchUpState.Faulted)
+            if (message is { Length: > 0 } || index.WatchCatchUpState == WatchCatchUpState.Faulted)
                 RecordStartupDriveFailure(letter, message ?? "The drive's watch faulted during catch-up.");
         }
     }

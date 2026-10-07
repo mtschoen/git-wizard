@@ -248,10 +248,10 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
 
     void DeliverChange(FileChange change)
     {
-        // FileEntry.Id.DriveLetter is the stable drive key MFTLib assigns, unlike change.Path,
+        // FileEntry.RecordKey.DriveLetter is the stable drive key MFTLib assigns, unlike change.Path,
         // which renders the drive's real indexed root directory and only reads back as a
         // "<letter>:\" volume when that root directory happens to be the drive root (MFTLib #143).
-        var letter = char.ToUpperInvariant(change.Entry.Id.DriveLetter);
+        var letter = char.ToUpperInvariant(change.Entry.RecordKey.DriveLetter);
         var rewritten = _driveRealRoots.TryGetValue(letter, out var realRoot)
             ? change with
             {

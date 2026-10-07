@@ -1,7 +1,6 @@
 using GitWizard;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
-using MFTLib;
 using MFTLib.Index;
 using MFTLibTestExtensions;
 using static GitWizardTests.TestSupport.AsyncCondition;
@@ -26,7 +25,7 @@ public class IndexVolumeChangeSourceFaultTests
 
         await WaitUntilAsync(() => harness.Scripted.Watches.Count(watch => watch.DriveLetter == 'X') == 2);
         await WaitUntilAsync(() => harness.ReadinessOf('X') == VolumeWatchState.CaughtUp &&
-                                   harness.StatusOf('X').WatchCatchUp == WatchCatchUpState.CaughtUp);
+                                   harness.StatusOf('X').WatchCatchUpState == WatchCatchUpState.CaughtUp);
         Assert.That(harness.Failures, Is.Empty);
         Assert.That(harness.Deaths, Is.Empty);
         Assert.That(harness.States('X'), Does.Contain(VolumeWatchState.CatchingUp),
@@ -39,7 +38,7 @@ public class IndexVolumeChangeSourceFaultTests
             new VolumeChangeEntry(@"X:\repo\.git", VolumeEntryKind.Modified)
         }), "The recovered drive's surviving repository is refreshed.");
 
-        await harness.Scripted.WatchFor('X').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(60, 6, "after-recovery", UsnReason.FileCreate)], new UsnJournalCursor(PackedIndexFixture.JournalId, 1003));
+        await harness.Scripted.WatchFor('X').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(60, 6, "after-recovery", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalId, 1003));
         Assert.That(await harness.ReadAsync(), Is.True);
         Assert.That(harness.Current.Volume, Is.EqualTo("X"));
         Assert.That(harness.Current.Entries.Single().FullPath, Is.EqualTo(@"X:\repo\after-recovery"));
@@ -53,7 +52,7 @@ public class IndexVolumeChangeSourceFaultTests
             token => release.Task.WaitAsync(token));
         harness.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
 
-        await WaitUntilAsync(() => harness.StatusOf('X').WatchCatchUp == WatchCatchUpState.Recovering &&
+        await WaitUntilAsync(() => harness.StatusOf('X').WatchCatchUpState == WatchCatchUpState.Recovering &&
                                    harness.ReadinessOf('X') == VolumeWatchState.CatchingUp);
         Assert.That(harness.Deaths, Is.Empty);
         Assert.That(harness.Failures, Is.Empty);
@@ -61,7 +60,7 @@ public class IndexVolumeChangeSourceFaultTests
 
         release.SetResult();
         await WaitUntilAsync(() => harness.ReadinessOf('X') == VolumeWatchState.CaughtUp);
-        await harness.Scripted.WatchFor('X').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(60, 6, "recovered", UsnReason.FileCreate)], new UsnJournalCursor(PackedIndexFixture.JournalId, 1003));
+        await harness.Scripted.WatchFor('X').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(60, 6, "recovered", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalId, 1003));
         Assert.That(await harness.ReadAsync(), Is.True);
         Assert.That(harness.Deaths, Is.Empty);
     }
@@ -81,7 +80,7 @@ public class IndexVolumeChangeSourceFaultTests
         Assert.That(harness.Scripted.Starts.Count(start => start.DriveLetter == 'X'), Is.EqualTo(1),
             "A lost channel is not recovered automatically.");
 
-        await harness.Scripted.WatchFor('Y').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(50, 6, "survivor", UsnReason.FileCreate)], new UsnJournalCursor(PackedIndexFixture.JournalId, 1002));
+        await harness.Scripted.WatchFor('Y').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(50, 6, "survivor", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalId, 1002));
         Assert.That(await harness.ReadAsync(), Is.True);
         Assert.That(harness.Current.Volume, Is.EqualTo("Y"));
 
@@ -126,21 +125,14 @@ public class IndexVolumeChangeSourceFaultTests
         await using var harness = await FaultHarness.StartAsync('X', 'Y');
         var remaining = losses;
         harness.Files.Producer.CatchUpLoss = _ => Interlocked.Decrement(ref remaining) >= 0
-            ? SyntheticCheckpointLoss.WithJournalPositions(new JournalCheckpointLoss
-            {
-                DriveLetter = 'X',
-                DetectedDuring = JournalCheckpointLossDetection.ScanCatchUp,
-                Cause = JournalCheckpointLossCause.CheckpointTrimmed,
-                AllocationDelta = 64,
-                MaximumSize = 1024
-            }, 1000, 2000, 3000)
+            ? SyntheticCheckpointLoss.WithJournalPositions(SyntheticNotifications.CreateJournalCheckpointLoss('X', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.ScanCatchUp, 64, 1024), 1000, 2000, 3000)
             : null;
         harness.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
 
         if (recovers)
         {
             await WaitUntilAsync(() => harness.ReadinessOf('X') == VolumeWatchState.CaughtUp &&
-                                       harness.StatusOf('X').WatchCatchUp == WatchCatchUpState.CaughtUp);
+                                       harness.StatusOf('X').WatchCatchUpState == WatchCatchUpState.CaughtUp);
             Assert.That(harness.Failures, Is.Empty);
         }
         else
@@ -159,7 +151,7 @@ public class IndexVolumeChangeSourceFaultTests
     {
         await using var harness = await FaultHarness.StartAsync('X', 'Y');
         harness.Owner.Index.Changed += _ => throw new InvalidOperationException("subscriber failed");
-        await harness.Scripted.WatchFor('X').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(50, 6, "changed", UsnReason.FileCreate)], new UsnJournalCursor(PackedIndexFixture.JournalId, 1002));
+        await harness.Scripted.WatchFor('X').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(50, 6, "changed", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalId, 1002));
 
         Assert.That(await harness.ReadAsync(), Is.True);
         var exception = Assert.ThrowsAsync<InvalidOperationException>(async () => await harness.ReadAsync());
@@ -178,10 +170,10 @@ public class IndexVolumeChangeSourceFaultTests
     public void OnlyFaultsMftLibRecoversKeepTheDrive(WatchFaultKind kind, bool recoveryStopped, bool recovering)
     {
         Exception exception = kind == WatchFaultKind.CatchUpLost
-            ? new JournalCatchUpLostException(recoveryStopped, "lost")
+            ? SyntheticNotifications.CreateJournalCatchUpLostException(recoveryStopped, "lost")
             : new IOException("failed");
 
-        Assert.That(IndexVolumeChangeSource.IsRecoveringFault(new WatchFault(kind, 'X', exception)),
+        Assert.That(IndexVolumeChangeSource.IsRecoveringFault(SyntheticNotifications.CreateWatchFault(kind, 'X', exception)),
             Is.EqualTo(recovering));
     }
 
@@ -194,7 +186,7 @@ public class IndexVolumeChangeSourceFaultTests
         try
         {
             harness.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
-            await WaitUntilAsync(() => harness.StatusOf('X').WatchCatchUp == WatchCatchUpState.Recovering);
+            await WaitUntilAsync(() => harness.StatusOf('X').WatchCatchUpState == WatchCatchUpState.Recovering);
         }
         finally
         {
@@ -299,7 +291,7 @@ public class IndexVolumeChangeSourceFaultTests
                     Scripted.WatchFor(drive).FailDrive(new IOException($"{drive} failed"));
                     break;
                 case "apply":
-                    _ = Scripted.WatchFor(drive).QueueBatch(null!, new UsnJournalCursor(PackedIndexFixture.JournalId, 1002));
+                    Scripted.WatchFor(drive).FailApply(new IOException($"{drive} apply failed"));
                     break;
                 case "channel":
                     Scripted.WatchFor(drive).LoseChannel(new IOException($"{drive} channel lost"));

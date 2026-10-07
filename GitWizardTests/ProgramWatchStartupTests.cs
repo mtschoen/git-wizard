@@ -212,29 +212,8 @@ public class ProgramWatchStartupTests
             new Dictionary<string, string>());
         session.DriveStatusesOverride = () =>
         [
-            new MftDriveStatus("C", new DriveStatus
-            {
-                DriveLetter = 'C',
-                BlockSource = BlockSource.ProducedByScan,
-                State = DriveState.Ready,
-                FailureKind = DriveFailureKind.None,
-                LiveRowCount = 10,
-                ScanTimestamp = DateTime.UtcNow,
-                CompactionNeeded = false,
-                WatchSupported = true
-            }, null),
-            new MftDriveStatus("D", new DriveStatus
-            {
-                DriveLetter = 'D',
-                BlockSource = BlockSource.ProducedByScan,
-                State = DriveState.Failed,
-                FailureKind = DriveFailureKind.None,
-                LiveRowCount = 0,
-                ScanTimestamp = DateTime.UtcNow,
-                CompactionNeeded = false,
-                WatchSupported = false,
-                MftProducerFailureMessage = "Drive D failed"
-            }, null)
+            new MftDriveStatus("C", SyntheticNotifications.CreateDriveStatus('C', DriveState.Ready, BlockSource.ProducedByScan, 10, false, DateTime.UtcNow) with { FailureKind = DriveFailureKind.None, WatchSupported = true }, null),
+            new MftDriveStatus("D", SyntheticNotifications.CreateDriveStatus('D', DriveState.Failed, BlockSource.ProducedByScan, 0, false, DateTime.UtcNow) with { FailureKind = DriveFailureKind.None, WatchSupported = false, MftProducerFailureMessage = "Drive D failed" }, null)
         ];
 
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies

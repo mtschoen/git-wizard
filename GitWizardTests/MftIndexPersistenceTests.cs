@@ -1,6 +1,5 @@
 using GitWizard;
 using GitWizardTests.TestSupport;
-using MFTLib;
 using MFTLib.Index;
 using MFTLibTestExtensions;
 
@@ -43,7 +42,7 @@ public class MftIndexPersistenceTests
         var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         await SeedAsync(files, drive, cache);
         var calls = 0;
-        Task<BrokerProcess> Unexpected(CancellationToken cancellationToken)
+        Task<InProcessBrokerHandle> Unexpected(CancellationToken cancellationToken)
         {
             calls++;
             throw new AssertionException("A warm open must not connect.");
@@ -53,7 +52,7 @@ public class MftIndexPersistenceTests
         Assert.That(calls, Is.Zero);
         Assert.That(session.CaptureDriveStatuses().Single().IndexStatus!.BlockSource,
             Is.EqualTo(BlockSource.WarmStartedFromCache));
-        Assert.That(session.Index.FindByName(".git"), Has.Count.EqualTo(1));
+        Assert.That(session.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)), Has.Count.EqualTo(1));
     }
 
     [Test]
@@ -108,7 +107,7 @@ public class MftIndexPersistenceTests
         {
             Assert.That(competitor.CaptureDriveStatuses().Single().IndexStatus!.CacheSlot,
                 Is.EqualTo(CacheSlotState.PrivateFallback));
-            Assert.That(competitor.Index.FindByName(".git"), Has.Count.EqualTo(1));
+            Assert.That(competitor.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)), Has.Count.EqualTo(1));
             Assert.That(await ReadSharedAsync(canonical), Is.EqualTo(before));
         }
         await first.DisposeAsync();
@@ -144,23 +143,23 @@ public class MftIndexPersistenceTests
         index.Changed += _ => changed.TrySetResult();
         await index.StartWatchingAsync(CancellationToken.None);
         var start = source.Starts.Single();
-        Assert.That(start.Cursor.JournalId, Is.EqualTo(PackedIndexFixture.JournalId));
-        Assert.That(start.Cursor.NextUsn, Is.EqualTo(PackedIndexFixture.NextUsn));
+        Assert.That(start.Cursor.JournalIdentifier, Is.EqualTo(PackedIndexFixture.JournalId));
+        Assert.That(start.Cursor.NextUpdateSequenceNumber, Is.EqualTo(PackedIndexFixture.NextUsn));
         await source.WatchFor('X').PublishBatchAsync([
-            SyntheticJournalEntry.Create(new SyntheticJournalEntryOptions
+            new SyntheticJournalRecord
             {
                 RecordNumber = 6,
                 ParentRecordNumber = 5,
                 SequenceNumber = 1,
                 FileName = "renamed",
-                Reason = UsnReason.RenameNewName,
+                Reason = SyntheticJournalReason.RenameNewName,
                 FileAttributes = FileAttributes.Directory,
-                TimestampUtc = PackedIndexFixture.CompletionTimestamp,
-                Usn = PackedIndexFixture.NextUsn + 1
-            })
-        ], new UsnJournalCursor(PackedIndexFixture.JournalId, PackedIndexFixture.NextUsn + 1));
+                Timestamp = PackedIndexFixture.CompletionTimestamp,
+                UpdateSequenceNumber = PackedIndexFixture.NextUsn + 1
+            }
+        ], new SyntheticJournalCursor(PackedIndexFixture.JournalId, PackedIndexFixture.NextUsn + 1));
         await changed.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.That(index.FindByName("renamed"), Has.Count.EqualTo(1));
+        Assert.That(index.Search(new SearchQuery("renamed", NameMatchMode.Exact)), Has.Count.EqualTo(1));
         await index.StopWatchingAsync(CancellationToken.None);
     }
 

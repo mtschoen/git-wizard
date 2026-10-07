@@ -8,7 +8,7 @@ public static partial class GitWizardApi
     internal static IReadOnlyList<FileEntry> SelectGitEntries(
         FileIndex index, bool includeGitFiles, CancellationToken cancellationToken = default)
     {
-        return index.FindByName(GitEntryName, cancellationToken)
+        return index.Search(new SearchQuery(GitEntryName, NameMatchMode.Exact), cancellationToken)
             .Where(entry => !entry.IsDeleted && (includeGitFiles || entry.IsDirectory))
             .ToArray();
     }
@@ -23,8 +23,8 @@ public static partial class GitWizardApi
         var results = new List<RepositoryCandidate>();
         var seenPaths = new HashSet<string>(WatchPath.StringComparer);
 
-        var gitEntries = index.FindByName(GitEntryName, cancellationToken);
-        var headEntries = index.FindByName("HEAD", cancellationToken);
+        var gitEntries = index.Search(new SearchQuery(GitEntryName, NameMatchMode.Exact), cancellationToken);
+        var headEntries = index.Search(new SearchQuery("HEAD", NameMatchMode.Exact), cancellationToken);
 
         foreach (var candidateScope in BuildCandidateScopes(index, scope))
         {

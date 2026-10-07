@@ -4,6 +4,7 @@ using GitWizard.CLI;
 using GitWizardTests.TestSupport;
 using LibGit2Sharp;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests.Discovery;
 
@@ -28,18 +29,7 @@ public class ReportPublicationTests
     }
 
     static DriveStatus CreateDriveStatus(char letter, DriveState state, string? failureMessage = null) =>
-        new()
-        {
-            DriveLetter = letter,
-            BlockSource = BlockSource.ProducedByScan,
-            State = state,
-            FailureKind = DriveFailureKind.None,
-            LiveRowCount = 10,
-            ScanTimestamp = DateTime.UtcNow,
-            CompactionNeeded = false,
-            WatchSupported = state == DriveState.Ready,
-            MftProducerFailureMessage = failureMessage
-        };
+        SyntheticNotifications.CreateDriveStatus(letter, state, BlockSource.ProducedByScan, 10, false, DateTime.UtcNow) with { FailureKind = DriveFailureKind.None, WatchSupported = state == DriveState.Ready, MftProducerFailureMessage = failureMessage };
 
     static RepositoryDiscoveryCoordinator CreateCoordinator(
         FileIndex index,

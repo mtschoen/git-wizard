@@ -4,6 +4,7 @@ using GitWizard.Watch.Linux;
 using GitWizardTests.TestSupport;
 using GitWizardUI.ViewModels;
 using GitWizardUI.ViewModels.Services;
+using MFTLib.Index;
 using MFTLibTestExtensions;
 
 namespace GitWizardTests.UI;
@@ -65,7 +66,7 @@ public class MainViewModelPreparedSessionTests
         try
         {
             Assert.That(owner, Is.SameAs(fixture.Owner));
-            Assert.That(owner!.Index.FindByName(".git").Single().Parent!.Value.Name, Is.EqualTo("repo"));
+            Assert.That(owner!.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single().Parent!.Value.Name, Is.EqualTo("repo"));
             Assert.That(fixture.ConnectionDisposals, Is.Zero);
         }
         finally

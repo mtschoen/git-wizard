@@ -4,6 +4,7 @@ using GitWizardTests.TestSupport;
 using GitWizardUI.ViewModels;
 using GitWizardUI.ViewModels.Services;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests.UI;
 
@@ -66,7 +67,7 @@ public class IndexCacheStatusViewModelTests
     public async Task ModelPublishesInventoryOutcomes(CachedBlockAvailability availability)
     {
         using var files = new PackedIndexFixture();
-        var row = new CachedBlockStatus(new CachedBlockFile('X', 1, "fixture", 42,
+        var row = SyntheticNotifications.CreateCachedBlockStatus(SyntheticNotifications.CreateCachedBlockFile('X', 1, "fixture", 42,
             FrozenCacheClock.Now.UtcDateTime.AddMinutes(-5)), availability, null, null, null);
         var snapshot = new MftIndexCacheInspection(new FrozenCacheClock(), true,
             _ => new[] { row }).Capture(files.DirectoryPath);

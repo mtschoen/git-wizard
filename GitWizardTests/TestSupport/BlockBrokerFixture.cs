@@ -14,23 +14,23 @@ namespace GitWizardTests.TestSupport;
 internal sealed class BlockBrokerFixture : IAsyncDisposable
 {
     static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(30);
-    static readonly UsnJournalCursor Cursor = new(100UL, 1000L);
-    static readonly UsnJournalCursor CaughtUpCursor = new(100UL, 1500L);
-    static readonly UsnJournalCursor WatchCursor = new(100UL, 2000L);
+    static readonly SyntheticJournalCursor Cursor = new(100UL, 1000L);
+    static readonly SyntheticJournalCursor CaughtUpCursor = new(100UL, 1500L);
+    static readonly SyntheticJournalCursor WatchCursor = new(100UL, 2000L);
 
     readonly PackedIndexFixture _files = new();
     readonly List<InProcessBrokerHandle> _processes = [];
     readonly ScriptedBrokerVolumes _volumes;
     InProcessBrokerHandle? _handle;
-    readonly UsnJournalEntry[] _catchUpEntries;
+    readonly SyntheticJournalRecord[] _catchUpEntries;
     readonly string? _scanError;
-    readonly TaskCompletionSource<(string Drive, UsnJournalCursor Since)> _watchStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    readonly TaskCompletionSource<(string Drive, SyntheticJournalCursor Since)> _watchStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
     readonly TaskCompletionSource _shutdown = new(TaskCreationOptions.RunContinuationsAsynchronously);
     readonly ConcurrentDictionary<string, bool> _armedDrives = new(StringComparer.OrdinalIgnoreCase);
     int _recordsYielded;
     int _scanCompleted;
 
-    public BlockBrokerFixture(UsnJournalEntry[]? catchUpEntries = null, string? scanError = null)
+    public BlockBrokerFixture(SyntheticJournalRecord[]? catchUpEntries = null, string? scanError = null)
     {
         _catchUpEntries = catchUpEntries ?? [];
         _scanError = scanError;
@@ -58,9 +58,9 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
     public Task Shutdown => _shutdown.Task;
 
     /// <summary>The drive and starting cursor of the first watch the host started.</summary>
-    public Task<(string Drive, UsnJournalCursor Since)> WatchStarted => _watchStarted.Task;
+    public Task<(string Drive, SyntheticJournalCursor Since)> WatchStarted => _watchStarted.Task;
 
-    public UsnJournalEntry[] WatchEntries { get; set; } = [];
+    public SyntheticJournalRecord[] WatchEntries { get; set; } = [];
     public string? FailedDrive { get; set; }
     public Action? ScanReceived { get; set; }
 
@@ -102,7 +102,7 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
     /// <summary>True once a scan yielded every record and its enumeration ran to the end.</summary>
     public bool ScanCompleted => Volatile.Read(ref _scanCompleted) != 0;
 
-    public Task<BrokerProcess> ConnectAsync(CancellationToken cancellationToken)
+    public Task<InProcessBrokerHandle> ConnectAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         ConnectionCount++;
@@ -110,13 +110,13 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
         lock (_processes)
             _processes.Add(handle);
         _handle = handle;
-        _ = ObserveShutdownAsync(handle.Process);
-        return Task.FromResult(handle.Process);
+        _ = ObserveShutdownAsync(handle);
+        return Task.FromResult(handle);
     }
 
-    async Task ObserveShutdownAsync(BrokerProcess process)
+    async Task ObserveShutdownAsync(InProcessBrokerHandle handle)
     {
-        await process.Ended.ConfigureAwait(false);
+        await handle.Ended.ConfigureAwait(false);
         _shutdown.TrySetResult();
     }
 
@@ -126,10 +126,10 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
         if (_handle is not { } handle)
             return;
         handle.Crash();
-        await handle.Process.Ended.ConfigureAwait(false);
+        await handle.Ended.ConfigureAwait(false);
     }
 
-    IEnumerable<IReadOnlyList<MftRecord>> ScanDrive(ScriptedScan scan)
+    IEnumerable<IReadOnlyList<SyntheticScanRecord>> ScanDrive(ScriptedScan scan)
     {
         ScanReceived?.Invoke();
         scan.CancellationToken.ThrowIfCancellationRequested();
@@ -149,7 +149,7 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
         return YieldRecords(scan.CancellationToken);
     }
 
-    IEnumerable<IReadOnlyList<MftRecord>> YieldRecords(CancellationToken cancellationToken)
+    IEnumerable<IReadOnlyList<SyntheticScanRecord>> YieldRecords(CancellationToken cancellationToken)
     {
         Interlocked.Increment(ref _recordsYielded);
         yield return [Directory(5, ".", 5)];
@@ -162,26 +162,26 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
         Volatile.Write(ref _scanCompleted, 1);
     }
 
-    static MftRecord Directory(ulong recordNumber, string name, ulong parentRecordNumber) =>
-        SyntheticMftRecord.Create(new SyntheticMftRecordOptions
+    static SyntheticScanRecord Directory(ulong recordNumber, string name, ulong parentRecordNumber) =>
+        new()
         {
             RecordNumber = recordNumber,
             ParentRecordNumber = parentRecordNumber,
             FileName = name,
             IsDirectory = true
-        });
+        };
 
     // The journal's tip: the first query of a drive arms its scan at Cursor, and the catch-up
     // entries, when any, are then journaled between Cursor and CaughtUpCursor.
-    UsnJournalCursor QueryCursor(string drive) =>
+    SyntheticJournalCursor QueryCursor(string drive) =>
         _armedDrives.TryAdd(drive, true) || _catchUpEntries.Length == 0 ? Cursor : CaughtUpCursor;
 
-    (UsnJournalEntry[] Entries, UsnJournalCursor Updated) ReadJournal(string drive, UsnJournalCursor since,
+    (SyntheticJournalRecord[] Entries, SyntheticJournalCursor Updated) ReadJournal(string drive, SyntheticJournalCursor since,
         int maximumBufferReads) =>
         since == Cursor && _catchUpEntries.Length > 0 ? (_catchUpEntries, CaughtUpCursor) : ([], since);
 
-    async IAsyncEnumerable<(UsnJournalEntry[] Entries, UsnJournalCursor Cursor)> WatchDriveAsync(string drive,
-        UsnJournalCursor since, [EnumeratorCancellation] CancellationToken cancellationToken)
+    async IAsyncEnumerable<(SyntheticJournalRecord[] Entries, SyntheticJournalCursor Cursor)> WatchDriveAsync(string drive,
+        SyntheticJournalCursor since, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         _watchStarted.TrySetResult((drive, since));
         // A watch resumed from before the catch-up entries replays them, as the journal would.

@@ -2,6 +2,7 @@ using GitWizard;
 using GitWizard.CLI;
 using GitWizardTests.TestSupport;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests.Discovery;
 
@@ -86,18 +87,7 @@ public class CliDiscoveryRoutingTests
     }
 
     static DriveStatus CreateDriveStatus(char letter, DriveState state, string? failureMessage = null) =>
-        new()
-        {
-            DriveLetter = letter,
-            BlockSource = BlockSource.ProducedByScan,
-            State = state,
-            FailureKind = DriveFailureKind.None,
-            LiveRowCount = 10,
-            ScanTimestamp = DateTime.UtcNow,
-            CompactionNeeded = false,
-            WatchSupported = state == DriveState.Ready,
-            MftProducerFailureMessage = failureMessage
-        };
+        SyntheticNotifications.CreateDriveStatus(letter, state, BlockSource.ProducedByScan, 10, false, DateTime.UtcNow) with { FailureKind = DriveFailureKind.None, WatchSupported = state == DriveState.Ready, MftProducerFailureMessage = failureMessage };
 
     [TestCase("report")]
     [TestCase("sweep")]

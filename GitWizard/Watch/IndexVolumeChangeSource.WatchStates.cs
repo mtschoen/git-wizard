@@ -36,7 +36,7 @@ public sealed partial class IndexVolumeChangeSource
     void SeedWatchStates(FileIndex index)
     {
         foreach (var status in index.Drives)
-            AcceptWatchState(new DriveWatchState(status.DriveLetter, status.WatchCatchUp,
+            AcceptWatchState(new DriveWatchState(status.DriveLetter, status.WatchCatchUpState,
                 status.WatchStateVersion, null), recordTransition: false);
     }
 
@@ -57,14 +57,14 @@ public sealed partial class IndexVolumeChangeSource
         lock (_watchStateLock)
         {
             if (_watchStatesStopped || !ContainsUsableDrive(drive) ||
-                (_watchStateVersions.TryGetValue(drive, out var version) && change.Version <= version))
+                (_watchStateVersions.TryGetValue(drive, out var version) && change.WatchStateVersion <= version))
                 return;
-            _watchStateVersions[drive] = change.Version;
+            _watchStateVersions[drive] = change.WatchStateVersion;
             if (recordTransition)
             {
                 lock (_faultLock)
                     _readiness = _readiness.WithTransition(new VolumeWatchTransition(
-                        _watchSessionId, drive.ToString(), change.Version, change.State.ToString(),
+                        _watchSessionId, drive.ToString(), change.WatchStateVersion, change.WatchCatchUpState.ToString(),
                         change.Fault?.Exception.Message, DateTimeOffset.UtcNow));
             }
             var previous = Readiness.TryGet(drive.ToString(), out var status) ? status : null;
@@ -73,9 +73,9 @@ public sealed partial class IndexVolumeChangeSource
             // failed start results own terminal exclusion; a raw state never kills the source.
             PublishVolumeState(VolumeWatchStatus.CatchingUp(drive.ToString(), origin)
                 with
-            { WatchStateVersion = change.Version });
-            if (change.State == WatchCatchUpState.CaughtUp)
-                QueueCaughtUpLocked(drive, change.Version);
+            { WatchStateVersion = change.WatchStateVersion });
+            if (change.WatchCatchUpState == WatchCatchUpState.CaughtUp)
+                QueueCaughtUpLocked(drive, change.WatchStateVersion);
             PulseWatchStateLocked();
         }
     }

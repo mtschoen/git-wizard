@@ -72,7 +72,7 @@ public class MftIndexCacheMaintenanceTests
         using var files = new IndexCacheFixture();
         var file = CacheDirectory.InspectCached(files.Cache).Single().File;
         var result = new MftIndexCacheMaintenanceResult(
-            [new CachedBlockDeletionResult(file, outcome, reason)], [], []);
+            [SyntheticNotifications.CreateCachedBlockDeletionResult(file, outcome, reason)], [], []);
         Assert.That(result.Succeeded, Is.EqualTo(succeeded));
         Assert.That(result.ToDisplayText(), Does.Contain("Y: (00000001)"));
         Assert.That(result.ToDisplayText(), Does.Contain(outcome.ToString()));

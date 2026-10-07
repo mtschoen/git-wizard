@@ -1,5 +1,6 @@
 using GitWizard;
 using GitWizardTests.TestSupport;
+using MFTLib.Index;
 
 namespace GitWizardTests;
 
@@ -80,7 +81,7 @@ public class BrokerDiscoveryTests
         await result.DisposeAsync();
         Assert.That(result.Index, Is.Null);
         Assert.That(owner, Is.SameAs(fixture.Owner));
-        Assert.That(owner!.Index.FindByName(".git").Single().Parent!.Value.Name, Is.EqualTo("repo"));
+        Assert.That(owner!.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single().Parent!.Value.Name, Is.EqualTo("repo"));
         Assert.That(fixture.ConnectionDisposals, Is.Zero);
         await owner.DisposeAsync();
         Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
@@ -140,7 +141,7 @@ public class BrokerDiscoveryTests
             new IndexDiscoveryComposition(_ => Task.FromResult(owner), _ => true), updates);
         Assert.That(result.Success, Is.True);
         Assert.That(updates.Messages, Has.Some.Contains("Y: scan denied"));
-        Assert.That(result.Index!.FindByName(".git").Single().Parent!.Value.Name, Is.EqualTo("repo"));
+        Assert.That(result.Index!.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single().Parent!.Value.Name, Is.EqualTo("repo"));
         Assert.That(result.ScanErrors, Does.ContainKey("Y"));
         Assert.That(result.ScanErrors["Y"], Is.EqualTo("scan denied"));
     }

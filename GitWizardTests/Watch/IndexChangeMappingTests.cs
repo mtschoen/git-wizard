@@ -1,6 +1,7 @@
 using GitWizard;
 using GitWizard.Watch;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests.Watch;
 
@@ -42,7 +43,7 @@ public class IndexChangeMappingTests
     [Test]
     public void CreatedMapsToCreated()
     {
-        var change = new FileChange(FileChangeKind.Created, Entry("file.txt", false),
+        var change = SyntheticNotifications.CreateFileChange(FileChangeKind.Created, Entry("file.txt", false),
             @"T:\captured\file.txt", ChangeTime);
 
         Assert.Throws<ArgumentOutOfRangeException>(() =>
@@ -56,7 +57,7 @@ public class IndexChangeMappingTests
     [Test]
     public void DeletedUsesCapturedPath()
     {
-        var change = new FileChange(FileChangeKind.Deleted, Entry("file.txt", false),
+        var change = SyntheticNotifications.CreateFileChange(FileChangeKind.Deleted, Entry("file.txt", false),
             @"T:\deleted\file.txt", ChangeTime);
 
         Assert.That(change.Entry.Path, Is.Not.EqualTo(change.Path));
@@ -69,7 +70,7 @@ public class IndexChangeMappingTests
     [Test]
     public void ModifiedUsesCapturedPath()
     {
-        var change = new FileChange(FileChangeKind.Modified, Entry("file.txt", false),
+        var change = SyntheticNotifications.CreateFileChange(FileChangeKind.Modified, Entry("file.txt", false),
             @"T:\modified\file.txt", ChangeTime);
 
         Assert.That(change.Entry.Path, Is.Not.EqualTo(change.Path));
@@ -83,8 +84,8 @@ public class IndexChangeMappingTests
     public void RenameInvalidatesBothLocations()
     {
         // P17 constructs captured locations because enumeration blocks reject journal mutation.
-        var change = new FileChange(FileChangeKind.Renamed, Entry("file.txt", false),
-            @"T:\new\file.txt", ChangeTime, PreviousPath: @"T:\old\file.txt");
+        var change = SyntheticNotifications.CreateFileChange(FileChangeKind.Renamed, Entry("file.txt", false),
+            @"T:\new\file.txt", ChangeTime, previousPath: @"T:\old\file.txt");
         ObserveDivergence(change);
         var entries = IndexChangeMapping.Map(change);
         Assert.That(entries, Is.EqualTo(new[]
@@ -97,8 +98,8 @@ public class IndexChangeMappingTests
         Assert.That(result.Created, Is.Empty);
         Assert.That(result.Deleted, Is.Empty);
 
-        var markerChange = new FileChange(FileChangeKind.Renamed, Entry(".git", true),
-            @"T:\new\.git", ChangeTime, PreviousPath: @"T:\old\.git");
+        var markerChange = SyntheticNotifications.CreateFileChange(FileChangeKind.Renamed, Entry(".git", true),
+            @"T:\new\.git", ChangeTime, previousPath: @"T:\old\.git");
         ObserveDivergence(markerChange);
         var markerEntries = IndexChangeMapping.Map(markerChange);
         Assert.That(markerEntries, Is.EqualTo(new[]
@@ -123,8 +124,8 @@ public class IndexChangeMappingTests
     [Test]
     public void DirectoryRenameMapsToDeletedPlusMovedIn()
     {
-        var change = new FileChange(FileChangeKind.Renamed, Entry("sub", true),
-            @"T:\current\sub-renamed", ChangeTime, PreviousPath: @"T:\current\sub");
+        var change = SyntheticNotifications.CreateFileChange(FileChangeKind.Renamed, Entry("sub", true),
+            @"T:\current\sub-renamed", ChangeTime, previousPath: @"T:\current\sub");
         ObserveDivergence(change);
 
         var entries = IndexChangeMapping.Map(change);
@@ -139,7 +140,7 @@ public class IndexChangeMappingTests
     [Test]
     public void DirectoryRenameWithoutPreviousPathMapsToMovedInAlone()
     {
-        var change = new FileChange(FileChangeKind.Renamed, Entry("sub", true),
+        var change = SyntheticNotifications.CreateFileChange(FileChangeKind.Renamed, Entry("sub", true),
             @"T:\current\sub-renamed", ChangeTime);
         ObserveDivergence(change);
 
@@ -155,9 +156,9 @@ public class IndexChangeMappingTests
     public void SameBatchRenameDoesNotRewriteEarlierEvent()
     {
         var entry = Entry("file.txt", false);
-        var earlierChange = new FileChange(FileChangeKind.Modified, entry, @"T:\old\file.txt", ChangeTime);
-        var renameChange = new FileChange(FileChangeKind.Renamed, entry,
-            @"T:\current\file.txt", ChangeTime, PreviousPath: earlierChange.Path);
+        var earlierChange = SyntheticNotifications.CreateFileChange(FileChangeKind.Modified, entry, @"T:\old\file.txt", ChangeTime);
+        var renameChange = SyntheticNotifications.CreateFileChange(FileChangeKind.Renamed, entry,
+            @"T:\current\file.txt", ChangeTime, previousPath: earlierChange.Path);
         ObserveDivergence(earlierChange);
         FileChange[] batch = [earlierChange, renameChange];
 
@@ -178,7 +179,7 @@ public class IndexChangeMappingTests
 
     FileEntry Entry(string name, bool isDirectory)
     {
-        var entries = _index!.FindByName(name);
+        var entries = _index!.Search(new SearchQuery(name, NameMatchMode.Exact));
         Assert.That(entries, Has.Count.EqualTo(1));
         var entry = entries[0];
         Assert.That(entry.Name, Is.EqualTo(name));

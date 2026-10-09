@@ -42,7 +42,7 @@ public class ElevationDecisionTests
         Assert.That(result, Is.True);
         Assert.That(fake.RunElevatedCalls, Has.Count.EqualTo(1));
         Assert.That(fake.RunElevatedCalls[0].Arguments, Is.EqualTo(new[] { "--elevated-defender" }));
-        Assert.That(fake.RunElevatedCalls[0].Timeout, Is.EqualTo(TimeSpan.FromSeconds(30)));
+        Assert.That(fake.RunElevatedCalls[0].Timeout, Is.EqualTo(ElevationUtilities.DefaultElevatedTimeout));
     }
 
     [Test]

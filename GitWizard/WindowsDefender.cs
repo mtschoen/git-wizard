@@ -26,7 +26,7 @@ public static class WindowsDefender
 
         // Try self-elevation first (published builds)
         if (elevation.CanSelfElevate())
-            return elevation.TryRunElevated(["--elevated-defender"], TimeSpan.FromSeconds(30));
+            return elevation.TryRunElevated(["--elevated-defender"], ElevationUtilities.DefaultElevatedTimeout);
 
         // Fall back to elevated PowerShell (dotnet run)
         return RunDefenderCommandsViaElevatedPowerShell();

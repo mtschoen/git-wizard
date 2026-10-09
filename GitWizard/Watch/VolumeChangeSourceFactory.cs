@@ -36,7 +36,7 @@ public static partial class VolumeChangeSourceFactory
             return _isElevatedOverride();
 
         if (IsWindows())
-            return ElevationUtilities.IsElevated();
+            return ElevationUtilities.DefaultProvider.IsElevated();
 
         if (IsLinux())
             return OperatingSystem.IsLinux() && LinuxNative.GetEffectiveUserId() == 0;

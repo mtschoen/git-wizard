@@ -125,7 +125,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
         foreach (var drive in index.Drives)
         {
             if (drive.State is DriveState.Failed or DriveState.Offline)
-                errors[drive.DriveLetter.ToString()] = drive.MftProducerFailureMessage ?? $"Drive is {drive.State}.";
+                errors[drive.DriveLetter.ToString()] = drive.FailureMessage ?? $"Drive is {drive.State}.";
         }
         return errors;
     }

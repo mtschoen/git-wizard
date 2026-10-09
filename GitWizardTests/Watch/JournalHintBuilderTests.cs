@@ -1,5 +1,6 @@
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
+using MFTLib;
 using MFTLib.Index;
 using MFTLibTestExtensions;
 
@@ -38,7 +39,7 @@ public class JournalHintBuilderTests
     [Test]
     public void CheckpointTrimmed_WithoutSize_ReportsLossWithoutSizeOrGrowOffer()
     {
-        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('E', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.DriveOpening, 64, 8L * 1024 * 1024) with { BytesBehind = 4_000_000, SizeThatWouldHaveRetained = null };
+        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('E', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.DriveOpening, new UsnJournalSettings { MaximumSize = 8L * 1024 * 1024, AllocationDelta = 64 }) with { BytesBehind = 4_000_000, SizeThatWouldHaveRetained = null };
 
         var hint = JournalHintBuilder.BuildHint(loss);
 
@@ -52,7 +53,7 @@ public class JournalHintBuilderTests
     [Test]
     public void CheckpointTrimmed_IncludesBytesBehind()
     {
-        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('E', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.DriveOpening, 64, 8L * 1024 * 1024) with { BytesBehind = 4_000_000, SizeThatWouldHaveRetained = 9_000_000 };
+        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('E', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.DriveOpening, new UsnJournalSettings { MaximumSize = 8L * 1024 * 1024, AllocationDelta = 64 }) with { BytesBehind = 4_000_000, SizeThatWouldHaveRetained = 9_000_000 };
 
         var hint = JournalHintBuilder.BuildHint(loss);
 
@@ -79,7 +80,7 @@ public class JournalHintBuilderTests
     [Test]
     public void LiveWatchCheckpointTrimmed_WithoutSize_ReportsLossWithoutSizeOrGrowOffer()
     {
-        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('E', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.LiveWatch, 64, 8L * 1024 * 1024) with { BytesBehind = 4_000_000, SizeThatWouldHaveRetained = null };
+        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('E', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.LiveWatch, new UsnJournalSettings { MaximumSize = 8L * 1024 * 1024, AllocationDelta = 64 }) with { BytesBehind = 4_000_000, SizeThatWouldHaveRetained = null };
 
         var hint = JournalHintBuilder.BuildHint(loss);
 
@@ -150,7 +151,7 @@ public class JournalHintBuilderTests
     [Test]
     public void JournalAdvanced_DriveOpening_ExplainsRescanWithNoSizeOffered()
     {
-        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('F', JournalCheckpointLossCause.JournalAdvanced, JournalCheckpointLossDetection.DriveOpening, 64, 8L * 1024 * 1024);
+        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('F', JournalCheckpointLossCause.JournalAdvanced, JournalCheckpointLossDetection.DriveOpening, new UsnJournalSettings { MaximumSize = 8L * 1024 * 1024, AllocationDelta = 64 });
 
         var hint = JournalHintBuilder.BuildHint(loss);
 
@@ -166,7 +167,7 @@ public class JournalHintBuilderTests
     [Test]
     public void JournalAdvanced_LiveWatch_ExplainsStoppedUpdatesWithNoSizeOffered()
     {
-        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('F', JournalCheckpointLossCause.JournalAdvanced, JournalCheckpointLossDetection.LiveWatch, 64, 8L * 1024 * 1024);
+        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('F', JournalCheckpointLossCause.JournalAdvanced, JournalCheckpointLossDetection.LiveWatch, new UsnJournalSettings { MaximumSize = 8L * 1024 * 1024, AllocationDelta = 64 });
 
         var hint = JournalHintBuilder.BuildHint(loss);
 
@@ -180,7 +181,7 @@ public class JournalHintBuilderTests
     [Test]
     public void JournalAdvanced_ScanCatchUp_ExplainsRepeatedScanWithNoSizeOffered()
     {
-        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('F', JournalCheckpointLossCause.JournalAdvanced, JournalCheckpointLossDetection.ScanCatchUp, 64, 8L * 1024 * 1024);
+        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('F', JournalCheckpointLossCause.JournalAdvanced, JournalCheckpointLossDetection.ScanCatchUp, new UsnJournalSettings { MaximumSize = 8L * 1024 * 1024, AllocationDelta = 64 });
 
         var hint = JournalHintBuilder.BuildHint(loss);
 

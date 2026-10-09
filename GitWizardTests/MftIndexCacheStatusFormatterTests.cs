@@ -56,13 +56,13 @@ public class MftIndexCacheStatusFormatterTests
     {
         using var files = new PackedIndexFixture();
         await using var index = await files.OpenIndexAsync();
-        var status = index.Drives.Single() with
+        var drive = index.Drives.Single();
+        var status = drive with
         {
             State = refused ? DriveState.Failed : DriveState.Ready,
             FailureKind = refused ? DriveFailureKind.InUse : DriveFailureKind.None,
-            CacheSlot = CacheSlotState.NotApplicable,
-            ScanTimestamp = default,
-            WatchFailureMessage = refused ? null : "watch stopped"
+            Block = drive.Block with { CacheSlot = CacheSlotState.NotApplicable, ScanTimestamp = default },
+            Watch = drive.Watch with { FailureMessage = refused ? null : "watch stopped" }
         };
         var directory = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         var active = new MftActiveCacheSession(directory,

@@ -1,5 +1,6 @@
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
+using MFTLib;
 using MFTLib.Index;
 using MFTLibTestExtensions;
 
@@ -50,7 +51,7 @@ public class JournalWarningTests
         {
             DriveLetter = "F",
             VolumeSerial = 1,
-            Loss = SyntheticNotifications.CreateJournalCheckpointLoss('F', JournalCheckpointLossCause.JournalAdvanced, JournalCheckpointLossDetection.DriveOpening, 64, 8L * 1024 * 1024)
+            Loss = SyntheticNotifications.CreateJournalCheckpointLoss('F', JournalCheckpointLossCause.JournalAdvanced, JournalCheckpointLossDetection.DriveOpening, new UsnJournalSettings { MaximumSize = 8L * 1024 * 1024, AllocationDelta = 64 })
         };
 
         Assert.That(warning.HasGrowAction, Is.False);
@@ -64,7 +65,7 @@ public class JournalWarningTests
         {
             DriveLetter = "E",
             VolumeSerial = 1,
-            Loss = SyntheticNotifications.CreateJournalCheckpointLoss('E', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.DriveOpening, 64, 8L * 1024 * 1024) with { BytesBehind = 4_000_000, SizeThatWouldHaveRetained = null }
+            Loss = SyntheticNotifications.CreateJournalCheckpointLoss('E', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.DriveOpening, new UsnJournalSettings { MaximumSize = 8L * 1024 * 1024, AllocationDelta = 64 }) with { BytesBehind = 4_000_000, SizeThatWouldHaveRetained = null }
         };
 
         Assert.That(warning.HasGrowAction, Is.False);

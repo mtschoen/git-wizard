@@ -26,13 +26,13 @@ public class MftActiveCacheSessionTests
         Assert.That(captured, Is.Not.Null);
         Assert.That(captured!.CacheDirectory, Is.EqualTo(files.BlockDirectory));
         Assert.That(captured.Drives.Single().VolumeSerial, Is.EqualTo(42));
-        Assert.That(captured.Drives.Single().Drive.IndexStatus!.CacheSlot,
+        Assert.That(captured.Drives.Single().Drive.IndexStatus!.Block.CacheSlot,
             Is.EqualTo(CacheSlotState.OwnedCanonical));
         Assert.That(index.Root('X').IsDirectory, Is.True);
         await source.DisposeAsync();
         Assert.That(source.CaptureCacheStatus(), Is.Null);
         Assert.That(session.CaptureCacheStatus(), Is.Null);
-        Assert.That(captured.Drives.Single().Drive.IndexStatus!.CacheSlot,
+        Assert.That(captured.Drives.Single().Drive.IndexStatus!.Block.CacheSlot,
             Is.EqualTo(CacheSlotState.OwnedCanonical), "Previously captured values stay immutable");
     }
 }

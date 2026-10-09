@@ -25,7 +25,7 @@ public class IndexVolumeChangeSourceWindowsTests
     [SupportedOSPlatform("windows")]
     public async Task GrowJournal_RealBroker_GrowsAndRejectsShrinkOnSameSession()
     {
-        if (!ElevationUtilities.IsElevated())
+        if (!ElevationUtilities.DefaultProvider.IsElevated())
         {
             Assert.Inconclusive("Requires admin");
             return;
@@ -73,7 +73,7 @@ public class IndexVolumeChangeSourceWindowsTests
     [SupportedOSPlatform("windows")]
     public async Task ArmAndCatchUpAsync_RealBroker_ReturnsUsableDriveStatus()
     {
-        if (!ElevationUtilities.IsElevated()) { Assert.Inconclusive("Requires admin"); return; }
+        if (!ElevationUtilities.DefaultProvider.IsElevated()) { Assert.Inconclusive("Requires admin"); return; }
 
         var drive = GetFixtureDrive(Path.GetTempPath());
         GitWizard.MftIndexSession? session = null;
@@ -94,9 +94,9 @@ public class IndexVolumeChangeSourceWindowsTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(status.State, Is.EqualTo(DriveState.Ready));
-            Assert.That(status.WatchSupported, Is.True);
+            Assert.That(status.Watch.Supported, Is.True);
             Assert.That(SyntheticIndexInspection.ReadHeader(session.Index, status.DriveLetter)?.RowCount, Is.GreaterThan(0u));
-            Assert.That(status.WatchFailureMessage, Is.Null);
+            Assert.That(status.Watch.FailureMessage, Is.Null);
         }
     }
 
@@ -104,7 +104,7 @@ public class IndexVolumeChangeSourceWindowsTests
     [SupportedOSPlatform("windows")]
     public async Task WatchAsync_RealBroker_ReplaysFileCreatedBetweenScanAndWatch()
     {
-        if (!ElevationUtilities.IsElevated()) { Assert.Inconclusive("Requires admin"); return; }
+        if (!ElevationUtilities.DefaultProvider.IsElevated()) { Assert.Inconclusive("Requires admin"); return; }
 
         var temporaryPath = Path.Combine(Path.GetTempPath(), $"git-wizard-gap-{Guid.NewGuid():N}.tmp");
         var drive = GetFixtureDrive(temporaryPath);
@@ -133,7 +133,7 @@ public class IndexVolumeChangeSourceWindowsTests
     [SupportedOSPlatform("windows")]
     public async Task WatchAsync_RealBroker_DetectsCreatedFile()
     {
-        if (!ElevationUtilities.IsElevated()) { Assert.Inconclusive("Requires admin"); return; }
+        if (!ElevationUtilities.DefaultProvider.IsElevated()) { Assert.Inconclusive("Requires admin"); return; }
 
         var temporaryPath = Path.Combine(Path.GetTempPath(), $"git-wizard-watch-{Guid.NewGuid():N}.tmp");
         var drive = GetFixtureDrive(temporaryPath);

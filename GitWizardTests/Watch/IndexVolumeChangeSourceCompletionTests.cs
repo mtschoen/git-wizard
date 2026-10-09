@@ -109,7 +109,7 @@ public class IndexVolumeChangeSourceCompletionTests
             await files.OpenMftIndexAsync(scripted, 'X'), "X");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
-        var version = owner.Index.Drives.Single().WatchStateVersion + 10;
+        var version = owner.Index.Drives.Single().Watch.StateVersion + 10;
         var fault = SyntheticNotifications.CreateWatchFault(WatchFaultKind.Drive, 'X', new IOException("recovering"));
         source.ApplyWatchState(new DriveWatchState('X', WatchCatchUpState.Recovering, version, fault));
         source.ApplyWatchState(new DriveWatchState('X', WatchCatchUpState.CaughtUp, version - 1, null));
@@ -131,8 +131,8 @@ public class IndexVolumeChangeSourceCompletionTests
             await files.OpenMftIndexAsync(scripted, 'X', 'Y'), "X", "Y");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
-        var versionX = owner.Index.Drives.Single(d => d.DriveLetter == 'X').WatchStateVersion;
-        var versionY = owner.Index.Drives.Single(d => d.DriveLetter == 'Y').WatchStateVersion;
+        var versionX = owner.Index.Drives.Single(d => d.DriveLetter == 'X').Watch.StateVersion;
+        var versionY = owner.Index.Drives.Single(d => d.DriveLetter == 'Y').Watch.StateVersion;
         source.ApplyWatchState(new DriveWatchState('X', WatchCatchUpState.Recovering, versionX + 100,
             SyntheticNotifications.CreateWatchFault(WatchFaultKind.Drive, 'X', new IOException("X recovering"))));
         source.ApplyWatchState(new DriveWatchState('Y', WatchCatchUpState.Recovering, versionY + 1,
@@ -153,7 +153,7 @@ public class IndexVolumeChangeSourceCompletionTests
             await files.OpenMftIndexAsync(scripted, 'X'), "X");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
-        var initialVersion = owner.Index.Drives.Single().WatchStateVersion;
+        var initialVersion = owner.Index.Drives.Single().Watch.StateVersion;
         var intermediateVersion = initialVersion + 5;
         source.ApplyWatchState(new DriveWatchState('X', WatchCatchUpState.Recovering, intermediateVersion,
             SyntheticNotifications.CreateWatchFault(WatchFaultKind.Drive, 'X', new IOException("recovering"))));
@@ -190,7 +190,7 @@ public class IndexVolumeChangeSourceCompletionTests
         var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         source.ReconciliationCapturedForTest = drive =>
         {
-            next = owner.Index.Drives.Single(item => item.DriveLetter == drive).WatchStateVersion + 1;
+            next = owner.Index.Drives.Single(item => item.DriveLetter == drive).Watch.StateVersion + 1;
             source.ApplyWatchState(new DriveWatchState(drive, WatchCatchUpState.Recovering, next,
                 SyntheticNotifications.CreateWatchFault(WatchFaultKind.Drive, drive, new IOException("newer recovery"))));
         };
@@ -200,7 +200,7 @@ public class IndexVolumeChangeSourceCompletionTests
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
 
         scripted.WatchFor('X').FailDrive(new IOException("X failed"));
-        await WaitUntilAsync(() => owner.Index.Drives.Single().WatchCatchUpState == WatchCatchUpState.Recovering);
+        await WaitUntilAsync(() => owner.Index.Drives.Single().Watch.CatchUpState == WatchCatchUpState.Recovering);
         files.AddMarker("newrepo");
         release.SetResult();
 
@@ -359,7 +359,7 @@ public class IndexVolumeChangeSourceCompletionTests
         public void ReleaseHeldRescan() => _heldRescan.TrySetResult();
 
         public WatchCatchUpState? StateOf(char drive) =>
-            Owner.Index.Drives.FirstOrDefault(status => status.DriveLetter == drive)?.WatchCatchUpState;
+            Owner.Index.Drives.FirstOrDefault(status => status.DriveLetter == drive)?.Watch.CatchUpState;
 
         public VolumeWatchState? ReadinessOf(char drive) =>
             Source.Readiness.TryGet(drive.ToString(), out var status) ? status.State : null;

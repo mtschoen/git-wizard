@@ -44,7 +44,7 @@ public partial class MainViewModel
             throw new InvalidOperationException("The journal already meets the suggested size. Refusing to shrink or resize.");
 
         var after = await grower.GrowUsnJournalAsync(warning.DriveLetter[0], suggestedSize,
-            warning.Loss.AllocationDelta, CancellationToken.None).ConfigureAwait(false);
+            warning.Loss.JournalSettings.AllocationDelta, CancellationToken.None).ConfigureAwait(false);
         await _ui.InvokeAsync(() =>
         {
             if (!ReferenceEquals(controller, _liveController))
@@ -52,7 +52,7 @@ public partial class MainViewModel
             var resolved = new List<JournalWarningViewModel>();
             foreach (var row in JournalWarnings.Where(row => row.Warning == warning))
             {
-                var updatedLoss = warning.Loss with { MaximumSize = after.MaximumSize, AllocationDelta = after.AllocationDelta };
+                var updatedLoss = warning.Loss with { JournalSettings = after };
                 var updatedWarning = row.Warning with { Loss = updatedLoss };
                 if (!updatedWarning.HasGrowAction)
                     resolved.Add(row);

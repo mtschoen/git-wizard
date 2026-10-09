@@ -96,8 +96,8 @@ public class RepositoryDiscoveryCoordinatorCheckpointLossTests
         await SeedCacheAsync();
         _windows['X'] = Lost;
         var session = await OpenSessionAsync(cacheOnly, source);
-        Assert.That(session.Index.Drives.Single().CheckpointLoss, Is.Not.Null);
-        Assert.That(session.Index.Drives.Single().BlockSource, Is.EqualTo(expectedInitialSource));
+        Assert.That(session.Index.Drives.Single().Watch.CheckpointLoss, Is.Not.Null);
+        Assert.That(session.Index.Drives.Single().Block.Source, Is.EqualTo(expectedInitialSource));
         var productionsBeforeWatch = _productions;
         using var cancellation = new CancellationTokenSource(HangGuard);
 

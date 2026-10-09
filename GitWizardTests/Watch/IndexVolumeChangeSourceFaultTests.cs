@@ -1,6 +1,7 @@
 using GitWizard;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
+using MFTLib;
 using MFTLib.Index;
 using MFTLibTestExtensions;
 using static GitWizardTests.TestSupport.AsyncCondition;
@@ -25,7 +26,7 @@ public class IndexVolumeChangeSourceFaultTests
 
         await WaitUntilAsync(() => harness.Scripted.Watches.Count(watch => watch.DriveLetter == 'X') == 2);
         await WaitUntilAsync(() => harness.ReadinessOf('X') == VolumeWatchState.CaughtUp &&
-                                   harness.StatusOf('X').WatchCatchUpState == WatchCatchUpState.CaughtUp);
+                                   harness.StatusOf('X').Watch.CatchUpState == WatchCatchUpState.CaughtUp);
         Assert.That(harness.Failures, Is.Empty);
         Assert.That(harness.Deaths, Is.Empty);
         Assert.That(harness.States('X'), Does.Contain(VolumeWatchState.CatchingUp),
@@ -52,7 +53,7 @@ public class IndexVolumeChangeSourceFaultTests
             token => release.Task.WaitAsync(token));
         harness.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
 
-        await WaitUntilAsync(() => harness.StatusOf('X').WatchCatchUpState == WatchCatchUpState.Recovering &&
+        await WaitUntilAsync(() => harness.StatusOf('X').Watch.CatchUpState == WatchCatchUpState.Recovering &&
                                    harness.ReadinessOf('X') == VolumeWatchState.CatchingUp);
         Assert.That(harness.Deaths, Is.Empty);
         Assert.That(harness.Failures, Is.Empty);
@@ -101,7 +102,7 @@ public class IndexVolumeChangeSourceFaultTests
         await WaitUntilAsync(() => harness.ReadinessOf('X') == VolumeWatchState.Excluded);
         Assert.That(harness.Failures.Single().Drive, Is.EqualTo("X"));
         Assert.That(harness.Deaths, Has.Length.EqualTo(1));
-        Assert.That(harness.StatusOf('X').WatchFailureMessage, Is.Not.Null);
+        Assert.That(harness.StatusOf('X').Watch.FailureMessage, Is.Not.Null);
     }
 
     [Test]
@@ -125,14 +126,14 @@ public class IndexVolumeChangeSourceFaultTests
         await using var harness = await FaultHarness.StartAsync('X', 'Y');
         var remaining = losses;
         harness.Files.Producer.CatchUpLoss = _ => Interlocked.Decrement(ref remaining) >= 0
-            ? SyntheticCheckpointLoss.WithJournalPositions(SyntheticNotifications.CreateJournalCheckpointLoss('X', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.ScanCatchUp, 64, 1024), 1000, 2000, 3000)
+            ? SyntheticCheckpointLoss.WithJournalPositions(SyntheticNotifications.CreateJournalCheckpointLoss('X', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.ScanCatchUp, new UsnJournalSettings { MaximumSize = 1024, AllocationDelta = 64 }), 1000, 2000, 3000)
             : null;
         harness.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
 
         if (recovers)
         {
             await WaitUntilAsync(() => harness.ReadinessOf('X') == VolumeWatchState.CaughtUp &&
-                                       harness.StatusOf('X').WatchCatchUpState == WatchCatchUpState.CaughtUp);
+                                       harness.StatusOf('X').Watch.CatchUpState == WatchCatchUpState.CaughtUp);
             Assert.That(harness.Failures, Is.Empty);
         }
         else
@@ -142,7 +143,7 @@ public class IndexVolumeChangeSourceFaultTests
             Assert.That(harness.Failures.Select(failure => failure.Drive), Is.All.EqualTo("X"));
             Assert.That(harness.Failures[0].Message, Does.Contain("cannot be watched"));
         }
-        Assert.That(harness.StatusOf('X').ConsecutiveLostCatchUps, Is.EqualTo(recovers ? 0 : losses));
+        Assert.That(harness.StatusOf('X').Watch.ConsecutiveLostCatchUps, Is.EqualTo(recovers ? 0 : losses));
         Assert.That(harness.Deaths, Is.Empty);
     }
 
@@ -186,7 +187,7 @@ public class IndexVolumeChangeSourceFaultTests
         try
         {
             harness.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
-            await WaitUntilAsync(() => harness.StatusOf('X').WatchCatchUpState == WatchCatchUpState.Recovering);
+            await WaitUntilAsync(() => harness.StatusOf('X').Watch.CatchUpState == WatchCatchUpState.Recovering);
         }
         finally
         {

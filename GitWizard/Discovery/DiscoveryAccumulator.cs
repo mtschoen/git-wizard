@@ -62,7 +62,7 @@ sealed class DiscoveryAccumulator
                 string.Equals(item.Drive, drive, StringComparison.OrdinalIgnoreCase));
             var isSuccess = ObservedDrives.Contains(drive);
             var source = RescannedDrives.Contains(drive) ? DiscoverySource.Scan : unrescannedSource;
-            var timestamp = isSuccess ? driveStatus?.IndexStatus?.ScanTimestamp : null;
+            var timestamp = isSuccess ? driveStatus?.IndexStatus?.Block.ScanTimestamp : null;
             var error = isSuccess ? null : Errors.GetValueOrDefault(drive) ?? classification.Error;
 
             if (isSuccess && source == DiscoverySource.Snapshot && timestamp.HasValue)
@@ -137,13 +137,13 @@ sealed class DiscoveryAccumulator
 
     static bool IsFailed(DriveStatus indexStatus) =>
         indexStatus.State is DriveState.Failed or DriveState.Offline ||
-        indexStatus.MftProducerFailureMessage is not null ||
+        indexStatus.FailureMessage is not null ||
         indexStatus.FailureKind != DriveFailureKind.None;
 
     static string GetIndexStatusFailureMessage(DriveStatus indexStatus)
     {
-        if (indexStatus.MftProducerFailureMessage is not null)
-            return indexStatus.MftProducerFailureMessage;
+        if (indexStatus.FailureMessage is not null)
+            return indexStatus.FailureMessage;
         if (indexStatus.FailureKind == DriveFailureKind.InUse)
             return "In-use index refusal";
         if (indexStatus.FailureKind != DriveFailureKind.None)

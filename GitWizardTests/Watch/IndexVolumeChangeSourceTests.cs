@@ -80,7 +80,7 @@ public class IndexVolumeChangeSourceTests
             Assert.That(result.Errors["Z"], Is.EqualTo("scan denied"));
             Assert.That(owner.IsDisposed, Is.False);
             Assert.That(owner.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single().Parent!.Value.Name, Is.EqualTo("repo"));
-            Assert.That(owner.Index.Drives.Single().WatchSupported, Is.False);
+            Assert.That(owner.Index.Drives.Single().Watch.Supported, Is.False);
             await using var reader = source.WatchAsync(CancellationToken.None).GetAsyncEnumerator();
             Assert.That(await reader.MoveNextAsync(), Is.False, "Enumeration ownership does not start a live pump.");
             await source.DisposeAsync();
@@ -327,8 +327,9 @@ public class IndexVolumeChangeSourceTests
         var owner = new MftIndexSession(await files.OpenIndexAsync(), null, ["X"],
             [new IndexedDrive('X', files.TreePath, 12345u)], new Dictionary<string, string>());
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner), owner);
-        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('X', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.DriveOpening, 8 * 1024 * 1024, 32L * 1024 * 1024) with { BytesBehind = 4_000_000, SizeThatWouldHaveRetained = 136L * 1024 * 1024 };
-        var status = SyntheticNotifications.CreateDriveStatus('X', DriveState.Failed, BlockSource.None, 0, false, DateTime.UtcNow) with { WatchSupported = false, FailureKind = DriveFailureKind.CacheDeclined, MftProducerFailureMessage = "cache declined", CheckpointLoss = loss };
+        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('X', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.DriveOpening, new UsnJournalSettings { MaximumSize = 32L * 1024 * 1024, AllocationDelta = 8 * 1024 * 1024 }) with { BytesBehind = 4_000_000, SizeThatWouldHaveRetained = 136L * 1024 * 1024 };
+        var declinedBase = SyntheticNotifications.CreateDriveStatus('X', DriveState.Failed, BlockSource.None, 0, false, DateTime.UtcNow);
+        var status = declinedBase with { Watch = declinedBase.Watch with { Supported = false, CheckpointLoss = loss }, FailureKind = DriveFailureKind.CacheDeclined, FailureMessage = "cache declined" };
         var errors = new Dictionary<string, string>();
         var warnings = new List<JournalWarning>();
 
@@ -353,7 +354,8 @@ public class IndexVolumeChangeSourceTests
         source.JournalWarningDetected += warnings.Add;
         var liveLoss = FakeJournalSettingsSource.TrimmedLoss('X', 32L * 1024 * 1024, 136L * 1024 * 1024,
             detectedDuring: JournalCheckpointLossDetection.LiveWatch);
-        var status = SyntheticNotifications.CreateDriveStatus('X', DriveState.Ready, BlockSource.ProducedByScan, 10, false, DateTime.UtcNow) with { WatchSupported = true, WatchFailureMessage = "watch reached a position the journal no longer holds", CheckpointLoss = liveLoss };
+        var readyBase = SyntheticNotifications.CreateDriveStatus('X', DriveState.Ready, BlockSource.ProducedByScan, 10, false, DateTime.UtcNow);
+        var status = readyBase with { Watch = readyBase.Watch with { Supported = true, FailureMessage = "watch reached a position the journal no longer holds", CheckpointLoss = liveLoss } };
 
         source.ProcessFaultedDrive(status, owner, new GitWizardConfiguration());
 
@@ -365,8 +367,8 @@ public class IndexVolumeChangeSourceTests
         // A fault the journal did not cause reports nothing: the open's standing report and a
         // missing report both stay out of the event.
         var openLoss = FakeJournalSettingsSource.TrimmedLoss('X', 32L * 1024 * 1024, 136L * 1024 * 1024);
-        source.ProcessFaultedDrive(status with { CheckpointLoss = openLoss }, owner, new GitWizardConfiguration());
-        source.ProcessFaultedDrive(status with { CheckpointLoss = null }, owner, new GitWizardConfiguration());
+        source.ProcessFaultedDrive(status with { Watch = status.Watch with { CheckpointLoss = openLoss } }, owner, new GitWizardConfiguration());
+        source.ProcessFaultedDrive(status with { Watch = status.Watch with { CheckpointLoss = null } }, owner, new GitWizardConfiguration());
         Assert.That(warnings, Has.Count.EqualTo(1));
     }
 
@@ -383,7 +385,8 @@ public class IndexVolumeChangeSourceTests
         source.JournalWarningDetected += warnings.Add;
         var liveLoss = FakeJournalSettingsSource.TrimmedLoss('X', 32L * 1024 * 1024, 136L * 1024 * 1024,
             detectedDuring: JournalCheckpointLossDetection.LiveWatch);
-        var status = SyntheticNotifications.CreateDriveStatus('X', DriveState.Ready, BlockSource.ProducedByScan, 10, false, DateTime.UtcNow) with { WatchSupported = true, CheckpointLoss = liveLoss };
+        var recreatedBase = SyntheticNotifications.CreateDriveStatus('X', DriveState.Ready, BlockSource.ProducedByScan, 10, false, DateTime.UtcNow);
+        var status = recreatedBase with { Watch = recreatedBase.Watch with { Supported = true, CheckpointLoss = liveLoss } };
 
         source.ProcessFaultedDrive(status, owner, new GitWizardConfiguration());
         // The library keeps the report after its recovery rescan, so a later fault of another
@@ -397,8 +400,8 @@ public class IndexVolumeChangeSourceTests
         Assert.That(recreationLoss2, Is.EqualTo(liveLoss));
         Assert.That(recreationLoss2, Is.Not.SameAs(liveLoss));
 
-        source.ProcessFaultedDrive(status with { CheckpointLoss = recreationLoss2 }, owner, new GitWizardConfiguration());
-        source.ProcessFaultedDrive(status with { CheckpointLoss = recreationLoss2 }, owner, new GitWizardConfiguration());
+        source.ProcessFaultedDrive(status with { Watch = status.Watch with { CheckpointLoss = recreationLoss2 } }, owner, new GitWizardConfiguration());
+        source.ProcessFaultedDrive(status with { Watch = status.Watch with { CheckpointLoss = recreationLoss2 } }, owner, new GitWizardConfiguration());
         Assert.That(warnings.Select(warning => warning.Loss),
             Is.EqualTo(new[] { liveLoss, recreationLoss2 }));
     }

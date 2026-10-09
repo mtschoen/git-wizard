@@ -14,14 +14,14 @@ public sealed partial class IndexVolumeChangeSource
         var owner = _owner ?? throw new InvalidOperationException("No index session available.");
         if (drive.State is DriveState.Failed or DriveState.Offline)
         {
-            errors[drive.DriveLetter.ToString()] = drive.MftProducerFailureMessage ?? $"Drive is {drive.State}.";
+            errors[drive.DriveLetter.ToString()] = drive.FailureMessage ?? $"Drive is {drive.State}.";
             // A cache-declined drive keeps its CheckpointLoss so the hint can explain the
             // discarded checkpoint even though the drive is not being watched.
             AddJournalWarning(drive, owner, configuration, warnings);
             return;
         }
 
-        if (!drive.WatchSupported)
+        if (!drive.Watch.Supported)
             return;
 
         var letter = char.ToUpperInvariant(drive.DriveLetter);
@@ -56,10 +56,10 @@ public sealed partial class IndexVolumeChangeSource
     // journal recreations with identical fields) represent new loss episodes and are raised.
     internal void ProcessFaultedDrive(DriveStatus drive, MftIndexSession owner, GitWizardConfiguration configuration)
     {
-        if (drive.CheckpointLoss is not { DetectedDuring: JournalCheckpointLossDetection.LiveWatch or JournalCheckpointLossDetection.ScanCatchUp })
+        if (drive.Watch.CheckpointLoss is not { DetectedDuring: JournalCheckpointLossDetection.LiveWatch or JournalCheckpointLossDetection.ScanCatchUp })
             return;
         var letter = char.ToUpperInvariant(drive.DriveLetter);
-        if (_raisedFaultLosses.TryGetValue(letter, out var raised) && ReferenceEquals(raised, drive.CheckpointLoss))
+        if (_raisedFaultLosses.TryGetValue(letter, out var raised) && ReferenceEquals(raised, drive.Watch.CheckpointLoss))
             return;
         if (BuildJournalWarning(drive, owner, configuration) is not { } warning)
             return;
@@ -81,7 +81,7 @@ public sealed partial class IndexVolumeChangeSource
             char.ToUpperInvariant(candidate.DriveLetter) == char.ToUpperInvariant(drive.DriveLetter));
         if (indexedDrive is null || configuration.IgnoredJournalWarnings.Contains(indexedDrive.VolumeSerial))
             return null;
-        if (drive.CheckpointLoss is not { } loss)
+        if (drive.Watch.CheckpointLoss is not { } loss)
             return null;
 
         return new JournalWarning

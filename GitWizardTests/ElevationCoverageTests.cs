@@ -44,7 +44,7 @@ public class ElevationCoverageTests
     public async Task TryFindAllRepositoriesUsingMftAsync_Elevated_FindsPreExistingRepository()
     {
         // Guard FIRST, in the body (NUnit does not reliably skip the body from a SetUp guard).
-        if (!ElevationUtilities.IsElevated()) { Assert.Inconclusive("Requires admin"); return; }
+        if (!ElevationUtilities.DefaultProvider.IsElevated()) { Assert.Inconclusive("Requires admin"); return; }
 
         var searchRoot = Path.Combine(Path.GetTempPath(), "GitWizardMftScan", Guid.NewGuid().ToString("N"));
         var repositoryPath = Path.Combine(searchRoot, "repo");

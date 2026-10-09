@@ -54,7 +54,7 @@ public class VolumeChangeSourceFactoryTests
         VolumeChangeSourceFactory._isLinuxOverride = () => false;
 
         // ElevationUtilities on non-Windows returns false without error
-        Assert.That(VolumeChangeSourceFactory.IsElevated(), Is.EqualTo(ElevationUtilities.IsElevated()));
+        Assert.That(VolumeChangeSourceFactory.IsElevated(), Is.EqualTo(ElevationUtilities.DefaultProvider.IsElevated()));
     }
 
     [Test]

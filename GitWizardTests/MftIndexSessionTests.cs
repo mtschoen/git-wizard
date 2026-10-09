@@ -218,7 +218,7 @@ public class MftIndexSessionTests
         await using var reopened = await MftIndexSession.OpenAsync([broker.Drive('X')],
             BrokerTestHarness.CreateSession(_ => throw new AssertionException("A cached block must not connect.")),
             broker.CacheDirectory, MftIndexOpenIntent.Snapshot, null, CancellationToken.None);
-        Assert.That(reopened.CaptureDriveStatuses().Single().IndexStatus!.BlockSource,
+        Assert.That(reopened.CaptureDriveStatuses().Single().IndexStatus!.Block.Source,
             Is.EqualTo(BlockSource.WarmStartedFromCache));
     }
 

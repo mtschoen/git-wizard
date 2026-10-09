@@ -43,7 +43,7 @@ public class IndexVolumeChangeSourceRecoveryTests
                 recoveredCaughtUp.TrySetResult();
         };
         scripted.WatchFor('X').FailDrive(new IOException("X failed"));
-        await WaitUntilAsync(() => owner.Index.Drives.Single(drive => drive.DriveLetter == 'X').WatchCatchUpState ==
+        await WaitUntilAsync(() => owner.Index.Drives.Single(drive => drive.DriveLetter == 'X').Watch.CatchUpState ==
                                    WatchCatchUpState.Recovering);
         Directory.Delete(Path.Combine(files.TreePath, "oldrepo"), recursive: true);
         files.AddMarker("newrepo");
@@ -91,7 +91,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         };
 
         scripted.WatchFor('X').FailDrive(new IOException("X failed"));
-        await WaitUntilAsync(() => owner.Index.Drives.Single().WatchCatchUpState == WatchCatchUpState.Recovering);
+        await WaitUntilAsync(() => owner.Index.Drives.Single().Watch.CatchUpState == WatchCatchUpState.Recovering);
         Directory.Delete(Path.Combine(files.TreePath, "oldrepo"), recursive: true);
         files.AddMarker("newrepo");
         release.SetResult();
@@ -129,7 +129,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
 
         scripted.WatchFor('X').FailDrive(new IOException("X failed"));
-        await WaitUntilAsync(() => owner.Index.Drives.Single().WatchCatchUpState == WatchCatchUpState.Recovering);
+        await WaitUntilAsync(() => owner.Index.Drives.Single().Watch.CatchUpState == WatchCatchUpState.Recovering);
         files.AddMarker("newrepo");
         release.SetResult();
 
@@ -167,7 +167,7 @@ public class IndexVolumeChangeSourceRecoveryTests
             {
                 // The drive faults after its first catch-up settled and before the arm reports it.
                 scripted.WatchFor(drive).FailDrive(new IOException("X failed after catching up"));
-                await WaitUntilAsync(() => owner.Index.Drives.Single().WatchCatchUpState == WatchCatchUpState.Recovering);
+                await WaitUntilAsync(() => owner.Index.Drives.Single().Watch.CatchUpState == WatchCatchUpState.Recovering);
                 // The index reports Recovering before it delivers the state to the source, so the arm
                 // could still read the readiness of the superseded catch-up. Hold the arm until the
                 // source has published the recovery, which is what this test asserts it follows.
@@ -200,7 +200,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         Assert.That(await completedBeforeRelease.WaitAsync(HangGuard), Is.False,
             "The arm must not complete before the recovery finishes.");
         Assert.That(result.Errors, Is.Empty);
-        Assert.That(owner.Index.Drives.Single().WatchCatchUpState, Is.EqualTo(WatchCatchUpState.CaughtUp));
+        Assert.That(owner.Index.Drives.Single().Watch.CatchUpState, Is.EqualTo(WatchCatchUpState.CaughtUp));
         Assert.That(source.Readiness.TryGet("X", out var recovered), Is.True);
         Assert.That(recovered!.State, Is.EqualTo(VolumeWatchState.CaughtUp));
     }

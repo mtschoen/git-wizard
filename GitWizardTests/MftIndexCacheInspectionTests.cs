@@ -89,7 +89,7 @@ public class MftIndexCacheInspectionTests
         using var files = new PackedIndexFixture();
         var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         await using (var seed = await Open(files, cache))
-            Assert.That(seed.Drives.Single().CacheSlot, Is.EqualTo(CacheSlotState.OwnedCanonical));
+            Assert.That(seed.Drives.Single().Block.CacheSlot, Is.EqualTo(CacheSlotState.OwnedCanonical));
         var file = CacheDirectory.InspectCached(cache).Single().File;
         var before = await File.ReadAllBytesAsync(file.Path);
         var available = Create().Capture(files.DirectoryPath);
@@ -146,8 +146,8 @@ public class MftIndexCacheInspectionTests
         var ui = new MftIndexSession(index, null, ["X"],
             [new IndexedDrive('X', files.TreePath, 1)], new Dictionary<string, string>(), cache);
         await using var cli = await Open(files, cache);
-        Assert.That(cli.Drives.Single().CacheSlot, Is.EqualTo(CacheSlotState.PrivateFallback));
-        Assert.That(cli.Drives.Single().BlockSource, Is.EqualTo(BlockSource.ProducedByScan));
+        Assert.That(cli.Drives.Single().Block.CacheSlot, Is.EqualTo(CacheSlotState.PrivateFallback));
+        Assert.That(cli.Drives.Single().Block.Source, Is.EqualTo(BlockSource.ProducedByScan));
         var snapshot = Create().Capture(files.DirectoryPath, [ui.CaptureCacheStatus()!]);
         Assert.That(snapshot.Inventory.Single().Availability, Is.EqualTo(CachedBlockAvailability.InUse));
         Assert.That(MftIndexCacheStatusFormatter.Format(snapshot), Does.Contain("this session owns the cache"));
@@ -157,8 +157,8 @@ public class MftIndexCacheInspectionTests
         Assert.That(cli.Root('X').IsDirectory, Is.True);
         Assert.That(index.Root('X').IsDirectory, Is.True);
         await ui.DisposeAsync();
-        Assert.That(cli.Drives.Single().CacheSlot, Is.EqualTo(CacheSlotState.PrivateFallback));
+        Assert.That(cli.Drives.Single().Block.CacheSlot, Is.EqualTo(CacheSlotState.PrivateFallback));
         await cli.RescanAsync('X', CancellationToken.None);
-        Assert.That(cli.Drives.Single().CacheSlot, Is.EqualTo(CacheSlotState.OwnedCanonical));
+        Assert.That(cli.Drives.Single().Block.CacheSlot, Is.EqualTo(CacheSlotState.OwnedCanonical));
     }
 }

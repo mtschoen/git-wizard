@@ -39,7 +39,7 @@ public static class MftIndexCacheStatusFormatter
         var owned = snapshot.Sessions.SelectMany(session => session.Drives).Any(active =>
             active.VolumeSerial == row.File.VolumeSerial &&
             active.Drive.IndexStatus?.DriveLetter == row.File.DriveLetter &&
-            active.Drive.IndexStatus.CacheSlot == CacheSlotState.OwnedCanonical);
+            active.Drive.IndexStatus.Block.CacheSlot == CacheSlotState.OwnedCanonical);
         var availability = row.Availability.ToString();
         if (row.Availability == CachedBlockAvailability.InUse)
             availability = owned ? "InUse; this session owns the cache" : "in use; holder identity unavailable";
@@ -58,13 +58,13 @@ public static class MftIndexCacheStatusFormatter
             lines.Add($"  Identity failure: {row.Drive.IdentityFailure ?? "unavailable"}");
             return;
         }
-        lines.Add($"  State: {status.State}; source: {status.BlockSource}");
-        var ownership = Backing(status.CacheSlot);
+        lines.Add($"  State: {status.State}; source: {status.Block.Source}");
+        var ownership = Backing(status.Block.CacheSlot);
         if (ownership.Length > 0)
             lines.Add($"  Backing: {ownership}");
-        lines.Add($"  Scan timestamp UTC: {(status.ScanTimestamp == default ? "unavailable" : status.ScanTimestamp.ToString("O", CultureInfo.InvariantCulture))}");
-        lines.Add($"  Open/rescan failure: {status.FailureKind}; {status.MftProducerFailureMessage ?? "none reported"}");
-        lines.Add($"  Watch failure: {status.WatchFailureMessage ?? "none reported (not proof of catch-up)"}");
+        lines.Add($"  Scan timestamp UTC: {(status.Block.ScanTimestamp == default ? "unavailable" : status.Block.ScanTimestamp.ToString("O", CultureInfo.InvariantCulture))}");
+        lines.Add($"  Open/rescan failure: {status.FailureKind}; {status.FailureMessage ?? "none reported"}");
+        lines.Add($"  Watch failure: {status.Watch.FailureMessage ?? "none reported (not proof of catch-up)"}");
     }
 
     public static string Backing(CacheSlotState state) => state switch

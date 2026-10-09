@@ -211,10 +211,15 @@ public class ProgramWatchStartupTests
             [new IndexedDrive('C', files.TreePath, 1), new IndexedDrive('D', dRoot, 1)],
             new Dictionary<string, string>());
         session.DriveStatusesOverride = () =>
-        [
-            new MftDriveStatus("C", SyntheticNotifications.CreateDriveStatus('C', DriveState.Ready, BlockSource.ProducedByScan, 10, false, DateTime.UtcNow) with { FailureKind = DriveFailureKind.None, WatchSupported = true }, null),
-            new MftDriveStatus("D", SyntheticNotifications.CreateDriveStatus('D', DriveState.Failed, BlockSource.ProducedByScan, 0, false, DateTime.UtcNow) with { FailureKind = DriveFailureKind.None, WatchSupported = false, MftProducerFailureMessage = "Drive D failed" }, null)
-        ];
+        {
+            var ready = SyntheticNotifications.CreateDriveStatus('C', DriveState.Ready, BlockSource.ProducedByScan, 10, false, DateTime.UtcNow);
+            var failed = SyntheticNotifications.CreateDriveStatus('D', DriveState.Failed, BlockSource.ProducedByScan, 0, false, DateTime.UtcNow);
+            return
+            [
+                new MftDriveStatus("C", ready with { FailureKind = DriveFailureKind.None, Watch = ready.Watch with { Supported = true } }, null),
+                new MftDriveStatus("D", failed with { FailureKind = DriveFailureKind.None, Watch = failed.Watch with { Supported = false }, FailureMessage = "Drive D failed" }, null)
+            ];
+        };
 
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {

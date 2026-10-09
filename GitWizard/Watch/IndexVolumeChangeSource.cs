@@ -105,7 +105,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
             {
                 if (status.IdentityFailure is not null)
                     errors[status.Drive] = status.IdentityFailure;
-                else if (status.IndexStatus?.MftProducerFailureMessage is { Length: > 0 } msg)
+                else if (status.IndexStatus?.FailureMessage is { Length: > 0 } msg)
                     errors[status.Drive] = msg;
                 else if (status.IndexStatus?.State is DriveState.Failed or DriveState.Offline)
                     errors[status.Drive] = $"Drive is {status.IndexStatus.State}.";
@@ -135,7 +135,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
                         string.Equals(s.Drive, d.ToString(), StringComparison.OrdinalIgnoreCase));
                     if (driveStatus?.IndexStatus is { State: DriveState.Failed or DriveState.Offline } failed)
                     {
-                        var msg = failed.MftProducerFailureMessage ?? $"Drive is {failed.State}.";
+                        var msg = failed.FailureMessage ?? $"Drive is {failed.State}.";
                         RecordStartupDriveFailure(d, msg);
                     }
                 }

@@ -32,8 +32,11 @@ public class RepositoryDiscoveryCoordinatorTests
         DriveFailureKind failureKind = DriveFailureKind.None,
         DateTime? scanTimestamp = null,
         string? failureMessage = null,
-        BlockSource blockSource = BlockSource.ProducedByScan) =>
-        SyntheticNotifications.CreateDriveStatus(letter, state, blockSource, 10, false, scanTimestamp ?? DateTime.UtcNow) with { FailureKind = failureKind, WatchSupported = state == DriveState.Ready, MftProducerFailureMessage = failureMessage };
+        BlockSource blockSource = BlockSource.ProducedByScan)
+    {
+        var status = SyntheticNotifications.CreateDriveStatus(letter, state, blockSource, 10, false, scanTimestamp ?? DateTime.UtcNow);
+        return status with { FailureKind = failureKind, Watch = status.Watch with { Supported = state == DriveState.Ready }, FailureMessage = failureMessage };
+    }
 
     [Test]
     public async Task OrdinaryAllowedNonemptyList_UsesList_NoIndexOpen_NoCrawler()

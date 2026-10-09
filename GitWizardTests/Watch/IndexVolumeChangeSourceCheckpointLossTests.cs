@@ -51,7 +51,7 @@ public class IndexVolumeChangeSourceCheckpointLossTests
             windows['X'] = Lost;
             scripted.WatchFor('X').FailDrive(new IOException("X journal moved on"));
             await WaitUntilAsync(() =>
-                owner.Index.Drives.Single(drive => drive.DriveLetter == 'X').WatchCatchUpState ==
+                owner.Index.Drives.Single(drive => drive.DriveLetter == 'X').Watch.CatchUpState ==
                 WatchCatchUpState.Recovering &&
                 source.Readiness.TryGet("X", out var recovering) &&
                 recovering.State == VolumeWatchState.CatchingUp &&

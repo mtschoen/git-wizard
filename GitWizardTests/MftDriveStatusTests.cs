@@ -1,5 +1,6 @@
 using GitWizard;
 using GitWizardTests.TestSupport;
+using MFTLib;
 using MFTLib.Index;
 using MFTLibTestExtensions;
 
@@ -33,13 +34,13 @@ public class MftDriveStatusTests
         Assert.That(statuses[0].IndexStatus, Is.Null);
         Assert.That(statuses[1].IdentityFailure, Is.Null);
         Assert.That(statuses[1].IndexStatus!.FailureKind, Is.EqualTo(DriveFailureKind.ProducerFailed));
-        Assert.That(statuses[1].IndexStatus!.BlockSource, Is.EqualTo(BlockSource.None));
+        Assert.That(statuses[1].IndexStatus!.Block.Source, Is.EqualTo(BlockSource.None));
         await using var result = new MftDiscoveryResult(false, session);
         var captured = result.DriveStatuses;
         Assert.That(result.DetachIndexSession(), Is.SameAs(session));
         await session.DisposeAsync();
         Assert.That(result.DriveStatuses, Is.EqualTo(captured));
-        Assert.That(captured[1].IndexStatus!.MftProducerFailureMessage, Does.Contain("scan refused"));
+        Assert.That(captured[1].IndexStatus!.FailureMessage, Does.Contain("scan refused"));
     }
 
     [Test]
@@ -61,19 +62,19 @@ public class MftDriveStatusTests
     {
         using var files = new PackedIndexFixture();
         await using var index = await files.OpenIndexAsync();
-        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('X', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.LiveWatch, 1024, 2048);
-        var source = index.Drives.Single() with
+        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('X', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.LiveWatch, new UsnJournalSettings { MaximumSize = 2048, AllocationDelta = 1024 });
+        var drive = index.Drives.Single();
+        var source = drive with
         {
-            BlockSource = BlockSource.WarmStartedFromCache,
-            WatchFailureMessage = "watch failed",
-            CheckpointLoss = loss
+            Block = drive.Block with { Source = BlockSource.WarmStartedFromCache },
+            Watch = drive.Watch with { FailureMessage = "watch failed", CheckpointLoss = loss }
         };
         var projection = new MftDriveStatus("X", source, null);
         Assert.That(projection.IndexStatus!.State, Is.EqualTo(DriveState.Ready));
-        Assert.That(projection.IndexStatus.BlockSource, Is.EqualTo(BlockSource.WarmStartedFromCache));
+        Assert.That(projection.IndexStatus.Block.Source, Is.EqualTo(BlockSource.WarmStartedFromCache));
         Assert.That(projection.IndexStatus.FailureKind, Is.EqualTo(DriveFailureKind.None));
-        Assert.That(projection.IndexStatus.WatchFailureMessage, Is.EqualTo("watch failed"));
-        Assert.That(projection.IndexStatus.CheckpointLoss, Is.EqualTo(loss));
-        Assert.That(projection.IndexStatus.ScanTimestamp, Is.EqualTo(source.ScanTimestamp));
+        Assert.That(projection.IndexStatus.Watch.FailureMessage, Is.EqualTo("watch failed"));
+        Assert.That(projection.IndexStatus.Watch.CheckpointLoss, Is.EqualTo(loss));
+        Assert.That(projection.IndexStatus.Block.ScanTimestamp, Is.EqualTo(source.Block.ScanTimestamp));
     }
 }

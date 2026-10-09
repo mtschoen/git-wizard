@@ -9,7 +9,7 @@ public sealed record JournalWarning
     public required uint VolumeSerial { get; init; }
     public required JournalCheckpointLoss Loss { get; init; }
     public bool HasGrowAction => Loss.Cause == JournalCheckpointLossCause.CheckpointTrimmed
-                                 && Loss.SizeThatWouldHaveRetained > Loss.MaximumSize;
+                                 && Loss.SizeThatWouldHaveRetained > Loss.JournalSettings.MaximumSize;
     public string? GrowUnavailableReason => HasGrowAction
         ? null
         : Loss.Cause switch

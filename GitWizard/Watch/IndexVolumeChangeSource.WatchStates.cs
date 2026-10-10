@@ -36,8 +36,7 @@ public sealed partial class IndexVolumeChangeSource
     void SeedWatchStates(FileIndex index)
     {
         foreach (var status in index.Drives)
-            AcceptWatchState(new DriveWatchState(status.DriveLetter, status.Watch.CatchUpState,
-                status.Watch.StateVersion, null), recordTransition: false);
+            AcceptWatchState(status.ToWatchState(), recordTransition: false);
     }
 
     void FailWatchState(char drive, Exception exception)
@@ -80,8 +79,4 @@ public sealed partial class IndexVolumeChangeSource
         }
     }
 
-    internal static bool IsRecoveringFault(WatchFault fault) =>
-        fault.Kind is WatchFaultKind.Drive or WatchFaultKind.Apply ||
-        fault.Kind == WatchFaultKind.CatchUpLost &&
-        fault.Exception is JournalCatchUpLostException { RecoveryStopped: false };
 }

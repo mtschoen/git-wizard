@@ -14,7 +14,7 @@ public static class MftIndexCacheStatusFormatter
             "Index cache status (point-in-time observation, not a reservation)",
             $"Observed UTC: {snapshot.ObservedAt:O}",
             $"Cache directory: {snapshot.CacheDirectory}",
-            $"Profile: {snapshot.Profile}; retained names: {string.Join(", ", snapshot.KeepFileNames)}",
+            $"Retention: {DescribeRetention(snapshot.DirectoryScanFileNames)}",
             "Namespace: current user's GitWizard private cache.",
             "Inspection may create persistent .lock siblings; holder identity is unavailable.",
             "Directory-entry last-write is not a scan timestamp or last successful catch-up."
@@ -32,6 +32,13 @@ public static class MftIndexCacheStatusFormatter
         lines.Add("Backing describes the current block; a private fallback does not prove the slot is still held now.");
         lines.AddRange(snapshot.Errors.Select(error => $"Error: {error}"));
         return string.Join(Environment.NewLine, lines);
+    }
+
+    static string DescribeRetention(IReadOnlyList<string>? names)
+    {
+        if (names is null)
+            return "all eligible records";
+        return names.Count == 0 ? "directories only" : $"directories plus {string.Join(", ", names)}";
     }
 
     static void AddInventory(List<string> lines, MftIndexCacheSnapshot snapshot, CachedBlockStatus row)

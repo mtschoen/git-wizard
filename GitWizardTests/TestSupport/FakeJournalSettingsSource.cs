@@ -24,6 +24,7 @@ internal sealed class FakeJournalSettingsSource : IVolumeChangeSource, IUsnJourn
     public TaskCompletionSource? GrowRelease { get; set; }
     public Exception? GrowFailure { get; set; }
     public int GrowCalls { get; private set; }
+    public UsnJournalSettings? RequestedGrowthTarget { get; private set; }
     public bool CompleteAfterArm { get; set; }
 
     public event Action<string>? SourceDied
@@ -53,6 +54,7 @@ internal sealed class FakeJournalSettingsSource : IVolumeChangeSource, IUsnJourn
         char driveLetter, long maximumSize, long allocationDelta, CancellationToken cancellationToken)
     {
         GrowCalls++;
+        RequestedGrowthTarget = new UsnJournalSettings { MaximumSize = maximumSize, AllocationDelta = allocationDelta };
         GrowEntered.TrySetResult();
         if (GrowRelease is { } release)
             await release.Task.WaitAsync(cancellationToken);

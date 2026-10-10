@@ -16,18 +16,19 @@ public class JournalWarningTests
         Assert.That(result.JournalWarnings, Is.Empty);
     }
 
-    [Test]
-    public void GrowUnavailableReason_WhenGrowAvailable_IsNull()
+    [TestCase(64, true)]
+    [TestCase(0, false)]
+    public void GrowUnavailableReason_DependsOnAvailableTarget(long allocationDelta, bool available)
     {
         var warning = new JournalWarning
         {
             DriveLetter = "C",
             VolumeSerial = 1,
-            Loss = FakeJournalSettingsSource.TrimmedLoss('C', 30L * 1024 * 1024, 60L * 1024 * 1024, 10L * 1024 * 1024)
+            Loss = FakeJournalSettingsSource.TrimmedLoss('C', 30L * 1024 * 1024, 60L * 1024 * 1024, allocationDelta)
         };
 
-        Assert.That(warning.HasGrowAction, Is.True);
-        Assert.That(warning.GrowUnavailableReason, Is.Null);
+        Assert.That(warning.HasGrowAction, Is.EqualTo(available));
+        Assert.That(warning.GrowUnavailableReason, available ? Is.Null : Is.EqualTo("The recorded journal settings do not provide a valid growth target."));
     }
 
     [Test]

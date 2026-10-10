@@ -1,4 +1,3 @@
-using MFTLib;
 using MFTLib.Index;
 
 namespace GitWizard;
@@ -10,21 +9,20 @@ namespace GitWizard;
 /// </summary>
 public static class MftIndexCachePolicy
 {
-    public const BrokerScanProfile DiscoveryProfile = BrokerScanProfile.DirectoryIndex;
     const string CacheRootName = "mft-index";
     const string BlockDirectoryName = "blocks";
 
-    // MUST be incremented whenever DiscoveryProfile or KeepFileNames changes: the tag version is the
+    // MUST be incremented whenever DirectoryScanFileNames changes: the tag version is the
     // only thing that invalidates blocks cached under the previous shape. MftIndexCachePolicyTests pins
     // ScanShape per version and fails until a new version row is added.
-    const uint CacheTagVersion = 1;
+    const uint CacheTagVersion = 2;
 
-    public static IReadOnlyList<string> KeepFileNames { get; } = Array.AsReadOnly([".git", "HEAD"]);
+    public static IReadOnlyList<string> DirectoryScanFileNames { get; } = Array.AsReadOnly([".git", "HEAD"]);
 
     public static CacheTag CacheTag { get; } = new("GWMI", CacheTagVersion);
 
-    /// <summary>Human-readable form of the profile and keep list, pinned per version by the tests.</summary>
-    internal static string ScanShape => $"{DiscoveryProfile}|{string.Join(',', KeepFileNames)}";
+    /// <summary>Directory scan retention identity, pinned per version by the tests.</summary>
+    internal static string ScanShape => $"directories|{string.Join(',', DirectoryScanFileNames)}";
 
     public static string GetCacheRoot(string localFilesPath) => Path.Combine(localFilesPath, CacheRootName);
 

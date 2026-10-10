@@ -111,8 +111,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
             ProducerPolicy = ProducerPolicy.Mft,
             MftSource = brokerSession.CreateIndexSource(new BrokerScanOptions
             {
-                Profile = MftIndexCachePolicy.DiscoveryProfile,
-                KeepFileNames = MftIndexCachePolicy.KeepFileNames
+                DirectoryScanFileNames = MftIndexCachePolicy.DirectoryScanFileNames
             }),
             Progress = progress,
             Diagnostics = diagnostics.Report

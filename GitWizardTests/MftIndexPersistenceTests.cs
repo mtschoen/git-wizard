@@ -144,7 +144,7 @@ public class MftIndexPersistenceTests
         await index.StartWatchingAsync(CancellationToken.None);
         var start = source.Starts.Single();
         Assert.That(start.Cursor.JournalIdentifier, Is.EqualTo(PackedIndexFixture.JournalId));
-        Assert.That(start.Cursor.NextUpdateSequenceNumber, Is.EqualTo(PackedIndexFixture.NextUsn));
+        Assert.That(start.Cursor.NextUsn, Is.EqualTo(PackedIndexFixture.NextUsn));
         await source.WatchFor('X').PublishBatchAsync([
             new SyntheticJournalRecord
             {

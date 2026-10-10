@@ -69,6 +69,8 @@ public class JournalSettingsIntegrationTests
         var warning = _settings.JournalWarnings[0];
         await _settings.EnlargeJournalAsync(warning);
         Assert.That(_source.GrowCalls, Is.EqualTo(1));
+        Assert.That(_source.RequestedGrowthTarget?.MaximumSize, Is.EqualTo(warning.Warning.Loss.SizeThatWouldHaveRetained));
+        Assert.That(_source.RequestedGrowthTarget?.AllocationDelta, Is.EqualTo(warning.Warning.Loss.JournalSettings.AllocationDelta));
         Assert.That(warning.StatusMessage, Is.EqualTo(
             $"Before: {32 * 1024 * 1024:N0} bytes. After: {_source.Settings['C'].MaximumSize:N0} bytes."));
         Assert.That(HintText, Does.Not.Contain("Hint on C:").And.Contain("Hint on D:"));
@@ -267,6 +269,8 @@ public class JournalSettingsIntegrationTests
         _dispatcher.Drain();
         Assert.That(_settings.JournalWarnings, Has.Count.EqualTo(1));
         Assert.That(_settings.JournalWarnings[0].HasGrowAction, Is.False);
+        await _settings.EnlargeJournalAsync(_settings.JournalWarnings[0]);
+        Assert.That(_source.GrowCalls, Is.Zero);
         Assert.That(_settings.JournalWarnings[0].Warning.Message, Does.Contain("journal was recreated"));
         Assert.That(_settings.JournalWarnings[0].Warning.Message, Does.Not.Contain("increase the journal size"));
     }
@@ -289,15 +293,16 @@ public class JournalSettingsIntegrationTests
         Assert.That(warning.StatusMessage, Does.Contain("no size that would have avoided the rescan"));
     }
 
-    [Test]
-    public async Task EnlargeTrimmedWithoutSizeReportsTooLargeToRepresent()
+    [TestCase(true)]
+    [TestCase(false)]
+    public async Task EnlargeWithoutValidTargetReportsReason(bool missingSize)
     {
         await _main.ToggleLiveAsync();
         await _running;
         await _source.DisposeAsync();
         _source = new FakeJournalSettingsSource();
         _source.CheckpointLosses.Clear();
-        _source.CheckpointLosses.Add(SyntheticNotifications.CreateJournalCheckpointLoss('C', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.DriveOpening, new UsnJournalSettings { MaximumSize = 32L * 1024 * 1024, AllocationDelta = 8 * 1024 * 1024 }) with { BytesBehind = 32L * 1024 * 1024, SizeThatWouldHaveRetained = null });
+        _source.CheckpointLosses.Add(SyntheticNotifications.CreateJournalCheckpointLoss('C', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.DriveOpening, new UsnJournalSettings { MaximumSize = 32L * 1024 * 1024, AllocationDelta = missingSize ? 8 * 1024 * 1024 : 0 }) with { BytesBehind = 32L * 1024 * 1024, SizeThatWouldHaveRetained = missingSize ? null : 64L * 1024 * 1024 });
         _running = _main.ToggleLiveAsync();
         await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
         _dispatcher.Drain();
@@ -305,7 +310,7 @@ public class JournalSettingsIntegrationTests
         Assert.That(warning.HasGrowAction, Is.False);
         await _settings.EnlargeJournalAsync(warning);
         Assert.That(_source.GrowCalls, Is.Zero);
-        Assert.That(warning.StatusMessage, Does.Contain("too large to represent"));
+        Assert.That(warning.StatusMessage, Does.Contain(missingSize ? "too large to represent" : "valid growth target"));
     }
 
     [Test]
@@ -337,5 +342,8 @@ public class JournalSettingsIntegrationTests
         _dispatcher.Drain();
         Assert.That(_settings.JournalWarnings, Has.Count.EqualTo(1));
         Assert.That(_settings.JournalWarnings[0].HasGrowAction, Is.False);
+        await _settings.EnlargeJournalAsync(_settings.JournalWarnings[0]);
+        Assert.That(_source.GrowCalls, Is.Zero);
+        Assert.That(_settings.JournalWarnings[0].StatusMessage, Does.Contain("already at least as large"));
     }
 }

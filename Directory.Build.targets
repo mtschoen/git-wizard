@@ -18,7 +18,7 @@
        native library automatically) and an exactly matching
        `<PackageReference Include="MFTLib.TestExtensions" Version="0.3.0" />` to
        GitWizardTests/GitWizardTests.csproj: deleting this file also deletes the
-       MFTLibTestExtensions reference that the broker fixtures and cache/journal isolation use.
+       MFTLibTestExtensions reference that the broker fixtures and journal isolation use.
        MFTLib's own sync workflow (.gitea/workflows/sync-consumers.yml in MFTLib) recognizes only
        submodule consumers and fails on zero matches, so retire or replace it in MFTLib in the
        same change.

@@ -19,6 +19,15 @@ public class MftIndexCacheStatusFormatterTests
     public void UnknownTimestampIsNotZeroAge() => Assert.That(
         MftIndexCacheStatusFormatter.Age(default, FrozenCacheClock.Now), Is.EqualTo("unavailable"));
 
+    [TestCase(null, "all eligible records")]
+    [TestCase(new string[] { }, "directories only")]
+    [TestCase(new[] { ".git", "HEAD" }, "directories plus .git, HEAD")]
+    public void RetentionDescribesFullDirectoryOnlyAndNamedScans(string[]? names, string expected)
+    {
+        var snapshot = new MftIndexCacheSnapshot { IsApplicable = true, DirectoryScanFileNames = names };
+        Assert.That(MftIndexCacheStatusFormatter.Format(snapshot), Does.Contain($"Retention: {expected}"));
+    }
+
     [TestCase(CacheSlotState.OwnedCanonical, "this session owns the cache")]
     [TestCase(CacheSlotState.PrivateFallback, "running on a private block; another process holds the cache")]
     [TestCase(CacheSlotState.NotApplicable, "")]
@@ -48,6 +57,7 @@ public class MftIndexCacheStatusFormatterTests
         Assert.That(text, Does.Contain("Directory-entry last-write UTC:"));
         Assert.That(text, Does.Contain("Size:"));
         Assert.That(text, Does.Contain("serial 00000001"));
+        Assert.That(text, Does.Contain("Retention: directories plus .git, HEAD"));
     }
 
     [TestCase(false)]

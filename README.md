@@ -53,10 +53,11 @@ owns that slot.
 ### Windows discovery scope and caching
 
 Windows discovery uses GitWizard-owned persistent index blocks below
-`GetLocalFilesPath()/mft-index/v1-<policy SHA-256 fingerprint>` (normally
-`~/.GitWizard/mft-index/...`). The identity includes the `DirectoryIndex` profile and the
-normalized retention list `[".git", "HEAD"]`. Changing either selects a different directory;
-no old blocks are migrated or deleted by GitWizard.
+`GetLocalFilesPath()/mft-index/blocks` (normally `~/.GitWizard/mft-index/blocks`).
+The scan uses `DirectoryScanFileNames = [".git", "HEAD"]`, retaining directories and those
+marker files. MFTLib stamps the `GWMI` cache tag, version 2, into each block.
+Changing the retention policy requires incrementing the tag version. A tag mismatch causes
+a snapshot open to decline the block or a normal open to cold-scan; blocks are not migrated.
 
 The stored metadata covers directories and retained marker names across each selected volume,
 potentially including other users' directory names. Search, ignore, hidden-directory and
@@ -109,7 +110,7 @@ including after successful block clearing. Configuration and report/list files
 are not removed by **Clear Index Cache**. Recursive discovery on Linux and with
 `--no-mft` is unchanged.
 
-`git-wizard --index-cache-status` reports the current Windows MFT cache policy's directory, profile, per-volume serial identity, size, directory-entry last-write time and age, validation and availability, then exits without repository discovery, opening an index, or launching an elevated broker. Linux and other platforms report that this cache is not applicable. Do not combine the status flag with cache deletion flags. Exit 0 means the observation succeeded, even when a block is invalid or in use; exit 1 means inspection failed, and exit 2 means the arguments were invalid.
+`git-wizard --index-cache-status` reports the current Windows MFT cache policy's directory, retention description, requested and stored cache tags, per-volume serial identity, size, directory-entry last-write time and age, validation and availability, then exits without repository discovery, opening an index, or launching an elevated broker. Linux and other platforms report that this cache is not applicable. Do not combine the status flag with cache deletion flags. Exit 0 means the observation succeeded, even when a block is invalid or in use; exit 1 means inspection failed, and exit 2 means the arguments were invalid.
 
 The desktop **Index Cache Status** window provides the same read-only observation and can additionally identify backing owned by its active session. Refresh status updates the observation and age. Inspection can create persistent `.lock` siblings. Availability is point-in-time, not a reservation; an in-use slot does not expose its holder's PID, name, user, or whether it is CLI or UI. Directory-entry last-write time is not the scan timestamp or last successful catch-up. A normal concurrent open may cold-scan into a private block, while a cache-only open refuses with `InUse`.
 

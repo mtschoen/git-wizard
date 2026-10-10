@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using GitWizard;
 using GitWizardTests.TestSupport;
-using MFTLib;
 using MFTLib.Index;
 using MFTLibTestExtensions;
 
@@ -194,14 +193,23 @@ public class MftIndexSessionTests
     }
 
     [Test]
-    public async Task UsesDirectoryProfileAndMarkerRetention()
+    public async Task UsesDirectoryScanAndMarkerRetention()
     {
         await using var broker = new BlockBrokerFixture();
+        broker.AdditionalScanRecords =
+        [
+            new() { RecordNumber = 44, ParentRecordNumber = 42, FileName = ".git" },
+            new() { RecordNumber = 45, ParentRecordNumber = 42, FileName = "HEAD" },
+            new() { RecordNumber = 46, ParentRecordNumber = 42, FileName = "ordinary.txt" }
+        ];
         await using var session = await MftIndexSession.OpenAsync([broker.Drive('X')],
             broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);
         var scan = broker.Scans.Single();
-        Assert.That(scan.Profile, Is.EqualTo(BrokerScanProfile.DirectoryIndex));
-        Assert.That(scan.KeepFileNames, Is.EqualTo(new[] { ".git", "HEAD" }));
+        Assert.That(scan.DirectoryScanFileNames, Is.EqualTo(new[] { ".git", "HEAD" }));
+        Assert.That(session.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Count, Is.EqualTo(2));
+        Assert.That(session.Index.Search(new SearchQuery("HEAD", NameMatchMode.Exact)).Single().IsDirectory, Is.False);
+        Assert.That(session.Index.Search(new SearchQuery("ordinary.txt", NameMatchMode.Exact)), Is.Empty);
+        Assert.That(session.Index.Search(new SearchQuery("repo", NameMatchMode.Exact)).Single().IsDirectory, Is.True);
         Assert.That(SyntheticIndexInspection.ReadHeader(session.Index, 'X')?.ProducerKind, Is.EqualTo(ProducerKind.Mft));
     }
 

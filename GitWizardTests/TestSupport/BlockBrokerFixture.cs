@@ -61,6 +61,7 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
     public Task<(string Drive, SyntheticJournalCursor Since)> WatchStarted => _watchStarted.Task;
 
     public SyntheticJournalRecord[] WatchEntries { get; set; } = [];
+    public SyntheticScanRecord[] AdditionalScanRecords { get; set; } = [];
     public string? FailedDrive { get; set; }
     public Action? ScanReceived { get; set; }
 
@@ -158,6 +159,11 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
         cancellationToken.ThrowIfCancellationRequested();
         Interlocked.Add(ref _recordsYielded, 3);
         yield return [Directory(6, "code", 5), Directory(42, "repo", 6), Directory(43, ".git", 42)];
+        if (AdditionalScanRecords.Length > 0)
+        {
+            Interlocked.Add(ref _recordsYielded, AdditionalScanRecords.Length);
+            yield return AdditionalScanRecords;
+        }
         cancellationToken.ThrowIfCancellationRequested();
         Volatile.Write(ref _scanCompleted, 1);
     }

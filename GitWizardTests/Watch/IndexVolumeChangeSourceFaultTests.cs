@@ -119,13 +119,13 @@ public class IndexVolumeChangeSourceFaultTests
         Assert.That(harness.Deaths, Is.Empty);
     }
 
-    [TestCase(1, true)]
-    [TestCase(FileIndex.LostCatchUpRecoveryLimit, false)]
-    public async Task LostCatchUpDuringRecovery_KeepsTheDriveUntilMftLibStopsRetrying(int losses, bool recovers)
+    [TestCase(true)]
+    [TestCase(false)]
+    public async Task LostCatchUpDuringRecovery_KeepsTheDriveUntilMftLibStopsRetrying(bool recovers)
     {
         await using var harness = await FaultHarness.StartAsync('X', 'Y');
-        var remaining = losses;
-        harness.Files.Producer.CatchUpLoss = _ => Interlocked.Decrement(ref remaining) >= 0
+        var lossPending = 1;
+        harness.Files.Producer.CatchUpLoss = _ => !recovers || Interlocked.Exchange(ref lossPending, 0) == 1
             ? SyntheticCheckpointLoss.WithJournalPositions(SyntheticNotifications.CreateJournalCheckpointLoss('X', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.ScanCatchUp, new UsnJournalSettings { MaximumSize = 1024, AllocationDelta = 64 }), 1000, 2000, 3000)
             : null;
         harness.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
@@ -143,7 +143,7 @@ public class IndexVolumeChangeSourceFaultTests
             Assert.That(harness.Failures.Select(failure => failure.Drive), Is.All.EqualTo("X"));
             Assert.That(harness.Failures[0].Message, Does.Contain("cannot be watched"));
         }
-        Assert.That(harness.StatusOf('X').Watch.ConsecutiveLostCatchUps, Is.EqualTo(recovers ? 0 : losses));
+        Assert.That(harness.StatusOf('X').Watch.RecoveryStopped, Is.EqualTo(!recovers));
         Assert.That(harness.Deaths, Is.Empty);
     }
 
@@ -174,7 +174,7 @@ public class IndexVolumeChangeSourceFaultTests
             ? SyntheticNotifications.CreateJournalCatchUpLostException(recoveryStopped, "lost")
             : new IOException("failed");
 
-        Assert.That(IndexVolumeChangeSource.IsRecoveringFault(SyntheticNotifications.CreateWatchFault(kind, 'X', exception)),
+        Assert.That(SyntheticNotifications.CreateWatchFault(kind, 'X', exception).IsRecovering,
             Is.EqualTo(recovering));
     }
 

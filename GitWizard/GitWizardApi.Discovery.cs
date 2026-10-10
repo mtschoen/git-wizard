@@ -1,12 +1,10 @@
 using System.Security;
 using GitWizard.Watch;
-using MFTLib;
 
 namespace GitWizard;
 
 public static partial class GitWizardApi
 {
-    internal const BrokerScanProfile GitDiscoveryScanProfile = MftIndexCachePolicy.DiscoveryProfile;
     internal const string GitEntryName = ".git";
 
     internal static Func<string, string[]>? DirectoryEnumeratorOverride { get; set; }

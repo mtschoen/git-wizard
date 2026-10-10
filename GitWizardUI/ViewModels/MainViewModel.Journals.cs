@@ -34,17 +34,19 @@ public partial class MainViewModel
         if (!controller.ScanWarnings.Contains(warning))
             throw new InvalidOperationException("The drive was re-armed. Review its current journal warning.");
 
-        if (warning.Loss.Cause != JournalCheckpointLossCause.CheckpointTrimmed)
-            throw new InvalidOperationException("A recreated or advanced journal has no size that would have avoided the rescan.");
-        var suggestedSize = warning.Loss.SizeThatWouldHaveRetained
-            ?? throw new InvalidOperationException("The size that would have avoided the rescan is too large to represent.");
+        if (!warning.Loss.TryGetGrowthTarget(out var target))
+        {
+            if (warning.Loss.Cause != JournalCheckpointLossCause.CheckpointTrimmed)
+                throw new InvalidOperationException("A recreated or advanced journal has no size that would have avoided the rescan.");
+            throw new InvalidOperationException(warning.GrowUnavailableReason);
+        }
 
         var before = grower.QueryUsnJournalSettings(warning.DriveLetter[0]);
-        if (before.MaximumSize >= suggestedSize)
+        if (before.MaximumSize >= target.MaximumSize)
             throw new InvalidOperationException("The journal already meets the suggested size. Refusing to shrink or resize.");
 
-        var after = await grower.GrowUsnJournalAsync(warning.DriveLetter[0], suggestedSize,
-            warning.Loss.JournalSettings.AllocationDelta, CancellationToken.None).ConfigureAwait(false);
+        var after = await grower.GrowUsnJournalAsync(warning.DriveLetter[0], target.MaximumSize,
+            target.AllocationDelta, CancellationToken.None).ConfigureAwait(false);
         await _ui.InvokeAsync(() =>
         {
             if (!ReferenceEquals(controller, _liveController))

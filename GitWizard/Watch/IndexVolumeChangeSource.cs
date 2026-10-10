@@ -312,7 +312,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
             return;
         }
         var drive = char.ToUpperInvariant(fault.DriveLetter);
-        if (IsRecoveringFault(fault))
+        if (fault.IsRecovering)
         {
             try
             {

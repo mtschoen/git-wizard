@@ -19,8 +19,8 @@ namespace GitWizardTests.Watch;
 public class IndexVolumeChangeSourceCheckpointLossTests
 {
     static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(10);
-    static readonly SyntheticJournalWindow Healthy = new(PackedIndexFixture.JournalId, 0, 5_000, 64, 8_192);
-    static readonly SyntheticJournalWindow Lost = new(PackedIndexFixture.JournalId, 1_500, 5_000, 64, 8_192);
+    static readonly SyntheticJournalWindow Healthy = new(PackedIndexFixture.JournalIdentifier, 0, 5_000, 64, 8_192);
+    static readonly SyntheticJournalWindow Lost = new(PackedIndexFixture.JournalIdentifier, 1_500, 5_000, 64, 8_192);
 
     [Test]
     public async Task MidWatchCheckpointLoss_RecoversTheDriveWhileTheHealthyDriveKeepsDelivering()
@@ -67,7 +67,7 @@ public class IndexVolumeChangeSourceCheckpointLossTests
                     Is.EqualTo(new[] { JournalCheckpointLossDetection.LiveWatch }));
             });
 
-            await scripted.WatchFor('Y').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(50, 6, "while-x-recovers", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalId, 1002));
+            await scripted.WatchFor('Y').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(50, 6, "while-x-recovers", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
             Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(HangGuard), Is.True);
             Assert.That(reader.Current.Volume, Is.EqualTo("Y"));
 
@@ -76,7 +76,7 @@ public class IndexVolumeChangeSourceCheckpointLossTests
             release.SetResult();
             await WaitUntilAsync(() => source.Readiness.TryGet("X", out var caughtUp) &&
                                        caughtUp.State == VolumeWatchState.CaughtUp);
-            await scripted.WatchFor('X').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(51, 6, "after-recovery", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalId, 1003));
+            await scripted.WatchFor('X').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(51, 6, "after-recovery", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1003));
 
             Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(HangGuard), Is.True);
             Assert.That(reader.Current.Volume, Is.EqualTo("X"));

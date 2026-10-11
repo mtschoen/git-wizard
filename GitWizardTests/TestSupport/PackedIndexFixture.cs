@@ -19,8 +19,8 @@ internal sealed class PackedIndexFixture : IDisposable
         Directory.CreateDirectory(BlockDirectory);
         Producer = new SyntheticMftProducer(_ => WalkTree())
         {
-            JournalCursor = new SyntheticJournalCursor(JournalId, NextUsn),
-            CompletedUtc = CompletionTimestamp
+            JournalCursor = new SyntheticJournalCursor(JournalIdentifier, NextUsn),
+            Completed = CompletionTimestamp
         };
     }
 
@@ -59,7 +59,7 @@ internal sealed class PackedIndexFixture : IDisposable
             MftSource = SyntheticIndexSource.Create(Producer, source)
         }, CancellationToken.None);
 
-    public const ulong JournalId = 100;
+    public const ulong JournalIdentifier = 100;
     public const long NextUsn = 1000;
 
     IEnumerable<SyntheticRow> WalkTree()
@@ -88,7 +88,7 @@ internal sealed class PackedIndexFixture : IDisposable
             {
                 Attributes = FileAttributes.Normal,
                 Size = null,
-                ModifiedUtc = CompletionTimestamp,
+                Modified = CompletionTimestamp,
                 SequenceNumber = 1
             });
         }
@@ -98,7 +98,7 @@ internal sealed class PackedIndexFixture : IDisposable
     {
         IsDirectory = true,
         Attributes = FileAttributes.Directory,
-        ModifiedUtc = CompletionTimestamp,
+        Modified = CompletionTimestamp,
         SequenceNumber = 1
     };
 

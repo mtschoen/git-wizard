@@ -16,8 +16,8 @@ namespace GitWizardTests.Discovery;
 public class RepositoryDiscoveryCoordinatorCheckpointLossTests
 {
     static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(10);
-    static readonly SyntheticJournalWindow Healthy = new(PackedIndexFixture.JournalId, 0, 5_000, 64, 8_192);
-    static readonly SyntheticJournalWindow Lost = new(PackedIndexFixture.JournalId, 1_500, 5_000, 64, 8_192);
+    static readonly SyntheticJournalWindow Healthy = new(PackedIndexFixture.JournalIdentifier, 0, 5_000, 64, 8_192);
+    static readonly SyntheticJournalWindow Lost = new(PackedIndexFixture.JournalIdentifier, 1_500, 5_000, 64, 8_192);
 
     PackedIndexFixture _files = null!;
     ConcurrentDictionary<char, SyntheticJournalWindow> _windows = null!;

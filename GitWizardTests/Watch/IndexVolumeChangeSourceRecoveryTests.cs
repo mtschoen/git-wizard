@@ -121,7 +121,7 @@ public class IndexVolumeChangeSourceRecoveryTests
             // means the deletion's delivery is racing the reconciliation.
             var marker = owner.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single();
             _ = scripted.WatchFor('X').QueueBatchAsync([IndexVolumeChangeSourceTests.Entry(marker.RecordKey.RecordNumber, marker.Parent!.Value.RecordKey.RecordNumber,
-                    ".git", SyntheticJournalReason.FileDelete, directory: true)], new SyntheticJournalCursor(PackedIndexFixture.JournalId, 1003));
+                    ".git", SyntheticJournalReason.FileDelete, directory: true)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1003));
             Assert.That(SpinWait.SpinUntil(() => owner.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Count == 0, HangGuard), Is.True);
         };
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);

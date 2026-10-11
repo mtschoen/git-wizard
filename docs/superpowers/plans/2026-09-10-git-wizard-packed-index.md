@@ -405,7 +405,7 @@ IAsyncEnumerable<WatchStreamItem> StartWatching(
 Task ArmDriveAsync(IndexWatchTarget target, CancellationToken cancellationToken);
 Task DisarmDriveAsync(char driveLetter, CancellationToken cancellationToken);
 public sealed record JournalBatch(char DriveLetter, IReadOnlyList<UsnJournalEntry> Entries,
-    ulong JournalId, long NextUsn) : WatchStreamItem;
+    ulong JournalIdentifier, long NextUsn) : WatchStreamItem;
 public sealed record DriveWatchFailure(char DriveLetter, Exception Exception) : WatchStreamItem;
 public sealed record WatchFault(WatchFaultKind Kind, char? DriveLetter, Exception Exception);
 ```

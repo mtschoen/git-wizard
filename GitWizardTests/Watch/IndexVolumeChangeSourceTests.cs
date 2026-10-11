@@ -49,7 +49,7 @@ public class IndexVolumeChangeSourceTests
         await scripted.WatchFor('X').PublishBatchAsync([
             Entry(6, 5, "first", SyntheticJournalReason.RenameNewName, true),
             Entry(6, 5, "second", SyntheticJournalReason.RenameNewName, true)
-        ], new SyntheticJournalCursor(PackedIndexFixture.JournalId, 1002));
+        ], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
         var change = await observed.Task.WaitAsync(HangGuard);
         await index.StopWatchingAsync(CancellationToken.None);
         await TestContext.Out.WriteLineAsync($"Entry.Path = '{change.Entry.Path}'; Path = '{change.Path}'");
@@ -179,8 +179,8 @@ public class IndexVolumeChangeSourceTests
         var firstRead = reader.MoveNextAsync().AsTask();
         Assert.That(starts, Is.EquivalentTo(new[]
         {
-            new ScriptedWatchStart('X', new SyntheticJournalCursor(PackedIndexFixture.JournalId, PackedIndexFixture.NextUsn)),
-            new ScriptedWatchStart('Y', new SyntheticJournalCursor(PackedIndexFixture.JournalId, PackedIndexFixture.NextUsn))
+            new ScriptedWatchStart('X', new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, PackedIndexFixture.NextUsn)),
+            new ScriptedWatchStart('Y', new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, PackedIndexFixture.NextUsn))
         }), "Arming must start the watch.");
         // Routed through IndexVolumeChangeSource, which rewrites every path back onto its own
         // configured drive letter (MFTLib #143), so these stay the pre-existing synthetic shape.
@@ -188,7 +188,7 @@ public class IndexVolumeChangeSourceTests
             Entry(50, 6, "file.txt", SyntheticJournalReason.FileCreate),
             Entry(50, 6, "renamed.txt", SyntheticJournalReason.RenameNewName),
             Entry(50, 6, "renamed.txt", SyntheticJournalReason.FileDelete)
-        ], new SyntheticJournalCursor(PackedIndexFixture.JournalId, 1004));
+        ], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1004));
         Assert.That(await firstRead, Is.True);
         Assert.That(reader.Current, Is.EqualTo(new VolumeChangeBatch("X", reader.Current.Entries)));
         Assert.That(reader.Current.Entries, Is.EqualTo(new[]
@@ -204,7 +204,7 @@ public class IndexVolumeChangeSourceTests
         Assert.That(await reader.MoveNextAsync(), Is.True);
         Assert.That(reader.Current.Entries.Single(), Is.EqualTo(
             new VolumeChangeEntry(@"X:\repo\renamed.txt", VolumeEntryKind.Deleted)));
-        await scripted.WatchFor('Y').PublishBatchAsync([Entry(51, 6, "other.txt", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalId, 1002));
+        await scripted.WatchFor('Y').PublishBatchAsync([Entry(51, 6, "other.txt", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
         Assert.That(await reader.MoveNextAsync(), Is.True);
         Assert.That(reader.Current.Volume, Is.EqualTo("Y"));
         Assert.That(reader.Current.Entries.Single().FullPath, Is.EqualTo(@"Y:\repo\other.txt"));
@@ -235,7 +235,7 @@ public class IndexVolumeChangeSourceTests
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
         var pending = reader.MoveNextAsync().AsTask();
         await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard);
-        await scripted.WatchFor('X').PublishBatchAsync([Entry(50, 6, "ordinary.txt", reason)], new SyntheticJournalCursor(PackedIndexFixture.JournalId, 1002));
+        await scripted.WatchFor('X').PublishBatchAsync([Entry(50, 6, "ordinary.txt", reason)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
         Assert.That(await pending, Is.True);
         Assert.That(reader.Current.Volume, Is.EqualTo("X"));
         // Routed through IndexVolumeChangeSource, which rewrites this back onto its own

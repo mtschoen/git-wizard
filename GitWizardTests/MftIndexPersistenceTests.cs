@@ -143,7 +143,7 @@ public class MftIndexPersistenceTests
         index.Changed += _ => changed.TrySetResult();
         await index.StartWatchingAsync(CancellationToken.None);
         var start = source.Starts.Single();
-        Assert.That(start.Cursor.JournalIdentifier, Is.EqualTo(PackedIndexFixture.JournalId));
+        Assert.That(start.Cursor.JournalIdentifier, Is.EqualTo(PackedIndexFixture.JournalIdentifier));
         Assert.That(start.Cursor.NextUsn, Is.EqualTo(PackedIndexFixture.NextUsn));
         await source.WatchFor('X').PublishBatchAsync([
             new SyntheticJournalRecord
@@ -157,7 +157,7 @@ public class MftIndexPersistenceTests
                 Timestamp = PackedIndexFixture.CompletionTimestamp,
                 UpdateSequenceNumber = PackedIndexFixture.NextUsn + 1
             }
-        ], new SyntheticJournalCursor(PackedIndexFixture.JournalId, PackedIndexFixture.NextUsn + 1));
+        ], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, PackedIndexFixture.NextUsn + 1));
         await changed.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.That(index.Search(new SearchQuery("renamed", NameMatchMode.Exact)), Has.Count.EqualTo(1));
         await index.StopWatchingAsync(CancellationToken.None);

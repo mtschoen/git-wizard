@@ -49,7 +49,7 @@ public class WindowsWatchStartupTests
         // Publish journal changes and caught up marker
         await scripted.WatchFor('X').PublishBatchAsync([
             Entry(50, 6, "ordinary.txt", SyntheticJournalReason.FileCreate)
-        ], new SyntheticJournalCursor(PackedIndexFixture.JournalId, 1002));
+        ], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
         await scripted.WatchFor('X').PublishCaughtUpAsync();
 
         await using var startup = await startupTask;
@@ -325,7 +325,7 @@ public class WindowsWatchStartupTests
             Entry(61, 60, ".git", SyntheticJournalReason.FileCreate, isDirectory: true),
             Entry(61, 60, ".git", SyntheticJournalReason.FileDelete, isDirectory: true),
             Entry(60, 5, "temp-repo", SyntheticJournalReason.FileDelete, isDirectory: true)
-        ], new SyntheticJournalCursor(PackedIndexFixture.JournalId, 1002));
+        ], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
         await scripted.WatchFor('X').PublishCaughtUpAsync();
 
         await using var startup = await startupTask;
@@ -367,7 +367,7 @@ public class WindowsWatchStartupTests
         // A modification under the already-tracked repository arrives during catch-up.
         await scripted.WatchFor('X').PublishBatchAsync([
             Entry(50, 6, "notes.txt", SyntheticJournalReason.FileCreate)
-        ], new SyntheticJournalCursor(PackedIndexFixture.JournalId, 1002));
+        ], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
         await scripted.WatchFor('X').PublishCaughtUpAsync();
 
         await using var startup = await startupTask;
@@ -425,7 +425,7 @@ public class WindowsWatchStartupTests
             Entry(60, 5, ".hidden", SyntheticJournalReason.FileCreate, isDirectory: true),
             Entry(61, 60, "repo", SyntheticJournalReason.FileCreate, isDirectory: true),
             Entry(62, 61, ".git", SyntheticJournalReason.FileCreate, isDirectory: true)
-        ], new SyntheticJournalCursor(PackedIndexFixture.JournalId, 1002));
+        ], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
         await scripted.WatchFor('X').PublishCaughtUpAsync();
 
         await using var startup = await startupTask;

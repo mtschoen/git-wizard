@@ -39,7 +39,7 @@ public class IndexVolumeChangeSourceFaultTests
             new VolumeChangeEntry(@"X:\repo\.git", VolumeEntryKind.Modified)
         }), "The recovered drive's surviving repository is refreshed.");
 
-        await harness.Scripted.WatchFor('X').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(60, 6, "after-recovery", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalId, 1003));
+        await harness.Scripted.WatchFor('X').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(60, 6, "after-recovery", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1003));
         Assert.That(await harness.ReadAsync(), Is.True);
         Assert.That(harness.Current.Volume, Is.EqualTo("X"));
         Assert.That(harness.Current.Entries.Single().FullPath, Is.EqualTo(@"X:\repo\after-recovery"));
@@ -61,7 +61,7 @@ public class IndexVolumeChangeSourceFaultTests
 
         release.SetResult();
         await WaitUntilAsync(() => harness.ReadinessOf('X') == VolumeWatchState.CaughtUp);
-        await harness.Scripted.WatchFor('X').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(60, 6, "recovered", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalId, 1003));
+        await harness.Scripted.WatchFor('X').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(60, 6, "recovered", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1003));
         Assert.That(await harness.ReadAsync(), Is.True);
         Assert.That(harness.Deaths, Is.Empty);
     }
@@ -81,7 +81,7 @@ public class IndexVolumeChangeSourceFaultTests
         Assert.That(harness.Scripted.Starts.Count(start => start.DriveLetter == 'X'), Is.EqualTo(1),
             "A lost channel is not recovered automatically.");
 
-        await harness.Scripted.WatchFor('Y').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(50, 6, "survivor", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalId, 1002));
+        await harness.Scripted.WatchFor('Y').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(50, 6, "survivor", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
         Assert.That(await harness.ReadAsync(), Is.True);
         Assert.That(harness.Current.Volume, Is.EqualTo("Y"));
 
@@ -152,7 +152,7 @@ public class IndexVolumeChangeSourceFaultTests
     {
         await using var harness = await FaultHarness.StartAsync('X', 'Y');
         harness.Owner.Index.Changed += _ => throw new InvalidOperationException("subscriber failed");
-        await harness.Scripted.WatchFor('X').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(50, 6, "changed", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalId, 1002));
+        await harness.Scripted.WatchFor('X').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(50, 6, "changed", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
 
         Assert.That(await harness.ReadAsync(), Is.True);
         var exception = Assert.ThrowsAsync<InvalidOperationException>(async () => await harness.ReadAsync());

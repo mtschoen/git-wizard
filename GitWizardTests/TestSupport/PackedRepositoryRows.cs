@@ -15,7 +15,7 @@ internal static class PackedRepositoryRows
             ProducerPolicy = ProducerPolicy.Mft,
             MftSource = SyntheticIndexSource.Create(new SyntheticMftProducer(_ => [Directory(5, "root", 5), .. rows])
             {
-                CompletedUtc = PackedIndexFixture.CompletionTimestamp
+                Completed = PackedIndexFixture.CompletionTimestamp
             })
         }, CancellationToken.None);
 

@@ -159,7 +159,7 @@ internal static class WatchFailureAssertions
                     FileName = "file", Reason = SyntheticJournalReason.FileCreate,
                     FileAttributes = FileAttributes.Normal,
                     Timestamp = PackedIndexFixture.CompletionTimestamp, UpdateSequenceNumber = 1001
-                }], new SyntheticJournalCursor(PackedIndexFixture.JournalId, 1002));
+                }], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
             Assert.That(await pending, Is.True);
             Assert.That(reader.Current.RepoRoot, Is.EqualTo(@"Y:\repo"));
             pending = reader.MoveNextAsync().AsTask();

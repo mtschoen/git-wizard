@@ -109,9 +109,9 @@ public sealed partial class MftIndexSession : IAsyncDisposable
             NoCache = false,
             InitialOpenCacheOnly = intent == MftIndexOpenIntent.Snapshot,
             ProducerPolicy = ProducerPolicy.Mft,
-            MftSource = brokerSession.CreateIndexSource(new BrokerScanOptions
+            MftSource = brokerSession.CreateIndexSource(new MftScanOptions
             {
-                DirectoryScanFileNames = MftIndexCachePolicy.DirectoryScanFileNames
+                RetainedFileNames = MftIndexCachePolicy.DirectoryScanFileNames
             }),
             Progress = progress,
             Diagnostics = diagnostics.Report

@@ -212,12 +212,14 @@ public class ProgramWatchStartupTests
             new Dictionary<string, string>());
         session.DriveStatusesOverride = () =>
         {
-            var ready = SyntheticNotifications.CreateDriveStatus('C', DriveState.Ready, BlockSource.ProducedByScan, 10, false, DateTime.UtcNow);
-            var failed = SyntheticNotifications.CreateDriveStatus('D', DriveState.Failed, BlockSource.ProducedByScan, 0, false, DateTime.UtcNow);
+            var ready = SyntheticNotifications.CreateDriveStatus('C', DriveState.Ready,
+                SyntheticNotifications.CreateDriveBlockStatus(BlockSource.ProducedByScan, 10, false, DateTime.UtcNow), null);
+            var failed = SyntheticNotifications.CreateDriveStatus('D', DriveState.Failed, null,
+                SyntheticNotifications.CreateDriveFailure(DriveFailureKind.ProducerFailed, "Drive D failed"));
             return
             [
-                new MftDriveStatus("C", ready with { FailureKind = DriveFailureKind.None, Watch = ready.Watch with { Supported = true } }, null),
-                new MftDriveStatus("D", failed with { FailureKind = DriveFailureKind.None, Watch = failed.Watch with { Supported = false }, FailureMessage = "Drive D failed" }, null)
+                new MftDriveStatus("C", ready with { Watch = ready.Watch with { Supported = true } }, null),
+                new MftDriveStatus("D", failed with { Watch = failed.Watch with { Supported = false } }, null)
             ];
         };
 

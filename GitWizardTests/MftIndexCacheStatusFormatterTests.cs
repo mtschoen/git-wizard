@@ -1,6 +1,7 @@
 using GitWizard;
 using GitWizardTests.TestSupport;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests;
 
@@ -70,8 +71,8 @@ public class MftIndexCacheStatusFormatterTests
         var status = drive with
         {
             State = refused ? DriveState.Failed : DriveState.Ready,
-            FailureKind = refused ? DriveFailureKind.InUse : DriveFailureKind.None,
-            Block = drive.Block with { CacheSlot = CacheSlotState.NotApplicable, ScanTimestamp = default },
+            Failure = refused ? SyntheticNotifications.CreateDriveFailure(DriveFailureKind.InUse, "In-use index refusal") : null,
+            Block = refused ? null : drive.Block! with { CacheSlot = CacheSlotState.NotApplicable },
             Watch = drive.Watch with { FailureMessage = refused ? null : "watch stopped" }
         };
         var directory = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
@@ -86,7 +87,8 @@ public class MftIndexCacheStatusFormatterTests
             Assert.That(text, Does.Contain("Open/rescan failure: None"));
             Assert.That(text, Does.Contain("Watch failure: watch stopped"));
         }
-        Assert.That(text, Does.Contain("Scan timestamp UTC: unavailable"));
+        Assert.That(text, Does.Contain(refused ? "Scan timestamp UTC: unavailable" : $"Scan timestamp UTC: {drive.Block!.ScanTimestamp:O}"));
+        Assert.That(text, Does.Contain(refused ? "source: unavailable" : "source: ProducedByScan"));
         Assert.That(text, Does.Not.Contain("  Backing:"));
     }
 }

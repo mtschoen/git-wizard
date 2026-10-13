@@ -26,7 +26,7 @@ public class IndexVolumeChangeSourceFaultTests
 
         await WaitUntilAsync(() => harness.Scripted.Watches.Count(watch => watch.DriveLetter == 'X') == 2);
         await WaitUntilAsync(() => harness.ReadinessOf('X') == VolumeWatchState.CaughtUp &&
-                                   harness.StatusOf('X').Watch.CatchUpState == WatchCatchUpState.CaughtUp);
+                                   harness.StatusOf('X').Watch.State == WatchState.CaughtUp);
         Assert.That(harness.Failures, Is.Empty);
         Assert.That(harness.Deaths, Is.Empty);
         Assert.That(harness.States('X'), Does.Contain(VolumeWatchState.CatchingUp),
@@ -53,7 +53,7 @@ public class IndexVolumeChangeSourceFaultTests
             token => release.Task.WaitAsync(token));
         harness.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
 
-        await WaitUntilAsync(() => harness.StatusOf('X').Watch.CatchUpState == WatchCatchUpState.Recovering &&
+        await WaitUntilAsync(() => harness.StatusOf('X').Watch.State == WatchState.Recovering &&
                                    harness.ReadinessOf('X') == VolumeWatchState.CatchingUp);
         Assert.That(harness.Deaths, Is.Empty);
         Assert.That(harness.Failures, Is.Empty);
@@ -133,7 +133,7 @@ public class IndexVolumeChangeSourceFaultTests
         if (recovers)
         {
             await WaitUntilAsync(() => harness.ReadinessOf('X') == VolumeWatchState.CaughtUp &&
-                                       harness.StatusOf('X').Watch.CatchUpState == WatchCatchUpState.CaughtUp);
+                                       harness.StatusOf('X').Watch.State == WatchState.CaughtUp);
             Assert.That(harness.Failures, Is.Empty);
         }
         else
@@ -187,7 +187,7 @@ public class IndexVolumeChangeSourceFaultTests
         try
         {
             harness.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
-            await WaitUntilAsync(() => harness.StatusOf('X').Watch.CatchUpState == WatchCatchUpState.Recovering);
+            await WaitUntilAsync(() => harness.StatusOf('X').Watch.State == WatchState.Recovering);
         }
         finally
         {

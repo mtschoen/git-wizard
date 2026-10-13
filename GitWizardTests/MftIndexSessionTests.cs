@@ -125,6 +125,7 @@ public class MftIndexSessionTests
         await watchBroker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.That(session.IsDisposed, Is.True);
         Assert.Throws<ObjectDisposedException>(() => session.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)));
+        Assert.That(session.IsFaulted, Is.False, "Orderly disposal does not complete the broker end signal.");
         Assert.That(watchBroker.ConnectionCount, Is.EqualTo(1));
     }
 
@@ -226,7 +227,7 @@ public class MftIndexSessionTests
         await using var reopened = await MftIndexSession.OpenAsync([broker.Drive('X')],
             BrokerTestHarness.CreateSession(_ => throw new AssertionException("A cached block must not connect.")),
             broker.CacheDirectory, MftIndexOpenIntent.Snapshot, null, CancellationToken.None);
-        Assert.That(reopened.CaptureDriveStatuses().Single().IndexStatus!.Block.Source,
+        Assert.That(reopened.CaptureDriveStatuses().Single().IndexStatus!.Block?.Source,
             Is.EqualTo(BlockSource.WarmStartedFromCache));
     }
 

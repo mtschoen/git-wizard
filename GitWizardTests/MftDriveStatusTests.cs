@@ -33,14 +33,14 @@ public class MftDriveStatusTests
         Assert.That(statuses[0].IdentityFailure, Is.EqualTo("identity denied"));
         Assert.That(statuses[0].IndexStatus, Is.Null);
         Assert.That(statuses[1].IdentityFailure, Is.Null);
-        Assert.That(statuses[1].IndexStatus!.FailureKind, Is.EqualTo(DriveFailureKind.ProducerFailed));
-        Assert.That(statuses[1].IndexStatus!.Block.Source, Is.EqualTo(BlockSource.None));
+        Assert.That(statuses[1].IndexStatus!.Failure?.Kind, Is.EqualTo(DriveFailureKind.ProducerFailed));
+        Assert.That(statuses[1].IndexStatus!.Block, Is.Null);
         await using var result = new MftDiscoveryResult(false, session);
         var captured = result.DriveStatuses;
         Assert.That(result.DetachIndexSession(), Is.SameAs(session));
         await session.DisposeAsync();
         Assert.That(result.DriveStatuses, Is.EqualTo(captured));
-        Assert.That(captured[1].IndexStatus!.FailureMessage, Does.Contain("scan refused"));
+        Assert.That(captured[1].IndexStatus!.Failure?.Message, Does.Contain("scan refused"));
     }
 
     [Test]
@@ -66,15 +66,15 @@ public class MftDriveStatusTests
         var drive = index.Drives.Single();
         var source = drive with
         {
-            Block = drive.Block with { Source = BlockSource.WarmStartedFromCache },
+            Block = drive.Block! with { Source = BlockSource.WarmStartedFromCache },
             Watch = drive.Watch with { FailureMessage = "watch failed", CheckpointLoss = loss }
         };
         var projection = new MftDriveStatus("X", source, null);
         Assert.That(projection.IndexStatus!.State, Is.EqualTo(DriveState.Ready));
-        Assert.That(projection.IndexStatus.Block.Source, Is.EqualTo(BlockSource.WarmStartedFromCache));
-        Assert.That(projection.IndexStatus.FailureKind, Is.EqualTo(DriveFailureKind.None));
+        Assert.That(projection.IndexStatus.Block?.Source, Is.EqualTo(BlockSource.WarmStartedFromCache));
+        Assert.That(projection.IndexStatus.Failure, Is.Null);
         Assert.That(projection.IndexStatus.Watch.FailureMessage, Is.EqualTo("watch failed"));
         Assert.That(projection.IndexStatus.Watch.CheckpointLoss, Is.EqualTo(loss));
-        Assert.That(projection.IndexStatus.Block.ScanTimestamp, Is.EqualTo(source.Block.ScanTimestamp));
+        Assert.That(projection.IndexStatus.Block?.ScanTimestamp, Is.EqualTo(source.Block!.ScanTimestamp));
     }
 }

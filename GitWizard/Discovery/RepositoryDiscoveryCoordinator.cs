@@ -225,11 +225,11 @@ public partial class RepositoryDiscoveryCoordinator
     static bool NeedsScan(DiscoveryPurpose purpose, MftDriveStatus drive)
     {
         if (drive.IndexStatus is not { } status || status.State == DriveState.Offline ||
-            status.FailureKind == DriveFailureKind.InUse)
+            status.Failure?.Kind == DriveFailureKind.InUse)
             return false;
         if (purpose == DiscoveryPurpose.Rebuild)
             return true;
-        if (status.FailureKind is DriveFailureKind.CacheDeclined or DriveFailureKind.CacheTagMismatch)
+        if (status.Failure?.Kind is DriveFailureKind.CacheDeclined or DriveFailureKind.CacheTagMismatch)
             return true;
         return purpose == DiscoveryPurpose.Watch && status.Watch.CheckpointLoss is { } loss &&
                !IsResolvedByOpeningScan(loss, status);
@@ -240,5 +240,5 @@ public partial class RepositoryDiscoveryCoordinator
     // adopts the unresumable block itself (WarmStartedFromCache), which a watch must replace first.
     static bool IsResolvedByOpeningScan(JournalCheckpointLoss loss, DriveStatus status) =>
         loss.DetectedDuring == JournalCheckpointLossDetection.DriveOpening &&
-        status.Block.Source == BlockSource.ProducedByScan;
+        status.Block?.Source == BlockSource.ProducedByScan;
 }

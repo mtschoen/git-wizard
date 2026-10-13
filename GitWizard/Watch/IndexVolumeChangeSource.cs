@@ -105,8 +105,8 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
             {
                 if (status.IdentityFailure is not null)
                     errors[status.Drive] = status.IdentityFailure;
-                else if (status.IndexStatus?.FailureMessage is { Length: > 0 } msg)
-                    errors[status.Drive] = msg;
+                else if (status.IndexStatus?.Failure?.Message is { Length: > 0 } message)
+                    errors[status.Drive] = message;
                 else if (status.IndexStatus?.State is DriveState.Failed or DriveState.Offline)
                     errors[status.Drive] = $"Drive is {status.IndexStatus.State}.";
                 else
@@ -135,8 +135,8 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
                         string.Equals(s.Drive, d.ToString(), StringComparison.OrdinalIgnoreCase));
                     if (driveStatus?.IndexStatus is { State: DriveState.Failed or DriveState.Offline } failed)
                     {
-                        var msg = failed.FailureMessage ?? $"Drive is {failed.State}.";
-                        RecordStartupDriveFailure(d, msg);
+                        var message = failed.Failure?.Message ?? $"Drive is {failed.State}.";
+                        RecordStartupDriveFailure(d, message);
                     }
                 }
                 ExcludeDrivesWithFailedWatch(_owner, catchUpDrives);

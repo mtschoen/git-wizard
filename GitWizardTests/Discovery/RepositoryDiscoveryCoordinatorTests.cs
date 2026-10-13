@@ -29,13 +29,19 @@ public class RepositoryDiscoveryCoordinatorTests
     static DriveStatus CreateDriveStatus(
         char letter,
         DriveState state,
-        DriveFailureKind failureKind = DriveFailureKind.None,
+        DriveFailureKind? failureKind = null,
         DateTime? scanTimestamp = null,
         string? failureMessage = null,
         BlockSource blockSource = BlockSource.ProducedByScan)
     {
-        var status = SyntheticNotifications.CreateDriveStatus(letter, state, blockSource, 10, false, scanTimestamp ?? DateTime.UtcNow);
-        return status with { FailureKind = failureKind, Watch = status.Watch with { Supported = state == DriveState.Ready }, FailureMessage = failureMessage };
+        var block = state == DriveState.Ready
+            ? SyntheticNotifications.CreateDriveBlockStatus(blockSource, 10, false, scanTimestamp ?? DateTime.UtcNow)
+            : null;
+        var failure = failureKind is { } kind
+            ? SyntheticNotifications.CreateDriveFailure(kind, failureMessage ?? kind.ToString())
+            : null;
+        var status = SyntheticNotifications.CreateDriveStatus(letter, state, block, failure);
+        return status with { Watch = status.Watch with { Supported = state == DriveState.Ready } };
     }
 
     [Test]
@@ -204,8 +210,8 @@ public class RepositoryDiscoveryCoordinatorTests
             CrawlRootAsync = (_, _, _) => { Interlocked.Increment(ref crawlerCalls); return Task.FromResult(new RecursiveDiscovery([], [], new Dictionary<string, string>())); },
             OpenIndexAsync = (_, _, _, _) =>
             {
-                var status = CreateDriveStatus('X', DriveState.Offline, DriveFailureKind.InUse,
-                    failureMessage: "In-use index refusal", blockSource: BlockSource.None);
+                var status = CreateDriveStatus('X', DriveState.Failed, DriveFailureKind.InUse,
+                    failureMessage: "In-use index refusal");
                 var session = new MftIndexSession(fileIndex, null, ["X"], [], new Dictionary<string, string> { ["X"] = "In-use index refusal" })
                 {
                     DriveStatusesOverride = () => [new MftDriveStatus("X", status, null)]
@@ -286,8 +292,7 @@ public class RepositoryDiscoveryCoordinatorTests
             {
                 var cStatus = CreateDriveStatus('C', DriveState.Ready,
                     scanTimestamp: PackedIndexFixture.CompletionTimestamp);
-                var dStatus = CreateDriveStatus('D', DriveState.Offline,
-                    blockSource: BlockSource.None);
+                var dStatus = CreateDriveStatus('D', DriveState.Offline);
                 var session = new MftIndexSession(fileIndex, null, ["C", "D"], [], new Dictionary<string, string> { ["D"] = "Drive D is offline" })
                 {
                     DriveStatusesOverride = () => [new MftDriveStatus("C", cStatus, null), new MftDriveStatus("D", dStatus, "Drive D is offline")]
@@ -329,7 +334,7 @@ public class RepositoryDiscoveryCoordinatorTests
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS crawler invoked"),
             OpenIndexAsync = (_, _, _, _) =>
             {
-                var cStatus = CreateDriveStatus('C', DriveState.Offline, blockSource: BlockSource.None);
+                var cStatus = CreateDriveStatus('C', DriveState.Offline);
                 var session = new MftIndexSession(fileIndex, null, ["C"], [], new Dictionary<string, string> { ["C"] = "offline" })
                 {
                     DriveStatusesOverride = () => [new MftDriveStatus("C", cStatus, "offline")]
@@ -410,7 +415,7 @@ public class RepositoryDiscoveryCoordinatorTests
             OpenIndexAsync = (_, _, _, _) =>
             {
                 // After rescan, block is Ready but producer error message is set
-                var failedStatus = CreateDriveStatus('X', DriveState.Ready,
+                var failedStatus = CreateDriveStatus('X', DriveState.Ready, DriveFailureKind.ProducerFailed,
                     failureMessage: "MFT producer failed during rescan");
                 var session = new MftIndexSession(fileIndex, null, ["X"], [], new Dictionary<string, string>())
                 {

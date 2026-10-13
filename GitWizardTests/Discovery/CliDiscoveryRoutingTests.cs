@@ -88,8 +88,14 @@ public class CliDiscoveryRoutingTests
 
     static DriveStatus CreateDriveStatus(char letter, DriveState state, string? failureMessage = null)
     {
-        var status = SyntheticNotifications.CreateDriveStatus(letter, state, BlockSource.ProducedByScan, 10, false, DateTime.UtcNow);
-        return status with { FailureKind = DriveFailureKind.None, Watch = status.Watch with { Supported = state == DriveState.Ready }, FailureMessage = failureMessage };
+        var block = state == DriveState.Ready
+            ? SyntheticNotifications.CreateDriveBlockStatus(BlockSource.ProducedByScan, 10, false, DateTime.UtcNow)
+            : null;
+        var failure = failureMessage is not null
+            ? SyntheticNotifications.CreateDriveFailure(DriveFailureKind.ProducerFailed, failureMessage)
+            : null;
+        var status = SyntheticNotifications.CreateDriveStatus(letter, state, block, failure);
+        return status with { Watch = status.Watch with { Supported = state == DriveState.Ready } };
     }
 
     [TestCase("report")]

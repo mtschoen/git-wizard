@@ -29,7 +29,7 @@ public class IndexVolumeChangeSourceCompletionTests
         await WaitUntilAsync(() => scenario.Productions > productionsBefore);
 
         Assert.That(arming.IsCompleted, Is.False, "The arm keeps following the newer recovery.");
-        Assert.That(scenario.StateOf('X'), Is.EqualTo(WatchCatchUpState.Recovering));
+        Assert.That(scenario.StateOf('X'), Is.EqualTo(WatchState.Recovering));
         Assert.That(scenario.ReadinessOf('X'), Is.EqualTo(VolumeWatchState.CatchingUp));
         Assert.That(scenario.Violations, Is.Empty);
 
@@ -42,7 +42,7 @@ public class IndexVolumeChangeSourceCompletionTests
         Assert.That(await completedBeforeRelease.WaitAsync(HangGuard), Is.False,
             "The arm must not complete before the newer recovery finishes.");
         Assert.That(result.Errors, Is.Empty);
-        Assert.That(scenario.StateOf('X'), Is.EqualTo(WatchCatchUpState.CaughtUp));
+        Assert.That(scenario.StateOf('X'), Is.EqualTo(WatchState.CaughtUp));
         Assert.That(scenario.ReadinessOf('X'), Is.EqualTo(VolumeWatchState.CaughtUp));
         Assert.That(scenario.Violations, Is.Empty);
     }
@@ -59,13 +59,13 @@ public class IndexVolumeChangeSourceCompletionTests
         var productionsBefore = scenario.ProductionsAtSecondFault;
         await WaitUntilAsync(() => scenario.Productions > productionsBefore);
 
-        Assert.That(scenario.StateOf('X'), Is.EqualTo(WatchCatchUpState.Recovering));
+        Assert.That(scenario.StateOf('X'), Is.EqualTo(WatchState.Recovering));
         Assert.That(scenario.ReadinessOf('X'), Is.EqualTo(VolumeWatchState.CatchingUp));
         Assert.That(scenario.Violations, Is.Empty);
 
         scenario.ReleaseHeldRescan();
         await WaitUntilAsync(() => scenario.ReadinessOf('X') == VolumeWatchState.CaughtUp);
-        Assert.That(scenario.StateOf('X'), Is.EqualTo(WatchCatchUpState.CaughtUp));
+        Assert.That(scenario.StateOf('X'), Is.EqualTo(WatchState.CaughtUp));
         Assert.That(scenario.Violations, Is.Empty);
     }
 
@@ -80,7 +80,7 @@ public class IndexVolumeChangeSourceCompletionTests
         await scenario.SecondFaultInjected.WaitAsync(HangGuard);
         await WaitUntilAsync(() => scenario.ReadinessOf('X') == VolumeWatchState.Excluded);
 
-        Assert.That(scenario.StateOf('X'), Is.EqualTo(WatchCatchUpState.Faulted));
+        Assert.That(scenario.StateOf('X'), Is.EqualTo(WatchState.Faulted));
         Assert.That(scenario.Violations, Is.Empty);
         Assert.That(scenario.CaughtUpPublishedAfterSecondFault, Is.False);
     }
@@ -96,7 +96,7 @@ public class IndexVolumeChangeSourceCompletionTests
 
         await scenario.SecondFaultInjected.WaitAsync(HangGuard);
         await WaitUntilAsync(() => scenario.ReadinessOf('X') == expected);
-        Assert.That(scenario.StateOf('X'), Is.Not.EqualTo(WatchCatchUpState.CaughtUp));
+        Assert.That(scenario.StateOf('X'), Is.Not.EqualTo(WatchState.CaughtUp));
     }
 
     [Test]
@@ -111,9 +111,10 @@ public class IndexVolumeChangeSourceCompletionTests
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         var version = owner.Index.Drives.Single().Watch.StateVersion + 10;
         var fault = SyntheticNotifications.CreateWatchFault(WatchFaultKind.Drive, 'X', new IOException("recovering"));
-        source.ApplyWatchState(new DriveWatchState('X', WatchCatchUpState.Recovering, version, fault));
-        source.ApplyWatchState(new DriveWatchState('X', WatchCatchUpState.CaughtUp, version - 1, null));
-        source.ApplyWatchState(new DriveWatchState('X', WatchCatchUpState.CaughtUp, version, null));
+        var watch = owner.Index.Drives.Single().Watch;
+        source.ApplyWatchState(new WatchStateChange('X', watch with { State = WatchState.Recovering, StateVersion = version }, fault));
+        source.ApplyWatchState(new WatchStateChange('X', watch with { State = WatchState.CaughtUp, StateVersion = version - 1 }, null));
+        source.ApplyWatchState(new WatchStateChange('X', watch with { State = WatchState.CaughtUp, StateVersion = version }, null));
         Assert.That(source.Readiness.TryGet("X", out var status), Is.True);
         Assert.That(status!.State, Is.EqualTo(VolumeWatchState.CatchingUp));
         Assert.That(status.WatchStateVersion, Is.EqualTo(version));
@@ -133,9 +134,11 @@ public class IndexVolumeChangeSourceCompletionTests
         await source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
         var versionX = owner.Index.Drives.Single(d => d.DriveLetter == 'X').Watch.StateVersion;
         var versionY = owner.Index.Drives.Single(d => d.DriveLetter == 'Y').Watch.StateVersion;
-        source.ApplyWatchState(new DriveWatchState('X', WatchCatchUpState.Recovering, versionX + 100,
+        var watchX = owner.Index.Drives.Single(drive => drive.DriveLetter == 'X').Watch;
+        var watchY = owner.Index.Drives.Single(drive => drive.DriveLetter == 'Y').Watch;
+        source.ApplyWatchState(new WatchStateChange('X', watchX with { State = WatchState.Recovering, StateVersion = versionX + 100 },
             SyntheticNotifications.CreateWatchFault(WatchFaultKind.Drive, 'X', new IOException("X recovering"))));
-        source.ApplyWatchState(new DriveWatchState('Y', WatchCatchUpState.Recovering, versionY + 1,
+        source.ApplyWatchState(new WatchStateChange('Y', watchY with { State = WatchState.Recovering, StateVersion = versionY + 1 },
             SyntheticNotifications.CreateWatchFault(WatchFaultKind.Drive, 'Y', new IOException("Y recovering"))));
         Assert.That(source.Readiness.TryGet("X", out var statusX), Is.True);
         Assert.That(statusX!.WatchStateVersion, Is.EqualTo(versionX + 100));
@@ -155,19 +158,20 @@ public class IndexVolumeChangeSourceCompletionTests
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         var initialVersion = owner.Index.Drives.Single().Watch.StateVersion;
         var intermediateVersion = initialVersion + 5;
-        source.ApplyWatchState(new DriveWatchState('X', WatchCatchUpState.Recovering, intermediateVersion,
+        var watch = owner.Index.Drives.Single().Watch;
+        source.ApplyWatchState(new WatchStateChange('X', watch with { State = WatchState.Recovering, StateVersion = intermediateVersion },
             SyntheticNotifications.CreateWatchFault(WatchFaultKind.Drive, 'X', new IOException("recovering"))));
         var countBefore = source.Readiness.RecentTransitions.Count;
 
         // Deliver older event: should be ignored
-        source.ApplyWatchState(new DriveWatchState('X', WatchCatchUpState.CaughtUp, intermediateVersion - 1, null));
+        source.ApplyWatchState(new WatchStateChange('X', watch with { State = WatchState.CaughtUp, StateVersion = intermediateVersion - 1 }, null));
         Assert.That(source.Readiness.RecentTransitions.Count, Is.EqualTo(countBefore));
         Assert.That(source.Readiness.TryGet("X", out var status), Is.True);
         Assert.That(status!.WatchStateVersion, Is.EqualTo(intermediateVersion));
 
         // Deliver strictly newer event: should be accepted
         var newerVersion = intermediateVersion + 1;
-        source.ApplyWatchState(new DriveWatchState('X', WatchCatchUpState.CaughtUp, newerVersion, null));
+        source.ApplyWatchState(new WatchStateChange('X', watch with { State = WatchState.CaughtUp, StateVersion = newerVersion }, null));
         await WaitUntilAsync(() => source.Readiness.TryGet("X", out var s) && s.WatchStateVersion == newerVersion &&
             s.State == VolumeWatchState.CaughtUp);
         Assert.That(source.Readiness.TryGet("X", out var updated), Is.True);
@@ -191,7 +195,8 @@ public class IndexVolumeChangeSourceCompletionTests
         source.ReconciliationCapturedForTest = drive =>
         {
             next = owner.Index.Drives.Single(item => item.DriveLetter == drive).Watch.StateVersion + 1;
-            source.ApplyWatchState(new DriveWatchState(drive, WatchCatchUpState.Recovering, next,
+            var watch = owner.Index.Drives.Single(item => item.DriveLetter == drive).Watch;
+            source.ApplyWatchState(new WatchStateChange(drive, watch with { State = WatchState.Recovering, StateVersion = next },
                 SyntheticNotifications.CreateWatchFault(WatchFaultKind.Drive, drive, new IOException("newer recovery"))));
         };
         await using var sourceLifetime = source;
@@ -200,7 +205,7 @@ public class IndexVolumeChangeSourceCompletionTests
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
 
         scripted.WatchFor('X').FailDrive(new IOException("X failed"));
-        await WaitUntilAsync(() => owner.Index.Drives.Single().Watch.CatchUpState == WatchCatchUpState.Recovering);
+        await WaitUntilAsync(() => owner.Index.Drives.Single().Watch.State == WatchState.Recovering);
         files.AddMarker("newrepo");
         release.SetResult();
 
@@ -214,7 +219,7 @@ public class IndexVolumeChangeSourceCompletionTests
         Assert.That(status.WatchStateVersion, Is.EqualTo(next));
 
         // Submit CaughtUp at next + 1 and wait for that exact published version
-        source.ApplyWatchState(new DriveWatchState('X', WatchCatchUpState.CaughtUp, next + 1, null));
+        source.ApplyWatchState(new WatchStateChange('X', owner.Index.Drives.Single().Watch with { State = WatchState.CaughtUp, StateVersion = next + 1 }, null));
         await WaitUntilAsync(() => source.Readiness.TryGet("X", out var s) && s.WatchStateVersion == next + 1 &&
             s.State == VolumeWatchState.CaughtUp);
         Assert.That(source.Readiness.TryGet("X", out var caughtUp), Is.True);
@@ -312,7 +317,7 @@ public class IndexVolumeChangeSourceCompletionTests
 
         async Task ReleaseFirstRescanWhenRecoveringAsync(char drive)
         {
-            await WaitUntilAsync(() => StateOf(drive) == WatchCatchUpState.Recovering);
+            await WaitUntilAsync(() => StateOf(drive) == WatchState.Recovering);
             _firstRescan.SetResult();
         }
 
@@ -335,7 +340,7 @@ public class IndexVolumeChangeSourceCompletionTests
                     Scripted.WatchFor(drive).LoseChannel(new IOException($"{drive} channel lost"));
                     break;
             }
-            var settled = kind == "channel" ? WatchCatchUpState.Faulted : WatchCatchUpState.Recovering;
+            var settled = kind == "channel" ? WatchState.Faulted : WatchState.Recovering;
             Assert.That(SpinWait.SpinUntil(() => StateOf(drive) == settled, HangGuard), Is.True);
             _secondFaultInjected.TrySetResult();
         }
@@ -345,7 +350,7 @@ public class IndexVolumeChangeSourceCompletionTests
             if (!snapshot.TryGet("X", out var status) || status.State != VolumeWatchState.CaughtUp)
                 return;
             var state = StateOf('X');
-            if (state != WatchCatchUpState.CaughtUp)
+            if (state != WatchState.CaughtUp)
             {
                 lock (_violations)
                     _violations.Add($"CaughtUp published while MFTLib read {state}");
@@ -358,8 +363,8 @@ public class IndexVolumeChangeSourceCompletionTests
 
         public void ReleaseHeldRescan() => _heldRescan.TrySetResult();
 
-        public WatchCatchUpState? StateOf(char drive) =>
-            Owner.Index.Drives.FirstOrDefault(status => status.DriveLetter == drive)?.Watch.CatchUpState;
+        public WatchState? StateOf(char drive) =>
+            Owner.Index.Drives.FirstOrDefault(status => status.DriveLetter == drive)?.Watch.State;
 
         public VolumeWatchState? ReadinessOf(char drive) =>
             Source.Readiness.TryGet(drive.ToString(), out var status) ? status.State : null;

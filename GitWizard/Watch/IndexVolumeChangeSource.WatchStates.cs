@@ -21,11 +21,11 @@ public sealed partial class IndexVolumeChangeSource
         previous.TrySetResult();
     }
 
-    internal void ApplyWatchState(DriveWatchState change)
+    internal void ApplyWatchState(WatchStateChange change)
     {
         try
         {
-            AcceptWatchState(change, recordTransition: true);
+            AcceptWatchState(change.DriveLetter, change.Watch, change.Fault, recordTransition: true);
         }
         catch (Exception exception)
         {
@@ -36,7 +36,7 @@ public sealed partial class IndexVolumeChangeSource
     void SeedWatchStates(FileIndex index)
     {
         foreach (var status in index.Drives)
-            AcceptWatchState(status.ToWatchState(), recordTransition: false);
+            AcceptWatchState(status.DriveLetter, status.Watch, null, recordTransition: false);
     }
 
     void FailWatchState(char drive, Exception exception)
@@ -50,21 +50,21 @@ public sealed partial class IndexVolumeChangeSource
         RecordStartupDriveFailure(drive, exception.Message);
     }
 
-    void AcceptWatchState(DriveWatchState change, bool recordTransition)
+    void AcceptWatchState(char driveLetter, DriveWatchStatus watch, WatchFault? fault, bool recordTransition)
     {
-        var drive = char.ToUpperInvariant(change.DriveLetter);
+        var drive = char.ToUpperInvariant(driveLetter);
         lock (_watchStateLock)
         {
             if (_watchStatesStopped || !ContainsUsableDrive(drive) ||
-                (_watchStateVersions.TryGetValue(drive, out var version) && change.StateVersion <= version))
+                (_watchStateVersions.TryGetValue(drive, out var version) && watch.StateVersion <= version))
                 return;
-            _watchStateVersions[drive] = change.StateVersion;
+            _watchStateVersions[drive] = watch.StateVersion;
             if (recordTransition)
             {
                 lock (_faultLock)
                     _readiness = _readiness.WithTransition(new VolumeWatchTransition(
-                        _watchSessionId, drive.ToString(), change.StateVersion, change.CatchUpState.ToString(),
-                        change.Fault?.Exception.Message, DateTimeOffset.UtcNow));
+                        _watchSessionId, drive.ToString(), watch.StateVersion, watch.State.ToString(),
+                        fault?.Exception.Message, DateTimeOffset.UtcNow));
             }
             var previous = Readiness.TryGet(drive.ToString(), out var status) ? status : null;
             var origin = previous?.Origin ?? VolumeBlockOrigin.Unknown;
@@ -72,9 +72,9 @@ public sealed partial class IndexVolumeChangeSource
             // failed start results own terminal exclusion; a raw state never kills the source.
             PublishVolumeState(VolumeWatchStatus.CatchingUp(drive.ToString(), origin)
                 with
-            { WatchStateVersion = change.StateVersion });
-            if (change.CatchUpState == WatchCatchUpState.CaughtUp)
-                QueueCaughtUpLocked(drive, change.StateVersion);
+            { WatchStateVersion = watch.StateVersion });
+            if (watch.State == WatchState.CaughtUp)
+                QueueCaughtUpLocked(drive, watch.StateVersion);
             PulseWatchStateLocked();
         }
     }

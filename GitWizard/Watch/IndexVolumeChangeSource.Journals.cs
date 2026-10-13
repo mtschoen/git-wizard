@@ -14,7 +14,7 @@ public sealed partial class IndexVolumeChangeSource
         var owner = _owner ?? throw new InvalidOperationException("No index session available.");
         if (drive.State is DriveState.Failed or DriveState.Offline)
         {
-            errors[drive.DriveLetter.ToString()] = drive.FailureMessage ?? $"Drive is {drive.State}.";
+            errors[drive.DriveLetter.ToString()] = drive.Failure?.Message ?? $"Drive is {drive.State}.";
             // A cache-declined drive keeps its CheckpointLoss so the hint can explain the
             // discarded checkpoint even though the drive is not being watched.
             AddJournalWarning(drive, owner, configuration, warnings);

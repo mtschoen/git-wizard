@@ -9,7 +9,6 @@ public sealed partial class MftIndexSession : IAsyncDisposable
     readonly IAsyncDisposable? _connectionOwner;
     MftIndexDiagnostics? _diagnostics;
     BrokerSession? _brokerSession;
-    bool _faulted;
     readonly Lock _disposalLock = new();
     readonly string? _cacheDirectory;
     Task? _disposal;
@@ -22,9 +21,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
     public IReadOnlyList<string> Drives { get; private set; }
     public IReadOnlyList<IndexedDrive> IndexedDrives { get; private set; }
     public IReadOnlyDictionary<string, string> ScanErrors { get; private set; }
-    // BrokerSession.HasEnded is also true after an orderly disposal, so the fault is latched at
-    // disposal: faulted means the process ended while this session was live.
-    public bool IsFaulted => _faulted || (!IsDisposed && _brokerSession?.HasEnded == true);
+    public bool IsFaulted => _brokerSession?.Ended.IsCompleted == true;
     public bool IsDisposed => Volatile.Read(ref _disposed) != 0;
 
     internal MftIndexSession(FileIndex index, IAsyncDisposable? connectionOwner,
@@ -124,7 +121,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
         foreach (var drive in index.Drives)
         {
             if (drive.State is DriveState.Failed or DriveState.Offline)
-                errors[drive.DriveLetter.ToString()] = drive.FailureMessage ?? $"Drive is {drive.State}.";
+                errors[drive.DriveLetter.ToString()] = drive.Failure?.Message ?? $"Drive is {drive.State}.";
         }
         return errors;
     }
@@ -189,7 +186,6 @@ public sealed partial class MftIndexSession : IAsyncDisposable
 
     Task DisposeCoreAsync()
     {
-        _faulted = _brokerSession?.HasEnded == true;
         Volatile.Write(ref _disposed, 1);
         return DisposeResourcesAsync(Index, _connectionOwner, _diagnostics);
     }

@@ -33,7 +33,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeReadiness
         }
     }
 
-    static VolumeBlockOrigin OriginOf(DriveStatus? status) => status?.Block.Source switch
+    static VolumeBlockOrigin OriginOf(DriveStatus? status) => status?.Block?.Source switch
     {
         BlockSource.WarmStartedFromCache => VolumeBlockOrigin.Warm,
         BlockSource.ProducedByScan => VolumeBlockOrigin.Cold,
@@ -75,10 +75,10 @@ public sealed partial class IndexVolumeChangeSource : IVolumeReadiness
                 continue;
             var letter = char.ToUpperInvariant(status.Drive[0]);
             // A recovering drive can carry its fault's message and still come back.
-            if (!driveSet.Contains(letter) || index.Watch.CatchUpState == WatchCatchUpState.Recovering)
+            if (!driveSet.Contains(letter) || index.Watch.State == WatchState.Recovering)
                 continue;
             var message = index.Watch.FailureMessage;
-            if (message is { Length: > 0 } || index.Watch.CatchUpState == WatchCatchUpState.Faulted)
+            if (message is { Length: > 0 } || index.Watch.State == WatchState.Faulted)
                 RecordStartupDriveFailure(letter, message ?? "The drive's watch faulted during catch-up.");
         }
     }

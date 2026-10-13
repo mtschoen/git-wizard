@@ -328,8 +328,9 @@ public class IndexVolumeChangeSourceTests
             [new IndexedDrive('X', files.TreePath, 12345u)], new Dictionary<string, string>());
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner), owner);
         var loss = SyntheticNotifications.CreateJournalCheckpointLoss('X', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.DriveOpening, new UsnJournalSettings { MaximumSize = 32L * 1024 * 1024, AllocationDelta = 8 * 1024 * 1024 }) with { BytesBehind = 4_000_000, SizeThatWouldHaveRetained = 136L * 1024 * 1024 };
-        var declinedBase = SyntheticNotifications.CreateDriveStatus('X', DriveState.Failed, BlockSource.None, 0, false, DateTime.UtcNow);
-        var status = declinedBase with { Watch = declinedBase.Watch with { Supported = false, CheckpointLoss = loss }, FailureKind = DriveFailureKind.CacheDeclined, FailureMessage = "cache declined" };
+        var declinedBase = SyntheticNotifications.CreateDriveStatus('X', DriveState.Failed, null,
+            SyntheticNotifications.CreateDriveFailure(DriveFailureKind.CacheDeclined, "cache declined"));
+        var status = declinedBase with { Watch = declinedBase.Watch with { Supported = false, CheckpointLoss = loss } };
         var errors = new Dictionary<string, string>();
         var warnings = new List<JournalWarning>();
 
@@ -354,7 +355,8 @@ public class IndexVolumeChangeSourceTests
         source.JournalWarningDetected += warnings.Add;
         var liveLoss = FakeJournalSettingsSource.TrimmedLoss('X', 32L * 1024 * 1024, 136L * 1024 * 1024,
             detectedDuring: JournalCheckpointLossDetection.LiveWatch);
-        var readyBase = SyntheticNotifications.CreateDriveStatus('X', DriveState.Ready, BlockSource.ProducedByScan, 10, false, DateTime.UtcNow);
+        var readyBase = SyntheticNotifications.CreateDriveStatus('X', DriveState.Ready,
+            SyntheticNotifications.CreateDriveBlockStatus(BlockSource.ProducedByScan, 10, false, DateTime.UtcNow), null);
         var status = readyBase with { Watch = readyBase.Watch with { Supported = true, FailureMessage = "watch reached a position the journal no longer holds", CheckpointLoss = liveLoss } };
 
         source.ProcessFaultedDrive(status, owner, new GitWizardConfiguration());
@@ -385,7 +387,8 @@ public class IndexVolumeChangeSourceTests
         source.JournalWarningDetected += warnings.Add;
         var liveLoss = FakeJournalSettingsSource.TrimmedLoss('X', 32L * 1024 * 1024, 136L * 1024 * 1024,
             detectedDuring: JournalCheckpointLossDetection.LiveWatch);
-        var recreatedBase = SyntheticNotifications.CreateDriveStatus('X', DriveState.Ready, BlockSource.ProducedByScan, 10, false, DateTime.UtcNow);
+        var recreatedBase = SyntheticNotifications.CreateDriveStatus('X', DriveState.Ready,
+            SyntheticNotifications.CreateDriveBlockStatus(BlockSource.ProducedByScan, 10, false, DateTime.UtcNow), null);
         var status = recreatedBase with { Watch = recreatedBase.Watch with { Supported = true, CheckpointLoss = liveLoss } };
 
         source.ProcessFaultedDrive(status, owner, new GitWizardConfiguration());

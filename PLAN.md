@@ -1,56 +1,6 @@
 # GitWizard - Plan
 
-## Completed
-
-- [x] Core library: repo discovery (MFT + recursive scan), parallel refresh, LibGit2Sharp
-- [x] CLI: report generation, JSON output, caching, scan-only mode
-- [x] MAUI UI: CollectionView with grouping, status icons, background refresh
-- [x] Per-repo state: branch, dirty, pending changes, local-only commits, remotes, author emails
-- [x] Submodule and worktree support
-- [x] Windows Defender exclusion setup
-- [x] Cached report.json at ~/.GitWizard/
-
-## Inbox
-
-- [x] **aislop -> 100/100** - C# gate driven to 100/100 and wired into CI via PR #65
-      (`98ed176`); `.aislop/config.yml` now gates at `failBelow: 100` (0 findings across every
-      engine). Oversized files split into partials, long functions extracted, narrative
-      comments kept (knowledge also lives in AGENTS.md). Deferred fleet-wide extra: the
-      per-edit Claude Code aislop hook (pinned, no `@latest`) is not installed in this repo -
-      see `~/.claude/notes/reference_aislop.md`. (The early WIP branch
-      `chore/aislop-csharp-cleanup` was superseded by #65 and deleted.)
-
 ## Next Up
-
-### Projdash integration - batch git reports for LLM consumption
-
-GitWizard already scans 692 repos and caches state in `report.json`. Projdash currently shells out to `git` per-repo (slow, one at a time). The goal: GitWizard produces structured batch reports that projdash (and LLMs via MCP) can consume efficiently.
-
-- [x] **CLI `--filter` flag**: case-insensitive path substring filter
-- [x] **CLI `--paths` flag**: newline-separated file or comma-separated list of repo paths
-- [x] **CLI `--summary` flag**: condensed summary with dirty/unpushed/stale counts and repos needing attention
-- [x] **Recent commit log in report**: `RecentCommits` field on `GitWizardRepository` (last 10 commits)
-- [x] **Staleness info in report**: `DaysSinceLastCommit` computed field on `GitWizardRepository`
-- [x] **Stable JSON schema**: `docs/report-schema.md` + `SchemaVersion` field on `GitWizardReport`
-- [x] **Exit code for attention-needed**: CLI exits with 1 when any repo has pending changes or unpushed commits
-- [x] **GUI: Local Only Commits filter button**: new sidebar filter
-- [x] **GUI: Stale filter button**: new sidebar filter (30+ days)
-- [x] **GUI: Staleness indicator**: display text appends `(Nd)` for repos idle 30+ days
-
-### Projdash consumer side
-
-These tasks live in projdash's PLAN.md but are noted here for cross-reference:
-
-- [x] projdash `GitWizardAdapter` reads `report.json` and shells out to the CLI with `-paths` on demand
-- [x] projdash `queries.py` reads the GitWizard report in `_enrich()` with a subprocess fallback (no dedicated `refresh_from_gitwizard` helper - freshness is handled by `refresh_report()` + `projdash scan`/`refresh-git`)
-- [x] MCP `get_project` and `list_projects` use GitWizard data when available, plus `gitwizard_status` exposes cache freshness
-
-### Schema 1.1 fixes (projdash feedback)
-
-- [x] `NumberOfPendingChanges` now counts untracked + added + renamed files so it matches `HasPendingChanges` (was 0 for untracked-only repos)
-- [x] Added `LocalCommitCount` int field so consumers can show real unpushed counts instead of a bool
-- [x] `CurrentSchemaVersion` constant stamped at save time - cached reports from older builds no longer propagate stale version strings
-- [x] Documented `WhenWritingDefault` serializer behavior in `docs/report-schema.md` (absent fields = default values, not "unknown")
 
 ### Single-repo merge refresh (for projdash fallback) - tracked as [#42](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/42)
 
@@ -63,71 +13,15 @@ Projdash now bounds it to ~10s via abandon-on-timeout (projdash commit
 empty git state for the missing repo. A targeted single-repo refresh in
 GitWizard would let projdash skip subprocess git entirely.
 
-- [x] **CLI `--merge` flag**: when set with `--paths` and `--save-path`, read the
-      existing JSON if present, update/insert entries for the supplied paths,
-      leave other entries intact, write back atomically (temp file + rename).
-      Stamps `SchemaVersion = CurrentSchemaVersion`.
-- [x] **Document concurrency in `docs/report-schema.md`**: two concurrent
-      callers refreshing disjoint repos - last writer wins for the file as a
-      whole. Acceptable; no lockfile.
 - [ ] **Projdash consumer change** (tracked in projdash's own PLAN): replace
       the `git` subprocess fallback in `_enrich` with
       `refresh_report(..., merge=True)` followed by re-reading the cache.
       Also harden the `subprocess.run` inside `gitwizard.refresh_report` with
       the same abandon-on-timeout pattern as `scanner/git.py:_run_capture`.
 
-### CLI polish
-
-- [x] **Honor `--help` / `-h` / `-?`**: currently any unrecognized flag falls through and runs a full scan. Print usage (flags: `-filter`, `-paths`, `-summary`, plus the version banner from `Program.cs`) and exit 0 instead. Skip the elevation hidden args (`--elevated-mft`, `--elevated-defender`) from public help.
-
-### Avalonia cross-platform UI
-
-- [x] Extracted view models behind `IUiDispatcher` / `IUserDialogs` / `IFolderPicker` (a separate shared project at the time; since folded into `GitWizardUI/ViewModels/`)
-- [x] Neutralized MAUI types in `RepositoryNodeViewModel` (color/padding/font as strings)
-- [x] Extracted handler logic from MAUI page code-behind into VM methods (`ApplyFilter`/`ApplyGroup`/`ApplySort` etc.)
-- [x] MAUI app refactored to consume shared VMs via `MauiUiDispatcher` etc. - manual Windows verification pending
-- [x] Avalonia desktop project (now `GitWizardUI/`) ports MainPage and SettingsPage
-- [x] Native folder picker on Linux/macOS via Avalonia `IStorageProvider`
-- [x] Windows-only features (Defender button) gated on `OperatingSystem.IsWindows()`
-- [x] Verified scan + filter + group + sort on Linux and Windows (runtime smoke test, 2026-05-23)
-
-### Avalonia → MAUI parity & retirement
-
-Full capability-parity audit (2026-05-26): every MAUI feature was present in
-Avalonia, which also has extras (Downstream Branches filter, Clean button, progress bar). **MAUI retired
-2026-05-26** - the Avalonia app was renamed `GitWizardUI`, the view models folded into
-`GitWizardUI/ViewModels/`, and the MAUI + UITests projects deleted (no user-facing capability lost).
-
-- [x] Scroll position restored across refresh - closed-loop offset correction in
-      `MainWindow.RestoreScrollAnchor` (commit `ea6f2ce`); the during-refresh jump-to-top is an
-      accepted UX (see AGENTS.md). Validated by the `avalonia-vsp-scroll-top` spike.
-- [x] **Settings: Tips footer + section description labels** - restored the MAUI-only "Tips" block and
-      the per-section gray description labels in `SettingsWindow` (commit `ec5a17a`).
-- [x] **Fix: `Padding`/`Thickness` binding spam** - Avalonia bindings don't apply the target
-      `TypeConverter` (MAUI did), so `ItemPaddingString` (string) → `Padding` threw `InvalidCastException`
-      per row on scroll. Added `StringToThicknessConverter` (commit `ec5a17a`). See AGENTS.md tips.
-- [x] **Fix: `RepositoryNotFoundException` spam on refresh** - guarded `Refresh` with `Repository.IsValid`
-      so stale/non-repo cache entries skip cleanly (commit `b7a0321`). Cache-pruning follow-up tracked as
-      [#48](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/48).
-- [x] **Debounce search** - 200ms debounce in the `MainViewModel.SearchText` setter coalesces rapid
-      keystrokes into a single `ApplyFilterAndGrouping` pass (commit `ec5a17a`); the immediate
-      `SetSearchText` path is unchanged. Covered by a coalescing regression test.
-- [x] **Active filter/group/sort highlight** - the active sidebar button is now bold. `ApplyFilter`/
-      `ApplyGroup`/`ApplySort` route through the notifying `Active{Filter,GroupMode,SortMode}`
-      properties (and pick up MAUI's re-click-to-clear toggle for Filter/Group); each button binds
-      `Classes.active` via `EnumEqualsConverter` to a `Button.active { FontWeight=Bold }` style.
-- [x] **Settings: Enter-to-add typed path** - `KeyDown` handlers on the typed search/ignored path
-      TextBoxes fire the Add commands on Enter (commit `ec5a17a`).
-- [x] **Immediate "Scanning…" indicator** - an `IsScanning` flag (set at refresh start; cleared when
-      the first repo surfaces, the determinate progress bar starts, or the refresh ends) drives an
-      indeterminate "Scanning for repositories…" overlay on the empty list, filling the cold-start
-      discovery gap. The `2026-05-24` parity spec doc is now fully implemented and can be deleted.
-
 ## Infrastructure
 
-- [x] **Gitea Actions CI** - `.gitea/workflows/ci.yml` runs `test-linux` (build + full NUnit suite with coverage, gated at 55% line via `ci/post-coverage-status.py`) and `test-windows` (full solution build + tests) on push to `main` and PRs targeting `main`. `.gitea/workflows/release.yml` builds CLI + GitWizardUI for `win-x64`/`linux-x64`/`osx-x64` and creates a Gitea release with all 6 assets attached on `v*` tag pushes. See `AGENTS.md` § CI infrastructure for runner/bot/branch-protection setup.
 - [ ] **Trust the act_runner artifact backend on the Linux runner** - `ci.yml`'s coverage-artifact upload (`actions/upload-artifact@v3`) is `continue-on-error` because the Linux runner's Node does not trust the mkcert CA serving the act_runner artifact endpoint (`ACTIONS_RESULTS_URL` in the runner config on llamabox, which may differ from `GITHUB_SERVER_URL`; `NODE_EXTRA_CA_CERTS` is not resolving). Install that CA into the runner's Node/system trust store, drop `continue-on-error`, and validate with a live CI run. Needs runner-side access to llamabox; not doable from a dev box. The coverage *gate* reads the cobertura file directly, so only the supplementary artifact is affected.
-- [x] **Replace the prebuilt-DLL MFTLib bridge with a source-built submodule** - `lib/MFTLib/` (prebuilt 0.3.0 DLLs) + the old `Directory.Build.targets` bridge are gone; MFTLib now builds from source via the `external/MFTLib` git submodule (native: VS MSBuild `.vcxproj` on Windows / CMake on Linux; managed: `dotnet build`). See `AGENTS.md` → Build.
 - [ ] **Retire the MFTLib submodule for a NuGet `PackageReference`** - repo-root `Directory.Build.targets` is a TEMPORARY source-build bridge that unblocks the build while MFTLib 0.3.0 is unpublished. When 0.3.0 ships to NuGet: delete the `external/MFTLib` submodule + `Directory.Build.targets`, add `<PackageReference Include="MFTLib" Version="0.3.0" />` to `GitWizard/GitWizard.csproj`, and confirm CI stays green. Steps in the `Directory.Build.targets` header.
 
 ## Backlog
@@ -135,73 +29,11 @@ Avalonia, which also has extras (Downstream Branches filter, Clean button, progr
 Still-live ideas migrated from the legacy `.plan` (2026-06-19) when that pre-Avalonia
 file was retired. Not yet scheduled; promote to Next Up / a Gitea issue when picked up.
 
-- [x] **MFT parser also finds `.git` files (not just directories)** so worktrees whose
-      origin lives outside the search paths are discovered.
-      *Note (2026-07-19): The mapping (`GitWizardApi.SelectGitEntryPaths` /
-      `CollectGitRepositoriesFromScan`, used by both the in-process elevated MFT scan and the
-      not-elevated journal-broker cold scan) already treated a `.git` FILE record's parent as a
-      repository root - landed incidentally in #96's broker migration, before this backlog item
-      was written, and never checked off. It had zero unit coverage and was unreachable on
-      Linux (private methods, Windows-gated entry point/test class). Extracted the pure
-      candidate-mapping (`ResolveRepositoryRootCandidates`) to `internal` + `InternalsVisibleTo`
-      and added `GitFileScanRecordMappingTests` (synthetic `ScanRecord`s, cross-platform). The
-      recursive (non-MFT) scanner already had matching `.git`-file handling at every directory
-      level (`FindGitRepositoriesRecursively`'s `includeGitFiles` check) - no change needed
-      there. `RepositoryChangeFilter` (the `-watch` live-journal mapper) was left untouched:
-      it indexes tracked repository roots by their own directory record, which is unaffected by
-      whether that root additionally contains a `.git` file vs. directory; its existing
-      `Filter_FileScanRecordsAreNotIndexed_OnlyDirectoriesAre` test guards a different,
-      intentional invariant (a root's directory record must actually be a directory).*
-- [x] **Include deleted files in the uncommitted-changes count** (untracked/added/renamed
-      are already counted per Schema 1.1; verify deletions are too). Verified NOT already
-      counted: staged deletions (`status.Removed`) were counted, but unstaged deletions
-      (`status.Missing`) contributed to `HasPendingChanges`/`IsDirty` without being tallied
-      in `NumberOfPendingChanges`. Fixed in `GitWizardRepository.RefreshPendingChangesStatus`
-      (added a `status.Missing` loop); regression tests added for both the staged and
-      unstaged deletion cases; `docs/report-schema.md` field description updated.
-- [x] **Show an error log in the UI** - exceptions are currently only written to output.
-      *Done (verified 2026-08-28): `ErrorLogViewModel` / `ErrorLogEntry` / `ErrorLogWindow` in
-      GitWizardUI (300-entry cap, per-repository attribution), landed in #102.*
-- [x] **Quick refresh / filesystem watcher** to drop deleted-or-renamed repos from the UI.
-      *Done (2026-08-21): `git-wizard --watch` auto-detects changes in tracked repositories via
-      MFTLib's journal broker and prints `changed: <root>`, `created: <root>`, and
-      `deleted: <root>` (one UAC, Windows only); rename correlation is deliberately left to
-      consumers, not printed by the CLI. The pipeline is a reusable, platform-agnostic core
-      (`GitWizard/Watch/RepositoryWatchService` behind `IVolumeChangeSource`), and GitWizardUI's
-      opt-in Live toggle runs the same service through `LiveWatchController` to add, update, and
-      drop repositories live, correlating delete/create pairs by remote URL so a rename is not
-      shown as a delete plus an unrelated add. Linux uses the `FanotifyVolumeChangeSource`
-      adapter (#135); OS selection and pkexec elevation landed in #140 (issue #131). See AGENTS.md
-      → Key Architecture → Journal watch.*
-- [x] **Sort by size on disk.**
-      *Done (verified 2026-08-28): `GitWizardRepository.SizeOnDisk` + `SortMode.SizeOnDisk` in
-      `MainViewModel.Grouping`.*
-- [x] **Submodule health checks** - aggregate parent-repo status from submodule states; flag
-      submodules at a non-pointer ref, not init'd/checked out, or in `.gitmodules` but not the
-      index (or vice versa). (Verify against the current `SubmoduleHealth` coverage first.)
-      *Done (verified 2026-08-28): `SubmoduleHealthStatus` covers `WrongRef`, `Uninitialized`,
-      `MissingFromIndex`, `MissingFromGitmodules`, plus `StaleUpstream` (#80); aggregated into
-      the parent's status and surfaced via `RepositoryNodeViewModel` and the submodule filters.*
-- [x] **Add the Windows folder to default exclusions.**
-      *Done (verified 2026-08-28): `%WINDIR%` and `%APPDATA%` in
-      `GitWizardConfiguration.CreateDefaultConfiguration`, landed in #11.*
-- [x] **Make the `Fork.exe` path configurable in settings** (currently hard-coded to
-      `%LocalAppData%\Fork\Fork.exe`). *Done: `GitWizardConfiguration.ForkPath` (config.json,
-      null = default location), surfaced in `SettingsWindow`/`SettingsViewModel`. A configured
-      value with `%VAR%`/`~` references is now expanded via `GitWizardApi.PrettyPrintPath` before
-      use in `MainViewModel.OpenInFork` (2026-07-19).*
-- [x] **Explore a CLI arg-parsing library with auto-generated help** (replace `RunConfiguration`).
-      *Done (verified 2026-08-28): `CliParser` builds on `McMaster.Extensions.CommandLineUtils`
-      (auto `--help`/`--version`, `tags`/`branches` subcommands), landed in #87. `RunConfiguration`
-      survives only as the parsed-result struct, not as a parser.*
 - [ ] **Explore a path-handling library** for `%USERPROFILE%` / `~` aliases.
       *Note (2026-08-28): the aliases themselves are already handled in-house
       (`GitWizardApi.PrettyPrintPath` / `ExpandSearchPath`: `%VAR%` via
       `Environment.ExpandEnvironmentVariables`, `~/` and `~\` via `SpecialFolder.UserProfile`).
       Only the library exploration is open; cross out if the in-house version is good enough.*
-- [x] **"Pretty print" path lists** - show environment-variable values inline. *Done:
-      `GitWizardApi.PrettyPrintPath` + `PathPrettyPrintConverter` render the expanded form of each
-      Search/Ignored path row in `SettingsWindow`.*
 - [ ] **Async save/load for cached files** (configs and reports).
       *Note (2026-08-28): partial. Configuration has `SaveGlobalConfigurationAsync` /
       `LoadConfigurationAsync`; report persistence (`GitWizardReport.Persistence`:

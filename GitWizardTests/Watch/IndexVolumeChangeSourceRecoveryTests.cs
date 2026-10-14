@@ -25,7 +25,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var owner = IndexVolumeChangeSourceTests.Owner(await files.OpenMftIndexAsync(scripted, 'X', 'Y'), "X", "Y");
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        files.Producer.BeforeProduceAsync = (_, token) => release.Task.WaitAsync(token);
+        files.BeforeProduceAsync = (_, token) => release.Task.WaitAsync(token);
         var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await using var sourceLifetime = source;
         var service = new RepositoryWatchService(source, [@"X:\oldrepo", @"X:\keptrepo"], [@"X:\"],
@@ -43,7 +43,7 @@ public class IndexVolumeChangeSourceRecoveryTests
                 recoveredCaughtUp.TrySetResult();
         };
         scripted.WatchFor('X').FailDrive(new IOException("X failed"));
-        await WaitUntilAsync(() => owner.Index.Drives.Single(drive => drive.DriveLetter == 'X').Watch.State ==
+        await WaitUntilAsync(() => owner.Index.Drives.Single(drive => drive.Drive == 'X').Watch.State ==
                                    WatchState.Recovering);
         Directory.Delete(Path.Combine(files.TreePath, "oldrepo"), recursive: true);
         files.AddMarker("newrepo");
@@ -75,7 +75,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var owner = IndexVolumeChangeSourceTests.Owner(await files.OpenMftIndexAsync(scripted, 'X'), "X");
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        files.Producer.BeforeProduceAsync = (_, token) => release.Task.WaitAsync(token);
+        files.BeforeProduceAsync = (_, token) => release.Task.WaitAsync(token);
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         // Buffering makes delivery synchronous and observable at the moment readiness changes.
@@ -112,7 +112,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var owner = IndexVolumeChangeSourceTests.Owner(await files.OpenMftIndexAsync(scripted, 'X'), "X");
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        files.Producer.BeforeProduceAsync = (_, token) => release.Task.WaitAsync(token);
+        files.BeforeProduceAsync = (_, token) => release.Task.WaitAsync(token);
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         source.ReconciliationCapturedForTest = capturedDrive =>
         {
@@ -154,7 +154,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         var owner = IndexVolumeChangeSourceTests.Owner(await files.OpenMftIndexAsync(scripted, 'X'), "X");
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var rescanStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        files.Producer.BeforeProduceAsync = (_, token) =>
+        files.BeforeProduceAsync = (_, token) =>
         {
             rescanStarted.TrySetResult();
             return release.Task.WaitAsync(token);

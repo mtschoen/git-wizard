@@ -38,8 +38,8 @@ internal sealed class FakeJournalSettingsSource : IVolumeChangeSource, IUsnJourn
         var warnings = CheckpointLosses
             .Select(loss => new JournalWarning
             {
-                DriveLetter = loss.DriveLetter.ToString(),
-                VolumeSerial = VolumeSerials[loss.DriveLetter],
+                DriveLetter = loss.Drive.ToString(),
+                VolumeSerial = VolumeSerials[loss.Drive.Letter],
                 Loss = loss
             }).ToArray();
         if (CompleteAfterArm)
@@ -48,20 +48,20 @@ internal sealed class FakeJournalSettingsSource : IVolumeChangeSource, IUsnJourn
     }
 
     public IAsyncEnumerable<VolumeChangeBatch> WatchAsync(CancellationToken ct) => _changes.WatchAsync(ct);
-    public UsnJournalSettings QueryUsnJournalSettings(char driveLetter) => Settings[driveLetter];
+    public UsnJournalSettings QueryUsnJournalSettings(DriveKey drive) => Settings[drive.Letter];
 
     public async Task<UsnJournalSettings> GrowUsnJournalAsync(
-        char driveLetter, long maximumSize, long allocationDelta, CancellationToken cancellationToken)
+        DriveKey drive, UsnJournalSettings target, CancellationToken cancellationToken)
     {
         GrowCalls++;
-        RequestedGrowthTarget = new UsnJournalSettings { MaximumSize = maximumSize, AllocationDelta = allocationDelta };
+        RequestedGrowthTarget = target;
         GrowEntered.TrySetResult();
         if (GrowRelease is { } release)
             await release.Task.WaitAsync(cancellationToken);
         if (GrowFailure is { } failure)
             throw failure;
-        var result = new UsnJournalSettings { MaximumSize = maximumSize + allocationDelta, AllocationDelta = allocationDelta };
-        Settings[driveLetter] = result;
+        var result = new UsnJournalSettings { MaximumSize = target.MaximumSize + target.AllocationDelta, AllocationDelta = target.AllocationDelta };
+        Settings[drive.Letter] = result;
         return result;
     }
 

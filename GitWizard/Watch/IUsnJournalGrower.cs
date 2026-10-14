@@ -1,9 +1,10 @@
 using MFTLib;
+using MFTLib.Index;
 
 namespace GitWizard.Watch;
 
 public interface IUsnJournalGrower
 {
-    UsnJournalSettings QueryUsnJournalSettings(char driveLetter);
-    Task<UsnJournalSettings> GrowUsnJournalAsync(char driveLetter, long maximumSize, long allocationDelta, CancellationToken cancellationToken);
+    UsnJournalSettings QueryUsnJournalSettings(DriveKey drive);
+    Task<UsnJournalSettings> GrowUsnJournalAsync(DriveKey drive, UsnJournalSettings target, CancellationToken cancellationToken);
 }

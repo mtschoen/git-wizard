@@ -45,7 +45,7 @@ public sealed partial class MftIndexSession
     }
 
     internal static Task<MftIndexSession> OpenSelectedVolumesAsync(IReadOnlyList<string> drives,
-        Func<string, IndexedDrive> acquireIdentity,
+        Func<DriveKey, IndexedDrive> acquireIdentity,
         BrokerSession brokerSession,
         string cacheDirectory, IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken) =>
         OpenSelectedVolumesAsync(drives, acquireIdentity, brokerSession,
@@ -54,7 +54,7 @@ public sealed partial class MftIndexSession
     internal readonly record struct CacheSelection(string Directory, MftIndexOpenIntent Intent);
 
     internal static async Task<MftIndexSession> OpenSelectedVolumesAsync(IReadOnlyList<string> drives,
-        Func<string, IndexedDrive> acquireIdentity,
+        Func<DriveKey, IndexedDrive> acquireIdentity,
         BrokerSession brokerSession,
         CacheSelection cache, IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken)
     {
@@ -69,7 +69,7 @@ public sealed partial class MftIndexSession
                 cancellationToken.ThrowIfCancellationRequested();
                 try
                 {
-                    identities.Add(acquireIdentity(drive));
+                    identities.Add(acquireIdentity(drive[0]));
                 }
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
                 {

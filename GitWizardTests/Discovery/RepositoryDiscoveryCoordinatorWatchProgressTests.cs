@@ -70,7 +70,7 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
         session.Connecting += () => events.Add("Connecting");
         session.Connected += () => events.Add("Connected");
         // The session's ConnectAsync is internal to MFTLib; a grow is the public first use that launches.
-        await session.GrowUsnJournalAsync('X', 4096, 512, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
+        await session.GrowUsnJournalAsync('X', new UsnJournalSettings { MaximumSize = 4096, AllocationDelta = 512 }, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
         Assert.That(events, Is.EqualTo(new[] { "Connecting", "launch", "Connected" }));
         Assert.That(broker.ConnectionCount, Is.EqualTo(1));
     }
@@ -124,7 +124,7 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
 
         // Manually trigger the session's first use during catch-up to simulate deferred warm-start watch connection
         var started = scripted.WaitForStartAsync('X', 1, CancellationToken.None);
-        _ = started.ContinueWith(_ => brokerSession.GrowUsnJournalAsync('X', 4096, 512, CancellationToken.None));
+        _ = started.ContinueWith(_ => brokerSession.GrowUsnJournalAsync('X', new UsnJournalSettings { MaximumSize = 4096, AllocationDelta = 512 }, CancellationToken.None));
 
         var preparing = coordinator.PrepareWatchAsync(request, session, progress, CancellationToken.None);
         await started.WaitAsync(TestTimeouts.HangGuard);

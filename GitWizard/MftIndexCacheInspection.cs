@@ -29,7 +29,7 @@ public sealed class MftIndexCacheInspection
         {
             try
             {
-                inventory = _inspect(directory).OrderBy(row => row.File.DriveLetter)
+                inventory = _inspect(directory).OrderBy(row => row.File.Drive.Letter)
                     .ThenBy(row => row.File.VolumeSerial).ToArray();
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)

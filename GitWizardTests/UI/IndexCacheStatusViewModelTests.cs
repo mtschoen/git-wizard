@@ -82,12 +82,11 @@ public class IndexCacheStatusViewModelTests
     public async Task PreparedOwnerCaptureFollowsTransferAndDisposal()
     {
         using var files = new PackedIndexFixture();
-        var drives = new[] { new IndexedDrive('X', files.TreePath, 1) };
+        var drives = new[] { new IndexedDrive('X', files.TreePath, 1, ProducerPolicy.Enumeration) };
         var index = await FileIndex.OpenAsync(new FileIndexOptions
         {
             Drives = drives,
-            CacheDirectory = files.BlockDirectory,
-            ProducerPolicy = ProducerPolicy.Enumeration
+            CacheDirectory = files.BlockDirectory
         }, CancellationToken.None);
         var session = new MftIndexSession(index, null, ["X"], drives,
             new Dictionary<string, string>(), files.BlockDirectory);

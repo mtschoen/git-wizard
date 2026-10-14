@@ -14,22 +14,22 @@ public sealed partial class IndexVolumeChangeSource
         var owner = _owner ?? throw new InvalidOperationException("No index session available.");
         if (drive.State is DriveState.Failed or DriveState.Offline)
         {
-            errors[drive.DriveLetter.ToString()] = drive.Failure?.Message ?? $"Drive is {drive.State}.";
+            errors[drive.Drive.ToString()] = drive.Failure?.Message ?? $"Drive is {drive.State}.";
             // A cache-declined drive keeps its CheckpointLoss so the hint can explain the
             // discarded checkpoint even though the drive is not being watched.
             AddJournalWarning(drive, owner, configuration, warnings);
             return;
         }
 
-        if (!drive.Watch.Supported)
+        if (!drive.Watch.IsSupported)
             return;
 
-        var letter = char.ToUpperInvariant(drive.DriveLetter);
+        var letter = drive.Drive.Letter;
         AddUsableDrive(letter);
         // Cache the drive's real indexed root directory so OnChanged can rewrite a live
         // change's path back onto this drive's own "<letter>:\" form, regardless of
         // whether IndexedDrive.RootDirectory is the drive root (MFTLib #143).
-        _driveRealRoots[letter] = owner.Index.Root(drive.DriveLetter, cancellationToken).Path;
+        _driveRealRoots[letter] = owner.Index.Root(drive.Drive, cancellationToken).Path;
 
         AddJournalWarning(drive, owner, configuration, warnings);
     }
@@ -41,7 +41,7 @@ public sealed partial class IndexVolumeChangeSource
     {
         var owner = _owner;
         var drive = owner?.Index.Drives.FirstOrDefault(candidate =>
-            char.ToUpperInvariant(candidate.DriveLetter) == driveLetter);
+            candidate.Drive.Letter == driveLetter);
         if (owner is null || drive is null)
             return;
         ProcessFaultedDrive(drive, owner, GitWizardConfiguration.GetGlobalConfiguration());
@@ -58,7 +58,7 @@ public sealed partial class IndexVolumeChangeSource
     {
         if (drive.Watch.CheckpointLoss is not { DetectedDuring: JournalCheckpointLossDetection.LiveWatch or JournalCheckpointLossDetection.ScanCatchUp })
             return;
-        var letter = char.ToUpperInvariant(drive.DriveLetter);
+        var letter = drive.Drive.Letter;
         if (_raisedFaultLosses.TryGetValue(letter, out var raised) && ReferenceEquals(raised, drive.Watch.CheckpointLoss))
             return;
         if (BuildJournalWarning(drive, owner, configuration) is not { } warning)
@@ -78,7 +78,7 @@ public sealed partial class IndexVolumeChangeSource
         GitWizardConfiguration configuration)
     {
         var indexedDrive = owner.IndexedDrives.FirstOrDefault(candidate =>
-            char.ToUpperInvariant(candidate.DriveLetter) == char.ToUpperInvariant(drive.DriveLetter));
+            candidate.Drive == drive.Drive);
         if (indexedDrive is null || configuration.IgnoredJournalWarnings.Contains(indexedDrive.VolumeSerial))
             return null;
         if (drive.Watch.CheckpointLoss is not { } loss)
@@ -86,7 +86,7 @@ public sealed partial class IndexVolumeChangeSource
 
         return new JournalWarning
         {
-            DriveLetter = char.ToUpperInvariant(drive.DriveLetter).ToString(),
+            DriveLetter = drive.Drive.ToString(),
             VolumeSerial = indexedDrive.VolumeSerial,
             Loss = loss
         };

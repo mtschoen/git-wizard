@@ -40,5 +40,5 @@ public sealed record MftIndexCacheMaintenanceResult(
     }
 
     static string Identity(CachedBlockFile file) =>
-        $"{file.DriveLetter}: ({file.VolumeSerial:X8}) [{file.Path}]";
+        $"{file.Drive}: ({file.VolumeSerial:X8}) [{file.Path}]";
 }

@@ -41,7 +41,7 @@ public class RepositoryDiscoveryCoordinatorTests
             ? SyntheticNotifications.CreateDriveFailure(kind, failureMessage ?? kind.ToString())
             : null;
         var status = SyntheticNotifications.CreateDriveStatus(letter, state, block, failure);
-        return status with { Watch = status.Watch with { Supported = state == DriveState.Ready } };
+        return status with { Watch = status.Watch with { IsSupported = state == DriveState.Ready } };
     }
 
     [Test]

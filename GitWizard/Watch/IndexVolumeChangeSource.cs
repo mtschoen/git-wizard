@@ -49,21 +49,21 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         _owner = preparedIndex;
     }
 
-    public UsnJournalSettings QueryUsnJournalSettings(char driveLetter)
+    public UsnJournalSettings QueryUsnJournalSettings(DriveKey drive)
     {
         if (!OperatingSystem.IsWindows())
             throw new PlatformNotSupportedException("USN journals require Windows.");
         var owner = _owner ?? throw new InvalidOperationException("No index session available.");
-        return owner.Index.QueryUsnJournalSettings(driveLetter);
+        return owner.Index.QueryUsnJournalSettings(drive);
     }
 
-    public Task<UsnJournalSettings> GrowUsnJournalAsync(char driveLetter, long maximumSize, long allocationDelta, CancellationToken cancellationToken)
+    public Task<UsnJournalSettings> GrowUsnJournalAsync(DriveKey drive, UsnJournalSettings target, CancellationToken cancellationToken)
     {
         // The session launches the broker on first use, so a grow never needs a connected process up front.
         var owner = _owner ?? throw new InvalidOperationException("No index session available.");
         var brokerSession = owner.BrokerSession
             ?? throw new InvalidOperationException("The index session has no broker session.");
-        return brokerSession.GrowUsnJournalAsync(driveLetter, maximumSize, allocationDelta, cancellationToken);
+        return brokerSession.GrowUsnJournalAsync(drive, target, cancellationToken);
     }
 
     public Task<VolumeArmResult> ArmAndCatchUpAsync(IReadOnlyCollection<string> volumes, CancellationToken ct)
@@ -234,9 +234,9 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
 
     async Task StartWatchAndSignalAsync(FileIndex index, CancellationToken cancellationToken)
     {
-        var results = await index.StartWatchingAsync(cancellationToken).ConfigureAwait(false);
+        var results = await index.StartWatchingAsync(index.Drives.Select(status => status.Drive), cancellationToken).ConfigureAwait(false);
         foreach (var result in results.Where(result => result.Outcome == DriveOperationOutcome.Failed))
-            RecordStartupDriveFailure(result.DriveLetter, result.Failure?.Message ?? "The drive watch could not start.");
+            RecordStartupDriveFailure(result.Drive.Letter, result.Failure?.Message ?? "The drive watch could not start.");
         _pumpStarted.TrySetResult();
     }
 
@@ -248,10 +248,10 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
 
     void DeliverChange(FileChange change)
     {
-        // FileEntry.RecordKey.DriveLetter is the stable drive key MFTLib assigns, unlike change.Path,
+        // FileEntry.Drive is the stable drive key MFTLib assigns, unlike change.Path,
         // which renders the drive's real indexed root directory and only reads back as a
         // "<letter>:\" volume when that root directory happens to be the drive root (MFTLib #143).
-        var letter = char.ToUpperInvariant(change.Entry.RecordKey.DriveLetter);
+        var letter = change.Entry.Drive.Letter;
         var rewritten = _driveRealRoots.TryGetValue(letter, out var realRoot)
             ? change with
             {
@@ -311,7 +311,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
             _output.Writer.TryComplete(fault.Exception);
             return;
         }
-        var drive = char.ToUpperInvariant(fault.DriveLetter);
+        var drive = fault.Drive.Letter;
         if (fault.IsRecovering)
         {
             try

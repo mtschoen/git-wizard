@@ -26,7 +26,7 @@ public sealed partial class IndexVolumeChangeSource
     {
         public void Report(IndexScanProgress value)
         {
-            var letter = char.ToUpperInvariant(value.DriveLetter).ToString();
+            var letter = value.Drive.ToString();
             var ordinal = 0;
             for (var i = 0; i < requestedDrives.Count; i++)
             {
@@ -40,7 +40,7 @@ public sealed partial class IndexVolumeChangeSource
             // A sample naming a drive outside the requested set should not exist; clamp rather
             // than report a nonsensical "0 of N".
             sink(new VolumeScanProgress(letter, Math.Max(ordinal, 1), requestedDrives.Count,
-                value.RowsWritten, value.TotalRows));
+                value.WrittenRowCount, value.ExpectedRowCount));
         }
     }
 }

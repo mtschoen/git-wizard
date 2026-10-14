@@ -218,8 +218,8 @@ public class ProgramWatchStartupTests
                 SyntheticNotifications.CreateDriveFailure(DriveFailureKind.ProducerFailed, "Drive D failed"));
             return
             [
-                new MftDriveStatus("C", ready with { Watch = ready.Watch with { Supported = true } }, null),
-                new MftDriveStatus("D", failed with { Watch = failed.Watch with { Supported = false } }, null)
+                new MftDriveStatus("C", ready with { Watch = ready.Watch with { IsSupported = true } }, null),
+                new MftDriveStatus("D", failed with { Watch = failed.Watch with { IsSupported = false } }, null)
             ];
         };
 

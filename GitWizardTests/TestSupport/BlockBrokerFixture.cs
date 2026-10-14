@@ -95,7 +95,7 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
         }
     }
 
-    public IReadOnlyList<string> ScannedDrives => Scans.Select(scan => scan.DriveLetter).ToArray();
+    public IReadOnlyList<string> ScannedDrives => Scans.Select(scan => scan.Drive.ToString()).ToArray();
 
     /// <summary>How many records the scans handed to the block writer so far.</summary>
     public int RecordsYielded => Volatile.Read(ref _recordsYielded);
@@ -142,7 +142,7 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
             Shutdown.Wait(HangGuard, CancellationToken.None);
             throw new IOException("The broker host crashed during the scan.");
         }
-        if (_scanError != null && (FailedDrive == null || FailedDrive == scan.DriveLetter))
+        if (_scanError != null && (FailedDrive == null || FailedDrive == scan.Drive.ToString()))
             throw new IOException(_scanError);
         if (ParseProgressToReport is { } sample)
             scan.ReportParsed(sample.RecordsParsed, sample.TotalRecords);
@@ -179,17 +179,17 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
 
     // The journal's tip: the first query of a drive arms its scan at Cursor, and the catch-up
     // entries, when any, are then journaled between Cursor and CaughtUpCursor.
-    SyntheticJournalCursor QueryCursor(string drive) =>
-        _armedDrives.TryAdd(drive, true) || _catchUpEntries.Length == 0 ? Cursor : CaughtUpCursor;
+    SyntheticJournalCursor QueryCursor(DriveKey drive) =>
+        _armedDrives.TryAdd(drive.ToString(), true) || _catchUpEntries.Length == 0 ? Cursor : CaughtUpCursor;
 
-    (SyntheticJournalRecord[] Entries, SyntheticJournalCursor Updated) ReadJournal(string drive, SyntheticJournalCursor since,
+    (IReadOnlyList<SyntheticJournalRecord> Entries, SyntheticJournalCursor Updated) ReadJournal(DriveKey drive, SyntheticJournalCursor since,
         int maximumBufferReads) =>
         since == Cursor && _catchUpEntries.Length > 0 ? (_catchUpEntries, CaughtUpCursor) : ([], since);
 
-    async IAsyncEnumerable<(SyntheticJournalRecord[] Entries, SyntheticJournalCursor Cursor)> WatchDriveAsync(string drive,
+    async IAsyncEnumerable<(IReadOnlyList<SyntheticJournalRecord> Entries, SyntheticJournalCursor Cursor)> WatchDriveAsync(DriveKey drive,
         SyntheticJournalCursor since, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        _watchStarted.TrySetResult((drive, since));
+        _watchStarted.TrySetResult((drive.ToString(), since));
         // A watch resumed from before the catch-up entries replays them, as the journal would.
         if (since == Cursor && _catchUpEntries.Length > 0)
             yield return (_catchUpEntries, CaughtUpCursor);
@@ -198,8 +198,8 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
         await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
     }
 
-    UsnJournalSettings GrowJournal(string drive, long maximumSize, long allocationDelta) =>
-        GrowUsnJournal?.Invoke(drive, maximumSize, allocationDelta)
+    UsnJournalSettings GrowJournal(DriveKey drive, UsnJournalSettings target) =>
+        GrowUsnJournal?.Invoke(drive.ToString(), target.MaximumSize, target.AllocationDelta)
         ?? throw new InvalidOperationException("The fixture has no grow handler.");
 
     public async ValueTask DisposeAsync()

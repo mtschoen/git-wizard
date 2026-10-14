@@ -30,7 +30,7 @@ public class RepositoryDiscoveryCoordinatorCheckpointLossTests
         _productions = 0;
         _files = new PackedIndexFixture();
         _files.AddMarker("repo");
-        _files.Producer.BeforeProduceAsync = (_, _) =>
+        _files.BeforeProduceAsync = (_, _) =>
         {
             Interlocked.Increment(ref _productions);
             return Task.CompletedTask;
@@ -38,7 +38,7 @@ public class RepositoryDiscoveryCoordinatorCheckpointLossTests
         _windows = new ConcurrentDictionary<char, SyntheticJournalWindow>();
         _windows['X'] = Healthy;
         _scope = JournalIsolation.OverrideJournalWindow(
-            drive => _windows.TryGetValue(drive, out var window) ? window : null);
+            drive => _windows.TryGetValue(drive.Letter, out var window) ? window : null);
     }
 
     [TearDown]
@@ -52,9 +52,7 @@ public class RepositoryDiscoveryCoordinatorCheckpointLossTests
     {
         Drives = [new IndexedDrive('X', _files.TreePath, 1)],
         CacheDirectory = _files.BlockDirectory,
-        NoCache = false,
-        InitialOpenCacheOnly = cacheOnly,
-        ProducerPolicy = ProducerPolicy.Mft,
+        CacheMode = cacheOnly ? CacheMode.ExistingOnly : CacheMode.Persistent,
         MftSource = SyntheticIndexSource.Create(_files.Producer, source)
     };
 

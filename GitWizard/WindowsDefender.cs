@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using MFTLib;
 
 namespace GitWizard;
@@ -11,106 +10,24 @@ public static class WindowsDefender
     public static string ExclusionsAddedMessage =>
         $"Windows Defender process exclusions added: {string.Join(", ", ProcessExclusions)}.";
 
+    public static bool AddExclusions() => AddExclusions(null);
+
     /// <summary>
     /// Add Windows Defender process exclusions for GitWizard applications and their external tools.
     /// If already elevated, runs directly. Otherwise, launches an elevated copy of this process.
     /// Falls back to elevated PowerShell if self-elevation is not available (e.g., dotnet run).
     /// </summary>
     /// <returns>True if the exclusions were applied successfully.</returns>
-    public static bool AddExclusions(IElevationProvider? elevation = null)
+    public static bool AddExclusions(IElevationProvider? elevation)
     {
-        elevation ??= ElevationUtilities.DefaultProvider;
-
-        if (elevation.IsElevated())
-            return RunDefenderCommands();
-
-        // Try self-elevation first (published builds)
-        if (elevation.CanSelfElevate())
-            return elevation.TryRunElevated(["--elevated-defender"], ElevationUtilities.DefaultElevatedTimeout);
-
-        // Fall back to elevated PowerShell (dotnet run)
-        return RunDefenderCommandsViaElevatedPowerShell();
-    }
-
-    /// <summary>
-    /// Run the Add-MpPreference commands directly (must already be elevated).
-    /// </summary>
-    public static bool RunDefenderCommands()
-    {
-        var commands = ProcessExclusions
-            .Select(p => $"Add-MpPreference -ExclusionProcess '{p}' -ErrorAction Stop");
-        var script = string.Join("; ", commands);
-
-        try
+        if (ElevationUtilities.TryAddDefenderProcessExclusions(
+                ProcessExclusions, ["--elevated-defender"], elevation))
         {
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = "powershell",
-                Arguments = $"-Command {script}",
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using var process = Process.Start(startInfo);
-            if (process == null)
-                return false;
-
-            process.WaitForExit(30000);
-            var success = process.ExitCode == 0;
-
-            if (success)
-                GitWizardLog.Log(ExclusionsAddedMessage);
-            else
-                GitWizardLog.Log($"Windows Defender exclusions failed with exit code {process.ExitCode}",
-                    GitWizardLog.LogType.Error);
-
-            return success;
+            GitWizardLog.Log(ExclusionsAddedMessage);
+            return true;
         }
-        catch (Exception exception)
-        {
-            GitWizardLog.Log($"Failed to add Windows Defender exclusions: {exception.Message}",
-                GitWizardLog.LogType.Error);
-            return false;
-        }
-    }
 
-    static bool RunDefenderCommandsViaElevatedPowerShell()
-    {
-        var commands = ProcessExclusions
-            .Select(p => $"Add-MpPreference -ExclusionProcess '{p}' -ErrorAction Stop");
-        var script = string.Join("; ", commands);
-
-        try
-        {
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = "powershell",
-                Arguments = $"-Command {script}",
-                Verb = "runas",
-                UseShellExecute = true,
-                CreateNoWindow = true
-            };
-
-            using var process = Process.Start(startInfo);
-            if (process == null)
-                return false;
-
-            process.WaitForExit(30000);
-            var success = process.ExitCode == 0;
-
-            if (success)
-                GitWizardLog.Log(ExclusionsAddedMessage);
-            else
-                GitWizardLog.Log($"Windows Defender exclusions failed with exit code {process.ExitCode}",
-                    GitWizardLog.LogType.Error);
-
-            return success;
-        }
-        catch (Exception exception)
-        {
-            GitWizardLog.Log($"Failed to add Windows Defender exclusions: {exception.Message}",
-                GitWizardLog.LogType.Error);
-            return false;
-        }
+        GitWizardLog.Log("Failed to add Windows Defender exclusions.", GitWizardLog.LogType.Error);
+        return false;
     }
 }

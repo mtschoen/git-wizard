@@ -15,8 +15,6 @@ public class MftIndexPersistenceTests
             Drives = [drive],
             CacheDirectory = cache,
             CacheTag = MftIndexCachePolicy.CacheTag,
-            NoCache = false,
-            ProducerPolicy = ProducerPolicy.Mft,
             MftSource = SyntheticIndexSource.Create(files.Producer)
         }, CancellationToken.None);
         Assert.That(seed.Drives.Single().Block?.Source, Is.EqualTo(BlockSource.ProducedByScan));
@@ -134,15 +132,13 @@ public class MftIndexPersistenceTests
             Drives = [drive],
             CacheDirectory = cache,
             CacheTag = MftIndexCachePolicy.CacheTag,
-            NoCache = false,
-            ProducerPolicy = ProducerPolicy.Mft,
             MftSource = SyntheticIndexSource.Create(
                 new SyntheticMftProducer(_ => throw new AssertionException("Warm open must not produce.")), source)
         }, CancellationToken.None);
         Assert.That(index.Drives.Single().Block?.Source, Is.EqualTo(BlockSource.WarmStartedFromCache));
         var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         index.Changed += _ => changed.TrySetResult();
-        await index.StartWatchingAsync(CancellationToken.None);
+        await index.StartWatchingAsync(['X'], CancellationToken.None);
         var start = source.Starts.Single();
         Assert.That(start.Cursor.JournalIdentifier, Is.EqualTo(PackedIndexFixture.JournalIdentifier));
         Assert.That(start.Cursor.NextUsn, Is.EqualTo(PackedIndexFixture.NextUsn));
@@ -161,7 +157,7 @@ public class MftIndexPersistenceTests
         ], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, PackedIndexFixture.NextUsn + 1));
         await changed.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.That(index.Search(new SearchQuery("renamed", NameMatchMode.Exact)), Has.Count.EqualTo(1));
-        await index.StopWatchingAsync(CancellationToken.None);
+        await index.StopWatchingAsync(['X'], CancellationToken.None);
     }
 
     [Test]
@@ -177,7 +173,7 @@ public class MftIndexPersistenceTests
         try
         {
             Assert.That(broker.ConnectionCount, Is.Zero);
-            await session.Index.StartWatchingAsync(CancellationToken.None);
+            await session.Index.StartWatchingAsync(['X'], CancellationToken.None);
             await broker.WatchStarted.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.That(broker.ConnectionCount, Is.EqualTo(1));
             Assert.That(broker.ScannedDrives, Is.Empty);
@@ -202,7 +198,7 @@ public class MftIndexPersistenceTests
             var old = session.CaptureDriveStatuses();
             Assert.That(old.Single().IndexStatus!.Failure?.Kind, Is.EqualTo(DriveFailureKind.CacheDeclined));
             Assert.That(broker.ConnectionCount, Is.Zero);
-            await session.Index.RescanAsync('X', CancellationToken.None);
+            await session.Index.RescanAsync(['X'], CancellationToken.None);
             var current = session.CaptureDriveStatuses().Single().IndexStatus!;
             Assert.That(current.Block?.Source, Is.EqualTo(BlockSource.ProducedByScan));
             Assert.That(current.Failure, Is.Null);

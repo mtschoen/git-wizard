@@ -88,7 +88,7 @@ public sealed partial class IndexVolumeChangeSource
             return null;
         _driveRealRoots.TryGetValue(drive, out var realRoot);
         return GitWizardApi.SelectGitEntries(owner.Index, includeGitFiles: true)
-            .Where(entry => char.ToUpperInvariant(entry.RecordKey.DriveLetter) == drive)
+            .Where(entry => entry.Drive.Letter == drive)
             .Select(entry => realRoot is null ? entry.Path : RewriteToDriveLetterRoot(entry.Path, realRoot, drive))
             .ToHashSet(WatchPath.StringComparer);
     }

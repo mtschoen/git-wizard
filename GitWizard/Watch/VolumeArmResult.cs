@@ -9,21 +9,19 @@ public sealed record JournalWarning
     public required uint VolumeSerial { get; init; }
     public required JournalCheckpointLoss Loss { get; init; }
     public bool HasGrowAction => Loss.TryGetGrowthTarget(out _);
-    public string? GrowUnavailableReason => HasGrowAction
-        ? null
-        : Loss.Cause switch
-        {
-            JournalCheckpointLossCause.JournalRecreated =>
-                "The journal was recreated, so no journal size would have kept the saved position.",
-            JournalCheckpointLossCause.JournalAdvanced =>
-                "The journal moved while the index was closed, so no journal size would have kept the saved position.",
-            JournalCheckpointLossCause.CheckpointTrimmed when Loss.SizeThatWouldHaveRetained is null =>
-                "The size that would have avoided the rescan is too large to represent.",
-            JournalCheckpointLossCause.CheckpointTrimmed when Loss.JournalSettings.AllocationDelta <= 0 ||
-                Loss.SizeThatWouldHaveRetained <= 0 =>
-                "The recorded journal settings do not provide a valid growth target.",
-            _ => "The journal is already at least as large as the size that would have avoided the rescan."
-        };
+    public string? GrowUnavailableReason => Loss.GrowthTargetRefusalReason switch
+    {
+        null => null,
+        JournalGrowthTargetRefusalReason.CheckpointNotTrimmed when Loss.Cause == JournalCheckpointLossCause.JournalRecreated =>
+            "The journal was recreated, so no journal size would have kept the saved position.",
+        JournalGrowthTargetRefusalReason.CheckpointNotTrimmed =>
+            "The journal moved while the index was closed, so no journal size would have kept the saved position.",
+        JournalGrowthTargetRefusalReason.RetentionSizeUnavailable =>
+            "The size that would have avoided the rescan is too large to represent.",
+        JournalGrowthTargetRefusalReason.NonPositiveRetentionSize or JournalGrowthTargetRefusalReason.NonPositiveAllocationDelta =>
+            "The recorded journal settings do not provide a valid growth target.",
+        _ => "The journal is already at least as large as the size that would have avoided the rescan."
+    };
     public string Message => JournalHintBuilder.BuildHint(Loss);
 }
 

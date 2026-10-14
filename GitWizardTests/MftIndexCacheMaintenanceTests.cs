@@ -29,7 +29,7 @@ public class MftIndexCacheMaintenanceTests
             Assert.That(result.Errors, Is.Empty);
             Assert.That(result.Deletions.Single(row => row.File.Path == files.OwnedPath).Outcome,
                 Is.EqualTo(CachedBlockDeletionOutcome.InUse));
-            Assert.That(result.Deletions.Where(row => row.File.DriveLetter == 'Y')
+            Assert.That(result.Deletions.Where(row => row.File.Drive == 'Y')
                 .All(row => row.Outcome == CachedBlockDeletionOutcome.Deleted), Is.True);
             Assert.That(result.Deletions, Has.Count.EqualTo(3));
             Assert.That(File.Exists(files.OwnedPath), Is.True);

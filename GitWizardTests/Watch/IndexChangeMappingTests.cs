@@ -24,10 +24,8 @@ public class IndexChangeMappingTests
         await File.WriteAllTextAsync(Path.Combine(treeDirectory, "current", "file.txt"), "content");
         _index = await FileIndex.OpenAsync(new FileIndexOptions
         {
-            Drives = [new IndexedDrive('T', treeDirectory, 1)],
-            CacheDirectory = Path.Combine(_fixtureDirectory, "cache"),
-            NoCache = true,
-            ProducerPolicy = ProducerPolicy.Enumeration
+            Drives = [new IndexedDrive('T', treeDirectory, 1, ProducerPolicy.Enumeration)],
+            CacheMode = CacheMode.Disabled
         }, CancellationToken.None);
     }
 

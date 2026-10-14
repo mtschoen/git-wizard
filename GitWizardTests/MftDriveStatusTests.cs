@@ -14,7 +14,7 @@ public class MftDriveStatusTests
     {
         await using var broker = new BlockBrokerFixture(scanError: "scan refused");
         var session = await MftIndexSession.OpenSelectedVolumesAsync(["W", "X"],
-            drive => drive == "W" ? throw new IOException("identity denied") : broker.Drive('X'),
+            drive => drive == 'W' ? throw new IOException("identity denied") : broker.Drive('X'),
             broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);
         try
         {

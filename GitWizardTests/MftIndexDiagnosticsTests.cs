@@ -50,7 +50,7 @@ public class MftIndexDiagnosticsTests
     {
         using var files = new PackedIndexFixture();
         var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
-        CacheDirectory.EnsureCreated(cache);
+        Directory.CreateDirectory(cache);
         var retired = SyntheticBlock.CachedPath(cache, 'X', 1) + ".retired-test";
         await File.WriteAllTextAsync(retired, "retired sentinel");
         var messages = new ConcurrentQueue<string>();
@@ -60,8 +60,6 @@ public class MftIndexDiagnosticsTests
             Drives = [new IndexedDrive('X', files.TreePath, 1)],
             CacheDirectory = cache,
             CacheTag = MftIndexCachePolicy.CacheTag,
-            NoCache = false,
-            ProducerPolicy = ProducerPolicy.Mft,
             MftSource = SyntheticIndexSource.Create(files.Producer),
             Diagnostics = relay.Report
         }, CancellationToken.None))
@@ -76,7 +74,7 @@ public class MftIndexDiagnosticsTests
     {
         await using var broker = new BlockBrokerFixture();
         var cache = MftIndexCachePolicy.GetCacheDirectory(broker.CacheDirectory);
-        CacheDirectory.EnsureCreated(cache);
+        Directory.CreateDirectory(cache);
         var retired = SyntheticBlock.CachedPath(cache, 'X', 1) + ".retired-test";
         await File.WriteAllTextAsync(retired, "retired sentinel");
         var messages = new ConcurrentQueue<string>();

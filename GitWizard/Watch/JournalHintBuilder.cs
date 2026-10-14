@@ -14,7 +14,7 @@ internal static class JournalHintBuilder
 
             JournalCheckpointLossCause.JournalAdvanced => BuildAdvancedHint(loss),
 
-            _ => $"Hint on {loss.DriveLetter}: Checkpoint loss detected."
+            _ => $"Hint on {loss.Drive}: Checkpoint loss detected."
         };
     }
 
@@ -22,19 +22,19 @@ internal static class JournalHintBuilder
     {
         if (loss.DetectedDuring == JournalCheckpointLossDetection.LiveWatch)
         {
-            return $"Hint on {loss.DriveLetter}: The change journal was recreated, so the position " +
+            return $"Hint on {loss.Drive}: The change journal was recreated, so the position " +
                    "the watch had reached no longer refers to anything and live updates for this " +
                    "drive stopped. The drive is being rescanned to catch up. Nothing needs changing.";
         }
 
         if (loss.DetectedDuring == JournalCheckpointLossDetection.ScanCatchUp)
         {
-            return $"Hint on {loss.DriveLetter}: The change journal was recreated while the drive " +
+            return $"Hint on {loss.Drive}: The change journal was recreated while the drive " +
                    "was being scanned, so the scan could not catch up and the drive was scanned " +
                    "again. Nothing needs changing.";
         }
 
-        return $"Hint on {loss.DriveLetter}: The change journal was recreated, so the saved " +
+        return $"Hint on {loss.Drive}: The change journal was recreated, so the saved " +
                "position no longer refers to anything and a full rescan was needed. " +
                "Nothing needs changing.";
     }
@@ -43,19 +43,19 @@ internal static class JournalHintBuilder
     {
         if (loss.DetectedDuring == JournalCheckpointLossDetection.LiveWatch)
         {
-            return $"Hint on {loss.DriveLetter}: The change journal moved while the watch was running, " +
+            return $"Hint on {loss.Drive}: The change journal moved while the watch was running, " +
                    "so live updates for this drive stopped. The drive is being rescanned to catch up. " +
                    "Nothing needs changing.";
         }
 
         if (loss.DetectedDuring == JournalCheckpointLossDetection.ScanCatchUp)
         {
-            return $"Hint on {loss.DriveLetter}: The change journal moved while the drive was being " +
+            return $"Hint on {loss.Drive}: The change journal moved while the drive was being " +
                    "scanned, so the scan could not catch up and the drive was scanned again. " +
                    "Nothing needs changing.";
         }
 
-        return $"Hint on {loss.DriveLetter}: The change journal moved while the index was closed, " +
+        return $"Hint on {loss.Drive}: The change journal moved while the index was closed, " +
                "so the saved journal position could not be resumed. A full open rescans the drive; " +
                "a snapshot open keeps the cached index until the next full open. Nothing needs changing.";
     }
@@ -65,11 +65,11 @@ internal static class JournalHintBuilder
         var rescan = BuildRescanClause(loss);
         if (loss.SizeThatWouldHaveRetained is not { } suggestedSize)
         {
-            return $"Hint on {loss.DriveLetter}: {rescan}The size that would have avoided this " +
+            return $"Hint on {loss.Drive}: {rescan}The size that would have avoided this " +
                    "rescan is too large to represent, so no new size is suggested.";
         }
 
-        return $"Hint on {loss.DriveLetter}: {rescan}To prevent this, increase the journal size: " +
+        return $"Hint on {loss.Drive}: {rescan}To prevent this, increase the journal size: " +
                $"a journal of at least {ByteSizeFormatter.Format(suggestedSize)} would have avoided " +
                $"this rescan (it is {ByteSizeFormatter.Format(loss.JournalSettings.MaximumSize)} now).";
     }

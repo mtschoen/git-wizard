@@ -35,7 +35,7 @@ public class MftIndexSessionTests
             broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);
         try
         {
-            await session.Index.StartWatchingAsync(CancellationToken.None);
+            await session.Index.StartWatchingAsync(['X'], CancellationToken.None);
             var watchedDrive = await broker.WatchStarted.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.That(watchedDrive.Drive, Is.EqualTo("X"));
             Assert.That(broker.ConnectionCount, Is.EqualTo(1));
@@ -116,7 +116,7 @@ public class MftIndexSessionTests
         using var watchCancellation = new CancellationTokenSource();
         var session = await MftIndexSession.OpenAsync([watchBroker.Drive('X')],
             watchBroker.CreateSession(), watchBroker.CacheDirectory, null, CancellationToken.None);
-        await session.Index.StartWatchingAsync(watchCancellation.Token);
+        await session.Index.StartWatchingAsync(['X'], watchCancellation.Token);
         await watchBroker.WatchStarted.WaitAsync(TimeSpan.FromSeconds(10));
         var cancelling = watchCancellation.CancelAsync();
         var firstDisposal = session.DisposeAsync().AsTask();
@@ -152,13 +152,13 @@ public class MftIndexSessionTests
         await using var broker = new BlockBrokerFixture(scanError: "volume denied") { FailedDrive = "X" };
         await using var session = await MftIndexSession.OpenSelectedVolumesAsync(
             ["w:/", "X:", "x:\\", "Y", @"\\server\share", "C:not-root", ""],
-            drive => drive == "W" ? throw new IOException("identity denied") : broker.Drive(drive[0]),
+            drive => drive == 'W' ? throw new IOException("identity denied") : broker.Drive(drive.Letter),
             broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);
         Assert.That(session.Drives, Is.EqualTo(new[] { "W", "X", "Y" }));
         Assert.That(session.ScanErrors["W"], Does.Contain("identity denied"));
         Assert.That(session.ScanErrors["X"], Does.Contain("volume denied"));
         Assert.That(session.ScanErrors.ContainsKey("Y"), Is.False);
-        Assert.That(session.Index.Drives.Single(drive => drive.DriveLetter == 'Y').State, Is.EqualTo(DriveState.Ready));
+        Assert.That(session.Index.Drives.Single(drive => drive.Drive == 'Y').State, Is.EqualTo(DriveState.Ready));
         Assert.That(broker.ConnectionCount, Is.EqualTo(1));
     }
 
@@ -249,10 +249,10 @@ public class MftIndexSessionTests
         var sample = samples.Single(candidate => candidate.Phase == IndexScanPhase.ParsingMft);
         Assert.Multiple(() =>
         {
-            Assert.That(sample.DriveLetter, Is.EqualTo('X'));
+            Assert.That(sample.Drive, Is.EqualTo((DriveKey)'X'));
             Assert.That(sample.Phase, Is.EqualTo(IndexScanPhase.ParsingMft));
-            Assert.That(sample.RowsWritten, Is.EqualTo(600_000u));
-            Assert.That(sample.TotalRows, Is.EqualTo(1_200_000u));
+            Assert.That(sample.WrittenRowCount, Is.EqualTo(600_000u));
+            Assert.That(sample.ExpectedRowCount, Is.EqualTo(1_200_000u));
         });
     }
 

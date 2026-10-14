@@ -30,9 +30,10 @@ public class ElevationDecisionTests
     [SetUp]
     public void SetUp() => GitWizardLog.SilentMode = true;
 
-    // --- Defender (cross-platform; the fake means no real process is ever spawned) ---
+    // --- Defender (the fake means no real process is ever spawned) ---
 
     [Test]
+    [Platform("Win")]
     public void AddExclusions_NotElevatedButCanSelfElevate_RoutesThroughTryRunElevated()
     {
         var fake = new FakeElevationProvider { Elevated = false, SelfElevatable = true, RunElevatedResult = true };
@@ -43,6 +44,18 @@ public class ElevationDecisionTests
         Assert.That(fake.RunElevatedCalls, Has.Count.EqualTo(1));
         Assert.That(fake.RunElevatedCalls[0].Arguments, Is.EqualTo(new[] { "--elevated-defender" }));
         Assert.That(fake.RunElevatedCalls[0].Timeout, Is.EqualTo(ElevationUtilities.DefaultElevatedTimeout));
+    }
+
+    [Test]
+    [Platform("Unix")]
+    public void AddExclusions_OffWindows_ReturnsFalseWithoutElevating()
+    {
+        var fake = new FakeElevationProvider { Elevated = false, SelfElevatable = true, RunElevatedResult = true };
+
+        var result = WindowsDefender.AddExclusions(fake);
+
+        Assert.That(result, Is.False);
+        Assert.That(fake.RunElevatedCalls, Is.Empty);
     }
 
     [Test]

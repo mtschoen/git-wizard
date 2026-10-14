@@ -28,10 +28,9 @@ public class MftIndexCacheInspectionTests
     static Task<FileIndex> Open(PackedIndexFixture files, string cache, bool cacheOnly = false) =>
         FileIndex.OpenAsync(new FileIndexOptions
         {
-            Drives = [new IndexedDrive('X', files.TreePath, 1)],
+            Drives = [new IndexedDrive('X', files.TreePath, 1, ProducerPolicy.Enumeration)],
             CacheDirectory = cache,
-            ProducerPolicy = ProducerPolicy.Enumeration,
-            InitialOpenCacheOnly = cacheOnly
+            CacheMode = cacheOnly ? CacheMode.ExistingOnly : CacheMode.Persistent
         }, CancellationToken.None);
 
     [Test]
@@ -124,7 +123,7 @@ public class MftIndexCacheInspectionTests
 
         var snapshot = Create().Capture(files.DirectoryPath);
 
-        var available = snapshot.Inventory.Single(row => row.File.DriveLetter == 'X');
+        var available = snapshot.Inventory.Single(row => row.File.Drive == 'X');
         Assert.That(available.Availability, Is.EqualTo(CachedBlockAvailability.Available));
         Assert.That(available.CacheTag, Is.EqualTo(stored));
         Assert.That(snapshot.RequestedCacheTag, Is.EqualTo(MftIndexCachePolicy.CacheTag));
@@ -144,7 +143,7 @@ public class MftIndexCacheInspectionTests
         var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         var index = await Open(files, cache);
         var ui = new MftIndexSession(index, null, ["X"],
-            [new IndexedDrive('X', files.TreePath, 1)], new Dictionary<string, string>(), cache);
+        [new IndexedDrive('X', files.TreePath, 1)], new Dictionary<string, string>(), cache);
         await using var cli = await Open(files, cache);
         Assert.That(cli.Drives.Single().Block?.CacheSlot, Is.EqualTo(CacheSlotState.PrivateFallback));
         Assert.That(cli.Drives.Single().Block?.Source, Is.EqualTo(BlockSource.ProducedByScan));
@@ -158,7 +157,7 @@ public class MftIndexCacheInspectionTests
         Assert.That(index.Root('X').IsDirectory, Is.True);
         await ui.DisposeAsync();
         Assert.That(cli.Drives.Single().Block?.CacheSlot, Is.EqualTo(CacheSlotState.PrivateFallback));
-        await cli.RescanAsync('X', CancellationToken.None);
+        await cli.RescanAsync(['X'], CancellationToken.None);
         Assert.That(cli.Drives.Single().Block?.CacheSlot, Is.EqualTo(CacheSlotState.OwnedCanonical));
     }
 }

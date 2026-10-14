@@ -48,9 +48,17 @@ public sealed partial class IndexVolumeChangeSource
         var upper = char.ToUpperInvariant(drive);
         try
         {
-            await owner.Index.WaitForCatchUpAsync(upper, token).ConfigureAwait(false);
-            if (StartupCatchUpSettledForTest is { } settled)
-                await settled(upper).ConfigureAwait(false);
+            var results = await owner.Index.WaitForCatchUpAsync([upper], token).ConfigureAwait(false);
+            if (results is [{ Outcome: DriveOperationOutcome.Succeeded }])
+            {
+                if (StartupCatchUpSettledForTest is { } settled)
+                    await settled(upper).ConfigureAwait(false);
+            }
+            else if (results is [{ Outcome: DriveOperationOutcome.Failed, Failure: var failure }])
+            {
+                GitWizardLog.Log($"Live watch on {upper}: catch-up wait ended without catching up: " +
+                    failure?.Message, GitWizardLog.LogType.Verbose);
+            }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {

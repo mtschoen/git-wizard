@@ -148,7 +148,7 @@ internal static class WatchFailureAssertions
             scripted.WatchFor('X').LoseChannel(new IOException("X watch failed"));
             await failed.Task.WaitAsync(cancellation.Token);
             Assert.That(service.ScanErrors["X"], Is.EqualTo("X watch failed"));
-            Assert.That(index.Drives.Single(drive => drive.DriveLetter == 'X').State, Is.EqualTo(DriveState.Ready));
+            Assert.That(index.Drives.Single(drive => drive.Drive == 'X').State, Is.EqualTo(DriveState.Ready));
             var markers = index.Search(new SearchQuery(".git", NameMatchMode.Exact)).ToArray();
             Assert.That(markers, Has.Length.EqualTo(2), "Both the failed and healthy drive remain queryable.");
             Assert.That(markers.All(entry => entry.Parent is { Name: "repo" }), Is.True);

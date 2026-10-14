@@ -59,12 +59,13 @@ public class IndexVolumeChangeSourceWindowsTests
 
         var requested = checked(before.MaximumSize + before.AllocationDelta);
 
-        var after = await source.GrowUsnJournalAsync(drive[0], requested, before.AllocationDelta, cancellation.Token);
+        var after = await source.GrowUsnJournalAsync(
+            drive[0], new UsnJournalSettings { MaximumSize = requested, AllocationDelta = before.AllocationDelta }, cancellation.Token);
 
         Assert.That(after.MaximumSize, Is.GreaterThanOrEqualTo(requested));
         Assert.That(source.QueryUsnJournalSettings(drive[0]).MaximumSize, Is.EqualTo(after.MaximumSize));
         Assert.ThrowsAsync<InvalidOperationException>(() => source.GrowUsnJournalAsync(
-            drive[0], before.MaximumSize, before.AllocationDelta, cancellation.Token));
+            drive[0], before, cancellation.Token));
         Assert.That(source.QueryUsnJournalSettings(drive[0]).MaximumSize, Is.EqualTo(after.MaximumSize));
         Assert.That(launches, Is.EqualTo(1));
     }
@@ -90,12 +91,12 @@ public class IndexVolumeChangeSourceWindowsTests
         Assert.That(armResult.Errors, Does.Not.ContainKey(drive));
         Assert.That(session, Is.Not.Null);
         var status = session!.Index.Drives.Single(candidate =>
-            char.ToUpperInvariant(candidate.DriveLetter).ToString() == drive);
+            char.ToUpperInvariant(candidate.Drive.Letter).ToString() == drive);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(status.State, Is.EqualTo(DriveState.Ready));
-            Assert.That(status.Watch.Supported, Is.True);
-            Assert.That(SyntheticIndexInspection.ReadHeader(session.Index, status.DriveLetter)?.RowCount, Is.GreaterThan(0u));
+            Assert.That(status.Watch.IsSupported, Is.True);
+            Assert.That(SyntheticIndexInspection.ReadHeader(session.Index, status.Drive)?.RowCount, Is.GreaterThan(0u));
             Assert.That(status.Watch.FailureMessage, Is.Null);
         }
     }

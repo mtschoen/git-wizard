@@ -67,7 +67,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
                 progress, diagnostics), cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             var session = new MftIndexSession(index, brokerSession,
-                drives.Select(drive => char.ToUpperInvariant(drive.DriveLetter).ToString()).ToArray(), drives,
+                drives.Select(drive => drive.Drive.ToString()).ToArray(), drives,
                 CollectScanErrors(index), cacheDirectory)
             {
                 _brokerSession = brokerSession,
@@ -103,14 +103,12 @@ public sealed partial class MftIndexSession : IAsyncDisposable
             Drives = drives,
             CacheDirectory = cacheDirectory,
             CacheTag = MftIndexCachePolicy.CacheTag,
-            NoCache = false,
-            InitialOpenCacheOnly = intent == MftIndexOpenIntent.Snapshot,
-            ProducerPolicy = ProducerPolicy.Mft,
+            CacheMode = intent == MftIndexOpenIntent.Snapshot ? CacheMode.ExistingOnly : CacheMode.Persistent,
             MftSource = brokerSession.CreateIndexSource(new MftScanOptions
             {
                 RetainedFileNames = MftIndexCachePolicy.DirectoryScanFileNames
             }),
-            Progress = progress,
+            ScanProgress = progress,
             Diagnostics = diagnostics.Report
         };
     }
@@ -121,7 +119,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
         foreach (var drive in index.Drives)
         {
             if (drive.State is DriveState.Failed or DriveState.Offline)
-                errors[drive.DriveLetter.ToString()] = drive.Failure?.Message ?? $"Drive is {drive.State}.";
+                errors[drive.Drive.ToString()] = drive.Failure?.Message ?? $"Drive is {drive.State}.";
         }
         return errors;
     }
@@ -166,7 +164,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
             return DriveStatusesOverride();
 
         var indexed = Index.Drives.ToDictionary(status =>
-            char.ToUpperInvariant(status.DriveLetter).ToString(), StringComparer.OrdinalIgnoreCase);
+            status.Drive.ToString(), StringComparer.OrdinalIgnoreCase);
         return Array.AsReadOnly(Drives.Select(drive => new MftDriveStatus(drive,
             indexed.TryGetValue(drive, out var status) ? status with { } : null,
             _identityFailures.GetValueOrDefault(drive))).ToArray());

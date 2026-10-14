@@ -11,7 +11,7 @@ static class Program
     // yet and stuff might break.
     [STAThread]
     public static int Main(string[] args) => Run(args,
-        ElevatedEntryPoint.TryHandle, WindowsDefender.RunDefenderCommands,
+        ElevatedEntryPoint.RunBrokerIfRequested, WindowsDefender.AddExclusions,
         DesktopInstance.CreateName,
         arguments => BuildAvaloniaApp().StartWithClassicDesktopLifetime(arguments),
         StartupNotice.Show);

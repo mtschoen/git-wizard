@@ -41,10 +41,10 @@ public sealed partial class IndexVolumeChangeSource
         try
         {
             // A drive's outstanding fault comes back here once more; WatchFaulted already reported it.
-            var results = await index.StopWatchingAsync(CancellationToken.None).ConfigureAwait(false);
+            var results = await index.StopWatchingAsync(index.Drives.Select(status => status.Drive), CancellationToken.None).ConfigureAwait(false);
             foreach (var result in results.Where(result => result.Outcome == DriveOperationOutcome.Failed))
             {
-                GitWizardLog.Log($"Live watch on {char.ToUpperInvariant(result.DriveLetter)} stopped after a fault: " +
+                GitWizardLog.Log($"Live watch on {result.Drive} stopped after a fault: " +
                                  result.Failure?.Message, GitWizardLog.LogType.Verbose);
             }
         }

@@ -24,7 +24,7 @@ public class IndexVolumeChangeSourceFaultTests
         await using var harness = await FaultHarness.StartAsync('X', 'Y');
         harness.Inject(kind, 'X');
 
-        await WaitUntilAsync(() => harness.Scripted.Watches.Count(watch => watch.DriveLetter == 'X') == 2);
+        await WaitUntilAsync(() => harness.Scripted.Watches.Count(watch => watch.Drive == 'X') == 2);
         await WaitUntilAsync(() => harness.ReadinessOf('X') == VolumeWatchState.CaughtUp &&
                                    harness.StatusOf('X').Watch.State == WatchState.CaughtUp);
         Assert.That(harness.Failures, Is.Empty);
@@ -78,7 +78,7 @@ public class IndexVolumeChangeSourceFaultTests
         Assert.That(harness.Failures.Single().Drive, Is.EqualTo("X"));
         Assert.That(harness.Failures.Single().Message, Does.Contain(message));
         Assert.That(harness.Deaths, Is.Empty);
-        Assert.That(harness.Scripted.Starts.Count(start => start.DriveLetter == 'X'), Is.EqualTo(1),
+        Assert.That(harness.Scripted.Starts.Count(start => start.Drive == 'X'), Is.EqualTo(1),
             "A lost channel is not recovered automatically.");
 
         await harness.Scripted.WatchFor('Y').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(50, 6, "survivor", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
@@ -111,7 +111,7 @@ public class IndexVolumeChangeSourceFaultTests
         await using var harness = await FaultHarness.StartAsync('X', 'Y');
         harness.Scripted.StartFailure = drive => drive == 'X' ? new IOException("restart refused") : null;
 
-        await harness.Owner.Index.RescanAsync('X', CancellationToken.None);
+        await harness.Owner.Index.RescanAsync(['X'], CancellationToken.None);
 
         await WaitUntilAsync(() => harness.Failures.Length == 1 &&
                                    harness.ReadinessOf('X') == VolumeWatchState.Excluded);
@@ -125,7 +125,7 @@ public class IndexVolumeChangeSourceFaultTests
     {
         await using var harness = await FaultHarness.StartAsync('X', 'Y');
         var lossPending = 1;
-        harness.Files.Producer.CatchUpLoss = _ => !recovers || Interlocked.Exchange(ref lossPending, 0) == 1
+        harness.Files.CatchUpLoss = _ => !recovers || Interlocked.Exchange(ref lossPending, 0) == 1
             ? SyntheticCheckpointLoss.WithJournalPositions(SyntheticNotifications.CreateJournalCheckpointLoss('X', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.ScanCatchUp, new UsnJournalSettings { MaximumSize = 1024, AllocationDelta = 64 }), 1000, 2000, 3000)
             : null;
         harness.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
@@ -143,7 +143,7 @@ public class IndexVolumeChangeSourceFaultTests
             Assert.That(harness.Failures.Select(failure => failure.Drive), Is.All.EqualTo("X"));
             Assert.That(harness.Failures[0].Message, Does.Contain("cannot be watched"));
         }
-        Assert.That(harness.StatusOf('X').Watch.RecoveryStopped, Is.EqualTo(!recovers));
+        Assert.That(harness.StatusOf('X').Watch.IsRecoveryStopped, Is.EqualTo(!recovers));
         Assert.That(harness.Deaths, Is.Empty);
     }
 
@@ -274,7 +274,7 @@ public class IndexVolumeChangeSourceFaultTests
             var names = drives.Select(drive => drive.ToString()).ToArray();
             var index = await files.OpenMftIndexAsync(scripted, drives);
             if (beforeRescan is not null)
-                files.Producer.BeforeProduceAsync = (_, token) => beforeRescan(token);
+                files.BeforeProduceAsync = (_, token) => beforeRescan(token);
             var owner = IndexVolumeChangeSourceTests.Owner(index, names);
             var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
             var harness = new FaultHarness(files, scripted, owner, source);
@@ -312,7 +312,7 @@ public class IndexVolumeChangeSourceFaultTests
             return PendingRead.WaitAsync(HangGuard);
         }
 
-        public DriveStatus StatusOf(char drive) => Owner.Index.Drives.Single(status => status.DriveLetter == drive);
+        public DriveStatus StatusOf(char drive) => Owner.Index.Drives.Single(status => status.Drive == drive);
 
         public VolumeWatchState? ReadinessOf(char drive) =>
             Source.Readiness.TryGet(drive.ToString(), out var status) ? status.State : null;

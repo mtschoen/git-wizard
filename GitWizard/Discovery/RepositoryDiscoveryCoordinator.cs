@@ -177,11 +177,11 @@ public partial class RepositoryDiscoveryCoordinator
         if (drivesNeedingScan.Length == 0)
             return;
 
-        var results = await session.Index.RescanAsync(drivesNeedingScan.Select(drive => drive[0]).ToArray(),
+        var results = await session.Index.RescanAsync(drivesNeedingScan.Select(drive => (DriveKey)drive[0]),
             cancellationToken).ConfigureAwait(false);
         foreach (var result in results)
         {
-            var drive = char.ToUpperInvariant(result.DriveLetter).ToString();
+            var drive = result.Drive.ToString();
             if (result.Outcome == DriveOperationOutcome.Succeeded)
                 accumulator.RescannedDrives.Add(drive);
             else if (result.Outcome == DriveOperationOutcome.Failed)

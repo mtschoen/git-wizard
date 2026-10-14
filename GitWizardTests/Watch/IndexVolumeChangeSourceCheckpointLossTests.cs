@@ -29,7 +29,7 @@ public class IndexVolumeChangeSourceCheckpointLossTests
         windows['X'] = Healthy;
         windows['Y'] = Healthy;
         using var scope = JournalIsolation.OverrideJournalWindow(
-            drive => windows.TryGetValue(drive, out var window) ? window : null);
+            drive => windows.TryGetValue(drive.Letter, out var window) ? window : null);
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
         var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
@@ -37,7 +37,7 @@ public class IndexVolumeChangeSourceCheckpointLossTests
             [new IndexedDrive('X', files.TreePath, 1), new IndexedDrive('Y', files.TreePath, 1)],
             new Dictionary<string, string>());
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        files.Producer.BeforeProduceAsync = (_, token) => release.Task.WaitAsync(token);
+        files.BeforeProduceAsync = (_, token) => release.Task.WaitAsync(token);
         var warnings = new ConcurrentQueue<JournalWarning>();
         using var cancellation = new CancellationTokenSource(HangGuard);
         IAsyncEnumerator<VolumeChangeBatch>? reader = null;
@@ -51,7 +51,7 @@ public class IndexVolumeChangeSourceCheckpointLossTests
             windows['X'] = Lost;
             scripted.WatchFor('X').FailDrive(new IOException("X journal moved on"));
             await WaitUntilAsync(() =>
-                owner.Index.Drives.Single(drive => drive.DriveLetter == 'X').Watch.State ==
+                owner.Index.Drives.Single(drive => drive.Drive == 'X').Watch.State ==
                 WatchState.Recovering &&
                 source.Readiness.TryGet("X", out var recovering) &&
                 recovering.State == VolumeWatchState.CatchingUp &&
@@ -80,7 +80,7 @@ public class IndexVolumeChangeSourceCheckpointLossTests
 
             Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(HangGuard), Is.True);
             Assert.That(reader.Current.Volume, Is.EqualTo("X"));
-            Assert.That(scripted.Starts.Count(start => start.DriveLetter == 'X'), Is.EqualTo(2));
+            Assert.That(scripted.Starts.Count(start => start.Drive == 'X'), Is.EqualTo(2));
         }
         finally
         {

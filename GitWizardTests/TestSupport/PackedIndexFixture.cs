@@ -20,15 +20,20 @@ internal sealed class PackedIndexFixture : IDisposable
         Producer = new SyntheticMftProducer(_ => WalkTree())
         {
             JournalCursor = new SyntheticJournalCursor(JournalIdentifier, NextUsn),
-            Completed = CompletionTimestamp
+            ScanTimestamp = CompletionTimestamp,
+            BeforeProduceAsync = (drive, token) => BeforeProduceAsync?.Invoke(drive, token) ?? Task.CompletedTask,
+            CatchUpLoss = drive => CatchUpLoss?.Invoke(drive)
         };
     }
 
-    /// <summary>
-    /// Produces a block holding the tree under <see cref="TreePath"/> for any drive. A test sets its
-    /// BeforeProduceAsync and CatchUpLoss to hold or fault a scan.
-    /// </summary>
+    /// <summary>Produces a block holding the tree under <see cref="TreePath"/> for any drive.</summary>
     public SyntheticMftProducer Producer { get; }
+
+    /// <summary>Awaited before every production; a test sets it to hold a scan. The producer's own property is init-only, so it forwards here.</summary>
+    public Func<DriveKey, CancellationToken, Task>? BeforeProduceAsync { get; set; }
+
+    /// <summary>Answers each catch-up with a loss or null; a test sets it to fault a scan.</summary>
+    public Func<DriveKey, JournalCheckpointLoss?>? CatchUpLoss { get; set; }
 
     public string AddMarker(string repository, bool isDirectory = true, string markerName = ".git")
     {
@@ -43,19 +48,16 @@ internal sealed class PackedIndexFixture : IDisposable
 
     public Task<FileIndex> OpenIndexAsync(params char[] drives) => FileIndex.OpenAsync(new FileIndexOptions
     {
-        Drives = (drives.Length == 0 ? ['X'] : drives).Select(letter => new IndexedDrive(letter, TreePath, 1)).ToArray(),
-        CacheDirectory = BlockDirectory,
-        NoCache = true,
-        ProducerPolicy = ProducerPolicy.Enumeration
+        Drives = (drives.Length == 0 ? ['X'] : drives)
+            .Select(letter => new IndexedDrive(letter, TreePath, 1, ProducerPolicy.Enumeration)).ToArray(),
+        CacheMode = CacheMode.Disabled
     }, CancellationToken.None);
 
     public Task<FileIndex> OpenMftIndexAsync(ScriptedWatchSource source, params char[] drives) =>
         FileIndex.OpenAsync(new FileIndexOptions
         {
             Drives = drives.Select(letter => new IndexedDrive(letter, TreePath, 1)).ToArray(),
-            CacheDirectory = BlockDirectory,
-            NoCache = true,
-            ProducerPolicy = ProducerPolicy.Mft,
+            CacheMode = CacheMode.Disabled,
             MftSource = SyntheticIndexSource.Create(Producer, source)
         }, CancellationToken.None);
 
@@ -88,7 +90,7 @@ internal sealed class PackedIndexFixture : IDisposable
             {
                 Attributes = FileAttributes.Normal,
                 Size = null,
-                Modified = CompletionTimestamp,
+                LastWriteTime = CompletionTimestamp,
                 SequenceNumber = 1
             });
         }
@@ -98,7 +100,7 @@ internal sealed class PackedIndexFixture : IDisposable
     {
         IsDirectory = true,
         Attributes = FileAttributes.Directory,
-        Modified = CompletionTimestamp,
+        LastWriteTime = CompletionTimestamp,
         SequenceNumber = 1
     };
 

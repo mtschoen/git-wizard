@@ -45,7 +45,7 @@ public class MftIndexCachePolicyTests
         files.AddMarker("repository");
         var path = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         var calls = 0;
-        files.Producer.BeforeProduceAsync = (_, _) =>
+        files.BeforeProduceAsync = (_, _) =>
         {
             calls++;
             return Task.CompletedTask;
@@ -55,9 +55,7 @@ public class MftIndexCachePolicyTests
             Drives = [new IndexedDrive('X', files.TreePath, 1)],
             CacheDirectory = path,
             CacheTag = new CacheTag(SyntheticCacheTag.GetFourCharacterCode(MftIndexCachePolicy.CacheTag), version),
-            NoCache = false,
-            InitialOpenCacheOnly = snapshot,
-            ProducerPolicy = ProducerPolicy.Mft,
+            CacheMode = snapshot ? CacheMode.ExistingOnly : CacheMode.Persistent,
             MftSource = SyntheticIndexSource.Create(files.Producer)
         };
         var version = SyntheticCacheTag.GetVersion(MftIndexCachePolicy.CacheTag);

@@ -80,9 +80,7 @@ public class IndexVolumeChangeSourceReadinessTests
         await using var failedIndex = await FileIndex.OpenAsync(new FileIndexOptions
         {
             Drives = [new IndexedDrive('X', files.TreePath, 1)],
-            CacheDirectory = files.BlockDirectory,
-            NoCache = true,
-            ProducerPolicy = ProducerPolicy.Mft,
+            CacheMode = CacheMode.Disabled,
             MftSource = SyntheticIndexSource.Create(new SyntheticMftProducer(_ => throw new IOException("cannot scan X")))
         }, CancellationToken.None);
         var owner = Owner(failedIndex, "X");

@@ -25,18 +25,18 @@ public sealed partial class IndexVolumeChangeSource
     {
         try
         {
-            AcceptWatchState(change.DriveLetter, change.Watch, change.Fault, recordTransition: true);
+            AcceptWatchState(change.Drive.Letter, change.Watch, change.Fault, recordTransition: true);
         }
         catch (Exception exception)
         {
-            FailWatchState(change.DriveLetter, exception);
+            FailWatchState(change.Drive.Letter, exception);
         }
     }
 
     void SeedWatchStates(FileIndex index)
     {
         foreach (var status in index.Drives)
-            AcceptWatchState(status.DriveLetter, status.Watch, null, recordTransition: false);
+            AcceptWatchState(status.Drive.Letter, status.Watch, null, recordTransition: false);
     }
 
     void FailWatchState(char drive, Exception exception)

@@ -31,8 +31,8 @@ public class MftIndexCacheStatusFormatterTests
 
     [TestCase(CacheSlotState.OwnedCanonical, "this session owns the cache")]
     [TestCase(CacheSlotState.PrivateFallback, "running on a private block; another process holds the cache")]
-    [TestCase(CacheSlotState.NotApplicable, "")]
-    public void BackingUsesLibraryField(CacheSlotState state, string expected) => Assert.That(
+    [TestCase(null, "")]
+    public void BackingUsesLibraryField(CacheSlotState? state, string expected) => Assert.That(
         MftIndexCacheStatusFormatter.Backing(state), Is.EqualTo(expected));
 
     [TestCase(1u, true, true)]
@@ -44,9 +44,8 @@ public class MftIndexCacheStatusFormatterTests
         var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         await using var index = await FileIndex.OpenAsync(new FileIndexOptions
         {
-            Drives = [new IndexedDrive('X', files.TreePath, 1)],
-            CacheDirectory = cache,
-            ProducerPolicy = ProducerPolicy.Enumeration
+            Drives = [new IndexedDrive('X', files.TreePath, 1, ProducerPolicy.Enumeration)],
+            CacheDirectory = cache
         }, CancellationToken.None);
         var active = new MftActiveCacheSession(sameDirectory ? cache : files.BlockDirectory,
             [new(new MftDriveStatus("X", index.Drives.Single(), null), serial)]);
@@ -72,7 +71,7 @@ public class MftIndexCacheStatusFormatterTests
         {
             State = refused ? DriveState.Failed : DriveState.Ready,
             Failure = refused ? SyntheticNotifications.CreateDriveFailure(DriveFailureKind.InUse, "In-use index refusal") : null,
-            Block = refused ? null : drive.Block! with { CacheSlot = CacheSlotState.NotApplicable },
+            Block = refused ? null : drive.Block! with { CacheSlot = null },
             Watch = drive.Watch with { FailureMessage = refused ? null : "watch stopped" }
         };
         var directory = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);

@@ -36,7 +36,7 @@ public partial class MainViewModel
 
         if (!warning.Loss.TryGetGrowthTarget(out var target))
         {
-            if (warning.Loss.Cause != JournalCheckpointLossCause.CheckpointTrimmed)
+            if (warning.Loss.GrowthTargetRefusalReason == JournalGrowthTargetRefusalReason.CheckpointNotTrimmed)
                 throw new InvalidOperationException("A recreated or advanced journal has no size that would have avoided the rescan.");
             throw new InvalidOperationException(warning.GrowUnavailableReason);
         }
@@ -45,8 +45,8 @@ public partial class MainViewModel
         if (before.MaximumSize >= target.MaximumSize)
             throw new InvalidOperationException("The journal already meets the suggested size. Refusing to shrink or resize.");
 
-        var after = await grower.GrowUsnJournalAsync(warning.DriveLetter[0], target.MaximumSize,
-            target.AllocationDelta, CancellationToken.None).ConfigureAwait(false);
+        var after = await grower.GrowUsnJournalAsync(warning.DriveLetter[0], target,
+            CancellationToken.None).ConfigureAwait(false);
         await _ui.InvokeAsync(() =>
         {
             if (!ReferenceEquals(controller, _liveController))

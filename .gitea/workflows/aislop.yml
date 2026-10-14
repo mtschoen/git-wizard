@@ -51,7 +51,13 @@ jobs:
             exit 1
           fi
           echo "AISLOP_FORK_COMMIT=$commit" >> "$GITHUB_ENV"
+      - name: Detect toolchain baked into the runner image
+        id: baked
+        if: runner.os != 'Windows'
+        shell: bash
+        run: bash ci/baked-toolchain.sh node
       - uses: actions/setup-node@v4
+        if: steps.baked.outputs.node != 'true'
         with:
           # 22, not 20: the `npm install` below builds the fork via its
           # "prepare": "tsdown" script, and tsdown >= 0.22 requires node

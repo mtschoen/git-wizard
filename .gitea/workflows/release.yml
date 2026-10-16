@@ -112,7 +112,7 @@ jobs:
           ls -la artifacts/
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: ChristopherHX/gitea-upload-artifact@81f940d004763f986ba3582c007fd842dd5cb0d7
         with:
           name: posix-${{ matrix.rid }}
           path: artifacts/*.zip
@@ -189,7 +189,7 @@ jobs:
           Get-ChildItem artifacts
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: ChristopherHX/gitea-upload-artifact@81f940d004763f986ba3582c007fd842dd5cb0d7
         with:
           name: windows-win-x64
           path: artifacts/*.zip
@@ -235,7 +235,7 @@ jobs:
           echo "Resolved: tag=$TAG name='$NAME' draft=$DRAFT dry_run=$DRY_RUN prerelease=$PRE"
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: ChristopherHX/gitea-download-artifact@e0399dc55549df529d84aa9195b379e136352155
         with:
           path: downloaded
 

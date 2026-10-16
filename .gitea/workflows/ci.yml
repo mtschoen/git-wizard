@@ -131,7 +131,9 @@ jobs:
 
       - name: Upload test results
         if: always() && steps.changed-files.outputs.pin_only != 'true'
-        uses: actions/upload-artifact@v3
+        # Gitea-native action: actions/upload-artifact@v3 uploads are not listed by the
+        # artifacts REST API that reviews read.
+        uses: ChristopherHX/gitea-upload-artifact@81f940d004763f986ba3582c007fd842dd5cb0d7
         with:
           name: test-results-linux
           path: TestResults/*.trx
@@ -152,7 +154,7 @@ jobs:
         # Don't red CI over a cert-blocked nice-to-have upload; keep TLS verification on rather
         # than spreading NODE_TLS_REJECT_UNAUTHORIZED=0.
         continue-on-error: true
-        uses: actions/upload-artifact@v3
+        uses: ChristopherHX/gitea-upload-artifact@81f940d004763f986ba3582c007fd842dd5cb0d7
         with:
           name: coverage-cobertura
           path: TestResults/**/coverage.cobertura.xml
@@ -323,7 +325,7 @@ jobs:
 
       - name: Upload test results
         if: always() && steps.changed-files.outputs.pin_only != 'true'
-        uses: actions/upload-artifact@v3
+        uses: ChristopherHX/gitea-upload-artifact@81f940d004763f986ba3582c007fd842dd5cb0d7
         with:
           name: test-results-windows
           path: TestResults/*.trx

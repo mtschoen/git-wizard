@@ -82,52 +82,32 @@ jobs:
         if: steps.changed-files.outputs.pin_only != 'true'
         run: |
           apt-get update && apt-get install -y cmake ninja-build g++
-          cmake -S external/MFTLib/MFTLibNative -B external/MFTLib/build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release
-          cmake --build external/MFTLib/build-linux
-          dotnet build external/MFTLib/MFTLib/MFTLib.csproj -c Release -p:Platform=x64
-          dotnet build external/MFTLib/MFTLibTestExtensions/MFTLibTestExtensions.csproj -c Release -p:Platform=x64
+          bash ci/gates.sh native
 
       - name: Restore (cross-platform projects)
         if: steps.changed-files.outputs.pin_only != 'true'
-        run: |
-          for proj in \
-            GitWizard/GitWizard.csproj \
-            git-wizard/git-wizard.csproj \
-            GitWizardUI/GitWizardUI.csproj \
-            GitWizardTests/GitWizardTests.csproj
-          do
-            dotnet restore "$proj"
-          done
+        run: bash ci/gates.sh restore
 
       - name: Format check (dotnet format --verify-no-changes)
         if: steps.changed-files.outputs.pin_only != 'true'
         # Same tool as the on-save hook, in check mode: fails on any whitespace/
         # style drift from .editorconfig. MFTLib (outside this repo) fails to load
         # on Linux and is skipped; the git-wizard projects are still verified.
-        run: dotnet format git-wizard.slnx --verify-no-changes
+        run: bash ci/gates.sh format
 
       - name: Build (cross-platform projects)
         if: steps.changed-files.outputs.pin_only != 'true'
         # TreatWarningsAsErrors (Directory.Build.props) makes this the analyzer
         # gate: any CA*/IDE*/RCS* warning on a git-wizard project fails the build.
-        run: |
-          for proj in \
-            GitWizard/GitWizard.csproj \
-            git-wizard/git-wizard.csproj \
-            GitWizardUI/GitWizardUI.csproj \
-            GitWizardTests/GitWizardTests.csproj
-          do
-            dotnet build "$proj" -c Release --no-restore
-          done
+        run: bash ci/gates.sh build
 
       - name: Test
         if: steps.changed-files.outputs.pin_only != 'true'
-        run: |
-          dotnet test GitWizardTests/GitWizardTests.csproj \
-              -c Release --no-build \
-              --logger "trx;LogFileName=TestResults.trx" \
-              --results-directory ./TestResults \
-              --collect:"XPlat Code Coverage"
+        run: bash ci/gates.sh test
+
+      - name: Preflight contract tests
+        if: steps.changed-files.outputs.pin_only != 'true'
+        run: bash ci/gates.sh contracts
 
       - name: Upload test results
         if: always() && steps.changed-files.outputs.pin_only != 'true'
@@ -136,7 +116,7 @@ jobs:
         uses: ChristopherHX/gitea-upload-artifact@81f940d004763f986ba3582c007fd842dd5cb0d7
         with:
           name: test-results-linux
-          path: TestResults/*.trx
+          path: TestResults/**/*.trx
           if-no-files-found: warn
 
       - name: Post coverage status
@@ -166,10 +146,7 @@ jobs:
       # sits in coverage scope. Ratchet up as ViewModel coverage grows (issue #36).
       - name: Coverage gate
         if: steps.changed-files.outputs.pin_only != 'true'
-        run: |
-          python3 ci/post-coverage-status.py \
-              --cobertura "TestResults/**/coverage.cobertura.xml" \
-              --gate-line 55 --summary --skip-post
+        run: bash ci/gates.sh coverage
 
   test-windows:
     name: Build + Test (Windows, full solution)
@@ -242,11 +219,8 @@ jobs:
 
       - name: Build MFTLib (native + managed)
         if: steps.changed-files.outputs.pin_only != 'true'
-        shell: pwsh
-        run: |
-          msbuild external\MFTLib\MFTLibNative\MFTLibNative.vcxproj -t:Build -p:Configuration=Release -p:Platform=x64 -nologo -v:minimal
-          dotnet build external\MFTLib\MFTLib\MFTLib.csproj -c Release -p:Platform=x64
-          dotnet build external\MFTLib\MFTLibTestExtensions\MFTLibTestExtensions.csproj -c Release -p:Platform=x64
+        shell: bash
+        run: bash ci/gates.sh native
 
       - name: Cache NuGet packages
         if: steps.changed-files.outputs.pin_only != 'true'
@@ -259,12 +233,14 @@ jobs:
 
       - name: Restore (full solution)
         if: steps.changed-files.outputs.pin_only != 'true'
-        run: dotnet restore git-wizard.slnx
+        shell: bash
+        run: bash ci/gates.sh restore
 
       - name: Build (full solution)
         if: steps.changed-files.outputs.pin_only != 'true'
         # TreatWarningsAsErrors (Directory.Build.props) gates analyzer warnings here.
-        run: dotnet build git-wizard.slnx -c Release --no-restore
+        shell: bash
+        run: bash ci/gates.sh build
 
       - name: Select runner-provisioned jb
         if: steps.changed-files.outputs.pin_only != 'true'
@@ -289,46 +265,19 @@ jobs:
         # defaults are idiomatic .NET, matching our canonical naming, so the repo
         # should pass. The format + warnaserror gates above are config-independent
         # and deterministic.
-        run: |
-          # jb takes option VALUES with '=' (like -o= above). Space-separated
-          # `-s <path>` is rejected as "Invalid option 's'", so use --settings=.
-          # Inspect the Release configuration: it's what this job built, and the
-          # MFTLib native copy target errors under the default Debug config
-          # because only Release\MFTLibNative.dll exists on the runner.
-          jb inspectcode git-wizard.slnx -o="$env:RUNNER_TEMP\jb-report.xml" `
-            --settings="git-wizard.slnx.DotSettings" --severity=WARNING --no-updates `
-            --properties:Configuration=Release
-          # Gate inline in PowerShell - mirrors ci/parse-jb-report.py (kept for local
-          # use). The SYSTEM-account Windows runner has no `python` on PATH (the
-          # user's Store Python is per-user), so we don't shell out to it here.
-          # jb writes SARIF JSON despite the .xml extension.
-          $report = Get-Content "$env:RUNNER_TEMP\jb-report.xml" -Raw | ConvertFrom-Json
-          $results = @($report.runs[0].results)
-          Write-Host "jb inspectcode: $($results.Count) finding(s)"
-          $results | Group-Object ruleId | Sort-Object Count -Descending | ForEach-Object {
-            Write-Host ("  {0,4}  {1}" -f $_.Count, $_.Name)
-          }
-          if ($results.Count -gt 0) {
-            Write-Host "::error::jb inspectcode reported $($results.Count) finding(s); the gate allows 0."
-            exit 1
-          }
-          Write-Host "jb inspectcode gate passed (0 findings)."
+        run: pwsh -NoProfile -File ci/windows-gates.ps1 inspect
 
       - name: Test
         if: steps.changed-files.outputs.pin_only != 'true'
-        shell: pwsh
-        run: |
-          dotnet test GitWizardTests/GitWizardTests.csproj `
-              -c Release --no-build `
-              --logger "trx;LogFileName=TestResults.trx" `
-              --results-directory ./TestResults
+        shell: bash
+        run: bash ci/gates.sh test
 
       - name: Upload test results
         if: always() && steps.changed-files.outputs.pin_only != 'true'
         uses: ChristopherHX/gitea-upload-artifact@81f940d004763f986ba3582c007fd842dd5cb0d7
         with:
           name: test-results-windows
-          path: TestResults/*.trx
+          path: TestResults/**/*.trx
           if-no-files-found: warn
 
       # Verify that build, InspectCode, and tests left no tracked-file modifications

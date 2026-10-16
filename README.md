@@ -33,6 +33,10 @@ dotnet build GitWizardUI/GitWizardUI.csproj
 
 On first run, configure your search paths in Settings. GitWizard will scan those paths for git repositories and cache the results for fast subsequent launches.
 
+Before pushing source changes, run `bash tools/ci-preflight.sh --all` to execute
+the host's shared CI gates. See [AGENTS.md](AGENTS.md#local-ci-preflight) for
+prerequisites, targeted scopes, pinned scanner preparation and platform limits.
+
 ### One desktop instance per user
 
 GitWizardUI permits one normal desktop instance per operating-system user,
@@ -253,7 +257,7 @@ See the [tag and branch inventory schemas](docs/report-schema.md#tag-inventory-o
 
 ### Preview a PR build
 
-`/preview` on a git-wizard PR builds and publishes the desktop app for Windows or Linux; `scripts/run-preview.ps1` / `scripts/run-preview.sh` download and launch a published preview. Set `GITEA_BASE_URL` to the Gitea origin before running either launcher. See **CI infrastructure → Preview builds** in [AGENTS.md](AGENTS.md).
+`/preview` on a git-wizard PR builds and publishes the desktop app for Windows or Linux; `scripts/run-preview.ps1` / `scripts/run-preview.sh` download and launch a published preview. Set `GITEA_BASE_URL` to the Gitea origin before running either launcher. See **CI infrastructure -> Preview builds** in [AGENTS.md](AGENTS.md).
 
 ## Projects
 

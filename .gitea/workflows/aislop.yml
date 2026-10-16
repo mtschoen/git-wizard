@@ -44,13 +44,7 @@ jobs:
         # lowercase hex sha before it reaches GITHUB_ENV - an unvalidated
         # write would let a crafted file with embedded newlines inject
         # arbitrary env vars into later steps.
-        run: |
-          commit=$(tr -d '[:space:]' < .aislop/fork-commit)
-          if [[ ! "$commit" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "ERROR: .aislop/fork-commit is not a single 40-char lowercase sha" >&2
-            exit 1
-          fi
-          echo "AISLOP_FORK_COMMIT=$commit" >> "$GITHUB_ENV"
+        run: bash ci/aislop-gate.sh pin
       - name: Detect toolchain baked into the runner image
         id: baked
         if: runner.os != 'Windows'
@@ -76,8 +70,9 @@ jobs:
           # Keyed on the pinned sha, which is immutable, so a hit is always the
           # build for exactly this pin and the clone + install below is skipped.
           # The node major is in the key because the build runs under it.
+          # receipt1 excludes older caches without a successful-build receipt.
           path: ${{ runner.temp }}/aislop
-          key: aislop-fork-${{ env.AISLOP_FORK_COMMIT }}-node22
+          key: aislop-fork-${{ env.AISLOP_FORK_COMMIT }}-node22-receipt1
       - name: Build C#-capable aislop (pinned fork commit)
         if: steps.aislop-cache.outputs.cache-hit != 'true'
         # Cloned outside the workspace so aislop does not scan the fork's own source.
@@ -86,10 +81,7 @@ jobs:
         # The fork is a pnpm workspace (packageManager pnpm@10.28.0 + pnpm-lock.yaml);
         # npm chokes on it on some npm versions, so install via pnpm through npx -y
         # (hermetic - no corepack or preinstalled pnpm needed).
-        run: |
-          git clone https://gitea.fleet.sticktoitive.net/schoen/aislop.git "$RUNNER_TEMP/aislop"
-          git -C "$RUNNER_TEMP/aislop" checkout "$AISLOP_FORK_COMMIT"
-          (cd "$RUNNER_TEMP/aislop" && npx -y pnpm@10.28.0 install --frozen-lockfile)
+        run: bash ci/aislop-gate.sh prepare
       - name: aislop quality gate
         # Sanity-fail if the C# engine did not actually analyze the .cs tree (avoid a
         # silent Python-only pass): require a healthy file count alongside the score gate.
@@ -99,23 +91,6 @@ jobs:
         # (ZOMBIE_TASK_TIMEOUT, 10 minutes) marks the task failed whenever a busy
         # runner stretches the scan past 10 silent minutes, even though the process
         # is healthy. The heartbeat keeps the task's log (and its updated stamp) alive.
-        run: |
-          REPORT="$RUNNER_TEMP/aislop-report.json"
-          node "$RUNNER_TEMP/aislop/dist/cli.js" ci . --json > "$REPORT" &
-          aislop_pid=$!
-          ( while kill -0 "$aislop_pid" 2>/dev/null; do
-              echo "aislop scan in progress ($(date -u +%H:%M:%S))"
-              sleep 60
-            done ) &
-          heartbeat_pid=$!
-          wait "$aislop_pid" || GATE_FAILED=1
-          kill "$heartbeat_pid" 2>/dev/null || true
-          node -e "const r=require(process.env.REPORT); const f=r.summary?.files??0; console.log('aislop score',r.score,'over',f,'files'); if(f<10){console.error('aislop only scanned '+f+' files - the C# engine did not run');process.exit(1);}"
-          # On a failing score, print every finding so the log says WHY - a bare
-          # score is undebuggable from a runner without shell access to $RUNNER_TEMP.
-          if [ -n "$GATE_FAILED" ]; then
-            node -e "const r=require(process.env.REPORT); for (const f of (r.diagnostics??[])) console.log([f.severity,f.rule,f.filePath+':'+(f.line??0),f.message].join(' | '));"
-            echo "aislop score below failBelow"; exit 1
-          fi
+        run: bash ci/aislop-gate.sh
         env:
           REPORT: ${{ runner.temp }}/aislop-report.json

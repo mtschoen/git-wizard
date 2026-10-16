@@ -1,5 +1,6 @@
 using GitWizard;
 using GitWizard.Watch;
+using GitWizardTests.TestSupport;
 using MFTLib.Index;
 using MFTLibTestExtensions;
 
@@ -24,7 +25,7 @@ public class IndexChangeMappingTests
         await File.WriteAllTextAsync(Path.Combine(treeDirectory, "current", "file.txt"), "content");
         _index = await FileIndex.OpenAsync(new FileIndexOptions
         {
-            Drives = [new IndexedDrive('T', treeDirectory, 1, ProducerPolicy.Enumeration)],
+            Drives = [new IndexedDrive('T', treeDirectory, 1, ProducerKind.Enumeration)],
             CacheMode = CacheMode.Disabled
         }, CancellationToken.None);
     }
@@ -150,30 +151,112 @@ public class IndexChangeMappingTests
         }));
     }
 
-    [Test]
-    public void SameBatchRenameDoesNotRewriteEarlierEvent()
-    {
-        var entry = Entry("file.txt", false);
-        var earlierChange = SyntheticNotifications.CreateFileChange(FileChangeKind.Modified, entry, @"T:\old\file.txt", ChangeTime);
-        var renameChange = SyntheticNotifications.CreateFileChange(FileChangeKind.Renamed, entry,
-            @"T:\current\file.txt", ChangeTime, previousPath: earlierChange.Path);
-        ObserveDivergence(earlierChange);
-        FileChange[] batch = [earlierChange, renameChange];
+    static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(10);
 
-        var earlierEntries = IndexChangeMapping.Map(batch[0]);
-        Assert.That(earlierEntries, Is.EqualTo(new[]
+    [TestCase(false, false, true, TestName = "Synthetic_ModifiedRename")]
+    [TestCase(true, false, true, TestName = "PR319_RealMft_FileRenameDeleteRecreate")]
+    [TestCase(true, true, true, TestName = "PR319_RealMft_DirectoryRenameDeleteRecreate")]
+    [TestCase(true, false, false, TestName = "PR319_RealMft_FileRenameDeleteRecreateWithoutPreviousPath")]
+    [TestCase(true, true, false, TestName = "PR319_RealMft_DirectoryRenameDeleteRecreateWithoutPreviousPath")]
+    public async Task SameBatchRenameDoesNotRewriteEarlierEvent(bool useRealMftBatch, bool isDirectory, bool hasPreviousPath)
+    {
+        if (!useRealMftBatch)
         {
-            new VolumeChangeEntry(@"T:\old\file.txt", VolumeEntryKind.Modified)
-        }));
-        var filter = new RepositoryChangeFilter([@"T:\old", @"T:\current"]);
-        var earlierResult = filter.Classify(earlierEntries);
-        Assert.That(earlierResult.Changed, Is.EqualTo(new[] { @"T:\old" }));
-        var result = filter.Classify(batch.SelectMany(IndexChangeMapping.Map).ToArray());
-        Assert.That(result.Changed, Is.EquivalentTo(new[] { @"T:\old", @"T:\current" }));
-        Assert.That(result.Created, Is.Empty);
-        Assert.That(result.Deleted, Is.Empty);
-        Assert.That(earlierChange.Path, Is.EqualTo(@"T:\old\file.txt"));
+            var entry = Entry("file.txt", false);
+            var earlierChange = SyntheticNotifications.CreateFileChange(FileChangeKind.Modified, entry, @"T:\old\file.txt", ChangeTime);
+            var syntheticRenameChange = SyntheticNotifications.CreateFileChange(FileChangeKind.Renamed, entry,
+                @"T:\current\file.txt", ChangeTime, previousPath: earlierChange.Path);
+            ObserveDivergence(earlierChange);
+            FileChange[] batch = [earlierChange, syntheticRenameChange];
+
+            var earlierEntries = IndexChangeMapping.Map(batch[0]);
+            Assert.That(earlierEntries, Is.EqualTo(new[]
+            {
+                new VolumeChangeEntry(@"T:\old\file.txt", VolumeEntryKind.Modified)
+            }));
+            var syntheticFilter = new RepositoryChangeFilter([@"T:\old", @"T:\current"]);
+            var earlierResult = syntheticFilter.Classify(earlierEntries);
+            Assert.That(earlierResult.Changed, Is.EqualTo(new[] { @"T:\old" }));
+            var syntheticResult = syntheticFilter.Classify(batch.SelectMany(IndexChangeMapping.Map).ToArray());
+            Assert.That(syntheticResult.Changed, Is.EquivalentTo(new[] { @"T:\old", @"T:\current" }));
+            Assert.That(syntheticResult.Created, Is.Empty);
+            Assert.That(syntheticResult.Deleted, Is.Empty);
+            Assert.That(earlierChange.Path, Is.EqualTo(@"T:\old\file.txt"));
+            return;
+        }
+
+        using var files = new PackedIndexFixture();
+        files.AddMarker("current", isDirectory: isDirectory);
+        var scripted = new ScriptedWatchSource();
+        await using var index = await files.OpenMftIndexAsync(scripted, 'X');
+        var changes = new List<FileChange>();
+        index.Changed += change =>
+        {
+            lock (changes)
+                changes.Add(change);
+        };
+        await index.StartWatchingAsync(['X'], CancellationToken.None);
+        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard);
+
+        var targetName = isDirectory ? "current" : ".git";
+        var targetEntry = index.Search(new SearchQuery(targetName, NameMatchMode.Exact)).Single();
+        var targetRecord = targetEntry.RecordKey.RecordNumber;
+        var parentRecord = targetEntry.Parent!.Value.RecordKey.RecordNumber;
+        var renamedName = targetName + "-renamed";
+        var replacementName = targetName + "-replacement";
+
+        await scripted.WatchFor('X').PublishBatchAsync([
+            Record(targetRecord, parentRecord, renamedName, SyntheticJournalReason.RenameNewName, 1, 1001, isDirectory),
+            Record(targetRecord, parentRecord, renamedName, SyntheticJournalReason.FileDelete, 1, 1002, isDirectory),
+            Record(targetRecord, parentRecord, replacementName, SyntheticJournalReason.FileCreate, 2, 1003, isDirectory)
+        ], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1003));
+
+        Assert.That(changes, Has.Count.EqualTo(3));
+        var renameChange = changes[0];
+        Assert.That(renameChange.Kind, Is.EqualTo(FileChangeKind.Renamed));
+        Assert.That(renameChange.Entry.IsDeleted, Is.True, "The earlier rename entry is superseded.");
+        Assert.Throws<InvalidOperationException>(() => _ = renameChange.Entry.IsDirectory);
+
+        if (!hasPreviousPath)
+            renameChange = renameChange with { PreviousPath = null };
+
+        IReadOnlyList<VolumeChangeEntry> mappedEntries = null!;
+        Assert.DoesNotThrow(() => mappedEntries = IndexChangeMapping.Map(renameChange));
+        var expected = new List<VolumeChangeEntry>();
+        if (hasPreviousPath)
+            expected.Add(new VolumeChangeEntry(renameChange.PreviousPath!, VolumeEntryKind.Deleted));
+        expected.Add(new VolumeChangeEntry(renameChange.Path, VolumeEntryKind.MovedIn));
+        Assert.That(mappedEntries, Is.EqualTo(expected));
+
+        var root = index.Root('X').Path;
+        var discoveryFilter = new RepositoryChangeFilter([], [root], includeTempDirectories: true);
+        Assert.That(discoveryFilter.Classify(mappedEntries).MovedInCandidates, Is.EqualTo(new[] { renameChange.Path }),
+            "An unknown type must reach probing rather than silently discard an untracked directory.");
+        var markerRename = renameChange with { Path = Path.Combine(root, "newrepo", ".git") };
+        Assert.That(discoveryFilter.Classify(IndexChangeMapping.Map(markerRename)).MovedInCandidates,
+            Is.EqualTo(new[] { Path.Combine(root, "newrepo") }), "Gitfile markers must still reach repository probing.");
+
+        var allMapped = changes.SelectMany(IndexChangeMapping.Map).ToArray();
+        Assert.That(allMapped, Has.Length.EqualTo(4));
+        var filter = new RepositoryChangeFilter([Path.Combine(root, "current"), Path.Combine(root, "current-renamed")], includeTempDirectories: true);
+        var filterResult = filter.Classify(allMapped);
+        Assert.That(filterResult.Deleted, Is.Not.Empty);
     }
+
+    static SyntheticJournalRecord Record(
+        ulong recordNumber, ulong parentNumber, string name, SyntheticJournalReason reason, ushort sequence, long usn,
+        bool isDirectory) =>
+        new()
+        {
+            RecordNumber = recordNumber,
+            ParentRecordNumber = parentNumber,
+            SequenceNumber = sequence,
+            FileName = name,
+            Reason = reason | SyntheticJournalReason.Close,
+            FileAttributes = isDirectory ? FileAttributes.Directory : FileAttributes.Normal,
+            Timestamp = PackedIndexFixture.CompletionTimestamp,
+            UpdateSequenceNumber = usn
+        };
 
     FileEntry Entry(string name, bool isDirectory)
     {

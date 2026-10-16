@@ -82,7 +82,7 @@ public class IndexCacheStatusViewModelTests
     public async Task PreparedOwnerCaptureFollowsTransferAndDisposal()
     {
         using var files = new PackedIndexFixture();
-        var drives = new[] { new IndexedDrive('X', files.TreePath, 1, ProducerPolicy.Enumeration) };
+        var drives = new[] { new IndexedDrive('X', files.TreePath, 1, ProducerKind.Enumeration) };
         var index = await FileIndex.OpenAsync(new FileIndexOptions
         {
             Drives = drives,

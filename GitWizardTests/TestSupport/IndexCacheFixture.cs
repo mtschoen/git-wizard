@@ -23,7 +23,7 @@ internal sealed class IndexCacheFixture : IDisposable
 
     public Task<FileIndex> OpenOwnerAsync() => FileIndex.OpenAsync(new FileIndexOptions
     {
-        Drives = [new IndexedDrive('X', _files.TreePath, 1, ProducerPolicy.Enumeration)],
+        Drives = [new IndexedDrive('X', _files.TreePath, 1, ProducerKind.Enumeration)],
         CacheDirectory = Cache
     }, CancellationToken.None);
 

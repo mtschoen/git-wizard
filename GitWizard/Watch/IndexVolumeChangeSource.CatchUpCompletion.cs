@@ -2,6 +2,13 @@ namespace GitWizard.Watch;
 
 public sealed partial class IndexVolumeChangeSource
 {
+    /// <summary>Observes queued readiness work so tests can assert the absence of publication after it settles.</summary>
+    internal Task WaitForCatchUpWorkForTestAsync()
+    {
+        lock (_watchStateLock)
+            return Task.WhenAll(_catchUpWork.Values);
+    }
+
     void QueueCaughtUpLocked(char drive, long version)
     {
         var previous = _catchUpWork.GetValueOrDefault(drive, Task.CompletedTask);

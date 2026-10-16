@@ -1,3 +1,5 @@
+using MFTLib.Index;
+
 namespace GitWizard.Watch;
 
 // MFTLib recovers a drive by publishing a freshly scanned block, and a block swap raises no
@@ -20,6 +22,9 @@ public sealed partial class IndexVolumeChangeSource
 
     /// <summary>Runs inside the delivery gate between reading the recovered block and queuing its reconciliation.</summary>
     internal Action<char>? ReconciliationCapturedForTest { get; set; }
+
+    /// <summary>Runs after marker selection, immediately before each borrowed handle's path is read.</summary>
+    internal Action<FileEntry>? RepositoryMarkerReadingForTest { get; set; }
 
     // The baseline must come from the block the recovery replaces, so it is read in the
     // WatchFaulted handler: MFTLib starts the recovery only after the handler returns.
@@ -87,9 +92,30 @@ public sealed partial class IndexVolumeChangeSource
         if (owner is null)
             return null;
         _driveRealRoots.TryGetValue(drive, out var realRoot);
-        return GitWizardApi.SelectGitEntries(owner.Index, includeGitFiles: true)
-            .Where(entry => entry.Drive.Letter == drive)
-            .Select(entry => realRoot is null ? entry.Path : RewriteToDriveLetterRoot(entry.Path, realRoot, drive))
-            .ToHashSet(WatchPath.StringComparer);
+        var markers = new HashSet<string>(WatchPath.StringComparer);
+        foreach (var entry in GitWizardApi.SelectGitEntries(owner.Index, includeGitFiles: true))
+        {
+            if (entry.Drive.Letter != drive)
+                continue;
+
+            string path;
+            try
+            {
+                RepositoryMarkerReadingForTest?.Invoke(entry);
+                path = entry.Path;
+                // MFTLib validates identity before each read; reuse can still race the column read.
+                if (entry.IsDeleted)
+                    continue;
+            }
+            catch (InvalidOperationException exception) when (exception is not ObjectDisposedException && entry.IsDeleted)
+            {
+                // Only a superseded handle is absent; path failures must decline the whole capture.
+                continue;
+            }
+
+            markers.Add(realRoot is null ? path : RewriteToDriveLetterRoot(path, realRoot, drive));
+        }
+
+        return markers;
     }
 }

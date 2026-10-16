@@ -3,7 +3,6 @@ using GitWizard.Watch;
 using GitWizardTests.TestSupport;
 using MFTLib;
 using MFTLib.Index;
-using MFTLibTestExtensions;
 
 namespace GitWizardTests.Watch;
 
@@ -96,7 +95,7 @@ public class IndexVolumeChangeSourceWindowsTests
         {
             Assert.That(status.State, Is.EqualTo(DriveState.Ready));
             Assert.That(status.Watch.IsSupported, Is.True);
-            Assert.That(SyntheticIndexInspection.ReadHeader(session.Index, status.Drive)?.RowCount, Is.GreaterThan(0u));
+            Assert.That(status.Block!.LiveRowCount, Is.GreaterThan(0u));
             Assert.That(status.Watch.FailureMessage, Is.Null);
         }
     }

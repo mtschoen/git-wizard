@@ -1,16 +1,16 @@
 # git-wizard verification report
 
-2026-10-13 UTC, Windows chonkers, Release, non-elevated.
+2026-10-15 UTC, Windows chonkers, Release, non-elevated.
 
 | Field | Value |
 | --- | --- |
 | Status | PASS for the required Windows non-admin gates |
 | Mode | best-effort; configured 55% line coverage floor |
-| Git | chore/mftlib-pin-ce407279 based on c107172; MFTLib ce407279; uncommitted migration tree |
-| Tests | VSTest: 1640 total, 1637 passed, 0 failed, 3 skipped; TRX: 1685 total, 1637 executed, 1637 passed, 0 failed |
-| Coverage | 11951/15957 lines (74.89%); 5040/7440 branches (67.74%); configured 55% line floor held |
-| Build | Native DLL, MFTLib, MFTLibTestExtensions, solution: each 0 warnings, 0 errors |
-| Lint | Roslyn/build: 0; format: 0; InspectCode: 0; aislop full scan: 100, 0 errors, 1 existing guarded-task-result warning, 22 information findings |
+| Git | chore/mftlib-184b1f0e based on 1a255430; MFTLib 008edd45; review-fix working tree |
+| Tests | VSTest: 1651 total, 1648 passed, 0 failed, 3 skipped; TRX: 1697 total, 1648 executed, 1648 passed, 0 failed; focused: 34 passed |
+| Coverage | 12205/16246 lines (75.13%); 5179/7568 branches (68.43%); prior 74.89% line baseline and configured 55% floor held |
+| Build | Solution Release build: 0 warnings, 0 errors |
+| Lint | Roslyn/build: 0; format: 0; InspectCode: 0; installed aislop staged scan: 100/100, 0 issues across six C# files |
 | Exclusions | No coverage exclusions or analyzer suppressions added |
 
 The persistent and snapshot tests use the portable in-memory broker and packed-block fixtures with
@@ -32,18 +32,16 @@ only by CI. No attended cold-versus-warm timing was recorded here.
 
 ## Commands
 
-```powershell
-pwsh -NoProfile -File external/MFTLib/scripts/build-windows.ps1
-& 'C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe' external/MFTLib/MFTLibNative/MFTLibNative.vcxproj -t:Build -p:Configuration=Release -p:Platform=x64 -nologo -v:minimal
-dotnet restore git-wizard.slnx
-dotnet build git-wizard.slnx -c Release --no-restore
-dotnet test GitWizardTests/GitWizardTests.csproj --no-build -c Release --nologo --settings GitWizardTests/coverlet.runsettings --collect:"XPlat Code Coverage" --results-directory C:/Users/mtsch/AppData/Local/Temp/claude/C--Users-mtsch-MFTLib/238041f6-cdde-4285-be03-e4d87b70607d/scratchpad/reports/git-wizard-results-ce407279-20261012-final
-dotnet format git-wizard.slnx --verify-no-changes --no-restore
-jb inspectcode git-wizard.slnx --output=jb-report.json --settings=git-wizard.slnx.DotSettings --severity=WARNING --no-updates --properties=Configuration=Release --caches-home=inspectcode-cache
-python ci/parse-jb-report.py jb-report.json
-python ci/post-coverage-status.py --cobertura C:/Users/mtsch/AppData/Local/Temp/claude/C--Users-mtsch-MFTLib/238041f6-cdde-4285-be03-e4d87b70607d/scratchpad/reports/git-wizard-results-ce407279-20261012-final/9b3582fb-77ef-48b6-b70e-c0bc327b786f/coverage.cobertura.xml --gate-line 55 --summary --skip-post
-aislop scan .
-git diff --check
+```bash
+dotnet build git-wizard.slnx -c Release --nologo
+dotnet test GitWizardTests/GitWizardTests.csproj --no-build -c Release --nologo --filter 'FullyQualifiedName~IndexChangeMappingTests|FullyQualifiedName~IndexVolumeChangeSourceRecoveryTests|FullyQualifiedName~IndexVolumeChangeSourceTests' --results-directory C:/Users/mtsch/AppData/Local/GitWizard/test-results/gw319-final-focused-1792072666
+dotnet test GitWizardTests/GitWizardTests.csproj --no-build -c Release --nologo --results-directory C:/Users/mtsch/AppData/Local/GitWizard/test-results/gw319-final-full-1792072688
+dotnet format git-wizard.slnx --verify-no-changes
+jb inspectcode git-wizard.slnx -o=C:/Users/mtsch/AppData/Local/Temp/claude/C--Users-mtsch-MFTLib/4a9b901f-0c2e-4710-a355-a161f6b9a00d/scratchpad/gw319-final-jb-report.xml --settings=git-wizard.slnx.DotSettings --severity=WARNING --no-updates --properties:Configuration=Release
+python ci/parse-jb-report.py C:/Users/mtsch/AppData/Local/Temp/claude/C--Users-mtsch-MFTLib/4a9b901f-0c2e-4710-a355-a161f6b9a00d/scratchpad/gw319-final-jb-report.xml
+python ci/post-coverage-status.py --cobertura C:/Users/mtsch/AppData/Local/GitWizard/test-results/gw319-final-full-1792072688/1eaeba37-4fd0-41d1-8353-21b94dd70633/coverage.cobertura.xml --gate-line 55 --summary --skip-post
+aislop scan --staged
+git diff --cached --check
 ```
 
 ## Windows CI Test step profile (git-wizard issue 291)

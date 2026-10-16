@@ -9,7 +9,7 @@ public static partial class GitWizardApi
         FileIndex index, bool includeGitFiles, CancellationToken cancellationToken = default)
     {
         return index.Search(new SearchQuery(GitEntryName, NameMatchMode.Exact), cancellationToken)
-            .Where(entry => !entry.IsDeleted && (includeGitFiles || entry.IsDirectory))
+            .Where(entry => !entry.IsDeleted && (includeGitFiles || (TryReadIsDirectory(entry, out var isDirectory) && isDirectory)))
             .ToArray();
     }
 
@@ -41,7 +41,7 @@ public static partial class GitWizardApi
         return results.AsReadOnly();
     }
 
-    readonly record struct CandidateScope(
+    internal readonly record struct CandidateScope(
         WatchPath TranslatedRoot,
         bool IsExact,
         bool CoversDriveRoot,
@@ -87,12 +87,14 @@ public static partial class GitWizardApi
     {
         foreach (var entry in gitEntries)
         {
-            if (entry.IsDeleted || (candidateScope.CoversDriveRoot && !entry.IsDirectory))
+            if (entry.IsDeleted || !TryReadIsDirectory(entry, out var isDirectory))
+                continue;
+            if (candidateScope.CoversDriveRoot && !isDirectory)
                 continue;
             if (!TryGetScopedParent(entry, candidateScope, out _, out var candidate))
                 continue;
 
-            var kind = entry.IsDirectory ? RepositoryCandidateKind.Ordinary : RepositoryCandidateKind.GitFile;
+            var kind = isDirectory ? RepositoryCandidateKind.Ordinary : RepositoryCandidateKind.GitFile;
             yield return new RepositoryCandidate(candidate.Original, kind);
         }
     }
@@ -102,7 +104,7 @@ public static partial class GitWizardApi
     {
         foreach (var entry in headEntries)
         {
-            if (entry.IsDeleted || entry.IsDirectory)
+            if (entry.IsDeleted || !TryReadIsDirectory(entry, out var isDirectory) || isDirectory)
                 continue;
             if (!TryGetScopedParent(entry, candidateScope, out var parent, out var candidate))
                 continue;
@@ -116,23 +118,38 @@ public static partial class GitWizardApi
         }
     }
 
-    static bool TryGetScopedParent(
+    // A handle whose row slot a newer file reused reads IsDeleted, but a handle can also be superseded
+    // between that check and a column read. Such a read throws InvalidOperationException, and the
+    // entry is gone, so the callers skip it.
+    internal static bool TryReadIsDirectory(FileEntry entry, out bool isDirectory)
+    {
+        try
+        {
+            isDirectory = entry.IsDirectory;
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            isDirectory = false;
+            return false;
+        }
+    }
+
+    internal static bool TryGetScopedParent(
         FileEntry entry, CandidateScope candidateScope, out FileEntry parent, out WatchPath candidate)
     {
         candidate = default;
-        if (entry.Parent is not { IsDirectory: true } entryParent)
-        {
-            parent = default;
-            return false;
-        }
-
-        parent = entryParent;
+        parent = default;
         string parentPath;
         try
         {
+            if (entry.Parent is not { IsDirectory: true } entryParent)
+                return false;
+
+            parent = entryParent;
             parentPath = parent.Path;
         }
-        catch (InvalidDataException)
+        catch (Exception exception) when (exception is InvalidDataException or InvalidOperationException)
         {
             return false;
         }
@@ -152,21 +169,21 @@ public static partial class GitWizardApi
 
     static bool HasBareRepositoryLayout(FileEntry directory, CancellationToken cancellationToken)
     {
-        IReadOnlyList<FileEntry> children;
         try
         {
-            children = directory.Children(cancellationToken);
+            var children = directory.Children(cancellationToken);
+            return HasChildDirectory(children, "objects") && HasChildDirectory(children, "refs");
         }
-        catch (Exception exception) when (exception is InvalidDataException or IOException)
+        catch (Exception exception) when (
+            exception is InvalidDataException or IOException or InvalidOperationException)
         {
             return false;
         }
-
-        return HasChildDirectory(children, "objects") && HasChildDirectory(children, "refs");
     }
 
     static bool HasChildDirectory(IEnumerable<FileEntry> children, string name) =>
-        children.Any(child => !child.IsDeleted && child.IsDirectory &&
+        children.Any(child => !child.IsDeleted &&
+                              TryReadIsDirectory(child, out var isDirectory) && isDirectory &&
                               string.Equals(child.Name, name, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>

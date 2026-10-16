@@ -211,7 +211,7 @@ public class MftIndexSessionTests
         Assert.That(session.Index.Search(new SearchQuery("HEAD", NameMatchMode.Exact)).Single().IsDirectory, Is.False);
         Assert.That(session.Index.Search(new SearchQuery("ordinary.txt", NameMatchMode.Exact)), Is.Empty);
         Assert.That(session.Index.Search(new SearchQuery("repo", NameMatchMode.Exact)).Single().IsDirectory, Is.True);
-        Assert.That(SyntheticIndexInspection.ReadHeader(session.Index, 'X')?.ProducerKind, Is.EqualTo(ProducerKind.Mft));
+        Assert.That(session.Index.Root('X').RecordKey.ProducerKind, Is.EqualTo(ProducerKind.Mft));
     }
 
     [Test]

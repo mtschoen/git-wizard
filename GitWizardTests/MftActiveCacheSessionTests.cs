@@ -11,7 +11,7 @@ public class MftActiveCacheSessionTests
     public async Task CaptureUsesIdentityAndDoesNotTransferOwner()
     {
         using var files = new PackedIndexFixture();
-        var drives = new[] { new IndexedDrive('X', files.TreePath, 42, ProducerPolicy.Enumeration) };
+        var drives = new[] { new IndexedDrive('X', files.TreePath, 42, ProducerKind.Enumeration) };
         var index = await FileIndex.OpenAsync(new FileIndexOptions
         {
             Drives = drives,

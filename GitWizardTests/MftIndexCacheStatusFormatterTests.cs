@@ -44,7 +44,7 @@ public class MftIndexCacheStatusFormatterTests
         var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         await using var index = await FileIndex.OpenAsync(new FileIndexOptions
         {
-            Drives = [new IndexedDrive('X', files.TreePath, 1, ProducerPolicy.Enumeration)],
+            Drives = [new IndexedDrive('X', files.TreePath, 1, ProducerKind.Enumeration)],
             CacheDirectory = cache
         }, CancellationToken.None);
         var active = new MftActiveCacheSession(sameDirectory ? cache : files.BlockDirectory,

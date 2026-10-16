@@ -28,7 +28,7 @@ public class MftIndexCacheInspectionTests
     static Task<FileIndex> Open(PackedIndexFixture files, string cache, bool cacheOnly = false) =>
         FileIndex.OpenAsync(new FileIndexOptions
         {
-            Drives = [new IndexedDrive('X', files.TreePath, 1, ProducerPolicy.Enumeration)],
+            Drives = [new IndexedDrive('X', files.TreePath, 1, ProducerKind.Enumeration)],
             CacheDirectory = cache,
             CacheMode = cacheOnly ? CacheMode.ExistingOnly : CacheMode.Persistent
         }, CancellationToken.None);

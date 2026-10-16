@@ -323,7 +323,8 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
             }
             catch (Exception exception)
             {
-                _output.Writer.TryComplete(exception);
+                // A failed baseline cannot be reconciled, even if the library's rescan succeeds.
+                FailWatchState(drive, exception);
             }
             return;
         }

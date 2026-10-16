@@ -49,7 +49,7 @@ internal sealed class PackedIndexFixture : IDisposable
     public Task<FileIndex> OpenIndexAsync(params char[] drives) => FileIndex.OpenAsync(new FileIndexOptions
     {
         Drives = (drives.Length == 0 ? ['X'] : drives)
-            .Select(letter => new IndexedDrive(letter, TreePath, 1, ProducerPolicy.Enumeration)).ToArray(),
+            .Select(letter => new IndexedDrive(letter, TreePath, 1, ProducerKind.Enumeration)).ToArray(),
         CacheMode = CacheMode.Disabled
     }, CancellationToken.None);
 

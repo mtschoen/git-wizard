@@ -103,10 +103,11 @@ internal sealed class TempRepoFixture : IDisposable
 
         string branch;
         using (var repository = new Repository(Path))
+        {
+            repository.Network.Remotes.Add("origin", upstream.Replace('\\', '/'));
             branch = repository.Head.FriendlyName;
+        }
 
-        // git wants forward slashes in the remote URL, even on Windows.
-        RunGit(Path, "remote", "add", "origin", upstream.Replace('\\', '/'));
         RunGit(Path, "push", "-u", "origin", branch);
     }
 
@@ -165,9 +166,7 @@ internal sealed class TempRepoFixture : IDisposable
         _extraCleanupDirs.Add(scratch);
 
         WriteText(System.IO.Path.Combine(scratch, fileName), Guid.NewGuid().ToString());
-        RunGit(scratch, "add", fileName);
-        RunGit(scratch, "-c", "user.email=test@example.com", "-c", "user.name=Test",
-            "commit", "-m", $"add {fileName}");
+        StageAndCommit(scratch, fileName, $"add {fileName}");
         RunGit(scratch, "push", "origin", "HEAD");
     }
 
@@ -198,8 +197,8 @@ internal sealed class TempRepoFixture : IDisposable
         var upstream = CreateUpstreamRepo();
         RunGit(Path, "-c", "protocol.file.allow=always", "-c", "user.email=test@example.com",
             "-c", "user.name=Test", "submodule", "add", upstream, path);
-        RunGit(Path, "-c", "user.email=test@example.com", "-c", "user.name=Test",
-            "commit", "-m", $"add submodule {path}");
+        using (var repository = new Repository(Path))
+            repository.Commit($"add submodule {path}", Author, Author);
         return System.IO.Path.Combine(Path, path);
     }
 
@@ -223,8 +222,7 @@ internal sealed class TempRepoFixture : IDisposable
     {
         var submoduleDir = AddInitializedSubmodule(path);
         WriteText(System.IO.Path.Combine(submoduleDir, "drift.txt"), Guid.NewGuid().ToString());
-        RunGit(submoduleDir, "-c", "user.email=test@example.com", "-c", "user.name=Test", "add", "drift.txt");
-        RunGit(submoduleDir, "-c", "user.email=test@example.com", "-c", "user.name=Test", "commit", "-m", "drift");
+        StageAndCommit(submoduleDir, "drift.txt", "drift");
     }
 
     /// <summary>
@@ -253,9 +251,7 @@ internal sealed class TempRepoFixture : IDisposable
         var gitmodulesPath = System.IO.Path.Combine(Path, ".gitmodules");
         WriteText(gitmodulesPath,
             $"[submodule \"{name}\"]\n\tpath = {path}\n\turl = {upstream}\n");
-        RunGit(Path, "add", ".gitmodules");
-        RunGit(Path, "-c", "user.email=test@example.com", "-c", "user.name=Test",
-            "commit", "-m", $"add .gitmodules for {path}");
+        StageAndCommit(Path, ".gitmodules", $"add .gitmodules for {path}");
 
         // Pin the superproject's gitlink at the initial commit (the "stale" pointer).
         // First detach HEAD at the initial commit so workdirCommit == gitlink.
@@ -272,17 +268,15 @@ internal sealed class TempRepoFixture : IDisposable
 
         RunGit(Path, "update-index", "--add", "--cacheinfo",
             $"160000,{initialSha},{path}");
-        RunGit(Path, "-c", "user.email=test@example.com", "-c", "user.name=Test",
-            "commit", "-m", $"add submodule {path} (pinned at initial)");
+        using (var repository = new Repository(Path))
+            repository.Commit($"add submodule {path} (pinned at initial)", Author, Author);
 
         // Advance the submodule's default branch beyond the gitlink.
         RunGit(submoduleDir, "checkout", defaultBranchName);
         for (var i = 0; i < commitsBehind; i++)
         {
             WriteText(System.IO.Path.Combine(submoduleDir, $"upstream-{i}.txt"), Guid.NewGuid().ToString());
-            RunGit(submoduleDir, "add", $"upstream-{i}.txt");
-            RunGit(submoduleDir, "-c", "user.email=test@example.com", "-c", "user.name=Test",
-                "commit", "-m", $"upstream commit {i}");
+            StageAndCommit(submoduleDir, $"upstream-{i}.txt", $"upstream commit {i}");
         }
 
         // Detach HEAD back at the gitlink commit so workdirCommit == indexCommit.
@@ -302,8 +296,8 @@ internal sealed class TempRepoFixture : IDisposable
             sha = repository.Head.Tip!.Sha;
 
         RunGit(Path, "update-index", "--add", "--cacheinfo", $"160000,{sha},{path}");
-        RunGit(Path, "-c", "user.email=test@example.com", "-c", "user.name=Test",
-            "commit", "-m", $"orphan gitlink {path}");
+        using var parent = new Repository(Path);
+        parent.Commit($"orphan gitlink {path}", Author, Author);
     }
 
     /// <summary>
@@ -370,6 +364,13 @@ internal sealed class TempRepoFixture : IDisposable
         RunGit(Path, "worktree", "add", worktreePath, "-b", branchName);
         _extraCleanupDirs.Add(worktreePath);
         return worktreePath;
+    }
+
+    static void StageAndCommit(string repositoryPath, string fileName, string message)
+    {
+        using var repository = new Repository(repositoryPath);
+        Commands.Stage(repository, fileName);
+        repository.Commit(message, Author, Author);
     }
 
     string CreateUpstreamRepo()

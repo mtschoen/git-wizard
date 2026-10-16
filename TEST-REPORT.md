@@ -1,22 +1,64 @@
 # git-wizard verification report
 
-2026-10-15 UTC, Windows chonkers, Release, non-elevated.
+2026-10-16 UTC, Windows Chonkers, Release, non-elevated.
 
 | Field | Value |
 | --- | --- |
-| Status | PASS for the required Windows non-admin gates |
+| Status | PARTIAL: tests pass; full installed Aislop scan is 99/100; duration acceptance remains incomplete |
 | Mode | best-effort; configured 55% line coverage floor |
-| Git | chore/mftlib-184b1f0e based on 1a255430; MFTLib 008edd45; review-fix working tree |
-| Tests | VSTest: 1651 total, 1648 passed, 0 failed, 3 skipped; TRX: 1697 total, 1648 executed, 1648 passed, 0 failed; focused: 34 passed |
-| Coverage | 12205/16246 lines (75.13%); 5179/7568 branches (68.43%); prior 74.89% line baseline and configured 55% floor held |
+| Git | session/windows-test-durations based on 2e481378; MFTLib 008edd45; fixture optimization working tree |
+| Tests | VSTest: 1654 total, 1651 passed, 0 failed, 3 skipped; TRX: 1700 total, 1651 executed/passed, 0 failed; focused: 9 passed |
+| Coverage | 12204/16246 lines (75.12%); 5178/7568 branches (68.41%); identical to the fresh before measurement; configured 55% floor held |
 | Build | Solution Release build: 0 warnings, 0 errors |
-| Lint | Roslyn/build: 0; format: 0; InspectCode: 0; installed aislop staged scan: 100/100, 0 issues across six C# files |
+| Lint | Roslyn/build: 0; format: 0; InspectCode: 0; installed aislop full scan: 99/100, four warnings in unchanged files; staged scan: 100/100, zero findings |
 | Exclusions | No coverage exclusions or analyzer suppressions added |
 
-The persistent and snapshot tests use the portable in-memory broker and packed-block fixtures with
-owned temporary cache directories; no UAC, real-home cache, or live USN journal was used. Linux
-runtime tests were not run on this Windows host, so platform slot-lock behavior on Linux is covered
-only by CI. No attended cold-versus-warm timing was recorded here.
+## Local Windows duration measurements
+
+Same Release suite and coverage settings before and after, including the three added fixture-contract
+cases in both runs. No production behavior, test selection, repeats, packages, or exclusions changed.
+
+| Metric | Before | After |
+| --- | ---: | ---: |
+| Test command wall clock | 188.515116 s | 120.917021 s |
+| TRX start to finish | 186.566780 s | 119.007081 s |
+| Summed test durations | 176.905618 s | 114.524641 s |
+| Executed/passed tests | 1651 | 1651 |
+| Git launches in the same five-test trace sample | 46 | 18 |
+
+The observed full-command reduction is 67.598 s (35.86%); runner variability prevents attributing
+the entire reduction to this patch. The roughly 60-second target and new paired CI evidence remain
+unmet. [The Windows duration issue](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/291)
+remains incomplete. Linux runtime tests were not run on this Windows host.
+
+Fixture contract checks passed with the original and optimized implementations. A temporary negative
+control rewound setup commits: two contract cases failed and one passed. Restoring the commits gave
+nine passing focused cases and the passing final full suite. The initial, overlapping diagnostic
+baseline had one failure in the unchanged debounce-window test; its later focused and sequential
+baseline/final runs passed. That initial measurement is excluded from the comparison above.
+
+Full installed Aislop warnings: `PLR0402` and `BLE001` in `ci/post-coverage-status.py`, `PLW1510` in
+`scripts/format-on-save.py`, and `csharp-sync-over-async` in
+`GitWizard/Watch/RepositoryWatchService.Pump.cs`. These files are unchanged by this lane.
+
+## Commands
+
+Each test invocation used a unique results directory under LocalApplicationData/GitWizard/test-results,
+outside the checkout. Original TRX and Cobertura files are retained there; paths and per-test tables
+are recorded in the pull request.
+
+```powershell
+dotnet build external/MFTLib/MFTLib/MFTLib.csproj -c Release -p:Platform=x64
+dotnet build external/MFTLib/MFTLibTestExtensions/MFTLibTestExtensions.csproj -c Release -p:Platform=x64
+dotnet build git-wizard.slnx -c Release --no-restore
+dotnet test GitWizardTests/GitWizardTests.csproj --no-build -c Release --nologo --results-directory $results --logger 'trx;LogFileName=TestResults.trx'
+dotnet format git-wizard.slnx --verify-no-changes --no-restore
+jb inspectcode git-wizard.slnx -o=.lane/jb-report.xml --settings=git-wizard.slnx.DotSettings --severity=WARNING --no-updates --properties:Configuration=Release
+python ci/parse-jb-report.py .lane/jb-report.xml
+python ci/post-coverage-status.py --cobertura "$results/*/coverage.cobertura.xml" --gate-line 55 --summary --skip-post
+aislop scan .
+aislop scan --staged
+```
 
 ## Attended: live-after-discovery (#143, #137)
 
@@ -30,7 +72,7 @@ only by CI. No attended cold-versus-warm timing was recorded here.
 - Findings: #205 a repo created after Live starts is not tracked for changes; #206 renaming a tracked repo folder drops it; #207 Live stop/start costs a new broker, UAC and cold scan with no progress; #208 other accounts' temp repos flood the log; MFTLib#185 diagnostics log feeds itself.
 - Evidence: https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/143#issuecomment-82298
 
-## Commands
+## Previous verification commands (2026-10-15)
 
 ```bash
 dotnet build git-wizard.slnx -c Release --nologo

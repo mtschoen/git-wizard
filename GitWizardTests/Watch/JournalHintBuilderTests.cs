@@ -9,17 +9,29 @@ namespace GitWizardTests.Watch;
 [TestFixture]
 public class JournalHintBuilderTests
 {
-    [Test]
-    public void CheckpointTrimmed_ShowsSuggestedSizeAndCurrentMaximum()
+    [TestCase(JournalCheckpointLossDetection.DriveOpening)]
+    [TestCase(JournalCheckpointLossDetection.LiveWatch)]
+    [TestCase(JournalCheckpointLossDetection.ScanCatchUp)]
+    public async Task CheckpointTrimmed_AfterJournalGrowth_ShowsMaximumAtDetection(
+        JournalCheckpointLossDetection detectedDuring)
     {
-        var loss = FakeJournalSettingsSource.TrimmedLoss('D', 32L * 1024 * 1024, 256L * 1024 * 1024);
+        var loss = FakeJournalSettingsSource.TrimmedLoss('D', 32L * 1024 * 1024, 256L * 1024 * 1024,
+            detectedDuring: detectedDuring);
+        await using var source = new FakeJournalSettingsSource();
+        source.Settings['D'] = new UsnJournalSettings
+        {
+            MaximumSize = 512L * 1024 * 1024,
+            AllocationDelta = loss.JournalSettings.AllocationDelta
+        };
 
         var hint = JournalHintBuilder.BuildHint(loss);
 
+        Assert.That(source.QueryUsnJournalSettings(loss.Drive).MaximumSize,
+            Is.GreaterThan(loss.JournalSettings.MaximumSize));
         Assert.That(hint, Does.StartWith("Hint on D:"));
-        Assert.That(hint, Does.Contain("full rescan was needed"));
         Assert.That(hint, Does.Contain("a journal of at least 256 MB would have avoided this rescan"));
-        Assert.That(hint, Does.Contain("it is 32 MB now"));
+        Assert.That(hint, Does.Contain("it was 32 MB when this was detected"));
+        Assert.That(hint, Does.Not.Contain("now"));
         Assert.That(hint, Does.Contain("increase the journal size"));
     }
 
@@ -73,7 +85,7 @@ public class JournalHintBuilderTests
         Assert.That(hint, Does.Contain("moved 32 MB past the position the watch had reached"));
         Assert.That(hint, Does.Contain("the drive is being rescanned to catch up"));
         Assert.That(hint, Does.Contain("a journal of at least 256 MB would have avoided this rescan"));
-        Assert.That(hint, Does.Contain("it is 32 MB now"));
+        Assert.That(hint, Does.Contain("it was 32 MB when this was detected"));
         Assert.That(hint, Does.Not.Contain("full rescan was needed"));
     }
 

@@ -71,7 +71,7 @@ internal static class JournalHintBuilder
 
         return $"Hint on {loss.Drive}: {rescan}To prevent this, increase the journal size: " +
                $"a journal of at least {ByteSizeFormatter.Format(suggestedSize)} would have avoided " +
-               $"this rescan (it is {ByteSizeFormatter.Format(loss.JournalSettings.MaximumSize)} now).";
+               $"this rescan (it was {ByteSizeFormatter.Format(loss.JournalSettings.MaximumSize)} when this was detected).";
     }
 
     // What the loss means for the drive depends on when it was found: at open the cold scan has

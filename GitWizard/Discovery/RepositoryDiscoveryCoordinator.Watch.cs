@@ -293,7 +293,7 @@ public partial class RepositoryDiscoveryCoordinator
                 !TempDirectories.IsTempPath(root.Original) &&
                 TempDirectories.IsTempPath(candidate.Original))
                 continue;
-            if (configuration.SkipHiddenDirectories != false &&
+            if (configuration.SkipHiddenDirectories == true &&
                 candidate.Comparison.Length > root.Comparison.Length &&
                 candidate.Comparison[root.Comparison.Length..].Split('/').Any(segment => segment.StartsWith('.')))
                 continue;

@@ -35,18 +35,13 @@ public class ReplayCandidatePolicyTests
         Assert.That(RepositoryDiscoveryCoordinator.IsAllowedReplayCandidate(scope, @"X:\repos\repo"), Is.True);
     }
 
-    [Test]
-    public void CandidateUnderHiddenSegment_IsRejected()
+    [TestCase(null, true)]
+    [TestCase(false, true)]
+    [TestCase(true, false)]
+    public void CandidateUnderHiddenSegment(bool? skipHiddenDirectories, bool expectedAllowed)
     {
-        var scope = Scope([@"X:\repos"]);
-        Assert.That(RepositoryDiscoveryCoordinator.IsAllowedReplayCandidate(scope, @"X:\repos\.hidden\repo"), Is.False);
-    }
-
-    [Test]
-    public void CandidateUnderHiddenSegment_WithHiddenDirectoriesEnabled_IsAllowed()
-    {
-        var scope = Scope([@"X:\repos"], skipHiddenDirectories: false);
-        Assert.That(RepositoryDiscoveryCoordinator.IsAllowedReplayCandidate(scope, @"X:\repos\.hidden\repo"), Is.True);
+        var scope = Scope([@"X:\repos"], skipHiddenDirectories: skipHiddenDirectories);
+        Assert.That(RepositoryDiscoveryCoordinator.IsAllowedReplayCandidate(scope, @"X:\repos\.hidden\repo"), Is.EqualTo(expectedAllowed));
     }
 
     [Test]
@@ -90,11 +85,11 @@ public class ReplayCandidatePolicyTests
     }
 
     [Test]
-    public void RetainedRootUnderHiddenSearchSubtree_IsRejected()
+    public void RetainedRootUnderHiddenSearchSubtree_WithSkipHiddenDirectories_IsRejected()
     {
         // Mirrors SelectRepositoryCandidates: a retained root under a search root is not an
-        // exact scope, so the search root's hidden-directory rule decides.
-        var scope = Scope([@"X:\repos"], retainedRoots: [@"X:\repos\.hidden\repo"]);
+        // exact scope, so the search root's hidden-directory rule decides when it is enabled.
+        var scope = Scope([@"X:\repos"], retainedRoots: [@"X:\repos\.hidden\repo"], skipHiddenDirectories: true);
         Assert.That(RepositoryDiscoveryCoordinator.IsAllowedReplayCandidate(scope, @"X:\repos\.hidden\repo"), Is.False);
     }
 

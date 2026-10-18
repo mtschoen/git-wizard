@@ -86,7 +86,21 @@ public class GitFileIndexMappingTests
     }
 
     [Test]
-    public async Task HiddenSegmentExcludedByDefault()
+    public async Task HiddenSegmentExcludedWhenSkipHiddenDirectoriesTrue()
+    {
+        using var fixture = new PackedIndexFixture();
+        fixture.AddMarker(Path.Combine("scope", ".hidden", "worktree"), false);
+        await using var index = await fixture.OpenIndexAsync();
+        const string root = "X:/scope";
+        var entries = GitWizardApi.SelectGitEntries(index, true);
+        Assert.That(entries.Single().Name, Is.EqualTo(".git"));
+        Assert.That(entries.Single().IsDirectory, Is.False);
+        var candidates = CandidateSelection.Paths(index, root, [], skipHiddenDirectories: true, includeTempDirectories: true);
+        Assert.That(candidates, Is.Empty);
+    }
+
+    [Test]
+    public async Task HiddenSegmentIncludedByDefault()
     {
         using var fixture = new PackedIndexFixture();
         fixture.AddMarker(Path.Combine("scope", ".hidden", "worktree"), false);
@@ -96,20 +110,6 @@ public class GitFileIndexMappingTests
         Assert.That(entries.Single().Name, Is.EqualTo(".git"));
         Assert.That(entries.Single().IsDirectory, Is.False);
         var candidates = CandidateSelection.Paths(index, root, [], includeTempDirectories: true);
-        Assert.That(candidates, Is.Empty);
-    }
-
-    [Test]
-    public async Task HiddenSegmentIncludedWhenConfigured()
-    {
-        using var fixture = new PackedIndexFixture();
-        fixture.AddMarker(Path.Combine("scope", ".hidden", "worktree"), false);
-        await using var index = await fixture.OpenIndexAsync();
-        const string root = "X:/scope";
-        var entries = GitWizardApi.SelectGitEntries(index, true);
-        Assert.That(entries.Single().Name, Is.EqualTo(".git"));
-        Assert.That(entries.Single().IsDirectory, Is.False);
-        var candidates = CandidateSelection.Paths(index, root, [], false, includeTempDirectories: true);
         Assert.That(candidates, Has.Length.EqualTo(1));
     }
 

@@ -25,9 +25,8 @@ public class GitWizardConfiguration
 
     /// <summary>
     /// Whether to skip directories whose last path segment starts with '.' during
-    /// repository discovery. <c>null</c> (the default) uses the legacy hard-coded
-    /// behavior (skip hidden directories). Set to <c>false</c> to include them
-    /// in the scan; set to <c>true</c> to explicitly enable skipping.
+    /// repository discovery. <c>null</c> (the default) includes them in the scan;
+    /// set to <c>true</c> to skip hidden directories.
     /// </summary>
     [JsonPropertyName("skipHiddenDirectories")]
     public bool? SkipHiddenDirectories { get; set; }

@@ -71,7 +71,7 @@ public static partial class GitWizardApi
                 item.IsExact,
                 !item.IsExact && IsLogicalDriveRoot(root),
                 configuration.IncludeTempDirectories != true && !TempDirectories.IsTempPath(root.Original),
-                configuration.SkipHiddenDirectories != false,
+                configuration.SkipHiddenDirectories == true,
                 ignoredRoots);
         }).ToList();
     }

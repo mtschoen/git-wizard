@@ -51,10 +51,10 @@ public class GitWizardApiDiscoveryTests
         try
         {
             var paths = new List<string>();
-            GitWizardApi.GetRepositoryPaths(root, paths, Array.Empty<string>());
+            GitWizardApi.GetRepositoryPaths(root, paths, Array.Empty<string>(), skipHiddenDirectories: true);
 
             Assert.That(paths.Any(p => p.Contains("repo", StringComparison.OrdinalIgnoreCase)), Is.False,
-                "A repo under a hidden-attribute directory must be skipped by the scan.");
+                "A repo under a hidden-attribute directory must be skipped when skipHiddenDirectories is true.");
         }
         finally
         {

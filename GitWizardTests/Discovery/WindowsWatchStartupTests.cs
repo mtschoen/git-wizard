@@ -412,7 +412,7 @@ public class WindowsWatchStartupTests
             CreateLinuxSource = () => throw new PlatformNotSupportedException()
         });
 
-        var config = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
+        var config = new GitWizardConfiguration { SearchPaths = { files.TreePath }, SkipHiddenDirectories = true };
         var request = new DiscoveryRequest(config, DiscoveryPurpose.Watch, false, false, []);
         using var cts = new CancellationTokenSource(HangGuard);
 

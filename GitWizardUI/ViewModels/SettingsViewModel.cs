@@ -112,8 +112,8 @@ public partial class SettingsViewModel : INotifyPropertyChanged
         // assigning ForkPath here would write config.json (a fire-and-forget async save) on every
         // construction - a redundant no-op write of just-loaded data that also races test teardown.
         _forkPath = _configuration.ForkPath ?? string.Empty;
-        // null in config means "use legacy behavior (skip)" so show checked in UI.
-        _skipHiddenDirectories = _configuration.SkipHiddenDirectories != false;
+        // null in config means "include" (the default), so show unchecked in UI.
+        _skipHiddenDirectories = _configuration.SkipHiddenDirectories == true;
         // null in config means "excluded" (the default), so show unchecked in UI.
         _includeTempDirectories = _configuration.IncludeTempDirectories == true;
 
@@ -240,7 +240,7 @@ public partial class SettingsViewModel : INotifyPropertyChanged
         // calls Save() itself, which would save once here and again below.
         _forkPath = string.Empty;
         OnPropertyChanged(nameof(ForkPath));
-        _skipHiddenDirectories = defaults.SkipHiddenDirectories != false;
+        _skipHiddenDirectories = defaults.SkipHiddenDirectories == true;
         OnPropertyChanged(nameof(SkipHiddenDirectories));
         _includeTempDirectories = defaults.IncludeTempDirectories == true;
         OnPropertyChanged(nameof(IncludeTempDirectories));

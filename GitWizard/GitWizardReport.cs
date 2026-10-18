@@ -41,7 +41,7 @@ public partial class GitWizardReport : IAsyncDisposable
     /// <summary>
     /// Whether this report's scan should skip directories whose last path segment
     /// starts with '.'. Mirrors <see cref="GitWizardConfiguration.SkipHiddenDirectories"/>.
-    /// <c>null</c> uses the legacy hard-coded behavior (skip hidden directories).
+    /// <c>null</c> (the default) includes hidden directories.
     /// </summary>
     public bool? SkipHiddenDirectories { get; set; }
 

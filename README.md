@@ -156,6 +156,15 @@ unaffected. On Linux, Live and `--watch` install fanotify marks before one recur
 discovery pass per start, then consume queued events; that per-start crawl adds
 filesystem-scan latency and uses no MFT cache.
 
+### Hidden directories
+
+Discovery (MFT and recursive) and Live monitoring include directories whose last path
+segment starts with `.` by default, so clones under dot-directories such as `~/.agents`
+or `~/.pr-crew` are found. Set `"skipHiddenDirectories": true` in
+`~/.GitWizard/config.json` (or enable **Skip hidden directories** in Settings) to skip
+them again. Explicit ignored paths and the temp-directory exclusion apply either way,
+and a `.git` marker itself is always recognized.
+
 ### Temp directories
 
 Discovery (MFT and recursive) and Live monitoring ignore temp directories by default: every

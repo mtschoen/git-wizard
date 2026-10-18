@@ -207,13 +207,13 @@ public static partial class GitWizardApi
                 return;
             }
 
-            if (lastDirectory.StartsWith('.') && context.SkipHiddenDirectories != false)
+            if (lastDirectory.StartsWith('.') && context.SkipHiddenDirectories == true)
                 return;
 
             if (OperatingSystem.IsWindows())
             {
                 var directoryInfo = new DirectoryInfo(subDirectory);
-                if (directoryInfo.Attributes.HasFlag(FileAttributes.Hidden) && context.SkipHiddenDirectories != false)
+                if (directoryInfo.Attributes.HasFlag(FileAttributes.Hidden) && context.SkipHiddenDirectories == true)
                     return;
 
                 if (directoryInfo.Attributes.HasFlag(FileAttributes.ReparsePoint))

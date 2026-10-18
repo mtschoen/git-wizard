@@ -263,7 +263,7 @@ public class GitWizardApiAdditionalTests
         Directory.CreateDirectory(dotDir);
 
         var paths = new SortedSet<string>();
-        GitWizardApi.GetRepositoryPaths(root, paths, Array.Empty<string>());
+        GitWizardApi.GetRepositoryPaths(root, paths, Array.Empty<string>(), skipHiddenDirectories: true);
 
         Assert.That(paths, Is.Empty);
     }
@@ -331,24 +331,6 @@ public class GitWizardApiAdditionalTests
     }
 
     [Test]
-    public void GetRepositoryPaths_SkipsDirectoriesStartingWithDot()
-    {
-        var root = Path.Combine(_tempRoot!, "root");
-        var dotDir = Path.Combine(root, ".hidden", "repo");
-        var normalDir = Path.Combine(root, "normal", "repo");
-        Directory.CreateDirectory(Path.Combine(dotDir, ".git"));
-        Directory.CreateDirectory(Path.Combine(normalDir, ".git"));
-
-        var paths = new SortedSet<string>();
-        GitWizardApi.GetRepositoryPaths(root, paths, Array.Empty<string>());
-
-        // .hidden directory starts with dot so its children are skipped
-        // Only normal/repo is found
-        Assert.That(paths, Has.Count.EqualTo(1));
-        Assert.That(paths.First(), Does.Contain("normal"));
-    }
-
-    [Test]
     public void GetRepositoryPaths_FindsReposInDotDirectories_WhenSkipHiddenDirectoriesFalse()
     {
         var root = Path.Combine(_tempRoot!, "root");
@@ -384,7 +366,7 @@ public class GitWizardApiAdditionalTests
     }
 
     [Test]
-    public void GetRepositoryPaths_SkipsDotDirectories_WhenSkipHiddenDirectoriesNull()
+    public void GetRepositoryPaths_FindsReposInDotDirectories_ByDefault()
     {
         var root = Path.Combine(_tempRoot!, "root");
         var dotDir = Path.Combine(root, ".hidden", "repo");
@@ -395,9 +377,10 @@ public class GitWizardApiAdditionalTests
         var paths = new SortedSet<string>();
         GitWizardApi.GetRepositoryPaths(root, paths, Array.Empty<string>(), skipHiddenDirectories: null);
 
-        // Null = default = skip dot-prefixed directories (backward-compatible behavior)
-        Assert.That(paths, Has.Count.EqualTo(1));
-        Assert.That(paths.First(), Does.Contain("normal"));
+        // Null = default = include dot-prefixed directories (git-wizard#306)
+        Assert.That(paths, Has.Count.EqualTo(2));
+        Assert.That(paths, Does.Contain(dotDir).IgnoreCase);
+        Assert.That(paths, Does.Contain(normalDir).IgnoreCase);
     }
 
     [Test]

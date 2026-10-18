@@ -292,7 +292,8 @@ GitWizard stores config and cache in `~/.GitWizard/`:
 - `config.json` - Search paths, ignored paths, `includeTempDirectories` (temp directories -
   every profile's `AppData\Local\Temp` on Windows, the process's %TEMP%/%TMP%, and `/tmp` plus
   `$TMPDIR` on Linux - are excluded from discovery and Live by default; set true to include
-  them)
+  them), `skipHiddenDirectories` (directories whose last path segment starts with `.` are
+  included in discovery and Live by default; set true to skip them)
 - `repositories.txt` - Cached repo list
 - `report.json` - Cached report
 - `mft-index/blocks` - Persistent filtered MFT index metadata (Windows), versioned by the

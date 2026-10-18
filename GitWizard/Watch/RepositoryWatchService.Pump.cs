@@ -114,6 +114,7 @@ public sealed partial class RepositoryWatchService
     {
         if (ct.IsCancellationRequested || nextBatch.IsFaulted || nextBatch.IsCanceled)
             return;
+        // Because short-circuiting proves successful completion, reading Result cannot block.
         if (nextBatch.IsCompletedSuccessfully && !nextBatch.Result)
             return;
         MarkStartupDelivered();

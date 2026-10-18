@@ -189,7 +189,7 @@ The automation-focused sweep is a separate contract from the cached report above
 |-------|------|-------------|
 | `SchemaVersion` | `string` | Sweep contract version, currently `"1.0"` |
 | `Repositories` | `RepositorySweepItem[]` | Path-sorted repository results |
-| `Path` | `string` | Repository path supplied by explicit paths, cache, or discovery |
+| `Path` | `string` | Repository path supplied by explicit paths or fresh discovery |
 | `DirtyTrackedFiles` | `string[]` | Path-sorted staged or unstaged tracked changes; untracked files are excluded |
 | `UnpushedBranches` | `UnpushedBranchInfo[]` | Local branches reaching commits absent from every local remote-tracking ref |
 | `Name` | `string` | Local branch name |

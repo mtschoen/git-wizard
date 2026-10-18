@@ -223,7 +223,7 @@ git-wizard --sweep --print-minified
 git-wizard --sweep --paths /work/repo-a,/work/repo-b
 ```
 
-It emits stable JSON containing each repository path, dirty tracked files, local branches with commits absent from all local remote-tracking refs, and stash count. The sweep is read-only and does not fetch, so remote-tracking freshness depends on the machine's last fetch. See [the sweep schema](docs/report-schema.md#repository-sweep-output---sweep) and the local/SSH agent workflow in [skills-dev/sweeping-git-work](skills-dev/sweeping-git-work/SKILL.md).
+It emits stable JSON containing each repository path, dirty tracked files, local branches with commits absent from all local remote-tracking refs, and stash count. Without `--paths`, every sweep performs fresh discovery under the configured search paths and replaces `repositories.txt` on complete discovery; it does not reuse the cached repository list or a stale index snapshot. With `--paths`, only the supplied repositories are inspected. The sweep does not modify repositories or fetch, so remote-tracking freshness depends on the machine's last fetch. `--summary` remains an ordinary report mode with its existing cache behavior. See [the sweep schema](docs/report-schema.md#repository-sweep-output---sweep) and the local/SSH agent workflow in [skills-dev/sweeping-git-work](skills-dev/sweeping-git-work/SKILL.md).
 
 ### Fleet-wide tag and branch inventory
 

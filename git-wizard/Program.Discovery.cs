@@ -17,11 +17,12 @@ public static partial class Program
         ArgumentNullException.ThrowIfNull(configuration);
         coordinator ??= new RepositoryDiscoveryCoordinator();
 
-        var purpose = runConfiguration.RebuildRepositoryList || runConfiguration.ScanOnly
+        var rebuild = runConfiguration.RebuildRepositoryList || runConfiguration.ScanOnly || runConfiguration.Sweep;
+        var purpose = rebuild
             ? DiscoveryPurpose.Rebuild
             : DiscoveryPurpose.Ordinary;
 
-        var allowList = !runConfiguration.RebuildRepositoryList && !runConfiguration.ScanOnly;
+        var allowList = !rebuild;
 
         var request = new DiscoveryRequest(
             configuration,

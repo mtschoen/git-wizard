@@ -108,6 +108,7 @@ def run_dotnet_format(file_path):
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     if result.returncode != 0:
         report_failure(

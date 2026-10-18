@@ -56,6 +56,6 @@ public class IndexDiscoverySupersededEntryTests
             Reason = reason | SyntheticJournalReason.Close,
             FileAttributes = FileAttributes.Directory,
             Timestamp = PackedIndexFixture.CompletionTimestamp,
-            UpdateSequenceNumber = usn
+            Usn = usn
         };
 }

@@ -240,5 +240,5 @@ public partial class RepositoryDiscoveryCoordinator
     // adopts the unresumable block itself (WarmStartedFromCache), which a watch must replace first.
     static bool IsResolvedByOpeningScan(JournalCheckpointLoss loss, DriveStatus status) =>
         loss.DetectedDuring == JournalCheckpointLossDetection.DriveOpening &&
-        status.Block?.Source == BlockSource.ProducedByScan;
+        status.Block?.Origin == BlockOrigin.ProducedByScan;
 }

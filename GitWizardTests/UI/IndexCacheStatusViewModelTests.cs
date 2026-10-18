@@ -93,8 +93,8 @@ public class IndexCacheStatusViewModelTests
         await using var main = new MainViewModel(new StubUiDispatcher(),
             new StubUserDialogs(), new StubClipboardService());
         await main.SetPreparedDiscoveryIndexAsync(session);
-        Assert.That(main.CaptureActiveCacheSessions().Single().Drives.Single().Drive.IndexStatus!.Block?.CacheSlot,
-            Is.EqualTo(CacheSlotState.OwnedCanonical));
+        Assert.That(main.CaptureActiveCacheSessions().Single().Drives.Single().Drive.IndexStatus!.Block?.CacheLocation,
+            Is.EqualTo(CacheLocation.OwnedCanonical));
         var source = new IndexVolumeChangeSource(
             (_, _, _) => throw new AssertionException("Inspection must not open"), main.TakePreparedDiscoveryIndex());
         Assert.That(main.PreparedDiscoveryIndex, Is.Null);

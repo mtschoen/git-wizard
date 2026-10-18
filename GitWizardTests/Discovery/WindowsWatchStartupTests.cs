@@ -450,6 +450,6 @@ public class WindowsWatchStartupTests
             Reason = reason,
             FileAttributes = isDirectory ? FileAttributes.Directory : FileAttributes.Normal,
             Timestamp = PackedIndexFixture.CompletionTimestamp,
-            UpdateSequenceNumber = 1001
+            Usn = 1001
         };
 }

@@ -29,10 +29,10 @@ public class MftIndexCacheStatusFormatterTests
         Assert.That(MftIndexCacheStatusFormatter.Format(snapshot), Does.Contain($"Retention: {expected}"));
     }
 
-    [TestCase(CacheSlotState.OwnedCanonical, "this session owns the cache")]
-    [TestCase(CacheSlotState.PrivateFallback, "running on a private block; another process holds the cache")]
+    [TestCase(CacheLocation.OwnedCanonical, "this session owns the cache")]
+    [TestCase(CacheLocation.PrivateFallback, "running on a private block; another process holds the cache")]
     [TestCase(null, "")]
-    public void BackingUsesLibraryField(CacheSlotState? state, string expected) => Assert.That(
+    public void BackingUsesLibraryField(CacheLocation? state, string expected) => Assert.That(
         MftIndexCacheStatusFormatter.Backing(state), Is.EqualTo(expected));
 
     [TestCase(1u, true, true)]
@@ -71,7 +71,7 @@ public class MftIndexCacheStatusFormatterTests
         {
             State = refused ? DriveState.Failed : DriveState.Ready,
             Failure = refused ? SyntheticNotifications.CreateDriveFailure(DriveFailureKind.InUse, "In-use index refusal") : null,
-            Block = refused ? null : drive.Block! with { CacheSlot = null },
+            Block = refused ? null : drive.Block! with { CacheLocation = null },
             Watch = drive.Watch with { FailureMessage = refused ? null : "watch stopped" }
         };
         var directory = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);

@@ -72,7 +72,7 @@ public class IndexVolumeChangeSourcePreparedIndexTests
             RecordNumber = 44,
             ParentRecordNumber = 42,
             SequenceNumber = 1,
-            UpdateSequenceNumber = 1001,
+            Usn = 1001,
             Timestamp = PackedIndexFixture.CompletionTimestamp,
             FileAttributes = FileAttributes.Directory,
             Reason = SyntheticJournalReason.FileCreate,

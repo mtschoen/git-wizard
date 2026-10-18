@@ -33,10 +33,10 @@ public sealed partial class IndexVolumeChangeSource : IVolumeReadiness
         }
     }
 
-    static VolumeBlockOrigin OriginOf(DriveStatus? status) => status?.Block?.Source switch
+    static VolumeBlockOrigin OriginOf(DriveStatus? status) => status?.Block?.Origin switch
     {
-        BlockSource.WarmStartedFromCache => VolumeBlockOrigin.Warm,
-        BlockSource.ProducedByScan => VolumeBlockOrigin.Cold,
+        BlockOrigin.WarmStartedFromCache => VolumeBlockOrigin.Warm,
+        BlockOrigin.ProducedByScan => VolumeBlockOrigin.Cold,
         _ => VolumeBlockOrigin.Unknown
     };
 

@@ -66,12 +66,12 @@ public class MftDriveStatusTests
         var drive = index.Drives.Single();
         var source = drive with
         {
-            Block = drive.Block! with { Source = BlockSource.WarmStartedFromCache },
+            Block = drive.Block! with { Origin = BlockOrigin.WarmStartedFromCache },
             Watch = drive.Watch with { FailureMessage = "watch failed", CheckpointLoss = loss }
         };
         var projection = new MftDriveStatus("X", source, null);
         Assert.That(projection.IndexStatus!.State, Is.EqualTo(DriveState.Ready));
-        Assert.That(projection.IndexStatus.Block?.Source, Is.EqualTo(BlockSource.WarmStartedFromCache));
+        Assert.That(projection.IndexStatus.Block?.Origin, Is.EqualTo(BlockOrigin.WarmStartedFromCache));
         Assert.That(projection.IndexStatus.Failure, Is.Null);
         Assert.That(projection.IndexStatus.Watch.FailureMessage, Is.EqualTo("watch failed"));
         Assert.That(projection.IndexStatus.Watch.CheckpointLoss, Is.EqualTo(loss));

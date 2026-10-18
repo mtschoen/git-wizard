@@ -355,7 +355,7 @@ public class IndexVolumeChangeSourceTests
         var liveLoss = FakeJournalSettingsSource.TrimmedLoss('X', 32L * 1024 * 1024, 136L * 1024 * 1024,
             detectedDuring: JournalCheckpointLossDetection.LiveWatch);
         var readyBase = SyntheticNotifications.CreateDriveStatus('X', DriveState.Ready,
-            SyntheticNotifications.CreateDriveBlockStatus(BlockSource.ProducedByScan, 10, false, DateTime.UtcNow), null);
+            SyntheticNotifications.CreateDriveBlockStatus(BlockOrigin.ProducedByScan, 10, false, DateTime.UtcNow), null);
         var status = readyBase with { Watch = readyBase.Watch with { IsSupported = true, FailureMessage = "watch reached a position the journal no longer holds", CheckpointLoss = liveLoss } };
 
         source.ProcessFaultedDrive(status, owner, new GitWizardConfiguration());
@@ -387,7 +387,7 @@ public class IndexVolumeChangeSourceTests
         var liveLoss = FakeJournalSettingsSource.TrimmedLoss('X', 32L * 1024 * 1024, 136L * 1024 * 1024,
             detectedDuring: JournalCheckpointLossDetection.LiveWatch);
         var recreatedBase = SyntheticNotifications.CreateDriveStatus('X', DriveState.Ready,
-            SyntheticNotifications.CreateDriveBlockStatus(BlockSource.ProducedByScan, 10, false, DateTime.UtcNow), null);
+            SyntheticNotifications.CreateDriveBlockStatus(BlockOrigin.ProducedByScan, 10, false, DateTime.UtcNow), null);
         var status = recreatedBase with { Watch = recreatedBase.Watch with { IsSupported = true, CheckpointLoss = liveLoss } };
 
         source.ProcessFaultedDrive(status, owner, new GitWizardConfiguration());
@@ -419,6 +419,6 @@ public class IndexVolumeChangeSourceTests
             Reason = reason,
             FileAttributes = directory ? FileAttributes.Directory : FileAttributes.Normal,
             Timestamp = PackedIndexFixture.CompletionTimestamp,
-            UpdateSequenceNumber = 1001
+            Usn = 1001
         };
 }

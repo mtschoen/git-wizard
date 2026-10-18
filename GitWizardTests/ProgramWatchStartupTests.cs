@@ -213,7 +213,7 @@ public class ProgramWatchStartupTests
         session.DriveStatusesOverride = () =>
         {
             var ready = SyntheticNotifications.CreateDriveStatus('C', DriveState.Ready,
-                SyntheticNotifications.CreateDriveBlockStatus(BlockSource.ProducedByScan, 10, false, DateTime.UtcNow), null);
+                SyntheticNotifications.CreateDriveBlockStatus(BlockOrigin.ProducedByScan, 10, false, DateTime.UtcNow), null);
             var failed = SyntheticNotifications.CreateDriveStatus('D', DriveState.Failed, null,
                 SyntheticNotifications.CreateDriveFailure(DriveFailureKind.ProducerFailed, "Drive D failed"));
             return

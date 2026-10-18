@@ -17,7 +17,7 @@ public class MftIndexPersistenceTests
             CacheTag = MftIndexCachePolicy.CacheTag,
             MftSource = SyntheticIndexSource.Create(files.Producer)
         }, CancellationToken.None);
-        Assert.That(seed.Drives.Single().Block?.Source, Is.EqualTo(BlockSource.ProducedByScan));
+        Assert.That(seed.Drives.Single().Block?.Origin, Is.EqualTo(BlockOrigin.ProducedByScan));
     }
 
     // The owning index keeps its block mapped for writing, so a reader must share write access.
@@ -48,8 +48,8 @@ public class MftIndexPersistenceTests
         await using var session = await MftIndexSession.OpenAsync([drive], BrokerTestHarness.CreateSession(Unexpected),
             cache, intent, null, CancellationToken.None);
         Assert.That(calls, Is.Zero);
-        Assert.That(session.CaptureDriveStatuses().Single().IndexStatus!.Block?.Source,
-            Is.EqualTo(BlockSource.WarmStartedFromCache));
+        Assert.That(session.CaptureDriveStatuses().Single().IndexStatus!.Block?.Origin,
+            Is.EqualTo(BlockOrigin.WarmStartedFromCache));
         Assert.That(session.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)), Has.Count.EqualTo(1));
     }
 
@@ -104,8 +104,8 @@ public class MftIndexPersistenceTests
         await using (var competitor = await MftIndexSession.OpenAsync([drive], otherBroker.CreateSession(),
             cache, MftIndexOpenIntent.Persistent, null, CancellationToken.None))
         {
-            Assert.That(competitor.CaptureDriveStatuses().Single().IndexStatus!.Block?.CacheSlot,
-                Is.EqualTo(CacheSlotState.PrivateFallback));
+            Assert.That(competitor.CaptureDriveStatuses().Single().IndexStatus!.Block?.CacheLocation,
+                Is.EqualTo(CacheLocation.PrivateFallback));
             Assert.That(competitor.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)), Has.Count.EqualTo(1));
             Assert.That(await ReadSharedAsync(canonical), Is.EqualTo(before));
         }
@@ -114,8 +114,8 @@ public class MftIndexPersistenceTests
         await using var reopened = await MftIndexSession.OpenAsync([drive],
             BrokerTestHarness.CreateSession(_ => throw new AssertionException("Canonical cache must remain reusable.")),
             cache, MftIndexOpenIntent.Snapshot, null, CancellationToken.None);
-        Assert.That(reopened.CaptureDriveStatuses().Single().IndexStatus!.Block?.Source,
-            Is.EqualTo(BlockSource.WarmStartedFromCache));
+        Assert.That(reopened.CaptureDriveStatuses().Single().IndexStatus!.Block?.Origin,
+            Is.EqualTo(BlockOrigin.WarmStartedFromCache));
     }
 
     [Test]
@@ -135,7 +135,7 @@ public class MftIndexPersistenceTests
             MftSource = SyntheticIndexSource.Create(
                 new SyntheticMftProducer(_ => throw new AssertionException("Warm open must not produce.")), source)
         }, CancellationToken.None);
-        Assert.That(index.Drives.Single().Block?.Source, Is.EqualTo(BlockSource.WarmStartedFromCache));
+        Assert.That(index.Drives.Single().Block?.Origin, Is.EqualTo(BlockOrigin.WarmStartedFromCache));
         var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         index.Changed += _ => changed.TrySetResult();
         await index.StartWatchingAsync(['X'], CancellationToken.None);
@@ -152,7 +152,7 @@ public class MftIndexPersistenceTests
                 Reason = SyntheticJournalReason.RenameNewName,
                 FileAttributes = FileAttributes.Directory,
                 Timestamp = PackedIndexFixture.CompletionTimestamp,
-                UpdateSequenceNumber = PackedIndexFixture.NextUsn + 1
+                Usn = PackedIndexFixture.NextUsn + 1
             }
         ], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, PackedIndexFixture.NextUsn + 1));
         await changed.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -200,7 +200,7 @@ public class MftIndexPersistenceTests
             Assert.That(broker.ConnectionCount, Is.Zero);
             await session.Index.RescanAsync(['X'], CancellationToken.None);
             var current = session.CaptureDriveStatuses().Single().IndexStatus!;
-            Assert.That(current.Block?.Source, Is.EqualTo(BlockSource.ProducedByScan));
+            Assert.That(current.Block?.Origin, Is.EqualTo(BlockOrigin.ProducedByScan));
             Assert.That(current.Failure, Is.Null);
             Assert.That(old.Single().IndexStatus!.Failure?.Kind, Is.EqualTo(DriveFailureKind.CacheDeclined));
             Assert.That(broker.ConnectionCount, Is.EqualTo(1));

@@ -255,7 +255,7 @@ public class IndexChangeMappingTests
             Reason = reason | SyntheticJournalReason.Close,
             FileAttributes = isDirectory ? FileAttributes.Directory : FileAttributes.Normal,
             Timestamp = PackedIndexFixture.CompletionTimestamp,
-            UpdateSequenceNumber = usn
+            Usn = usn
         };
 
     FileEntry Entry(string name, bool isDirectory)

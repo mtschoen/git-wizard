@@ -32,7 +32,7 @@ public class RepositoryDiscoveryCoordinatorTests
         DriveFailureKind? failureKind = null,
         DateTime? scanTimestamp = null,
         string? failureMessage = null,
-        BlockSource blockSource = BlockSource.ProducedByScan)
+        BlockOrigin blockSource = BlockOrigin.ProducedByScan)
     {
         var block = state == DriveState.Ready
             ? SyntheticNotifications.CreateDriveBlockStatus(blockSource, 10, false, scanTimestamp ?? DateTime.UtcNow)

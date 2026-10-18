@@ -313,7 +313,7 @@ public class IndexVolumeChangeSourceRecoveryTests
             reuseDelivered = scripted.WatchFor('X').QueueBatchAsync([
                 deletion,
                 deletion with { SequenceNumber = 2, FileName = "replacement", Reason = SyntheticJournalReason.FileCreate,
-                    UpdateSequenceNumber = 1002 }
+                    Usn = 1002 }
             ], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1003));
             Assert.That(SpinWait.SpinUntil(() => owner.Index.Search(
                 new SearchQuery("replacement", NameMatchMode.Exact)).Count == 1, HangGuard), Is.True);
@@ -345,7 +345,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         var marker = owner.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single();
         await scripted.WatchFor('X').PublishBatchAsync([
             IndexVolumeChangeSourceTests.Entry(marker.RecordKey.RecordNumber, marker.Parent!.Value.RecordKey.RecordNumber,
-                ".git", SyntheticJournalReason.FileDelete, directory: true) with { UpdateSequenceNumber = 1004 }
+                ".git", SyntheticJournalReason.FileDelete, directory: true) with { Usn = 1004 }
         ], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1005));
         Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(HangGuard), Is.True);
         Assert.That(reader.Current.Entries.Single(), Is.EqualTo(

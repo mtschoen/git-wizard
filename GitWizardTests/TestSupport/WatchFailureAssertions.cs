@@ -158,7 +158,7 @@ internal static class WatchFailureAssertions
                     RecordNumber = 50, ParentRecordNumber = 6, SequenceNumber = 1,
                     FileName = "file", Reason = SyntheticJournalReason.FileCreate,
                     FileAttributes = FileAttributes.Normal,
-                    Timestamp = PackedIndexFixture.CompletionTimestamp, UpdateSequenceNumber = 1001
+                    Timestamp = PackedIndexFixture.CompletionTimestamp, Usn = 1001
                 }], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
             Assert.That(await pending, Is.True);
             Assert.That(reader.Current.RepoRoot, Is.EqualTo(@"Y:\repo"));

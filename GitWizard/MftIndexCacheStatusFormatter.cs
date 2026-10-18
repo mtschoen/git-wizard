@@ -46,7 +46,7 @@ public static class MftIndexCacheStatusFormatter
         var owned = snapshot.Sessions.SelectMany(session => session.Drives).Any(active =>
             active.VolumeSerial == row.File.VolumeSerial &&
             active.Drive.IndexStatus?.Drive == row.File.Drive &&
-            active.Drive.IndexStatus.Block?.CacheSlot == CacheSlotState.OwnedCanonical);
+            active.Drive.IndexStatus.Block?.CacheLocation == CacheLocation.OwnedCanonical);
         var availability = row.Availability.ToString();
         if (row.Availability == CachedBlockAvailability.InUse)
             availability = owned ? "InUse; this session owns the cache" : "in use; holder identity unavailable";
@@ -65,8 +65,8 @@ public static class MftIndexCacheStatusFormatter
             lines.Add($"  Identity failure: {row.Drive.IdentityFailure ?? "unavailable"}");
             return;
         }
-        lines.Add($"  State: {status.State}; source: {status.Block?.Source.ToString() ?? "unavailable"}");
-        var ownership = status.Block is { } block ? Backing(block.CacheSlot) : string.Empty;
+        lines.Add($"  State: {status.State}; source: {status.Block?.Origin.ToString() ?? "unavailable"}");
+        var ownership = status.Block is { } block ? Backing(block.CacheLocation) : string.Empty;
         if (ownership.Length > 0)
             lines.Add($"  Backing: {ownership}");
         lines.Add($"  Scan timestamp UTC: {status.Block?.ScanTimestamp.ToString("O", CultureInfo.InvariantCulture) ?? "unavailable"}");
@@ -74,10 +74,10 @@ public static class MftIndexCacheStatusFormatter
         lines.Add($"  Watch failure: {status.Watch.FailureMessage ?? "none reported (not proof of catch-up)"}");
     }
 
-    public static string Backing(CacheSlotState? state) => state switch
+    public static string Backing(CacheLocation? state) => state switch
     {
-        CacheSlotState.OwnedCanonical => "this session owns the cache",
-        CacheSlotState.PrivateFallback => "running on a private block; another process holds the cache",
+        CacheLocation.OwnedCanonical => "this session owns the cache",
+        CacheLocation.PrivateFallback => "running on a private block; another process holds the cache",
         _ => string.Empty
     };
 

@@ -23,6 +23,8 @@ public sealed partial class RepositoryWatchService
     /// </summary>
     public event Action<WatchReadiness>? Ready;
 
+    internal int ReadySubscriberCount => Ready?.GetInvocationList().Length ?? 0;
+
     /// <summary>Per-volume state forwarded from the source, starting with the snapshot read when the run subscribed.</summary>
     public event Action<VolumeReadinessSnapshot>? VolumeReadinessChanged;
 

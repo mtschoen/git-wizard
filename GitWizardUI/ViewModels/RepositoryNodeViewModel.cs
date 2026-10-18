@@ -219,7 +219,7 @@ public partial class RepositoryNodeViewModel : INotifyPropertyChanged
             return;
         }
 
-        _cachedSizeText = FormatSize(MeasuredSize);
+        _cachedSizeText = ByteSizeFormatter.FormatForDisplay(MeasuredSize);
         OnPropertyChanged(nameof(SizeText));
         NotifyParentHeaders();
 

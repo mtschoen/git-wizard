@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Text.Json;
 using GitWizard;
 using LibGit2Sharp;
@@ -194,61 +193,35 @@ public class CoverageBoostRepositoryTests
     {
         var repo = new GitWizardRepository("/fake");
 
-        var methods = new[]
+        Assert.Multiple(() =>
         {
-            "RefreshLocalOnlyCommits",
-            "RefreshAuthorEmails",
-            "RefreshRecentCommits"
-        };
-
-        foreach (var name in methods)
-        {
-            var method = typeof(GitWizardRepository).GetMethod(name,
-                BindingFlags.NonPublic | BindingFlags.Instance);
-
-            Assert.That(method, Is.Not.Null, $"Method {name} not found");
-            Assert.DoesNotThrow(() => method.Invoke(repo, new object?[] { null }));
-        }
-
-        var statusMethod = typeof(GitWizardRepository).GetMethod("RefreshPendingChangesStatus",
-            BindingFlags.NonPublic | BindingFlags.Instance);
-        Assert.That(statusMethod, Is.Not.Null);
-        Assert.DoesNotThrow(() => statusMethod.Invoke(repo, new object?[] { null, false }));
-
-        var divMethod = typeof(GitWizardRepository).GetMethod("RefreshBranchDivergence",
-            BindingFlags.NonPublic | BindingFlags.Instance);
-        Assert.That(divMethod, Is.Not.Null);
-        Assert.DoesNotThrow(() => divMethod.Invoke(repo, new object?[] { null, false }));
+            Assert.DoesNotThrow(() => repo.RefreshLocalOnlyCommits(null!));
+            Assert.DoesNotThrow(() => repo.RefreshAuthorEmails(null!));
+            Assert.DoesNotThrow(() => repo.RefreshRecentCommits(null!));
+            Assert.DoesNotThrow(() => repo.RefreshPendingChangesStatus(null!, false));
+            Assert.DoesNotThrow(() => repo.RefreshBranchDivergence(null!, false));
+        });
     }
 
     [Test]
     public void GitWizardRepository_RefreshSizeOnDisk_CatchesException()
     {
         var repo = new GitWizardRepository("/fake");
-        var method = typeof(GitWizardRepository).GetMethod("RefreshSizeOnDisk",
-            BindingFlags.NonPublic | BindingFlags.Instance)!;
-
-        Assert.DoesNotThrow(() => method.Invoke(repo, new object?[] { null }));
+        Assert.DoesNotThrow(() => repo.RefreshSizeOnDisk(null!));
     }
 
     [Test]
     public void GitWizardRepository_NotifyRefreshCompleted_CatchesException()
     {
         var repo = new GitWizardRepository("/fake");
-        var method = typeof(GitWizardRepository).GetMethod("NotifyRefreshCompleted",
-            BindingFlags.NonPublic | BindingFlags.Instance)!;
-
         var handler = new FailingUpdateHandler();
-        Assert.DoesNotThrow(() => method.Invoke(repo, new object[] { handler }));
+        Assert.DoesNotThrow(() => repo.NotifyRefreshCompleted(handler));
     }
 
     [Test]
     public void GitWizardRepository_ParameterlessConstructor()
     {
-        var ctor = typeof(GitWizardRepository).GetConstructor(
-            BindingFlags.NonPublic | BindingFlags.Instance, null, Type.EmptyTypes, null);
-        Assert.That(ctor, Is.Not.Null);
-        var repo = (GitWizardRepository)ctor.Invoke(null);
+        var repo = new GitWizardRepository();
         Assert.That(repo, Is.Not.Null);
     }
 

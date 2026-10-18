@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Threading.Channels;
 using GitWizard;
 
@@ -42,15 +41,12 @@ public class GitWizardLogTests
 
     static async Task CompleteFileWriterAsync()
     {
-        var flags = BindingFlags.NonPublic | BindingFlags.Static;
-        var channelField = typeof(GitWizardLog).GetField("_logChannel", flags)!;
-        var taskField = typeof(GitWizardLog).GetField("_writerTask", flags)!;
-        var channel = (Channel<string>)channelField.GetValue(null)!;
-        var writerTask = (Task)taskField.GetValue(null)!;
+        var channel = GitWizardLog._logChannel;
+        var writerTask = GitWizardLog._writerTask!;
         Assert.That(channel.Writer.TryComplete(), Is.True,
             "Test must own a live channel before completing it.");
         await writerTask.WaitAsync(TimeSpan.FromSeconds(30));
-        channelField.SetValue(null, Channel.CreateBounded<string>(1));
+        GitWizardLog._logChannel = Channel.CreateBounded<string>(1);
     }
 
     static async Task<string> ReadLogFilesAsync()

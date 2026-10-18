@@ -1,4 +1,3 @@
-using System.Reflection;
 using GitWizard;
 using GitWizardUI.ViewModels;
 using GitWizardUI.ViewModels.Services;
@@ -19,15 +18,12 @@ public class CoverageSafetyBoostTests
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
 
-        var method = typeof(GitWizardRepository).GetMethod("FetchAllRemotes",
-            BindingFlags.NonPublic | BindingFlags.Static)!;
-
         // 1. Success path (or at least valid repo path). Running git fetch --all in a local repo with no remotes exits 0.
-        var resultValid = (bool)method.Invoke(null, new object[] { fixture.Path })!;
+        var resultValid = GitWizardRepository.FetchAllRemotes(fixture.Path);
         Assert.That(resultValid, Is.True);
 
         // 2. Exception path (invalid directory)
-        var resultInvalid = (bool)method.Invoke(null, new object[] { "/invalid-dir-that-does-not-exist" })!;
+        var resultInvalid = GitWizardRepository.FetchAllRemotes("/invalid-dir-that-does-not-exist");
         Assert.That(resultInvalid, Is.False);
     }
 
@@ -60,11 +56,8 @@ public class CoverageSafetyBoostTests
         var repo1 = new GitWizardRepository(Path.Combine(Path.GetTempPath(), "drive1"));
         var repo2 = new GitWizardRepository(Path.Combine(Path.GetTempPath(), "drive2"));
 
-        var addMethod = typeof(MainViewModel).GetMethod("AddRepository",
-            BindingFlags.NonPublic | BindingFlags.Instance)!;
-
         // Add repository 1 (creates a new group header and inserts child)
-        addMethod.Invoke(vm, new object[] { repo1 });
+        vm.AddRepository(repo1);
         Assert.That(vm.Repositories, Is.Not.Empty);
 
         var header = vm.Repositories[0];
@@ -72,7 +65,7 @@ public class CoverageSafetyBoostTests
         Assert.That(header.Children, Has.Count.EqualTo(1));
 
         // Add repository 2 (adds to the same group header 'C:\')
-        addMethod.Invoke(vm, new object[] { repo2 });
+        vm.AddRepository(repo2);
         Assert.That(vm.Repositories, Has.Count.EqualTo(1));
         Assert.That(header.Children, Has.Count.EqualTo(2));
     }
@@ -89,15 +82,12 @@ public class CoverageSafetyBoostTests
         var repo2 = new GitWizardRepository(Path.Combine(Path.GetTempPath(), "repo2"));
         repo2.RemoteUrls.Add("https://github.com/mtschoen/git-wizard.git");
 
-        var addMethod = typeof(MainViewModel).GetMethod("AddRepository",
-            BindingFlags.NonPublic | BindingFlags.Instance)!;
-
         // Add first repo: since RemoteUrl grouping has minGroupSize = 2, it should go to pending groups and not be visible yet
-        addMethod.Invoke(vm, new object[] { repo1 });
+        vm.AddRepository(repo1);
         Assert.That(vm.Repositories, Is.Empty);
 
         // Add second repo with the same normalized remote URL: should promote the group to visible Repositories
-        addMethod.Invoke(vm, new object[] { repo2 });
+        vm.AddRepository(repo2);
         Assert.That(vm.Repositories, Has.Count.EqualTo(1)); // The group header
         Assert.That(vm.Repositories[0].IsGroupHeader, Is.True);
         Assert.That(vm.Repositories[0].Children, Has.Count.EqualTo(2));
@@ -151,10 +141,7 @@ public class CoverageSafetyBoostTests
             var newFile = Path.Combine(logFolder, "new.log");
             File.WriteAllText(newFile, "new content");
 
-            var method = typeof(GitWizardLog).GetMethod("CleanLogFolder",
-                BindingFlags.NonPublic | BindingFlags.Static)!;
-
-            method.Invoke(null, null);
+            GitWizardLog.CleanLogFolder();
 
             // Give the background thread up to 1 second to execute
             var start = DateTime.UtcNow;

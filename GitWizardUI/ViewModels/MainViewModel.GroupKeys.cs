@@ -58,7 +58,7 @@ public partial class MainViewModel
     // Unix, so this is a no-op there.
     static string NormalizeDriveGroupKey(string root) => root.ToUpperInvariant();
 
-    static string NormalizeRemoteUrl(string url)
+    internal static string NormalizeRemoteUrl(string url)
     {
         url = url.Trim();
         if (url.EndsWith(".git", StringComparison.OrdinalIgnoreCase))

@@ -131,7 +131,7 @@ git-wizard Session Started
 
     // Handle elevated helper modes (launched by self-elevation). Returns true if one of the
     // helper-mode args was found and handled, meaning the caller should return immediately.
-    static bool TryHandleElevatedHelperModes(string[] args)
+    internal static bool TryHandleElevatedHelperModes(string[] args)
     {
         if (!args.Contains("--elevated-defender"))
             return false;
@@ -166,7 +166,7 @@ git-wizard Session Started
         if (runConfiguration.DbSize)
         {
             var sizeBytes = GitWizardApi.GetLocalFilesSize();
-            Console.WriteLine(FormatSize(sizeBytes));
+            Console.WriteLine(ByteSizeFormatter.Format(sizeBytes));
             Environment.Exit(0);
         }
 
@@ -215,7 +215,7 @@ git-wizard Session Started
         throw new InvalidOperationException("unreachable");
     }
 
-    static string[]? ParseExplicitPaths(RunConfiguration runConfiguration)
+    internal static string[]? ParseExplicitPaths(RunConfiguration runConfiguration)
     {
         var argument = runConfiguration.PathsArgument;
         if (string.IsNullOrEmpty(argument))

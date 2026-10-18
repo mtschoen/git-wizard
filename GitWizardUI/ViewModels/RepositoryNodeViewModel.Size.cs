@@ -1,4 +1,5 @@
 using System.Collections.Specialized;
+using GitWizard;
 
 namespace GitWizardUI.ViewModels;
 
@@ -53,9 +54,9 @@ public partial class RepositoryNodeViewModel
                 return _cachedSizeText;
 
             if (IsGroupHeader)
-                return _cachedSizeText = FormatSize(_measuredChildCount > 0 ? _totalMeasuredBytes : null);
+                return _cachedSizeText = ByteSizeFormatter.FormatForDisplay(_measuredChildCount > 0 ? _totalMeasuredBytes : null);
 
-            return _cachedSizeText = FormatSize(MeasuredSize);
+            return _cachedSizeText = ByteSizeFormatter.FormatForDisplay(MeasuredSize);
         }
     }
 
@@ -202,7 +203,7 @@ public partial class RepositoryNodeViewModel
 
     void UpdateGroupDisplayAndSize()
     {
-        _cachedSizeText = FormatSize(_measuredChildCount > 0 ? _totalMeasuredBytes : null);
+        _cachedSizeText = ByteSizeFormatter.FormatForDisplay(_measuredChildCount > 0 ? _totalMeasuredBytes : null);
         OnPropertyChanged(nameof(SizeText));
 
         var suffix = "";
@@ -211,20 +212,5 @@ public partial class RepositoryNodeViewModel
         if (suffix.Length > 0) suffix = " -" + suffix;
         DisplayText = $"{GroupKey} ({Children.Count}){suffix}";
         OnPropertyChanged(nameof(ExpandIndicator));
-    }
-
-    static string FormatSize(long? size)
-    {
-        if (!size.HasValue)
-            return string.Empty;
-
-        const double bytesPerKilobyte = 1024;
-        const double bytesPerMegabyte = bytesPerKilobyte * 1024;
-        const double bytesPerGigabyte = bytesPerMegabyte * 1024;
-        if (size.Value >= bytesPerGigabyte)
-            return $"{size.Value / bytesPerGigabyte:F1} GB";
-        if (size.Value >= bytesPerMegabyte)
-            return $"{size.Value / bytesPerMegabyte:F1} MB";
-        return $"{size.Value / bytesPerKilobyte:F1} KB";
     }
 }

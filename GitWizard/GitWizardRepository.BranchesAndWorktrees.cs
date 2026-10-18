@@ -93,7 +93,7 @@ public partial class GitWizardRepository
     // exit can still mean some remotes were fetched successfully), so callers can record a
     // trustworthy LastFetchTime. Returns false when the fetch never completed (failed to start or
     // timed out), so a stale timestamp is left in place rather than overwritten.
-    static bool FetchAllRemotes(string workingDirectory)
+    internal static bool FetchAllRemotes(string workingDirectory)
     {
         try
         {
@@ -379,7 +379,7 @@ public partial class GitWizardRepository
     /// build output, etc. For repos with large git object stores the first full scan may
     /// take a long time. The existing <c>RefreshStatus</c> timeout covers this.</para>
     /// </remarks>
-    static long ComputeDirectorySize(string path)
+    internal static long ComputeDirectorySize(string path)
     {
         long totalSize = 0;
         try

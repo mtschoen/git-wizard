@@ -58,9 +58,9 @@ public static class GitWizardLog
     static int _dropWarningCount;
 
     // Async buffered file logging
-    static Channel<string> _logChannel = CreateLogChannel();
+    internal static Channel<string> _logChannel = CreateLogChannel();
     static CancellationTokenSource _writerCts = new();
-    static Task? _writerTask;
+    internal static Task? _writerTask;
     static StreamWriter? _logFileWriter;
 
     static Channel<string> CreateLogChannel() =>
@@ -292,7 +292,7 @@ public static class GitWizardLog
         }
     }
 
-    static void CleanLogFolder()
+    internal static void CleanLogFolder()
     {
         new Thread(() =>
         {

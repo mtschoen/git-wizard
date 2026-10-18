@@ -209,7 +209,7 @@ public static partial class Program
         return result.Inventory.CanPublishFullInventory ? 0 : 1;
     }
 
-    static string SerializeSweepReport(RunConfiguration runConfiguration, RepositorySweepReport report)
+    internal static string SerializeSweepReport(RunConfiguration runConfiguration, RepositorySweepReport report)
     {
         var options = runConfiguration.Minified
             ? CompactSweepSerializerOptions

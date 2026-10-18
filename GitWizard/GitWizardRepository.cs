@@ -15,9 +15,9 @@ public partial class GitWizardRepository
     public string? WorkingDirectory { get; private set; }
     public string? CurrentBranch { get; private set; }
     public bool IsDetachedHead { get; private set; }
-    public bool HasPendingChanges { get; private set; }
+    public bool HasPendingChanges { get; internal set; }
     public int NumberOfPendingChanges { get; private set; }
-    public bool IsWorktree { get; private set; }
+    public bool IsWorktree { get; internal set; }
     public SortedDictionary<string, GitWizardRepository?>? Submodules { get; private set; }
     public SortedDictionary<string, GitWizardRepository?>? Worktrees { get; private set; }
 
@@ -26,10 +26,10 @@ public partial class GitWizardRepository
         new(StringComparer.OrdinalIgnoreCase);
 
     public bool IsRefreshing { get; private set; }
-    public bool LocalOnlyCommits { get; private set; }
+    public bool LocalOnlyCommits { get; internal set; }
     public int LocalCommitCount { get; private set; }
     public List<string> RemoteUrls { get; private set; } = new();
-    public DateTimeOffset? LastCommitDate { get; private set; }
+    public DateTimeOffset? LastCommitDate { get; internal set; }
     public double RefreshTimeSeconds { get; set; }
 
     /// <summary>Error message from the most recent failed refresh; cleared back to null once a
@@ -44,7 +44,7 @@ public partial class GitWizardRepository
     public List<BranchInfo>? Branches { get; set; }
 
     /// <summary>Commits on the current branch's upstream not reachable from the current branch - i.e. how far behind the remote this checkout is. 0 when there is no upstream. See <see cref="BranchInfo.BehindDefault"/> for the unrelated local-default comparison.</summary>
-    public int BehindRemoteCount { get; private set; }
+    public int BehindRemoteCount { get; internal set; }
 
     /// <summary>Commits on the current branch not reachable from its upstream - i.e. unpushed commits on the checked-out branch. 0 when there is no upstream.</summary>
     public int AheadOfRemoteCount { get; private set; }
@@ -107,7 +107,7 @@ public partial class GitWizardRepository
     /// </summary>
     readonly object _refreshGate = new();
 
-    GitWizardRepository() { }
+    internal GitWizardRepository() { }
 
     public GitWizardRepository(string workingDirectory)
     {
@@ -233,7 +233,7 @@ public partial class GitWizardRepository
             DaysSinceLastCommit = (int)(DateTimeOffset.Now - LastCommitDate.Value).TotalDays;
     }
 
-    void RefreshPendingChangesStatus(Repository repository, bool deepRefresh)
+    internal void RefreshPendingChangesStatus(Repository repository, bool deepRefresh)
     {
         try
         {
@@ -275,7 +275,7 @@ public partial class GitWizardRepository
     /// every local commit counts (a brand-new repo is all-local).
     /// </summary>
     /// <param name="repository">The repository to scan.</param>
-    void RefreshLocalOnlyCommits(Repository repository)
+    internal void RefreshLocalOnlyCommits(Repository repository)
     {
         LocalOnlyCommits = false;
         LocalCommitCount = 0;
@@ -310,7 +310,7 @@ public partial class GitWizardRepository
         }
     }
 
-    void RefreshBranchDivergence(Repository repository, bool allBranches)
+    internal void RefreshBranchDivergence(Repository repository, bool allBranches)
     {
         try
         {
@@ -323,7 +323,7 @@ public partial class GitWizardRepository
     }
 
     // Cache author emails for "My Repositories" filter
-    void RefreshAuthorEmails(Repository repository)
+    internal void RefreshAuthorEmails(Repository repository)
     {
         try
         {
@@ -338,7 +338,7 @@ public partial class GitWizardRepository
     }
 
     // Collect recent commits for projdash/LLM consumption
-    void RefreshRecentCommits(Repository repository)
+    internal void RefreshRecentCommits(Repository repository)
     {
         try
         {
@@ -360,7 +360,7 @@ public partial class GitWizardRepository
         }
     }
 
-    void RefreshSizeOnDisk(string workingDirectory)
+    internal void RefreshSizeOnDisk(string workingDirectory)
     {
         try
         {
@@ -372,7 +372,7 @@ public partial class GitWizardRepository
         }
     }
 
-    void NotifyRefreshCompleted(IUpdateHandler? updateHandler)
+    internal void NotifyRefreshCompleted(IUpdateHandler? updateHandler)
     {
         try
         {

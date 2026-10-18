@@ -1,4 +1,3 @@
-using System.Reflection;
 using GitWizard;
 using GitWizard.CLI;
 
@@ -225,8 +224,7 @@ public class CoverageBoostRunConfigurationEdgeCases
     [Test]
     public void RunConfiguration_DefaultConstructor_DoesNotThrow()
     {
-        var runConfigType = typeof(Program).GetNestedType("RunConfiguration", BindingFlags.NonPublic);
-        Assert.That(runConfigType, Is.Not.Null);
+        Assert.DoesNotThrow(() => _ = new Program.RunConfiguration());
     }
 
     [Test]

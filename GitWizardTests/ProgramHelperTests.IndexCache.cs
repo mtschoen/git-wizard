@@ -11,8 +11,7 @@ public partial class ProgramEntryPointTests
     {
         var result = CliParser.Parse(["--clear-index-cache"]);
         Assert.That(result.HasError, Is.False);
-        // Reflection lets this compile before the new property exists.
-        Assert.That(result.GetType().GetProperty("ClearIndexCache")?.GetValue(result), Is.EqualTo(true));
+        Assert.That(result.ClearIndexCache, Is.EqualTo(true));
         Assert.That(result.ClearCache, Is.False);
     }
 

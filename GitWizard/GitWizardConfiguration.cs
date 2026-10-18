@@ -9,6 +9,12 @@ public class GitWizardConfiguration
     static GitWizardConfiguration? _globalConfiguration;
     static readonly object ConfigurationLock = new();
 
+    internal static void ResetGlobalConfiguration()
+    {
+        lock (ConfigurationLock)
+            _globalConfiguration = null;
+    }
+
     // Cached options reused across serialization (CA1869: avoid allocating a new
     // JsonSerializerOptions per call).
     static readonly JsonSerializerOptions SerializerOptions = new()

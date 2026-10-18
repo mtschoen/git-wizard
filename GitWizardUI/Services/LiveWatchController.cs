@@ -33,6 +33,8 @@ public sealed class LiveWatchController
 
     public event Action? Started;
     public event Action? ScanErrorsChanged;
+
+    internal int ScanErrorsSubscriberCount => ScanErrorsChanged?.GetInvocationList().Length ?? 0;
     public event Action? ScanWarningsChanged;
     public event Action<VolumeScanProgress>? ScanProgress;
     public event Action<WatchReadiness>? Ready;
@@ -57,6 +59,11 @@ public sealed class LiveWatchController
     RepositoryWatchService? _service;
     CancellationTokenSource? _runCts;
     bool _stopRequested;
+
+    internal RepositoryWatchService? Service
+    {
+        get { lock (_gate) return _service; }
+    }
 
     public WatchReadiness? Readiness
     {

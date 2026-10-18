@@ -1,10 +1,3 @@
-// FormatterServices.GetUninitializedObject is the only way to create the RunConfiguration
-// struct without invoking its constructor (which calls Environment.GetCommandLineArgs).
-#pragma warning disable SYSLIB0050 // FormatterServices is obsolete
-
-using System.Diagnostics;
-using System.Reflection;
-using System.Runtime.Serialization;
 using System.Text.Json;
 using GitWizard;
 using GitWizard.CLI;
@@ -12,15 +5,19 @@ using GitWizard.CLI;
 namespace GitWizardTests;
 
 /// <summary>
-/// Tests for the private static helper methods on <see cref="Program"/>:
-/// FormatSize, ReportNeedsAttention, ApplyFilter, ParseExplicitPaths,
+/// Tests for the internal static helper methods on <see cref="Program"/>:
+/// ReportNeedsAttention, ApplyFilter, ParseExplicitPaths,
 /// SerializeReport, and TryHandleElevatedHelperModes.
-/// Uses reflection because these methods are private.
 /// </summary>
-public class ProgramHelperTests
+public partial class ProgramHelperTests
 {
-    static readonly Type ProgramType = typeof(Program);
-    static readonly Type RunConfigType = ProgramType.GetNestedType("RunConfiguration", BindingFlags.NonPublic)!;
+    static readonly RunConfigurationResult DefaultConfiguration = new(
+        RebuildRepositoryList: false, RebuildReport: false, ClearCache: false,
+        DeleteAllLocalFiles: false, SetupDefender: false, ScanOnly: false, NoMft: false,
+        FilterPattern: null, PathsArgument: null, Summary: false, Sweep: false,
+        Merge: false, RefreshReport: false, Minified: false, SavePath: null,
+        CustomConfigurationPath: null, DbSize: false, AllBranches: false,
+        Watch: false, NoLocalCommitCount: false, HasError: false);
 
     string? _tempHome;
 
@@ -39,130 +36,15 @@ public class ProgramHelperTests
         TestUtilities.ClearLocalFilesRedirect(_tempHome);
     }
 
-    #region Reflection helpers
-
-    static MethodInfo GetPrivateStaticMethod(string name, Type declaringType)
-    {
-        return declaringType.GetMethod(name, BindingFlags.NonPublic | BindingFlags.Static)!;
-    }
-
-    /// <summary>
-    /// Creates a RunConfiguration struct via <see cref="FormatterServices.GetUninitializedObject"/>
-    /// (bypasses the constructor that calls Environment.GetCommandLineArgs) and sets the
-    /// specified fields via reflection.
-    /// </summary>
-    static object CreateRunConfig(Action<Type, object>? configure = null)
-    {
-        var instance = FormatterServices.GetUninitializedObject(RunConfigType);
-        // RefreshReport defaults to true in the real struct, but GetUninitializedObject
-        // zeroes everything. Set it explicitly so tests that don't touch it get the real default.
-        SetRunConfigField(RunConfigType, ref instance, "RefreshReport", true);
-        configure?.Invoke(RunConfigType, instance);
-        // Re-box after all mutations for value-type correctness
-        return instance;
-    }
-
-    /// <summary>
-    /// Sets a readonly field on a boxed RunConfiguration struct.
-    /// The caller must re-read the boxed reference after calling this (the box is mutated in-place).
-    /// </summary>
-    static void SetRunConfigField(Type type, ref object boxed, string fieldName, object value)
-    {
-        var field = type.GetField(fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-        if (field == null)
-            throw new ArgumentException($"No field '{fieldName}' on {type.Name}");
-
-        field.SetValue(boxed, value);
-    }
-
-    /// <summary>
-    /// Invokes the private static FormatSize(long) method on Program.
-    /// </summary>
-    static string InvokeFormatSize(long bytes)
-    {
-        var method = GetPrivateStaticMethod("FormatSize", ProgramType);
-        return (string)method.Invoke(null, new object[] { bytes })!;
-    }
-
-    /// <summary>
-    /// Invokes the private static ReportNeedsAttention(RunConfiguration, GitWizardReport) method.
-    /// </summary>
-    static bool InvokeReportNeedsAttention(GitWizardReport report)
-    {
-        var method = GetPrivateStaticMethod("ReportNeedsAttention", ProgramType);
-        return (bool)method.Invoke(null, new object[] { report })!;
-    }
-
-    /// <summary>
-    /// Invokes the private static ApplyFilter(RunConfiguration, GitWizardReport) method.
-    /// </summary>
-    static GitWizardReport InvokeApplyFilter(object runConfig, GitWizardReport report)
-    {
-        var method = GetPrivateStaticMethod("ApplyFilter", ProgramType);
-        return (GitWizardReport)method.Invoke(null, new[] { runConfig, report })!;
-    }
-
-    /// <summary>
-    /// Invokes the private static ParseExplicitPaths(RunConfiguration) method.
-    /// </summary>
-    static string[]? InvokeParseExplicitPaths(object runConfig)
-    {
-        var method = GetPrivateStaticMethod("ParseExplicitPaths", ProgramType);
-        return (string[]?)method.Invoke(null, new[] { runConfig });
-    }
-
-    /// <summary>
-    /// Invokes the private static SerializeReport(RunConfiguration, GitWizardReport) method.
-    /// </summary>
-    static string InvokeSerializeReport(object runConfig, GitWizardReport report)
-    {
-        var method = GetPrivateStaticMethod("SerializeReport", ProgramType);
-        return (string)method.Invoke(null, new[] { runConfig, report })!;
-    }
-
-    static string InvokeSerializeSweepReport(object runConfig, RepositorySweepReport report)
-    {
-        var method = GetPrivateStaticMethod("SerializeSweepReport", ProgramType);
-        return (string)method.Invoke(null, new[] { runConfig, report })!;
-    }
-
-    /// <summary>
-    /// Invokes the private static TryHandleElevatedHelperModes(string[]) method.
-    /// </summary>
-    static bool InvokeTryHandleElevatedHelperModes(string[] args)
-    {
-        var method = GetPrivateStaticMethod("TryHandleElevatedHelperModes", ProgramType);
-        return (bool)method.Invoke(null, new object[] { args })!;
-    }
-
-    /// <summary>
-    /// Sets a private-set property on <see cref="GitWizardRepository"/> via reflection.
-    /// The parameterless constructor is private, so we use GetUninitializedObject.
-    /// </summary>
     static GitWizardRepository CreateRepoWithFlags(
         bool hasPendingChanges = false,
         bool localOnlyCommits = false,
-        int behindRemoteCount = 0)
-    {
-        var repo = (GitWizardRepository)FormatterServices.GetUninitializedObject(typeof(GitWizardRepository));
-        var type = typeof(GitWizardRepository);
-
-        type.GetProperty("HasPendingChanges")!
-            .GetSetMethod(true)!
-            .Invoke(repo, new object[] { hasPendingChanges });
-
-        type.GetProperty("LocalOnlyCommits")!
-            .GetSetMethod(true)!
-            .Invoke(repo, new object[] { localOnlyCommits });
-
-        type.GetProperty("BehindRemoteCount")!
-            .GetSetMethod(true)!
-            .Invoke(repo, new object[] { behindRemoteCount });
-
-        return repo;
-    }
-
-    #endregion
+        int behindRemoteCount = 0) => new()
+        {
+            HasPendingChanges = hasPendingChanges,
+            LocalOnlyCommits = localOnlyCommits,
+            BehindRemoteCount = behindRemoteCount
+        };
 
     #region SerializeSweepReport
 
@@ -171,9 +53,9 @@ public class ProgramHelperTests
     {
         var report = new RepositorySweepReport();
         report.Repositories.Add(new RepositorySweepItem { Path = "/repo/clean" });
-        var config = CreateRunConfig();
+        var config = new Program.RunConfiguration(DefaultConfiguration with { RefreshReport = true });
 
-        var json = InvokeSerializeSweepReport(config, report);
+        var json = Program.SerializeSweepReport(config, report);
         using var document = JsonDocument.Parse(json);
         var repository = document.RootElement.GetProperty("Repositories")[0];
 
@@ -188,81 +70,11 @@ public class ProgramHelperTests
     [Test]
     public void SerializeSweepReport_Minified_HasNoIndentedNewlines()
     {
-        var config = CreateRunConfig((type, boxed) =>
-        {
-            SetRunConfigField(type, ref boxed, "Minified", true);
-        });
+        var config = new Program.RunConfiguration(DefaultConfiguration with { RefreshReport = true, Minified = true });
 
-        var json = InvokeSerializeSweepReport(config, new RepositorySweepReport());
+        var json = Program.SerializeSweepReport(config, new RepositorySweepReport());
 
         Assert.That(json, Does.Not.Contain(Environment.NewLine));
-    }
-
-    #endregion
-
-    #region FormatSize
-
-    [Test]
-    public void FormatSize_ZeroBytes_Returns0B()
-    {
-        Assert.That(InvokeFormatSize(0L), Is.EqualTo("0 B"));
-    }
-
-    [Test]
-    public void FormatSize_BytesBelowKB_ReturnsBytes()
-    {
-        Assert.That(InvokeFormatSize(1023L), Is.EqualTo("1023 B"));
-    }
-
-    [Test]
-    public void FormatSize_ExactlyOneKB_Returns1KB()
-    {
-        Assert.That(InvokeFormatSize(1024L), Is.EqualTo("1 KB"));
-    }
-
-    [Test]
-    public void FormatSize_ExactlyOneMB_Returns1MB()
-    {
-        Assert.That(InvokeFormatSize(1024L * 1024), Is.EqualTo("1 MB"));
-    }
-
-    [Test]
-    public void FormatSize_ExactlyOneGB_Returns1GB()
-    {
-        Assert.That(InvokeFormatSize(1024L * 1024 * 1024), Is.EqualTo("1 GB"));
-    }
-
-    [Test]
-    public void FormatSize_ExactlyOneTB_Returns1TB()
-    {
-        Assert.That(InvokeFormatSize(1024L * 1024 * 1024 * 1024), Is.EqualTo("1 TB"));
-    }
-
-    [Test]
-    public void FormatSize_FractionalKB_ShowsDecimal()
-    {
-        // 1536 bytes = 1.5 KB
-        Assert.That(InvokeFormatSize(1536L), Is.EqualTo("1.5 KB"));
-    }
-
-    [Test]
-    public void FormatSize_FractionalMB_ShowsDecimal()
-    {
-        // 1.25 MB = 1310720 bytes
-        Assert.That(InvokeFormatSize(1310720L), Is.EqualTo("1.25 MB"));
-    }
-
-    [Test]
-    public void FormatSize_LargeGB_FormatsCorrectly()
-    {
-        // 5 GB exactly
-        Assert.That(InvokeFormatSize(5L * 1024 * 1024 * 1024), Is.EqualTo("5 GB"));
-    }
-
-    [Test]
-    public void FormatSize_OneByteExact_Returns1B()
-    {
-        Assert.That(InvokeFormatSize(1L), Is.EqualTo("1 B"));
     }
 
     #endregion
@@ -273,7 +85,7 @@ public class ProgramHelperTests
     public void ReportNeedsAttention_EmptyReport_ReturnsFalse()
     {
         var report = new GitWizardReport();
-        Assert.That(InvokeReportNeedsAttention(report), Is.False);
+        Assert.That(Program.ReportNeedsAttention(report), Is.False);
     }
 
     [Test]
@@ -281,7 +93,7 @@ public class ProgramHelperTests
     {
         var report = new GitWizardReport();
         report.Repositories["/repo/a"] = CreateRepoWithFlags(hasPendingChanges: true);
-        Assert.That(InvokeReportNeedsAttention(report), Is.True);
+        Assert.That(Program.ReportNeedsAttention(report), Is.True);
     }
 
     [Test]
@@ -289,7 +101,7 @@ public class ProgramHelperTests
     {
         var report = new GitWizardReport();
         report.Repositories["/repo/a"] = CreateRepoWithFlags(localOnlyCommits: true);
-        Assert.That(InvokeReportNeedsAttention(report), Is.True);
+        Assert.That(Program.ReportNeedsAttention(report), Is.True);
     }
 
     [Test]
@@ -297,7 +109,7 @@ public class ProgramHelperTests
     {
         var report = new GitWizardReport();
         report.Repositories["/repo/a"] = CreateRepoWithFlags(behindRemoteCount: 3);
-        Assert.That(InvokeReportNeedsAttention(report), Is.True);
+        Assert.That(Program.ReportNeedsAttention(report), Is.True);
     }
 
     [Test]
@@ -305,7 +117,7 @@ public class ProgramHelperTests
     {
         var report = new GitWizardReport();
         report.Repositories["/repo/a"] = CreateRepoWithFlags();
-        Assert.That(InvokeReportNeedsAttention(report), Is.False);
+        Assert.That(Program.ReportNeedsAttention(report), Is.False);
     }
 
     [Test]
@@ -314,7 +126,7 @@ public class ProgramHelperTests
         var report = new GitWizardReport();
         report.Repositories["/repo/clean"] = CreateRepoWithFlags();
         report.Repositories["/repo/dirty"] = CreateRepoWithFlags(hasPendingChanges: true);
-        Assert.That(InvokeReportNeedsAttention(report), Is.True);
+        Assert.That(Program.ReportNeedsAttention(report), Is.True);
     }
 
     [Test]
@@ -323,7 +135,7 @@ public class ProgramHelperTests
         var report = new GitWizardReport();
         report.Repositories["/repo/a"] = CreateRepoWithFlags();
         report.Repositories["/repo/b"] = CreateRepoWithFlags();
-        Assert.That(InvokeReportNeedsAttention(report), Is.False);
+        Assert.That(Program.ReportNeedsAttention(report), Is.False);
     }
 
     #endregion
@@ -336,9 +148,8 @@ public class ProgramHelperTests
         var report = new GitWizardReport();
         report.Repositories["/repo/a"] = CreateRepoWithFlags();
 
-        var config = CreateRunConfig();
-        // FilterPattern is null by default (uninitialized)
-        var result = InvokeApplyFilter(config, report);
+        var config = new Program.RunConfiguration(DefaultConfiguration with { RefreshReport = true });
+        var result = Program.ApplyFilter(config, report);
 
         Assert.That(result, Is.SameAs(report));
     }
@@ -346,16 +157,12 @@ public class ProgramHelperTests
     [Test]
     public void ApplyFilter_EmptyFilter_ReturnsSameReport()
     {
-        CreateRunConfig((type, box) => SetRunConfigField(type, ref box, "FilterPattern", ""));
-        // Need to re-create because SetRunConfigField mutates the box in place but
-        // CreateRunConfig returns the original box. For struct fields, re-box:
-        var rc = FormatterServices.GetUninitializedObject(RunConfigType);
-        SetRunConfigField(RunConfigType, ref rc, "FilterPattern", "");
+        var rc = new Program.RunConfiguration(DefaultConfiguration with { FilterPattern = "" });
 
         var report = new GitWizardReport();
         report.Repositories["/repo/a"] = CreateRepoWithFlags();
 
-        var result = InvokeApplyFilter(rc, report);
+        var result = Program.ApplyFilter(rc, report);
         Assert.That(result, Is.SameAs(report));
     }
 
@@ -367,10 +174,9 @@ public class ProgramHelperTests
         report.Repositories["/repo/beta"] = CreateRepoWithFlags();
         report.Repositories["/repo/alpha-2"] = CreateRepoWithFlags();
 
-        var rc = FormatterServices.GetUninitializedObject(RunConfigType);
-        SetRunConfigField(RunConfigType, ref rc, "FilterPattern", "alpha");
+        var rc = new Program.RunConfiguration(DefaultConfiguration with { FilterPattern = "alpha" });
 
-        var result = InvokeApplyFilter(rc, report);
+        var result = Program.ApplyFilter(rc, report);
         Assert.Multiple(() =>
         {
             Assert.That(result, Is.Not.SameAs(report));
@@ -386,10 +192,9 @@ public class ProgramHelperTests
         var report = new GitWizardReport();
         report.Repositories["/repo/alpha"] = CreateRepoWithFlags();
 
-        var rc = FormatterServices.GetUninitializedObject(RunConfigType);
-        SetRunConfigField(RunConfigType, ref rc, "FilterPattern", "nonexistent");
+        var rc = new Program.RunConfiguration(DefaultConfiguration with { FilterPattern = "nonexistent" });
 
-        var result = InvokeApplyFilter(rc, report);
+        var result = Program.ApplyFilter(rc, report);
         Assert.That(result.Repositories, Is.Empty);
     }
 
@@ -399,10 +204,9 @@ public class ProgramHelperTests
         var report = new GitWizardReport();
         report.Repositories["/repo/MyProject"] = CreateRepoWithFlags();
 
-        var rc = FormatterServices.GetUninitializedObject(RunConfigType);
-        SetRunConfigField(RunConfigType, ref rc, "FilterPattern", "myproject");
+        var rc = new Program.RunConfiguration(DefaultConfiguration with { FilterPattern = "myproject" });
 
-        var result = InvokeApplyFilter(rc, report);
+        var result = Program.ApplyFilter(rc, report);
         Assert.That(result.Repositories, Has.Count.EqualTo(1));
     }
 
@@ -414,10 +218,9 @@ public class ProgramHelperTests
         report.IgnoredPaths.Add("/ignored/path");
         report.Repositories["/repo/a"] = CreateRepoWithFlags();
 
-        var rc = FormatterServices.GetUninitializedObject(RunConfigType);
-        SetRunConfigField(RunConfigType, ref rc, "FilterPattern", "nomatch");
+        var rc = new Program.RunConfiguration(DefaultConfiguration with { FilterPattern = "nomatch" });
 
-        var result = InvokeApplyFilter(rc, report);
+        var result = Program.ApplyFilter(rc, report);
         Assert.Multiple(() =>
         {
             Assert.That(result.SearchPaths, Is.SameAs(report.SearchPaths));
@@ -432,46 +235,42 @@ public class ProgramHelperTests
     [Test]
     public void ParseExplicitPaths_NullPathsArgument_ReturnsNull()
     {
-        var rc = FormatterServices.GetUninitializedObject(RunConfigType);
+        var rc = new Program.RunConfiguration(DefaultConfiguration);
         // PathsArgument is null by default
-        Assert.That(InvokeParseExplicitPaths(rc), Is.Null);
+        Assert.That(Program.ParseExplicitPaths(rc), Is.Null);
     }
 
     [Test]
     public void ParseExplicitPaths_EmptyPathsArgument_ReturnsNull()
     {
-        var rc = FormatterServices.GetUninitializedObject(RunConfigType);
-        SetRunConfigField(RunConfigType, ref rc, "PathsArgument", "");
-        Assert.That(InvokeParseExplicitPaths(rc), Is.Null);
+        var rc = new Program.RunConfiguration(DefaultConfiguration with { PathsArgument = "" });
+        Assert.That(Program.ParseExplicitPaths(rc), Is.Null);
     }
 
     [Test]
     public void ParseExplicitPaths_CommaSeparated_SplitsCorrectly()
     {
-        var rc = FormatterServices.GetUninitializedObject(RunConfigType);
-        SetRunConfigField(RunConfigType, ref rc, "PathsArgument", "path1,path2,path3");
+        var rc = new Program.RunConfiguration(DefaultConfiguration with { PathsArgument = "path1,path2,path3" });
 
-        var result = InvokeParseExplicitPaths(rc);
+        var result = Program.ParseExplicitPaths(rc);
         Assert.That(result, Is.EqualTo(new[] { "path1", "path2", "path3" }));
     }
 
     [Test]
     public void ParseExplicitPaths_CommaSeparated_TrimsWhitespace()
     {
-        var rc = FormatterServices.GetUninitializedObject(RunConfigType);
-        SetRunConfigField(RunConfigType, ref rc, "PathsArgument", "  path1 , path2 , path3  ");
+        var rc = new Program.RunConfiguration(DefaultConfiguration with { PathsArgument = "  path1 , path2 , path3  " });
 
-        var result = InvokeParseExplicitPaths(rc);
+        var result = Program.ParseExplicitPaths(rc);
         Assert.That(result, Is.EqualTo(new[] { "path1", "path2", "path3" }));
     }
 
     [Test]
     public void ParseExplicitPaths_CommaSeparated_SkipsEmptyEntries()
     {
-        var rc = FormatterServices.GetUninitializedObject(RunConfigType);
-        SetRunConfigField(RunConfigType, ref rc, "PathsArgument", "path1,,path2,  ,path3");
+        var rc = new Program.RunConfiguration(DefaultConfiguration with { PathsArgument = "path1,,path2,  ,path3" });
 
-        var result = InvokeParseExplicitPaths(rc);
+        var result = Program.ParseExplicitPaths(rc);
         Assert.That(result, Is.EqualTo(new[] { "path1", "path2", "path3" }));
     }
 
@@ -481,10 +280,9 @@ public class ProgramHelperTests
         var tempFile = Path.Combine(_tempHome!, "paths.txt");
         File.WriteAllText(tempFile, "/repo/a\n/repo/b\n/repo/c\n");
 
-        var rc = FormatterServices.GetUninitializedObject(RunConfigType);
-        SetRunConfigField(RunConfigType, ref rc, "PathsArgument", tempFile);
+        var rc = new Program.RunConfiguration(DefaultConfiguration with { PathsArgument = tempFile });
 
-        var result = InvokeParseExplicitPaths(rc);
+        var result = Program.ParseExplicitPaths(rc);
         Assert.That(result, Is.EqualTo(new[] { "/repo/a", "/repo/b", "/repo/c" }));
     }
 
@@ -494,20 +292,18 @@ public class ProgramHelperTests
         var tempFile = Path.Combine(_tempHome!, "paths_blanks.txt");
         File.WriteAllText(tempFile, "  /repo/a  \n\n  \n/repo/b\n");
 
-        var rc = FormatterServices.GetUninitializedObject(RunConfigType);
-        SetRunConfigField(RunConfigType, ref rc, "PathsArgument", tempFile);
+        var rc = new Program.RunConfiguration(DefaultConfiguration with { PathsArgument = tempFile });
 
-        var result = InvokeParseExplicitPaths(rc);
+        var result = Program.ParseExplicitPaths(rc);
         Assert.That(result, Is.EqualTo(new[] { "/repo/a", "/repo/b" }));
     }
 
     [Test]
     public void ParseExplicitPaths_SinglePath_NoComma_ReturnsSingleElementArray()
     {
-        var rc = FormatterServices.GetUninitializedObject(RunConfigType);
-        SetRunConfigField(RunConfigType, ref rc, "PathsArgument", "/single/path");
+        var rc = new Program.RunConfiguration(DefaultConfiguration with { PathsArgument = "/single/path" });
 
-        var result = InvokeParseExplicitPaths(rc);
+        var result = Program.ParseExplicitPaths(rc);
         Assert.That(result, Is.EqualTo(new[] { "/single/path" }));
     }
 
@@ -521,10 +317,9 @@ public class ProgramHelperTests
         var report = new GitWizardReport();
         report.Repositories["/repo/a"] = CreateRepoWithFlags();
 
-        var rc = FormatterServices.GetUninitializedObject(RunConfigType);
-        // Minified is false by default (uninitialized = false)
+        var rc = new Program.RunConfiguration(DefaultConfiguration);
 
-        var json = InvokeSerializeReport(rc, report);
+        var json = Program.SerializeReport(rc, report);
         // Indented JSON has newlines
         Assert.That(json, Does.Contain("\n"));
     }
@@ -535,10 +330,9 @@ public class ProgramHelperTests
         var report = new GitWizardReport();
         report.Repositories["/repo/a"] = CreateRepoWithFlags();
 
-        var rc = FormatterServices.GetUninitializedObject(RunConfigType);
-        SetRunConfigField(RunConfigType, ref rc, "Minified", true);
+        var rc = new Program.RunConfiguration(DefaultConfiguration with { Minified = true });
 
-        var json = InvokeSerializeReport(rc, report);
+        var json = Program.SerializeReport(rc, report);
         // Compact JSON should be a single line (no newlines)
         Assert.That(json, Does.Not.Contain("\n"));
     }
@@ -548,9 +342,9 @@ public class ProgramHelperTests
     {
         var report = new GitWizardReport { SchemaVersion = "0.0" };
 
-        var rc = FormatterServices.GetUninitializedObject(RunConfigType);
+        var rc = new Program.RunConfiguration(DefaultConfiguration);
 
-        InvokeSerializeReport(rc, report);
+        Program.SerializeReport(rc, report);
         Assert.That(report.SchemaVersion, Is.EqualTo(GitWizardReport.CurrentSchemaVersion));
     }
 
@@ -561,9 +355,9 @@ public class ProgramHelperTests
         report.SearchPaths.Add("/search");
         report.Repositories["/repo/a"] = CreateRepoWithFlags();
 
-        var rc = FormatterServices.GetUninitializedObject(RunConfigType);
+        var rc = new Program.RunConfiguration(DefaultConfiguration);
 
-        var json = InvokeSerializeReport(rc, report);
+        var json = Program.SerializeReport(rc, report);
         // Should not throw
         var deserialized = JsonSerializer.Deserialize<JsonElement>(json);
         Assert.That(deserialized.ValueKind, Is.EqualTo(JsonValueKind.Object));
@@ -574,9 +368,9 @@ public class ProgramHelperTests
     {
         var report = new GitWizardReport();
 
-        var rc = FormatterServices.GetUninitializedObject(RunConfigType);
+        var rc = new Program.RunConfiguration(DefaultConfiguration);
 
-        var json = InvokeSerializeReport(rc, report);
+        var json = Program.SerializeReport(rc, report);
         Assert.That(json, Does.Contain($"\"SchemaVersion\""));
         Assert.That(json, Does.Contain(GitWizardReport.CurrentSchemaVersion));
     }
@@ -587,12 +381,11 @@ public class ProgramHelperTests
         var report = new GitWizardReport();
         report.Repositories["/repo/a"] = CreateRepoWithFlags();
 
-        var rcIndented = FormatterServices.GetUninitializedObject(RunConfigType);
-        var rcMinified = FormatterServices.GetUninitializedObject(RunConfigType);
-        SetRunConfigField(RunConfigType, ref rcMinified, "Minified", true);
+        var rcIndented = new Program.RunConfiguration(DefaultConfiguration);
+        var rcMinified = new Program.RunConfiguration(DefaultConfiguration with { Minified = true });
 
-        var indented = InvokeSerializeReport(rcIndented, report);
-        var compact = InvokeSerializeReport(rcMinified, report);
+        var indented = Program.SerializeReport(rcIndented, report);
+        var compact = Program.SerializeReport(rcMinified, report);
 
         // Both should deserialize to the same logical structure
         var indentedDoc = JsonSerializer.Deserialize<JsonElement>(indented);
@@ -609,419 +402,25 @@ public class ProgramHelperTests
     [Test]
     public void TryHandleElevatedHelperModes_NoElevatedArgs_ReturnsFalse()
     {
-        var result = InvokeTryHandleElevatedHelperModes(new[] { "git-wizard.exe", "-summary" });
+        var result = Program.TryHandleElevatedHelperModes(new[] { "git-wizard.exe", "-summary" });
         Assert.That(result, Is.False);
     }
 
     [Test]
     public void TryHandleElevatedHelperModes_EmptyArgs_ReturnsFalse()
     {
-        var result = InvokeTryHandleElevatedHelperModes(Array.Empty<string>());
+        var result = Program.TryHandleElevatedHelperModes(Array.Empty<string>());
         Assert.That(result, Is.False);
     }
 
     [Test]
     public void TryHandleElevatedHelperModes_UnrelatedArgs_ReturnsFalse()
     {
-        var result = InvokeTryHandleElevatedHelperModes(
+        var result = Program.TryHandleElevatedHelperModes(
             new[] { "git-wizard.exe", "-filter", "test", "-print-minified" });
         Assert.That(result, Is.False);
     }
 
     #endregion
 
-    #region EnsureUsableSearchPaths tests
-
-    [Test]
-    public void EnsureUsableSearchPaths_AllInvalid_ExitsOneAndLogsSummary()
-    {
-        var config = new GitWizardConfiguration
-        {
-            SearchPaths = { "/nonexistent/path/one", "/nonexistent/path/two", "/nonexistent/path/three" }
-        };
-
-        var loggedMessages = new List<string>();
-        GitWizardLog.LogMethod = msg => { if (msg != null) loggedMessages.Add(msg); };
-        var exitCode = -1;
-
-        try
-        {
-            var result = Program.EnsureUsableSearchPaths(config, code => exitCode = code);
-            Assert.Multiple(() =>
-            {
-                Assert.That(result, Is.False);
-                Assert.That(exitCode, Is.EqualTo(1));
-                Assert.That(loggedMessages.Any(m => m.Contains("0 of 3 configured search paths are usable")), Is.True);
-            });
-        }
-        finally
-        {
-            GitWizardLog.LogMethod = Console.WriteLine;
-        }
-    }
-
-    [Test]
-    public void EnsureUsableSearchPaths_EmptySearchPaths_ExitsOneAndLogsSummary()
-    {
-        var config = new GitWizardConfiguration();
-        config.SearchPaths.Clear();
-
-        var loggedMessages = new List<string>();
-        GitWizardLog.LogMethod = msg => { if (msg != null) loggedMessages.Add(msg); };
-        var exitCode = -1;
-
-        try
-        {
-            var result = Program.EnsureUsableSearchPaths(config, code => exitCode = code);
-            Assert.Multiple(() =>
-            {
-                Assert.That(result, Is.False);
-                Assert.That(exitCode, Is.EqualTo(1));
-                Assert.That(loggedMessages.Any(m => m.Contains("0 of 0 configured search paths are usable")), Is.True);
-            });
-        }
-        finally
-        {
-            GitWizardLog.LogMethod = Console.WriteLine;
-        }
-    }
-
-    [Test]
-    public void EnsureUsableSearchPaths_WithUsablePath_ReturnsTrueWithoutExit()
-    {
-        using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        var config = new GitWizardConfiguration
-        {
-            SearchPaths = { fixture.Path, "/nonexistent/path/two" }
-        };
-
-        var exitCalled = false;
-        var result = Program.EnsureUsableSearchPaths(config, _ => exitCalled = true);
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(result, Is.True);
-            Assert.That(exitCalled, Is.False);
-        });
-    }
-
-    #endregion
-}
-
-public partial class ProgramEntryPointTests
-{
-    [Test]
-    public async Task Main_Sweep_PrintsIndentedJsonToStandardOutputAndReturnsZero()
-    {
-        using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        fixture.AddOriginRemoteAndPush();
-
-        var result = await RunCliAsync("--sweep", "--paths", fixture.Path);
-
-        using var document = JsonDocument.Parse(result.StandardOutput);
-        var repository = document.RootElement.GetProperty("Repositories")[0];
-        Assert.Multiple(() =>
-        {
-            Assert.That(result.ExitCode, Is.Zero);
-            Assert.That(result.StandardError, Is.Empty);
-            Assert.That(result.StandardOutput.TrimEnd(), Does.Contain(Environment.NewLine));
-            Assert.That(document.RootElement.GetProperty("SchemaVersion").GetString(), Is.EqualTo("1.0"));
-            Assert.That(repository.GetProperty("Path").GetString(), Is.EqualTo(fixture.Path));
-            Assert.That(repository.GetProperty("DirtyTrackedFiles").GetArrayLength(), Is.Zero);
-            Assert.That(repository.GetProperty("UnpushedBranches").GetArrayLength(), Is.Zero);
-            Assert.That(repository.GetProperty("StashCount").GetInt32(), Is.Zero);
-        });
-    }
-
-    [Test]
-    public async Task Main_SweepWithPrintMinified_PrintsSingleLineJsonAndReturnsZero()
-    {
-        using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        fixture.AddOriginRemoteAndPush();
-
-        var result = await RunCliAsync("--sweep", "--print-minified", "--paths", fixture.Path);
-
-        using var document = JsonDocument.Parse(result.StandardOutput);
-        Assert.Multiple(() =>
-        {
-            Assert.That(result.ExitCode, Is.Zero);
-            Assert.That(result.StandardError, Is.Empty);
-            Assert.That(result.StandardOutput.TrimEnd(), Does.Not.Contain('\n'));
-            Assert.That(document.RootElement.GetProperty("Repositories").GetArrayLength(), Is.EqualTo(1));
-        });
-    }
-
-    [Test]
-    public async Task Main_SweepWithUnknownOption_ReturnsParseErrorWithoutJson()
-    {
-        var result = await RunCliAsync("--sweep", "--unknown-sweep-option");
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(result.ExitCode, Is.EqualTo(2));
-            Assert.That(result.StandardOutput, Does.Not.Contain("\"Repositories\""));
-        });
-    }
-
-    [Test]
-    public async Task Main_ScanOnly_PrintsRepositoryPathsToStdoutAndDiagnosticsToStderr()
-    {
-        using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        var tempConfigFile = Path.GetTempFileName();
-        try
-        {
-            var config = new GitWizardConfiguration
-            {
-                SearchPaths = { fixture.Path }
-            };
-            await config.SaveAsync(tempConfigFile);
-
-            var result = await RunCliAsync("--config-path", tempConfigFile, "--scan-only", "--no-mft");
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(result.ExitCode, Is.Zero);
-                // Stdout contains ONLY discovered repository paths, no session banner or log lines
-                Assert.That(result.StandardOutput.Trim(), Is.EqualTo(fixture.Path).IgnoreCase);
-                Assert.That(result.StandardOutput, Does.Not.Contain("Session Start Message"));
-                Assert.That(result.StandardOutput, Does.Not.Contain("git-wizard Session Started"));
-                // Stderr contains session banner / diagnostics
-                Assert.That(result.StandardError, Does.Contain("Session Start Message"));
-                Assert.That(result.StandardError, Does.Contain("git-wizard Session Started"));
-            });
-        }
-        finally
-        {
-            if (File.Exists(tempConfigFile))
-                File.Delete(tempConfigFile);
-        }
-    }
-
-    [Test]
-    public async Task Main_ScanOnly_AllInvalidSearchPaths_ExitsNonZeroWithUsableSummary()
-    {
-        var tempConfigFile = Path.GetTempFileName();
-        try
-        {
-            var config = new GitWizardConfiguration
-            {
-                SearchPaths = { "/nonexistent/search/one", "/nonexistent/search/two", "/nonexistent/search/three" }
-            };
-            await config.SaveAsync(tempConfigFile);
-
-            var result = await RunCliAsync("--config-path", tempConfigFile, "--scan-only", "--no-mft");
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(result.ExitCode, Is.EqualTo(1));
-                // Stdout is completely empty
-                Assert.That(result.StandardOutput.Trim(), Is.Empty);
-                // Stderr contains per-path errors and summary message
-                Assert.That(result.StandardError, Does.Contain("0 of 3 configured search paths are usable"));
-                Assert.That(result.StandardError, Does.Contain("Could not get repository paths at /nonexistent/search/one"));
-            });
-        }
-        finally
-        {
-            if (File.Exists(tempConfigFile))
-                File.Delete(tempConfigFile);
-        }
-    }
-
-    [Test]
-    public async Task Main_DefaultReportMode_AllInvalidSearchPaths_ExitsNonZero()
-    {
-        var tempConfigFile = Path.GetTempFileName();
-        try
-        {
-            var config = new GitWizardConfiguration
-            {
-                SearchPaths = { "/nonexistent/search/one", "/nonexistent/search/two" }
-            };
-            await config.SaveAsync(tempConfigFile);
-
-            var result = await RunCliAsync("--config-path", tempConfigFile, "--rebuild-report", "--no-mft");
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(result.ExitCode, Is.EqualTo(1));
-                Assert.That(result.StandardOutput, Does.Not.Contain("\"Repositories\""));
-            });
-        }
-        finally
-        {
-            if (File.Exists(tempConfigFile))
-                File.Delete(tempConfigFile);
-        }
-    }
-
-    [Test]
-    public async Task Main_ScanOnly_WithFilter_FiltersStdout()
-    {
-        using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        var tempConfigFile = Path.GetTempFileName();
-        try
-        {
-            var config = new GitWizardConfiguration
-            {
-                SearchPaths = { fixture.Path }
-            };
-            await config.SaveAsync(tempConfigFile);
-
-            var result = await RunCliAsync("--config-path", tempConfigFile, "--scan-only", "--filter", "nonexistentfilterpattern", "--no-mft");
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(result.ExitCode, Is.Zero);
-                Assert.That(result.StandardOutput.Trim(), Is.Empty);
-                Assert.That(result.StandardError, Does.Contain("Session Start Message"));
-            });
-        }
-        finally
-        {
-            if (File.Exists(tempConfigFile))
-                File.Delete(tempConfigFile);
-        }
-    }
-
-    [Test]
-    public async Task Main_Tags_PrintsIndentedJsonToStandardOutputAndReturnsZero()
-    {
-        using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        fixture.AddTag("archive/v1");
-
-        var result = await RunCliAsync("tags", "-m", "archive/*", "-p", fixture.Path);
-
-        using var document = JsonDocument.Parse(result.StandardOutput);
-        var repository = document.RootElement.GetProperty("Repositories")[0];
-        Assert.Multiple(() =>
-        {
-            Assert.That(result.ExitCode, Is.Zero);
-            Assert.That(result.StandardError, Is.Empty);
-            Assert.That(result.StandardOutput.TrimEnd(), Does.Contain(Environment.NewLine));
-            Assert.That(document.RootElement.GetProperty("SchemaVersion").GetString(), Is.EqualTo("1.0"));
-            Assert.That(document.RootElement.GetProperty("MatchPattern").GetString(), Is.EqualTo("archive/*"));
-            Assert.That(repository.GetProperty("Path").GetString(), Is.EqualTo(GitWizardApi.NormalizePath(fixture.Path)));
-            var tags = repository.GetProperty("Tags");
-            Assert.That(tags.GetArrayLength(), Is.EqualTo(1));
-            Assert.That(tags[0].GetProperty("Name").GetString(), Is.EqualTo("archive/v1"));
-        });
-    }
-
-    [Test]
-    public async Task Main_TagsWithPrintMinified_PrintsSingleLineJson()
-    {
-        using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        fixture.AddTag("v1.0.0");
-
-        var result = await RunCliAsync("tags", "--print-minified", "-p", fixture.Path);
-
-        using var document = JsonDocument.Parse(result.StandardOutput);
-        Assert.Multiple(() =>
-        {
-            Assert.That(result.ExitCode, Is.Zero);
-            Assert.That(result.StandardError, Is.Empty);
-            Assert.That(result.StandardOutput.TrimEnd(), Does.Not.Contain('\n'));
-            Assert.That(document.RootElement.GetProperty("Repositories").GetArrayLength(), Is.EqualTo(1));
-        });
-    }
-
-    [Test]
-    public async Task Main_Branches_PrintsIndentedJsonToStandardOutputAndReturnsZero()
-    {
-        using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        fixture.CommitOnNewBranch("feature-test", "f.txt");
-
-        var result = await RunCliAsync("branches", "--not-merged", "main", "-p", fixture.Path);
-
-        using var document = JsonDocument.Parse(result.StandardOutput);
-        var repository = document.RootElement.GetProperty("Repositories")[0];
-        Assert.Multiple(() =>
-        {
-            Assert.That(result.ExitCode, Is.Zero);
-            Assert.That(result.StandardError, Is.Empty);
-            Assert.That(result.StandardOutput.TrimEnd(), Does.Contain(Environment.NewLine));
-            Assert.That(document.RootElement.GetProperty("SchemaVersion").GetString(), Is.EqualTo("1.0"));
-            Assert.That(document.RootElement.GetProperty("BaseBranch").GetString(), Is.EqualTo("main"));
-            Assert.That(repository.GetProperty("Path").GetString(), Is.EqualTo(GitWizardApi.NormalizePath(fixture.Path)));
-            var branches = repository.GetProperty("Branches");
-            Assert.That(branches.GetArrayLength(), Is.EqualTo(1));
-            Assert.That(branches[0].GetProperty("Name").GetString(), Is.EqualTo("feature-test"));
-            Assert.That(branches[0].GetProperty("UniqueCommitCount").GetInt32(), Is.EqualTo(1));
-        });
-    }
-
-    [Test]
-    public async Task Main_BranchesWithPrintMinified_PrintsSingleLineJson()
-    {
-        using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        fixture.CommitOnNewBranch("feature-min", "f.txt");
-
-        var result = await RunCliAsync("branches", "--print-minified", "-p", fixture.Path);
-
-        using var document = JsonDocument.Parse(result.StandardOutput);
-        Assert.Multiple(() =>
-        {
-            Assert.That(result.ExitCode, Is.Zero);
-            Assert.That(result.StandardError, Is.Empty);
-            Assert.That(result.StandardOutput.TrimEnd(), Does.Not.Contain('\n'));
-            Assert.That(document.RootElement.GetProperty("Repositories").GetArrayLength(), Is.EqualTo(1));
-        });
-    }
-
-    static async Task<(int ExitCode, string StandardOutput, string StandardError)> RunCliAsync(params string[] args)
-    {
-        var executablePath = GetCliExecutablePath();
-        var startInfo = new ProcessStartInfo(executablePath)
-        {
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false
-        };
-
-        var home = Environment.GetEnvironmentVariable("GITWIZARD_HOME");
-        if (!string.IsNullOrEmpty(home))
-            startInfo.Environment["GITWIZARD_HOME"] = home;
-
-        foreach (var arg in args)
-            startInfo.ArgumentList.Add(arg);
-
-        using var process = Process.Start(startInfo)
-            ?? throw new InvalidOperationException($"Could not start CLI at {executablePath}.");
-        var standardOutput = process.StandardOutput.ReadToEndAsync();
-        var standardError = process.StandardError.ReadToEndAsync();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-        try
-        {
-            await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            process.Kill(entireProcessTree: true);
-            throw;
-        }
-
-        return (
-            process.ExitCode,
-            await standardOutput.ConfigureAwait(false),
-            await standardError.ConfigureAwait(false));
-    }
-
-    static string GetCliExecutablePath()
-    {
-        var testOutputDirectory = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
-        var configurationDirectory = testOutputDirectory.Parent
-            ?? throw new InvalidOperationException("Could not determine the build configuration directory.");
-        var repositoryRoot = configurationDirectory.Parent?.Parent?.Parent
-            ?? throw new InvalidOperationException("Could not determine the repository root.");
-        var executableName = OperatingSystem.IsWindows() ? "git-wizard.exe" : "git-wizard";
-
-        return Path.Combine(
-            repositoryRoot.FullName,
-            "git-wizard",
-            "bin",
-            configurationDirectory.Name,
-            testOutputDirectory.Name,
-            executableName);
-    }
 }

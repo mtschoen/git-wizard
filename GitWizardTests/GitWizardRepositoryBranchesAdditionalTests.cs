@@ -1,4 +1,3 @@
-using System.Reflection;
 using GitWizard;
 using LibGit2Sharp;
 
@@ -307,20 +306,13 @@ public class GitWizardRepositoryBranchesAdditionalTests
 
     #region MarkRefreshFailed
 
-    static void InvokeMarkRefreshFailed(GitWizardRepository repo, string error, IUpdateHandler? handler = null)
-    {
-        var method = typeof(GitWizardRepository).GetMethod("MarkRefreshFailed",
-            BindingFlags.NonPublic | BindingFlags.Instance)!;
-        method.Invoke(repo, new object?[] { error, handler });
-    }
-
     [Test]
     public void MarkRefreshFailed_SetsErrorAndNotifiesHandler()
     {
         var repo = new GitWizardRepository("/fake/path");
         var handler = new RecordingHandler();
 
-        InvokeMarkRefreshFailed(repo, "test error", handler);
+        repo.MarkRefreshFailed("test error", handler);
 
         Assert.Multiple(() =>
         {
@@ -335,7 +327,7 @@ public class GitWizardRepositoryBranchesAdditionalTests
     {
         var repo = new GitWizardRepository("/fake/path");
 
-        Assert.DoesNotThrow(() => InvokeMarkRefreshFailed(repo, "error"));
+        Assert.DoesNotThrow(() => repo.MarkRefreshFailed("error"));
         Assert.That(repo.RefreshError, Is.EqualTo("error"));
     }
 
@@ -345,19 +337,12 @@ public class GitWizardRepositoryBranchesAdditionalTests
         var repo = new GitWizardRepository("/fake/path");
         var handler = new ThrowingHandler();
 
-        Assert.DoesNotThrow(() => InvokeMarkRefreshFailed(repo, "error", handler));
+        Assert.DoesNotThrow(() => repo.MarkRefreshFailed("error", handler));
     }
 
     #endregion
 
-    #region ComputeDirectorySize (via reflection)
-
-    static long InvokeComputeDirectorySize(string path)
-    {
-        var method = typeof(GitWizardRepository).GetMethod("ComputeDirectorySize",
-            BindingFlags.NonPublic | BindingFlags.Static)!;
-        return (long)method.Invoke(null, new object[] { path })!;
-    }
+    #region ComputeDirectorySize
 
     [Test]
     public void ComputeDirectorySize_EmptyDirectory_ReturnsZero()
@@ -366,7 +351,7 @@ public class GitWizardRepositoryBranchesAdditionalTests
         Directory.CreateDirectory(emptyDir);
         try
         {
-            var size = InvokeComputeDirectorySize(emptyDir);
+            var size = GitWizardRepository.ComputeDirectorySize(emptyDir);
             Assert.That(size, Is.EqualTo(0));
         }
         finally
@@ -386,7 +371,7 @@ public class GitWizardRepositoryBranchesAdditionalTests
             File.WriteAllText(Path.Combine(dir, "a.txt"), "hello"); // ~5 bytes
             File.WriteAllText(Path.Combine(dir, "b.txt"), "world!"); // ~6 bytes
 
-            var size = InvokeComputeDirectorySize(dir);
+            var size = GitWizardRepository.ComputeDirectorySize(dir);
             Assert.That(size, Is.GreaterThan(0));
         }
         finally
@@ -407,7 +392,7 @@ public class GitWizardRepositoryBranchesAdditionalTests
             File.WriteAllText(Path.Combine(dir, "root.txt"), "root");
             File.WriteAllText(Path.Combine(subDir, "nested.txt"), "nested");
 
-            var size = InvokeComputeDirectorySize(dir);
+            var size = GitWizardRepository.ComputeDirectorySize(dir);
             Assert.That(size, Is.GreaterThan(0));
         }
         finally
@@ -428,7 +413,7 @@ public class GitWizardRepositoryBranchesAdditionalTests
         var worktreePath = fixture.AddWorktree("wt-test");
 
         var worktreeRepo = new GitWizardRepository(worktreePath);
-        SetIsWorktree(worktreeRepo, true);
+        worktreeRepo.IsWorktree = true;
         worktreeRepo.Refresh();
 
         // If it recursed, it would find its own parent's worktrees. Since IsWorktree=true,
@@ -532,22 +517,11 @@ public class GitWizardRepositoryBranchesAdditionalTests
     #region IsWorktree property
 
     [Test]
-    public void IsWorktree_CanBeSet_ViaReflection()
+    public void IsWorktree_CanBeSet()
     {
         var repo = new GitWizardRepository("/some/path");
-        SetIsWorktree(repo, true);
+        repo.IsWorktree = true;
         Assert.That(repo.IsWorktree, Is.True);
-    }
-
-    #endregion
-
-    #region Reflection helpers
-
-    static void SetIsWorktree(GitWizardRepository repo, bool value)
-    {
-        typeof(GitWizardRepository).GetProperty("IsWorktree")!
-            .GetSetMethod(true)!
-            .Invoke(repo, new object[] { value });
     }
 
     #endregion

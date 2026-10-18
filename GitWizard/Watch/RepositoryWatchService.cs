@@ -33,6 +33,8 @@ public sealed partial class RepositoryWatchService
     FrozenSet<JournalWarning> _scanWarnings = FrozenSet<JournalWarning>.Empty;
 
     public event Action? ScanErrorsChanged;
+
+    internal int ScanErrorsSubscriberCount => ScanErrorsChanged?.GetInvocationList().Length ?? 0;
     public event Action? ScanWarningsChanged;
     public event Action? Started;
     public event Action<string>? Stopped;

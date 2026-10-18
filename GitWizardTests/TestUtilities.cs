@@ -1,4 +1,3 @@
-using System.Reflection;
 using GitWizard;
 
 namespace GitWizardTests;
@@ -16,13 +15,8 @@ public static class TestUtilities
     /// </summary>
     public static void ResetStaticCaches()
     {
-        var reportType = typeof(GitWizardReport);
-        var reportField = reportType.GetField("_cachedReport", BindingFlags.NonPublic | BindingFlags.Static);
-        reportField?.SetValue(null, null);
-
-        var configType = typeof(GitWizardConfiguration);
-        var configField = configType.GetField("_globalConfiguration", BindingFlags.NonPublic | BindingFlags.Static);
-        configField?.SetValue(null, null);
+        GitWizardReport.ResetCachedReport();
+        GitWizardConfiguration.ResetGlobalConfiguration();
     }
 
     /// <summary>

@@ -34,8 +34,7 @@ public class RepositoryNodeViewModelSizeLayoutTests
             Assert.That(sizeLabel.Text, Is.Empty);
             Assert.That(previousBounds.Width, Is.GreaterThan(0));
 
-            typeof(GitWizardRepository).GetProperty(nameof(GitWizardRepository.SizeOnDisk))!
-                .SetValue(repository, 1572864L);
+            repository.SizeOnDisk = 1572864L;
             node.Update();
             Dispatcher.UIThread.RunJobs();
             host.UpdateLayout();

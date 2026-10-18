@@ -1,4 +1,3 @@
-using System.Reflection;
 using GitWizard;
 using LibGit2Sharp;
 
@@ -209,9 +208,7 @@ public class CoverageBoostBranchesTests
     public void MarkRefreshFailed_SetsErrorAndClearsRefreshing()
     {
         var repo = new GitWizardRepository("/fake");
-        var method = typeof(GitWizardRepository).GetMethod("MarkRefreshFailed",
-            BindingFlags.NonPublic | BindingFlags.Instance)!;
-        method.Invoke(repo, new object?[] { "timeout", null });
+        repo.MarkRefreshFailed("timeout");
 
         Assert.Multiple(() =>
         {

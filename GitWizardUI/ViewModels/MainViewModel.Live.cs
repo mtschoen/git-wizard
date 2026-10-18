@@ -22,7 +22,7 @@ public partial class MainViewModel
     readonly HashSet<string> _inFlightLiveRefreshes = new(StringComparer.OrdinalIgnoreCase);
     long _liveEventSequenceNumber;
 
-    LiveWatchController? _liveController;
+    internal LiveWatchController? _liveController;
 
     // Swappable dependency for testability: the real coordinator arms an elevated broker
     // session (a live UAC prompt), which an automated test can never drive. Tests substitute

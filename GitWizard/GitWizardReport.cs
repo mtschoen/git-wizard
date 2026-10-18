@@ -10,6 +10,12 @@ public partial class GitWizardReport : IAsyncDisposable
     static GitWizardReport? _cachedReport;
     static readonly object ReportLock = new();
 
+    internal static void ResetCachedReport()
+    {
+        lock (ReportLock)
+            _cachedReport = null;
+    }
+
     /// <summary>Shared serializer options for report (de)serialization and the
     /// DOM-level merge. Matches the inline options used by <see cref="Save"/>.</summary>
     static readonly JsonSerializerOptions SerializerOptions = new()

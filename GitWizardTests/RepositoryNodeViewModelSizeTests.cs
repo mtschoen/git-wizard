@@ -91,8 +91,7 @@ public class RepositoryNodeViewModelSizeTests
                     notifiedHeaders.Add(header);
             };
 
-        typeof(GitWizardRepository).GetProperty(nameof(GitWizardRepository.SizeOnDisk))!
-            .SetValue(repository, 1572864L);
+        repository.SizeOnDisk = 1572864L;
         viewModel.UpdateCompletedRepository(repository);
 
         Assert.That(notifiedHeaders, Is.EquivalentTo(headers));
@@ -208,8 +207,7 @@ public class RepositoryNodeViewModelSizeTests
         var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
         for (var index = 0; index < childCount; index++)
         {
-            typeof(GitWizardRepository).GetProperty(nameof(GitWizardRepository.SizeOnDisk))!
-                .SetValue(children[index].Repository, 1048576L);
+            children[index].Repository.SizeOnDisk = 1048576L;
             children[index].Update();
             header.UpdateDisplayText();
         }
@@ -240,8 +238,7 @@ public class RepositoryNodeViewModelSizeTests
         var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
         for (var index = 0; index < repositoryCount; index++)
         {
-            typeof(GitWizardRepository).GetProperty(nameof(GitWizardRepository.SizeOnDisk))!
-                .SetValue(repositories[index], 1048576L);
+            repositories[index].SizeOnDisk = 1048576L;
             viewModel.UpdateCompletedRepository(repositories[index]);
         }
         var allocatedAfter = GC.GetAllocatedBytesForCurrentThread();
@@ -282,8 +279,7 @@ public class RepositoryNodeViewModelSizeTests
     static RepositoryNodeViewModel CreateMeasuredNode(long size)
     {
         var repository = new GitWizardRepository(string.Empty);
-        typeof(GitWizardRepository).GetProperty(nameof(GitWizardRepository.SizeOnDisk))!
-            .SetValue(repository, size);
+        repository.SizeOnDisk = size;
         return new RepositoryNodeViewModel(repository);
     }
 }

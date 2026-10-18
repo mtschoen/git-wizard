@@ -1,4 +1,3 @@
-using System.Reflection;
 using GitWizard;
 using GitWizardUI.ViewModels;
 
@@ -10,16 +9,6 @@ public class RepositoryNodeViewModelAdditionalTests
     public void SetUp()
     {
         GitWizardLog.SilentMode = true;
-    }
-
-    // Helper to set read-only properties via reflection
-    static void SetPropertyValue(object obj, string propertyName, object? value)
-    {
-        var prop = obj.GetType().GetProperty(propertyName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-        if (prop == null)
-            throw new InvalidOperationException($"Property '{propertyName}' not found on type '{obj.GetType().FullName}'.");
-
-        prop.SetValue(obj, value);
     }
 
     [Test]
@@ -350,7 +339,6 @@ public class RepositoryNodeViewModelAdditionalTests
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         var repo = new GitWizardRepository(fixture.Path);
-        SetPropertyValue(repo, "Submodules", null);
         var node = new RepositoryNodeViewModel(repo);
 
         Assert.That(node.MatchesFilter(FilterType.SubmoduleConfigIssue), Is.False);

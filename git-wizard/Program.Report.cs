@@ -159,7 +159,7 @@ public static partial class Program
         await report.SaveAsync(savePath).ConfigureAwait(false);
     }
 
-    static string SerializeReport(RunConfiguration runConfiguration, GitWizardReport report)
+    internal static string SerializeReport(RunConfiguration runConfiguration, GitWizardReport report)
     {
         // Stamp the current schema version so console output never carries
         // a stale version loaded from an older cache.
@@ -170,7 +170,7 @@ public static partial class Program
         return jsonString;
     }
 
-    static GitWizardReport ApplyFilter(RunConfiguration runConfiguration, GitWizardReport report)
+    internal static GitWizardReport ApplyFilter(RunConfiguration runConfiguration, GitWizardReport report)
     {
         if (string.IsNullOrEmpty(runConfiguration.FilterPattern))
             return report;
@@ -192,7 +192,7 @@ public static partial class Program
         return filtered;
     }
 
-    static bool ReportNeedsAttention(GitWizardReport report)
+    internal static bool ReportNeedsAttention(GitWizardReport report)
     {
         foreach (var kvp in report.Repositories)
         {
@@ -201,18 +201,5 @@ public static partial class Program
         }
 
         return false;
-    }
-
-    static string FormatSize(long bytes)
-    {
-        string[] units = { "B", "KB", "MB", "GB", "TB" };
-        double size = bytes;
-        int i = 0;
-        while (size >= 1024 && i < units.Length - 1)
-        {
-            size /= 1024;
-            i++;
-        }
-        return $"{size:0.##} {units[i]}";
     }
 }

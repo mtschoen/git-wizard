@@ -1,4 +1,3 @@
-using System.Reflection;
 using GitWizard;
 using GitWizardUI.ViewModels;
 using GitWizardUI.ViewModels.Services;
@@ -231,11 +230,11 @@ public class MainViewModelGroupingAdditionalTests
     {
         var viewModel = NewViewModel();
 
-        // Create repos with different sizes via reflection
+        // Create repos with different measured sizes
         var small = Repo("/small");
         var large = Repo("/large");
-        SetSizeOnDisk(small, 100);
-        SetSizeOnDisk(large, 10000);
+        small.SizeOnDisk = 100;
+        large.SizeOnDisk = 10000;
         viewModel.AddRepository(small);
         viewModel.AddRepository(large);
 
@@ -252,8 +251,8 @@ public class MainViewModelGroupingAdditionalTests
 
         var old = Repo("/old");
         var recent = Repo("/recent");
-        SetLastCommitDate(old, DateTimeOffset.Now.AddDays(-30));
-        SetLastCommitDate(recent, DateTimeOffset.Now);
+        old.LastCommitDate = DateTimeOffset.Now.AddDays(-30);
+        recent.LastCommitDate = DateTimeOffset.Now;
         viewModel.AddRepository(old);
         viewModel.AddRepository(recent);
 
@@ -493,74 +492,50 @@ public class MainViewModelGroupingAdditionalTests
 
     #endregion
 
-    #region NormalizeRemoteUrl (via reflection)
-
-    static string InvokeNormalizeRemoteUrl(string url)
-    {
-        var method = typeof(MainViewModel).GetMethod("NormalizeRemoteUrl",
-            BindingFlags.NonPublic | BindingFlags.Static)!;
-        return (string)method.Invoke(null, new object[] { url })!;
-    }
+    #region NormalizeRemoteUrl
 
     [Test]
     public void NormalizeRemoteUrl_StripsDotGitSuffix()
     {
-        Assert.That(InvokeNormalizeRemoteUrl("https://github.com/user/repo.git"),
+        Assert.That(MainViewModel.NormalizeRemoteUrl("https://github.com/user/repo.git"),
             Is.EqualTo("github.com/user/repo"));
     }
 
     [Test]
     public void NormalizeRemoteUrl_NormalizesSshFormat()
     {
-        Assert.That(InvokeNormalizeRemoteUrl("git@github.com:user/repo"),
+        Assert.That(MainViewModel.NormalizeRemoteUrl("git@github.com:user/repo"),
             Is.EqualTo("github.com/user/repo"));
     }
 
     [Test]
     public void NormalizeRemoteUrl_StripsHttps()
     {
-        Assert.That(InvokeNormalizeRemoteUrl("https://github.com/user/repo"),
+        Assert.That(MainViewModel.NormalizeRemoteUrl("https://github.com/user/repo"),
             Is.EqualTo("github.com/user/repo"));
     }
 
     [Test]
     public void NormalizeRemoteUrl_StripsHttp()
     {
-        Assert.That(InvokeNormalizeRemoteUrl("http://github.com/user/repo"),
+        Assert.That(MainViewModel.NormalizeRemoteUrl("http://github.com/user/repo"),
             Is.EqualTo("github.com/user/repo"));
     }
 
     [Test]
     public void NormalizeRemoteUrl_LowerCases()
     {
-        Assert.That(InvokeNormalizeRemoteUrl("HTTPS://GitHub.COM/User/Repo"),
+        Assert.That(MainViewModel.NormalizeRemoteUrl("HTTPS://GitHub.COM/User/Repo"),
             Is.EqualTo("github.com/user/repo"));
     }
 
     [Test]
     public void NormalizeRemoteUrl_TrimsWhitespace()
     {
-        Assert.That(InvokeNormalizeRemoteUrl("  https://github.com/user/repo  "),
+        Assert.That(MainViewModel.NormalizeRemoteUrl("  https://github.com/user/repo  "),
             Is.EqualTo("github.com/user/repo"));
     }
 
     #endregion
 
-    #region Reflection helpers
-
-    static void SetSizeOnDisk(GitWizardRepository repo, long size)
-    {
-        typeof(GitWizardRepository).GetProperty("SizeOnDisk")!
-            .GetSetMethod(true)!
-            .Invoke(repo, new object[] { size });
-    }
-
-    static void SetLastCommitDate(GitWizardRepository repo, DateTimeOffset date)
-    {
-        typeof(GitWizardRepository).GetProperty("LastCommitDate")!
-            .GetSetMethod(true)!
-            .Invoke(repo, new object[] { date });
-    }
-
-    #endregion
 }

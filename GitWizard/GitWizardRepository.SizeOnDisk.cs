@@ -10,7 +10,7 @@ public partial class GitWizardRepository
     public long SizeOnDisk
     {
         get => _sizeOnDisk.GetValueOrDefault();
-        private set => _sizeOnDisk = value;
+        internal set => _sizeOnDisk = value;
     }
 
     /// <summary>Distinguishes an unmeasured repository from a measured zero without changing report JSON.</summary>

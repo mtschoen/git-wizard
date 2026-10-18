@@ -297,7 +297,7 @@ public class GitWizardRepositoryInvalidUpstreamTests
                 "commit", "--allow-empty", "-m", "unpushed commit");
 
             var worktreeRepo = new GitWizardRepository(worktreePath);
-            SetIsWorktree(worktreeRepo, true);
+            worktreeRepo.IsWorktree = true;
             worktreeRepo.Refresh(allBranches: true);
 
             var branch = worktreeRepo.Branches?.FirstOrDefault(b => b.Name == "wt-branch");
@@ -574,10 +574,4 @@ public class GitWizardRepositoryInvalidUpstreamTests
         }
     }
 
-    static void SetIsWorktree(GitWizardRepository repo, bool value)
-    {
-        typeof(GitWizardRepository).GetProperty("IsWorktree")!
-            .GetSetMethod(true)!
-            .Invoke(repo, new object[] { value });
-    }
 }

@@ -236,6 +236,37 @@ public class GitWizardRepositoryTests
     }
 
     [Test]
+    public void Refresh_ClearsMatchingBranchNameWhenDetachedHeadMovesToUnmatchedCommit()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AppendCommit("second.txt");
+
+        string defaultBranchName;
+        string firstCommitSha;
+        using (var repo = new Repository(fixture.Path))
+        {
+            defaultBranchName = repo.Head.FriendlyName;
+            firstCommitSha = repo.Head.Tip!.Parents.First().Sha;
+            Commands.Checkout(repo, repo.Head.Tip!.Sha);
+        }
+
+        var repository = new GitWizardRepository(fixture.Path);
+        repository.Refresh();
+        Assert.That(repository.MatchingBranchName, Is.EqualTo(defaultBranchName));
+
+        using (var repo = new Repository(fixture.Path))
+        {
+            Commands.Checkout(repo, firstCommitSha);
+        }
+
+        repository.Refresh();
+
+        Assert.That(repository.IsDetachedHead, Is.True);
+        Assert.That(repository.MatchingBranchName, Is.Null);
+    }
+
+    [Test]
     public void Refresh_DetectsUnmergedBranch()
     {
         GitWizardLog.SilentMode = true;

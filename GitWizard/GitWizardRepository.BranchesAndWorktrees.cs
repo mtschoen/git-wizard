@@ -151,6 +151,7 @@ public partial class GitWizardRepository
 
     void FindMatchingBranch(Repository repository)
     {
+        MatchingBranchName = null;
         try
         {
             var detachedTip = repository.Head.Tip;

@@ -226,6 +226,8 @@ public partial class GitWizardRepository
         IsDetachedHead = repository.Head.Reference is not SymbolicReference;
         if (IsDetachedHead)
             FindMatchingBranch(repository);
+        else
+            MatchingBranchName = null;
         LastCommitDate = repository.Head.Tip?.Author.When;
         if (LastCommitDate.HasValue)
             DaysSinceLastCommit = (int)(DateTimeOffset.Now - LastCommitDate.Value).TotalDays;

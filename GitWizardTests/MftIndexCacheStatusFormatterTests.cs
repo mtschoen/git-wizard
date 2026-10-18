@@ -30,7 +30,7 @@ public class MftIndexCacheStatusFormatterTests
     }
 
     [TestCase(CacheLocation.OwnedCanonical, "this session owns the cache")]
-    [TestCase(CacheLocation.PrivateFallback, "running on a private block; another process holds the cache")]
+    [TestCase(CacheLocation.PrivateFallback, "running on a private block because the canonical slot was unavailable when selected")]
     [TestCase(null, "")]
     public void BackingUsesLibraryField(CacheLocation? state, string expected) => Assert.That(
         MftIndexCacheStatusFormatter.Backing(state), Is.EqualTo(expected));

@@ -231,7 +231,7 @@ Four independent changes:
    completion.
 2. Add a per-repository refresh gate: a `SemaphoreSlim(1, 1)` field on `GitWizardRepository`, taken
    for the duration of `Refresh`. Overlapping refreshes on one object serialize instead of
-   interleaving, which closes hazard 3 and makes `RefreshConcurrencyTest` meaningful.
+   interleaving, which closes hazard 3 and makes `RefreshConcurrencyGateTests` meaningful.
 3. Take `lock (Repositories)` in `PruneDeletedRepositories` and `PruneNonRepositoryPaths`, and
    serialize from a snapshot taken under that lock in `Save`, `SaveAsync`, and `SaveAtomic`.
 4. Cap or remove the nested `Parallel.ForEach` over submodules and worktrees so one LibGit2Sharp
@@ -310,7 +310,7 @@ lock and serialize the copy. Note that this bounds the dictionary race, not the 
 race, which phase 1 handles.
 
 Test: `Refresh_ConcurrentCallsOnOneReport_DoNotCorruptRepositories`. Promote the existing
-`RefreshConcurrencyTest` (`GitWizardTests/GitWizardReportTests.cs:35`) from a no-assertion smoke test
+`Refresh_ConcurrentCallsOnOneReport_DoNotCorruptRepositories` (`GitWizardTests/GitWizardReportTests.cs`) from a no-assertion smoke test
 into one that asserts `Repositories.Count` equals the seeded path count and that every value is
 non-null after ten concurrent refreshes. It will be flaky-to-failing before and stable after; run it
 with `[Repeat(20)]` to make the before-state visible.

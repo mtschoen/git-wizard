@@ -12,7 +12,7 @@ public static class TestUtilities
     /// <summary>
     /// Resets static caches in GitWizardReport and GitWizardConfiguration.
     /// Call in SetUp and TearDown to ensure test isolation.
-    /// Does NOT delete cached files - use AsyncFileIOTests.ResetStaticCaches for full cleanup.
+    /// Does NOT delete cached files - use TestUtilities.ResetStaticCaches for full cleanup.
     /// </summary>
     public static void ResetStaticCaches()
     {

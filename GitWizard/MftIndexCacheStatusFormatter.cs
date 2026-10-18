@@ -77,7 +77,7 @@ public static class MftIndexCacheStatusFormatter
     public static string Backing(CacheLocation? state) => state switch
     {
         CacheLocation.OwnedCanonical => "this session owns the cache",
-        CacheLocation.PrivateFallback => "running on a private block; another process holds the cache",
+        CacheLocation.PrivateFallback => "running on a private block because the canonical slot was unavailable when selected",
         _ => string.Empty
     };
 

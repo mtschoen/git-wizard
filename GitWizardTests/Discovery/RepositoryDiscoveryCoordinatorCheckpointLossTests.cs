@@ -87,15 +87,15 @@ public class RepositoryDiscoveryCoordinatorCheckpointLossTests
 
     [TestCase(true, BlockOrigin.WarmStartedFromCache, 1)]
     [TestCase(false, BlockOrigin.ProducedByScan, 0)]
-    public async Task CheckpointLoss_PreparesWatchAccordingToInitialBlockSource(
-        bool cacheOnly, BlockOrigin expectedInitialSource, int expectedAdditionalProductions)
+    public async Task CheckpointLoss_PreparesWatchAccordingToInitialBlockOrigin(
+        bool cacheOnly, BlockOrigin expectedInitialOrigin, int expectedAdditionalProductions)
     {
         var source = new ScriptedWatchSource { CatchUpOnStart = true };
         await SeedCacheAsync();
         _windows['X'] = Lost;
         var session = await OpenSessionAsync(cacheOnly, source);
         Assert.That(session.Index.Drives.Single().Watch.CheckpointLoss, Is.Not.Null);
-        Assert.That(session.Index.Drives.Single().Block?.Origin, Is.EqualTo(expectedInitialSource));
+        Assert.That(session.Index.Drives.Single().Block?.Origin, Is.EqualTo(expectedInitialOrigin));
         var productionsBeforeWatch = _productions;
         using var cancellation = new CancellationTokenSource(HangGuard);
 

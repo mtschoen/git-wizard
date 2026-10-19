@@ -79,7 +79,7 @@ public class RepositoryNodeViewModelSizeTests
             sibling.RemoteUrls.Add(remote);
             viewModel.AddRepository(sibling);
         }
-        viewModel.ApplyGroup("GroupByRemoteUrl");
+        viewModel.ToggleGroupMode(GroupMode.RemoteUrl);
         var headers = viewModel.Repositories.Where(node => node.IsGroupHeader).ToArray();
         Assert.That(headers, Has.Length.EqualTo(2));
         var notifiedHeaders = new HashSet<RepositoryNodeViewModel>();

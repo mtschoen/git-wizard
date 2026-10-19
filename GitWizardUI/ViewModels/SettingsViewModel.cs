@@ -86,10 +86,6 @@ public partial class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
-    public ICommand AddSearchPathCommand { get; }
-    public ICommand AddIgnoredPathCommand { get; }
-    public ICommand ResetToDefaultsCommand { get; }
-
 
     public SettingsViewModel(IFolderPicker folderPicker, MainViewModel? mainViewModel, IUiDispatcher dispatcher)
     {
@@ -99,8 +95,6 @@ public partial class SettingsViewModel : INotifyPropertyChanged
         _configuration = GitWizardConfiguration.GetGlobalConfiguration();
 
         JournalWarnings = mainViewModel?.JournalWarnings ?? new();
-        EnlargeJournalCommand = new AsyncRelayCommand<JournalWarningViewModel>(EnlargeJournalAsync);
-        IgnoreJournalWarningCommand = new AsyncRelayCommand<JournalWarningViewModel>(IgnoreJournalWarningAsync);
 
         foreach (var path in _configuration.SearchPaths)
             SearchPaths.Add(path);
@@ -116,10 +110,6 @@ public partial class SettingsViewModel : INotifyPropertyChanged
         _skipHiddenDirectories = _configuration.SkipHiddenDirectories == true;
         // null in config means "excluded" (the default), so show unchecked in UI.
         _includeTempDirectories = _configuration.IncludeTempDirectories == true;
-
-        AddSearchPathCommand = new RelayCommand(AddSearchPath);
-        AddIgnoredPathCommand = new RelayCommand(AddIgnoredPath);
-        ResetToDefaultsCommand = new RelayCommand(ResetToDefaults);
     }
 
 

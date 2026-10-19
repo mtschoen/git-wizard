@@ -123,60 +123,61 @@ public class MainViewModelTests
         Assert.Throws<ObjectDisposedException>(() => _ = source.Token);
     }
 
-    // The Avalonia sidebar dispatches Filter/Group clicks by button name through ApplyFilter/
-    // ApplyGroup, which must mirror the MAUI UI's toggle: re-clicking the active button clears it.
-    // The sidebar's `.active` highlight binds to ActiveFilter/ActiveGroupMode, so this also pins
-    // that those notifying properties (not just the private fields) move.
+    // The sidebar buttons carry their FilterType/GroupMode in Tag and the code-behind routes a
+    // click to ToggleFilter/ToggleGroupMode: re-clicking the active button clears it. The
+    // sidebar's `.active` highlight binds to ActiveFilter/ActiveGroupMode, so this also pins
+    // that those notifying properties (not just the private fields) move. The Tag-to-action
+    // mapping itself is covered by the MainWindow sidebar tests.
     [Test]
-    public void ApplyFilter_TogglesActiveFilterOnRepeatClick()
+    public void ToggleFilter_TogglesActiveFilterOnRepeatClick()
     {
         var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
 
-        vm.ApplyFilter("FilterStale");
+        vm.ToggleFilter(FilterType.Stale);
         Assert.That(vm.ActiveFilter, Is.EqualTo(FilterType.Stale));
 
-        vm.ApplyFilter("FilterStale");
+        vm.ToggleFilter(FilterType.Stale);
         Assert.That(vm.ActiveFilter, Is.EqualTo(FilterType.None), "Re-clicking the active filter must clear it.");
 
-        vm.ApplyFilter("FilterPendingChanges");
+        vm.ToggleFilter(FilterType.PendingChanges);
         Assert.That(vm.ActiveFilter, Is.EqualTo(FilterType.PendingChanges), "Clicking a different filter must switch to it.");
     }
 
     [Test]
-    public void ApplyGroup_TogglesActiveGroupModeOnRepeatClick()
+    public void ToggleGroupMode_TogglesActiveGroupModeOnRepeatClick()
     {
         var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
 
-        vm.ApplyGroup("GroupByDrive");
+        vm.ToggleGroupMode(GroupMode.Drive);
         Assert.That(vm.ActiveGroupMode, Is.EqualTo(GroupMode.Drive));
 
-        vm.ApplyGroup("GroupByDrive");
+        vm.ToggleGroupMode(GroupMode.Drive);
         Assert.That(vm.ActiveGroupMode, Is.EqualTo(GroupMode.None), "Re-clicking the active group must clear it.");
     }
 
     // Sort, unlike Filter/Group, has no "off" state - one mode is always active - so a repeat click
-    // must keep it selected (matching the MAUI UI, which never cleared the sort highlight).
+    // must keep it selected.
     [Test]
-    public void ApplySort_SetsModeAndDoesNotToggleOff()
+    public void SetSortMode_SetsModeAndDoesNotToggleOff()
     {
         var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
 
-        vm.ApplySort("SortByRecentlyUsed");
+        vm.SetSortMode(SortMode.RecentlyUsed);
         Assert.That(vm.ActiveSortMode, Is.EqualTo(SortMode.RecentlyUsed));
 
-        vm.ApplySort("SortByRecentlyUsed");
+        vm.SetSortMode(SortMode.RecentlyUsed);
         Assert.That(vm.ActiveSortMode, Is.EqualTo(SortMode.RecentlyUsed), "Re-clicking the active sort must keep it selected.");
     }
 
     [Test]
-    public void ApplyFilter_RaisesPropertyChangedForActiveFilter()
+    public void ToggleFilter_RaisesPropertyChangedForActiveFilter()
     {
         var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
 
         var raised = false;
         vm.PropertyChanged += (_, e) => raised |= e.PropertyName == nameof(MainViewModel.ActiveFilter);
 
-        vm.ApplyFilter("FilterStale");
+        vm.ToggleFilter(FilterType.Stale);
 
         Assert.That(raised, Is.True, "The `.active` highlight binds to ActiveFilter, so its change must notify.");
     }
@@ -198,7 +199,9 @@ public class MainViewModelTests
         var clipboard = new StubClipboardService();
         var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), clipboard);
 
-        vm.CopyToClipboardCommand.Execute(RepoNode("C:/projects/widget"));
+        // The stub clipboard and dispatcher complete synchronously, so the write and the indicator
+        // post have already run before the returned (still-pending) task is dropped.
+        _ = vm.CopyToClipboardAsync(RepoNode("C:/projects/widget"));
 
         Assert.That(clipboard.Writes, Does.Contain("C:/projects/widget"));
     }
@@ -211,10 +214,10 @@ public class MainViewModelTests
         var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
         var node = RepoNode("C:/projects/widget");
 
-        vm.CopyToClipboardCommand.Execute(node);
+        _ = vm.CopyToClipboardAsync(node);
 
         // The stub clipboard completes synchronously and the stub dispatcher posts inline, so the
-        // indicator is already lit when the fire-and-forget command returns - before the reset delay.
+        // indicator is already lit when the copy task yields on its reset delay.
         Assert.That(node.JustCopied, Is.True);
     }
 
@@ -246,18 +249,18 @@ public class MainViewModelTests
     }
 
     [Test]
-    public void CopyToClipboard_DoesNothingForNullOrGroupHeaderNodes()
+    public async Task CopyToClipboard_DoesNothingForNullOrGroupHeaderNodes()
     {
         var clipboard = new StubClipboardService();
         var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), clipboard);
 
-        vm.CopyToClipboardCommand.Execute(null);
-        vm.CopyToClipboardCommand.Execute(RepositoryNodeViewModel.CreateGroupHeader("C:"));
+        await vm.CopyToClipboardAsync(null);
+        await vm.CopyToClipboardAsync(RepositoryNodeViewModel.CreateGroupHeader("C:"));
 
         Assert.That(clipboard.Writes, Is.Empty, "A null node and a group header (no working directory) must not copy.");
     }
 
-    // A clipboard failure must propagate (so the AsyncRelayCommand wrapper logs it instead of leaving
+    // A clipboard failure must propagate to the caller (a code-behind fire-and-forget drop leaves
     // it unobserved) and must not light a false "copied" indicator.
     [Test]
     public void CopyToClipboardAsync_FailsWithoutLightingIndicatorWhenClipboardThrows()
@@ -271,21 +274,6 @@ public class MainViewModelTests
 
     static MainViewModel CreateViewModel() =>
         new(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
-
-    [Test]
-    public void Commands_AreAllWired()
-    {
-        var vm = CreateViewModel();
-
-        Assert.That(vm.OpenInExplorerCommand, Is.Not.Null);
-        Assert.That(vm.OpenInForkCommand, Is.Not.Null);
-        Assert.That(vm.CopyToClipboardCommand, Is.Not.Null);
-        Assert.That(vm.DeepRefreshCommand, Is.Not.Null);
-        Assert.That(vm.CheckoutMatchingBranchCommand, Is.Not.Null);
-        Assert.That(vm.RefreshCommand, Is.Not.Null);
-        Assert.That(vm.FetchAndRefreshCommand, Is.Not.Null);
-        Assert.That(vm.CleanDownstreamCommand, Is.Not.Null);
-    }
 
     [Test]
     public void ErrorsButtonLabel_ReflectsErrorLogCount()
@@ -313,13 +301,13 @@ public class MainViewModelTests
     }
 
     [Test]
-    public void CopyToClipboard_DoesNothing_ForNodeWithoutWorkingDirectory()
+    public async Task CopyToClipboard_DoesNothing_ForNodeWithoutWorkingDirectory()
     {
         var clipboard = new StubClipboardService();
         var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), clipboard);
         var node = new RepositoryNodeViewModel(new GitWizardRepository(""));
 
-        vm.CopyToClipboardCommand.Execute(node);
+        await vm.CopyToClipboardAsync(node);
 
         Assert.That(clipboard.Writes, Is.Empty);
     }
@@ -384,93 +372,6 @@ public class MainViewModelTests
 
         Assert.That(vm.IsProgressVisible, Is.True);
         Assert.That(vm.ProgressText, Does.Contain("scanning"));
-    }
-
-    [Test]
-    public void ApplyFilter_UnknownButton_LeavesFilterNone()
-    {
-        var vm = CreateViewModel();
-
-        vm.ApplyFilter("NotARealButton");
-
-        Assert.That(vm.ActiveFilter, Is.EqualTo(FilterType.None));
-    }
-
-    [Test]
-    public void ApplyGroup_UnknownButton_LeavesGroupNone()
-    {
-        var vm = CreateViewModel();
-
-        vm.ApplyGroup("NotARealButton");
-
-        Assert.That(vm.ActiveGroupMode, Is.EqualTo(GroupMode.None));
-    }
-
-    [Test]
-    public void ApplySort_UnknownButton_FallsBackToWorkingDirectory()
-    {
-        var vm = CreateViewModel();
-
-        vm.ApplySort("NotARealButton");
-
-        Assert.That(vm.ActiveSortMode, Is.EqualTo(SortMode.WorkingDirectory));
-    }
-
-    [Test]
-    public void ApplyFilter_MapsEveryButtonNameToItsFilterType()
-    {
-        var vm = CreateViewModel();
-        var cases = new (string Button, FilterType Expected)[]
-        {
-            ("FilterPendingChanges", FilterType.PendingChanges),
-            ("FilterSubmoduleCheckout", FilterType.SubmoduleCheckout),
-            ("FilterSubmoduleUninitialized", FilterType.SubmoduleUninitialized),
-            ("FilterSubmoduleConfigIssue", FilterType.SubmoduleConfigIssue),
-            ("FilterDetachedHead", FilterType.DetachedHead),
-            ("FilterMyRepositories", FilterType.MyRepositories),
-            ("FilterLocalOnlyCommits", FilterType.LocalOnlyCommits),
-            ("FilterStale", FilterType.Stale),
-            ("FilterDownstreamBranches", FilterType.DownstreamBranches),
-            ("FilterBehindRemote", FilterType.BehindRemote),
-            ("FilterPublishReady", FilterType.PublishReady),
-        };
-
-        foreach (var (button, expected) in cases)
-        {
-            // Each button differs from the previously active filter, so ToggleFilter sets (never clears) it.
-            vm.ApplyFilter(button);
-            Assert.That(vm.ActiveFilter, Is.EqualTo(expected), $"button {button}");
-        }
-    }
-
-    [Test]
-    public void ApplyGroup_MapsEveryButtonNameToItsGroupMode()
-    {
-        var vm = CreateViewModel();
-
-        vm.ApplyGroup("GroupByDrive");
-        Assert.That(vm.ActiveGroupMode, Is.EqualTo(GroupMode.Drive));
-
-        vm.ApplyGroup("GroupByRemoteUrl");
-        Assert.That(vm.ActiveGroupMode, Is.EqualTo(GroupMode.RemoteUrl));
-    }
-
-    [Test]
-    public void ApplySort_MapsEveryButtonNameToItsSortMode()
-    {
-        var vm = CreateViewModel();
-
-        vm.ApplySort("SortByRecentlyUsed");
-        Assert.That(vm.ActiveSortMode, Is.EqualTo(SortMode.RecentlyUsed));
-
-        vm.ApplySort("SortByRemoteUrl");
-        Assert.That(vm.ActiveSortMode, Is.EqualTo(SortMode.RemoteUrl));
-
-        vm.ApplySort("SortBySizeOnDisk");
-        Assert.That(vm.ActiveSortMode, Is.EqualTo(SortMode.SizeOnDisk));
-
-        vm.ApplySort("SortByWorkingDirectory");
-        Assert.That(vm.ActiveSortMode, Is.EqualTo(SortMode.WorkingDirectory));
     }
 
     sealed class ThrowingClipboardService : IClipboardService

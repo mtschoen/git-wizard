@@ -158,7 +158,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
     /// <summary>
     /// True while a <see cref="GitWizardUI.Services.LiveWatchController"/> session is running (elevated USN-journal
     /// watch on Windows), auto-updating the repository list as tracked/search-root repos
-    /// change on disk. Toggled via <see cref="ToggleLiveCommand"/>.
+    /// change on disk. Toggled via <see cref="ToggleLiveAsync"/>.
     /// </summary>
     public bool IsLive
     {
@@ -207,7 +207,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
     /// True from the moment a refresh starts until the first repository surfaces (or the
     /// determinate progress bar takes over). Drives an indeterminate "Scanning..." indicator that
     /// fills the otherwise-empty list during the initial discovery/cache-read gap, which can run
-    /// 15-20s on a cold start. Parity with the retired MAUI UI's startup feedback.
+    /// 15-20s on a cold start.
     /// </summary>
     public bool IsScanning
     {
@@ -274,8 +274,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
     /// Optional view hook invoked (on the UI thread) immediately after the <see cref="Repositories"/>
     /// collection is swapped, so a desktop shell can restore the user's scroll position after a
     /// refresh rebuilds the list. Avalonia's ListBox resets scroll to the top when its ItemsSource
-    /// is replaced (AvaloniaUI/Avalonia#5651) and has no KeepScrollOffset equivalent; MAUI preserves
-    /// offset declaratively and leaves this null.
+    /// is replaced (AvaloniaUI/Avalonia#5651) and has no built-in scroll-offset preservation.
     /// </summary>
     public Action? AfterRepositoriesSwap { get; set; }
 
@@ -288,15 +287,11 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
     /// <summary>Button label reflecting the current error count, e.g. "Errors" or "Errors (3)".</summary>
     public string ErrorsButtonLabel => ErrorLog.Count > 0 ? $"Errors ({ErrorLog.Count})" : "Errors";
 
-    public ICommand OpenInExplorerCommand { get; }
-    public ICommand OpenInForkCommand { get; }
-    public ICommand CopyToClipboardCommand { get; }
-    public ICommand DeepRefreshCommand { get; }
-    public ICommand CheckoutMatchingBranchCommand { get; }
-    public ICommand RefreshCommand { get; }
-    public ICommand FetchAndRefreshCommand { get; }
-    public ICommand CleanDownstreamCommand { get; }
-    public ICommand ToggleLiveCommand { get; }
+    /// <summary>Starts a foreground refresh; a no-op while a refresh is already running.</summary>
+    public Task RefreshFromButtonAsync() => RefreshAsync(background: false);
+
+    /// <summary>Fetches every remote, then runs a foreground refresh.</summary>
+    public Task FetchAndRefreshAsync() => RefreshAsync(background: false, fetchRemotes: true);
 
     public MainViewModel(IUiDispatcher ui, IUserDialogs dialogs, IClipboardService clipboard,
         TimeProvider? timeProvider = null)
@@ -305,15 +300,6 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
         _timeProvider = timeProvider ?? TimeProvider.System;
         _dialogs = dialogs;
         _clipboard = clipboard;
-        OpenInExplorerCommand = new RelayCommand<RepositoryNodeViewModel>(OpenInExplorer);
-        OpenInForkCommand = new AsyncRelayCommand<RepositoryNodeViewModel>(OpenInForkAsync);
-        CopyToClipboardCommand = new AsyncRelayCommand<RepositoryNodeViewModel>(CopyToClipboardAsync);
-        DeepRefreshCommand = new RelayCommand<RepositoryNodeViewModel>(DeepRefreshRepository);
-        CheckoutMatchingBranchCommand = new RelayCommand<RepositoryNodeViewModel>(CheckoutMatchingBranch);
-        RefreshCommand = new AsyncRelayCommand(() => RefreshAsync(background: false));
-        FetchAndRefreshCommand = new AsyncRelayCommand(() => RefreshAsync(background: false, fetchRemotes: true));
-        CleanDownstreamCommand = new AsyncRelayCommand<RepositoryNodeViewModel>(node => CleanDownstreamBranchesAsync(node));
-        ToggleLiveCommand = new AsyncRelayCommand(ToggleLiveAsync, () => CanToggleLive);
         ErrorLog.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(ErrorLogViewModel.Count))
@@ -334,13 +320,13 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
     /// failure so a fire-and-forget alert can't crash the process.
     /// </summary>
     void ShowAlert(string title, string message)
-        => _ui.Post(() => _ = DisplayAlertSafeAsync(title, message));
+        => _ui.Post(() => _ = ShowAlertSafeAsync(title, message));
 
-    async Task DisplayAlertSafeAsync(string title, string message)
+    async Task ShowAlertSafeAsync(string title, string message)
     {
         try
         {
-            await _dialogs.DisplayAlertAsync(title, message);
+            await _dialogs.ShowAlertAsync(title, message);
         }
         catch (Exception exception)
         {

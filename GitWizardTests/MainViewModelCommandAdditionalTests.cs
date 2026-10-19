@@ -5,7 +5,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests;
 
 /// <summary>
-/// Additional command tests for <c>MainViewModel.Commands.cs</c> methods not yet covered
+/// Additional tests for <c>MainViewModel.Commands.cs</c> methods not yet covered
 /// by <see cref="MainViewModelCommandTests"/>: ToggleGroupExpand, ProcessUICommand dispatch,
 /// OpenInExplorer guards, DeepRefreshRepository guards, and CheckoutMatchingBranch guards.
 /// </summary>
@@ -183,7 +183,7 @@ public class MainViewModelCommandAdditionalTests
         var dialogs = new StubUserDialogs();
         var vm = CreateViewModel(dialogs);
 
-        vm.OpenInExplorerCommand.Execute(null);
+        vm.OpenInExplorer(null);
 
         Assert.That(dialogs.AlertCalls, Is.Empty);
     }
@@ -199,7 +199,7 @@ public class MainViewModelCommandAdditionalTests
         Assert.That(header.IsGroupHeader, Is.True, "Precondition.");
         Assert.That(header.IsExpanded, Is.False, "Precondition: starts collapsed.");
 
-        vm.OpenInExplorerCommand.Execute(header);
+        vm.OpenInExplorer(header);
 
         Assert.That(header.IsExpanded, Is.True,
             "OpenInExplorer on a group header must toggle expand, not open explorer.");
@@ -212,7 +212,7 @@ public class MainViewModelCommandAdditionalTests
         var vm = CreateViewModel(dialogs);
         var node = RepoNode("");
 
-        vm.OpenInExplorerCommand.Execute(node);
+        vm.OpenInExplorer(node);
 
         Assert.That(dialogs.AlertCalls, Is.Empty,
             "An empty working directory must silently bail out.");
@@ -226,7 +226,7 @@ public class MainViewModelCommandAdditionalTests
         var vm = CreateViewModel();
 
         // Must not throw.
-        vm.DeepRefreshCommand.Execute(null);
+        vm.DeepRefreshRepository(null);
     }
 
     [Test]
@@ -235,7 +235,7 @@ public class MainViewModelCommandAdditionalTests
         var vm = CreateViewModel();
         var header = RepositoryNodeViewModel.CreateGroupHeader("C:\\");
 
-        vm.DeepRefreshCommand.Execute(header);
+        vm.DeepRefreshRepository(header);
 
         // Group header has no real repository to refresh; should be a no-op.
         Assert.That(header.Status, Is.EqualTo(RefreshStatus.Success),
@@ -250,8 +250,8 @@ public class MainViewModelCommandAdditionalTests
         var repo = new GitWizardRepository(fixture.Path);
         var node = new RepositoryNodeViewModel(repo);
 
-        // The DeepRefresh sets Status = Refreshing synchronously before spawning the Task.
-        vm.DeepRefreshCommand.Execute(node);
+        // DeepRefreshRepository sets Status = Refreshing synchronously before spawning the Task.
+        vm.DeepRefreshRepository(node);
 
         Assert.That(node.Status, Is.EqualTo(RefreshStatus.Refreshing));
     }
@@ -264,7 +264,7 @@ public class MainViewModelCommandAdditionalTests
         var vm = CreateViewModel();
 
         // Must not throw.
-        vm.CheckoutMatchingBranchCommand.Execute(null);
+        vm.CheckoutMatchingBranch(null);
     }
 
     [Test]
@@ -273,7 +273,7 @@ public class MainViewModelCommandAdditionalTests
         var vm = CreateViewModel();
         var header = RepositoryNodeViewModel.CreateGroupHeader("C:\\");
 
-        vm.CheckoutMatchingBranchCommand.Execute(header);
+        vm.CheckoutMatchingBranch(header);
 
         // Should be a no-op, no crash.
         Assert.That(header.IsGroupHeader, Is.True);
@@ -286,7 +286,7 @@ public class MainViewModelCommandAdditionalTests
         var node = RepoNode("C:/repos/alpha");
 
         // MatchingBranchName is null on a freshly constructed repo, so the early return fires.
-        vm.CheckoutMatchingBranchCommand.Execute(node);
+        vm.CheckoutMatchingBranch(node);
 
         // No crash expected; verify the node is unchanged.
         Assert.That(node.Status, Is.EqualTo(RefreshStatus.Refreshing));
@@ -347,45 +347,45 @@ public class MainViewModelCommandAdditionalTests
     // ── OpenInFork ────────────────────────────────────────────────────
 
     [Test]
-    public void OpenInFork_EmptyWorkingDirectory_DoesNothing()
+    public async Task OpenInFork_EmptyWorkingDirectory_DoesNothing()
     {
         var dialogs = new StubUserDialogs();
         var vm = new MainViewModel(new StubUiDispatcher(), dialogs, new StubClipboardService());
 
-        vm.OpenInForkCommand.Execute(RepoNode(""));
+        await vm.OpenInForkAsync(RepoNode(""));
 
         Assert.That(dialogs.AlertCalls, Is.Empty,
             "An empty working directory must silently bail without alerting.");
     }
 
     [Test]
-    public void OpenInFork_GroupHeader_DoesNothing()
+    public async Task OpenInFork_GroupHeader_DoesNothing()
     {
         var dialogs = new StubUserDialogs();
         var vm = new MainViewModel(new StubUiDispatcher(), dialogs, new StubClipboardService());
 
         // GroupHeader has empty WorkingDirectory, so it hits the null/empty guard.
-        vm.OpenInForkCommand.Execute(RepositoryNodeViewModel.CreateGroupHeader("C:\\"));
+        await vm.OpenInForkAsync(RepositoryNodeViewModel.CreateGroupHeader("C:\\"));
 
         Assert.That(dialogs.AlertCalls, Is.Empty);
     }
 
-    // ── ShowAlert / DisplayAlertSafe ──────────────────────────────────
+    // ── ShowAlert / ShowAlertSafe ─────────────────────────────────────
 
     [Test]
-    public void OpenInFork_InvalidPath_ShowsErrorAlert()
+    public async Task OpenInFork_InvalidPath_ShowsErrorAlert()
     {
         var dialogs = new StubUserDialogs();
         var vm = new MainViewModel(new StubUiDispatcher(), dialogs, new StubClipboardService());
 
-        vm.OpenInForkCommand.Execute(RepoNode("/definitely/not/a/real/path/xyz123"));
+        await vm.OpenInForkAsync(RepoNode("/definitely/not/a/real/path/xyz123"));
 
         Assert.That(dialogs.AlertCalls.Any(a => a.Message.Contains("Invalid repository path")),
             Is.True, "A non-existent directory must surface the invalid-path alert.");
     }
 
     [Test]
-    public void OpenInFork_ConfiguredForkPathWithEnvironmentVariable_IsExpandedBeforeUse()
+    public async Task OpenInFork_ConfiguredForkPathWithEnvironmentVariable_IsExpandedBeforeUse()
     {
         var temp = TestUtilities.RedirectLocalFilesToTemp();
         TestUtilities.ResetStaticCaches();
@@ -393,7 +393,7 @@ public class MainViewModelCommandAdditionalTests
         {
             var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             var expected = Path.Combine(profile, "NoSuchTool", "tool.exe");
-            var configuration = GitWizardConfiguration.GetGlobalConfiguration();
+            var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync();
             configuration.ForkPath = Path.Combine("~", "NoSuchTool", "tool.exe");
 
             var dialogs = new StubUserDialogs();
@@ -401,7 +401,7 @@ public class MainViewModelCommandAdditionalTests
             var workingDirectory = TestUtilities.CreateTempDir(out var cleanupWorkingDirectory);
             try
             {
-                vm.OpenInForkCommand.Execute(RepoNode(workingDirectory));
+                await vm.OpenInForkAsync(RepoNode(workingDirectory));
 
                 Assert.That(dialogs.AlertCalls.Any(a => a.Message.Contains(expected, StringComparison.Ordinal)),
                     Is.True, "A ~-prefixed configured fork path must be expanded to the real user profile path before the not-found check.");

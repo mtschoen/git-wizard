@@ -16,7 +16,6 @@ public sealed class IndexCacheViewModel : INotifyPropertyChanged
     public MftIndexCacheSnapshot? Snapshot { get; private set; }
     public string Text { get; private set; } = "Refresh to inspect the current policy's index cache.";
     public bool IsIdle => Volatile.Read(ref _operation) == 0;
-    public ICommand RefreshCommand { get; }
     public ReadOnlyObservableCollection<LiveVolumeStatusViewModel> LiveVolumes { get; }
     public ReadOnlyObservableCollection<VolumeWatchTransition> LiveWatchEvents { get; }
 
@@ -34,7 +33,6 @@ public sealed class IndexCacheViewModel : INotifyPropertyChanged
             new ObservableCollection<LiveVolumeStatusViewModel>());
         LiveWatchEvents = liveWatchEvents ?? new ReadOnlyObservableCollection<VolumeWatchTransition>(
             new ObservableCollection<VolumeWatchTransition>());
-        RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => IsIdle);
     }
 
     public Task RefreshAsync() => RunExclusiveAsync(async () =>

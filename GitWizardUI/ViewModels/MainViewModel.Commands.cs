@@ -5,7 +5,7 @@ namespace GitWizardUI.ViewModels;
 
 public partial class MainViewModel
 {
-    void OpenInExplorer(RepositoryNodeViewModel? node)
+    public void OpenInExplorer(RepositoryNodeViewModel? node)
     {
         if (node == null)
             return;
@@ -35,7 +35,7 @@ public partial class MainViewModel
         }
     }
 
-    async Task OpenInForkAsync(RepositoryNodeViewModel? node)
+    public async Task OpenInForkAsync(RepositoryNodeViewModel? node)
     {
         if (node == null || string.IsNullOrEmpty(node.WorkingDirectory))
             return;
@@ -92,15 +92,14 @@ public partial class MainViewModel
     /// <summary>
     /// Copies the node's working directory to the clipboard, then lights the row's transient "copied"
     /// indicator for <see cref="CopiedIndicatorMilliseconds"/> ms before clearing it (this replaced
-    /// the old modal "Copied" alert). Wired as the target of an <see cref="AsyncRelayCommand{T}"/>, so
-    /// a clipboard failure is logged by that wrapper rather than going unobserved; on failure the
-    /// indicator is never lit because the awaited write throws before it is set. Public so the
-    /// behavior is awaitable in tests. The indicator flag lives on the VM node, so it is set/reset on
-    /// the UI thread via <c>_ui.Post</c>.
+    /// the old modal "Copied" alert). A clipboard failure propagates to the caller (the code-behind
+    /// fires and forgets); on failure the indicator is never lit because the awaited write throws
+    /// before it is set. Public so the behavior is awaitable in tests. The indicator flag lives on
+    /// the VM node, so it is set/reset on the UI thread via <c>_ui.Post</c>.
     /// </summary>
-    public async Task CopyToClipboardAsync(RepositoryNodeViewModel node)
+    public async Task CopyToClipboardAsync(RepositoryNodeViewModel? node)
     {
-        if (string.IsNullOrEmpty(node.WorkingDirectory))
+        if (node == null || string.IsNullOrEmpty(node.WorkingDirectory))
             return;
 
         await _clipboard.SetPlainTextAsync(node.WorkingDirectory).ConfigureAwait(false);
@@ -110,7 +109,7 @@ public partial class MainViewModel
         _ui.Post(() => node.JustCopied = false);
     }
 
-    void DeepRefreshRepository(RepositoryNodeViewModel? node)
+    public void DeepRefreshRepository(RepositoryNodeViewModel? node)
     {
         if (node == null || node.IsGroupHeader)
             return;
@@ -125,7 +124,7 @@ public partial class MainViewModel
         });
     }
 
-    void CheckoutMatchingBranch(RepositoryNodeViewModel? node)
+    public void CheckoutMatchingBranch(RepositoryNodeViewModel? node)
     {
         if (node == null || node.IsGroupHeader)
             return;
@@ -150,7 +149,7 @@ public partial class MainViewModel
         });
     }
 
-    internal async Task CleanDownstreamBranchesAsync(RepositoryNodeViewModel? node)
+    public async Task CleanDownstreamBranchesAsync(RepositoryNodeViewModel? node)
     {
         if (node == null || node.IsGroupHeader)
             return;
@@ -164,7 +163,7 @@ public partial class MainViewModel
 
         await _ui.InvokeAsync(async () =>
         {
-            await _dialogs.DisplayAlertAsync(
+            await _dialogs.ShowAlertAsync(
                 "Delete Downstream Branches",
                 message + "\n\nClick OK to proceed with deletion.",
                 "Delete");
@@ -172,7 +171,7 @@ public partial class MainViewModel
             var workingDir = node.WorkingDirectory;
             if (string.IsNullOrEmpty(workingDir) || !Directory.Exists(workingDir))
             {
-                await _dialogs.DisplayAlertAsync("Error", "Invalid repository path");
+                await _dialogs.ShowAlertAsync("Error", "Invalid repository path");
                 return;
             }
 
@@ -255,7 +254,7 @@ public partial class MainViewModel
             var deletedCount = downstream.Count;
             node.Repository.Branches?.RemoveAll(b => b.IsMerged);
             node.UpdateDisplayText();
-            await _dialogs.DisplayAlertAsync("Done", $"Deleted {deletedCount} branch(es)");
+            await _dialogs.ShowAlertAsync("Done", $"Deleted {deletedCount} branch(es)");
         }
         else if (failed.Count > 0)
         {
@@ -263,7 +262,7 @@ public partial class MainViewModel
             node.Repository.Branches?.RemoveAll(b => b.IsMerged && !failed.Contains(b.Name));
             var failedList = string.Join(", ", failed);
             LogError($"Could not delete downstream branch(es): {failedList}", node.WorkingDirectory);
-            await _dialogs.DisplayAlertAsync(
+            await _dialogs.ShowAlertAsync(
                 "Partial Success",
                 $"Could not delete: {failedList}\n\nThese branches may not be fully merged or are protected.");
         }

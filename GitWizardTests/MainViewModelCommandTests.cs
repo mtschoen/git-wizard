@@ -5,7 +5,7 @@ using LibGit2Sharp;
 namespace GitWizardTests;
 
 /// <summary>
-/// Covers the repository-action command bodies in <c>MainViewModel.Commands</c> that don't launch
+/// Covers the repository-action methods in <c>MainViewModel.Commands</c> that don't launch
 /// external processes: the OpenInFork validation guards (which surface alerts) and
 /// CleanDownstreamBranchesAsync deleting merged branches via the git CLI on a real temp repo.
 /// </summary>
@@ -18,24 +18,24 @@ public class MainViewModelCommandTests
         => new(new GitWizardRepository(workingDirectory));
 
     [Test]
-    public void OpenInFork_InvalidRepositoryPath_ShowsError()
+    public async Task OpenInFork_InvalidRepositoryPath_ShowsError()
     {
         var dialogs = new StubUserDialogs();
         var viewModel = new MainViewModel(new StubUiDispatcher(), dialogs, new StubClipboardService());
 
-        viewModel.OpenInForkCommand.Execute(Node("/no/such/directory/xyz"));
+        await viewModel.OpenInForkAsync(Node("/no/such/directory/xyz"));
 
         Assert.That(dialogs.AlertCalls.Any(a => a.Message.Contains("Invalid repository path")), Is.True,
             "A working directory that doesn't exist must surface the invalid-path alert.");
     }
 
     [Test]
-    public void OpenInFork_NullNode_DoesNothing()
+    public async Task OpenInFork_NullNode_DoesNothing()
     {
         var dialogs = new StubUserDialogs();
         var viewModel = new MainViewModel(new StubUiDispatcher(), dialogs, new StubClipboardService());
 
-        viewModel.OpenInForkCommand.Execute(null);
+        await viewModel.OpenInForkAsync(null);
 
         Assert.That(dialogs.AlertCalls, Is.Empty);
     }

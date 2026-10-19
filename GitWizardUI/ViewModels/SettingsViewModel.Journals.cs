@@ -11,8 +11,6 @@ public partial class SettingsViewModel
     int _journalOperationInProgress;
 
     public ObservableCollection<JournalWarningViewModel> JournalWarnings { get; }
-    public ICommand EnlargeJournalCommand { get; }
-    public ICommand IgnoreJournalWarningCommand { get; }
 
     public async Task EnlargeJournalAsync(JournalWarningViewModel warning)
     {

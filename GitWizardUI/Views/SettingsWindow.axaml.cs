@@ -23,13 +23,13 @@ public partial class SettingsWindow : Window
     void EnlargeJournal_Click(object? sender, RoutedEventArgs eventArguments)
     {
         if (sender is Button { DataContext: JournalWarningViewModel warning })
-            _viewModel.EnlargeJournalCommand.Execute(warning);
+            _ = _viewModel.EnlargeJournalAsync(warning).RunAndLogFaults("Enlarging the change journal");
     }
 
     void IgnoreJournalWarning_Click(object? sender, RoutedEventArgs eventArguments)
     {
         if (sender is Button { DataContext: JournalWarningViewModel warning })
-            _viewModel.IgnoreJournalWarningCommand.Execute(warning);
+            _ = _viewModel.IgnoreJournalWarningAsync(warning).RunAndLogFaults("Ignoring the journal warning");
     }
 
     async void AddSearchPath_Click(object? sender, RoutedEventArgs e)
@@ -44,24 +44,21 @@ public partial class SettingsWindow : Window
     void RemoveIgnoredPath_Click(object? sender, RoutedEventArgs e)
         => _viewModel.RemoveSelectedIgnoredPath();
 
-    // The view models expose a custom ICommand (GitWizardUI.ViewModels.ICommand) that
-    // does not satisfy Avalonia's Button.Command (System.Windows.Input.ICommand), so
-    // invoke it from a Click handler like the rest of this app. The bound TextBox has
-    // already written NewSearch/IgnoredPath by the time the click fires.
+    // The bound TextBox has already written NewSearch/IgnoredPath by the time the click fires.
     void AddTypedSearchPath_Click(object? sender, RoutedEventArgs e)
-        => _viewModel.AddSearchPathCommand.Execute(null);
+        => _viewModel.AddSearchPath();
 
     void AddTypedIgnoredPath_Click(object? sender, RoutedEventArgs e)
-        => _viewModel.AddIgnoredPathCommand.Execute(null);
+        => _viewModel.AddIgnoredPath();
 
-    // Enter in the typed-path boxes adds the path, matching the retired MAUI Entry's ReturnCommand.
+    // Enter in the typed-path boxes adds the path, same as the row's Add button.
     // Two-way binding has already written NewSearch/IgnoredPath by the time KeyDown fires.
     void SearchPath_KeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter)
             return;
 
-        _viewModel.AddSearchPathCommand.Execute(null);
+        _viewModel.AddSearchPath();
         e.Handled = true;
     }
 
@@ -70,10 +67,10 @@ public partial class SettingsWindow : Window
         if (e.Key != Key.Enter)
             return;
 
-        _viewModel.AddIgnoredPathCommand.Execute(null);
+        _viewModel.AddIgnoredPath();
         e.Handled = true;
     }
 
     void ResetToDefaults_Click(object? sender, RoutedEventArgs e)
-        => _viewModel.ResetToDefaultsCommand.Execute(null);
+        => _viewModel.ResetToDefaults();
 }

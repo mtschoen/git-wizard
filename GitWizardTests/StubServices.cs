@@ -34,13 +34,13 @@ public sealed class StubUserDialogs : IUserDialogs
     public List<ConfirmCall> ConfirmCalls { get; } = new();
     public bool NextConfirmResult { get; set; }
 
-    public Task DisplayAlertAsync(string title, string message, string okLabel = "OK")
+    public Task ShowAlertAsync(string title, string message, string okLabel = "OK")
     {
         AlertCalls.Add(new AlertCall(title, message));
         return Task.CompletedTask;
     }
 
-    public Task<bool> DisplayConfirmAsync(string title, string message, string acceptLabel = "Yes", string cancelLabel = "No")
+    public Task<bool> ConfirmAsync(string title, string message, string acceptLabel = "Yes", string cancelLabel = "No")
     {
         ConfirmCalls.Add(new ConfirmCall(title, message));
         return Task.FromResult(NextConfirmResult);

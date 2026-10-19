@@ -140,14 +140,14 @@ public class SettingsViewModelTests
     }
 
     [Test]
-    public void AddSearchPathCommand_AddsNonEmptyPath()
+    public void AddSearchPath_AddsNonEmptyPath()
     {
         var picker = new StubFolderPicker();
         var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
 
         var initialCount = vm.SearchPaths.Count;
         vm.NewSearchPath = "/added/path";
-        vm.AddSearchPathCommand.Execute(null);
+        vm.AddSearchPath();
 
         Assert.That(vm.SearchPaths, Has.Count.EqualTo(initialCount + 1));
         Assert.That(vm.SearchPaths, Does.Contain("/added/path"));
@@ -155,53 +155,53 @@ public class SettingsViewModelTests
     }
 
     [Test]
-    public void AddSearchPathCommand_IgnoresEmptyPath()
+    public void AddSearchPath_IgnoresEmptyPath()
     {
         var picker = new StubFolderPicker();
         var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
 
         var initialCount = vm.SearchPaths.Count;
         vm.NewSearchPath = string.Empty;
-        vm.AddSearchPathCommand.Execute(null);
+        vm.AddSearchPath();
 
         Assert.That(vm.SearchPaths, Has.Count.EqualTo(initialCount));
     }
 
     [Test]
-    public void AddSearchPathCommand_IgnoresWhitespacePath()
+    public void AddSearchPath_IgnoresWhitespacePath()
     {
         var picker = new StubFolderPicker();
         var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
 
         var initialCount = vm.SearchPaths.Count;
         vm.NewSearchPath = "   ";
-        vm.AddSearchPathCommand.Execute(null);
+        vm.AddSearchPath();
 
         Assert.That(vm.SearchPaths, Has.Count.EqualTo(initialCount));
     }
 
     [Test]
-    public void AddSearchPathCommand_IgnoresDuplicatePath()
+    public void AddSearchPath_IgnoresDuplicatePath()
     {
         var picker = new StubFolderPicker();
         var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
 
         var initialCount = vm.SearchPaths.Count;
         vm.NewSearchPath = vm.SearchPaths[0];
-        vm.AddSearchPathCommand.Execute(null);
+        vm.AddSearchPath();
 
         Assert.That(vm.SearchPaths, Has.Count.EqualTo(initialCount));
     }
 
     [Test]
-    public void AddIgnoredPathCommand_AddsNonEmptyPath()
+    public void AddIgnoredPath_AddsNonEmptyPath()
     {
         var picker = new StubFolderPicker();
         var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
 
         var initialCount = vm.IgnoredPaths.Count;
         vm.NewIgnoredPath = "/ignored/added";
-        vm.AddIgnoredPathCommand.Execute(null);
+        vm.AddIgnoredPath();
 
         Assert.That(vm.IgnoredPaths, Has.Count.EqualTo(initialCount + 1));
         Assert.That(vm.IgnoredPaths, Does.Contain("/ignored/added"));
@@ -209,14 +209,14 @@ public class SettingsViewModelTests
     }
 
     [Test]
-    public void AddIgnoredPathCommand_IgnoresEmptyPath()
+    public void AddIgnoredPath_IgnoresEmptyPath()
     {
         var picker = new StubFolderPicker();
         var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
 
         var initialCount = vm.IgnoredPaths.Count;
         vm.NewIgnoredPath = string.Empty;
-        vm.AddIgnoredPathCommand.Execute(null);
+        vm.AddIgnoredPath();
 
         Assert.That(vm.IgnoredPaths, Has.Count.EqualTo(initialCount));
     }
@@ -412,26 +412,6 @@ public class SettingsViewModelTests
     }
 
     [Test]
-    public void AddSearchPathCommand_CommandType()
-    {
-        var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
-
-        Assert.That(vm.AddSearchPathCommand, Is.Not.Null);
-        Assert.That(vm.AddSearchPathCommand, Is.InstanceOf<ICommand>());
-    }
-
-    [Test]
-    public void ResetToDefaultsCommand_CommandType()
-    {
-        var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
-
-        Assert.That(vm.ResetToDefaultsCommand, Is.Not.Null);
-        Assert.That(vm.ResetToDefaultsCommand, Is.InstanceOf<ICommand>());
-    }
-
-    [Test]
     public void ResetToDefaults_RestoresDefaultSearchAndIgnoredPaths()
     {
         var picker = new StubFolderPicker();
@@ -485,17 +465,6 @@ public class SettingsViewModelTests
         Assert.That(reloaded.SearchPaths, Is.EquivalentTo(defaults.SearchPaths));
         Assert.That(reloaded.IgnoredPaths, Is.EquivalentTo(defaults.IgnoredPaths));
         Assert.That(reloaded.ForkPath, Is.Null.Or.Empty);
-    }
-
-    [Test]
-    public void ResetToDefaultsCommand_ExecutesReset()
-    {
-        var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher()) { ForkPath = "/custom/fork" };
-
-        vm.ResetToDefaultsCommand.Execute(null);
-
-        Assert.That(vm.ForkPath, Is.Empty);
     }
 
     [Test]

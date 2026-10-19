@@ -10,7 +10,7 @@ namespace GitWizardUI.ViewModels;
 // startup outcomes instead of starting the pump.
 public partial class MainViewModel
 {
-    internal async Task ToggleLiveAsync()
+    public async Task ToggleLiveAsync()
     {
         if (IsLive || IsLiveStarting)
         {

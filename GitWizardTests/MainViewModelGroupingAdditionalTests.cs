@@ -35,7 +35,7 @@ public class MainViewModelGroupingAdditionalTests
         viewModel.AddRepository(Repo("C:\\repos\\beta"));
         viewModel.AddRepository(Repo("D:\\projects\\gamma"));
 
-        viewModel.ApplyGroup("GroupByDrive");
+        viewModel.ToggleGroupMode(GroupMode.Drive);
 
         var headers = viewModel.Repositories.Where(n => n.IsGroupHeader).ToList();
         var expectedCount = OperatingSystem.IsWindows() ? 2 : 1;
@@ -58,7 +58,7 @@ public class MainViewModelGroupingAdditionalTests
         var viewModel = NewViewModel();
         viewModel.AddRepository(Repo("C:\\repos\\one"));
 
-        viewModel.ApplyGroup("GroupByDrive");
+        viewModel.ToggleGroupMode(GroupMode.Drive);
 
         // Drive grouping has minGroupSize=1, so a single repo forms a group
         var headers = viewModel.Repositories.Where(n => n.IsGroupHeader).ToList();
@@ -75,7 +75,7 @@ public class MainViewModelGroupingAdditionalTests
         viewModel.AddRepository(Repo("C:\\r2"));
         viewModel.AddRepository(Repo("C:\\r3"));
 
-        viewModel.ApplyGroup("GroupByDrive");
+        viewModel.ToggleGroupMode(GroupMode.Drive);
 
         var headers = viewModel.Repositories.Where(n => n.IsGroupHeader).ToList();
         var expectedMinCount = OperatingSystem.IsWindows() ? 2 : 1;
@@ -96,7 +96,7 @@ public class MainViewModelGroupingAdditionalTests
         // AddRepository skips empty working dirs, so we add a non-empty one + verify the helper
         viewModel.AddRepository(Repo("C:\\repos\\normal"));
 
-        viewModel.ApplyGroup("GroupByDrive");
+        viewModel.ToggleGroupMode(GroupMode.Drive);
 
         // The empty path repo won't be added. Just verify no crash.
         Assert.That(viewModel.Repositories.Count, Is.GreaterThanOrEqualTo(1));
@@ -113,7 +113,7 @@ public class MainViewModelGroupingAdditionalTests
         viewModel.AddRepository(Repo("/a", "https://github.com/user/repo"));
         viewModel.AddRepository(Repo("/b", "https://github.com/user/repo.git"));
 
-        viewModel.ApplyGroup("GroupByRemoteUrl");
+        viewModel.ToggleGroupMode(GroupMode.RemoteUrl);
 
         var headers = viewModel.Repositories.Where(n => n.IsGroupHeader).ToList();
         Assert.That(headers, Has.Count.EqualTo(1),
@@ -127,7 +127,7 @@ public class MainViewModelGroupingAdditionalTests
         viewModel.AddRepository(Repo("/a", "http://github.com/user/repo"));
         viewModel.AddRepository(Repo("/b", "http://github.com/user/repo"));
 
-        viewModel.ApplyGroup("GroupByRemoteUrl");
+        viewModel.ToggleGroupMode(GroupMode.RemoteUrl);
 
         var headers = viewModel.Repositories.Where(n => n.IsGroupHeader).ToList();
         Assert.That(headers, Has.Count.EqualTo(1));
@@ -140,7 +140,7 @@ public class MainViewModelGroupingAdditionalTests
         viewModel.AddRepository(Repo("/a", "https://GitHub.COM/User/Repo.git"));
         viewModel.AddRepository(Repo("/b", "https://github.com/user/repo"));
 
-        viewModel.ApplyGroup("GroupByRemoteUrl");
+        viewModel.ToggleGroupMode(GroupMode.RemoteUrl);
 
         var headers = viewModel.Repositories.Where(n => n.IsGroupHeader).ToList();
         Assert.That(headers, Has.Count.EqualTo(1));
@@ -153,7 +153,7 @@ public class MainViewModelGroupingAdditionalTests
         viewModel.AddRepository(Repo("/a")); // no remote
         viewModel.AddRepository(Repo("/b")); // no remote
 
-        viewModel.ApplyGroup("GroupByRemoteUrl");
+        viewModel.ToggleGroupMode(GroupMode.RemoteUrl);
 
         // Two repos with no remote both map to "(no remote)", so they form a group of 2
         var headers = viewModel.Repositories.Where(n => n.IsGroupHeader).ToList();
@@ -172,7 +172,7 @@ public class MainViewModelGroupingAdditionalTests
         viewModel.AddRepository(Repo("/a/clone1", "https://github.com/u/x"));
         viewModel.AddRepository(Repo("/b/clone2", "https://github.com/u/x"));
 
-        viewModel.ApplyGroup("GroupByRemoteUrl");
+        viewModel.ToggleGroupMode(GroupMode.RemoteUrl);
 
         var header = viewModel.Repositories.Single(n => n.IsGroupHeader);
         Assert.Multiple(() =>
@@ -202,7 +202,7 @@ public class MainViewModelGroupingAdditionalTests
         viewModel.AddRepository(Repo("C:\\r1"));
         viewModel.AddRepository(Repo("D:\\r2"));
 
-        viewModel.ApplyGroup("GroupByDrive");
+        viewModel.ToggleGroupMode(GroupMode.Drive);
 
         Assert.That(viewModel.HeaderText, Does.Contain("groups"));
     }
@@ -237,7 +237,7 @@ public class MainViewModelGroupingAdditionalTests
         viewModel.AddRepository(small);
         viewModel.AddRepository(large);
 
-        viewModel.ApplySort("SortBySizeOnDisk");
+        viewModel.SetSortMode(SortMode.SizeOnDisk);
 
         var dirs = viewModel.Repositories.Select(n => n.WorkingDirectory).ToList();
         Assert.That(dirs[0], Is.EqualTo("/large"));
@@ -255,7 +255,7 @@ public class MainViewModelGroupingAdditionalTests
         viewModel.AddRepository(old);
         viewModel.AddRepository(recent);
 
-        viewModel.ApplySort("SortByRecentlyUsed");
+        viewModel.SetSortMode(SortMode.RecentlyUsed);
 
         var dirs = viewModel.Repositories.Select(n => n.WorkingDirectory).ToList();
         Assert.That(dirs[0], Is.EqualTo("/recent"));
@@ -268,22 +268,10 @@ public class MainViewModelGroupingAdditionalTests
         viewModel.AddRepository(Repo("/z"));
         viewModel.AddRepository(Repo("/a"));
 
-        viewModel.ApplySort("SortByWorkingDirectory");
+        viewModel.SetSortMode(SortMode.WorkingDirectory);
 
         var dirs = viewModel.Repositories.Select(n => n.WorkingDirectory).ToList();
         Assert.That(dirs, Is.EqualTo(new[] { "/a", "/z" }));
-    }
-
-    [Test]
-    public void SortByRemoteUrl_UnknownButtonName_DefaultsToWorkingDirectory()
-    {
-        var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("/b"));
-        viewModel.AddRepository(Repo("/a"));
-
-        viewModel.ApplySort("UnknownSort");
-
-        Assert.That(viewModel.ActiveSortMode, Is.EqualTo(SortMode.WorkingDirectory));
     }
 
     #endregion
@@ -324,11 +312,11 @@ public class MainViewModelGroupingAdditionalTests
         viewModel.AddRepository(Repo("C:\\a", "https://github.com/u/x"));
         viewModel.AddRepository(Repo("D:\\b", "https://github.com/u/x"));
 
-        viewModel.ApplyGroup("GroupByDrive");
+        viewModel.ToggleGroupMode(GroupMode.Drive);
         var driveHeaders = viewModel.Repositories.Where(n => n.IsGroupHeader).ToList();
 
-        viewModel.ApplyGroup("GroupByDrive"); // toggle off
-        viewModel.ApplyGroup("GroupByRemoteUrl");
+        viewModel.ToggleGroupMode(GroupMode.Drive); // toggle off
+        viewModel.ToggleGroupMode(GroupMode.RemoteUrl);
         var remoteHeaders = viewModel.Repositories.Where(n => n.IsGroupHeader).ToList();
 
         var expectedDriveCount = OperatingSystem.IsWindows() ? 2 : 1;
@@ -389,7 +377,7 @@ public class MainViewModelGroupingAdditionalTests
         viewModel.AddRepository(Repo("C:\\alpha\\r3"));
 
         viewModel.SetSearchText("alpha");
-        viewModel.ApplyGroup("GroupByDrive");
+        viewModel.ToggleGroupMode(GroupMode.Drive);
 
         // Search should be applied before grouping
         var headers = viewModel.Repositories.Where(n => n.IsGroupHeader).ToList();
@@ -415,30 +403,8 @@ public class MainViewModelGroupingAdditionalTests
     {
         var viewModel = NewViewModel();
 
-        Assert.DoesNotThrow(() => viewModel.ApplyGroup("GroupByDrive"));
+        Assert.DoesNotThrow(() => viewModel.ToggleGroupMode(GroupMode.Drive));
         Assert.That(viewModel.Repositories, Is.Empty);
-    }
-
-    [Test]
-    public void ApplyFilter_UnknownButtonName_SetsFilterToNone()
-    {
-        var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("/a"));
-
-        viewModel.ApplyFilter("UnknownFilter");
-
-        Assert.That(viewModel.ActiveFilter, Is.EqualTo(FilterType.None));
-    }
-
-    [Test]
-    public void ApplyGroup_UnknownButtonName_SetsGroupToNone()
-    {
-        var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("/a"));
-
-        viewModel.ApplyGroup("UnknownGroup");
-
-        Assert.That(viewModel.ActiveGroupMode, Is.EqualTo(GroupMode.None));
     }
 
     [Test]
@@ -456,24 +422,18 @@ public class MainViewModelGroupingAdditionalTests
     }
 
     [Test]
-    public void ApplyFilter_AllFilterTypes_DoNotThrow()
+    public void ToggleFilter_AllFilterTypes_DoNotThrow()
     {
         var viewModel = NewViewModel();
         viewModel.AddRepository(Repo("/a"));
 
-        foreach (var filterName in new[]
-        {
-            "FilterPendingChanges", "FilterSubmoduleCheckout", "FilterSubmoduleUninitialized",
-            "FilterSubmoduleConfigIssue", "FilterDetachedHead", "FilterMyRepositories",
-            "FilterLocalOnlyCommits", "FilterStale", "FilterDownstreamBranches",
-            "FilterBehindRemote", "FilterPublishReady"
-        })
+        foreach (var filter in Enum.GetValues<FilterType>())
         {
             Assert.DoesNotThrow(() =>
             {
-                viewModel.ApplyFilter(filterName);
-                viewModel.ApplyFilter(filterName); // toggle off
-            }, $"Filter '{filterName}' threw an exception.");
+                viewModel.ToggleFilter(filter);
+                viewModel.ToggleFilter(filter); // toggle off
+            }, $"Filter '{filter}' threw an exception.");
         }
     }
 

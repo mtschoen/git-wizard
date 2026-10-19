@@ -9,10 +9,10 @@ namespace GitWizardUI.Services;
 
 public sealed class AvaloniaUserDialogs : IUserDialogs
 {
-    public Task DisplayAlertAsync(string title, string message, string okLabel = "OK")
+    public Task ShowAlertAsync(string title, string message, string okLabel = "OK")
         => ShowDialogAsync(title, message, okLabel, cancelLabel: null).ContinueWith(_ => { });
 
-    public Task<bool> DisplayConfirmAsync(string title, string message, string acceptLabel = "Yes", string cancelLabel = "No")
+    public Task<bool> ConfirmAsync(string title, string message, string acceptLabel = "Yes", string cancelLabel = "No")
         => ShowDialogAsync(title, message, acceptLabel, cancelLabel);
 
     static async Task<bool> ShowDialogAsync(string title, string message, string acceptLabel, string? cancelLabel)

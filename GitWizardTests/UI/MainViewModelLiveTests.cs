@@ -351,17 +351,17 @@ public class MainViewModelLiveTests
 
     #endregion
 
-    #region IsLive / CanToggleLive / ToggleLiveCommand wiring
+    #region IsLive / CanToggleLive wiring
 
     [Test]
-    public void IsLive_DefaultsFalse_AndCommandIsExecutable()
+    public void IsLive_DefaultsFalse_AndToggleLiveIsAllowed()
     {
         var viewModel = NewViewModel();
 
         Assert.Multiple(() =>
         {
             Assert.That(viewModel.IsLive, Is.False);
-            Assert.That(viewModel.ToggleLiveCommand.CanExecute(null), Is.True);
+            Assert.That(viewModel.CanToggleLive, Is.True);
         });
     }
 
@@ -404,7 +404,6 @@ public class MainViewModelLiveTests
         Assert.Multiple(() =>
         {
             Assert.That(viewModel.CanToggleLive, Is.False);
-            Assert.That(viewModel.ToggleLiveCommand.CanExecute(null), Is.False);
             Assert.That(viewModel.LiveTooltip, Does.Contain("kernel 5.9"));
         });
 
@@ -426,7 +425,6 @@ public class MainViewModelLiveTests
         Assert.Multiple(() =>
         {
             Assert.That(viewModel.CanToggleLive, Is.False);
-            Assert.That(viewModel.ToggleLiveCommand.CanExecute(null), Is.False);
             Assert.That(viewModel.LiveTooltip, Does.Contain("unsupported on this filesystem"));
         });
 
@@ -448,7 +446,6 @@ public class MainViewModelLiveTests
         Assert.Multiple(() =>
         {
             Assert.That(viewModel.CanToggleLive, Is.True);
-            Assert.That(viewModel.ToggleLiveCommand.CanExecute(null), Is.True);
             Assert.That(viewModel.LiveTooltip, Is.EqualTo("Start or stop live repository monitoring (requires elevation when starting)"));
         });
     }
@@ -462,7 +459,6 @@ public class MainViewModelLiveTests
         Assert.Multiple(() =>
         {
             Assert.That(viewModel.CanToggleLive, Is.True);
-            Assert.That(viewModel.ToggleLiveCommand.CanExecute(null), Is.True);
             Assert.That(viewModel.LiveTooltip, Is.EqualTo("Start or stop live repository monitoring (requires elevation when starting)"));
         });
     }

@@ -86,7 +86,7 @@ public class MainViewModelWorkingDirectorySortTests
         foreach (var path in MixedOrderPaths)
             viewModel.AddRepository(Repo(path));
 
-        viewModel.ApplyGroup("GroupByDrive");
+        viewModel.ToggleGroupMode(GroupMode.Drive);
 
         foreach (var header in viewModel.Repositories.Where(n => n.IsGroupHeader))
         {
@@ -132,7 +132,7 @@ public class MainViewModelWorkingDirectorySortTests
         viewModel.AddRepository(Repo(@"c:\repos\beta"));
         viewModel.AddRepository(Repo(@"C:\repos\gamma"));
 
-        viewModel.ApplyGroup("GroupByDrive");
+        viewModel.ToggleGroupMode(GroupMode.Drive);
 
         var headers = viewModel.Repositories.Where(n => n.IsGroupHeader).ToList();
         Assert.That(headers, Has.Count.EqualTo(1));
@@ -147,7 +147,7 @@ public class MainViewModelWorkingDirectorySortTests
 
         var viewModel = NewViewModel();
         viewModel.AddRepository(Repo(@"c:\repos\alpha"));
-        viewModel.ApplyGroup("GroupByDrive");
+        viewModel.ToggleGroupMode(GroupMode.Drive);
 
         // A later Live-created repository on the same drive, but with the OS-native uppercase
         // drive letter, must join the existing group rather than creating a second one.
@@ -459,7 +459,7 @@ public class MainViewModelWorkingDirectorySortTests
         viewModel.AddRepository(Repo(@"D:\r1"));
         viewModel.AddRepository(Repo(@"E:\r1"));
 
-        viewModel.ApplyGroup("GroupByDrive");
+        viewModel.ToggleGroupMode(GroupMode.Drive);
         var expectedGroupCount = viewModel.Repositories.Count(n => n.IsGroupHeader);
 
         // Expanding a group used to inflate Repositories.Count with the header's own children

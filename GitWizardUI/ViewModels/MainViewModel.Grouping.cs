@@ -5,6 +5,8 @@ namespace GitWizardUI.ViewModels;
 
 public partial class MainViewModel
 {
+    // Sidebar semantics: clicking the active Filter/Group button clears it; Sort always keeps one
+    // mode active. The notifying Active* properties drive the sidebar's `.active` highlight class.
     public void ToggleFilter(FilterType filter)
     {
         ActiveFilter = ActiveFilter == filter ? FilterType.None : filter;
@@ -58,9 +60,8 @@ public partial class MainViewModel
 
     // Debounce search-driven filtering. The SearchText setter (bound two-way to the search box)
     // fires per keystroke, and ApplyFilterAndGrouping does a full off-screen rebuild + collection
-    // swap - costly with 700+ repos. Coalesce rapid keystrokes into a single filter pass, mirroring
-    // the 200ms debounce the retired MAUI UI did in its SearchBox_TextChanged code-behind. The
-    // immediate SetSearchText path is left untouched for programmatic/test callers.
+    // swap - costly with 700+ repos. Coalesce rapid keystrokes into one filter pass after a 200ms
+    // quiet period. The immediate SetSearchText path is left untouched for programmatic/test callers.
     void DebounceSearch()
     {
         var token = _searchDebouncer.Restart();
@@ -84,47 +85,11 @@ public partial class MainViewModel
         ApplyFilterAndGrouping();
     }
 
-    // The Avalonia sidebar dispatches by button name; route each through the same
-    // Toggle*/SetSortMode entry points the MAUI UI used so behavior matches exactly - clicking the
-    // active Filter/Group button clears it, Sort always keeps one active - and so the notifying
-    // Active* properties update (the sidebar binds its `.active` highlight class to them).
-    public void ApplyFilter(string buttonName) => ToggleFilter(buttonName switch
-    {
-        "FilterPendingChanges" => FilterType.PendingChanges,
-        "FilterSubmoduleCheckout" => FilterType.SubmoduleCheckout,
-        "FilterSubmoduleUninitialized" => FilterType.SubmoduleUninitialized,
-        "FilterSubmoduleConfigIssue" => FilterType.SubmoduleConfigIssue,
-        "FilterDetachedHead" => FilterType.DetachedHead,
-        "FilterMyRepositories" => FilterType.MyRepositories,
-        "FilterLocalOnlyCommits" => FilterType.LocalOnlyCommits,
-        "FilterStale" => FilterType.Stale,
-        "FilterDownstreamBranches" => FilterType.DownstreamBranches,
-        "FilterBehindRemote" => FilterType.BehindRemote,
-        "FilterPublishReady" => FilterType.PublishReady,
-        _ => FilterType.None,
-    });
-
-    public void ApplyGroup(string buttonName) => ToggleGroupMode(buttonName switch
-    {
-        "GroupByDrive" => GroupMode.Drive,
-        "GroupByRemoteUrl" => GroupMode.RemoteUrl,
-        _ => GroupMode.None,
-    });
-
-    public void ApplySort(string buttonName) => SetSortMode(buttonName switch
-    {
-        "SortByWorkingDirectory" => SortMode.WorkingDirectory,
-        "SortByRecentlyUsed" => SortMode.RecentlyUsed,
-        "SortByRemoteUrl" => SortMode.RemoteUrl,
-        "SortBySizeOnDisk" => SortMode.SizeOnDisk,
-        _ => SortMode.WorkingDirectory,
-    });
-
     public async Task ClearCacheAsync()
     {
         await SetPreparedDiscoveryIndexAsync(null).ConfigureAwait(false);
         GitWizardApi.ClearCache();
-        await _dialogs.DisplayAlertAsync("Cache Cleared", "Repository cache has been cleared");
+        await _dialogs.ShowAlertAsync("Cache Cleared", "Repository cache has been cleared");
     }
 
     public async Task DeleteAllLocalFilesAsync()
@@ -132,10 +97,10 @@ public partial class MainViewModel
         await SetPreparedDiscoveryIndexAsync(null).ConfigureAwait(false);
         if (!GitWizardApi.TryDeleteAllLocalFiles(out var refusal))
         {
-            await _dialogs.DisplayAlertAsync("Files Not Deleted", refusal);
+            await _dialogs.ShowAlertAsync("Files Not Deleted", refusal);
             return;
         }
-        await _dialogs.DisplayAlertAsync("Files Deleted", "All local files have been deleted");
+        await _dialogs.ShowAlertAsync("Files Deleted", "All local files have been deleted");
     }
 
     // suppressAnchorCapture: true only for CompleteRefresh's own final sorted-rebuild call. The

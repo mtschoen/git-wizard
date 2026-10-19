@@ -25,5 +25,5 @@ public partial class IndexCacheStatusWindow : Window
     }
 
     void RefreshStatus_Click(object? sender, RoutedEventArgs arguments) =>
-        _viewModel.RefreshCommand.Execute(null);
+        _ = _viewModel.RefreshAsync().RunAndLogFaults("Inspecting the index cache");
 }

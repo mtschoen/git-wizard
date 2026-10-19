@@ -122,28 +122,28 @@ public class SmallFilesCoverageTests
     // ───────────────────────────────────────────────────────────────────
 
     [Test]
-    public async Task AvaloniaUserDialogs_DisplayAlertAsync_NoApp_CompletesWithoutThrowing()
+    public async Task AvaloniaUserDialogs_ShowAlertAsync_NoApp_CompletesWithoutThrowing()
     {
         var dialogs = new AvaloniaUserDialogs();
         // When Application.Current is null, ShowDialogAsync returns false immediately;
-        // DisplayAlertAsync wraps it so the task just completes.
-        await dialogs.DisplayAlertAsync("Title", "Message");
+        // ShowAlertAsync wraps it so the task just completes.
+        await dialogs.ShowAlertAsync("Title", "Message");
         Assert.Pass();
     }
 
     [Test]
-    public async Task AvaloniaUserDialogs_DisplayConfirmAsync_NoApp_ReturnsFalse()
+    public async Task AvaloniaUserDialogs_ConfirmAsync_NoApp_ReturnsFalse()
     {
         var dialogs = new AvaloniaUserDialogs();
-        var result = await dialogs.DisplayConfirmAsync("Title", "Message");
+        var result = await dialogs.ConfirmAsync("Title", "Message");
         Assert.That(result, Is.False);
     }
 
     [Test]
-    public async Task AvaloniaUserDialogs_DisplayConfirmAsync_CustomLabels_NoApp_ReturnsFalse()
+    public async Task AvaloniaUserDialogs_ConfirmAsync_CustomLabels_NoApp_ReturnsFalse()
     {
         var dialogs = new AvaloniaUserDialogs();
-        var result = await dialogs.DisplayConfirmAsync("Title", "Message", "Accept", "Cancel");
+        var result = await dialogs.ConfirmAsync("Title", "Message", "Accept", "Cancel");
         Assert.That(result, Is.False);
     }
 

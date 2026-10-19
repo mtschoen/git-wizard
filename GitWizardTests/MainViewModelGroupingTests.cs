@@ -33,7 +33,7 @@ public class MainViewModelGroupingTests
         viewModel.AddRepository(Repo("/b/clone2", "https://github.com/user/widget"));
         viewModel.AddRepository(Repo("/c/solo", "https://github.com/user/other"));
 
-        viewModel.ApplyGroup("GroupByRemoteUrl");
+        viewModel.ToggleGroupMode(GroupMode.RemoteUrl);
 
         // Only the duplicated remote (2 copies, given in SSH + HTTPS form that normalize equal) forms
         // a visible group; the singleton is dropped.
@@ -53,7 +53,7 @@ public class MainViewModelGroupingTests
         viewModel.AddRepository(Repo("/a/r1", "https://github.com/u/one"));
         viewModel.AddRepository(Repo("/b/r2", "https://github.com/u/two"));
 
-        viewModel.ApplyGroup("GroupByRemoteUrl");
+        viewModel.ToggleGroupMode(GroupMode.RemoteUrl);
 
         Assert.That(viewModel.Repositories.Where(n => n.IsGroupHeader), Is.Empty,
             "Remote-URL grouping only surfaces groups with 2+ copies (the duplicates worth cleaning up).");
@@ -67,7 +67,7 @@ public class MainViewModelGroupingTests
         viewModel.AddRepository(Repo("/a", "https://github.com/u/apple"));
         viewModel.AddRepository(Repo("/n")); // no remote -> sorts to the end
 
-        viewModel.ApplySort("SortByRemoteUrl");
+        viewModel.SetSortMode(SortMode.RemoteUrl);
 
         var directories = viewModel.Repositories.Select(n => n.WorkingDirectory).ToList();
         Assert.That(directories, Is.EqualTo(new[] { "/a", "/z", "/n" }));
@@ -92,7 +92,7 @@ public class MainViewModelGroupingTests
         var viewModel = NewViewModel();
         viewModel.AddRepository(Repo("/a/clone1", "https://github.com/u/x"));
         viewModel.AddRepository(Repo("/b/clone2", "https://github.com/u/x"));
-        viewModel.ApplyGroup("GroupByRemoteUrl");
+        viewModel.ToggleGroupMode(GroupMode.RemoteUrl);
 
         var header = viewModel.Repositories.Single(n => n.IsGroupHeader);
         var collapsedCount = viewModel.Repositories.Count;
@@ -122,7 +122,7 @@ public class MainViewModelGroupingTests
         var first = Repo("/a/clone1", "https://github.com/u/x");
         viewModel.AddRepository(first);
         viewModel.AddRepository(Repo("/b/clone2", "https://github.com/u/x"));
-        viewModel.ApplyGroup("GroupByRemoteUrl");
+        viewModel.ToggleGroupMode(GroupMode.RemoteUrl);
         var header = viewModel.Repositories.Single(n => n.IsGroupHeader);
 
         // The completed repo lives under a group header; the update must find and refresh that
@@ -137,11 +137,11 @@ public class MainViewModelGroupingTests
         var viewModel = NewViewModel();
         viewModel.AddRepository(Repo("/a/clone1", "https://github.com/u/x"));
         viewModel.AddRepository(Repo("/b/clone2", "https://github.com/u/x"));
-        viewModel.ApplyGroup("GroupByRemoteUrl");
+        viewModel.ToggleGroupMode(GroupMode.RemoteUrl);
         var header = viewModel.Repositories.Single(n => n.IsGroupHeader);
 
         // For a group header, OpenInExplorer routes to expand/collapse rather than launching a folder.
-        viewModel.OpenInExplorerCommand.Execute(header);
+        viewModel.OpenInExplorer(header);
 
         Assert.That(header.IsExpanded, Is.True);
     }

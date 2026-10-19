@@ -46,11 +46,11 @@ public class StubServiceTests
     }
 
     [Test]
-    public async Task DisplayAlertAsync_RecordsCall()
+    public async Task ShowAlertAsync_RecordsCall()
     {
         var dialogs = new StubUserDialogs();
 
-        await dialogs.DisplayAlertAsync("Title", "Body");
+        await dialogs.ShowAlertAsync("Title", "Body");
 
         Assert.That(dialogs.AlertCalls, Has.Count.EqualTo(1));
         Assert.That(dialogs.AlertCalls[0].Title, Is.EqualTo("Title"));
@@ -58,11 +58,11 @@ public class StubServiceTests
     }
 
     [Test]
-    public async Task DisplayConfirmAsync_ReturnsScriptedAnswer()
+    public async Task ConfirmAsync_ReturnsScriptedAnswer()
     {
         var dialogs = new StubUserDialogs { NextConfirmResult = true };
 
-        var result = await dialogs.DisplayConfirmAsync("Are you sure?", "Really?");
+        var result = await dialogs.ConfirmAsync("Are you sure?", "Really?");
 
         Assert.That(result, Is.True);
         Assert.That(dialogs.ConfirmCalls, Has.Count.EqualTo(1));

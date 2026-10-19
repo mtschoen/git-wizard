@@ -58,7 +58,7 @@ public partial class MainWindow : Window, IAsyncDisposable
     }
 
     void Window_Loaded(object? sender, RoutedEventArgs e)
-        => _viewModel.RefreshCommand.Execute(null);
+        => _ = _viewModel.RefreshFromButtonAsync().RunAndLogFaults("Refreshing repositories");
 
     public Task ShowSettingsDialogAsync()
         => new SettingsWindow(DataContext as MainViewModel).ShowDialog(this);
@@ -76,41 +76,52 @@ public partial class MainWindow : Window, IAsyncDisposable
             : "Failed to add Windows Defender exclusions. You may need to run as administrator.";
         GitWizardLog.Log(message, success ? GitWizardLog.LogType.Info : GitWizardLog.LogType.Error);
         _viewModel.LogError(message);
-        await new AvaloniaUserDialogs().DisplayAlertAsync(
+        await new AvaloniaUserDialogs().ShowAlertAsync(
             success ? "Defender Exclusions Added" : "Defender Setup Failed", message);
     }
 
     void ClearCacheMenuItem_Click(object? sender, RoutedEventArgs e)
-        => _ = _viewModel.ClearCacheAsync();
+        => _ = _viewModel.ClearCacheAsync().RunAndLogFaults("Clearing the repository cache");
 
     void DeleteAllLocalFilesMenuItem_Click(object? sender, RoutedEventArgs e)
-        => _ = _viewModel.DeleteAllLocalFilesAsync();
+        => _ = _viewModel.DeleteAllLocalFilesAsync().RunAndLogFaults("Deleting all local files");
 
     void IndexCacheStatus_Click(object? sender, RoutedEventArgs arguments)
     {
         var model = _viewModel.IndexCache;
         var window = new IndexCacheStatusWindow(model);
         window.Show(this);
-        model.RefreshCommand.Execute(null);
+        _ = model.RefreshAsync().RunAndLogFaults("Inspecting the index cache");
     }
 
     void InspectIndexCache_Click(object? sender, RoutedEventArgs e)
-        => _ = _viewModel.IndexCache.RefreshAsync();
+        => _ = _viewModel.IndexCache.RefreshAsync().RunAndLogFaults("Inspecting the index cache");
 
     void ClearIndexCache_Click(object? sender, RoutedEventArgs e)
-        => _ = _viewModel.IndexCache.ClearAsync();
+        => _ = _viewModel.IndexCache.ClearAsync().RunAndLogFaults("Clearing the index cache");
 
     void ErrorsMenuItem_Click(object? sender, RoutedEventArgs e)
         => new ErrorLogWindow(_viewModel.ErrorLog).ShowDialog(this);
 
+    // Each sidebar button carries its enum value in Tag (set in XAML via {x:Static}), so a click
+    // routes straight to the matching view model action with no per-button dispatch.
     void FilterButton_Click(object? sender, RoutedEventArgs e)
-        => _viewModel.ApplyFilter((sender as Button)?.Name ?? string.Empty);
+    {
+        if ((sender as Button)?.Tag is FilterType filter)
+            _viewModel.ToggleFilter(filter);
+    }
 
     void GroupButton_Click(object? sender, RoutedEventArgs e)
-        => _viewModel.ApplyGroup((sender as Button)?.Name ?? string.Empty);
+    {
+        if ((sender as Button)?.Tag is GroupMode mode)
+            _viewModel.ToggleGroupMode(mode);
+    }
 
     void SortButton_Click(object? sender, RoutedEventArgs e)
-        => _viewModel.ApplySort((sender as Button)?.Name ?? string.Empty);
+    {
+        if ((sender as Button)?.Tag is SortMode mode)
+            _viewModel.SetSortMode(mode);
+    }
 
     bool _refreshShiftHeld;
 
@@ -128,9 +139,9 @@ public partial class MainWindow : Window, IAsyncDisposable
         CaptureScrollAnchor();
 
         if (hardRefresh)
-            _ = _viewModel.HardRefreshAsync();
+            _ = _viewModel.HardRefreshAsync().RunAndLogFaults("Hard-refreshing repositories");
         else
-            _viewModel.RefreshCommand.Execute(null);
+            _ = _viewModel.RefreshFromButtonAsync().RunAndLogFaults("Refreshing repositories");
     }
 
     RepositoryNodeViewModel? _lastTappedGroup;
@@ -161,7 +172,7 @@ public partial class MainWindow : Window, IAsyncDisposable
     void RepositoryList_DoubleTapped(object? sender, TappedEventArgs e)
     {
         if ((e.Source as Control)?.DataContext is RepositoryNodeViewModel { IsGroupHeader: false } node)
-            _viewModel.OpenInExplorerCommand.Execute(node);
+            _viewModel.OpenInExplorer(node);
     }
 
     // Scroll anchoring across a refresh. RefreshAsync clears the Repositories collection at the
@@ -303,52 +314,52 @@ public partial class MainWindow : Window, IAsyncDisposable
     void FetchAndRefreshButton_Click(object? sender, RoutedEventArgs e)
     {
         CaptureScrollAnchor();
-        _viewModel.FetchAndRefreshCommand.Execute(null);
+        _ = _viewModel.FetchAndRefreshAsync().RunAndLogFaults("Fetching remotes and refreshing repositories");
     }
 
     void LiveButton_Click(object? sender, RoutedEventArgs e)
-        => _viewModel.ToggleLiveCommand.Execute(null);
+        => _ = _viewModel.ToggleLiveAsync().RunAndLogFaults("Toggling Live watch");
 
     void ForkButton_Click(object? sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is RepositoryNodeViewModel node)
-            _viewModel.OpenInForkCommand.Execute(node);
+            _ = _viewModel.OpenInForkAsync(node).RunAndLogFaults("Opening the repository in Fork");
     }
 
     void DeepRefreshButton_Click(object? sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is RepositoryNodeViewModel node)
-            _viewModel.DeepRefreshCommand.Execute(node);
+            _viewModel.DeepRefreshRepository(node);
     }
 
     void CheckoutMatchingBranchButton_Click(object? sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is RepositoryNodeViewModel node)
-            _viewModel.CheckoutMatchingBranchCommand.Execute(node);
+            _viewModel.CheckoutMatchingBranch(node);
     }
 
     void CleanDownstreamButton_Click(object? sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is RepositoryNodeViewModel node)
-            _viewModel.CleanDownstreamCommand.Execute(node);
+            _ = _viewModel.CleanDownstreamBranchesAsync(node).RunAndLogFaults("Cleaning downstream branches");
     }
 
     void OnOpenInExplorerClick(object? sender, RoutedEventArgs e)
     {
         if ((sender as MenuItem)?.Tag is RepositoryNodeViewModel node)
-            _viewModel.OpenInExplorerCommand.Execute(node);
+            _viewModel.OpenInExplorer(node);
     }
 
     void OnOpenInForkClick(object? sender, RoutedEventArgs e)
     {
         if ((sender as MenuItem)?.Tag is RepositoryNodeViewModel node)
-            _viewModel.OpenInForkCommand.Execute(node);
+            _ = _viewModel.OpenInForkAsync(node).RunAndLogFaults("Opening the repository in Fork");
     }
 
     void OnCopyToClipboardClick(object? sender, RoutedEventArgs e)
     {
         if ((sender as MenuItem)?.Tag is RepositoryNodeViewModel node)
-            _viewModel.CopyToClipboardCommand.Execute(node);
+            _ = _viewModel.CopyToClipboardAsync(node).RunAndLogFaults("Copying the working directory to the clipboard");
     }
 
     // ContextMenu.PlacementTarget is always null in Avalonia 11 (AvaloniaUI/Avalonia#16344), so the

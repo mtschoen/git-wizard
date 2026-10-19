@@ -15,6 +15,11 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
     readonly IClipboardService _clipboard;
     internal readonly ConcurrentDictionary<string, RepositoryNodeViewModel> _repositoryMap = new();
     readonly ConcurrentQueue<RepositoryUICommand> _uiCommands = new();
+    readonly object _uiDrainLock = new();
+    ITimer? _uiDrainWindow;
+    int _uiDrainScheduled;
+    volatile bool _uiDrainDisposed;
+    readonly CancellationTokenSource _uiDrainShutdown = new();
     HashSet<RepositoryNodeViewModel>? _prePopulatedNodes;
     readonly Stopwatch _stopwatch = new();
     internal readonly List<RepositoryNodeViewModel> _allRepositories = new();
@@ -314,7 +319,6 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
             if (args.PropertyName == nameof(ErrorLogViewModel.Count))
                 OnPropertyChanged(nameof(ErrorsButtonLabel));
         };
-        StartUIUpdateThread();
     }
 
     /// <summary>
@@ -382,6 +386,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
 
     public async ValueTask DisposeAsync()
     {
+        StopUIDrain();
         if (_liveController != null)
         {
             await _liveController.StopAsync().ConfigureAwait(false);

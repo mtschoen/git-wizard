@@ -221,8 +221,8 @@ public partial class MainViewModel
         // Wait for the UI command queue to fully drain before pruning. RepositoryCreated
         // commands are queued before a refresh determines that a path is no longer a repo,
         // so pruning earlier could let a late command restore a stale row.
-        while (!_uiCommands.IsEmpty)
-            await Task.Delay(150).ConfigureAwait(false);
+        if (!await WaitForUICommandsToDrainAsync().ConfigureAwait(false))
+            return;
 
         await _ui.InvokeAsync(() =>
         {

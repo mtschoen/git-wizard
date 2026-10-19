@@ -4,11 +4,16 @@ internal sealed class ControlledDelayClock : TimeProvider
 {
     public ScheduledTimer? Timer { get; private set; }
 
+    public int CreatedTimerCount { get; private set; }
+
     public override DateTimeOffset GetUtcNow() => DateTimeOffset.UnixEpoch;
 
     public override ITimer CreateTimer(TimerCallback callback, object? state,
-        TimeSpan dueTime, TimeSpan period) =>
-        Timer = new ScheduledTimer(callback, state, dueTime, period);
+        TimeSpan dueTime, TimeSpan period)
+    {
+        CreatedTimerCount++;
+        return Timer = new ScheduledTimer(callback, state, dueTime, period);
+    }
 
     internal sealed class ScheduledTimer(TimerCallback callback, object? state,
         TimeSpan dueTime, TimeSpan period) : ITimer

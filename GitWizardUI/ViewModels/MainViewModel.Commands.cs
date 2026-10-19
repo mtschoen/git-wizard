@@ -302,41 +302,6 @@ public partial class MainViewModel
         ScrollToRequest?.Invoke(node);
     }
 
-    void StartUIUpdateThread()
-    {
-        // Daemon loop for the app's lifetime: drains the UI command queue every 250ms and pushes
-        // progress updates onto the UI thread. Never returns by design - it ends with the process.
-        // ReSharper disable once FunctionNeverReturns
-        Task.Run(async () =>
-        {
-            while (true)
-            {
-                await Task.Delay(250);
-
-                // Drain all pending commands in one UI dispatch to minimize layout passes
-                if (_uiCommands.TryPeek(out _))
-                {
-                    await _ui.InvokeAsync(DrainUICommands);
-                }
-
-                await _ui.InvokeAsync(() =>
-                {
-                    if (_progressActive && _progressTotal > 0)
-                    {
-                        ProgressValue = (double)_progressCount / _progressTotal;
-                        ProgressText = $"{_progressDescription} {_progressCount} / {_progressTotal}";
-                        IsProgressVisible = true;
-
-                        if (_progressTotal == _progressCount)
-                        {
-                            IsProgressVisible = false;
-                        }
-                    }
-                });
-            }
-        });
-    }
-
     // Drains the UI command queue in one pass. Every RepositoryCreated/WorktreeCreated command in
     // the drained slice is collected into a single batch and applied with one AddRepositoriesBatch
     // call; every other command is staged and processed afterwards, in arrival order. A refresh

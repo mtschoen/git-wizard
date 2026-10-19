@@ -556,9 +556,8 @@ public class MainViewModelRefreshTests
         // OnRepositoryCreated enqueues a RepositoryCreated command.
         vm.OnRepositoryCreated(repo);
 
-        // The UI update thread drains the queue asynchronously, but we can't easily wait for it
-        // in a unit test. Instead, verify the command was queued by checking it didn't add inline.
-        // (AddRepository is called by the UI thread's pump, not inline.)
+        // The batching window drains the queue asynchronously; verify the command was queued by
+        // checking it didn't add inline. (AddRepository is called by the scheduled drain, not inline.)
         // This is an integration-boundary test: the IUpdateHandler interface is correctly wired.
         Assert.That(vm.Repositories, Is.Empty,
             "OnRepositoryCreated queues the repo asynchronously; it should not add inline.");

@@ -6,11 +6,11 @@ public partial class MainViewModel
 {
     string? _progressDescription;
 
-    // Plain int fields instead of int? so the UI pump (MainViewModel.Commands.cs) can never
+    // Plain int fields instead of int? so the UI drain (MainViewModel.UiDrain.cs) can never
     // observe a torn read across the HasValue/Value pair of a two-field Nullable<int> struct
     // written from a worker thread while read from the UI thread. _progressActive replaces the
     // former HasValue sentinel; volatile gives both the field write in StartProgress/UpdateProgress
-    // and the field read on the UI pump the memory-visibility guarantee a plain field lacks.
+    // and the field read on the UI drain the memory-visibility guarantee a plain field lacks.
     volatile bool _progressActive;
     int _progressTotal;
     int _progressCount;
@@ -44,7 +44,7 @@ public partial class MainViewModel
 
     public void OnRepositoryCreated(GitWizardRepository gitWizardRepository)
     {
-        _uiCommands.Enqueue(new RepositoryUICommand
+        EnqueueUICommand(new RepositoryUICommand
         {
             Type = RepositoryUICommandType.RepositoryCreated,
             Repository = gitWizardRepository
@@ -69,11 +69,12 @@ public partial class MainViewModel
     public void UpdateProgress(int count)
     {
         _progressCount = count;
+        ScheduleUIDrain();
     }
 
     public void OnSubmoduleCreated(GitWizardRepository parent, GitWizardRepository submodule)
     {
-        _uiCommands.Enqueue(new RepositoryUICommand
+        EnqueueUICommand(new RepositoryUICommand
         {
             Type = RepositoryUICommandType.SubmoduleCreated,
             ParentRepository = parent,
@@ -83,7 +84,7 @@ public partial class MainViewModel
 
     public void OnWorktreeCreated(GitWizardRepository worktree)
     {
-        _uiCommands.Enqueue(new RepositoryUICommand
+        EnqueueUICommand(new RepositoryUICommand
         {
             Type = RepositoryUICommandType.WorktreeCreated,
             Repository = worktree
@@ -92,7 +93,7 @@ public partial class MainViewModel
 
     public void OnUninitializedSubmoduleCreated(GitWizardRepository parent, string submodulePath)
     {
-        _uiCommands.Enqueue(new RepositoryUICommand
+        EnqueueUICommand(new RepositoryUICommand
         {
             Type = RepositoryUICommandType.UninitializedSubmoduleCreated,
             ParentRepository = parent,
@@ -102,7 +103,7 @@ public partial class MainViewModel
 
     public void OnRepositoryRefreshCompleted(GitWizardRepository gitWizardRepository)
     {
-        _uiCommands.Enqueue(new RepositoryUICommand
+        EnqueueUICommand(new RepositoryUICommand
         {
             Type = RepositoryUICommandType.RefreshCompleted,
             Repository = gitWizardRepository

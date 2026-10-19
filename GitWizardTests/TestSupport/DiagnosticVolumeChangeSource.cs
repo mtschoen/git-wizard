@@ -9,6 +9,8 @@ internal sealed class DiagnosticVolumeChangeSource : IVolumeChangeSource, IVolum
     readonly Channel<VolumeChangeBatch> _batches = Channel.CreateUnbounded<VolumeChangeBatch>();
     readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+    readonly Lock _warningLock = new();
+
     public event Action<string>? SourceDied;
     public event Action<string, string>? DriveFailed;
     public event Action<JournalWarning>? JournalWarningDetected;
@@ -17,6 +19,19 @@ internal sealed class DiagnosticVolumeChangeSource : IVolumeChangeSource, IVolum
         + (JournalWarningDetected?.GetInvocationList().Length ?? 0);
     public Dictionary<string, string> ArmErrors { get; } = [];
     public List<JournalWarning> ArmWarnings { get; } = new();
+    // What the source holds now; newer than ArmWarnings once a state change landed after the arm.
+    public List<JournalWarning> CurrentWarnings { get; } = new();
+    public Barrier? HandoffBarrier { get; set; }
+
+    IReadOnlyList<JournalWarning> IVolumeChangeDiagnostics.CurrentJournalWarnings
+    {
+        get
+        {
+            HandoffBarrier?.SignalAndWait(TimeSpan.FromSeconds(5));
+            lock (_warningLock)
+                return CurrentWarnings.ToArray();
+        }
+    }
     public Action? Arming { get; set; }
 
     public Task<VolumeArmResult> ArmAndCatchUpAsync(IReadOnlyCollection<string> volumes, CancellationToken ct)
@@ -33,7 +48,16 @@ internal sealed class DiagnosticVolumeChangeSource : IVolumeChangeSource, IVolum
     }
 
     public void FailDrive(string drive, string message) => DriveFailed?.Invoke(drive, message);
-    public void RaiseJournalWarning(JournalWarning warning) => JournalWarningDetected?.Invoke(warning);
+    public void RaiseJournalWarning(JournalWarning warning)
+    {
+        lock (_warningLock)
+        {
+            CurrentWarnings.RemoveAll(w => string.Equals(w.DriveLetter, warning.DriveLetter, StringComparison.OrdinalIgnoreCase));
+            CurrentWarnings.Add(warning);
+            HandoffBarrier?.SignalAndWait(TimeSpan.FromSeconds(5));
+            JournalWarningDetected?.Invoke(warning);
+        }
+    }
     public void KillSource(string message) => SourceDied?.Invoke(message);
     public void Publish(VolumeChangeBatch batch) => Assert.That(_batches.Writer.TryWrite(batch), Is.True);
     public void Complete() => _batches.Writer.TryComplete();

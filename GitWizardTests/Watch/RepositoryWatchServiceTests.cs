@@ -228,6 +228,92 @@ public partial class RepositoryWatchServiceTests
         Assert.That(source.DiagnosticSubscribers, Is.Zero);
     }
 
+    [TestCase(true, false, TestName = "StartupHandoff_Prepared_InitialPublication")]
+    [TestCase(true, true, TestName = "StartupHandoff_Prepared_StateRefresh")]
+    [TestCase(false, false, TestName = "StartupHandoff_Direct_InitialPublication")]
+    [TestCase(false, true, TestName = "StartupHandoff_Direct_StateRefresh")]
+    public async Task StartupHandoff_ConcurrentWarning_PreservesOrderingWithoutDeadlock(
+        bool preparedStartup, bool isStateRefresh)
+    {
+        var source = new DiagnosticVolumeChangeSource();
+        var barrier = new Barrier(2);
+        var armLoss = FakeJournalSettingsSource.TrimmedLoss('C', 30L * 1024 * 1024, 60L * 1024 * 1024, 10L * 1024 * 1024);
+        var initialWarning = new JournalWarning
+        {
+            DriveLetter = "C",
+            VolumeSerial = 12345,
+            Loss = armLoss,
+            WatchState = isStateRefresh ? WatchState.Recovering : WatchState.NotStarted
+        };
+
+        if (isStateRefresh)
+        {
+            source.ArmWarnings.Add(initialWarning);
+            source.CurrentWarnings.Add(initialWarning);
+        }
+
+        var refreshedWarning = initialWarning with
+        {
+            WatchState = isStateRefresh ? WatchState.CaughtUp : WatchState.Recovering
+        };
+
+        source.HandoffBarrier = barrier;
+
+        RepositoryWatchService service;
+        WatchStartupResult? startup = null;
+        if (preparedStartup)
+        {
+            var request = new DiscoveryRequest(new GitWizardConfiguration(), DiscoveryPurpose.Watch, false, false, []);
+            var armResult = new VolumeArmResult(new Dictionary<string, string>(), isStateRefresh ? [initialWarning] : []);
+            var scope = DiscoveryScope.CreateExpanded(request, [], [@"C:\repo"], [],
+                root => new RootClassification(root, RootFileSystem.Ntfs, "C", null));
+            var inventory = new DiscoveryInventory
+            {
+                Outcome = DiscoveryOutcome.CompleteNonempty,
+                Route = DiscoveryRoute.Indexed,
+                Paths = [@"C:\repo"],
+                RequestedNtfsDrives = ["C"],
+                Observations = [],
+                DriveStatuses = [],
+                Errors = new Dictionary<string, string>(),
+                WatchExcludedRoots = []
+            };
+            startup = new WatchStartupResult(inventory, armResult, source, ["C"], scope);
+            service = new RepositoryWatchService(startup, debounce: TimeSpan.Zero);
+        }
+        else
+        {
+            service = new RepositoryWatchService(source, [@"C:\repo"], [], TimeSpan.Zero);
+        }
+
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var reader = service.RunAsync(cancellation.Token).GetAsyncEnumerator();
+
+        var publisherTask = Task.Run(() => source.RaiseJournalWarning(refreshedWarning));
+        var startupTask = reader.MoveNextAsync().AsTask();
+
+        try
+        {
+            await Task.WhenAll(publisherTask, source.Started).WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.That(service.ScanWarnings, Has.Count.EqualTo(1));
+            var warning = service.ScanWarnings.Single();
+            Assert.That(warning.DriveLetter, Is.EqualTo("C").IgnoreCase);
+            Assert.That(warning.WatchState, Is.EqualTo(refreshedWarning.WatchState));
+        }
+        finally
+        {
+            source.HandoffBarrier = null;
+            startup?.DetachSource();
+            source.Complete();
+            try { await startupTask; } catch (OperationCanceledException) { }
+            try { await publisherTask; } catch (OperationCanceledException) { }
+            await reader.DisposeAsync();
+            barrier.Dispose();
+            await source.DisposeAsync();
+        }
+    }
+
     static async Task<List<RepositoryChangeEvent>> DrainAsync(RepositoryWatchService svc)
     {
         var events = new List<RepositoryChangeEvent>();

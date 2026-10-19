@@ -1,6 +1,7 @@
 using GitWizard;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
+using MFTLib;
 using MFTLib.Index;
 using MFTLibTestExtensions;
 using static GitWizardTests.TestSupport.AsyncCondition;
@@ -62,10 +63,25 @@ public class IndexVolumeChangeSourceReadinessTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
+        var lossPending = 1;
+        var retained = SyntheticCheckpointLoss.WithJournalPositions(
+            SyntheticNotifications.CreateJournalCheckpointLoss('X', JournalCheckpointLossCause.CheckpointTrimmed,
+                JournalCheckpointLossDetection.ScanCatchUp,
+                new UsnJournalSettings { MaximumSize = 1024, AllocationDelta = 64 }), 1000, 2000, 3000);
+        files.CatchUpLoss = _ => Interlocked.Exchange(ref lossPending, 0) == 1 ? retained : null;
         var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
-        var owner = Owner(await files.OpenMftIndexAsync(scripted, 'X'), "X");
+        var owner = new MftIndexSession(await files.OpenMftIndexAsync(scripted, 'X'), null, ["X"],
+            [new IndexedDrive('X', files.TreePath, 12345u)], new Dictionary<string, string>());
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
-        await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
+        var result = await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
+        // The returned retained-loss hint describes the drive after catch-up, not before watching started.
+        var warning = result.JournalWarnings.Single();
+        Assert.Multiple(() =>
+        {
+            Assert.That(warning.Loss, Is.SameAs(retained));
+            Assert.That(warning.WatchState, Is.EqualTo(WatchState.CaughtUp));
+            Assert.That(warning.Message, Does.Contain("was rescanned and the watch has caught up"));
+        });
         // No subscriber was attached during the arm: the settled state must be readable afterwards.
         var snapshot = source.Readiness;
         Assert.That(snapshot.IsSettled, Is.True);

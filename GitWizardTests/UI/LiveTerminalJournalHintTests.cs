@@ -105,7 +105,7 @@ public class LiveTerminalJournalHintTests
         var loss = FakeJournalSettingsSource.TrimmedLoss('D', 32L * 1024 * 1024, 136L * 1024 * 1024,
             detectedDuring: JournalCheckpointLossDetection.LiveWatch);
 
-        _source.RaiseJournalWarning(new JournalWarning { DriveLetter = "D", VolumeSerial = 12346, Loss = loss });
+        _source.RaiseJournalWarning(new JournalWarning { DriveLetter = "D", VolumeSerial = 12346, Loss = loss, WatchState = WatchState.Recovering });
         _source.FailDrive("D", "watch reached a position the journal no longer holds");
         _dispatcher.Drain();
 
@@ -113,7 +113,7 @@ public class LiveTerminalJournalHintTests
         Assert.That(_running.IsCompleted, Is.False);
         var warning = _main.JournalWarnings.Single();
         Assert.That(warning.Warning.Message, Does.Contain("Hint on D:")
-            .And.Contain("the drive is being rescanned to catch up"));
+            .And.Contain("The drive is being rescanned to catch up"));
         Assert.That(_main.HeaderText, Does.Contain("journal hints"));
     }
 }

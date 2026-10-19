@@ -81,6 +81,16 @@ public class IndexVolumeChangeSourceCheckpointLossTests
             Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(HangGuard), Is.True);
             Assert.That(reader.Current.Volume, Is.EqualTo("X"));
             Assert.That(scripted.Starts.Count(start => start.Drive == 'X'), Is.EqualTo(2));
+
+            // The hint the consumers hold follows the drive to the end of the same episode.
+            await WaitUntilAsync(() => warnings.Last().WatchState == WatchState.CaughtUp);
+            var finalWarnings = warnings.ToArray();
+            Assert.Multiple(() =>
+            {
+                Assert.That(finalWarnings.Select(warning => warning.Loss).Distinct().Count(), Is.EqualTo(1));
+                Assert.That(finalWarnings.Last().Message, Does.Contain("was rescanned and the watch has caught up"));
+                Assert.That(finalWarnings.Last().Message, Does.Not.Contain("is being rescanned"));
+            });
         }
         finally
         {

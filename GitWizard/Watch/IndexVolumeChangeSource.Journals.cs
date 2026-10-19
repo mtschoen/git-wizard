@@ -8,6 +8,22 @@ public sealed partial class IndexVolumeChangeSource
     // of another kind sees the same report. A report explains one episode: it is raised once.
     readonly System.Collections.Concurrent.ConcurrentDictionary<char, JournalCheckpointLoss> _raisedFaultLosses = new();
 
+    // The warning each drive's consumers currently hold, with the watch state version it was built
+    // from. A watch-state change refreshes it in place: same loss, same episode, current wording.
+    readonly Dictionary<char, PublishedWarning> _publishedWarnings = [];
+    readonly Lock _publishedWarningsLock = new();
+
+    sealed record PublishedWarning(JournalWarning Warning, long StateVersion);
+
+    public IReadOnlyList<JournalWarning> CurrentJournalWarnings
+    {
+        get
+        {
+            lock (_publishedWarningsLock)
+                return _publishedWarnings.Values.Select(published => published.Warning).ToArray();
+        }
+    }
+
     internal void ProcessArmedDrive(DriveStatus drive, GitWizardConfiguration configuration,
         Dictionary<string, string> errors, List<JournalWarning> warnings, CancellationToken cancellationToken)
     {
@@ -60,11 +76,85 @@ public sealed partial class IndexVolumeChangeSource
             return;
         var letter = drive.Drive.Letter;
         if (_raisedFaultLosses.TryGetValue(letter, out var raised) && ReferenceEquals(raised, drive.Watch.CheckpointLoss))
+        {
+            // The same episode: only the drive's recovery state can have moved on.
+            RefreshJournalWarning(letter, drive.Watch, configuration);
             return;
+        }
         if (BuildJournalWarning(drive, owner, configuration) is not { } warning)
             return;
         _raisedFaultLosses[letter] = warning.Loss;
-        JournalWarningDetected?.Invoke(warning);
+        PublishJournalWarning(letter, warning, drive.Watch.StateVersion);
+    }
+
+    void PublishJournalWarning(char letter, JournalWarning warning, long stateVersion)
+    {
+        lock (_publishedWarningsLock)
+        {
+            _publishedWarnings[letter] = new PublishedWarning(warning, stateVersion);
+            JournalWarningDetected?.Invoke(warning);
+        }
+    }
+
+    // Replaces the warning consumers hold for a drive when its watch state moved on, so the hint
+    // never keeps describing a recovery that has since finished or stopped. The loss instance is
+    // the episode: a state change carrying another loss is a new episode for the fault path, an
+    // episode the user dismissed stays dismissed, and a stale version never overwrites a newer one.
+    internal void RefreshJournalWarning(char letter, DriveWatchStatus watch, GitWizardConfiguration configuration)
+    {
+        lock (_publishedWarningsLock)
+        {
+            if (!_publishedWarnings.TryGetValue(letter, out var published) ||
+                !ReferenceEquals(published.Warning.Loss, watch.CheckpointLoss) ||
+                watch.StateVersion < published.StateVersion ||
+                configuration.IgnoredJournalWarnings.Contains(published.Warning.VolumeSerial))
+                return;
+            if (published.Warning.WatchState == watch.State &&
+                published.Warning.IsRecoveryStopped == watch.IsRecoveryStopped)
+                return;
+            var refreshed = published.Warning with
+            {
+                WatchState = watch.State,
+                IsRecoveryStopped = watch.IsRecoveryStopped
+            };
+            _publishedWarnings[letter] = new PublishedWarning(refreshed, watch.StateVersion);
+            JournalWarningDetected?.Invoke(refreshed);
+        }
+    }
+
+    // Warnings built at arm time describe the drives before watching started. After catch-up the
+    // returned list is rebuilt from the drives' current states, and what is returned is what the
+    // drives' consumers hold, so later state changes refresh it.
+    List<JournalWarning> CollectArmedJournalWarnings(MftIndexSession owner, GitWizardConfiguration configuration)
+    {
+        var warnings = new List<JournalWarning>();
+        lock (_publishedWarningsLock)
+        {
+            _publishedWarnings.Clear();
+            foreach (var drive in owner.Index.Drives)
+            {
+                var isFailed = drive.State is DriveState.Failed or DriveState.Offline;
+                if (!isFailed && !drive.Watch.IsSupported)
+                    continue;
+                if (BuildJournalWarning(drive, owner, configuration) is not { } warning)
+                    continue;
+                warnings.Add(warning);
+                _publishedWarnings[drive.Drive.Letter] = new PublishedWarning(warning, drive.Watch.StateVersion);
+            }
+        }
+        return warnings;
+    }
+
+    // Called with a state change the source accepted; a drive without a published warning is untouched.
+    void RefreshJournalWarningForState(char driveLetter, DriveWatchStatus watch)
+    {
+        var letter = char.ToUpperInvariant(driveLetter);
+        lock (_publishedWarningsLock)
+        {
+            if (!_publishedWarnings.ContainsKey(letter))
+                return;
+        }
+        RefreshJournalWarning(letter, watch, GitWizardConfiguration.GetGlobalConfiguration());
     }
 
     static void AddJournalWarning(DriveStatus drive, MftIndexSession owner,
@@ -88,7 +178,9 @@ public sealed partial class IndexVolumeChangeSource
         {
             DriveLetter = drive.Drive.ToString(),
             VolumeSerial = indexedDrive.VolumeSerial,
-            Loss = loss
+            Loss = loss,
+            WatchState = drive.Watch.State,
+            IsRecoveryStopped = drive.Watch.IsRecoveryStopped
         };
     }
 }

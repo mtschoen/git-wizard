@@ -356,13 +356,15 @@ public class IndexVolumeChangeSourceTests
             detectedDuring: JournalCheckpointLossDetection.LiveWatch);
         var readyBase = SyntheticNotifications.CreateDriveStatus('X', DriveState.Ready,
             SyntheticNotifications.CreateDriveBlockStatus(BlockOrigin.ProducedByScan, 10, false, DateTime.UtcNow), null);
-        var status = readyBase with { Watch = readyBase.Watch with { IsSupported = true, FailureMessage = "watch reached a position the journal no longer holds", CheckpointLoss = liveLoss } };
+        var status = readyBase with { Watch = readyBase.Watch with { IsSupported = true, FailureMessage = "watch reached a position the journal no longer holds", CheckpointLoss = liveLoss, State = WatchState.Faulted, IsRecoveryStopped = true } };
 
         source.ProcessFaultedDrive(status, owner, new GitWizardConfiguration());
 
         var warning = warnings.Single();
         Assert.That(warning.DriveLetter, Is.EqualTo("X"));
         Assert.That(warning.Loss, Is.SameAs(liveLoss));
+        Assert.That(warning.WatchState, Is.EqualTo(WatchState.Faulted));
+        Assert.That(warning.IsRecoveryStopped, Is.True);
         Assert.That(warning.VolumeSerial, Is.EqualTo(12345u));
 
         // A fault the journal did not cause reports nothing: the open's standing report and a
@@ -396,6 +398,19 @@ public class IndexVolumeChangeSourceTests
         source.ProcessFaultedDrive(status, owner, new GitWizardConfiguration());
         Assert.That(warnings, Has.Count.EqualTo(1));
 
+        // The recovery then fails for good: the same report, a newer watch state. The published
+        // hint is updated in place and the report is still not raised as a new episode.
+        var terminal = status with { Watch = status.Watch with { State = WatchState.Faulted, IsRecoveryStopped = true, StateVersion = status.Watch.StateVersion + 1 } };
+        source.ProcessFaultedDrive(terminal, owner, new GitWizardConfiguration());
+        source.ProcessFaultedDrive(terminal, owner, new GitWizardConfiguration());
+        Assert.Multiple(() =>
+        {
+            Assert.That(warnings, Has.Count.EqualTo(2));
+            Assert.That(warnings.Last().Loss, Is.SameAs(liveLoss));
+            Assert.That(warnings.Last().IsRecoveryStopped, Is.True);
+            Assert.That(warnings.Last().Message, Does.Contain("Automatic recovery stopped"));
+        });
+
         // Two successive journal recreations produce distinct report instances with identical
         // record fields. ProcessFaultedDrive uses object identity to treat the second as a new episode.
         var recreationLoss2 = liveLoss with { };
@@ -405,7 +420,7 @@ public class IndexVolumeChangeSourceTests
         source.ProcessFaultedDrive(status with { Watch = status.Watch with { CheckpointLoss = recreationLoss2 } }, owner, new GitWizardConfiguration());
         source.ProcessFaultedDrive(status with { Watch = status.Watch with { CheckpointLoss = recreationLoss2 } }, owner, new GitWizardConfiguration());
         Assert.That(warnings.Select(warning => warning.Loss),
-            Is.EqualTo(new[] { liveLoss, recreationLoss2 }));
+            Is.EqualTo(new[] { liveLoss, liveLoss, recreationLoss2 }));
     }
 
 

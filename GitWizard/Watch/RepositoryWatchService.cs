@@ -184,6 +184,12 @@ public sealed partial class RepositoryWatchService
 
     void SetArmResult(VolumeArmResult armResult)
     {
+        // The arm snapshot is the baseline; the source's current warnings are newer than it
+        // whenever a watch-state change landed after the arm or before this run subscribed.
+        // Current warnings are read before taking _errorsLock to avoid nested-lock inversion
+        // with the source's published-warnings lock during concurrent warning delivery.
+        var current = (_source as IVolumeChangeDiagnostics)?.CurrentJournalWarnings ?? [];
+
         lock (_errorsLock)
         {
             var errors = new Dictionary<string, string>(armResult.Errors, StringComparer.OrdinalIgnoreCase);
@@ -192,6 +198,8 @@ public sealed partial class RepositoryWatchService
             _scanErrors = errors.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
 
             var warnings = armResult.JournalWarnings
+                .Concat(current)
+                .Concat(_scanWarnings)
                 .GroupBy(warning => warning.DriveLetter, StringComparer.OrdinalIgnoreCase)
                 .Select(group => group.Last());
             _scanWarnings = warnings.ToFrozenSet();

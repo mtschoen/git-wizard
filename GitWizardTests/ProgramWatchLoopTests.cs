@@ -366,6 +366,65 @@ public class ProgramWatchLoopTests
     }
 
     [Test]
+    public async Task RunWatchLoopAsync_RecoveryStateReturnsToAnEarlierWording_PrintsEveryChange()
+    {
+        await using var source = new DiagnosticVolumeChangeSource();
+        var service = new RepositoryWatchService(source, [@"C:\repo"], [], TimeSpan.Zero);
+        var lines = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        var printed = new SemaphoreSlim(0);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var running = Program.RunWatchLoopAsync(service, line =>
+        {
+            lines.Enqueue(line);
+            if (line.Contains("Hint on C:", StringComparison.Ordinal))
+                printed.Release();
+        }, NoExit, cancellation.Token);
+        await source.Started;
+
+        // One retained loss: the hint follows the state, including a second recovery.
+        var loss = FakeJournalSettingsSource.TrimmedLoss('C', 30L * 1024 * 1024, 60L * 1024 * 1024,
+            10L * 1024 * 1024, JournalCheckpointLossDetection.LiveWatch);
+        foreach (var state in new[] { WatchState.Recovering, WatchState.CaughtUp, WatchState.Recovering })
+        {
+            source.RaiseJournalWarning(new JournalWarning { DriveLetter = "C", VolumeSerial = 12345, Loss = loss, WatchState = state });
+            await printed.WaitAsync(cancellation.Token);
+        }
+
+        source.Complete();
+        await running;
+        Assert.That(lines.Count(line => line.Contains("Hint on C:", StringComparison.Ordinal)), Is.EqualTo(3));
+    }
+
+    [Test]
+    public async Task RunWatchLoopAsync_WarningChangedBetweenArmAndSubscription_PrintsTheCurrentState()
+    {
+        await using var source = new DiagnosticVolumeChangeSource();
+        var loss = FakeJournalSettingsSource.TrimmedLoss('C', 30L * 1024 * 1024, 60L * 1024 * 1024,
+            10L * 1024 * 1024, JournalCheckpointLossDetection.LiveWatch);
+        source.ArmWarnings.Add(new JournalWarning { DriveLetter = "C", VolumeSerial = 12345, Loss = loss, WatchState = WatchState.CaughtUp });
+        // Recovery stopped after the arm snapshot was taken and before this run subscribed.
+        source.CurrentWarnings.Add(new JournalWarning
+        {
+            DriveLetter = "C",
+            VolumeSerial = 12345,
+            Loss = loss,
+            WatchState = WatchState.Faulted,
+            IsRecoveryStopped = true
+        });
+        var service = new RepositoryWatchService(source, [@"C:\repo"], [], TimeSpan.Zero);
+        var lines = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var running = Program.RunWatchLoopAsync(service, lines.Enqueue, NoExit, cancellation.Token);
+        await source.Started;
+        source.Complete();
+        await running;
+
+        Assert.That(service.ScanWarnings.Single().IsRecoveryStopped, Is.True);
+        Assert.That(lines, Has.Some.Contains("Automatic recovery stopped"));
+        Assert.That(lines, Has.None.Contains("was rescanned and the watch has caught up"));
+    }
+
+    [Test]
     public async Task RunWatchLoopAsync_MovedInRepository_PrintsCreatedLine()
     {
         var searchRoot = Path.Combine(TestContext.CurrentContext.WorkDirectory,

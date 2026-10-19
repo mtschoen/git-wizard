@@ -8,6 +8,9 @@ public sealed record JournalWarning
     public required string DriveLetter { get; init; }
     public required uint VolumeSerial { get; init; }
     public required JournalCheckpointLoss Loss { get; init; }
+    // The drive's watch state and recovery flag when the warning was raised; a null state is unknown.
+    public WatchState? WatchState { get; init; }
+    public bool IsRecoveryStopped { get; init; }
     public bool HasGrowAction => Loss.TryGetGrowthTarget(out _);
     public string? GrowUnavailableReason => Loss.GrowthTargetRefusalReason switch
     {
@@ -22,7 +25,7 @@ public sealed record JournalWarning
             "The recorded journal settings do not provide a valid growth target.",
         _ => "The journal is already at least as large as the size that would have avoided the rescan."
     };
-    public string Message => JournalHintBuilder.BuildHint(Loss);
+    public string Message => JournalHintBuilder.BuildHint(Loss, WatchState, IsRecoveryStopped);
 }
 
 /// <summary>

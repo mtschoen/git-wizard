@@ -162,7 +162,7 @@ public static partial class Program
         var writer = new WatchLineWriter(writeLine, verbose, clock ?? TimeProvider.System);
         var stopped = false;
         var reported = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var reportedWarnings = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var reportedWarnings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var reportingLock = new Lock();
         void OnStopped(string reason)
         {
@@ -188,11 +188,14 @@ public static partial class Program
             {
                 foreach (var warning in service.ScanWarnings)
                 {
-                    // Keyed on the message rather than the drive: a live-watch loss rephrases
-                    // the drive's arm-time hint, and the new wording must print again.
-                    if (!reportedWarnings.Add(warning.Message))
+                    // Compared with the drive's last printed wording: a state change rephrases the
+                    // hint and prints again, including a return to an earlier wording.
+                    var message = warning.Message;
+                    if (reportedWarnings.TryGetValue(warning.DriveLetter, out var previous) &&
+                        string.Equals(previous, message, StringComparison.Ordinal))
                         continue;
-                    writer.Write(warning.Message);
+                    reportedWarnings[warning.DriveLetter] = message;
+                    writer.Write(message);
                 }
             }
         }

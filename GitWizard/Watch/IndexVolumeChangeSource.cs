@@ -150,6 +150,9 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
                 }
             }
 
+            // The warnings above were built before watching started: report the drives as they are now.
+            warnings.Clear();
+            warnings.AddRange(CollectArmedJournalWarnings(_owner, configuration));
             return new VolumeArmResult(errors, warnings);
         }
         catch

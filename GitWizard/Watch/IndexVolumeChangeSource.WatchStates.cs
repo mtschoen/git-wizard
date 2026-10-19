@@ -77,6 +77,6 @@ public sealed partial class IndexVolumeChangeSource
                 QueueCaughtUpLocked(drive, watch.StateVersion);
             PulseWatchStateLocked();
         }
+        RefreshJournalWarningForState(drive, watch);
     }
-
 }

@@ -4,7 +4,7 @@ using System.Threading.Channels;
 
 namespace GitWizard;
 
-// aislop-worker - this library file uses Console.WriteLine for log-failure fallbacks
+// Log-failure fallbacks use stderr so diagnostics preserve machine-readable stdout.
 /// <summary>
 /// Logging class for GitWizard
 /// </summary>
@@ -258,7 +258,7 @@ public static class GitWizardLog
             // Log to console only to avoid recursion
             try
             {
-                Console.WriteLine($"[GitWizardLog] Failed to create log file: {exception.Message}");
+                Console.Error.WriteLine($"[GitWizardLog] Failed to create log file: {exception.Message}");
             }
             catch
             {
@@ -282,7 +282,7 @@ public static class GitWizardLog
             {
                 try
                 {
-                    Console.WriteLine("[GitWizardLog] Log channel full, message dropped.");
+                    Console.Error.WriteLine("[GitWizardLog] Log channel full, message dropped.");
                 }
                 catch
                 {

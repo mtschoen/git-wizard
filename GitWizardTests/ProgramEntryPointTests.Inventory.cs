@@ -265,7 +265,12 @@ public partial class ProgramEntryPointTests
         });
     }
 
-    static async Task<(int ExitCode, string StandardOutput, string StandardError)> RunCliAsync(params string[] args)
+    static Task<(int ExitCode, string StandardOutput, string StandardError)> RunCliAsync(params string[] args) =>
+        RunCliInHomeAsync(Environment.GetEnvironmentVariable("GITWIZARD_HOME"), args);
+
+    static async Task<(int ExitCode, string StandardOutput, string StandardError)> RunCliInHomeAsync(
+        string? home,
+        params string[] args)
     {
         var executablePath = GetCliExecutablePath();
         var startInfo = new ProcessStartInfo(executablePath)
@@ -275,7 +280,6 @@ public partial class ProgramEntryPointTests
             UseShellExecute = false
         };
 
-        var home = Environment.GetEnvironmentVariable("GITWIZARD_HOME");
         if (!string.IsNullOrEmpty(home))
             startInfo.Environment["GITWIZARD_HOME"] = home;
 

@@ -334,6 +334,39 @@ public class GitWizardLogTests
             "Ordinary marker missing after writer completion; investigate the sink independently.");
     }
 
+    [Test]
+    public async Task Log_FileCreationFailure_WritesDiagnosticOnlyToStderr()
+    {
+        var temporaryHome = TestUtilities.RedirectLocalFilesToTemp();
+        var originalOut = Console.Out;
+        var originalError = Console.Error;
+        using var stdout = new StringWriter();
+        using var stderr = new StringWriter();
+        try
+        {
+            await File.WriteAllTextAsync(GitWizardApi.GetLogFolderPath(), "blocked");
+            Console.SetOut(stdout);
+            Console.SetError(stderr);
+            GitWizardLog.LogMethod = _ => { };
+
+            GitWizardLog.Log("file sink failure");
+            await CompleteFileWriterAsync();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(stdout.ToString(), Is.Empty);
+                Assert.That(stderr.ToString(), Does.Contain("[GitWizardLog] Failed to create log file:"));
+            });
+        }
+        finally
+        {
+            GitWizardLog.CloseCurrentLogFile();
+            Console.SetOut(originalOut);
+            Console.SetError(originalError);
+            TestUtilities.ClearLocalFilesRedirect(temporaryHome);
+        }
+    }
+
     [TestCase("nested", false)]
     [TestCase("nested", true)]
     [TestCase("no-context", false)]

@@ -1,30 +1,11 @@
-using System.Collections.Concurrent;
-
 namespace GitWizard.CLI;
 
-sealed class UpdateHandler : IUpdateHandler
+sealed class UpdateHandler(TextWriter? stderr = null) : IUpdateHandler
 {
-    enum CommandType
-    {
-        RepositoryCreated = 0,
-        SubmoduleCreated = 1,
-        WorktreeCreated = 2,
-        UninitializedSubmoduleCreated = 3,
-        RefreshCompleted = 4
-    }
-
-    struct Command
-    {
-        public CommandType Type;
-        public GitWizardRepository? Repository;
-        public GitWizardRepository? ParentRepository;
-    }
-
-    readonly ConcurrentQueue<Command> _commands = new();
-    readonly HashSet<string> _createdPaths = new();
-    int _totalCreated;
-    int _totalCompleted;
-    int _skippedCommands;
+    readonly TextWriter _stderr = stderr ?? Console.Error;
+    readonly object _progressLock = new();
+    int _progressTotal;
+    string? _progressDescription;
 
     public void SendUpdateMessage(string? message)
     {
@@ -39,16 +20,8 @@ sealed class UpdateHandler : IUpdateHandler
 
     public void OnRepositoryCreated(GitWizardRepository gitWizardRepository)
     {
-        _commands.Enqueue(new Command
-        {
-            Type = CommandType.RepositoryCreated,
-            Repository = gitWizardRepository
-        });
+        GitWizardLog.Log($"[CREATED] {gitWizardRepository.WorkingDirectory}", GitWizardLog.LogType.Verbose);
     }
-
-    int _progressTotal;
-    string? _progressDescription;
-    readonly object _progressLock = new();
 
     public void StartProgress(string description, int total)
     {
@@ -82,182 +55,32 @@ sealed class UpdateHandler : IUpdateHandler
         var bar = new string('█', filled) + new string('░', barWidth - filled);
         int percent = (int)Math.Round(fraction * 100);
         string progressLine = $"\r  [{bar}] {percent,3}%  {_progressDescription}  {count}/{total}  ";
-        Console.Write(progressLine);
+        _stderr.Write(progressLine);
 
-        // Print a newline when progress reaches 100%
         if (count >= total)
-        {
-            Console.WriteLine();
-        }
+            _stderr.WriteLine();
     }
 
     public void OnSubmoduleCreated(GitWizardRepository parent, GitWizardRepository submodule)
     {
-        _commands.Enqueue(new Command
-        {
-            Type = CommandType.SubmoduleCreated,
-            ParentRepository = parent,
-            Repository = submodule
-        });
+        GitWizardLog.Log($"[SUBMODULE] {submodule.WorkingDirectory} (Parent={parent.WorkingDirectory})",
+            GitWizardLog.LogType.Verbose);
     }
 
     public void OnWorktreeCreated(GitWizardRepository worktree)
     {
-        _commands.Enqueue(new Command
-        {
-            Type = CommandType.WorktreeCreated,
-            Repository = worktree
-        });
+        GitWizardLog.Log($"[WORKTREE] {worktree.WorkingDirectory}", GitWizardLog.LogType.Verbose);
     }
 
     public void OnUninitializedSubmoduleCreated(GitWizardRepository parent, string submodulePath)
     {
-        _commands.Enqueue(new Command
-        {
-            Type = CommandType.UninitializedSubmoduleCreated,
-            ParentRepository = parent
-        });
+        GitWizardLog.Log($"[UNINITIALIZED SUBMODULE] {submodulePath} (Parent={parent.WorkingDirectory})",
+            GitWizardLog.LogType.Verbose);
     }
 
     public void OnRepositoryRefreshCompleted(GitWizardRepository gitWizardRepository)
     {
-        _commands.Enqueue(new Command
-        {
-            Type = CommandType.RefreshCompleted,
-            Repository = gitWizardRepository
-        });
-    }
-
-    public void ProcessCommands()
-    {
-        while (_commands.TryDequeue(out var command))
-        {
-            ProcessCommand(command);
-        }
-    }
-
-    void ProcessCommand(Command command)
-    {
-        switch (command.Type)
-        {
-            case CommandType.RepositoryCreated:
-                HandleRepositoryCreated(command);
-                break;
-            case CommandType.SubmoduleCreated:
-                HandleSubmoduleCreated(command);
-                break;
-            case CommandType.WorktreeCreated:
-                HandleWorktreeCreated(command);
-                break;
-            case CommandType.UninitializedSubmoduleCreated:
-                HandleUninitializedSubmoduleCreated(command);
-                break;
-            case CommandType.RefreshCompleted:
-                HandleRefreshCompleted(command);
-                break;
-        }
-    }
-
-    void HandleRepositoryCreated(Command command)
-    {
-        var path = command.Repository?.WorkingDirectory;
-        if (string.IsNullOrEmpty(path))
-            return;
-
-        _createdPaths.Add(path);
-        _totalCreated++;
-        GitWizardLog.Log($"[CREATED] {path}", GitWizardLog.LogType.Verbose);
-    }
-
-    void HandleSubmoduleCreated(Command command)
-    {
-        if (command.ParentRepository == null || command.Repository == null)
-            return;
-
-        var parentPath = command.ParentRepository.WorkingDirectory;
-        var submodulePath = command.Repository.WorkingDirectory;
-
-        if (string.IsNullOrEmpty(parentPath))
-        {
-            _skippedCommands++;
-            GitWizardLog.Log("[SKIPPED] Submodule parent has null path");
-            return;
-        }
-
-        if (!_createdPaths.Contains(parentPath))
-        {
-            _skippedCommands++;
-            GitWizardLog.Log($"[SKIPPED] Submodule parent not created yet: {parentPath}");
-            return;
-        }
-
-        if (!string.IsNullOrEmpty(submodulePath))
-        {
-            _createdPaths.Add(submodulePath);
-            _totalCreated++;
-        }
-    }
-
-    void HandleWorktreeCreated(Command command)
-    {
-        var path = command.Repository?.WorkingDirectory;
-        if (string.IsNullOrEmpty(path))
-            return;
-
-        _createdPaths.Add(path);
-        _totalCreated++;
-    }
-
-    void HandleUninitializedSubmoduleCreated(Command command)
-    {
-        if (command.ParentRepository == null)
-            return;
-
-        var parentPath = command.ParentRepository.WorkingDirectory;
-        if (string.IsNullOrEmpty(parentPath))
-        {
-            _skippedCommands++;
-            return;
-        }
-
-        if (!_createdPaths.Contains(parentPath))
-        {
-            _skippedCommands++;
-            GitWizardLog.Log($"[SKIPPED] Uninitialized submodule parent not created yet: {parentPath}");
-        }
-    }
-
-    void HandleRefreshCompleted(Command command)
-    {
-        var repository = command.Repository;
-        if (repository == null)
-            return;
-
-        var path = repository.WorkingDirectory;
-        if (string.IsNullOrEmpty(path))
-        {
-            _skippedCommands++;
-            return;
-        }
-
-        if (!_createdPaths.Contains(path))
-        {
-            _skippedCommands++;
-            GitWizardLog.Log($"[MISSING] Refresh completed but item not created: {path} (IsRefreshing={repository.IsRefreshing})");
-            return;
-        }
-
-        _totalCompleted++;
-        GitWizardLog.Log($"[COMPLETED] {path} (IsRefreshing={repository.IsRefreshing})", GitWizardLog.LogType.Verbose);
-    }
-
-    public void PrintSummary()
-    {
-        Console.WriteLine();
-        Console.WriteLine($"\n=== Command Processing Summary ===");
-        Console.WriteLine($"Total repositories created: {_totalCreated}");
-        Console.WriteLine($"Total refresh completed: {_totalCompleted}");
-        Console.WriteLine($"Skipped commands: {_skippedCommands}");
-        Console.WriteLine($"Missing items (refresh completed before created): {_totalCompleted > _totalCreated}");
+        GitWizardLog.Log($"[COMPLETED] {gitWizardRepository.WorkingDirectory} (IsRefreshing={gitWizardRepository.IsRefreshing})",
+            GitWizardLog.LogType.Verbose);
     }
 }

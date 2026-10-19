@@ -100,18 +100,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
                     cancellationToken).ConfigureAwait(false);
             }
             cancellationToken.ThrowIfCancellationRequested();
-            var errors = new Dictionary<string, string>(_owner.ScanErrors, StringComparer.OrdinalIgnoreCase);
-            foreach (var status in _owner.CaptureDriveStatuses())
-            {
-                if (status.IdentityFailure is not null)
-                    errors[status.Drive] = status.IdentityFailure;
-                else if (status.IndexStatus?.Failure?.Message is { Length: > 0 } message)
-                    errors[status.Drive] = message;
-                else if (status.IndexStatus?.State is DriveState.Failed or DriveState.Offline)
-                    errors[status.Drive] = $"Drive is {status.IndexStatus.State}.";
-                else
-                    errors.Remove(status.Drive);
-            }
+            var errors = CollectArmedDriveErrors(_owner);
             var warnings = new List<JournalWarning>();
             var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync(cancellationToken).ConfigureAwait(false);
 
@@ -169,6 +158,24 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         {
             armFinished.TrySetResult();
         }
+    }
+
+    static Dictionary<string, string> CollectArmedDriveErrors(MftIndexSession owner)
+    {
+        var errors = new Dictionary<string, string>(owner.ScanErrors, StringComparer.OrdinalIgnoreCase);
+        foreach (var status in owner.CaptureDriveStatuses())
+        {
+            if (status.IdentityFailure is not null)
+                errors[status.Drive] = status.IdentityFailure;
+            else if (status.IndexStatus?.Failure?.Message is { Length: > 0 } message)
+                errors[status.Drive] = message;
+            else if (status.IndexStatus?.State is DriveState.Failed or DriveState.Offline)
+                errors[status.Drive] = $"Drive is {status.IndexStatus.State}.";
+            else
+                errors.Remove(status.Drive);
+        }
+
+        return errors;
     }
 
     Task EnsureWatchStartedAsync(MftIndexSession owner, CancellationToken cancellationToken)

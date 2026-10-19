@@ -10,6 +10,10 @@ Multi-project solution for scanning and reporting on git repositories.
 - **GitWizardUI.Screenshot/** - Headless Avalonia screenshot tool (used by CI)
 - **GitWizardTests/** - NUnit test project
 
+Default CLI reports (including `--summary`) reserve stdout for the JSON document. Progress
+and `GitWizardLog` diagnostics use stderr. The CLI `UpdateHandler` renders progress and
+immediate verbose lifecycle messages; the desktop view model owns the remaining command queue.
+
 ## Build
 
 MFTLib is a git **submodule** at `external/MFTLib`, built from source (MFTLib `0.3.0` isn't on

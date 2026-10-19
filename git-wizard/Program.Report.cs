@@ -15,69 +15,75 @@ public static partial class Program
     {
         stdout ??= Console.Out;
         stderr ??= Console.Error;
-
-        var explicitPaths = ParseExplicitPaths(runConfiguration);
-        var isFullInventory = explicitPaths == null;
-
-        var updateHandler = new UpdateHandler();
-        GitWizardReport report;
-
-        if (isFullInventory)
+        var originalLogMethod = GitWizardLog.LogMethod;
+        try
         {
-            if (!runConfiguration.RebuildReport)
+            GitWizardLog.LogMethod = stderr.WriteLine;
+
+            var explicitPaths = ParseExplicitPaths(runConfiguration);
+            var isFullInventory = explicitPaths == null;
+
+            var updateHandler = new UpdateHandler(stderr);
+            GitWizardReport report;
+
+            if (isFullInventory)
             {
-                var cachedReport = await GitWizardReport.GetCachedReportAsync(cancellationToken).ConfigureAwait(false);
-                if (!runConfiguration.RefreshReport && cachedReport != null)
+                if (!runConfiguration.RebuildReport)
                 {
-                    await using (cachedReport)
+                    var cachedReport = await GitWizardReport.GetCachedReportAsync(cancellationToken).ConfigureAwait(false);
+                    if (!runConfiguration.RefreshReport && cachedReport != null)
                     {
-                        return OutputReport(cachedReport, runConfiguration, stdout);
+                        await using (cachedReport)
+                        {
+                            return OutputReport(cachedReport, runConfiguration, stdout);
+                        }
                     }
                 }
+
+                if (!EnsureUsableSearchPaths(configuration, _ => { }))
+                    return 1;
+
+                var reportOptions = new GitWizardReportOptions
+                {
+                    NoMft = runConfiguration.NoMft,
+                    AllBranches = runConfiguration.AllBranches,
+                    ComputeLocalCommitCount = !runConfiguration.NoLocalCommitCount,
+                    DiscoveryCoordinator = coordinator,
+                    DiscoveryPurpose = runConfiguration.RebuildRepositoryList ? DiscoveryPurpose.Rebuild : DiscoveryPurpose.Ordinary,
+                    AllowRepositoryList = !runConfiguration.RebuildRepositoryList
+                };
+
+                report = await GitWizardReport.GenerateReportAsync(configuration, null, updateHandler, reportOptions).ConfigureAwait(false);
+            }
+            else
+            {
+                var reportOptions = new GitWizardReportOptions
+                {
+                    NoMft = runConfiguration.NoMft,
+                    AllBranches = runConfiguration.AllBranches,
+                    ComputeLocalCommitCount = !runConfiguration.NoLocalCommitCount
+                };
+                report = await GitWizardReport.GenerateReportAsync(configuration, explicitPaths, updateHandler, reportOptions).ConfigureAwait(false);
             }
 
-            if (!EnsureUsableSearchPaths(configuration, _ => { }))
-                return 1;
-
-            var reportOptions = new GitWizardReportOptions
+            await using (report)
             {
-                NoMft = runConfiguration.NoMft,
-                AllBranches = runConfiguration.AllBranches,
-                ComputeLocalCommitCount = !runConfiguration.NoLocalCommitCount,
-                DiscoveryCoordinator = coordinator,
-                DiscoveryPurpose = runConfiguration.RebuildRepositoryList ? DiscoveryPurpose.Rebuild : DiscoveryPurpose.Ordinary,
-                AllowRepositoryList = !runConfiguration.RebuildRepositoryList
-            };
+                var exitCode = GetDiscoveryExitCode(report.DiscoveryInventory, isFullInventory);
+                if (exitCode is { } failureExitCode)
+                {
+                    if (report.DiscoveryInventory is not null)
+                        WriteDiscoveryDiagnostics(report.DiscoveryInventory, stderr);
+                    return failureExitCode;
+                }
 
-            report = await GitWizardReport.GenerateReportAsync(configuration, null, updateHandler, reportOptions).ConfigureAwait(false);
-        }
-        else
-        {
-            var reportOptions = new GitWizardReportOptions
-            {
-                NoMft = runConfiguration.NoMft,
-                AllBranches = runConfiguration.AllBranches,
-                ComputeLocalCommitCount = !runConfiguration.NoLocalCommitCount
-            };
-            report = await GitWizardReport.GenerateReportAsync(configuration, explicitPaths, updateHandler, reportOptions).ConfigureAwait(false);
-        }
+                await SaveReportAsync(runConfiguration, report).ConfigureAwait(false);
 
-        await using (report)
-        {
-            var exitCode = GetDiscoveryExitCode(report.DiscoveryInventory, isFullInventory);
-            if (exitCode is { } failureExitCode)
-            {
-                if (report.DiscoveryInventory is not null)
-                    WriteDiscoveryDiagnostics(report.DiscoveryInventory, stderr);
-                return failureExitCode;
+                return OutputReport(report, runConfiguration, stdout);
             }
-
-            updateHandler.ProcessCommands();
-            updateHandler.PrintSummary();
-
-            await SaveReportAsync(runConfiguration, report).ConfigureAwait(false);
-
-            return OutputReport(report, runConfiguration, stdout);
+        }
+        finally
+        {
+            GitWizardLog.LogMethod = originalLogMethod;
         }
     }
 
@@ -108,7 +114,7 @@ public static partial class Program
     /// Handle the --merge flag: validate required args, refresh the supplied repos, and merge
     /// them into the existing report at --save-path (atomic write, other entries preserved).
     /// </summary>
-    static void RunMerge(RunConfiguration runConfiguration, GitWizardConfiguration configuration)
+    static void RunMerge(RunConfiguration runConfiguration, GitWizardConfiguration configuration, TextWriter stderr)
     {
         var savePath = runConfiguration.SavePath;
         var explicitPaths = ParseExplicitPaths(runConfiguration);
@@ -123,11 +129,9 @@ public static partial class Program
         }
 
         GitWizardLog.Log($"Merging {explicitPaths.Length} repo(s) into {savePath}");
-        var updateHandler = new UpdateHandler();
+        var updateHandler = new UpdateHandler(stderr);
         GitWizardReport.MergeIntoFile(savePath, configuration, explicitPaths, updateHandler,
             allBranches: runConfiguration.AllBranches, computeLocalCommitCount: !runConfiguration.NoLocalCommitCount);
-        updateHandler.ProcessCommands();
-        updateHandler.PrintSummary();
     }
 
     static async Task SaveReportAsync(RunConfiguration runConfiguration, GitWizardReport report)

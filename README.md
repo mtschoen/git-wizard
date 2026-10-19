@@ -33,6 +33,10 @@ dotnet build GitWizardUI/GitWizardUI.csproj
 
 On first run, configure your search paths in Settings. GitWizard will scan those paths for git repositories and cache the results for fast subsequent launches.
 
+The default CLI report writes one JSON document to stdout. Progress and diagnostics go to
+stderr, so `git-wizard > report.json` produces a parseable report. `--summary` uses the same
+stream split; `--print-minified` controls JSON formatting.
+
 Before pushing source changes, run `bash tools/ci-preflight.sh --all` to execute
 the host's shared CI gates. See [AGENTS.md](AGENTS.md#local-ci-preflight) for
 prerequisites, targeted scopes, pinned scanner preparation and platform limits.

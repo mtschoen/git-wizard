@@ -3,7 +3,6 @@ using GitWizard.Watch;
 using GitWizard.Watch.Linux;
 using GitWizardTests.TestSupport;
 using GitWizardUI.ViewModels;
-using GitWizardUI.ViewModels.Services;
 using MFTLib.Index;
 using MFTLibTestExtensions;
 

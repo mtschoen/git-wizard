@@ -521,27 +521,27 @@ public class MainViewModelRefreshTests
             "RefreshAsync must be a no-op when already refreshing.");
     }
 
-    // ── RemoveRepositoryByPath (the internal entry point Live mode uses to drop one repo) ──
+    // ── RemoveRepositoryPathFromUi (the internal entry point Live mode uses to drop one repo) ──
 
     [Test]
-    public void RemoveRepositoryByPath_ExistingPath_RemovesFromRepositories()
+    public void RemoveRepositoryPathFromUi_ExistingPath_RemovesFromRepositories()
     {
         var vm = CreateViewModel();
         vm.AddRepository(Repo("C:/repos/alpha"));
         vm.AddRepository(Repo("C:/repos/beta"));
 
-        vm.RemoveRepositoryByPath("C:/repos/alpha");
+        vm.RemoveRepositoryPathFromUi("C:/repos/alpha");
 
         Assert.That(vm.Repositories.Select(node => node.WorkingDirectory), Is.EquivalentTo(new[] { "C:/repos/beta" }));
     }
 
     [Test]
-    public void RemoveRepositoryByPath_UnknownPath_NoOp()
+    public void RemoveRepositoryPathFromUi_UnknownPath_NoOp()
     {
         var vm = CreateViewModel();
         vm.AddRepository(Repo("C:/repos/alpha"));
 
-        Assert.DoesNotThrow(() => vm.RemoveRepositoryByPath("C:/repos/does-not-exist"));
+        Assert.DoesNotThrow(() => vm.RemoveRepositoryPathFromUi("C:/repos/does-not-exist"));
         Assert.That(vm.Repositories, Has.Count.EqualTo(1));
     }
 

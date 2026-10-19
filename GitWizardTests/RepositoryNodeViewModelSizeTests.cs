@@ -2,7 +2,6 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using GitWizard;
 using GitWizardUI.ViewModels;
-using GitWizardUI.ViewModels.Services;
 
 namespace GitWizardTests;
 

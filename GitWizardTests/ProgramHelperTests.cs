@@ -7,7 +7,7 @@ namespace GitWizardTests;
 /// <summary>
 /// Tests for the internal static helper methods on <see cref="Program"/>:
 /// ReportNeedsAttention, ApplyFilter, ParseExplicitPaths, SerializeReport,
-/// SerializeInventoryReport, and TryHandleElevatedHelperModes.
+/// and SerializeInventoryReport.
 /// </summary>
 public partial class ProgramHelperTests
 {
@@ -383,32 +383,6 @@ public partial class ProgramHelperTests
 
         Assert.That(compactDoc.GetProperty("SchemaVersion").GetString(),
             Is.EqualTo(indentedDoc.GetProperty("SchemaVersion").GetString()));
-    }
-
-    #endregion
-
-    #region TryHandleElevatedHelperModes
-
-    [Test]
-    public void TryHandleElevatedHelperModes_NoElevatedArgs_ReturnsFalse()
-    {
-        var result = Program.TryHandleElevatedHelperModes(new[] { "git-wizard.exe", "-summary" });
-        Assert.That(result, Is.False);
-    }
-
-    [Test]
-    public void TryHandleElevatedHelperModes_EmptyArgs_ReturnsFalse()
-    {
-        var result = Program.TryHandleElevatedHelperModes(Array.Empty<string>());
-        Assert.That(result, Is.False);
-    }
-
-    [Test]
-    public void TryHandleElevatedHelperModes_UnrelatedArgs_ReturnsFalse()
-    {
-        var result = Program.TryHandleElevatedHelperModes(
-            new[] { "git-wizard.exe", "-filter", "test", "-print-minified" });
-        Assert.That(result, Is.False);
     }
 
     #endregion

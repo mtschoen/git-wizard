@@ -7,6 +7,8 @@ public static class WindowsDefender
     static readonly string[] ProcessExclusions =
         ["dotnet.exe", "git.exe", "git-lfs.exe", "git-wizard.exe", "GitWizardUI.exe"];
 
+    const string ElevatedHelperArgument = "--elevated-defender";
+
     public static string ExclusionsAddedMessage =>
         $"Windows Defender process exclusions added: {string.Join(", ", ProcessExclusions)}.";
 
@@ -21,7 +23,7 @@ public static class WindowsDefender
     public static bool AddExclusions(IElevationProvider? elevation)
     {
         if (ElevationUtilities.TryAddDefenderProcessExclusions(
-                ProcessExclusions, ["--elevated-defender"], elevation))
+                ProcessExclusions, [ElevatedHelperArgument], elevation))
         {
             GitWizardLog.Log(ExclusionsAddedMessage);
             return true;
@@ -29,5 +31,20 @@ public static class WindowsDefender
 
         GitWizardLog.Log("Failed to add Windows Defender exclusions.", GitWizardLog.LogType.Error);
         return false;
+    }
+
+    /// <summary>
+    /// Runs the elevated defender helper when <paramref name="arguments"/> carry the helper flag,
+    /// the child mode a self-elevated launch re-enters through.
+    /// </summary>
+    /// <returns>The process exit code (0 on success, 1 on failure), or null when the arguments do not request the helper.</returns>
+    public static int? TryRunElevatedHelper(string[] arguments) => TryRunElevatedHelper(arguments, null);
+
+    internal static int? TryRunElevatedHelper(string[] arguments, IElevationProvider? elevation)
+    {
+        if (!arguments.Contains(ElevatedHelperArgument))
+            return null;
+
+        return AddExclusions(elevation) ? 0 : 1;
     }
 }

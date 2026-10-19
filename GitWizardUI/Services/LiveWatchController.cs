@@ -16,20 +16,13 @@ namespace GitWizardUI.Services;
 /// every start and respawn re-runs the factory, so membership is reconciled against the exact
 /// session being watched each time. A startup with no watchable source is terminal - it is
 /// reported through <see cref="StartupUnavailable"/> without a respawn or a second elevation
-/// attempt. The source-factory construction remains for fake-source tests and arms the source
-/// inside the service, the pre-coordinator shape.
-/// </remarks>
+/// attempt./// </remarks>
 public sealed class LiveWatchController
 {
-    readonly Func<IVolumeChangeSource>? _sourceFactory;
-    readonly Func<IProgress<WatchStartupProgress>, CancellationToken, Task<WatchStartupResult>>? _startupFactory;
-    readonly IReadOnlyCollection<string> _trackedRoots;
-    readonly IReadOnlyCollection<string> _searchRoots;
+    readonly Func<IProgress<WatchStartupProgress>, CancellationToken, Task<WatchStartupResult>> _startupFactory;
     readonly Action<RepositoryChangeEvent> _onEvent;
     readonly Action<string> _onStopped;
     readonly Func<bool> _isElevated;
-    readonly bool _includeTempDirectories;
-    readonly IReadOnlyCollection<string> _ignoredPaths;
 
     public event Action? Started;
     public event Action? ScanErrorsChanged;
@@ -78,54 +71,12 @@ public sealed class LiveWatchController
         Func<IProgress<WatchStartupProgress>, CancellationToken, Task<WatchStartupResult>> startupFactory,
         Action<RepositoryChangeEvent> onEvent,
         Action<string> onStopped,
-        LiveWatchOptions? options = null)
+        Func<bool> isElevated)
     {
         _startupFactory = startupFactory ?? throw new ArgumentNullException(nameof(startupFactory));
-        _trackedRoots = [];
-        _searchRoots = [];
         _onEvent = onEvent;
         _onStopped = onStopped;
-        _isElevated = options?.IsElevated ?? (() => false);
-        _includeTempDirectories = options?.IncludeTempDirectories ?? false;
-        _ignoredPaths = options?.IgnoredPaths ?? [];
-    }
-
-    public LiveWatchController(
-        Func<CancellationToken, Task<WatchStartupResult>> startupFactory,
-        Action<RepositoryChangeEvent> onEvent,
-        Action<string> onStopped,
-        LiveWatchOptions? options = null)
-        : this((_, ct) => (startupFactory ?? throw new ArgumentNullException(nameof(startupFactory)))(ct), onEvent, onStopped, options)
-    {
-    }
-
-    public LiveWatchController(
-        Func<IVolumeChangeSource> sourceFactory,
-        IReadOnlyCollection<string> trackedRoots,
-        IReadOnlyCollection<string> searchRoots,
-        Action<RepositoryChangeEvent> onEvent,
-        Action<string> onStopped,
-        Func<bool> isElevated)
-        : this(sourceFactory, trackedRoots, searchRoots, onEvent, onStopped, new LiveWatchOptions { IsElevated = isElevated })
-    {
-    }
-
-    public LiveWatchController(
-        Func<IVolumeChangeSource> sourceFactory,
-        IReadOnlyCollection<string> trackedRoots,
-        IReadOnlyCollection<string> searchRoots,
-        Action<RepositoryChangeEvent> onEvent,
-        Action<string> onStopped,
-        LiveWatchOptions? options = null)
-    {
-        _sourceFactory = sourceFactory;
-        _trackedRoots = trackedRoots;
-        _searchRoots = searchRoots;
-        _onEvent = onEvent;
-        _onStopped = onStopped;
-        _isElevated = options?.IsElevated ?? (() => false);
-        _includeTempDirectories = options?.IncludeTempDirectories ?? false;
-        _ignoredPaths = options?.IgnoredPaths ?? [];
+        _isElevated = isElevated ?? throw new ArgumentNullException(nameof(isElevated));
     }
 
     public IReadOnlyDictionary<string, string> ScanErrors
@@ -151,12 +102,7 @@ public sealed class LiveWatchController
         get
         {
             lock (_gate)
-                return _lifetime switch
-                {
-                    IVolumeChangeSource source => source,
-                    WatchStartupResult startup => startup.Source,
-                    _ => null
-                };
+                return (_lifetime as WatchStartupResult)?.Source;
         }
     }
 
@@ -182,16 +128,15 @@ public sealed class LiveWatchController
 
             try
             {
-                var (startup, startRun) = await AcquireStartupAsync(runCts, ct).ConfigureAwait(false);
-                if (!startRun)
+                var startup = await AcquireStartupAsync(runCts, ct).ConfigureAwait(false);
+                if (startup is null)
                     return;
 
                 var service = TryBeginRun(startup);
                 if (service is null)
                 {
                     // A stop raced the startup acquisition; abandon the prepared startup.
-                    if (startup is not null)
-                        await startup.DisposeAsync().ConfigureAwait(false);
+                    await startup.DisposeAsync().ConfigureAwait(false);
                     return;
                 }
 
@@ -239,16 +184,13 @@ public sealed class LiveWatchController
         }
     }
 
-    // Acquires the coordinator-prepared startup for this run (null in source-factory mode).
-    // StartRun is false when the loop must end: a cancelled acquisition, a terminal
+    // Acquires the coordinator-prepared startup for this run.
+    // Returns null when the loop must end: a cancelled acquisition, a terminal
     // null-source startup (reported through StartupUnavailable with no respawn and no second
     // elevation attempt), or a stop that raced the acquisition.
-    async Task<(WatchStartupResult? Startup, bool StartRun)> AcquireStartupAsync(
+    async Task<WatchStartupResult?> AcquireStartupAsync(
         CancellationTokenSource runCts, CancellationToken ct)
     {
-        if (_startupFactory is null)
-            return (null, true);
-
         WatchStartupResult startup;
         try
         {
@@ -257,18 +199,18 @@ public sealed class LiveWatchController
         }
         catch (OperationCanceledException) when (runCts.IsCancellationRequested)
         {
-            return (null, false);
+            return null;
         }
 
         if (startup.Source is not null)
-            return (startup, true);
+            return startup;
 
         var inventory = startup.Inventory;
         await startup.DisposeAsync().ConfigureAwait(false);
         if (IsStopRequested(ct))
-            return (null, false);
+            return null;
         StartupUnavailable?.Invoke(inventory);
-        return (null, false);
+        return null;
     }
 
     bool IsStopRequested(CancellationToken ct)
@@ -280,29 +222,15 @@ public sealed class LiveWatchController
     // Publishes the next run's service and lifetime under the gate after the atomic
     // top-of-run stop re-check; returns null when a stop won the race, leaving the
     // caller to abandon the startup it acquired.
-    RepositoryWatchService? TryBeginRun(WatchStartupResult? startup)
+    RepositoryWatchService? TryBeginRun(WatchStartupResult startup)
     {
         lock (_gate)
         {
             if (_stopRequested)
                 return null;
 
-            RepositoryWatchService service;
-            if (startup is not null)
-            {
-                service = new RepositoryWatchService(startup);
-                _lifetime = startup;
-            }
-            else
-            {
-                var source = (_sourceFactory ?? throw new InvalidOperationException(
-                    "A source factory is required when no startup factory is configured."))();
-                service = new RepositoryWatchService(source, _trackedRoots, _searchRoots,
-                    includeTempDirectories: _includeTempDirectories,
-                    ignoredPaths: _ignoredPaths);
-                _lifetime = source;
-            }
-
+            var service = new RepositoryWatchService(startup);
+            _lifetime = startup;
             _service = service;
             return service;
         }
@@ -390,25 +318,4 @@ public sealed class LiveWatchController
     void OnScanErrorsChanged() => ScanErrorsChanged?.Invoke();
     void OnScanWarningsChanged() => ScanWarningsChanged?.Invoke();
     void OnInventoryReady(DiscoveryInventory inventory) => InventoryReady?.Invoke(inventory);
-}
-
-/// <summary>
-/// Optional configuration settings for <see cref="LiveWatchController"/>.
-/// </summary>
-public sealed class LiveWatchOptions
-{
-    /// <summary>
-    /// Probe function indicating whether the process currently has elevated privileges.
-    /// </summary>
-    public Func<bool>? IsElevated { get; init; }
-
-    /// <summary>
-    /// When true, includes temp directories in live change tracking and discovery.
-    /// </summary>
-    public bool IncludeTempDirectories { get; init; }
-
-    /// <summary>
-    /// Configured ignored paths to exclude from live change tracking and discovery.
-    /// </summary>
-    public IReadOnlyCollection<string>? IgnoredPaths { get; init; }
 }

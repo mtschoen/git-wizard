@@ -144,7 +144,7 @@ public partial class MainViewModel
 
             var renamedFrom = TryCorrelateRename(repoRoot, repository);
             if (renamedFrom != null)
-                RemoveRepositoryByPath(renamedFrom);
+                RemoveRepositoryPathFromUi(renamedFrom);
 
             AddRepository(repository);
         });
@@ -197,7 +197,7 @@ public partial class MainViewModel
         _ui.Post(() =>
         {
             if (_pendingDeletedRepos.Remove(repoRoot))
-                RemoveRepositoryByPath(repoRoot);
+                RemoveRepositoryPathFromUi(repoRoot);
         });
     }
 

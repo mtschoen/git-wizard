@@ -13,35 +13,7 @@ public partial class MainViewModel
         ? StringComparer.OrdinalIgnoreCase
         : StringComparer.Ordinal;
 
-    int _workingDirectoryComparisonCount;
-    int _positionalInsertCount;
-
-    // Test-only instrumentation seams (pr-crew review of PR #241/#243): count every
-    // WorkingDirectory comparison and every positional (non-tail) collection insert, whichever
-    // path performs them. Production code never reads either; they exist so a test can assert a
-    // batch actually took a bulk path (one sort/merge plus tail-only appends) rather than the old
-    // per-row scan-and-shift, without asserting on wall-clock time or subscribing to
-    // CollectionChanged on a header that does not exist yet.
-    internal int WorkingDirectoryComparisonCount => _workingDirectoryComparisonCount;
-    internal int PositionalInsertCount => _positionalInsertCount;
-
-    int CompareWorkingDirectory(string a, string b)
-    {
-        _workingDirectoryComparisonCount++;
-        return WorkingDirectoryComparer.Compare(a, b);
-    }
-
-    // Inserts node into an ObservableCollection at index, counting it as a "positional" insert
-    // (round-2 pr-crew review of PR #241/#243) whenever index is not the tail: an
-    // ObservableCollection is array-backed, so a mid-list Insert shifts every following element,
-    // while inserting at Count never does (it just appends). The counter distinguishes the two so
-    // a test can see the shift cost a comparison count alone cannot.
-    void InsertPositional(ObservableCollection<RepositoryNodeViewModel> nodes, int index, RepositoryNodeViewModel node)
-    {
-        if (index != nodes.Count)
-            _positionalInsertCount++;
-        nodes.Insert(index, node);
-    }
+    int CompareWorkingDirectory(string a, string b) => WorkingDirectoryComparer.Compare(a, b);
 
     // Inserts node at its sorted position when SortMode.WorkingDirectory is active (so a single
     // Live arrival lands in path order without a full rebuild); otherwise appends, matching
@@ -60,7 +32,7 @@ public partial class MainViewModel
             ? FindSortedInsertionIndex(nodes, node.WorkingDirectory)
             : nodes.Count;
 
-        InsertPositional(nodes, index, node);
+        nodes.Insert(index, node);
         return index;
     }
 
@@ -125,7 +97,7 @@ public partial class MainViewModel
             if (index == nodes.Count)
                 nodes.Add(node);
             else
-                InsertPositional(nodes, index, node);
+                nodes.Insert(index, node);
             searchStart = index + 1;
         }
     }

@@ -1,6 +1,6 @@
-using System.Diagnostics;
 using GitWizard;
 using GitWizard.CLI;
+using GitWizard.Watch;
 using GitWizardTests.TestSupport;
 using LibGit2Sharp;
 using MFTLib.Index;
@@ -18,11 +18,7 @@ public class ProgramWatchStartupTests
     [SetUp]
     public void SetUp()
     {
-        Program.ResetWatchDependenciesToDefault();
-        Program._isWindows = () => true;
-        Program._isLinux = () => false;
-        Program._isElevated = () => false;
-        Program._startProcess = _ => throw new AssertionException("Watch startup must not launch a process.");
+        VolumeChangeSourceFactory._isElevatedOverride = () => true;
         GitWizardLog.SilentMode = true;
         _home = TestUtilities.RedirectLocalFilesToTemp();
         _root = Path.Combine(_home, "search");
@@ -38,7 +34,7 @@ public class ProgramWatchStartupTests
         }
         finally
         {
-            Program.ResetWatchDependenciesToDefault();
+            VolumeChangeSourceFactory.ResetToDefaults();
         }
     }
 
@@ -64,6 +60,18 @@ public class ProgramWatchStartupTests
         return new RepositoryDiscoveryCoordinator(dependencies);
     }
 
+    // Discover before arming so repositories created since the last cache write are tracked.
+    static async Task<List<string>> LoadTrackedRepositoryPathsAsync(
+        GitWizardConfiguration configuration,
+        RepositoryDiscoveryCoordinator coordinator)
+    {
+        var retainedRoots = await GitWizardApi.GetCachedRepositoryPathsAsync() ?? [];
+        var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Watch, false, false, retainedRoots);
+
+        await using var startup = await coordinator.PrepareWatchAsync(request, null, CancellationToken.None);
+        return startup.Inventory.Paths.ToList();
+    }
+
     [Test]
     public async Task LoadTrackedRepositoryPathsAsync_ColdPath_DiscoversRepositoryAndWritesList()
     {
@@ -73,7 +81,7 @@ public class ProgramWatchStartupTests
         var config = new GitWizardConfiguration { SearchPaths = { files.TreePath }, IncludeTempDirectories = true };
         var coordinator = CreateCoordinator(files);
 
-        var paths = await Program.LoadTrackedRepositoryPathsAsync(config, coordinator);
+        var paths = await LoadTrackedRepositoryPathsAsync(config, coordinator);
         var cached = await GitWizardApi.GetCachedRepositoryPathsAsync();
 
         Assert.Multiple(() =>
@@ -113,7 +121,7 @@ public class ProgramWatchStartupTests
         });
 
         var config = new GitWizardConfiguration { SearchPaths = { files.TreePath }, IncludeTempDirectories = true };
-        var paths = await Program.LoadTrackedRepositoryPathsAsync(config, coordinator);
+        var paths = await LoadTrackedRepositoryPathsAsync(config, coordinator);
         var cached = await GitWizardApi.GetCachedRepositoryPathsAsync();
 
         Assert.Multiple(() =>
@@ -155,7 +163,7 @@ public class ProgramWatchStartupTests
         });
 
         var config = new GitWizardConfiguration { SearchPaths = { _root } };
-        var paths = await Program.LoadTrackedRepositoryPathsAsync(config, coordinator);
+        var paths = await LoadTrackedRepositoryPathsAsync(config, coordinator);
         var cached = await GitWizardApi.GetCachedRepositoryPathsAsync();
 
         Assert.Multiple(() =>
@@ -249,16 +257,9 @@ public class ProgramWatchStartupTests
         });
     }
 
-    [TestCase(true, false, false)]
-    [TestCase(true, false, true)]
-    [TestCase(false, true, true)]
-    public async Task RunWatchAsync_EmptySuccess_DoesNotConsumeWatchEvents(
-        bool isWindows, bool isLinux, bool isElevated)
+    [Test]
+    public async Task RunWatchAsync_EmptySuccess_DoesNotConsumeWatchEvents()
     {
-        Program._isWindows = () => isWindows;
-        Program._isLinux = () => isLinux;
-        Program._isElevated = () => isElevated;
-
         using var files = new PackedIndexFixture();
         var coordinator = CreateCoordinator(files);
         var config = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
@@ -276,63 +277,27 @@ public class ProgramWatchStartupTests
     }
 
     [Test]
-    public async Task RunWatchAsync_UnelevatedLinux_RoutesToPkexecWithoutLaunchingProcess()
+    public void GetUnsupportedPlatformMessage_UnsupportedPlatform_ReturnsExactMessage()
     {
-        using var files = new PackedIndexFixture();
-        var coordinator = CreateCoordinator(files);
-        var configuration = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
-        var runConfiguration = CliParser.Parse(["--watch"]);
-        using var stdout = new StringWriter();
-        using var stderr = new StringWriter();
-        ProcessStartInfo? capturedStartInfo = null;
-        Program._isWindows = () => false;
-        Program._isLinux = () => true;
-        Program._isElevated = () => false;
-        Program._getProcessPath = () => "/test/bin/git-wizard";
-        Program._getLocalFilesPath = () => _home;
-        Program._startProcess = startInfo =>
-        {
-            capturedStartInfo = startInfo;
-            return null;
-        };
+        var message = Program.GetUnsupportedPlatformMessage(isWindows: false, isLinux: false);
 
-        var exitCode = await Program.RunWatchAsync(
-            runConfiguration, configuration, coordinator, stdout, stderr, CancellationToken.None);
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(exitCode, Is.EqualTo(1));
-            Assert.That(capturedStartInfo, Is.Not.Null);
-            Assert.That(capturedStartInfo?.FileName, Is.EqualTo("pkexec"));
-            Assert.That(capturedStartInfo?.UseShellExecute, Is.False);
-            Assert.That(capturedStartInfo?.ArgumentList,
-                Does.Contain($"GITWIZARD_HOME={_home}"));
-            Assert.That(stdout.ToString(), Is.Empty);
-        });
+        Assert.That(message, Is.EqualTo("--watch requires Windows or Linux."));
     }
 
     [Test]
-    public async Task RunWatchAsync_UnsupportedPlatform_ReturnsErrorWithoutCheckingElevation()
+    public void GetUnsupportedPlatformMessage_WindowsPlatform_ReturnsNull()
     {
-        using var files = new PackedIndexFixture();
-        var coordinator = CreateCoordinator(files);
-        var configuration = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
-        var runConfiguration = CliParser.Parse(["--watch"]);
-        using var stdout = new StringWriter();
-        using var stderr = new StringWriter();
-        Program._isWindows = () => false;
-        Program._isLinux = () => false;
-        Program._isElevated = () => throw new AssertionException("Unsupported platform must not check elevation.");
+        var message = Program.GetUnsupportedPlatformMessage(isWindows: true, isLinux: false);
 
-        var exitCode = await Program.RunWatchAsync(
-            runConfiguration, configuration, coordinator, stdout, stderr, CancellationToken.None);
+        Assert.That(message, Is.Null);
+    }
 
-        Assert.Multiple(() =>
-        {
-            Assert.That(exitCode, Is.EqualTo(1));
-            Assert.That(stderr.ToString(), Does.Contain("--watch requires Windows or Linux."));
-            Assert.That(stdout.ToString(), Is.Empty);
-        });
+    [Test]
+    public void GetUnsupportedPlatformMessage_LinuxPlatform_ReturnsNull()
+    {
+        var message = Program.GetUnsupportedPlatformMessage(isWindows: false, isLinux: true);
+
+        Assert.That(message, Is.Null);
     }
 
     [Test]
@@ -393,7 +358,7 @@ public class ProgramWatchStartupTests
 
         var coordinator = CreateCoordinator(files);
         var config = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
-        var paths = await Program.LoadTrackedRepositoryPathsAsync(config, coordinator);
+        var paths = await LoadTrackedRepositoryPathsAsync(config, coordinator);
         var cached = await GitWizardApi.GetCachedRepositoryPathsAsync();
 
         Assert.Multiple(() =>

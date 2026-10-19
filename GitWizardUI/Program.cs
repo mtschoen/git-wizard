@@ -11,13 +11,13 @@ static class Program
     // yet and stuff might break.
     [STAThread]
     public static int Main(string[] args) => Run(args,
-        ElevatedEntryPoint.RunBrokerIfRequested, WindowsDefender.AddExclusions,
+        ElevatedEntryPoint.RunBrokerIfRequested, WindowsDefender.TryRunElevatedHelper,
         DesktopInstance.CreateName,
         arguments => BuildAvaloniaApp().StartWithClassicDesktopLifetime(arguments),
         StartupNotice.Show);
 
     internal static int Run(string[] arguments, Func<string[], bool> tryHandleBroker,
-        Func<bool> runDefender, Func<string> getMutexName,
+        Func<string[], int?> tryRunDefenderHelper, Func<string> getMutexName,
         Func<string[], int> startDesktop, Action<string> showNotice)
     {
         if (tryHandleBroker(arguments))
@@ -25,9 +25,9 @@ static class Program
             return 0;
         }
 
-        if (arguments.Contains("--elevated-defender"))
+        if (tryRunDefenderHelper(arguments) is { } helperExitCode)
         {
-            return runDefender() ? 0 : 1;
+            return helperExitCode;
         }
 
         return DesktopInstance.Run(getMutexName(), () =>

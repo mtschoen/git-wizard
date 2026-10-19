@@ -38,7 +38,7 @@ public class DesktopStartupTests
 
     static int Start(string name, Func<string[], int> desktop, Action<string> notice)
         => UiProgram.Run([], _ => false,
-            () => throw new AssertionException("Unexpected Defender execution"),
+            _ => null,
             () => name, desktop, notice);
 
     [Test]
@@ -125,7 +125,7 @@ public class DesktopStartupTests
             ? ["--broker", "--pipe", "test-pipe", "--elevated-defender"]
             : ["--elevated-defender"];
         var result = UiProgram.Run(arguments, values => { brokerArguments = values; return broker; },
-            () => { defenderCalls++; return defenderSuccess; },
+            _ => { defenderCalls++; return defenderSuccess ? 0 : 1; },
             () => throw new AssertionException("Child evaluated mutex name"),
             _ => throw new AssertionException("Child started desktop"),
             _ => throw new AssertionException("Child displayed notice"));

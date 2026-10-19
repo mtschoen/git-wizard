@@ -196,6 +196,6 @@ public partial class MainViewModel
 
         var insertAt = removeFrom;
         foreach (var child in header.Children)
-            InsertPositional(Repositories, insertAt++, child);
+            Repositories.Insert(insertAt++, child);
     }
 }

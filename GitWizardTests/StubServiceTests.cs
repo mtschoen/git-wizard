@@ -1,5 +1,3 @@
-using GitWizardUI.ViewModels.Services;
-
 namespace GitWizardTests;
 
 /// <summary>

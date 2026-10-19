@@ -1,7 +1,7 @@
+using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using GitWizard;
 using GitWizardUI.ViewModels;
-using GitWizardUI.ViewModels.Services;
 
 namespace GitWizardTests;
 
@@ -161,10 +161,9 @@ public class MainViewModelWorkingDirectorySortTests
     // pr-crew review of PR #241/#243: InsertRepositoryNode's per-row scan, called once per
     // pre-populated row, cost O(n) per row for O(n^2) total across a large cached report.
     // PrePopulateFromReport must instead sort the whole ungrouped batch once (SortBatchForDisplay)
-    // and append it, for O(n log n) total. WorkingDirectoryComparisonCount (an internal,
-    // test-only seam) counts every comparison regardless of which path performs it, so a batch
-    // that took the old per-row path is distinguishable from one that took the bulk path by
-    // order of magnitude, without asserting on wall-clock time.
+    // and append it, for O(n log n) total. The recorder below observes the collection's own
+    // change notifications, so a batch that took the old per-row path is distinguishable from one
+    // that took the bulk path without asserting on wall-clock time.
     [Test]
     public void WorkingDirectory_PrePopulateFromReport_LargeBatch_SortsOnceInsteadOfPerRow()
     {
@@ -174,6 +173,7 @@ public class MainViewModelWorkingDirectorySortTests
             .ToArray();
 
         var viewModel = NewViewModel();
+        var positionalInserts = new PositionalInsertRecorder(viewModel.Repositories);
         var report = new GitWizardReport();
         foreach (var path in paths)
             report.Repositories[path] = Repo(path);
@@ -184,26 +184,49 @@ public class MainViewModelWorkingDirectorySortTests
         var actual = viewModel.Repositories.Select(node => node.WorkingDirectory).ToArray();
         Assert.That(actual, Is.EqualTo(paths.OrderBy(p => p, PlatformComparer)));
 
-        // A per-row scan/insert would cost roughly count*(count-1)/2 (~44,850) comparisons; an
-        // n log n sort costs on the order of count*log2(count) (~2,470). 20 comparisons per row is
-        // a generous bound that comfortably separates the two without asserting a tight number.
-        Assert.That(viewModel.WorkingDirectoryComparisonCount, Is.LessThan(count * 20),
-            "PrePopulateFromReport must sort the batch once, not call InsertRepositoryNode per row.");
-
-        // The comparison count alone cannot see the ObservableCollection's own O(n) shift cost
-        // per Insert - PositionalInsertCount (round-2 pr-crew review) counts that directly: a
+        // A positional insert shifts the ObservableCollection's own elements: a
         // per-row insert into a growing, reverse-sorted list would land mid-list almost every
         // time, while the bulk path only ever appends at the tail.
-        Assert.That(viewModel.PositionalInsertCount, Is.Zero,
+        Assert.That(positionalInserts.Count, Is.Zero,
             "PrePopulateFromReport must write the batch back with tail-only appends, not positional inserts.");
     }
 
     // The bulk path above is for whole-batch callers; a single Live/refresh arrival must still use
     // InsertRepositoryNode's per-row binary search rather than a linear scan.
     [Test]
-    public void WorkingDirectory_IsolatedArrival_UsesBinarySearchNotLinearScan()
+    public void WorkingDirectory_IsolatedArrival_LandsAtSortedPositionWithOnePositionalInsert()
     {
         const int existingCount = 200;
+        var viewModel = NewViewModel();
+        var positionalInserts = new PositionalInsertRecorder(viewModel.Repositories);
+        var paths = Enumerable.Range(0, existingCount).Select(i => $@"C:\repos\r{i:D4}").ToArray();
+        var report = new GitWizardReport();
+        foreach (var path in paths)
+            report.Repositories[path] = Repo(path);
+        viewModel.PrePopulateFromReport(new GitWizardConfiguration(), paths, report);
+
+        // Sorts strictly between "C:\repos\r0099" and "C:\repos\r0100" - a genuine mid-list
+        // insert, not an append at either end.
+        viewModel.AddRepository(Repo(@"C:\repos\r0099a"));
+
+        Assert.That(viewModel.Repositories.Select(node => node.WorkingDirectory).ToArray(),
+            Is.EqualTo(paths.Append(@"C:\repos\r0099a").OrderBy(p => p, PlatformComparer)),
+            "A single isolated arrival must land at its sorted position.");
+
+        // A single isolated arrival is exactly the case InsertRepositoryNode's own O(n) shift is
+        // acceptable for - it is not part of a batch this fix is meant to speed up - so exactly
+        // one positional insert is expected here (unlike the batch paths, which must stay at 0).
+        Assert.That(positionalInserts.Count, Is.EqualTo(1));
+    }
+
+    // Guards against InsertRepositoryNode regressing to a linear scan. The comparer is a private
+    // static, so the test observes the search from outside: it swaps the ObservableCollection's
+    // backing list for one that counts indexer reads (the search reads one existing row per
+    // comparison), then bounds the reads of a single mid-list arrival logarithmically.
+    [Test]
+    public void WorkingDirectory_IsolatedArrival_UsesBinarySearchNotLinearScan()
+    {
+        const int existingCount = 1000;
         var viewModel = NewViewModel();
         var paths = Enumerable.Range(0, existingCount).Select(i => $@"C:\repos\r{i:D4}").ToArray();
         var report = new GitWizardReport();
@@ -211,22 +234,20 @@ public class MainViewModelWorkingDirectorySortTests
             report.Repositories[path] = Repo(path);
         viewModel.PrePopulateFromReport(new GitWizardConfiguration(), paths, report);
 
-        var before = viewModel.WorkingDirectoryComparisonCount;
-        // Sorts strictly between "C:\repos\r0099" and "C:\repos\r0100" - a genuine mid-list
-        // insert, not an append at either end.
-        viewModel.AddRepository(Repo(@"C:\repos\r0099a"));
-        var comparisonsForOneInsert = viewModel.WorkingDirectoryComparisonCount - before;
+        var reads = CountingList.Install(viewModel.Repositories);
 
-        // A linear scan would cost up to existingCount (~200) comparisons; a binary search costs
-        // at most ceil(log2(existingCount+1)) (~8). 20 is a generous bound that still rules out a
-        // linear scan.
-        Assert.That(comparisonsForOneInsert, Is.LessThan(20),
+        // Sorts strictly between "C:\repos\r0499" and "C:\repos\r0500": a genuine mid-list insert.
+        viewModel.AddRepository(Repo(@"C:\repos\r0499a"));
+        var searchReads = reads.IndexerReads;
+
+        Assert.That(viewModel.Repositories.Select(node => node.WorkingDirectory).ToArray(),
+            Is.EqualTo(paths.Append(@"C:\repos\r0499a").OrderBy(p => p, PlatformComparer)));
+
+        // Binary search over 1000 rows needs at most ceil(log2(1001)) = 10 reads; a linear scan
+        // needs about 500. 2 * 10 leaves headroom for incidental reads while ruling out a scan.
+        Assert.That(searchReads, Is.GreaterThan(0), "The counting list must observe the search.");
+        Assert.That(searchReads, Is.LessThanOrEqualTo(2 * 10),
             "A single isolated arrival must use a binary search, not a linear scan.");
-
-        // A single isolated arrival is exactly the case InsertRepositoryNode's own O(n) shift is
-        // acceptable for - it is not part of a batch this fix is meant to speed up - so exactly
-        // one positional insert is expected here (unlike the batch paths, which must stay at 0).
-        Assert.That(viewModel.PositionalInsertCount, Is.EqualTo(1));
     }
 
     // pr-crew review of PR #241/#243 (round 2): the binary search above still leaves the
@@ -246,17 +267,18 @@ public class MainViewModelWorkingDirectorySortTests
             .ToList();
 
         var viewModel = NewViewModel();
+        var positionalInserts = new PositionalInsertRecorder(viewModel.Repositories);
         viewModel.IsRefreshing = true;
         viewModel.AddRepositoriesBatch(repositories);
 
-        Assert.That(viewModel.PositionalInsertCount, Is.Zero,
+        Assert.That(positionalInserts.Count, Is.Zero,
             "A drained batch must append into the display, not call InsertRepositoryNode per row.");
 
         // A second, smaller batch that arrives later must also append with zero positional inserts.
         var secondBatch = Enumerable.Range(0, 20).Select(i => Repo($@"C:\repos\m{i:D4}")).ToList();
         viewModel.AddRepositoriesBatch(secondBatch);
 
-        Assert.That(viewModel.PositionalInsertCount, Is.Zero,
+        Assert.That(positionalInserts.Count, Is.Zero,
             "Merging a second batch during refresh must still use arrival-order append without positional inserts.");
 
         viewModel.CompleteRefresh();
@@ -281,6 +303,7 @@ public class MainViewModelWorkingDirectorySortTests
             .ToList();
 
         var viewModel = NewViewModel();
+        var positionalInserts = new PositionalInsertRecorder(viewModel.Repositories);
         viewModel.IsRefreshing = true;
         foreach (var repository in repositories)
         {
@@ -290,7 +313,7 @@ public class MainViewModelWorkingDirectorySortTests
 
         viewModel.DrainUICommands();
 
-        Assert.That(viewModel.PositionalInsertCount, Is.Zero,
+        Assert.That(positionalInserts.Count, Is.Zero,
             "A drain with interleaved create/complete commands must append all creates with zero positional inserts.");
         Assert.That(viewModel._repositoryMap, Has.Count.EqualTo(count),
             "Every drained create must have produced exactly one map entry.");
@@ -308,6 +331,7 @@ public class MainViewModelWorkingDirectorySortTests
     public void WorkingDirectory_MultipleSuccessiveDrains_DoesNotResetOrRewriteAccumulatedRows()
     {
         var viewModel = NewViewModel();
+        var positionalInserts = new PositionalInsertRecorder(viewModel.Repositories);
         viewModel.IsRefreshing = true;
         var resetCount = 0;
         var addCount = 0;
@@ -341,7 +365,7 @@ public class MainViewModelWorkingDirectorySortTests
             viewModel.DrainUICommands();
         }
 
-        Assert.That(viewModel.PositionalInsertCount, Is.Zero,
+        Assert.That(positionalInserts.Count, Is.Zero,
             "All successive drains during a refresh must append in arrival order with zero positional inserts.");
         Assert.That(resetCount, Is.Zero,
             "Successive drains must not clear the collection or trigger Reset events.");
@@ -382,6 +406,9 @@ public class MainViewModelWorkingDirectorySortTests
 
         var viewModel = NewViewModel();
         viewModel.ToggleGroupMode(GroupMode.Drive);
+
+        // ToggleGroupMode replaced Repositories, so observe the collection that is displayed now.
+        var publication = new GroupPublicationRecorder(viewModel.Repositories);
         var report = new GitWizardReport();
         foreach (var path in paths)
             report.Repositories[path] = Repo(path);
@@ -391,8 +418,11 @@ public class MainViewModelWorkingDirectorySortTests
         var header = viewModel.Repositories.Single(n => n.IsGroupHeader);
         Assert.That(header.Children.Select(n => n.WorkingDirectory),
             Is.EqualTo(paths.OrderBy(p => p, PlatformComparer)));
-        Assert.That(viewModel.PositionalInsertCount, Is.Zero,
+        Assert.That(publication.PublishedHeaderChildCounts, Is.EqualTo(new[] { count }),
+            "The group header must be published once, already holding every child.");
+        Assert.That(publication.ChildMutationsAfterPublication, Is.Zero,
             "Grouped pre-population must build a group's children once, not call AddToGroups per row.");
+        Assert.That(publication.PositionalInserts, Is.Zero);
     }
 
     [Test]
@@ -451,6 +481,8 @@ public class MainViewModelWorkingDirectorySortTests
     public void WorkingDirectory_RefreshCommandQueue_ZeroPositionalInsertsAndSortsAtEnd(bool randomOrder)
     {
         var viewModel = NewViewModel();
+        var positionalInserts = new PositionalInsertRecorder(viewModel.Repositories);
+        var drainedCollection = viewModel.Repositories;
         viewModel.IsRefreshing = true;
 
         // Mixed drives and mixed case: C:\, c:\, D:\, d:\, E:\, e:\
@@ -480,7 +512,7 @@ public class MainViewModelWorkingDirectorySortTests
                 viewModel.OnRepositoryRefreshCompleted(repo);
             }
             viewModel.DrainUICommands();
-            Assert.That(viewModel.PositionalInsertCount, Is.Zero,
+            Assert.That(positionalInserts.Count, Is.Zero,
                 "During a refresh, every drain must append rows in arrival order with zero positional inserts.");
         }
 
@@ -488,10 +520,21 @@ public class MainViewModelWorkingDirectorySortTests
         var repoToSelect = viewModel.Repositories[15];
         viewModel.SelectedRepository = repoToSelect;
 
+        var drainedMutationsDuringCompletion = 0;
+        drainedCollection.CollectionChanged += (_, _) => drainedMutationsDuringCompletion++;
+        var completion = new CollectionReplacementRecorder(viewModel);
+
         viewModel.CompleteRefresh();
 
-        Assert.That(viewModel.PositionalInsertCount, Is.Zero,
+        Assert.That(positionalInserts.Count, Is.Zero,
             "Rebuilding at completion must replace the collection in a single step with zero positional inserts.");
+        Assert.That(completion.ReplacedCollectionRowCounts, Is.EqualTo(new[] { count }),
+            "Completion must publish exactly one replacement Repositories collection, already holding every row.");
+        Assert.That(completion.MutationsAfterReplacement, Is.Zero,
+            "The published collection must not be mutated incrementally after it replaces the drained one.");
+        Assert.That(drainedMutationsDuringCompletion, Is.Zero,
+            "Completion must not mutate the drained collection in place.");
+        Assert.That(viewModel.Repositories, Is.Not.SameAs(drainedCollection));
 
         var actual = viewModel.Repositories.Select(node => node.WorkingDirectory).ToArray();
         Assert.That(actual, Is.EqualTo(allExpected.OrderBy(p => p, PlatformComparer)),
@@ -500,4 +543,103 @@ public class MainViewModelWorkingDirectorySortTests
         Assert.That(viewModel.SelectedRepository?.WorkingDirectory, Is.EqualTo(repoToSelect.WorkingDirectory),
             "Selection must be preserved across the end-of-refresh sorted rebuild.");
     }
+}
+
+// Counts Add notifications that land before the tail: an ObservableCollection shifts every following
+// element on such an insert, while tail appends never do.
+sealed class PositionalInsertRecorder
+{
+    public int Count { get; private set; }
+
+    public PositionalInsertRecorder(ObservableCollection<RepositoryNodeViewModel> nodes) =>
+        nodes.CollectionChanged += (_, args) =>
+        {
+            if (args.Action == NotifyCollectionChangedAction.Add
+                && args.NewStartingIndex + (args.NewItems?.Count ?? 0) != nodes.Count)
+                Count++;
+        };
+}
+
+// Observes a displayed collection that receives group headers: records how many children each header
+// holds when it is published and every later change to a published header's Children.
+sealed class GroupPublicationRecorder
+{
+    public List<int> PublishedHeaderChildCounts { get; } = [];
+    public int ChildMutationsAfterPublication { get; private set; }
+    public int PositionalInserts { get; private set; }
+
+    public GroupPublicationRecorder(ObservableCollection<RepositoryNodeViewModel> displayed) =>
+        displayed.CollectionChanged += (_, args) =>
+        {
+            if (args.Action != NotifyCollectionChangedAction.Add || args.NewItems == null)
+                return;
+            if (args.NewStartingIndex + args.NewItems.Count != displayed.Count)
+                PositionalInserts++;
+            foreach (RepositoryNodeViewModel node in args.NewItems)
+            {
+                if (!node.IsGroupHeader)
+                    continue;
+                PublishedHeaderChildCounts.Add(node.Children.Count);
+                node.Children.CollectionChanged += (_, _) => ChildMutationsAfterPublication++;
+            }
+        };
+}
+
+// Observes every replacement of MainViewModel.Repositories: the row count each replacement holds
+// when published and any change made to a replacement afterwards.
+sealed class CollectionReplacementRecorder
+{
+    public List<int> ReplacedCollectionRowCounts { get; } = [];
+    public int MutationsAfterReplacement { get; private set; }
+
+    public CollectionReplacementRecorder(MainViewModel viewModel) =>
+        viewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName != nameof(MainViewModel.Repositories))
+                return;
+            var published = viewModel.Repositories;
+            ReplacedCollectionRowCounts.Add(published.Count);
+            published.CollectionChanged += (_, _) => MutationsAfterReplacement++;
+        };
+}
+
+// Replaces the private backing list of an ObservableCollection (System.Collections.ObjectModel.Collection's
+// "items" field) with a forwarding list that counts indexer reads, so a test can observe how many
+// existing rows a search touched without any production instrumentation.
+sealed class CountingList(IList<RepositoryNodeViewModel> inner) : IList<RepositoryNodeViewModel>
+{
+    public int IndexerReads { get; private set; }
+
+    public static CountingList Install(ObservableCollection<RepositoryNodeViewModel> collection)
+    {
+        var field = typeof(Collection<RepositoryNodeViewModel>)
+            .GetField("items", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.That(field, Is.Not.Null, "Collection<T> no longer exposes its backing list field.");
+        var counting = new CountingList((IList<RepositoryNodeViewModel>)field!.GetValue(collection)!);
+        field.SetValue(collection, counting);
+        return counting;
+    }
+
+    public RepositoryNodeViewModel this[int index]
+    {
+        get
+        {
+            IndexerReads++;
+            return inner[index];
+        }
+        set => inner[index] = value;
+    }
+
+    public int Count => inner.Count;
+    public bool IsReadOnly => inner.IsReadOnly;
+    public void Add(RepositoryNodeViewModel item) => inner.Add(item);
+    public void Clear() => inner.Clear();
+    public bool Contains(RepositoryNodeViewModel item) => inner.Contains(item);
+    public void CopyTo(RepositoryNodeViewModel[] array, int arrayIndex) => inner.CopyTo(array, arrayIndex);
+    public IEnumerator<RepositoryNodeViewModel> GetEnumerator() => inner.GetEnumerator();
+    public int IndexOf(RepositoryNodeViewModel item) => inner.IndexOf(item);
+    public void Insert(int index, RepositoryNodeViewModel item) => inner.Insert(index, item);
+    public bool Remove(RepositoryNodeViewModel item) => inner.Remove(item);
+    public void RemoveAt(int index) => inner.RemoveAt(index);
+    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
 }

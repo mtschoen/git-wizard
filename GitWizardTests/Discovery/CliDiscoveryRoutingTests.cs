@@ -1,5 +1,5 @@
 using GitWizard;
-using GitWizard.CLI;
+using GitWizard.Watch;
 using GitWizardTests.TestSupport;
 using MFTLib.Index;
 using MFTLibTestExtensions;
@@ -13,15 +13,11 @@ public class CliDiscoveryRoutingTests
     [SetUp]
     public void SetUp()
     {
-        Program.ResetWatchDependenciesToDefault();
-        Program._isWindows = () => true;
-        Program._isLinux = () => false;
-        Program._isElevated = () => false;
-        Program._startProcess = _ => throw new AssertionException("Discovery routing must not launch a process.");
+        VolumeChangeSourceFactory._isElevatedOverride = () => true;
     }
 
     [TearDown]
-    public void TearDown() => Program.ResetWatchDependenciesToDefault();
+    public void TearDown() => VolumeChangeSourceFactory.ResetToDefaults();
 
     [TestCase("report")]
     [TestCase("scan")]

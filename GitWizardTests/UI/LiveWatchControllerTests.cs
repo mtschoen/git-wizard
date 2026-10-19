@@ -20,7 +20,7 @@ public class LiveWatchControllerTests
         var creations = 0;
         var stopped = new List<string>();
         var changed = new TaskCompletionSource<RepositoryChangeEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var controller = new LiveWatchController(() =>
+        var controller = NewController(() =>
         {
             creations++;
             var source = new DiagnosticVolumeChangeSource();
@@ -66,42 +66,66 @@ public class LiveWatchControllerTests
             "The controller must detach from the service after shutdown.");
     }
 
+    static LiveWatchController NewController(
+        Func<IVolumeChangeSource> sourceFactory,
+        IReadOnlyList<string> trackedRoots,
+        IReadOnlyList<string> searchRoots,
+        Action<RepositoryChangeEvent> onEvent,
+        Action<string> onStopped,
+        Func<bool> isElevated,
+        IReadOnlyList<string>? ignoredPaths = null,
+        bool includeTempDirectories = false) =>
+        new(
+            FakeLiveStartup.Factory(sourceFactory, trackedRoots, searchRoots, ignoredPaths, includeTempDirectories),
+            onEvent,
+            onStopped,
+            isElevated);
     static VolumeChangeBatch Batch(string path, VolumeEntryKind kind) =>
         new("C", new[] { new VolumeChangeEntry(path, kind) });
 
     [Test]
     public async Task Start_ForwardsEventsInOrder()
     {
-        var source = new FakeVolumeChangeSource(
-            new[]
-            {
-                Batch(@"C:\repo\a\one.txt", VolumeEntryKind.Modified),
-                Batch(@"C:\repo\b\newrepo\.git", VolumeEntryKind.Created),
-            });
+        // The search root must exist: startup scope expansion drops search roots that do not.
+        var searchRoot = Path.Combine(TestContext.CurrentContext.WorkDirectory, $"live-order-{Guid.NewGuid():N}");
+        var trackedRoot = Path.Combine(searchRoot, "a");
+        var newRepository = Path.Combine(searchRoot, "newrepo");
+        Directory.CreateDirectory(searchRoot);
+        try
+        {
+            var volume = WatchPath.Parse(searchRoot).Volume!;
+            var source = new FakeVolumeChangeSource(
+                new[]
+                {
+                    new VolumeChangeBatch(volume, [new VolumeChangeEntry(Path.Combine(trackedRoot, "one.txt"), VolumeEntryKind.Modified)]),
+                    new VolumeChangeBatch(volume, [new VolumeChangeEntry(Path.Combine(newRepository, ".git"), VolumeEntryKind.Created)]),
+                });
 
-        var events = new List<RepositoryChangeEvent>();
-        var controller = new LiveWatchController(
-            () => source,
-            trackedRoots: new[] { @"C:\repo\a" },
-            searchRoots: new[] { @"C:\repo\b" },
-            onEvent: events.Add,
-            onStopped: _ => { },
-            isElevated: () => false);
+            var events = new List<RepositoryChangeEvent>();
+            var controller = NewController(
+                () => source,
+                trackedRoots: new[] { trackedRoot },
+                searchRoots: new[] { searchRoot },
+                onEvent: events.Add,
+                onStopped: _ => { },
+                isElevated: () => false);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var startTask = controller.StartAsync(cts.Token);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var startTask = controller.StartAsync(cts.Token);
 
-        await WaitUntilAsync(() => events.Count >= 2);
-        await controller.StopAsync();
-        await startTask;
+            await WaitUntilAsync(() => events.Count >= 2);
+            await controller.StopAsync();
+            await startTask;
 
-        Assert.That(events, Has.Count.EqualTo(2));
-        Assert.That(events[0], Is.EqualTo(
-            new RepositoryChangeEvent(@"C:\repo\a", RepositoryChangeKind.Changed)));
-        Assert.That(events[1], Is.EqualTo(
-            new RepositoryChangeEvent(@"C:\repo\b\newrepo", RepositoryChangeKind.Created)));
+            Assert.That(events, Has.Count.EqualTo(2));
+            Assert.That(events[0], Is.EqualTo(new RepositoryChangeEvent(trackedRoot, RepositoryChangeKind.Changed)));
+            Assert.That(events[1], Is.EqualTo(new RepositoryChangeEvent(newRepository, RepositoryChangeKind.Created)));
+        }
+        finally
+        {
+            Directory.Delete(searchRoot, recursive: true);
+        }
     }
-
     [Test]
     public async Task SourceDies_NotElevated_CallsOnStoppedOnceWithNoRespawn()
     {
@@ -114,7 +138,7 @@ public class LiveWatchControllerTests
         };
 
         var stoppedReasons = new List<string>();
-        var controller = new LiveWatchController(
+        var controller = NewController(
             factory,
             trackedRoots: Array.Empty<string>(),
             searchRoots: Array.Empty<string>(),
@@ -149,7 +173,7 @@ public class LiveWatchControllerTests
         };
 
         var stoppedReasons = new List<string>();
-        var controller = new LiveWatchController(
+        var controller = NewController(
             factory,
             trackedRoots: Array.Empty<string>(),
             searchRoots: Array.Empty<string>(),
@@ -183,7 +207,7 @@ public class LiveWatchControllerTests
             .Select(_ => new HangingKillableSource()).ToArray();
         var sourceFactoryCallCount = 0;
         var stoppedReasons = new List<string>();
-        var controller = new LiveWatchController(
+        var controller = NewController(
             () => sources[sourceFactoryCallCount++],
             trackedRoots: Array.Empty<string>(),
             searchRoots: Array.Empty<string>(),
@@ -252,7 +276,7 @@ public class LiveWatchControllerTests
         };
 
         var stoppedReasons = new List<string>();
-        var controller = new LiveWatchController(
+        var controller = NewController(
             factory,
             trackedRoots: Array.Empty<string>(),
             searchRoots: Array.Empty<string>(),
@@ -291,7 +315,7 @@ public class LiveWatchControllerTests
         };
 
         var stoppedReasons = new List<string>();
-        var controller = new LiveWatchController(
+        var controller = NewController(
             factory,
             trackedRoots: Array.Empty<string>(),
             searchRoots: Array.Empty<string>(),
@@ -323,7 +347,7 @@ public class LiveWatchControllerTests
     public async Task StopAsync_UnblocksSourceThatIgnoresCancellation()
     {
         var source = new DisposeToUnblockSource();
-        var controller = new LiveWatchController(
+        var controller = NewController(
             () => source,
             trackedRoots: Array.Empty<string>(),
             searchRoots: Array.Empty<string>(),
@@ -344,7 +368,7 @@ public class LiveWatchControllerTests
     [Test]
     public void ScanErrors_BeforeStart_IsEmpty()
     {
-        var controller = new LiveWatchController(
+        var controller = NewController(
             () => new HangingKillableSource(),
             trackedRoots: Array.Empty<string>(),
             searchRoots: Array.Empty<string>(),
@@ -361,7 +385,7 @@ public class LiveWatchControllerTests
         var errors = new Dictionary<string, string> { ["D"] = "drive not ready" };
         var source = new FakeVolumeChangeSource(Array.Empty<VolumeChangeBatch>(), errors);
 
-        var controller = new LiveWatchController(
+        var controller = NewController(
             () => source,
             trackedRoots: Array.Empty<string>(),
             searchRoots: Array.Empty<string>(),
@@ -391,7 +415,7 @@ public class LiveWatchControllerTests
         }, CancellationToken.None);
         var owner = new MftIndexSession(failedIndex, null, ["X"], [], new Dictionary<string, string>());
         var stoppedReasons = new List<string>();
-        var controller = new LiveWatchController(
+        var controller = NewController(
             () => new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner)),
             trackedRoots: [@"X:\repo"],
             searchRoots: [],
@@ -411,7 +435,7 @@ public class LiveWatchControllerTests
     {
         var source = new HangingKillableSource();
         var samples = new List<VolumeScanProgress>();
-        var controller = new LiveWatchController(
+        var controller = NewController(
             () => source,
             trackedRoots: new[] { @"C:\repo" },
             searchRoots: Array.Empty<string>(),
@@ -441,7 +465,7 @@ public class LiveWatchControllerTests
             new[] { Batch(@"C:\Users\gitea-runner\AppData\Local\Temp\pytest-1\repo\.git", VolumeEntryKind.Created) });
 
         var events = new List<RepositoryChangeEvent>();
-        var controller = new LiveWatchController(
+        var controller = NewController(
             () => source,
             trackedRoots: Array.Empty<string>(),
             searchRoots: new[] { @"C:\" },
@@ -462,17 +486,14 @@ public class LiveWatchControllerTests
             new[] { Batch(@"C:\Users\gitea-runner\AppData\Local\Temp\pytest-1\repo\.git", VolumeEntryKind.Created) });
 
         var events = new List<RepositoryChangeEvent>();
-        var controller = new LiveWatchController(
+        var controller = NewController(
             () => source,
             trackedRoots: Array.Empty<string>(),
             searchRoots: new[] { @"C:\" },
             onEvent: events.Add,
             onStopped: _ => { },
-            new LiveWatchOptions
-            {
-                IsElevated = () => false,
-                IncludeTempDirectories = true
-            });
+            isElevated: () => false,
+            includeTempDirectories: true);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await controller.StartAsync(cts.Token);
@@ -491,18 +512,15 @@ public class LiveWatchControllerTests
             new[] { Batch(Path.Combine(ignoredTempSubtree, "repo", ".git"), VolumeEntryKind.Created) });
 
         var events = new List<RepositoryChangeEvent>();
-        var controller = new LiveWatchController(
+        var controller = NewController(
             () => source,
             trackedRoots: Array.Empty<string>(),
             searchRoots: new[] { @"C:\" },
             onEvent: events.Add,
             onStopped: _ => { },
-            new LiveWatchOptions
-            {
-                IsElevated = () => false,
-                IncludeTempDirectories = true,
-                IgnoredPaths = new[] { ignoredTempSubtree },
-            });
+            isElevated: () => false,
+            ignoredPaths: new[] { ignoredTempSubtree },
+            includeTempDirectories: true);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await controller.StartAsync(cts.Token);
@@ -532,17 +550,14 @@ public class LiveWatchControllerTests
                 })
             });
             var events = new List<RepositoryChangeEvent>();
-            var controller = new LiveWatchController(
+            var controller = NewController(
                 () => source,
                 trackedRoots: Array.Empty<string>(),
                 searchRoots: new[] { searchRoot },
                 onEvent: events.Add,
                 onStopped: _ => { },
-                new LiveWatchOptions
-                {
-                    IsElevated = () => false,
-                    IgnoredPaths = new[] { ignoredRoot }
-                });
+                isElevated: () => false,
+                ignoredPaths: new[] { ignoredRoot });
 
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             await controller.StartAsync(cts.Token);
@@ -574,7 +589,7 @@ public class LiveWatchControllerTests
     public async Task ForwardsReadyOncePerRunAndDetaches()
     {
         var source = new ReadinessVolumeChangeSource();
-        var controller = new LiveWatchController(() => source, [@"X:\repo"], [], _ => { }, _ => { }, () => false);
+        var controller = NewController(() => source, [@"X:\repo"], [], _ => { }, _ => { }, () => false);
         var ready = new List<WatchReadiness>();
         var snapshots = new List<VolumeReadinessSnapshot>();
         controller.Ready += ready.Add;
@@ -616,7 +631,7 @@ public class LiveWatchControllerTests
                 progress.Report(new WatchStartupProgress(WatchStartupPhase.CatchingUp, null, source.Readiness));
                 return await FakeLiveStartup.FromSourceArmedAsync(source, request, ct);
             },
-            _ => { }, _ => { });
+            _ => { }, _ => { }, () => false);
         controller.StartupProgress += report => phases.Add(report.Phase);
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var running = controller.StartAsync(cancellation.Token);

@@ -7,32 +7,28 @@ namespace GitWizardTests.Watch;
 [NonParallelizable]
 public class ProgramWatchTests
 {
-    [TearDown]
-    public void TearDown()
-    {
-        Program.ResetWatchDependenciesToDefault();
-    }
-
     [Test]
     public async Task RunElevatedWatchViaPkexecAsync_LaunchesPkexecWithProcessPathAndArguments()
     {
         ProcessStartInfo? capturedStartInfo = null;
-        Program._getProcessPath = () => "/custom/bin/git-wizard";
-        Program._getLocalFilesPath = () => "/custom/home/.GitWizard";
-        Program._startProcess = startInfo =>
-        {
-            capturedStartInfo = startInfo;
-            // Return a completed process (e.g. echo)
-            return Process.Start(new ProcessStartInfo
-            {
-                FileName = OperatingSystem.IsWindows() ? "cmd.exe" : "true",
-                Arguments = OperatingSystem.IsWindows() ? "/c exit 0" : "",
-                UseShellExecute = false
-            });
-        };
 
         var exitCode = await Program.RunElevatedWatchViaPkexecAsync(
-            new[] { "--watch", "--config-path", "test.json" });
+            "/custom/bin/git-wizard",
+            "/custom/home/.GitWizard",
+            new[] { "--watch", "--config-path", "test.json" },
+            startInfo =>
+            {
+                capturedStartInfo = startInfo;
+                // Return a completed process (e.g. echo)
+                return Process.Start(new ProcessStartInfo
+                {
+                    FileName = OperatingSystem.IsWindows() ? "cmd.exe" : "true",
+                    Arguments = OperatingSystem.IsWindows() ? "/c exit 0" : "",
+                    UseShellExecute = false
+                });
+            },
+            _ => { },
+            CancellationToken.None);
 
         Assert.Multiple(() =>
         {
@@ -56,11 +52,14 @@ public class ProgramWatchTests
     public async Task RunElevatedWatchViaPkexecAsync_MissingProcessPath_LogsErrorAndReturnsOne()
     {
         var loggedErrors = new List<string>();
-        Program._getProcessPath = () => null;
 
         var exitCode = await Program.RunElevatedWatchViaPkexecAsync(
+            null,
+            "/home/.GitWizard",
             new[] { "--watch" },
-            logError: loggedErrors.Add);
+            _ => throw new AssertionException("A missing process path must not start a process."),
+            loggedErrors.Add,
+            CancellationToken.None);
 
         Assert.Multiple(() =>
         {
@@ -74,12 +73,14 @@ public class ProgramWatchTests
     public async Task RunElevatedWatchViaPkexecAsync_ProcessStartReturnsNull_LogsErrorAndReturnsOne()
     {
         var loggedErrors = new List<string>();
-        Program._getProcessPath = () => "/usr/bin/git-wizard";
-        Program._startProcess = _ => null;
 
         var exitCode = await Program.RunElevatedWatchViaPkexecAsync(
+            "/usr/bin/git-wizard",
+            "/home/.GitWizard",
             new[] { "--watch" },
-            logError: loggedErrors.Add);
+            _ => null,
+            loggedErrors.Add,
+            CancellationToken.None);
 
         Assert.Multiple(() =>
         {
@@ -93,12 +94,14 @@ public class ProgramWatchTests
     public async Task RunElevatedWatchViaPkexecAsync_ProcessThrows_LogsErrorAndReturnsOne()
     {
         var loggedErrors = new List<string>();
-        Program._getProcessPath = () => "/usr/bin/git-wizard";
-        Program._startProcess = _ => throw new InvalidOperationException("pkexec failed to launch");
 
         var exitCode = await Program.RunElevatedWatchViaPkexecAsync(
+            "/usr/bin/git-wizard",
+            "/home/.GitWizard",
             new[] { "--watch" },
-            logError: loggedErrors.Add);
+            _ => throw new InvalidOperationException("pkexec failed to launch"),
+            loggedErrors.Add,
+            CancellationToken.None);
 
         Assert.Multiple(() =>
         {

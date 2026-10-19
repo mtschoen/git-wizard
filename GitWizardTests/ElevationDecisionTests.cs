@@ -59,6 +59,41 @@ public class ElevationDecisionTests
     }
 
     [Test]
+    public void TryRunElevatedHelper_WithoutHelperArgument_ReturnsNullWithoutElevating()
+    {
+        var fake = new FakeElevationProvider { Elevated = false, SelfElevatable = true, RunElevatedResult = true };
+
+        var result = WindowsDefender.TryRunElevatedHelper(["git-wizard.exe", "-summary"], fake);
+
+        Assert.That(result, Is.Null);
+        Assert.That(fake.RunElevatedCalls, Is.Empty);
+    }
+
+    [Test]
+    [Platform("Win")]
+    [TestCase(true, 0)]
+    [TestCase(false, 1)]
+    public void TryRunElevatedHelper_WithHelperArgument_ReturnsExclusionOutcomeExitCode(bool succeeds, int expectedExitCode)
+    {
+        var fake = new FakeElevationProvider { Elevated = false, SelfElevatable = true, RunElevatedResult = succeeds };
+
+        var result = WindowsDefender.TryRunElevatedHelper(["--elevated-defender"], fake);
+
+        Assert.That(result, Is.EqualTo(expectedExitCode));
+    }
+
+    [Test]
+    [Platform("Unix")]
+    public void TryRunElevatedHelper_WithHelperArgumentOffWindows_ReturnsFailureExitCode()
+    {
+        var fake = new FakeElevationProvider { Elevated = false, SelfElevatable = true, RunElevatedResult = true };
+
+        var result = WindowsDefender.TryRunElevatedHelper(["--elevated-defender"], fake);
+
+        Assert.That(result, Is.EqualTo(1));
+    }
+
+    [Test]
     [Platform("Win")]
     public async Task TryFindAllRepositoriesUsingMftAsync_EmptySearchPaths_DoesNotInvokeConnectionFactory()
     {

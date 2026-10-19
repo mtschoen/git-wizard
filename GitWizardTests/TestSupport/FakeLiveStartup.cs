@@ -26,10 +26,7 @@ internal static class FakeLiveStartup
         ArgumentNullException.ThrowIfNull(request);
 
         var paths = inventoryPaths ?? request.RetainedRoots;
-        var searchRoots = request.Configuration.SearchPaths
-            .Select(GitWizardApi.ExpandSearchPath)
-            .OfType<string>()
-            .ToArray();
+        var searchRoots = request.Configuration.SearchPaths.ToArray();
         var volumes = watchVolumes ?? paths.Concat(searchRoots)
             .Select(root => WatchPath.Parse(root).Volume)
             .OfType<string>()
@@ -51,7 +48,7 @@ internal static class FakeLiveStartup
             request,
             searchRoots,
             request.RetainedRoots,
-            GitWizardApi.ExpandIgnoredPaths(request.Configuration.IgnoredPaths),
+            request.Configuration.IgnoredPaths.ToArray(),
             root => new RootClassification(root, RootFileSystem.Ntfs, WatchPath.Parse(root).Volume, null));
 
         var inventory = new DiscoveryInventory
@@ -69,6 +66,27 @@ internal static class FakeLiveStartup
         return new WatchStartupResult(inventory, armResult, source, volumes, scope, startupBatches);
     }
 
+    /// <summary>
+    /// Wraps a fake source factory in the startup factory shape the production controller takes:
+    /// each start or respawn calls <paramref name="sourceFactory"/> once and arms the result the
+    /// way the coordinator would, over the given tracked and search roots.
+    /// </summary>
+    public static Func<IProgress<WatchStartupProgress>, CancellationToken, Task<WatchStartupResult>> Factory(
+        Func<IVolumeChangeSource> sourceFactory,
+        IReadOnlyList<string> trackedRoots,
+        IReadOnlyList<string> searchRoots,
+        IReadOnlyList<string>? ignoredPaths = null,
+        bool includeTempDirectories = false)
+    {
+        ArgumentNullException.ThrowIfNull(sourceFactory);
+        var configuration = new GitWizardConfiguration { IncludeTempDirectories = includeTempDirectories };
+        foreach (var searchRoot in searchRoots)
+            configuration.SearchPaths.Add(searchRoot);
+        foreach (var ignoredPath in ignoredPaths ?? [])
+            configuration.IgnoredPaths.Add(ignoredPath);
+        var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Watch, false, false, trackedRoots.ToArray());
+        return (_, cancellationToken) => FromSourceArmedAsync(sourceFactory(), request, cancellationToken);
+    }
     /// <summary>
     /// Builds the null-source startup a coordinator produces for an unusable discovery: the
     /// controller must treat it as terminal (<c>StartupUnavailable</c>), never as a respawn.

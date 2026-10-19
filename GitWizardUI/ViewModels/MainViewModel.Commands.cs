@@ -294,7 +294,7 @@ public partial class MainViewModel
             var insertIndex = index + 1;
             foreach (var child in node.Children)
             {
-                InsertPositional(Repositories, insertIndex++, child);
+                Repositories.Insert(insertIndex++, child);
             }
         }
 

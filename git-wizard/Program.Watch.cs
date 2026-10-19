@@ -6,23 +6,12 @@ namespace GitWizard.CLI;
 
 public static partial class Program
 {
-    internal static Func<ProcessStartInfo, Process?> _startProcess = Process.Start;
-    internal static Func<string?> _getProcessPath = () => Environment.ProcessPath;
-    internal static Func<bool> _isElevated = VolumeChangeSourceFactory.IsElevated;
-    internal static Func<bool> _isWindows = OperatingSystem.IsWindows;
-    internal static Func<bool> _isLinux = OperatingSystem.IsLinux;
-    internal static Func<IVolumeChangeSource> _sourceFactory = VolumeChangeSourceFactory.Create;
-    internal static Func<string> _getLocalFilesPath = GitWizardApi.GetLocalFilesPath;
-
-    internal static void ResetWatchDependenciesToDefault()
+    internal static string? GetUnsupportedPlatformMessage(bool isWindows, bool isLinux)
     {
-        _startProcess = Process.Start;
-        _getProcessPath = () => Environment.ProcessPath;
-        _isElevated = VolumeChangeSourceFactory.IsElevated;
-        _isWindows = OperatingSystem.IsWindows;
-        _isLinux = OperatingSystem.IsLinux;
-        _sourceFactory = VolumeChangeSourceFactory.Create;
-        _getLocalFilesPath = GitWizardApi.GetLocalFilesPath;
+        if (!isWindows && !isLinux)
+            return "--watch requires Windows or Linux.";
+
+        return null;
     }
 
     /// <summary>
@@ -42,15 +31,21 @@ public static partial class Program
         stdout ??= Console.Out;
         stderr ??= Console.Error;
 
-        if (_isLinux() && !_isElevated())
+        if (GetUnsupportedPlatformMessage(OperatingSystem.IsWindows(), OperatingSystem.IsLinux()) is { } unsupportedPlatformMessage)
         {
-            return await RunElevatedWatchViaPkexecAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+            await stderr.WriteLineAsync(unsupportedPlatformMessage).ConfigureAwait(false);
+            return 1;
         }
 
-        if (!_isWindows() && !_isLinux())
+        if (OperatingSystem.IsLinux() && !VolumeChangeSourceFactory.IsElevated())
         {
-            await stderr.WriteLineAsync("--watch requires Windows or Linux.").ConfigureAwait(false);
-            return 1;
+            return await RunElevatedWatchViaPkexecAsync(
+                Environment.ProcessPath,
+                GitWizardApi.GetLocalFilesPath(),
+                Environment.GetCommandLineArgs().Skip(1),
+                Process.Start,
+                message => GitWizardLog.Log(message, GitWizardLog.LogType.Error),
+                cancellationToken).ConfigureAwait(false);
         }
 
         coordinator ??= new RepositoryDiscoveryCoordinator();
@@ -99,20 +94,18 @@ public static partial class Program
     }
 
     internal static async Task<int> RunElevatedWatchViaPkexecAsync(
-        string[]? commandLineArgs = null,
-        Action<string>? logError = null,
-        CancellationToken cancellationToken = default)
+        string? processPath,
+        string localFilesPath,
+        IEnumerable<string> arguments,
+        Func<ProcessStartInfo, Process?> startProcess,
+        Action<string> logError,
+        CancellationToken cancellationToken)
     {
-        logError ??= message => GitWizardLog.Log(message, GitWizardLog.LogType.Error);
-
-        var processPath = _getProcessPath();
         if (string.IsNullOrEmpty(processPath))
         {
             logError("Cannot determine the current executable path to launch pkexec.");
             return 1;
         }
-
-        var localFilesPath = _getLocalFilesPath();
 
         var startInfo = new ProcessStartInfo
         {
@@ -123,13 +116,12 @@ public static partial class Program
         startInfo.ArgumentList.Add("env");
         startInfo.ArgumentList.Add($"GITWIZARD_HOME={localFilesPath}");
         startInfo.ArgumentList.Add(processPath);
-        var args = commandLineArgs ?? Environment.GetCommandLineArgs().Skip(1);
-        foreach (var argument in args)
+        foreach (var argument in arguments)
             startInfo.ArgumentList.Add(argument);
 
         try
         {
-            using var process = _startProcess(startInfo);
+            using var process = startProcess(startInfo);
             if (process == null)
             {
                 logError("Failed to start pkexec process.");
@@ -306,25 +298,6 @@ public static partial class Program
             Console.CancelKeyPress -= OnCancelKeyPress;
             _source.Dispose();
         }
-    }
-
-    // Discover before arming so repositories created since the last cache write are tracked.
-    internal static async Task<List<string>> LoadTrackedRepositoryPathsAsync(
-        GitWizardConfiguration configuration,
-        RepositoryDiscoveryCoordinator? coordinator = null,
-        CancellationToken cancellationToken = default)
-    {
-        coordinator ??= new RepositoryDiscoveryCoordinator();
-        var retainedRoots = await ReadRetainedRootsAsync(cancellationToken).ConfigureAwait(false);
-        var request = new DiscoveryRequest(
-            configuration,
-            DiscoveryPurpose.Watch,
-            false,
-            false,
-            retainedRoots);
-
-        await using var startup = await coordinator.PrepareWatchAsync(request, null, cancellationToken).ConfigureAwait(false);
-        return startup.Inventory.Paths.ToList();
     }
 
     static async Task<IReadOnlyList<string>> ReadRetainedRootsAsync(CancellationToken cancellationToken) =>

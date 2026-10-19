@@ -28,7 +28,8 @@ public partial class MainViewModel
             return;
 
         _reportedLiveScanErrors.Clear();
-        var (trackedRoots, _, _, _) = await GetLiveRootsAsync().ConfigureAwait(false);
+        var trackedRoots = _allRepositories.Select(node => node.WorkingDirectory)
+            .Where(path => !string.IsNullOrEmpty(path)).ToList();
         var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync().ConfigureAwait(false);
         var controller = CreateConfiguredLiveController(configuration, trackedRoots);
         var detachHandlers = AttachLiveControllerHandlers(controller);
@@ -74,10 +75,7 @@ public partial class MainViewModel
                 SurfaceNewLiveScanWarnings(controller);
                 HeaderText = $"Live watch stopped: {reason}{FormatLiveScanErrorSuffix(controller)}";
             }),
-            new LiveWatchOptions
-            {
-                IsElevated = LiveIsElevated
-            });
+            LiveIsElevated);
 
     // The prepared discovery owner is always transferred to watch preparation, which decides
     // per platform whether to adopt or dispose it. Withholding it here on a platform check
@@ -110,7 +108,7 @@ public partial class MainViewModel
             foreach (var path in current)
             {
                 if (!membershipSet.Contains(path))
-                    RemoveRepositoryByPath(path);
+                    RemoveRepositoryPathFromUi(path);
             }
 
             var currentSet = new HashSet<string>(current, StringComparer.OrdinalIgnoreCase);
@@ -216,16 +214,6 @@ public partial class MainViewModel
                 HeaderText = $"Live watch could not start: {exception.Message}";
             }).ConfigureAwait(false);
         }
-    }
-
-    internal async Task<(List<string> Tracked, List<string> Search, List<string> Ignored, bool IncludeTempDirectories)> GetLiveRootsAsync()
-    {
-        var tracked = _allRepositories.Select(node => node.WorkingDirectory)
-            .Where(path => !string.IsNullOrEmpty(path)).ToList();
-        var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync().ConfigureAwait(false);
-        var search = configuration.SearchPaths.Select(GitWizardApi.ExpandSearchPath).OfType<string>().ToList();
-        var ignored = GitWizardApi.ExpandIgnoredPaths(configuration.IgnoredPaths);
-        return (tracked, search, ignored, configuration.IncludeTempDirectories == true);
     }
 
     async Task StopLiveAsync()

@@ -5,7 +5,6 @@ using GitWizard.Watch.Linux;
 using GitWizardTests.TestSupport;
 using GitWizardTests.Watch;
 using GitWizardUI.ViewModels;
-using GitWizardUI.ViewModels.Services;
 
 namespace GitWizardTests.UI;
 
@@ -689,15 +688,14 @@ public class MainViewModelLiveTests
     }
 
     [Test]
-    public async Task GetLiveRootsAsync_PreservesNonExistentIgnoredPaths()
+    public async Task ExpandIgnoredPaths_PreservesNonExistentIgnoredPaths()
     {
         var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync();
         var nonExistentIgnored = Path.Combine(Path.GetTempPath(), $"gw-nonexistent-{Guid.NewGuid():N}");
         configuration.IgnoredPaths.Add(nonExistentIgnored);
         try
         {
-            var viewModel = NewViewModel();
-            var (_, _, ignored, _) = await viewModel.GetLiveRootsAsync();
+            var ignored = GitWizardApi.ExpandIgnoredPaths(configuration.IgnoredPaths);
 
             var expected = GitWizardApi.ExpandIgnoredPath(nonExistentIgnored);
             Assert.That(ignored, Does.Contain(expected));

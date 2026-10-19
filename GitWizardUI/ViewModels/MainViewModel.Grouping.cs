@@ -29,8 +29,6 @@ public partial class MainViewModel
         ApplyFilterAndGrouping();
     }
 
-    public void UpdateSearchText(string text) => SetSearchText(text);
-
     sealed class SearchDebouncer : IDisposable
     {
         CancellationTokenSource? _cts;
@@ -288,7 +286,7 @@ public partial class MainViewModel
                     var headerIndex = Repositories.IndexOf(header);
                     if (headerIndex >= 0)
                     {
-                        InsertPositional(Repositories, headerIndex + 1 + childIndex, node);
+                        Repositories.Insert(headerIndex + 1 + childIndex, node);
                     }
                 }
             }

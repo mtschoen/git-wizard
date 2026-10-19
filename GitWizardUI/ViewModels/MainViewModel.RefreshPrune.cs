@@ -61,9 +61,7 @@ public partial class MainViewModel
     /// <c>MainViewModel.Live.cs</c> calls; the batch-refresh rename cleanup above reaches the
     /// same code directly.
     /// </summary>
-    internal void RemoveRepositoryByPath(string path) => RemoveRepositoryPathFromUi(path);
-
-    void RemoveRepositoryPathFromUi(string path)
+    internal void RemoveRepositoryPathFromUi(string path)
     {
         _repositoryMap.TryRemove(path, out _);
         _allRepositories.RemoveAll(candidate => candidate.WorkingDirectory == path);

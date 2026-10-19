@@ -18,8 +18,11 @@ git-wizard Session Started
         if (ElevatedEntryPoint.RunBrokerIfRequested(args))
             return;
 
-        if (TryHandleElevatedHelperModes(args))
+        if (WindowsDefender.TryRunElevatedHelper(args) is { } helperExitCode)
+        {
+            Environment.Exit(helperExitCode);
             return;
+        }
 
         var runConfiguration = CliParser.ParseProcessArgs(args);
 
@@ -121,17 +124,6 @@ git-wizard Session Started
         }
 
         return configuration;
-    }
-
-    // Handle elevated helper modes (launched by self-elevation). Returns true if one of the
-    // helper-mode args was found and handled, meaning the caller should return immediately.
-    internal static bool TryHandleElevatedHelperModes(string[] args)
-    {
-        if (!args.Contains("--elevated-defender"))
-            return false;
-
-        Environment.Exit(WindowsDefender.AddExclusions() ? 0 : 1);
-        return true;
     }
 
     static async Task RunIndexCacheClearAsync()

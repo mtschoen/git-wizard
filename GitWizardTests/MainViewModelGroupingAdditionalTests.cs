@@ -1,6 +1,5 @@
 using GitWizard;
 using GitWizardUI.ViewModels;
-using GitWizardUI.ViewModels.Services;
 
 namespace GitWizardTests;
 
@@ -476,18 +475,6 @@ public class MainViewModelGroupingAdditionalTests
                 viewModel.ApplyFilter(filterName); // toggle off
             }, $"Filter '{filterName}' threw an exception.");
         }
-    }
-
-    [Test]
-    public void UpdateSearchText_DelegatesToSetSearchText()
-    {
-        var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("/alpha"));
-        viewModel.AddRepository(Repo("/beta"));
-
-        viewModel.UpdateSearchText("alpha");
-
-        Assert.That(viewModel.Repositories, Has.Count.EqualTo(1));
     }
 
     #endregion

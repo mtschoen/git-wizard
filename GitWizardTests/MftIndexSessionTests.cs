@@ -31,8 +31,9 @@ public class MftIndexSessionTests
     public async Task DiscoveryAndWatchShareClient()
     {
         await using var broker = new BlockBrokerFixture();
+        var brokerSession = broker.CreateSession();
         var session = await MftIndexSession.OpenAsync([broker.Drive('X')],
-            broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);
+            brokerSession, broker.CacheDirectory, null, CancellationToken.None);
         try
         {
             await session.Index.StartWatchingAsync(['X'], CancellationToken.None);
@@ -44,6 +45,8 @@ public class MftIndexSessionTests
             session.Index.WatchFaulted += _ => fault.TrySetResult();
             await broker.DisconnectAsync();
             await fault.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            // WatchFaulted can fire before the broker session records its end, which IsFaulted reads.
+            await brokerSession.Ended.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.That(session.IsFaulted, Is.True);
         }
         finally

@@ -169,13 +169,6 @@ public static partial class GitWizardApi
         }
     }
 
-    /// <summary>Compatibility wrapper over <see cref="TryDeleteAllLocalFiles" /> that logs a refusal.</summary>
-    public static void DeleteAllLocalFiles()
-    {
-        if (!TryDeleteAllLocalFiles(out var refusal))
-            GitWizardLog.Log(refusal, GitWizardLog.LogType.Warning);
-    }
-
     /// <summary>
     /// Get the cached list of repository paths
     /// </summary>

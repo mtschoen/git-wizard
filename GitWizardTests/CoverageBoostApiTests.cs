@@ -79,28 +79,6 @@ public class CoverageBoostApiTests
     }
 
     [Test]
-    public void DeleteAllLocalFiles_WithContent_RemovesDirectory()
-    {
-        GitWizardApi.EnsureLocalFolderExists();
-        File.WriteAllText(Path.Combine(GitWizardApi.GetLocalFilesPath(), "data.txt"), "data");
-
-        GitWizardApi.DeleteAllLocalFiles();
-
-        Assert.That(Directory.Exists(GitWizardApi.GetLocalFilesPath()), Is.False);
-    }
-
-    [Test]
-    public void DeleteAllLocalFiles_NoDirectory_DoesNotThrow()
-    {
-        // Ensure the directory does not exist
-        var path = GitWizardApi.GetLocalFilesPath();
-        if (Directory.Exists(path))
-            Directory.Delete(path, recursive: true);
-
-        Assert.DoesNotThrow(() => GitWizardApi.DeleteAllLocalFiles());
-    }
-
-    [Test]
     public void SaveCachedRepositoryPaths_ThenLoad_Sync_RoundTrips()
     {
         var paths = new[] { "/repo/x", "/repo/y", "/repo/z" };

@@ -95,7 +95,7 @@ public class ElevationDecisionTests
 
     [Test]
     [Platform("Win")]
-    public async Task TryFindAllRepositoriesUsingMftAsync_EmptySearchPaths_DoesNotInvokeConnectionFactory()
+    public async Task DiscoverRepositoriesWithIndexAsync_EmptySearchPaths_DoesNotInvokeConnectionFactory()
     {
         var calls = 0;
         var paths = new SortedSet<string>();

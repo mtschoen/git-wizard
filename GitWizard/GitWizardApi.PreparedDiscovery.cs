@@ -5,16 +5,6 @@ namespace GitWizard;
 
 public static partial class GitWizardApi
 {
-    /// <summary>Discovers repositories with an owned packed index and releases it after querying.</summary>
-    public static async Task<bool> TryFindAllRepositoriesUsingMftAsync(
-        GitWizardConfiguration configuration, ICollection<string> paths,
-        IUpdateHandler? updateHandler = null, bool noMft = false)
-    {
-        await using var result = await TryDiscoverRepositoriesUsingMftAsync(
-            configuration, paths, updateHandler, noMft).ConfigureAwait(false);
-        return result.Success;
-    }
-
     /// <summary>Transfers a successful discovery index session to the returned result.</summary>
     public static Task<MftDiscoveryResult> TryDiscoverRepositoriesUsingMftAsync(
         GitWizardConfiguration configuration, ICollection<string> paths,

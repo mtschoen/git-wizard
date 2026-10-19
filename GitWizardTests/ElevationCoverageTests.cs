@@ -7,7 +7,7 @@ namespace GitWizardTests;
 /// <summary>
 /// Exercises the real-privilege code path the fake-injected <see cref="ElevationDecisionTests"/>
 /// deliberately cannot reach: the broker-backed discovery path of
-/// <see cref="GitWizardApi.TryFindAllRepositoriesUsingMftAsync"/> opening a real packed index.
+/// <see cref="GitWizardApi.TryDiscoverRepositoriesUsingMftAsync"/> opening a real packed index.
 ///
 /// Runs only when the test process is genuinely elevated. A normal non-elevated
 /// <c>dotnet test</c> short-circuits each test to Inconclusive (no UAC, no failure);
@@ -41,7 +41,7 @@ public class ElevationCoverageTests
     public void TearDown() => TestUtilities.ClearLocalFilesRedirect(_tempRoot);
 
     [Test]
-    public async Task TryFindAllRepositoriesUsingMftAsync_Elevated_FindsPreExistingRepository()
+    public async Task TryDiscoverRepositoriesUsingMftAsync_Elevated_FindsPreExistingRepository()
     {
         // Guard FIRST, in the body (NUnit does not reliably skip the body from a SetUp guard).
         if (!ElevationUtilities.DefaultProvider.IsElevated()) { Assert.Inconclusive("Requires admin"); return; }

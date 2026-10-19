@@ -40,22 +40,22 @@ public sealed partial class MftIndexSession : IAsyncDisposable
     internal static Task<MftIndexSession> OpenAsync(IReadOnlyList<IndexedDrive> drives,
         BrokerSession brokerSession,
         string cacheDirectory, IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken) =>
-        OpenAsync(drives, brokerSession, cacheDirectory, MftIndexOpenIntent.Persistent, progress, cancellationToken);
+        OpenAsync(drives, brokerSession, cacheDirectory, CacheMode.Persistent, progress, cancellationToken);
 
     /// <summary>Opens the drives over <paramref name="cacheDirectory" /> without connecting the broker eagerly.</summary>
     /// <param name="drives">Volume identities to open.</param>
     /// <param name="brokerSession">Owns the broker process, launched lazily on first use; ownership transfers here.</param>
     /// <param name="cacheDirectory">A fully resolved policy directory, normally from <see cref="MftIndexCachePolicy" />.</param>
-    /// <param name="intent">Whether a drive without a usable cached block is scanned or refused.</param>
+    /// <param name="cacheMode">Persistent scans a drive without a usable cached block; ExistingOnly refuses it.</param>
     /// <param name="progress">Receives scan progress.</param>
     /// <param name="cancellationToken">Cancels opening.</param>
     internal static async Task<MftIndexSession> OpenAsync(IReadOnlyList<IndexedDrive> drives,
         BrokerSession brokerSession,
-        string cacheDirectory, MftIndexOpenIntent intent, IProgress<IndexScanProgress>? progress,
+        string cacheDirectory, CacheMode cacheMode, IProgress<IndexScanProgress>? progress,
         CancellationToken cancellationToken)
     {
-        if (intent is not (MftIndexOpenIntent.Persistent or MftIndexOpenIntent.Snapshot))
-            throw new ArgumentOutOfRangeException(nameof(intent));
+        if (cacheMode is not (CacheMode.Persistent or CacheMode.ExistingOnly))
+            throw new ArgumentOutOfRangeException(nameof(cacheMode));
         MftIndexDiagnostics? diagnostics = null;
         var transferred = false;
         FileIndex? index = null;
@@ -63,7 +63,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
         {
             diagnostics = MftIndexDiagnostics.CreateForGitWizardLog();
             cancellationToken.ThrowIfCancellationRequested();
-            index = await FileIndex.OpenAsync(CreateIndexOptions(drives, brokerSession, cacheDirectory, intent,
+            index = await FileIndex.OpenAsync(CreateIndexOptions(drives, brokerSession, cacheDirectory, cacheMode,
                 progress, diagnostics), cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             var session = new MftIndexSession(index, brokerSession,
@@ -93,17 +93,17 @@ public sealed partial class MftIndexSession : IAsyncDisposable
     }
 
     static FileIndexOptions CreateIndexOptions(IReadOnlyList<IndexedDrive> drives, BrokerSession brokerSession,
-        string cacheDirectory, MftIndexOpenIntent intent, IProgress<IndexScanProgress>? progress,
+        string cacheDirectory, CacheMode cacheMode, IProgress<IndexScanProgress>? progress,
         MftIndexDiagnostics diagnostics)
     {
-        // The session stays lazy in both intents: a warm or snapshot open never launches the broker,
+        // The session stays lazy in both cache modes: a warm or snapshot open never launches the broker,
         // while a later watch or explicit rescan connects through the same owned session.
         return new FileIndexOptions
         {
             Drives = drives,
             CacheDirectory = cacheDirectory,
             CacheTag = MftIndexCachePolicy.CacheTag,
-            CacheMode = intent == MftIndexOpenIntent.Snapshot ? CacheMode.ExistingOnly : CacheMode.Persistent,
+            CacheMode = cacheMode,
             MftSource = brokerSession.CreateIndexSource(new MftScanOptions
             {
                 RetainedFileNames = MftIndexCachePolicy.DirectoryScanFileNames
@@ -152,17 +152,12 @@ public sealed partial class MftIndexSession : IAsyncDisposable
         }
     }
 
-    internal Func<IReadOnlyList<MftDriveStatus>>? DriveStatusesOverride { get; set; }
-
     /// <summary>
     /// Captures each requested drive's current index status, in requested order. Every call returns
     /// a new read-only list; a drive whose identity failed carries that reason instead of a status.
     /// </summary>
     public IReadOnlyList<MftDriveStatus> CaptureDriveStatuses()
     {
-        if (DriveStatusesOverride is not null)
-            return DriveStatusesOverride();
-
         var indexed = Index.Drives.ToDictionary(status =>
             status.Drive.ToString(), StringComparer.OrdinalIgnoreCase);
         return Array.AsReadOnly(Drives.Select(drive => new MftDriveStatus(drive,

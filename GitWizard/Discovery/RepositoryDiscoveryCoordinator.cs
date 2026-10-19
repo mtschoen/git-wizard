@@ -41,7 +41,7 @@ public partial class RepositoryDiscoveryCoordinator
             {
                 session = await ReusePreparedSessionAsync(scope, prepared).ConfigureAwait(false) ??
                     await dependencies.OpenIndexAsync(
-                        scope.RequestedNtfsDrives, MftIndexOpenIntent.Snapshot, null, cancellationToken).ConfigureAwait(false);
+                        scope.RequestedNtfsDrives, CacheMode.ExistingOnly, null, cancellationToken).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
                 await RescanDrivesNeedingScanAsync(session, request.Purpose, accumulator, null, cancellationToken).ConfigureAwait(false);
             }

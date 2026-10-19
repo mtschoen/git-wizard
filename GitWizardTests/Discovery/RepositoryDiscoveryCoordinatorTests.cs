@@ -1,7 +1,6 @@
 using GitWizard;
 using GitWizardTests.TestSupport;
 using MFTLib.Index;
-using MFTLibTestExtensions;
 
 namespace GitWizardTests.Discovery;
 
@@ -26,23 +25,15 @@ public class RepositoryDiscoveryCoordinatorTests
         public void OnRepositoryRefreshCompleted(GitWizardRepository gitWizardRepository) { }
     }
 
-    static DriveStatus CreateDriveStatus(
-        char letter,
-        DriveState state,
-        DriveFailureKind? failureKind = null,
-        DateTime? scanTimestamp = null,
-        string? failureMessage = null,
-        BlockOrigin blockSource = BlockOrigin.ProducedByScan)
-    {
-        var block = state == DriveState.Ready
-            ? SyntheticNotifications.CreateDriveBlockStatus(blockSource, 10, false, scanTimestamp ?? DateTime.UtcNow)
-            : null;
-        var failure = failureKind is { } kind
-            ? SyntheticNotifications.CreateDriveFailure(kind, failureMessage ?? kind.ToString())
-            : null;
-        var status = SyntheticNotifications.CreateDriveStatus(letter, state, block, failure);
-        return status with { Watch = status.Watch with { IsSupported = state == DriveState.Ready } };
-    }
+    static Func<IReadOnlyList<string>, CacheMode, IProgress<IndexScanProgress>?, CancellationToken,
+        Task<MftIndexSession>> OpenWithBroker(BlockBrokerFixture broker, IndexedDrive drive, string cache) =>
+        (_, cacheMode, _, token) => MftIndexSession.OpenAsync([drive], broker.CreateSession(), cache, cacheMode, null, token);
+
+    static Func<IReadOnlyList<string>, CacheMode, IProgress<IndexScanProgress>?, CancellationToken,
+        Task<MftIndexSession>> OpenWithIdentityFailure(BlockBrokerFixture broker) =>
+        (drives, _, _, token) => MftIndexSession.OpenSelectedVolumesAsync(drives,
+            _ => throw new IOException("Volume identity could not be acquired"), broker.CreateSession(),
+            broker.CacheDirectory, null, token);
 
     [Test]
     public async Task OrdinaryAllowedNonemptyList_UsesList_NoIndexOpen_NoCrawler()
@@ -81,7 +72,6 @@ public class RepositoryDiscoveryCoordinatorTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo1");
-        await using var index = await files.OpenIndexAsync();
 
         var brokerConnections = 0;
         var crawlerCalls = new List<string>();
@@ -91,24 +81,18 @@ public class RepositoryDiscoveryCoordinatorTests
         var configuration = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, false, []);
 
-        var fileIndex = index;
+        var openSession = StatusSessions.Opener(files, ('X', SyntheticDriveBehavior.Ready));
         var dependencies = new RepositoryDiscoveryDependencies
         {
             IsWindows = true,
             IsLinux = false,
             ClassifyRoot = root => new RootClassification(root, RootFileSystem.Ntfs, "X", null),
             CrawlRootAsync = (_, root, _) => { crawlerCalls.Add(root); return Task.FromResult(new RecursiveDiscovery([], [], new Dictionary<string, string>())); },
-            OpenIndexAsync = (drives, intent, _, _) =>
+            OpenIndexAsync = (drives, cacheMode, progress, token) =>
             {
-                Assert.That(intent, Is.EqualTo(MftIndexOpenIntent.Snapshot));
+                Assert.That(cacheMode, Is.EqualTo(CacheMode.ExistingOnly));
                 Assert.That(drives, Is.EquivalentTo(new[] { "X" }));
-                var status = CreateDriveStatus('X', DriveState.Ready,
-                    scanTimestamp: PackedIndexFixture.CompletionTimestamp);
-                var session = new MftIndexSession(fileIndex, null, ["X"], [], new Dictionary<string, string>())
-                {
-                    DriveStatusesOverride = () => [new MftDriveStatus("X", status, null)]
-                };
-                return Task.FromResult(session);
+                return openSession(drives, cacheMode, progress, token);
             },
             ReadListAsync = _ => Task.FromResult<string[]?>(null),
             WriteListAsync = (_, _) => Task.CompletedTask,
@@ -135,7 +119,7 @@ public class RepositoryDiscoveryCoordinatorTests
         await using var broker = new BlockBrokerFixture();
         var cache = MftIndexCachePolicy.GetCacheDirectory(broker.CacheDirectory);
         var session = await MftIndexSession.OpenAsync([broker.Drive('X')], broker.CreateSession(),
-            cache, MftIndexOpenIntent.Snapshot, null, CancellationToken.None);
+            cache, CacheMode.ExistingOnly, null, CancellationToken.None);
 
         var configuration = new GitWizardConfiguration { SearchPaths = { broker.Drive('X').RootDirectory } };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, false, []);
@@ -194,30 +178,24 @@ public class RepositoryDiscoveryCoordinatorTests
     [Test]
     public async Task SnapshotInUse_ReportsRefusalWithoutReopeningOrCrawling()
     {
-        using var files = new PackedIndexFixture();
-        await using var index = await files.OpenIndexAsync();
+        await using var holderBroker = new BlockBrokerFixture();
+        await using var refusedBroker = new BlockBrokerFixture();
+        var drive = holderBroker.Drive('X');
+        var cache = MftIndexCachePolicy.GetCacheDirectory(holderBroker.CacheDirectory);
+        await using var holder = await MftIndexSession.OpenAsync([drive], holderBroker.CreateSession(),
+            cache, CacheMode.Persistent, null, CancellationToken.None);
 
         var crawlerCalls = 0;
-        var configuration = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
+        var configuration = new GitWizardConfiguration { SearchPaths = { drive.RootDirectory } };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, false, []);
 
-        var fileIndex = index;
         var dependencies = new RepositoryDiscoveryDependencies
         {
             IsWindows = true,
             IsLinux = false,
             ClassifyRoot = root => new RootClassification(root, RootFileSystem.Ntfs, "X", null),
             CrawlRootAsync = (_, _, _) => { Interlocked.Increment(ref crawlerCalls); return Task.FromResult(new RecursiveDiscovery([], [], new Dictionary<string, string>())); },
-            OpenIndexAsync = (_, _, _, _) =>
-            {
-                var status = CreateDriveStatus('X', DriveState.Failed, DriveFailureKind.InUse,
-                    failureMessage: "In-use index refusal");
-                var session = new MftIndexSession(fileIndex, null, ["X"], [], new Dictionary<string, string> { ["X"] = "In-use index refusal" })
-                {
-                    DriveStatusesOverride = () => [new MftDriveStatus("X", status, null)]
-                };
-                return Task.FromResult(session);
-            },
+            OpenIndexAsync = OpenWithBroker(refusedBroker, drive, cache),
             ReadListAsync = _ => Task.FromResult<string[]?>(null),
             WriteListAsync = (_, _) => Task.CompletedTask,
             CandidateExists = (_, _) => true,
@@ -229,32 +207,24 @@ public class RepositoryDiscoveryCoordinatorTests
 
         Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Unusable));
         Assert.That(crawlerCalls, Is.Zero);
+        Assert.That(refusedBroker.ConnectionCount, Is.Zero);
     }
 
     [Test]
     public async Task IdentityFailure_RecordsErrorAndRetainsRequestedDrive()
     {
-        using var files = new PackedIndexFixture();
-        await using var index = await files.OpenIndexAsync();
+        await using var broker = new BlockBrokerFixture();
 
-        var configuration = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
+        var configuration = new GitWizardConfiguration { SearchPaths = { broker.Drive('X').RootDirectory } };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, false, []);
 
-        var fileIndex = index;
         var dependencies = new RepositoryDiscoveryDependencies
         {
             IsWindows = true,
             IsLinux = false,
             ClassifyRoot = root => new RootClassification(root, RootFileSystem.Ntfs, "X", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS crawler invoked"),
-            OpenIndexAsync = (_, _, _, _) =>
-            {
-                var session = new MftIndexSession(fileIndex, null, ["X"], [], new Dictionary<string, string> { ["X"] = "Volume identity could not be acquired" })
-                {
-                    DriveStatusesOverride = () => [new MftDriveStatus("X", null, "Volume identity could not be acquired")]
-                };
-                return Task.FromResult(session);
-            },
+            OpenIndexAsync = OpenWithIdentityFailure(broker),
             ReadListAsync = _ => Task.FromResult<string[]?>(null),
             WriteListAsync = (_, _) => Task.CompletedTask,
             CandidateExists = (_, _) => true,
@@ -273,13 +243,11 @@ public class RepositoryDiscoveryCoordinatorTests
     public async Task OneHealthyEmpty_OneFailed_IsPartialZero_RetainsFailedListEntries()
     {
         using var files = new PackedIndexFixture();
-        await using var index = await files.OpenIndexAsync('C');
 
         var writtenPaths = new List<string[]>();
         var configuration = new GitWizardConfiguration { SearchPaths = { @"C:\repos", @"D:\repos" } };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Rebuild, false, false, []);
 
-        var fileIndex = index;
         var dependencies = new RepositoryDiscoveryDependencies
         {
             IsWindows = true,
@@ -288,17 +256,8 @@ public class RepositoryDiscoveryCoordinatorTests
                 ? new RootClassification(root, RootFileSystem.Ntfs, "C", null)
                 : new RootClassification(root, RootFileSystem.Ntfs, "D", "Drive D is offline"),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS crawler invoked"),
-            OpenIndexAsync = (_, _, _, _) =>
-            {
-                var cStatus = CreateDriveStatus('C', DriveState.Ready,
-                    scanTimestamp: PackedIndexFixture.CompletionTimestamp);
-                var dStatus = CreateDriveStatus('D', DriveState.Offline);
-                var session = new MftIndexSession(fileIndex, null, ["C", "D"], [], new Dictionary<string, string> { ["D"] = "Drive D is offline" })
-                {
-                    DriveStatusesOverride = () => [new MftDriveStatus("C", cStatus, null), new MftDriveStatus("D", dStatus, "Drive D is offline")]
-                };
-                return Task.FromResult(session);
-            },
+            OpenIndexAsync = StatusSessions.Opener(files,
+                ('C', SyntheticDriveBehavior.Ready), ('D', SyntheticDriveBehavior.Offline)),
             ReadListAsync = _ => Task.FromResult<string[]?>(new[] { @"C:\repos\gone", @"D:\repos\keep" }),
             WriteListAsync = (paths, _) => { writtenPaths.Add(paths.ToArray()); return Task.CompletedTask; },
             CandidateExists = (_, _) => true,
@@ -319,28 +278,18 @@ public class RepositoryDiscoveryCoordinatorTests
     public async Task EveryDriveFailed_IsUnusable_ListWriterNeverCalled()
     {
         using var files = new PackedIndexFixture();
-        await using var index = await files.OpenIndexAsync();
 
         var listWriterCalled = false;
         var configuration = new GitWizardConfiguration { SearchPaths = { @"C:\repos" } };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, false, []);
 
-        var fileIndex = index;
         var dependencies = new RepositoryDiscoveryDependencies
         {
             IsWindows = true,
             IsLinux = false,
             ClassifyRoot = root => new RootClassification(root, RootFileSystem.Ntfs, "C", "offline"),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS crawler invoked"),
-            OpenIndexAsync = (_, _, _, _) =>
-            {
-                var cStatus = CreateDriveStatus('C', DriveState.Offline);
-                var session = new MftIndexSession(fileIndex, null, ["C"], [], new Dictionary<string, string> { ["C"] = "offline" })
-                {
-                    DriveStatusesOverride = () => [new MftDriveStatus("C", cStatus, "offline")]
-                };
-                return Task.FromResult(session);
-            },
+            OpenIndexAsync = StatusSessions.Opener(files, ('C', SyntheticDriveBehavior.Offline)),
             ReadListAsync = _ => Task.FromResult<string[]?>(new[] { @"C:\repos\keep" }),
             WriteListAsync = (_, _) => { listWriterCalled = true; return Task.CompletedTask; },
             CandidateExists = (_, _) => true,
@@ -360,29 +309,18 @@ public class RepositoryDiscoveryCoordinatorTests
     public async Task FreshGloballyEmpty_IsCompleteEmpty_ListWriterCalledWithEmptyArray()
     {
         using var files = new PackedIndexFixture();
-        await using var index = await files.OpenIndexAsync();
 
         var writtenPaths = new List<string[]>();
         var configuration = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Rebuild, false, false, []);
 
-        var fileIndex = index;
         var dependencies = new RepositoryDiscoveryDependencies
         {
             IsWindows = true,
             IsLinux = false,
             ClassifyRoot = root => new RootClassification(root, RootFileSystem.Ntfs, "X", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS crawler invoked"),
-            OpenIndexAsync = (_, _, _, _) =>
-            {
-                var xStatus = CreateDriveStatus('X', DriveState.Ready,
-                    scanTimestamp: DateTime.UtcNow);
-                var session = new MftIndexSession(fileIndex, null, ["X"], [], new Dictionary<string, string>())
-                {
-                    DriveStatusesOverride = () => [new MftDriveStatus("X", xStatus, null)]
-                };
-                return Task.FromResult(session);
-            },
+            OpenIndexAsync = StatusSessions.Opener(files, ('X', SyntheticDriveBehavior.Ready)),
             ReadListAsync = _ => Task.FromResult<string[]?>(new[] { @"C:\repos\old" }),
             WriteListAsync = (paths, _) => { writtenPaths.Add(paths.ToArray()); return Task.CompletedTask; },
             CandidateExists = (_, _) => true,
@@ -400,29 +338,18 @@ public class RepositoryDiscoveryCoordinatorTests
     public async Task RescanPreservesOldReadyBlockPlusProducerError_IsUnusable_NeverCurrentSuccess()
     {
         using var files = new PackedIndexFixture();
-        await using var index = await files.OpenIndexAsync();
 
         var configuration = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Rebuild, false, false, []);
 
-        var fileIndex = index;
         var dependencies = new RepositoryDiscoveryDependencies
         {
             IsWindows = true,
             IsLinux = false,
             ClassifyRoot = root => new RootClassification(root, RootFileSystem.Ntfs, "X", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS crawler invoked"),
-            OpenIndexAsync = (_, _, _, _) =>
-            {
-                // After rescan, block is Ready but producer error message is set
-                var failedStatus = CreateDriveStatus('X', DriveState.Ready, DriveFailureKind.ProducerFailed,
-                    failureMessage: "MFT producer failed during rescan");
-                var session = new MftIndexSession(fileIndex, null, ["X"], [], new Dictionary<string, string>())
-                {
-                    DriveStatusesOverride = () => [new MftDriveStatus("X", failedStatus, null)]
-                };
-                return Task.FromResult(session);
-            },
+            OpenIndexAsync = StatusSessions.OpenerFailingRescan(files, "MFT producer failed during rescan",
+                ('X', SyntheticDriveBehavior.Ready)),
             ReadListAsync = _ => Task.FromResult<string[]?>(null),
             WriteListAsync = (_, _) => Task.CompletedTask,
             CandidateExists = (_, _) => true,

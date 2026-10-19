@@ -99,17 +99,6 @@ public class LocalFilesCacheGuardTests
     }
 
     [Test]
-    public void CompatibilityWrapperKeepsCacheWhenRefusing()
-    {
-        var cache = MftIndexCachePolicy.GetCacheRoot(GitWizardApi.GetLocalFilesPath());
-        Directory.CreateDirectory(cache);
-        var sentinel = Path.Combine(cache, "sentinel.mlix");
-        File.WriteAllText(sentinel, "retained");
-        GitWizardApi.DeleteAllLocalFiles();
-        Assert.That(File.ReadAllText(sentinel), Is.EqualTo("retained"));
-    }
-
-    [Test]
     public async Task ViewModelShowsRefusalInsteadOfSuccess()
     {
         var cache = MftIndexCachePolicy.GetCacheRoot(GitWizardApi.GetLocalFilesPath());

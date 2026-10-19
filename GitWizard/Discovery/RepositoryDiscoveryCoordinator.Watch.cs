@@ -1,4 +1,5 @@
 using GitWizard.Watch;
+using MFTLib.Index;
 
 namespace GitWizard;
 
@@ -150,7 +151,7 @@ public partial class RepositoryDiscoveryCoordinator
             try
             {
                 session = await Dependencies.OpenIndexAsync(
-                    scope.RequestedNtfsDrives, MftIndexOpenIntent.Snapshot, null, cancellationToken).ConfigureAwait(false);
+                    scope.RequestedNtfsDrives, CacheMode.ExistingOnly, null, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception exception) when (exception is not OperationCanceledException ||
                                               !cancellationToken.IsCancellationRequested)

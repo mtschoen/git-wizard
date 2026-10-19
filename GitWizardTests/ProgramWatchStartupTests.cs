@@ -214,22 +214,8 @@ public class ProgramWatchStartupTests
         var dRoot = Directory.CreateDirectory(Path.Combine(files.DirectoryPath, "d-repos")).FullName;
 
         var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
-        var index = await files.OpenMftIndexAsync(scripted, 'C');
-        var session = new MftIndexSession(index, new CountingOwner(), ["C", "D"],
-            [new IndexedDrive('C', files.TreePath, 1), new IndexedDrive('D', dRoot, 1)],
-            new Dictionary<string, string>());
-        session.DriveStatusesOverride = () =>
-        {
-            var ready = SyntheticNotifications.CreateDriveStatus('C', DriveState.Ready,
-                SyntheticNotifications.CreateDriveBlockStatus(BlockOrigin.ProducedByScan, 10, false, DateTime.UtcNow), null);
-            var failed = SyntheticNotifications.CreateDriveStatus('D', DriveState.Failed, null,
-                SyntheticNotifications.CreateDriveFailure(DriveFailureKind.ProducerFailed, "Drive D failed"));
-            return
-            [
-                new MftDriveStatus("C", ready with { Watch = ready.Watch with { IsSupported = true } }, null),
-                new MftDriveStatus("D", failed with { Watch = failed.Watch with { IsSupported = false } }, null)
-            ];
-        };
+        var session = await StatusSessions.OpenAsync(files, scripted,
+            ('C', SyntheticDriveBehavior.Ready), ('D', SyntheticDriveBehavior.ProducerFails));
 
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {

@@ -10,7 +10,7 @@ internal sealed class DiscoveryDependencyRecorder : IDisposable
     public Action<string>? CrawlGuard { get; set; }
     public PackedIndexFixture IndexFixture { get; } = new();
     public bool IsWindows { get; set; } = true;
-    public Func<IReadOnlyList<string>, MftIndexOpenIntent, IProgress<IndexScanProgress>?, CancellationToken, Task<MftIndexSession>>? CustomOpenIndexAsync { get; set; }
+    public Func<IReadOnlyList<string>, CacheMode, IProgress<IndexScanProgress>?, CancellationToken, Task<MftIndexSession>>? CustomOpenIndexAsync { get; set; }
 
     public RepositoryDiscoveryDependencies BuildDependencies()
     {
@@ -52,7 +52,7 @@ internal sealed class DiscoveryDependencyRecorder : IDisposable
 
     async Task<MftIndexSession> DefaultOpenIndexAsync(
         IReadOnlyList<string> drives,
-        MftIndexOpenIntent intent,
+        CacheMode intent,
         IProgress<IndexScanProgress>? progress,
         CancellationToken token)
     {

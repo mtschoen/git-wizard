@@ -212,23 +212,16 @@ public class GitWizardApiAdditionalTests
         Assert.Pass();
     }
 
-    [Test]
-    public void DeleteAllLocalFiles_DoesNotThrow()
-    {
-        GitWizardApi.DeleteAllLocalFiles();
-        Assert.Pass();
-    }
-
-    // Regression guard for the data-loss incident: this class calls DeleteAllLocalFiles()/ClearCache()
+    // Regression guard for the data-loss incident: this class calls TryDeleteAllLocalFiles()/ClearCache()
     // without a per-class redirect, so without the assembly-wide GITWIZARD_HOME net (GlobalTestSetup)
-    // GetLocalFilesPath() resolves to the real ~/.GitWizard and DeleteAllLocalFiles wipes the user's
+    // GetLocalFilesPath() resolves to the real ~/.GitWizard and TryDeleteAllLocalFiles wipes the user's
     // config. This fails loudly if that net is ever removed.
     [Test]
     public void GetLocalFilesPath_NeverResolvesToTheRealGitWizardDirectoryDuringTests()
     {
         var real = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".GitWizard");
         Assert.That(GitWizardApi.GetLocalFilesPath(), Is.Not.EqualTo(real),
-            "Tests must resolve local files to an isolated temp home - a real-dir DeleteAllLocalFiles wipes the user's config.");
+            "Tests must resolve local files to an isolated temp home - a real-dir TryDeleteAllLocalFiles wipes the user's config.");
     }
 
     [Test]
@@ -414,7 +407,7 @@ public class GitWizardApiAdditionalTests
     [Test]
     public void GetLocalFilesSize_ReturnsZero_WhenFolderDoesNotExist()
     {
-        GitWizardApi.DeleteAllLocalFiles();
+        GitWizardApi.TryDeleteAllLocalFiles(out _);
         var size = GitWizardApi.GetLocalFilesSize();
         Assert.That(size, Is.EqualTo(0L));
     }
@@ -474,24 +467,24 @@ public class GitWizardApiAdditionalTests
     }
 
     [Test]
-    public async Task TryFindAllRepositoriesUsingMftAsync_ReturnsFalse_WhenNoMftFlagDisablesScan()
+    public async Task TryDiscoverRepositoriesUsingMftAsync_ReturnsFalse_WhenNoMftFlagDisablesScan()
     {
-        var found = await GitWizardApi.TryFindAllRepositoriesUsingMftAsync(
+        await using var result = await GitWizardApi.TryDiscoverRepositoriesUsingMftAsync(
             new GitWizardConfiguration(), new SortedSet<string>(), noMft: true);
 
-        Assert.That(found, Is.False);
+        Assert.That(result.Success, Is.False);
     }
 
     [Test]
-    public async Task TryFindAllRepositoriesUsingMftAsync_ReturnsFalse_OnNonWindows()
+    public async Task TryDiscoverRepositoriesUsingMftAsync_ReturnsFalse_OnNonWindows()
     {
         if (OperatingSystem.IsWindows())
             Assert.Ignore("MFT scanning is Windows-only; the non-Windows early-return is only reachable off Windows.");
 
-        var found = await GitWizardApi.TryFindAllRepositoriesUsingMftAsync(
+        await using var result = await GitWizardApi.TryDiscoverRepositoriesUsingMftAsync(
             new GitWizardConfiguration(), new SortedSet<string>());
 
-        Assert.That(found, Is.False);
+        Assert.That(result.Success, Is.False);
     }
 
     [Test]

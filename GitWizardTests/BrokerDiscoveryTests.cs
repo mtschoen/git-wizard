@@ -46,11 +46,12 @@ public class BrokerDiscoveryTests
     }
 
     [Test]
-    public async Task TryFindAllRepositoriesUsingMftAsync_NoMft_ReturnsFalseWithoutScanning()
+    public async Task TryDiscoverRepositoriesUsingMftAsync_NoMft_ReturnsFalseWithoutScanning()
     {
         var configuration = new GitWizardConfiguration { SearchPaths = { @"X:\" } };
-        Assert.That(await GitWizardApi.TryFindAllRepositoriesUsingMftAsync(
-            configuration, new List<string>(), noMft: true), Is.False);
+        await using var result = await GitWizardApi.TryDiscoverRepositoriesUsingMftAsync(
+            configuration, new List<string>(), noMft: true);
+        Assert.That(result.Success, Is.False);
     }
 
     [Test]

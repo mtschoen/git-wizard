@@ -68,7 +68,7 @@ public static class TestUtilities
     public static void ClearLocalFilesRedirect(string? temp)
     {
         // Restore the assembly-wide isolated home, NOT null. A null here would re-expose the real
-        // ~/.GitWizard to any later test that forgets to redirect - and a DeleteAllLocalFiles there
+        // ~/.GitWizard to any later test that forgets to redirect - and a TryDeleteAllLocalFiles there
         // wipes the user's real config (search paths and all). GlobalTestSetup sets DefaultHome.
         Environment.SetEnvironmentVariable("GITWIZARD_HOME", DefaultHome);
         if (string.IsNullOrEmpty(temp))

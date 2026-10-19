@@ -25,22 +25,22 @@ public sealed partial class MftIndexSession
         Func<string, bool> brokerLauncher, TimeSpan? connectTimeout,
         IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken)
     {
-        return OpenWindowsAsync(drives, brokerLauncher, MftIndexOpenIntent.Persistent, connectTimeout,
+        return OpenWindowsAsync(drives, brokerLauncher, CacheMode.Persistent, connectTimeout,
             progress, cancellationToken);
     }
 
     /// <summary>
-    /// Opens the selected volumes over git-wizard's private cache. <see cref="MftIndexOpenIntent.Snapshot" />
+    /// Opens the selected volumes over git-wizard's private cache. <see cref="CacheMode.ExistingOnly" />
     /// adopts cached blocks only and reports every other drive as a typed refusal without launching the broker.
     /// </summary>
     [SupportedOSPlatform("windows")]
     public static Task<MftIndexSession> OpenWindowsAsync(IReadOnlyList<string> drives,
-        Func<string, bool> brokerLauncher, MftIndexOpenIntent intent, TimeSpan? connectTimeout,
+        Func<string, bool> brokerLauncher, CacheMode cacheMode, TimeSpan? connectTimeout,
         IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken)
     {
         return OpenSelectedVolumesAsync(drives, IndexedDrive.FromWindowsVolume,
             new BrokerSession(brokerLauncher, connectTimeout),
-            new CacheSelection(MftIndexCachePolicy.GetCacheDirectory(GitWizardApi.GetLocalFilesPath()), intent),
+            new CacheSelection(MftIndexCachePolicy.GetCacheDirectory(GitWizardApi.GetLocalFilesPath()), cacheMode),
             progress, cancellationToken);
     }
 
@@ -49,9 +49,9 @@ public sealed partial class MftIndexSession
         BrokerSession brokerSession,
         string cacheDirectory, IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken) =>
         OpenSelectedVolumesAsync(drives, acquireIdentity, brokerSession,
-            new CacheSelection(cacheDirectory, MftIndexOpenIntent.Persistent), progress, cancellationToken);
+            new CacheSelection(cacheDirectory, CacheMode.Persistent), progress, cancellationToken);
 
-    internal readonly record struct CacheSelection(string Directory, MftIndexOpenIntent Intent);
+    internal readonly record struct CacheSelection(string Directory, CacheMode CacheMode);
 
     internal static async Task<MftIndexSession> OpenSelectedVolumesAsync(IReadOnlyList<string> drives,
         Func<DriveKey, IndexedDrive> acquireIdentity,
@@ -84,7 +84,7 @@ public sealed partial class MftIndexSession
             throw;
         }
 
-        var session = await OpenAsync(identities, brokerSession, cache.Directory, cache.Intent, progress,
+        var session = await OpenAsync(identities, brokerSession, cache.Directory, cache.CacheMode, progress,
             cancellationToken).ConfigureAwait(false);
         try
         {

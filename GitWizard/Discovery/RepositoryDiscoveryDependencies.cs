@@ -13,7 +13,7 @@ public sealed class RepositoryDiscoveryDependencies
     public required Func<DiscoveryRequest, string, CancellationToken,
         Task<RecursiveDiscovery>> CrawlRootAsync
     { get; init; }
-    public required Func<IReadOnlyList<string>, MftIndexOpenIntent,
+    public required Func<IReadOnlyList<string>, CacheMode,
         IProgress<IndexScanProgress>?, CancellationToken,
         Task<MftIndexSession>> OpenIndexAsync
     { get; init; }
@@ -30,11 +30,11 @@ public sealed class RepositoryDiscoveryDependencies
             IsLinux = OperatingSystem.IsLinux(),
             ClassifyRoot = WindowsRootClassifier.Classify,
             CrawlRootAsync = (request, root, token) => Task.Run(() => GitWizardApi.DiscoverRecursively(request, root, token), token),
-            OpenIndexAsync = (drives, intent, progress, token) =>
+            OpenIndexAsync = (drives, cacheMode, progress, token) =>
             {
                 if (!OperatingSystem.IsWindows())
                     throw new PlatformNotSupportedException("MFT discovery requires Windows.");
-                return MftIndexSession.OpenWindowsAsync(drives, BrokerLauncher.Launch, intent, null, progress, token);
+                return MftIndexSession.OpenWindowsAsync(drives, BrokerLauncher.Launch, cacheMode, null, progress, token);
             },
             ReadListAsync = token => GitWizardApi.GetCachedRepositoryPathsAsync(token),
             WriteListAsync = (paths, token) => GitWizardApi.SaveCachedRepositoryPathsAsync(paths, token),

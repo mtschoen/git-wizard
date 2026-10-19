@@ -76,7 +76,7 @@ protects the supplied cache directory and owns cache validation and locking.
 
 A normal open can reuse a cached block. A concurrent normal open that cannot own its canonical
 slot scans into a private delete-on-close block without modifying that canonical block.
-Snapshot opening is an explicit session API intent (`MftIndexOpenIntent.Snapshot`): it does not
+Snapshot opening is an explicit session API cache mode (`CacheMode.ExistingOnly`): it does not
 launch the broker, scan, or start watching. Missing, incompatible, in-use, offline and
 identity-failed outcomes remain visible; they are not evidence of an empty repository
 inventory. Cache opening and inspection can create lock files and perform library-managed

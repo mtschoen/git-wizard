@@ -3,8 +3,6 @@ using GitWizard;
 using GitWizard.CLI;
 using GitWizardTests.TestSupport;
 using LibGit2Sharp;
-using MFTLib.Index;
-using MFTLibTestExtensions;
 
 namespace GitWizardTests.Discovery;
 
@@ -28,20 +26,8 @@ public class ReportPublicationTests
         TestUtilities.ClearLocalFilesRedirect(_tempHome);
     }
 
-    static DriveStatus CreateDriveStatus(char letter, DriveState state, string? failureMessage = null)
-    {
-        var block = state == DriveState.Ready
-            ? SyntheticNotifications.CreateDriveBlockStatus(BlockOrigin.ProducedByScan, 10, false, DateTime.UtcNow)
-            : null;
-        var failure = failureMessage is not null
-            ? SyntheticNotifications.CreateDriveFailure(DriveFailureKind.ProducerFailed, failureMessage)
-            : null;
-        var status = SyntheticNotifications.CreateDriveStatus(letter, state, block, failure);
-        return status with { Watch = status.Watch with { IsSupported = state == DriveState.Ready } };
-    }
-
     static RepositoryDiscoveryCoordinator CreateCoordinator(
-        FileIndex index,
+        PackedIndexFixture files,
         DiscoveryOutcome outcome,
         string dRoot)
     {
@@ -55,32 +41,9 @@ public class ReportPublicationTests
                 return new RootClassification(root, RootFileSystem.Ntfs, drive, null);
             },
             CrawlRootAsync = (_, _, _) => throw new AssertionException("Unexpected crawler call"),
-            OpenIndexAsync = (_, _, _, _) =>
-            {
-                var cStatus = outcome == DiscoveryOutcome.Unusable
-                    ? CreateDriveStatus('C', DriveState.Offline, "Drive C offline")
-                    : CreateDriveStatus('C', DriveState.Ready);
-                var dStatus = outcome == DiscoveryOutcome.CompleteEmpty
-                    ? CreateDriveStatus('D', DriveState.Ready)
-                    : CreateDriveStatus('D', DriveState.Failed, "Drive D failure");
-
-                var session = new MftIndexSession(
-                    index,
-                    null,
-                    ["C", "D"],
-                    [],
-                    outcome == DiscoveryOutcome.CompleteEmpty
-                        ? []
-                        : new Dictionary<string, string> { ["D"] = "Drive D failure" })
-                {
-                    DriveStatusesOverride = () =>
-                    [
-                        new MftDriveStatus("C", cStatus, outcome == DiscoveryOutcome.Unusable ? "Drive C offline" : null),
-                        new MftDriveStatus("D", dStatus, outcome == DiscoveryOutcome.CompleteEmpty ? null : "Drive D failure")
-                    ]
-                };
-                return Task.FromResult(session);
-            },
+            OpenIndexAsync = (_, _, _, _) => StatusSessions.OpenAsync(files,
+                ('C', outcome == DiscoveryOutcome.Unusable ? SyntheticDriveBehavior.Offline : SyntheticDriveBehavior.Ready),
+                ('D', outcome == DiscoveryOutcome.CompleteEmpty ? SyntheticDriveBehavior.Ready : SyntheticDriveBehavior.ProducerFails)),
             ReadListAsync = _ => Task.FromResult<string[]?>([]),
             WriteListAsync = (_, _) => Task.CompletedTask,
             CandidateExists = (_, _) => true,
@@ -127,8 +90,7 @@ public class ReportPublicationTests
         var dRoot = Path.Combine(files.DirectoryPath, "d-root");
         Directory.CreateDirectory(dRoot);
 
-        await using var index = await files.OpenIndexAsync('C');
-        var coordinator = CreateCoordinator(index, outcome, dRoot);
+        var coordinator = CreateCoordinator(files, outcome, dRoot);
 
         var (cachedReportPath, priorBytes) = SeedCachedReport();
         var customSavePath = Path.Combine(files.DirectoryPath, "custom-save.json");
@@ -180,8 +142,7 @@ public class ReportPublicationTests
         var dRoot = Path.Combine(files.DirectoryPath, "d-root");
         Directory.CreateDirectory(dRoot);
 
-        await using var index = await files.OpenIndexAsync('C');
-        var coordinator = CreateCoordinator(index, DiscoveryOutcome.CompleteEmpty, dRoot);
+        var coordinator = CreateCoordinator(files, DiscoveryOutcome.CompleteEmpty, dRoot);
 
         var (cachedReportPath, _) = SeedCachedReport();
         var customSavePath = Path.Combine(files.DirectoryPath, "empty-save.json");

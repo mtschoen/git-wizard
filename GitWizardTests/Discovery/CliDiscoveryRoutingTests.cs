@@ -1,8 +1,5 @@
-using GitWizard;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
-using MFTLib.Index;
-using MFTLibTestExtensions;
 
 namespace GitWizardTests.Discovery;
 
@@ -82,18 +79,6 @@ public class CliDiscoveryRoutingTests
         }
     }
 
-    static DriveStatus CreateDriveStatus(char letter, DriveState state, string? failureMessage = null)
-    {
-        var block = state == DriveState.Ready
-            ? SyntheticNotifications.CreateDriveBlockStatus(BlockOrigin.ProducedByScan, 10, false, DateTime.UtcNow)
-            : null;
-        var failure = failureMessage is not null
-            ? SyntheticNotifications.CreateDriveFailure(DriveFailureKind.ProducerFailed, failureMessage)
-            : null;
-        var status = SyntheticNotifications.CreateDriveStatus(letter, state, block, failure);
-        return status with { Watch = status.Watch with { IsSupported = state == DriveState.Ready } };
-    }
-
     [TestCase("report")]
     [TestCase("sweep")]
     [TestCase("tags")]
@@ -105,18 +90,8 @@ public class CliDiscoveryRoutingTests
         fixture.Configuration.SearchPaths.Add(fixture.Dependencies.IndexFixture.TreePath);
 
         var indexFixture = fixture.Dependencies.IndexFixture;
-        fixture.Dependencies.CustomOpenIndexAsync = async (drives, _, _, _) =>
-        {
-            var driveChars = drives.Select(d => d[0]).ToArray();
-            var index = await indexFixture.OpenIndexAsync(driveChars).ConfigureAwait(false);
-            var indexedDrives = drives.Select(d => new IndexedDrive(d[0], indexFixture.TreePath, 1)).ToList();
-            var session = new MftIndexSession(index, new CountingOwner(), drives, indexedDrives, new Dictionary<string, string>());
-            session.DriveStatusesOverride = () =>
-            [
-                new MftDriveStatus("C", CreateDriveStatus('C', DriveState.Failed, "Drive C failure"), null)
-            ];
-            return session;
-        };
+        fixture.Dependencies.CustomOpenIndexAsync = (drives, _, _, _) => StatusSessions.OpenAsync(
+            indexFixture, drives.Select(drive => (drive[0], SyntheticDriveBehavior.ProducerFails)).ToArray());
 
         var exitCode = await fixture.RunAsync();
 
@@ -135,25 +110,15 @@ public class CliDiscoveryRoutingTests
         fixture.Configuration.SearchPaths.Add(fixture.Dependencies.IndexFixture.TreePath);
 
         var indexFixture = fixture.Dependencies.IndexFixture;
-        fixture.Dependencies.CustomOpenIndexAsync = async (drives, _, _, _) =>
-        {
-            var driveChars = drives.Select(d => d[0]).ToArray();
-            var index = await indexFixture.OpenIndexAsync(driveChars).ConfigureAwait(false);
-            var indexedDrives = drives.Select(d => new IndexedDrive(d[0], indexFixture.TreePath, 1)).ToList();
-            var session = new MftIndexSession(index, new CountingOwner(), drives, indexedDrives, new Dictionary<string, string>());
-            session.DriveStatusesOverride = () =>
-            [
-                new MftDriveStatus("C", CreateDriveStatus('C', DriveState.Failed, "Drive C scan failure"), null)
-            ];
-            return session;
-        };
+        fixture.Dependencies.CustomOpenIndexAsync = (drives, _, _, _) => StatusSessions.OpenAsync(
+            indexFixture, drives.Select(drive => (drive[0], SyntheticDriveBehavior.ProducerFails)).ToArray());
 
         var exitCode = await fixture.RunAsync();
 
         Assert.Multiple(() =>
         {
             Assert.That(exitCode, Is.EqualTo(1));
-            Assert.That(fixture.Stderr.ToString(), Does.Contain("Drive C scan failure"));
+            Assert.That(fixture.Stderr.ToString(), Does.Contain("Drive C failure"));
         });
     }
 }

@@ -30,9 +30,9 @@ public class MftIndexPersistenceTests
         return bytes;
     }
 
-    [TestCase(MftIndexOpenIntent.Persistent)]
-    [TestCase(MftIndexOpenIntent.Snapshot)]
-    public async Task WarmOpenDoesNotLaunchBroker(MftIndexOpenIntent intent)
+    [TestCase(CacheMode.Persistent)]
+    [TestCase(CacheMode.ExistingOnly)]
+    public async Task WarmOpenDoesNotLaunchBroker(CacheMode intent)
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repository");
@@ -59,7 +59,7 @@ public class MftIndexPersistenceTests
         await using var broker = new BlockBrokerFixture();
         await using var session = await MftIndexSession.OpenAsync([broker.Drive('X')], broker.CreateSession(),
             MftIndexCachePolicy.GetCacheDirectory(broker.CacheDirectory),
-            MftIndexOpenIntent.Snapshot, null, CancellationToken.None);
+            CacheMode.ExistingOnly, null, CancellationToken.None);
         var status = session.CaptureDriveStatuses().Single().IndexStatus!;
         Assert.That(status.State, Is.EqualTo(DriveState.Failed));
         Assert.That(status.Failure?.Kind, Is.EqualTo(DriveFailureKind.CacheDeclined));
@@ -78,7 +78,7 @@ public class MftIndexPersistenceTests
         var cache = MftIndexCachePolicy.GetCacheDirectory(firstBroker.CacheDirectory);
         // Disposed mid-test to release the canonical slot; the finally is an idempotent safety net.
         var first = await MftIndexSession.OpenAsync([drive], firstBroker.CreateSession(),
-            cache, MftIndexOpenIntent.Persistent, null, CancellationToken.None);
+            cache, CacheMode.Persistent, null, CancellationToken.None);
         try
         {
             await AssertInUseAndPrivateCompetitorAsync(first, otherBroker, drive, cache);
@@ -95,14 +95,14 @@ public class MftIndexPersistenceTests
         var canonical = SyntheticBlock.CachedPath(cache, 'X', 1);
         var before = await ReadSharedAsync(canonical);
         await using (var refused = await MftIndexSession.OpenAsync([drive], otherBroker.CreateSession(),
-            cache, MftIndexOpenIntent.Snapshot, null, CancellationToken.None))
+            cache, CacheMode.ExistingOnly, null, CancellationToken.None))
         {
             Assert.That(refused.CaptureDriveStatuses().Single().IndexStatus!.Failure?.Kind,
                 Is.EqualTo(DriveFailureKind.InUse));
             Assert.That(otherBroker.ConnectionCount, Is.Zero);
         }
         await using (var competitor = await MftIndexSession.OpenAsync([drive], otherBroker.CreateSession(),
-            cache, MftIndexOpenIntent.Persistent, null, CancellationToken.None))
+            cache, CacheMode.Persistent, null, CancellationToken.None))
         {
             Assert.That(competitor.CaptureDriveStatuses().Single().IndexStatus!.Block?.CacheLocation,
                 Is.EqualTo(CacheLocation.PrivateFallback));
@@ -113,7 +113,7 @@ public class MftIndexPersistenceTests
         Assert.That(await ReadSharedAsync(canonical), Is.EqualTo(before));
         await using var reopened = await MftIndexSession.OpenAsync([drive],
             BrokerTestHarness.CreateSession(_ => throw new AssertionException("Canonical cache must remain reusable.")),
-            cache, MftIndexOpenIntent.Snapshot, null, CancellationToken.None);
+            cache, CacheMode.ExistingOnly, null, CancellationToken.None);
         Assert.That(reopened.CaptureDriveStatuses().Single().IndexStatus!.Block?.Origin,
             Is.EqualTo(BlockOrigin.WarmStartedFromCache));
     }
@@ -169,7 +169,7 @@ public class MftIndexPersistenceTests
         var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         await SeedAsync(files, drive, cache);
         var session = await MftIndexSession.OpenAsync([drive], broker.CreateSession(),
-            cache, MftIndexOpenIntent.Snapshot, null, CancellationToken.None);
+            cache, CacheMode.ExistingOnly, null, CancellationToken.None);
         try
         {
             Assert.That(broker.ConnectionCount, Is.Zero);
@@ -192,7 +192,7 @@ public class MftIndexPersistenceTests
         await using var broker = new BlockBrokerFixture();
         var cache = MftIndexCachePolicy.GetCacheDirectory(broker.CacheDirectory);
         var session = await MftIndexSession.OpenAsync([broker.Drive('X')], broker.CreateSession(),
-            cache, MftIndexOpenIntent.Snapshot, null, CancellationToken.None);
+            cache, CacheMode.ExistingOnly, null, CancellationToken.None);
         try
         {
             var old = session.CaptureDriveStatuses();
@@ -220,7 +220,7 @@ public class MftIndexPersistenceTests
         await using var session = await MftIndexSession.OpenAsync(
             [new IndexedDrive('X', Path.Combine(files.DirectoryPath, "absent"), 1)],
             broker.CreateSession(), MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath),
-            MftIndexOpenIntent.Snapshot, null, CancellationToken.None);
+            CacheMode.ExistingOnly, null, CancellationToken.None);
         var status = session.CaptureDriveStatuses().Single().IndexStatus!;
         Assert.That(status.State, Is.EqualTo(DriveState.Offline));
         Assert.That(status.Failure, Is.Null);

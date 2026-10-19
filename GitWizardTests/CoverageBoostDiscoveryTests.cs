@@ -4,7 +4,7 @@ namespace GitWizardTests;
 
 /// <summary>
 /// Coverage-boost tests for <see cref="GitWizardApi"/> Discovery partial:
-/// non-MFT fallback, GetRepositoryPaths edge cases, TryFindAllRepositoriesUsingMft
+/// non-MFT fallback, GetRepositoryPaths edge cases, TryDiscoverRepositoriesUsingMft
 /// behavior.
 /// </summary>
 public class CoverageBoostDiscoveryTests
@@ -98,25 +98,25 @@ public class CoverageBoostDiscoveryTests
     }
 
     [Test]
-    public async Task TryFindAllRepositoriesUsingMftAsync_NoMftTrue_ReturnsFalse()
+    public async Task TryDiscoverRepositoriesUsingMftAsync_NoMftTrue_ReturnsFalse()
     {
         var config = new GitWizardConfiguration { SearchPaths = { Path.GetTempPath() } };
         var paths = new SortedSet<string>();
-        var result = await GitWizardApi.TryFindAllRepositoriesUsingMftAsync(config, paths, noMft: true);
-        Assert.That(result, Is.False);
+        await using var result = await GitWizardApi.TryDiscoverRepositoriesUsingMftAsync(config, paths, noMft: true);
+        Assert.That(result.Success, Is.False);
         Assert.That(paths, Is.Empty);
     }
 
     [Test]
-    public async Task TryFindAllRepositoriesUsingMftAsync_EmptySearchPaths_ReturnsFalse()
+    public async Task TryDiscoverRepositoriesUsingMftAsync_EmptySearchPaths_ReturnsFalse()
     {
         if (!OperatingSystem.IsWindows())
             Assert.Ignore("MFT is Windows-only.");
 
         var config = new GitWizardConfiguration(); // empty search paths
         var paths = new SortedSet<string>();
-        var result = await GitWizardApi.TryFindAllRepositoriesUsingMftAsync(config, paths);
-        Assert.That(result, Is.False);
+        await using var result = await GitWizardApi.TryDiscoverRepositoriesUsingMftAsync(config, paths);
+        Assert.That(result.Success, Is.False);
     }
 
     [Test]

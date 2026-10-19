@@ -44,7 +44,7 @@ public partial class RepositoryDiscoveryCoordinator
                 source = null;
             }
 
-            var result = new WatchStartupResult(inventory, armResult, source, ["/"], scope);
+            var result = new WatchStartupResult(inventory, armResult, source, [LinuxWatchRouting.Volume], scope);
             source = null;
             return result;
         }
@@ -71,7 +71,7 @@ public partial class RepositoryDiscoveryCoordinator
         }
 
         var unusableInventory = accumulator.BuildInventory(DiscoveryRoute.RecursiveOnly, []);
-        return new WatchStartupResult(unusableInventory, armResult, null, ["/"], scope);
+        return new WatchStartupResult(unusableInventory, armResult, null, [LinuxWatchRouting.Volume], scope);
     }
 
     async Task ObserveMarkedLinuxRootsAsync(

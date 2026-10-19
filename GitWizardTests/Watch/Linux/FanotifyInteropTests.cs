@@ -248,6 +248,29 @@ public class FanotifyInteropTests
     }
 
     [Test]
+    [Platform("Linux")]
+    [SupportedOSPlatform("linux")]
+    public void OpenDirectory_ReturnsADescriptorOpenByHandleAcceptsAsAMount()
+    {
+        // open_by_handle_at fails with EBADF for an O_PATH mount descriptor, so the mount descriptor must not carry it.
+        const int openPathFlag = 0x200000;
+        var opened = FanotifyNative.Instance.OpenDirectory(Path.GetTempPath());
+        Assert.That(opened.Value, Is.GreaterThanOrEqualTo(0), $"errno {opened.ErrorNumber}");
+        try
+        {
+            var flagsLine = File.ReadLines($"/proc/self/fdinfo/{opened.Value}")
+                .Single(line => line.StartsWith("flags:", StringComparison.Ordinal));
+            var flags = Convert.ToInt32(flagsLine["flags:".Length..].Trim(), 8);
+
+            Assert.That(flags & openPathFlag, Is.Zero);
+        }
+        finally
+        {
+            FanotifyNative.Instance.Close(opened.Value);
+        }
+    }
+
+    [Test]
     [Category("RequiresRoot")]
     [Platform("Linux")]
     [SupportedOSPlatform("linux")]
@@ -318,6 +341,14 @@ internal sealed class FakeFanotifyNative : IFanotifyNative
     public int Read(int descriptor, byte[] buffer, int count) => 0;
 
     public int OpenByHandle(int mountDirectoryDescriptor, byte[] handle, int flags) => -1;
+
+    public FanotifyNativeCallResult OpenDirectory(string path) => new(-1, 2);
+
+    public bool TryReadFilesystemIdentifier(int descriptor, out long filesystemId)
+    {
+        filesystemId = 0;
+        return false;
+    }
 
     public string? ReadLink(string path) => null;
 }

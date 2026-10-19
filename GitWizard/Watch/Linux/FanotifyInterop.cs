@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using JetBrains.Annotations;
@@ -145,6 +146,10 @@ internal interface IFanotifyNative
 
     int OpenByHandle(int mountDirectoryDescriptor, byte[] handle, int flags);
 
+    FanotifyNativeCallResult OpenDirectory(string path);
+
+    bool TryReadFilesystemIdentifier(int descriptor, out long filesystemId);
+
     string? ReadLink(string path);
 }
 
@@ -212,6 +217,29 @@ internal sealed partial class FanotifyNative : IFanotifyNative
             {
                 return NativeOpenByHandleAt(mountDirectoryDescriptor, ptr, flags);
             }
+        }
+    }
+
+    public FanotifyNativeCallResult OpenDirectory(string path)
+    {
+        return CaptureResult(NativeOpen(path, FanotifyConstants.MountDescriptorFlags));
+    }
+
+    public bool TryReadFilesystemIdentifier(int descriptor, out long filesystemId)
+    {
+        // The statfs layout below is the 64-bit Linux one (x86-64 and arm64), where f_fsid follows seven 8-byte fields.
+        filesystemId = 0;
+        if (nint.Size != 8)
+            return false;
+
+        unsafe
+        {
+            var buffer = stackalloc byte[FanotifyConstants.StatfsBufferSize];
+            if (NativeFilesystemStatistics(descriptor, buffer) != 0)
+                return false;
+
+            filesystemId = Unsafe.ReadUnaligned<long>(buffer + FanotifyConstants.StatfsFilesystemIdOffset);
+            return true;
         }
     }
 
@@ -289,6 +317,12 @@ internal sealed partial class FanotifyNative : IFanotifyNative
     [LibraryImport("libc", EntryPoint = "open_by_handle_at", SetLastError = true)]
     private static unsafe partial int NativeOpenByHandleAt(int mountDescriptor, byte* handle, int flags);
 
+    [LibraryImport("libc", EntryPoint = "open", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
+    private static partial int NativeOpen(string path, int flags);
+
+    [LibraryImport("libc", EntryPoint = "fstatfs", SetLastError = true)]
+    private static unsafe partial int NativeFilesystemStatistics(int descriptor, byte* buffer);
+
     [LibraryImport("libc", EntryPoint = "readlink", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
     private static unsafe partial nint NativeReadLink(string path, byte* buffer, nuint bufferSize);
 }
@@ -322,10 +356,17 @@ internal static class FanotifyConstants
     public const byte EventInfoTypeOldDfidName = 10;
     public const byte EventInfoTypeNewDfidName = 12;
 
+    public const int StatfsBufferSize = 256;
+    public const int StatfsFilesystemIdOffset = 56;
+
     public const int OpenPath = 0x00200000;
     public const int OpenDirectory = 0x00010000;
     public const int OpenCloseOnExecute = 0x00080000;
     public const int OpenDirectoryFlags = (int)ReadOnly | OpenDirectory | OpenCloseOnExecute | OpenPath;
+
+    // open_by_handle_at rejects an O_PATH mount descriptor with EBADF, so the descriptor that anchors handle
+    // resolution is a plain read-only directory descriptor, while the directories it resolves stay O_PATH.
+    public const int MountDescriptorFlags = (int)ReadOnly | OpenDirectory | OpenCloseOnExecute;
 }
 
 internal static class FanotifyError

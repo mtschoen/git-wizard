@@ -4,13 +4,13 @@ namespace GitWizard.Watch.Linux;
 
 public sealed partial class FanotifyVolumeChangeSource
 {
-    (Dictionary<string, List<VolumeChangeEntry>> EntriesByVolume, bool QueueOverflow) DecodeEvents(
-        byte[] buffer, int bytesRead)
+    (List<VolumeChangeEntry> Entries, bool QueueOverflow) DecodeEvents(byte[] buffer, int bytesRead)
     {
-        var result = new Dictionary<string, List<VolumeChangeEntry>>(StringComparer.Ordinal);
+        var result = new List<VolumeChangeEntry>();
         var offset = 0;
         var queueOverflow = false;
         const int metadataHeaderLength = 24;
+        using var mounts = _mounts.OpenBatch();
 
         while (offset + metadataHeaderLength <= bytesRead)
         {
@@ -52,17 +52,13 @@ public sealed partial class FanotifyVolumeChangeSource
                     or FanotifyConstants.EventInfoTypeDfid
                     or FanotifyConstants.EventInfoTypeFid)
                 {
-                    var entry = DecodeFidRecord(buffer, infoOffset, infoLength, kind);
+                    var entry = DecodeFidRecord(buffer, infoOffset, infoLength, kind, mounts);
                     if (entry is not null)
                     {
                         if (shouldInvalidate)
                             InvalidateCacheForPath(entry.Value.FullPath);
 
-                        var volume = ResolveVolumeForPath(entry.Value.FullPath);
-                        if (!result.TryGetValue(volume, out var list))
-                            result[volume] = list = [];
-
-                        list.Add(entry.Value);
+                        result.Add(entry.Value);
                     }
                 }
 
@@ -75,7 +71,8 @@ public sealed partial class FanotifyVolumeChangeSource
         return (result, queueOverflow);
     }
 
-    VolumeChangeEntry? DecodeFidRecord(byte[] buffer, int infoOffset, int infoLength, VolumeEntryKind kind)
+    VolumeChangeEntry? DecodeFidRecord(
+        byte[] buffer, int infoOffset, int infoLength, VolumeEntryKind kind, MountRootTable.MountBatch mounts)
     {
         if (infoLength < 20)
             return null;
@@ -84,6 +81,7 @@ public sealed partial class FanotifyVolumeChangeSource
         if (infoLength < 20 + handleBytes)
             return null;
 
+        var filesystemId = BitConverter.ToInt64(buffer, infoOffset + 4);
         var handleTotalSize = 8 + handleBytes;
         var fileHandlePayload = new byte[handleTotalSize];
         Buffer.BlockCopy(buffer, infoOffset + 12, fileHandlePayload, 0, handleTotalSize);
@@ -99,7 +97,7 @@ public sealed partial class FanotifyVolumeChangeSource
                 fileName = Encoding.UTF8.GetString(buffer, nameOffset, nameLength);
         }
 
-        var directoryPath = ResolveDirectoryPath(fileHandlePayload);
+        var directoryPath = ResolveDirectoryPath(new FileHandleKey(filesystemId, fileHandlePayload), mounts);
         if (directoryPath is null)
             return null;
 
@@ -114,9 +112,17 @@ public sealed partial class FanotifyVolumeChangeSource
         return new VolumeChangeEntry(fullPath, kind);
     }
 
-    string? ResolveDirectoryPath(byte[] fileHandlePayload)
+    string? ResolveDirectoryPath(FileHandleKey key, MountRootTable.MountBatch mounts)
     {
-        var key = new FileHandleKey(fileHandlePayload);
+        // Resolved paths carry the prefix of the mount that produced them, so the mount is settled first: a cached
+        // path survives only while the filesystem is still reached through the root that resolved it.
+        var reachable = mounts.TryGetDescriptor(key.FilesystemId, out var mountDescriptor, out var mountChanged);
+        if (mountChanged)
+            RemoveCacheForFilesystem(key.FilesystemId);
+
+        if (!reachable)
+            return null;
+
         lock (_handleCacheLock)
         {
             if (_handleCache.TryGetValue(key, out var cachedPath))
@@ -124,8 +130,8 @@ public sealed partial class FanotifyVolumeChangeSource
         }
 
         var directoryDescriptor = _native.OpenByHandle(
-            FanotifyConstants.CurrentWorkingDirectory,
-            fileHandlePayload,
+            mountDescriptor,
+            key.HandleBytes,
             FanotifyConstants.OpenDirectoryFlags);
 
         if (directoryDescriptor < 0)
@@ -151,6 +157,15 @@ public sealed partial class FanotifyVolumeChangeSource
         return null;
     }
 
+    void RemoveCacheForFilesystem(long filesystemId)
+    {
+        lock (_handleCacheLock)
+        {
+            foreach (var key in _handleCache.Keys.Where(key => key.FilesystemId == filesystemId).ToList())
+                _handleCache.Remove(key);
+        }
+    }
+
     void InvalidateCacheForPath(string path)
     {
         if (string.IsNullOrEmpty(path))
@@ -174,29 +189,10 @@ public sealed partial class FanotifyVolumeChangeSource
         }
     }
 
-    string ResolveVolumeForPath(string fullPath)
-    {
-        foreach (var volume in _watchedVolumes)
-        {
-            if (volume == "/")
-                continue;
-
-            var prefix = volume.EndsWith('/') ? volume : volume + "/";
-            if (fullPath.Equals(volume, StringComparison.Ordinal) ||
-                fullPath.StartsWith(prefix, StringComparison.Ordinal))
-            {
-                return volume;
-            }
-        }
-
-        if (_watchedVolumes.Contains("/"))
-            return "/";
-
-        return _watchedVolumes.Count > 0 ? _watchedVolumes[0] : "/";
-    }
-
     static VolumeEntryKind ClassifyKind(ulong mask) => mask switch
     {
+        _ when (mask & FanotifyConstants.MovedTo) != 0 && (mask & FanotifyConstants.OnDirectory) != 0 =>
+            VolumeEntryKind.MovedIn,
         _ when (mask & (FanotifyConstants.Create | FanotifyConstants.MovedTo)) != 0 => VolumeEntryKind.Created,
         _ when (mask & (FanotifyConstants.Delete | FanotifyConstants.MovedFrom)) != 0 => VolumeEntryKind.Deleted,
         _ => VolumeEntryKind.Modified

@@ -1,24 +1,31 @@
 namespace GitWizard.Watch.Linux;
 
 /// <summary>
-/// Value-equality key for caching directory paths by their Linux kernel <c>struct file_handle</c> payload.
+/// Value-equality key for caching directory paths by the filesystem identifier and Linux kernel
+/// <c>struct file_handle</c> payload that fanotify reports together. Equal payloads on different
+/// filesystems are different keys.
 /// </summary>
 internal readonly struct FileHandleKey : IEquatable<FileHandleKey>
 {
-    readonly byte[] _bytes;
     readonly int _hashCode;
 
-    public FileHandleKey(byte[] bytes)
+    public FileHandleKey(long filesystemId, byte[] handleBytes)
     {
-        _bytes = bytes;
+        FilesystemId = filesystemId;
+        HandleBytes = handleBytes;
         var hash = new HashCode();
-        foreach (var b in bytes)
+        hash.Add(filesystemId);
+        foreach (var b in handleBytes)
             hash.Add(b);
         _hashCode = hash.ToHashCode();
     }
 
+    public long FilesystemId { get; }
+
+    public byte[] HandleBytes { get; }
+
     public bool Equals(FileHandleKey other) =>
-        _bytes.AsSpan().SequenceEqual(other._bytes);
+        FilesystemId == other.FilesystemId && HandleBytes.AsSpan().SequenceEqual(other.HandleBytes);
 
     public override bool Equals(object? obj) =>
         obj is FileHandleKey other && Equals(other);

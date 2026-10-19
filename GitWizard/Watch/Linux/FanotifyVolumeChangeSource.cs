@@ -14,6 +14,7 @@ namespace GitWizard.Watch.Linux;
 public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IVolumeReadiness, IPumpLifecycle
 {
     readonly IFanotifyNative _native;
+    readonly MountRootTable _mounts;
     readonly object _handleCacheLock = new();
     readonly Dictionary<FileHandleKey, string> _handleCache = [];
     readonly Lock _readinessGate = new();
@@ -56,7 +57,11 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
     {
     }
 
-    internal FanotifyVolumeChangeSource(IFanotifyNative native) => _native = native;
+    internal FanotifyVolumeChangeSource(IFanotifyNative native)
+    {
+        _native = native;
+        _mounts = new MountRootTable(native);
+    }
 
     public async Task<VolumeArmResult> ArmAndCatchUpAsync(
         IReadOnlyCollection<string> volumes, CancellationToken ct)
@@ -65,6 +70,15 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
         ct.ThrowIfCancellationRequested();
 
         await StopActivePumpAsync().ConfigureAwait(false);
+
+        _descriptor?.Dispose();
+        _descriptor = null;
+        _watchedVolumes = [];
+        lock (_handleCacheLock)
+        {
+            _handleCache.Clear();
+        }
+        _mounts.Clear();
 
         lock (_readinessGate)
             _readiness = VolumeReadinessSnapshot.Empty;
@@ -89,12 +103,7 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
             return new VolumeArmResult(errors, Array.Empty<JournalWarning>());
         }
 
-        _descriptor?.Dispose();
         _descriptor = new SafeUnixFileDescriptor(initializeResult.Value, _native);
-        lock (_handleCacheLock)
-        {
-            _handleCache.Clear();
-        }
 
         var watched = new List<string>();
         foreach (var volume in volumes)
@@ -122,6 +131,11 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
                 {
                     errors[volume] = $"fanotify_mark failed on {volume} (errno {markResult.ErrorNumber}).";
                     PublishVolumeState(VolumeWatchStatus.Excluded(volume, VolumeBlockOrigin.Unknown, errors[volume]));
+                }
+                else if (_mounts.TryAdd(volume) is { } mountFailure)
+                {
+                    errors[volume] = mountFailure;
+                    PublishVolumeState(VolumeWatchStatus.Excluded(volume, VolumeBlockOrigin.Unknown, mountFailure));
                 }
                 else
                 {
@@ -197,6 +211,7 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
         {
             _handleCache.Clear();
         }
+        _mounts.Clear();
         _descriptor?.Dispose();
         _descriptor = null;
     }
@@ -275,12 +290,9 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
                     break;
                 }
 
-                var (entriesByVolume, queueOverflow) = DecodeEvents(buffer, bytesRead);
-                foreach (var (volume, entries) in entriesByVolume)
-                {
-                    if (entries.Count > 0)
-                        await writer.WriteAsync(new VolumeChangeBatch(volume, entries), cancellationToken).ConfigureAwait(false);
-                }
+                var (entries, queueOverflow) = DecodeEvents(buffer, bytesRead);
+                if (entries.Count > 0)
+                    await writer.WriteAsync(new VolumeChangeBatch(LinuxWatchRouting.Volume, entries), cancellationToken).ConfigureAwait(false);
 
                 if (queueOverflow)
                 {

@@ -1,7 +1,7 @@
 using System.Runtime.Versioning;
-using System.Text;
 using GitWizard.Watch;
 using GitWizard.Watch.Linux;
+using static GitWizardTests.Watch.Linux.FanotifyEventBuffers;
 
 namespace GitWizardTests.Watch.Linux;
 
@@ -224,9 +224,9 @@ public class FanotifyVolumeChangeSourceTests
         {
             InitializeResult = new FanotifyNativeCallResult(7, 0)
         };
-        native.HandleToFdMap[new FileHandleKey(GetFullHandleBytes(handleA))] = 100;
-        native.HandleToFdMap[new FileHandleKey(GetFullHandleBytes(handleB))] = 101;
-        native.HandleToFdMap[new FileHandleKey(GetFullHandleBytes(handleC))] = 102;
+        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(handleA))] = 100;
+        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(handleB))] = 101;
+        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(handleC))] = 102;
         native.FdToPathMap[100] = "/repo/dirA";
         native.FdToPathMap[101] = "/repo/dirB";
         native.FdToPathMap[102] = "/repo/dirC";
@@ -266,7 +266,7 @@ public class FanotifyVolumeChangeSourceTests
         {
             InitializeResult = new FanotifyNativeCallResult(7, 0)
         };
-        native.HandleToFdMap[new FileHandleKey(GetFullHandleBytes(handle))] = 200;
+        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(handle))] = 200;
         native.FdToPathMap[200] = "/repo/dirA";
         native.ReadQueue.Enqueue(buffer);
 
@@ -299,7 +299,7 @@ public class FanotifyVolumeChangeSourceTests
         {
             InitializeResult = new FanotifyNativeCallResult(7, 0)
         };
-        native.HandleToFdMap[new FileHandleKey(GetFullHandleBytes(handle))] = 201;
+        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(handle))] = 201;
         native.FdToPathMap[201] = "/";
         native.ReadQueue.Enqueue(buffer);
 
@@ -332,7 +332,7 @@ public class FanotifyVolumeChangeSourceTests
         {
             InitializeResult = new FanotifyNativeCallResult(7, 0)
         };
-        native.HandleToFdMap[new FileHandleKey(GetFullHandleBytes(handle))] = 202;
+        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(handle))] = 202;
         native.FdToPathMap[202] = "/";
         native.ReadQueue.Enqueue(buffer);
 
@@ -366,7 +366,7 @@ public class FanotifyVolumeChangeSourceTests
         {
             InitializeResult = new FanotifyNativeCallResult(7, 0)
         };
-        native.HandleToFdMap[new FileHandleKey(GetFullHandleBytes(handle))] = 203;
+        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(handle))] = 203;
         native.FdToPathMap[203] = "/repo/dirCache";
         native.ReadQueue.Enqueue(firstBuffer);
         native.ReadQueue.Enqueue(secondBuffer);
@@ -395,7 +395,7 @@ public class FanotifyVolumeChangeSourceTests
     }
 
     [Test]
-    public async Task WatchAsync_ResolvesSpecificVolumePrefix()
+    public async Task WatchAsync_EventUnderMarkedRoot_IsRoutedUnderSlash()
     {
         var handle = new byte[] { 61, 62, 63, 64 };
         var buffer = CreateSyntheticEventBuffer(FanotifyConstants.Create, handle, "repo.git");
@@ -404,7 +404,7 @@ public class FanotifyVolumeChangeSourceTests
         {
             InitializeResult = new FanotifyNativeCallResult(7, 0)
         };
-        native.HandleToFdMap[new FileHandleKey(GetFullHandleBytes(handle))] = 204;
+        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(handle))] = 204;
         native.FdToPathMap[204] = ExistingDirectoryPath;
         native.ReadQueue.Enqueue(buffer);
 
@@ -422,7 +422,7 @@ public class FanotifyVolumeChangeSourceTests
         Assert.Multiple(() =>
         {
             Assert.That(batches, Has.Count.EqualTo(1));
-            Assert.That(batches[0].Volume, Is.EqualTo(ExistingDirectoryPath));
+            Assert.That(batches[0].Volume, Is.EqualTo("/"));
         });
     }
 
@@ -464,7 +464,7 @@ public class FanotifyVolumeChangeSourceTests
         {
             InitializeResult = new FanotifyNativeCallResult(7, 0)
         };
-        native.HandleToFdMap[new FileHandleKey(GetFullHandleBytes(handleValid))] = 205;
+        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(handleValid))] = 205;
         native.FdToPathMap[205] = "/repo/valid";
         native.ReadQueue.Enqueue(combined);
 
@@ -500,7 +500,7 @@ public class FanotifyVolumeChangeSourceTests
         {
             InitializeResult = new FanotifyNativeCallResult(7, 0)
         };
-        native.HandleToFdMap[new FileHandleKey(GetFullHandleBytes(handleValid))] = 206;
+        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(handleValid))] = 206;
         native.FdToPathMap[206] = "/repo/second";
         native.ReadQueue.Enqueue(shortEvent);
         native.ReadQueue.Enqueue(validBuffer);
@@ -626,7 +626,7 @@ public class FanotifyVolumeChangeSourceTests
         {
             InitializeResult = new FanotifyNativeCallResult(7, 0)
         };
-        native.HandleToFdMap[new FileHandleKey(GetFullHandleBytes(validHandle))] = 207;
+        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(validHandle))] = 207;
         native.FdToPathMap[207] = "/repo/ok";
         native.ReadQueue.Enqueue(combined);
 
@@ -701,10 +701,10 @@ public class FanotifyVolumeChangeSourceTests
         {
             InitializeResult = new FanotifyNativeCallResult(7, 0)
         };
-        native.HandleToFdMap[new FileHandleKey(GetFullHandleBytes(rootHandle))] = 300;
+        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(rootHandle))] = 300;
         native.FdToPathMap[300] = "/repo";
 
-        native.HandleToFdMap[new FileHandleKey(GetFullHandleBytes(dirHandle))] = 301;
+        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(dirHandle))] = 301;
         native.FdToPathMap[301] = "/repo/olddir";
 
         native.ReadQueue.Enqueue(initialFileBuffer);
@@ -736,9 +736,87 @@ public class FanotifyVolumeChangeSourceTests
             Assert.That(entries, Has.Count.EqualTo(4));
             Assert.That(entries[0], Is.EqualTo(new VolumeChangeEntry("/repo/olddir/file1.txt", VolumeEntryKind.Created)));
             Assert.That(entries[1], Is.EqualTo(new VolumeChangeEntry("/repo/olddir", VolumeEntryKind.Deleted)));
-            Assert.That(entries[2], Is.EqualTo(new VolumeChangeEntry("/repo/newdir", VolumeEntryKind.Created)));
+            Assert.That(entries[2], Is.EqualTo(new VolumeChangeEntry("/repo/newdir", VolumeEntryKind.MovedIn)));
             Assert.That(entries[3], Is.EqualTo(new VolumeChangeEntry("/repo/newdir/file2.txt", VolumeEntryKind.Created)));
         });
+    }
+
+    [Test]
+    public async Task WatchAsync_MovedToDirectory_IsEmittedAsMovedIn_AndMovedToFileAsCreated()
+    {
+        var parentHandle = new byte[] { 31, 32, 33, 34 };
+        var directoryBuffer = CreateSyntheticEventBuffer(
+            FanotifyConstants.MovedTo | FanotifyConstants.OnDirectory, parentHandle, "incoming");
+        var fileBuffer = CreateSyntheticEventBuffer(FanotifyConstants.MovedTo, parentHandle, "note.txt");
+        var native = new FakeFanotifyVolumeNative { InitializeResult = new FanotifyNativeCallResult(7, 0) };
+        native.MapHandle(0L, GetFullHandleBytes(parentHandle), 310, "/repos");
+        native.ReadQueue.Enqueue(CombineBuffers(directoryBuffer, fileBuffer));
+
+        var source = new FanotifyVolumeChangeSource(native);
+        await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var batches = new List<VolumeChangeBatch>();
+        await foreach (var batch in source.WatchAsync(cts.Token))
+        {
+            batches.Add(batch);
+            break;
+        }
+
+        Assert.That(batches.SelectMany(batch => batch.Entries), Is.EqualTo(new[]
+        {
+            new VolumeChangeEntry(Path.Combine("/repos", "incoming"), VolumeEntryKind.MovedIn),
+            new VolumeChangeEntry(Path.Combine("/repos", "note.txt"), VolumeEntryKind.Created)
+        }));
+    }
+
+    [Test]
+    public async Task WatchAsync_OverlappingMarks_DeliverEachEventOnce()
+    {
+        var tempBase = Directory.CreateTempSubdirectory("git-wizard-overlap-test").FullName;
+        var tempSub = Directory.CreateDirectory(Path.Combine(tempBase, "inner")).FullName;
+
+        try
+        {
+            var handle = new byte[] { 41, 42, 43, 44 };
+            var native = new FakeFanotifyVolumeNative { InitializeResult = new FanotifyNativeCallResult(7, 0) };
+            native.MapHandle(0L, GetFullHandleBytes(handle), 320, tempSub);
+            native.ReadQueue.Enqueue(CreateSyntheticEventBuffer(FanotifyConstants.Create, handle, "once.txt"));
+
+            var source = new FanotifyVolumeChangeSource(native);
+            var armResult = await source.ArmAndCatchUpAsync(new[] { tempBase, tempSub }, CancellationToken.None);
+            Assert.That(armResult.Errors, Is.Empty);
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var batches = new List<VolumeChangeBatch>();
+            try
+            {
+                await foreach (var batch in source.WatchAsync(cts.Token))
+                {
+                    batches.Add(batch);
+                    cts.CancelAfter(TimeSpan.FromMilliseconds(300));
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected: the watch is cancelled after the queued event had time to repeat.
+            }
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(batches, Has.Count.EqualTo(1));
+                Assert.That(batches[0].Volume, Is.EqualTo("/"));
+                Assert.That(batches[0].Entries, Is.EqualTo(new[]
+                {
+                    new VolumeChangeEntry(Path.Combine(tempSub, "once.txt"), VolumeEntryKind.Created)
+                }));
+            });
+        }
+        finally
+        {
+            if (Directory.Exists(tempBase))
+                Directory.Delete(tempBase, true);
+        }
     }
 
     [Test]
@@ -836,7 +914,7 @@ public class FanotifyVolumeChangeSourceTests
         {
             InitializeResult = new FanotifyNativeCallResult(7, 0)
         };
-        native.HandleToFdMap[new FileHandleKey(GetFullHandleBytes(dirHandle))] = 200;
+        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(dirHandle))] = 200;
         native.FdToPathMap[200] = "/repo/dir";
 
         native.ReadQueue.Enqueue(createdFileBuffer);
@@ -866,7 +944,7 @@ public class FanotifyVolumeChangeSourceTests
     }
 
     [Test]
-    public async Task WatchAsync_ResolvesSpecificVolumePrefix_WithLongestMatchAndBoundaryAwareness()
+    public async Task WatchAsync_EventsUnderNestedMarkedRoots_AllRouteUnderSlash()
     {
         var tempBase = Directory.CreateTempSubdirectory("git-wizard-vol-test").FullName;
         var tempSub = Directory.CreateDirectory(Path.Combine(tempBase, "user")).FullName;
@@ -883,8 +961,8 @@ public class FanotifyVolumeChangeSourceTests
             {
                 InitializeResult = new FanotifyNativeCallResult(7, 0)
             };
-            native.HandleToFdMap[new FileHandleKey(GetFullHandleBytes(handleUser))] = 401;
-            native.HandleToFdMap[new FileHandleKey(GetFullHandleBytes(handleOther))] = 402;
+            native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(handleUser))] = 401;
+            native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(handleOther))] = 402;
             native.FdToPathMap[401] = tempSub;
             native.FdToPathMap[402] = tempBase + "less";
             native.ReadQueue.Enqueue(bufferUser);
@@ -906,7 +984,7 @@ public class FanotifyVolumeChangeSourceTests
             Assert.Multiple(() =>
             {
                 Assert.That(batches, Has.Count.EqualTo(2));
-                Assert.That(batches[0].Volume, Is.EqualTo(tempSub));
+                Assert.That(batches[0].Volume, Is.EqualTo("/"));
                 Assert.That(batches[0].Entries[0].FullPath, Is.EqualTo(Path.Combine(tempSub, "profile.txt")));
                 Assert.That(batches[1].Volume, Is.EqualTo("/"));
                 Assert.That(batches[1].Entries[0].FullPath, Is.EqualTo(tempBase + "less/data.txt"));
@@ -935,52 +1013,88 @@ public class FanotifyVolumeChangeSourceTests
         var tempDir = Directory.CreateTempSubdirectory("git-wizard-watch-test").FullName;
         try
         {
-            await using var source = new FanotifyVolumeChangeSource();
-            using var armCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            var armResult = await source.ArmAndCatchUpAsync(new[] { tempDir }, armCts.Token);
-            Assert.That(armResult.Errors, Does.Not.ContainKey(tempDir));
-
-            using var watchCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            var watchToken = watchCts.Token;
-            var testFile = Path.Combine(tempDir, "test.txt");
-
-            var writeTask = Task.Run(async () =>
+            using var tmpfs = TemporaryTmpfsMount.TryMount(Path.Combine(tempDir, "tmpfs"), out var mountFailure);
+            if (tmpfs is null)
             {
-                await File.WriteAllTextAsync(testFile, "hello", watchToken);
-                File.Delete(testFile);
-            }, watchToken);
-
-            var createdObserved = false;
-            var deletedObserved = false;
-
-            await foreach (var batch in source.WatchAsync(watchToken))
-            {
-                foreach (var entry in batch.Entries)
-                {
-                    if (entry.FullPath.Equals(testFile, StringComparison.Ordinal))
-                    {
-                        if (entry.Kind == VolumeEntryKind.Created)
-                            createdObserved = true;
-                        if (entry.Kind == VolumeEntryKind.Deleted)
-                            deletedObserved = true;
-                    }
-                }
-
-                if (createdObserved && deletedObserved)
-                    break;
+                Assert.Inconclusive($"Mounting a tmpfs for the second filesystem needs root: {mountFailure}");
+                return;
             }
 
-            await writeTask;
-            Assert.Multiple(() =>
+            var outerFilesystemId = ReadFilesystemIdentifier(tempDir);
+            var tmpfsFilesystemId = ReadFilesystemIdentifier(tmpfs.Path);
+            Assert.That(tmpfsFilesystemId, Is.Not.EqualTo(outerFilesystemId),
+                "the tmpfs and its parent must be distinct filesystems for fsid matching to be exercised");
+
+            await using (var source = new FanotifyVolumeChangeSource())
             {
-                Assert.That(createdObserved, Is.True);
-                Assert.That(deletedObserved, Is.True);
-            });
+                using var armCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                var armResult = await source.ArmAndCatchUpAsync(new[] { tempDir, tmpfs.Path }, armCts.Token);
+                Assert.That(armResult.Errors, Is.Empty);
+
+                using var watchCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                var watchToken = watchCts.Token;
+                var outerFile = Path.Combine(tempDir, "test.txt");
+                var tmpfsFile = Path.Combine(tmpfs.Path, "test.txt");
+                var expected = new HashSet<(string Path, VolumeEntryKind Kind)>
+                {
+                    (outerFile, VolumeEntryKind.Created), (outerFile, VolumeEntryKind.Deleted),
+                    (tmpfsFile, VolumeEntryKind.Created), (tmpfsFile, VolumeEntryKind.Deleted)
+                };
+
+                // fanotify merges a create and a delete of one name into a single event, so each file is
+                // deleted only after its creation was observed.
+                foreach (var file in new[] { outerFile, tmpfsFile })
+                    await File.WriteAllTextAsync(file, "hello", watchToken);
+
+                var observed = new HashSet<(string Path, VolumeEntryKind Kind)>();
+                var deleted = false;
+                try
+                {
+                    await foreach (var batch in source.WatchAsync(watchToken))
+                    {
+                        foreach (var entry in batch.Entries)
+                            observed.Add((entry.FullPath, entry.Kind));
+
+                        if (!deleted && observed.Contains((outerFile, VolumeEntryKind.Created))
+                            && observed.Contains((tmpfsFile, VolumeEntryKind.Created)))
+                        {
+                            deleted = true;
+                            File.Delete(outerFile);
+                            File.Delete(tmpfsFile);
+                        }
+
+                        if (expected.IsSubsetOf(observed))
+                            break;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    // The deadline passed; the assertion below names what was and was not observed.
+                }
+
+                Assert.That(expected.Except(observed), Is.Empty,
+                    "creations and deletions on both real filesystems");
+            }
         }
         finally
         {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [SupportedOSPlatform("linux")]
+    static long ReadFilesystemIdentifier(string directory)
+    {
+        var opened = FanotifyNative.Instance.OpenDirectory(directory);
+        Assert.That(opened.Value, Is.GreaterThanOrEqualTo(0), $"open {directory} (errno {opened.ErrorNumber})");
+        try
+        {
+            Assert.That(FanotifyNative.Instance.TryReadFilesystemIdentifier(opened.Value, out var filesystemId), Is.True);
+            return filesystemId;
+        }
+        finally
+        {
+            FanotifyNative.Instance.Close(opened.Value);
         }
     }
 
@@ -1019,83 +1133,6 @@ public class FanotifyVolumeChangeSourceTests
             if (Directory.Exists(tempRoot))
                 Directory.Delete(tempRoot, true);
         }
-    }
-
-    static byte[] GetFullHandleBytes(byte[] fHandle)
-    {
-        var payload = new byte[8 + fHandle.Length];
-        BitConverter.TryWriteBytes(payload.AsSpan(0, 4), (uint)fHandle.Length);
-        BitConverter.TryWriteBytes(payload.AsSpan(4, 4), 1); // type 1
-        Buffer.BlockCopy(fHandle, 0, payload, 8, fHandle.Length);
-        return payload;
-    }
-
-    static byte[] CreateSyntheticEventBuffer(
-        ulong mask,
-        byte[] fHandle,
-        string fileName,
-        byte infoType = FanotifyConstants.EventInfoTypeDfidName)
-    {
-        var nameBytes = Encoding.UTF8.GetBytes(fileName);
-        var infoLen = 20 + fHandle.Length + nameBytes.Length + 1;
-        var eventLen = 24 + infoLen;
-
-        var buffer = new byte[eventLen];
-
-        // Metadata header (24 bytes)
-        BitConverter.TryWriteBytes(buffer.AsSpan(0, 4), (uint)eventLen);
-        buffer[4] = 3; // version 3
-        buffer[5] = 0; // reserved
-        BitConverter.TryWriteBytes(buffer.AsSpan(6, 2), (ushort)24); // metadata_len
-        BitConverter.TryWriteBytes(buffer.AsSpan(8, 8), mask);
-        BitConverter.TryWriteBytes(buffer.AsSpan(16, 4), -1); // fd = FAN_NOFD
-        BitConverter.TryWriteBytes(buffer.AsSpan(20, 4), 1234); // pid
-
-        // Info record header (4 bytes)
-        buffer[24] = infoType;
-        buffer[25] = 0;
-        BitConverter.TryWriteBytes(buffer.AsSpan(26, 2), (ushort)infoLen);
-
-        // fsid (8 bytes)
-        BitConverter.TryWriteBytes(buffer.AsSpan(28, 8), 0L);
-
-        // file_handle (8 + fHandle.Length bytes)
-        BitConverter.TryWriteBytes(buffer.AsSpan(36, 4), (uint)fHandle.Length);
-        BitConverter.TryWriteBytes(buffer.AsSpan(40, 4), 1); // handle_type
-        Buffer.BlockCopy(fHandle, 0, buffer, 44, fHandle.Length);
-
-        // fileName + null terminator
-        var nameStart = 44 + fHandle.Length;
-        Buffer.BlockCopy(nameBytes, 0, buffer, nameStart, nameBytes.Length);
-        buffer[nameStart + nameBytes.Length] = 0;
-
-        return buffer;
-    }
-
-    static byte[] CreateSyntheticOverflowBuffer()
-    {
-        var buffer = new byte[24];
-        BitConverter.TryWriteBytes(buffer.AsSpan(0, 4), (uint)24);
-        buffer[4] = 3; // version 3
-        buffer[5] = 0; // reserved
-        BitConverter.TryWriteBytes(buffer.AsSpan(6, 2), (ushort)24); // metadata_len
-        BitConverter.TryWriteBytes(buffer.AsSpan(8, 8), FanotifyConstants.QueueOverflow);
-        BitConverter.TryWriteBytes(buffer.AsSpan(16, 4), -1); // fd = FAN_NOFD
-        BitConverter.TryWriteBytes(buffer.AsSpan(20, 4), 0); // pid
-        return buffer;
-    }
-
-    static byte[] CombineBuffers(params byte[][] buffers)
-    {
-        var totalLength = buffers.Sum(b => b.Length);
-        var result = new byte[totalLength];
-        var offset = 0;
-        foreach (var buffer in buffers)
-        {
-            Buffer.BlockCopy(buffer, 0, result, offset, buffer.Length);
-            offset += buffer.Length;
-        }
-        return result;
     }
 }
 
@@ -1140,6 +1177,7 @@ internal sealed class FakeFanotifyVolumeNative : IFanotifyNative
     public int Close(int descriptor)
     {
         ClosedDescriptors.Add(descriptor);
+        OpenMountDescriptors.Remove(descriptor);
         return 0;
     }
 
@@ -1174,10 +1212,72 @@ internal sealed class FakeFanotifyVolumeNative : IFanotifyNative
         return bytesToCopy;
     }
 
+    public Dictionary<string, long> FilesystemIdByMountPath { get; } = new(StringComparer.Ordinal);
+    public HashSet<string> UnopenableMountPaths { get; } = new(StringComparer.Ordinal);
+    public HashSet<string> UnreadableIdentifierMountPaths { get; } = new(StringComparer.Ordinal);
+    /// <summary>Roots whose mount was detached: opening the path now reaches the underlying filesystem.</summary>
+    public HashSet<string> GoneMountPaths { get; } = new(StringComparer.Ordinal);
+    public List<(string Path, int Descriptor)> OpenedDirectories { get; } = new();
+    public List<(int MountDescriptor, byte[] Handle)> OpenByHandleCalls { get; } = new();
+    /// <summary>Descriptors opened through <see cref="OpenDirectory"/> and not yet closed.</summary>
+    public HashSet<int> OpenMountDescriptors { get; } = new();
+    /// <summary>Paths of the roots each <see cref="OpenByHandle"/> call resolved through, in call order.</summary>
+    public List<string> OpenByHandleRoots { get; } = new();
+    readonly Dictionary<int, string> _rootByDescriptor = new();
+    readonly Dictionary<int, string> _relativePathByDirectoryDescriptor = new();
+    readonly Dictionary<int, string> _rootByDirectoryDescriptor = new();
+    readonly Dictionary<int, long> _filesystemIdByDescriptor = new();
+    int _nextMountDescriptor = 1000;
+    const long UnderlyingFilesystemId = 99;
+
+    public void MapHandle(long filesystemId, byte[] handlePayload, int descriptor, string path)
+    {
+        HandleToFdMap[new FileHandleKey(filesystemId, handlePayload)] = descriptor;
+        FdToPathMap[descriptor] = path;
+    }
+
+    /// <summary>Maps a handle to a directory whose resolved path is the resolving root plus <paramref name="relativePath"/>.</summary>
+    public void MapHandleUnderRoot(long filesystemId, byte[] handlePayload, int descriptor, string relativePath)
+    {
+        HandleToFdMap[new FileHandleKey(filesystemId, handlePayload)] = descriptor;
+        _relativePathByDirectoryDescriptor[descriptor] = relativePath;
+    }
+
+    public FanotifyNativeCallResult OpenDirectory(string path)
+    {
+        if (UnopenableMountPaths.Contains(path) || !Directory.Exists(path))
+            return new FanotifyNativeCallResult(-1, 2);
+
+        var descriptor = _nextMountDescriptor++;
+        if (!UnreadableIdentifierMountPaths.Contains(path))
+        {
+            _filesystemIdByDescriptor[descriptor] = GoneMountPaths.Contains(path)
+                ? UnderlyingFilesystemId
+                : FilesystemIdByMountPath.GetValueOrDefault(path);
+        }
+
+        OpenedDirectories.Add((path, descriptor));
+        OpenMountDescriptors.Add(descriptor);
+        _rootByDescriptor[descriptor] = path;
+        return new FanotifyNativeCallResult(descriptor, 0);
+    }
+
+    public bool TryReadFilesystemIdentifier(int descriptor, out long filesystemId) =>
+        _filesystemIdByDescriptor.TryGetValue(descriptor, out filesystemId);
+
     public int OpenByHandle(int mountDirectoryDescriptor, byte[] handle, int flags)
     {
-        var key = new FileHandleKey(handle);
-        return HandleToFdMap.TryGetValue(key, out var fd) ? fd : -1;
+        OpenByHandleCalls.Add((mountDirectoryDescriptor, handle));
+        OpenByHandleRoots.Add(_rootByDescriptor[mountDirectoryDescriptor]);
+        if (!_filesystemIdByDescriptor.TryGetValue(mountDirectoryDescriptor, out var filesystemId))
+            return -1;
+
+        var key = new FileHandleKey(filesystemId, handle);
+        if (!HandleToFdMap.TryGetValue(key, out var fd))
+            return -1;
+
+        _rootByDirectoryDescriptor[fd] = _rootByDescriptor[mountDirectoryDescriptor];
+        return fd;
     }
 
     public string? ReadLink(string path)
@@ -1185,6 +1285,9 @@ internal sealed class FakeFanotifyVolumeNative : IFanotifyNative
         if (path.StartsWith("/proc/self/fd/", StringComparison.Ordinal)
             && int.TryParse(path["/proc/self/fd/".Length..], out var fd))
         {
+            if (_relativePathByDirectoryDescriptor.TryGetValue(fd, out var relativePath))
+                return Path.Combine(_rootByDirectoryDescriptor[fd], relativePath);
+
             return FdToPathMap.TryGetValue(fd, out var resolved) ? resolved : null;
         }
 

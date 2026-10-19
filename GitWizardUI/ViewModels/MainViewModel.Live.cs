@@ -18,7 +18,7 @@ public partial class MainViewModel
 
     readonly Dictionary<string, (GitWizardRepository Repository, CancellationTokenSource ExpireCts, long SequenceNumber)> _pendingDeletedRepos = new();
     readonly Dictionary<string, long> _pendingCreateSequenceNumbers = new();
-    readonly Dictionary<string, string> _reportedLiveScanErrors = new(StringComparer.OrdinalIgnoreCase);
+    readonly ScanErrorChangeFilter _reportedLiveScanErrors = new();
     readonly HashSet<string> _inFlightLiveRefreshes = new(StringComparer.OrdinalIgnoreCase);
     long _liveEventSequenceNumber;
 

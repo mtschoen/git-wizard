@@ -251,9 +251,8 @@ public partial class MainViewModel
     {
         foreach (var (drive, message) in controller.ScanErrors)
         {
-            if (_reportedLiveScanErrors.TryGetValue(drive, out var previous) && previous == message)
+            if (!_reportedLiveScanErrors.TryReport(drive, message))
                 continue;
-            _reportedLiveScanErrors[drive] = message;
             HeaderText = $"Live scan error on {drive}: {message}";
         }
         if (JournalWarnings.Count > 0)

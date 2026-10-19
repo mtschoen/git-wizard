@@ -62,49 +62,19 @@ public static partial class Program
             ? "-"
             : string.Join(",", readiness.ExcludedVolumes.Select(status =>
                 $"{status.Volume}={JsonSerializer.Serialize(status.ExclusionReason ?? string.Empty)}"));
-        return $"ready: mode={ModeName(readiness.Mode)} caught-up={caughtUp} excluded={excluded}";
+        return $"ready: mode={readiness.Mode.Token()} caught-up={caughtUp} excluded={excluded}";
     }
 
     internal static string FormatVolumeLine(VolumeWatchStatus status)
     {
-        var line = $"drive: {status.Volume} state={StateName(status.State)} origin={OriginName(status.Origin)}";
+        var line = $"drive: {status.Volume} state={status.State.Token()} origin={status.Origin.Token()}";
         return status.ExclusionReason is null ? line : $"{line} reason={JsonSerializer.Serialize(status.ExclusionReason)}";
     }
 
     internal static string FormatStartupLine(WatchStartupProgress progress)
     {
-        var phase = progress.Phase switch
-        {
-            WatchStartupPhase.Opening => "opening",
-            WatchStartupPhase.RequestingElevation => "requesting-elevation",
-            WatchStartupPhase.BrokerConnected => "broker-connected",
-            WatchStartupPhase.Scanning => "scanning",
-            WatchStartupPhase.CatchingUp => "catching-up",
-            WatchStartupPhase.Discovering => "discovering",
-            WatchStartupPhase.Reconciling => "reconciling",
-            _ => progress.Phase.ToString().ToLowerInvariant()
-        };
+        var phase = progress.Phase.Token();
         return progress.Volume is null ? $"startup: {phase}" : $"startup: {phase} {progress.Volume}";
     }
 
-    static string ModeName(WatchReadinessMode mode) => mode switch
-    {
-        WatchReadinessMode.JournalBacklog => "journal",
-        WatchReadinessMode.FilesystemMarks => "marks",
-        _ => "pump"
-    };
-
-    static string StateName(VolumeWatchState state) => state switch
-    {
-        VolumeWatchState.CatchingUp => "catching-up",
-        VolumeWatchState.CaughtUp => "caught-up",
-        _ => "excluded"
-    };
-
-    static string OriginName(VolumeBlockOrigin origin) => origin switch
-    {
-        VolumeBlockOrigin.Warm => "warm",
-        VolumeBlockOrigin.Cold => "cold",
-        _ => "unknown"
-    };
 }

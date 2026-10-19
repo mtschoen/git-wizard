@@ -161,8 +161,8 @@ public static partial class Program
     {
         var writer = new WatchLineWriter(writeLine, verbose, clock ?? TimeProvider.System);
         var stopped = false;
-        var reported = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var reportedWarnings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var reported = new ScanErrorChangeFilter();
+        var reportedWarnings = new ScanErrorChangeFilter();
         var reportingLock = new Lock();
         void OnStopped(string reason)
         {
@@ -175,9 +175,8 @@ public static partial class Program
             {
                 foreach (var (drive, message) in service.ScanErrors)
                 {
-                    if (reported.TryGetValue(drive, out var previous) && previous == message)
+                    if (!reported.TryReport(drive, message))
                         continue;
-                    reported[drive] = message;
                     writer.Write($"scan error on {drive}: {message}");
                 }
             }
@@ -188,14 +187,9 @@ public static partial class Program
             {
                 foreach (var warning in service.ScanWarnings)
                 {
-                    // Compared with the drive's last printed wording: a state change rephrases the
-                    // hint and prints again, including a return to an earlier wording.
-                    var message = warning.Message;
-                    if (reportedWarnings.TryGetValue(warning.DriveLetter, out var previous) &&
-                        string.Equals(previous, message, StringComparison.Ordinal))
+                    if (!reportedWarnings.TryReport(warning.DriveLetter, warning.Message))
                         continue;
-                    reportedWarnings[warning.DriveLetter] = message;
-                    writer.Write(message);
+                    writer.Write(warning.Message);
                 }
             }
         }

@@ -12,18 +12,8 @@ public sealed class LiveVolumeStatusViewModel : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public string Volume => _status.Volume;
-    public string StateText => _status.State switch
-    {
-        VolumeWatchState.CatchingUp => "catching up",
-        VolumeWatchState.CaughtUp => "caught up",
-        _ => "excluded"
-    };
-    public string OriginText => _status.Origin switch
-    {
-        VolumeBlockOrigin.Warm => "warm",
-        VolumeBlockOrigin.Cold => "cold",
-        _ => "unknown"
-    };
+    public string StateText => _status.State.Token().Humanize();
+    public string OriginText => _status.Origin.Token().Humanize();
     public string? Reason => _status.ExclusionReason;
     public string DisplayText => Reason is null
         ? $"{Volume}: {StateText} ({OriginText})"

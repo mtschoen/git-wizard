@@ -76,12 +76,7 @@ public partial class MainViewModel
 
     void ApplyLiveReady(WatchReadiness readiness)
     {
-        var mode = readiness.Mode switch
-        {
-            WatchReadinessMode.JournalBacklog => "journal",
-            WatchReadinessMode.FilesystemMarks => "marks",
-            _ => "pump"
-        };
+        var mode = readiness.Mode.Token();
         var text = readiness.CaughtUpVolumes.Count == 0
             ? $"No caught-up volumes ({mode})"
             : $"Ready ({mode}): {string.Join(", ", readiness.CaughtUpVolumes)}";

@@ -36,7 +36,8 @@ public class IndexDiscoverySupersededEntryTests
         Assert.That(directory.IsDeleted, Is.True, "The retained handle is superseded by the replacement directory.");
         Assert.Throws<InvalidOperationException>(() => _ = directory.IsDirectory);
         var scope = new GitWizardApi.CandidateScope(
-            WatchPath.Parse(files.TreePath), false, false, false, false, []);
+            WatchPath.Parse(files.TreePath), false, false, new CandidateAdmissionPolicy([], true, false),
+            WatchPath.Parse(files.TreePath));
         Assert.Multiple(() =>
         {
             Assert.That(GitWizardApi.TryReadIsDirectory(directory, out _), Is.False);

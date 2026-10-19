@@ -79,7 +79,7 @@ internal sealed class PackedIndexFixture : IDisposable
         foreach (var directory in Directory.EnumerateDirectories(path).Order(StringComparer.Ordinal))
         {
             var row = nextRow++;
-            rows.Add(DirectoryRow(row, Path.GetFileName(directory), parent));
+            rows.Add(DirectoryRow(row, Path.GetFileName(directory), parent, File.GetAttributes(directory) & FileAttributes.Hidden));
             WalkDirectory(directory, row, ref nextRow, rows);
         }
         foreach (var file in Directory.EnumerateFiles(path).Where(file =>
@@ -96,13 +96,16 @@ internal sealed class PackedIndexFixture : IDisposable
         }
     }
 
-    static SyntheticRow DirectoryRow(uint row, string name, uint parent) => new(row, name, parent)
+    static SyntheticRow DirectoryRow(uint row, string name, uint parent, FileAttributes extraAttributes = default)
     {
-        IsDirectory = true,
-        Attributes = FileAttributes.Directory,
-        LastWriteTime = CompletionTimestamp,
-        SequenceNumber = 1
-    };
+        return new SyntheticRow(row, name, parent)
+        {
+            IsDirectory = true,
+            Attributes = FileAttributes.Directory | extraAttributes,
+            LastWriteTime = CompletionTimestamp,
+            SequenceNumber = 1
+        };
+    }
 
     public void Dispose() => Directory.Delete(DirectoryPath, recursive: true);
 }

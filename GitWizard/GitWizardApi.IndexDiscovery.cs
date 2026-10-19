@@ -45,9 +45,8 @@ public static partial class GitWizardApi
         WatchPath TranslatedRoot,
         bool IsExact,
         bool CoversDriveRoot,
-        bool ExcludeTempDirectories,
-        bool SkipHiddenDirectories,
-        WatchPath[] IgnoredRoots);
+        CandidateAdmissionPolicy Policy,
+        WatchPath ConfiguredRoot);
 
     static List<CandidateScope> BuildCandidateScopes(FileIndex index, DiscoveryScope scope)
     {
@@ -59,10 +58,12 @@ public static partial class GitWizardApi
                 roots.Add((retainedRoot, true));
         }
 
-        var configuration = scope.Request.Configuration;
-        var ignoredRoots = scope.IgnoredRoots
-            .Select(ignoredRoot => TranslateToRealRoot(index, WatchPath.Parse(ignoredRoot)))
-            .ToArray();
+        var policy = CandidateAdmissionPolicy.ForScope(scope) with
+        {
+            IgnoredRoots = scope.IgnoredRoots
+                .Select(ignoredRoot => TranslateToRealRoot(index, WatchPath.Parse(ignoredRoot)))
+                .ToArray()
+        };
         return roots.Select(item =>
         {
             var root = WatchPath.Parse(item.Root);
@@ -70,9 +71,8 @@ public static partial class GitWizardApi
                 TranslateToRealRoot(index, root),
                 item.IsExact,
                 !item.IsExact && IsLogicalDriveRoot(root),
-                configuration.IncludeTempDirectories != true && !TempDirectories.IsTempPath(root.Original),
-                configuration.SkipHiddenDirectories == true,
-                ignoredRoots);
+                policy,
+                root);
         }).ToList();
     }
 
@@ -157,14 +157,36 @@ public static partial class GitWizardApi
         candidate = WatchPath.Parse(parentPath);
         var root = candidateScope.TranslatedRoot;
         var matches = candidateScope.IsExact ? candidate.IsEqualTo(root) : candidate.IsUnderOrEqual(root);
-        if (!matches || candidateScope.IgnoredRoots.Any(candidate.IsUnderOrEqual))
-            return false;
-        if (candidateScope.ExcludeTempDirectories && TempDirectories.IsTempPath(candidate.Original))
-            return false;
+        var candidateDirectory = parent;
+        return matches &&
+               candidateScope.Policy.AdmitsWithin(
+                   root, candidate, depth => HasHiddenAttributeWithin(candidateDirectory, depth),
+                   candidateScope.ConfiguredRoot);
+    }
 
-        return !candidateScope.SkipHiddenDirectories ||
-               candidate.Comparison.Length <= root.Comparison.Length ||
-               !candidate.Comparison[root.Comparison.Length..].Split('/').Any(segment => segment.StartsWith('.'));
+    // The nearest `depth` directories, starting at the candidate directory itself, are the ones
+    // between the search root and the candidate. A directory superseded mid-read has no attribute.
+    static bool HasHiddenAttributeWithin(FileEntry directory, int depth)
+    {
+        try
+        {
+            var current = directory;
+            for (var level = 0; level < depth; level++)
+            {
+                if (CandidateAdmissionPolicy.HasHiddenAttribute(current.Attributes))
+                    return true;
+                if (current.Parent is not { } next)
+                    return false;
+
+                current = next;
+            }
+
+            return false;
+        }
+        catch (Exception exception) when (exception is InvalidDataException or InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     static bool HasBareRepositoryLayout(FileEntry directory, CancellationToken cancellationToken)

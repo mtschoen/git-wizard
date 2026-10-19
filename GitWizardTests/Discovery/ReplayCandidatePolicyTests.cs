@@ -3,7 +3,7 @@ using GitWizard;
 namespace GitWizardTests.Discovery;
 
 /// <summary>
-/// Direct policy tests for <see cref="RepositoryDiscoveryCoordinator.IsAllowedReplayCandidate"/>:
+/// Direct policy tests for <see cref="CandidateAdmissionPolicy.AdmitsInventoryCandidate(DiscoveryScope, string)"/>:
 /// a replay (journal-buffered) candidate must satisfy the same ignored-, hidden-, and
 /// temporary-directory rules as indexed candidate selection, with exact retained roots outside
 /// every search root still claimed.
@@ -32,7 +32,7 @@ public class ReplayCandidatePolicyTests
     public void PlainCandidateUnderSearchRoot_IsAllowed()
     {
         var scope = Scope([@"X:\repos"]);
-        Assert.That(RepositoryDiscoveryCoordinator.IsAllowedReplayCandidate(scope, @"X:\repos\repo"), Is.True);
+        Assert.That(CandidateAdmissionPolicy.AdmitsInventoryCandidate(scope, @"X:\repos\repo"), Is.True);
     }
 
     [TestCase(null, true)]
@@ -41,7 +41,7 @@ public class ReplayCandidatePolicyTests
     public void CandidateUnderHiddenSegment(bool? skipHiddenDirectories, bool expectedAllowed)
     {
         var scope = Scope([@"X:\repos"], skipHiddenDirectories: skipHiddenDirectories);
-        Assert.That(RepositoryDiscoveryCoordinator.IsAllowedReplayCandidate(scope, @"X:\repos\.hidden\repo"), Is.EqualTo(expectedAllowed));
+        Assert.That(CandidateAdmissionPolicy.AdmitsInventoryCandidate(scope, @"X:\repos\.hidden\repo"), Is.EqualTo(expectedAllowed));
     }
 
     [Test]
@@ -49,7 +49,7 @@ public class ReplayCandidatePolicyTests
     {
         // A drive-root scope is not itself temp, so candidates under a profile temp subtree are excluded.
         var scope = Scope([@"X:\"]);
-        Assert.That(RepositoryDiscoveryCoordinator.IsAllowedReplayCandidate(
+        Assert.That(CandidateAdmissionPolicy.AdmitsInventoryCandidate(
             scope, @"X:\Users\alice\AppData\Local\Temp\repo"), Is.False);
     }
 
@@ -57,7 +57,7 @@ public class ReplayCandidatePolicyTests
     public void CandidateUnderTempDirectory_WithTempIncluded_IsAllowed()
     {
         var scope = Scope([@"X:\"], includeTempDirectories: true);
-        Assert.That(RepositoryDiscoveryCoordinator.IsAllowedReplayCandidate(
+        Assert.That(CandidateAdmissionPolicy.AdmitsInventoryCandidate(
             scope, @"X:\Users\alice\AppData\Local\Temp\repo"), Is.True);
     }
 
@@ -66,7 +66,7 @@ public class ReplayCandidatePolicyTests
     {
         // A search root configured inside a temp directory opts that subtree back in.
         var scope = Scope([@"X:\Users\alice\AppData\Local\Temp\scratch"]);
-        Assert.That(RepositoryDiscoveryCoordinator.IsAllowedReplayCandidate(
+        Assert.That(CandidateAdmissionPolicy.AdmitsInventoryCandidate(
             scope, @"X:\Users\alice\AppData\Local\Temp\scratch\repo"), Is.True);
     }
 
@@ -74,14 +74,14 @@ public class ReplayCandidatePolicyTests
     public void CandidateUnderIgnoredRoot_IsRejected()
     {
         var scope = Scope([@"X:\repos"], ignoredRoots: [@"X:\repos\ignored"]);
-        Assert.That(RepositoryDiscoveryCoordinator.IsAllowedReplayCandidate(scope, @"X:\repos\ignored\repo"), Is.False);
+        Assert.That(CandidateAdmissionPolicy.AdmitsInventoryCandidate(scope, @"X:\repos\ignored\repo"), Is.False);
     }
 
     [Test]
     public void ExactRetainedRootOutsideSearchRoots_IsAllowed()
     {
         var scope = Scope([@"X:\repos"], retainedRoots: [@"Y:\elsewhere\repo"]);
-        Assert.That(RepositoryDiscoveryCoordinator.IsAllowedReplayCandidate(scope, @"Y:\elsewhere\repo"), Is.True);
+        Assert.That(CandidateAdmissionPolicy.AdmitsInventoryCandidate(scope, @"Y:\elsewhere\repo"), Is.True);
     }
 
     [Test]
@@ -90,13 +90,13 @@ public class ReplayCandidatePolicyTests
         // Mirrors SelectRepositoryCandidates: a retained root under a search root is not an
         // exact scope, so the search root's hidden-directory rule decides when it is enabled.
         var scope = Scope([@"X:\repos"], retainedRoots: [@"X:\repos\.hidden\repo"], skipHiddenDirectories: true);
-        Assert.That(RepositoryDiscoveryCoordinator.IsAllowedReplayCandidate(scope, @"X:\repos\.hidden\repo"), Is.False);
+        Assert.That(CandidateAdmissionPolicy.AdmitsInventoryCandidate(scope, @"X:\repos\.hidden\repo"), Is.False);
     }
 
     [Test]
     public void UnrelatedCandidate_IsRejected()
     {
         var scope = Scope([@"X:\repos"], retainedRoots: [@"Y:\elsewhere\repo"]);
-        Assert.That(RepositoryDiscoveryCoordinator.IsAllowedReplayCandidate(scope, @"Z:\other\repo"), Is.False);
+        Assert.That(CandidateAdmissionPolicy.AdmitsInventoryCandidate(scope, @"Z:\other\repo"), Is.False);
     }
 }

@@ -18,8 +18,17 @@ internal static class TempDirectories
     // discovery calls IsTempPath once per directory on the volume.
     static readonly WatchPath[] ProcessTempRoots = CaptureProcessTempRoots();
 
+    /// <summary>
+    /// Replaces the temporary-directory decision for every caller, so a test can place a temporary
+    /// directory inside a tree that is not itself temporary. Tests using it are non-parallelizable.
+    /// </summary>
+    internal static Func<string, bool>? IsTempPathOverride { get; set; }
+
     public static bool IsTempPath(string path)
     {
+        if (IsTempPathOverride is { } decide)
+            return decide(path);
+
         var parsed = WatchPath.Parse(path);
         if (IsWindowsProfileTempPath(parsed))
             return true;

@@ -261,49 +261,12 @@ public partial class RepositoryDiscoveryCoordinator
                      dependencies.CandidateExists(candidateRoot, RepositoryCandidateKind.GitFile) ||
                      dependencies.CandidateExists(candidateRoot, RepositoryCandidateKind.Bare);
 
-        if (exists && IsAllowedReplayCandidate(accumulator.Scope, candidateRoot))
+        if (exists && CandidateAdmissionPolicy.AdmitsInventoryCandidate(accumulator.Scope, candidateRoot))
         {
             accumulator.Paths.Add(candidateRoot);
             return;
         }
 
         accumulator.Paths.Remove(candidateRoot);
-    }
-
-    // Applies the same scope policy GitWizardApi.SelectRepositoryCandidates applies to indexed
-    // candidates: a replay candidate enters the inventory only when a search root claims it
-    // under the configured ignored-, hidden-, and temporary-directory rules, or when it is an
-    // exact retained root outside every search root. Internal for direct policy tests.
-    internal static bool IsAllowedReplayCandidate(DiscoveryScope scope, string candidateRoot)
-    {
-        var candidate = WatchPath.Parse(candidateRoot);
-        if (scope.IgnoredRoots.Any(root => candidate.IsUnderOrEqual(WatchPath.Parse(root))))
-            return false;
-
-        var configuration = scope.Request.Configuration;
-        var underSearchRoot = false;
-        foreach (var searchRoot in scope.SearchRoots)
-        {
-            var root = WatchPath.Parse(searchRoot);
-            if (!candidate.IsUnderOrEqual(root))
-                continue;
-
-            underSearchRoot = true;
-            if (configuration.IncludeTempDirectories != true &&
-                !TempDirectories.IsTempPath(root.Original) &&
-                TempDirectories.IsTempPath(candidate.Original))
-                continue;
-            if (configuration.SkipHiddenDirectories == true &&
-                candidate.Comparison.Length > root.Comparison.Length &&
-                candidate.Comparison[root.Comparison.Length..].Split('/').Any(segment => segment.StartsWith('.')))
-                continue;
-
-            return true;
-        }
-
-        if (underSearchRoot)
-            return false;
-
-        return scope.RetainedRoots.Any(root => candidate.IsEqualTo(WatchPath.Parse(root)));
     }
 }

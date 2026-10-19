@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using GitWizard.Watch;
 
 namespace GitWizard;
 
@@ -147,20 +148,8 @@ public static partial class GitWizardApi
             .ToList();
     }
 
-    static bool IsSameOrChildPath(string path, string rootPath)
-    {
-        if (string.Equals(path, rootPath, PathComparison))
-            return true;
-
-        if (!path.StartsWith(rootPath, PathComparison))
-            return false;
-
-        if (path.Length == rootPath.Length)
-            return true;
-
-        var nextChar = path[rootPath.Length];
-        return nextChar == Path.DirectorySeparatorChar || nextChar == Path.AltDirectorySeparatorChar;
-    }
+    internal static bool IsSameOrChildPath(string path, string rootPath) =>
+        WatchPath.Parse(path).IsUnderOrEqual(WatchPath.Parse(rootPath));
 
     public static void ClearCache()
     {

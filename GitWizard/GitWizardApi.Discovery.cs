@@ -35,19 +35,22 @@ public static partial class GitWizardApi
             return new RecursiveDiscovery(paths, failedSubtrees, errors);
         }
 
+        var ignoredPaths = ExpandIgnoredPaths(request.Configuration.IgnoredPaths);
+        var policy = CandidateAdmissionPolicy.Create(ignoredPaths, request.Configuration);
+        var searchRoot = WatchPath.Parse(NormalizePath(expandedRoot));
+        if (!policy.AdmitsWithin(searchRoot, searchRoot))
+            return new RecursiveDiscovery(paths, failedSubtrees, errors);
+
         var includeGitFiles = !IsDriveRoot(expandedRoot);
-        var excludeTempDirectories = request.Configuration.IncludeTempDirectories != true &&
-            !TempDirectories.IsTempPath(expandedRoot);
 
         var context = new DiscoveryContext(
             paths,
             failedSubtrees,
             errors,
-            ExpandIgnoredPaths(request.Configuration.IgnoredPaths),
+            policy,
+            searchRoot,
             includeGitFiles,
             updateHandler,
-            request.Configuration.SkipHiddenDirectories,
-            excludeTempDirectories,
             cancellationToken);
 
         FindGitRepositoriesRecursively(expandedRoot, context);
@@ -104,11 +107,10 @@ public static partial class GitWizardApi
         ICollection<string> Paths,
         ICollection<string> FailedSubtrees,
         IDictionary<string, string> Errors,
-        ICollection<string> IgnoredPaths,
+        CandidateAdmissionPolicy Policy,
+        WatchPath SearchRoot,
         bool IncludeGitFiles,
         IUpdateHandler? UpdateHandler,
-        bool? SkipHiddenDirectories,
-        bool ExcludeTempDirectories,
         CancellationToken CancellationToken);
 
     static void FindGitRepositoriesRecursively(string rootPath, DiscoveryContext context)
@@ -207,23 +209,15 @@ public static partial class GitWizardApi
                 return;
             }
 
-            if (lastDirectory.StartsWith('.') && context.SkipHiddenDirectories == true)
+            DirectoryInfo? directoryInfo = OperatingSystem.IsWindows() ? new DirectoryInfo(subDirectory) : null;
+            if (directoryInfo is not null && directoryInfo.Attributes.HasFlag(FileAttributes.ReparsePoint))
                 return;
 
-            if (OperatingSystem.IsWindows())
-            {
-                var directoryInfo = new DirectoryInfo(subDirectory);
-                if (directoryInfo.Attributes.HasFlag(FileAttributes.Hidden) && context.SkipHiddenDirectories == true)
-                    return;
-
-                if (directoryInfo.Attributes.HasFlag(FileAttributes.ReparsePoint))
-                    return;
-            }
-
-            if (context.IgnoredPaths.Any(ignored => IsSameOrChildPath(normalizedSubDirectory, ignored)))
-                return;
-
-            if (context.ExcludeTempDirectories && TempDirectories.IsTempPath(normalizedSubDirectory))
+            var candidate = WatchPath.Parse(normalizedSubDirectory);
+            var hiddenAttributeWithin = directoryInfo is null
+                ? (Func<int, bool>?)null
+                : _ => CandidateAdmissionPolicy.HasHiddenAttribute(directoryInfo.Attributes);
+            if (!context.Policy.AdmitsWithin(context.SearchRoot, candidate, hiddenAttributeWithin))
                 return;
 
             if (IsBareGitRepository(subDirectory))

@@ -107,7 +107,7 @@ public partial class RepositoryDiscoveryCoordinator
             var exists = dependencies.CandidateExists(root, RepositoryCandidateKind.Ordinary) ||
                          dependencies.CandidateExists(root, RepositoryCandidateKind.GitFile) ||
                          dependencies.CandidateExists(root, RepositoryCandidateKind.Bare);
-            if (exists)
+            if (exists && CandidateAdmissionPolicy.AdmitsInventoryCandidate(scope, root))
                 accumulator.Paths.Add(root);
 
             accumulator.Observations.Add(new RootObservation(root, true, true, DiscoverySource.Scan, null, null));

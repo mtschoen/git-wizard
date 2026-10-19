@@ -9,6 +9,10 @@ public partial class MainViewModel
     // dependencies instead of the real platform index. Null in production.
     internal RepositoryDiscoveryCoordinator? RefreshDiscoveryCoordinator { get; set; }
 
+    // GITWIZARD_NO_MFT=1 walks the filesystem instead of reading the MFT, so no elevated broker (UAC
+    // prompt) is launched. scripts/update-screenshots.ps1 sets it for unattended headless captures.
+    internal static bool NoMftRequested => !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITWIZARD_NO_MFT"));
+
     internal void AddRepository(GitWizardRepository repository)
     {
         // The first repository to surface ends the "Scanning..." gap; rows now stream into the list.
@@ -298,6 +302,7 @@ public partial class MainViewModel
                 {
                     FetchRemotes = fetchRemotes,
                     DeepRefresh = fetchRemotes,
+                    NoMft = NoMftRequested,
                     RetainDiscoveryIndex = true,
                     DiscoveryPurpose = rebuild ? DiscoveryPurpose.Rebuild : DiscoveryPurpose.Ordinary,
                     DiscoveryCoordinator = RefreshDiscoveryCoordinator

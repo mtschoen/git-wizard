@@ -258,7 +258,8 @@ jobs:
         if: steps.changed-files.outputs.pin_only != 'true'
         shell: pwsh
         # Deep ReSharper inspection; the gate's bar is zero findings
-        # (ci/parse-jb-report.py exits non-zero otherwise).
+        # (ci/windows-gates.ps1 inspect exits non-zero otherwise; ci/parse-jb-report.py
+        # lists each finding as uri:line when run on the same report).
         # NOTE: jb-CLI binds naming inspections to the runner's global ReSharper
         # config, not the solution-shared git-wizard.slnx.DotSettings (passed via
         # --settings but not honored for naming UserRules). A fresh runner's
@@ -278,6 +279,22 @@ jobs:
         with:
           name: test-results-windows
           path: TestResults/**/*.trx
+          if-no-files-found: warn
+
+      # The screenshot generator is a manually run development tool; running it here keeps it
+      # from rotting unseen. It renders the real window through headless Avalonia and writes to
+      # an untracked path so the tracked docs image (and the clean-tree check below) stay intact.
+      - name: Generate headless screenshot
+        if: steps.changed-files.outputs.pin_only != 'true'
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/update-screenshots.ps1 -OutputPath artifacts/GitWizardUI-ci.png
+
+      - name: Upload screenshot
+        if: always() && steps.changed-files.outputs.pin_only != 'true'
+        uses: ChristopherHX/gitea-upload-artifact@81f940d004763f986ba3582c007fd842dd5cb0d7
+        with:
+          name: GitWizardUI-screenshot
+          path: artifacts/GitWizardUI-ci.png
           if-no-files-found: warn
 
       # Verify that build, InspectCode, and tests left no tracked-file modifications

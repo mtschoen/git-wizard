@@ -1,0 +1,16 @@
+{
+  "runs": [
+    {
+      "results": [
+        {
+          "ruleId": "UnusedMember.Global",
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "GitWizard/Alpha.cs" }, "region": { "startLine": 12 } } }]
+        },
+        {
+          "ruleId": "InconsistentNaming",
+          "locations": [{ "physicalLocation": { "artifactLocation": { "uri": "GitWizardUI/Beta.cs" }, "region": { "startLine": 34 } } }]
+        }
+      ]
+    }
+  ]
+}

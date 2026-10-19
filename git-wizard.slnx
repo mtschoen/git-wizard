@@ -3,4 +3,5 @@
   <Project Path="GitWizard/GitWizard.csproj" />
   <Project Path="GitWizardTests/GitWizardTests.csproj" />
   <Project Path="GitWizardUI/GitWizardUI.csproj" />
+  <Project Path="GitWizardUI.Screenshot/GitWizardUI.Screenshot.csproj" />
 </Solution>

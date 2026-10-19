@@ -1,21 +1,22 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Headless;
-using SkiaSharp;
+using Avalonia.Threading;
 
 namespace GitWizardUI.Screenshot;
 
 static class Program
 {
-    static async Task<int> Main(string[] args)
+    static int Main(string[] args)
     {
         try
         {
+            // SetupWithClassicDesktopLifetime initializes the application without running the
+            // blocking main loop (StartWithClassicDesktopLifetime never returns until shutdown).
             AppBuilder.Configure<App>()
-                .UseHeadless(new AvaloniaHeadlessPlatformOptions())
-                .StartWithClassicDesktopLifetime(args);
-
-            await Task.Delay(2000);
+                .UseSkia()
+                .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false })
+                .SetupWithClassicDesktopLifetime(args);
 
             var app = Application.Current as App;
             var lifetime = app?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime;
@@ -27,8 +28,19 @@ static class Program
                 return 1;
             }
 
+            window.Show();
+
+            // Headless Avalonia has no running main loop here: pump the UI thread by hand so layout,
+            // bindings and the first render settle before the frame is captured.
+            for (var pump = 0; pump < 60; pump++)
+            {
+                Dispatcher.UIThread.RunJobs();
+                Thread.Sleep(100);
+            }
+
+            // The first argument overrides the output path; the default is the file the docs reference.
             var screenshotPath = Path.GetFullPath(
-                Path.Combine("Screenshots", "GitWizardUI.png"));
+                args.Length > 0 ? args[0] : Path.Combine("Screenshots", "GitWizardUI.png"));
             var screenshotDir = Path.GetDirectoryName(screenshotPath);
             if (!string.IsNullOrEmpty(screenshotDir) && !Directory.Exists(screenshotDir))
                 Directory.CreateDirectory(screenshotDir);
@@ -42,31 +54,9 @@ static class Program
                 return 1;
             }
 
-            // Get pixel data using Lock() and copy to SKBitmap
-            int width = (int)bitmap.Size.Width;
-            int height = (int)bitmap.Size.Height;
-
-            using var locked = bitmap.Lock();
-            var pixelData = new byte[locked.RowBytes * locked.Size.Height];
-            System.Runtime.InteropServices.Marshal.Copy(locked.Address, pixelData, 0, pixelData.Length);
-
-            var info = new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Premul);
-            using var skBitmap = new SKBitmap(info);
-            var address = System.Runtime.InteropServices.Marshal.AllocHGlobal(pixelData.Length);
-            try
-            {
-                System.Runtime.InteropServices.Marshal.Copy(pixelData, 0, address, pixelData.Length);
-                skBitmap.InstallPixels(info, address, width * 4, (_, _) => { });
-            }
-            finally
-            {
-                System.Runtime.InteropServices.Marshal.FreeHGlobal(address);
-            }
-
-            using var image = SKImage.FromBitmap(skBitmap);
-            using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-            using var fs = File.Create(screenshotPath);
-            data.SaveTo(fs);
+            // The previous hand-rolled SKBitmap copy freed its pixel buffer before encoding (a crash);
+            // WriteableBitmap.Save encodes the PNG itself.
+            bitmap.Save(screenshotPath);
 
             var fileInfo = new FileInfo(screenshotPath);
             Console.WriteLine($"Screenshot captured: {screenshotPath} ({fileInfo.Length / 1024} KB)");

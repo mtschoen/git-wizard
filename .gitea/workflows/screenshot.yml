@@ -45,7 +45,9 @@ jobs:
 
       - name: Upload screenshot artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        # Gitea-native action: actions/upload-artifact uploads are not listed by
+        # the artifacts REST API that reviews read.
+        uses: ChristopherHX/gitea-upload-artifact@81f940d004763f986ba3582c007fd842dd5cb0d7
         with:
           name: GitWizardUI-screenshot
           path: Screenshots/GitWizardUI.png

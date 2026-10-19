@@ -283,4 +283,4 @@ See the [tag and branch inventory schemas](docs/report-schema.md#tag-inventory-o
 
 ## License
 
-See [LICENSE](LICENSE) for details.
+See [LICENSE](LICENSE.txt) for details.

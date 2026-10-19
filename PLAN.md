@@ -1,28 +1,9 @@
 # GitWizard - Plan
 
-## Next Up
-
-### Single-repo merge refresh (for projdash fallback) - tracked as [#42](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/42)
-
-Projdash falls back to per-repo `git` subprocess when the cache misses a repo
-(fresh clones, repos created since the last full scan). On Windows that path
-can hang for tens of minutes when a grandchild process inherits the pipe
-handles - caught a 25-minute wedge in `~/.projdash/mcp.log` on 2026-04-26.
-Projdash now bounds it to ~10s via abandon-on-timeout (projdash commit
-`c72a185`, `scanner/git.py:_run_capture`), but the fallback still produces
-empty git state for the missing repo. A targeted single-repo refresh in
-GitWizard would let projdash skip subprocess git entirely.
-
-- [ ] **Projdash consumer change** (tracked in projdash's own PLAN): replace
-      the `git` subprocess fallback in `_enrich` with
-      `refresh_report(..., merge=True)` followed by re-reading the cache.
-      Also harden the `subprocess.run` inside `gitwizard.refresh_report` with
-      the same abandon-on-timeout pattern as `scanner/git.py:_run_capture`.
-
 ## Infrastructure
 
 - [ ] **Trust the act_runner artifact backend on the Linux runner** - `ci.yml`'s coverage-artifact upload (`ChristopherHX/gitea-upload-artifact`) is `continue-on-error` because the Linux runner's Node does not trust the mkcert CA serving the act_runner artifact endpoint (`ACTIONS_RESULTS_URL` in the runner config on llamabox, which may differ from `GITHUB_SERVER_URL`; `NODE_EXTRA_CA_CERTS` is not resolving). Install that CA into the runner's Node/system trust store, drop `continue-on-error`, and validate with a live CI run. Needs runner-side access to llamabox; not doable from a dev box. The coverage *gate* reads the cobertura file directly, so only the supplementary artifact is affected.
-- [ ] **Retire the MFTLib submodule for a NuGet `PackageReference`** - repo-root `Directory.Build.targets` is a TEMPORARY source-build bridge that unblocks the build while MFTLib 0.3.0 is unpublished. When 0.3.0 ships to NuGet: delete the `external/MFTLib` submodule + `Directory.Build.targets`, add `<PackageReference Include="MFTLib" Version="0.3.0" />` to `GitWizard/GitWizard.csproj`, and confirm CI stays green. Steps in the `Directory.Build.targets` header.
+- [ ] **Retire the MFTLib submodule for a NuGet `PackageReference`** - repo-root `Directory.Build.targets` is a TEMPORARY source-build bridge that unblocks the build while MFTLib 0.3.0 is unpublished. Tracked as [#134](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/134); when 0.3.0 ships to NuGet, follow the retire steps in the `Directory.Build.targets` header and confirm CI stays green.
 
 ## Backlog
 

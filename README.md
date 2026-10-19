@@ -100,7 +100,7 @@ maintenance and 0 for success, including an empty cache. Results are printed
 even with `--silent`.
 
 The result includes a new MFTLib `InspectCached` inventory after clearing.
-Desktop **Inspect Index Cache** refreshes that inventory independently.
+Desktop **Inspect Index Cache** shows the same text as `--index-cache-status` and the Index Cache Status window.
 Both deletion results and inventory are point-in-time observations: a different
 process can recreate a cache block immediately after deletion.
 

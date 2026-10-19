@@ -69,11 +69,11 @@
             <Button x:Name="IndexCacheStatusButton" Content="Index Cache Status"
                     Click="IndexCacheStatus_Click" />
             <Button x:Name="InspectIndexCacheButton" Content="Inspect Index Cache"
-                    IsEnabled="{Binding CanManageIndexCache}" Click="InspectIndexCache_Click" />
+                    IsEnabled="{Binding IndexCache.IsIdle}" Click="InspectIndexCache_Click" />
             <Button x:Name="ClearIndexCacheButton" Content="Clear Index Cache"
-                    IsEnabled="{Binding CanManageIndexCache}" Click="ClearIndexCache_Click"
+                    IsEnabled="{Binding IndexCache.IsIdle}" Click="ClearIndexCache_Click"
                     ToolTip.Tip="Clear unlocked blocks. In-use blocks and lock files remain. Does not stop Live." />
-            <TextBlock Text="{Binding IndexCacheText}" TextWrapping="Wrap" FontSize="12" />
+            <TextBlock Text="{Binding IndexCache.Text}" TextWrapping="Wrap" FontSize="12" />
           </StackPanel>
         </Expander>
       </StackPanel>

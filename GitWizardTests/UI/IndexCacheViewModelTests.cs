@@ -8,7 +8,7 @@ using MFTLibTestExtensions;
 
 namespace GitWizardTests.UI;
 
-public class IndexCacheStatusViewModelTests
+public class IndexCacheViewModelTests
 {
     [Test]
     public async Task RefreshSurfacesFailuresAndRecovers()
@@ -20,11 +20,11 @@ public class IndexCacheStatusViewModelTests
             () => throw new IOException("inspection failed"),
             () => snapshot
         ]);
-        var model = new IndexCacheStatusViewModel(new StubUiDispatcher(), () => attempts.Dequeue()());
+        var model = new IndexCacheViewModel(new StubUiDispatcher(), () => attempts.Dequeue()(), NoClear);
         await model.RefreshAsync();
         Assert.That(model.Text, Does.Contain("inspection failed"));
         Assert.That(model.Snapshot, Is.Null);
-        Assert.That(model.CanRefresh, Is.True);
+        Assert.That(model.IsIdle, Is.True);
         await model.RefreshAsync();
         Assert.That(model.Snapshot, Is.SameAs(snapshot));
         Assert.That(model.Text, Does.Contain("No cached blocks"));
@@ -38,18 +38,18 @@ public class IndexCacheStatusViewModelTests
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var snapshot = new MftIndexCacheInspection(new FrozenCacheClock(), true,
             MftIndexCacheInspection.InspectDirectory).Capture(files.DirectoryPath);
-        var model = new IndexCacheStatusViewModel(new StubUiDispatcher(), () =>
+        var model = new IndexCacheViewModel(new StubUiDispatcher(), () =>
         {
             entered.TrySetResult();
             if (!release.Task.Wait(TimeSpan.FromSeconds(5)))
                 throw new TimeoutException("Test did not release inspection");
             return snapshot;
-        });
+        }, NoClear);
         var first = model.RefreshAsync();
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            Assert.That(model.CanRefresh, Is.False);
+            Assert.That(model.IsIdle, Is.False);
             await model.RefreshAsync();
             Assert.That(first.IsCompleted, Is.False);
         }
@@ -58,7 +58,48 @@ public class IndexCacheStatusViewModelTests
             release.TrySetResult();
             await first;
         }
-        Assert.That(model.CanRefresh, Is.True);
+        Assert.That(model.IsIdle, Is.True);
+    }
+
+    [Test]
+    public async Task ClearAndRefreshShareOneGuard()
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var clears = 0;
+        var inspections = 0;
+        var model = new IndexCacheViewModel(new StubUiDispatcher(),
+            () =>
+            {
+                Interlocked.Increment(ref inspections);
+                throw new AssertionException("Refresh must not inspect while clearing");
+            },
+            () =>
+            {
+                Interlocked.Increment(ref clears);
+                entered.TrySetResult();
+                if (!release.Task.Wait(TimeSpan.FromSeconds(5)))
+                    throw new TimeoutException("Test did not release clear");
+                return NoClear();
+            });
+        var first = model.ClearAsync();
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.That(model.IsIdle, Is.False);
+            await model.RefreshAsync();
+            Assert.That(inspections, Is.Zero,
+                "Refresh must not enter inspection while Clear holds the guard");
+            await model.ClearAsync();
+            Assert.That(clears, Is.EqualTo(1));
+        }
+        finally
+        {
+            release.TrySetResult();
+            await first;
+        }
+        Assert.That(model.IsIdle, Is.True);
+        Assert.That(model.Text, Does.StartWith("Index cache clear completed."));
     }
 
     [TestCase(CachedBlockAvailability.Available)]
@@ -71,7 +112,7 @@ public class IndexCacheStatusViewModelTests
             FrozenCacheClock.Now.UtcDateTime.AddMinutes(-5)), availability, null, null, null);
         var snapshot = new MftIndexCacheInspection(new FrozenCacheClock(), true,
             _ => new[] { row }).Capture(files.DirectoryPath);
-        var model = new IndexCacheStatusViewModel(new StubUiDispatcher(), () => snapshot);
+        var model = new IndexCacheViewModel(new StubUiDispatcher(), () => snapshot, NoClear);
         await model.RefreshAsync();
         Assert.That(model.Snapshot!.Inventory.Single().Availability, Is.EqualTo(availability));
         Assert.That(model.Text, Does.Contain("age: 5m"));
@@ -103,4 +144,6 @@ public class IndexCacheStatusViewModelTests
         Assert.That(source.CaptureCacheStatus(), Is.Null);
         Assert.That(main.CaptureActiveCacheSessions(), Is.Empty);
     }
+
+    static MftIndexCacheMaintenanceResult NoClear() => new([], [], []);
 }

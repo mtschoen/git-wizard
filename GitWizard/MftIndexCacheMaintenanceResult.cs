@@ -10,7 +10,7 @@ public sealed record MftIndexCacheMaintenanceResult(
     public bool Succeeded => Errors.Count == 0 &&
         Deletions.All(row => row.Outcome == CachedBlockDeletionOutcome.Deleted);
 
-    public string ToDisplayText()
+    public string ToClearText()
     {
         var lines = new List<string>();
         foreach (var row in Deletions)

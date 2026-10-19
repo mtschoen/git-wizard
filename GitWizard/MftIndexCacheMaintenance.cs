@@ -6,18 +6,12 @@ namespace GitWizard;
 public static class MftIndexCacheMaintenance
 {
     // Earlier releases named the cache directory "v1-<64 hex SHA-256 digits>" after the scan shape.
-    // Nothing writes such a directory now; Run still lists them so Clear reclaims their blocks.
+    // Nothing writes such a directory now; Clear still lists them so Clear reclaims their blocks.
     const string LegacyDirectoryPrefix = "v1-";
     const int LegacyDirectoryNameLength = 67;
     static readonly SearchValues<char> HexDigits = SearchValues.Create("0123456789ABCDEF");
 
-    public static MftIndexCacheMaintenanceResult Inspect(string localFilesPath) =>
-        Run(localFilesPath, clear: false);
-
-    public static MftIndexCacheMaintenanceResult Clear(string localFilesPath) =>
-        Run(localFilesPath, clear: true);
-
-    static MftIndexCacheMaintenanceResult Run(string localFilesPath, bool clear)
+    public static MftIndexCacheMaintenanceResult Clear(string localFilesPath)
     {
         ArgumentException.ThrowIfNullOrEmpty(localFilesPath);
         var errors = new List<string>();
@@ -34,10 +28,7 @@ public static class MftIndexCacheMaintenance
                     continue;
                 }
 
-                if (clear)
-                {
-                    deletions.AddRange(CacheDirectory.DeleteCached(directory));
-                }
+                deletions.AddRange(CacheDirectory.DeleteCached(directory));
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {

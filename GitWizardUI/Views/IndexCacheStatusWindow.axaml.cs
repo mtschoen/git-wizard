@@ -8,13 +8,15 @@ namespace GitWizardUI.Views;
 
 public partial class IndexCacheStatusWindow : Window
 {
-    readonly IndexCacheStatusViewModel _viewModel;
+    readonly IndexCacheViewModel _viewModel;
 
-    public IndexCacheStatusWindow() : this(new IndexCacheStatusViewModel(
-        new AvaloniaUiDispatcher(), () => new MftIndexCacheInspection().Capture(GitWizardApi.GetLocalFilesPath())))
+    public IndexCacheStatusWindow() : this(new IndexCacheViewModel(
+        new AvaloniaUiDispatcher(),
+        () => new MftIndexCacheInspection().Capture(GitWizardApi.GetLocalFilesPath()),
+        () => MftIndexCacheMaintenance.Clear(GitWizardApi.GetLocalFilesPath())))
     { }
 
-    public IndexCacheStatusWindow(IndexCacheStatusViewModel model)
+    public IndexCacheStatusWindow(IndexCacheViewModel model)
     {
         InitializeComponent();
         Icon = IconLoader.Load();

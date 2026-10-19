@@ -88,17 +88,17 @@ public partial class MainWindow : Window, IAsyncDisposable
 
     void IndexCacheStatus_Click(object? sender, RoutedEventArgs arguments)
     {
-        var model = _viewModel.CreateIndexCacheStatusViewModel();
+        var model = _viewModel.IndexCache;
         var window = new IndexCacheStatusWindow(model);
         window.Show(this);
         model.RefreshCommand.Execute(null);
     }
 
     void InspectIndexCache_Click(object? sender, RoutedEventArgs e)
-        => _ = _viewModel.InspectIndexCacheAsync();
+        => _ = _viewModel.IndexCache.RefreshAsync();
 
     void ClearIndexCache_Click(object? sender, RoutedEventArgs e)
-        => _ = _viewModel.ClearIndexCacheAsync();
+        => _ = _viewModel.IndexCache.ClearAsync();
 
     void ErrorsMenuItem_Click(object? sender, RoutedEventArgs e)
         => new ErrorLogWindow(_viewModel.ErrorLog).ShowDialog(this);

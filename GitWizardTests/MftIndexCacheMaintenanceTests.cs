@@ -22,8 +22,6 @@ public class MftIndexCacheMaintenanceTests
         await File.WriteAllTextAsync(unknownBlock, "keep unknown layout");
         await using (var owner = await files.OpenOwnerAsync())
         {
-            var before = MftIndexCacheMaintenance.Inspect(files.Home);
-            Assert.That(before.Inventory, Has.Count.EqualTo(3));
             var result = MftIndexCacheMaintenance.Clear(files.Home);
             Assert.That(result.Succeeded, Is.False);
             Assert.That(result.Errors, Is.Empty);
@@ -60,7 +58,7 @@ public class MftIndexCacheMaintenanceTests
         Assert.That(result.Inventory, Is.Empty);
         Assert.That(result.Deletions, Is.Empty);
         Assert.That(Directory.Exists(MftIndexCachePolicy.GetCacheRoot(files.DirectoryPath)), Is.False);
-        Assert.That(result.ToDisplayText(), Does.Contain("No canonical cached blocks remain"));
+        Assert.That(result.ToClearText(), Does.Contain("No canonical cached blocks remain"));
     }
 
     [TestCase(CachedBlockDeletionOutcome.Deleted, null, true)]
@@ -74,11 +72,11 @@ public class MftIndexCacheMaintenanceTests
         var result = new MftIndexCacheMaintenanceResult(
             [SyntheticNotifications.CreateCachedBlockDeletionResult(file, outcome, reason)], [], []);
         Assert.That(result.Succeeded, Is.EqualTo(succeeded));
-        Assert.That(result.ToDisplayText(), Does.Contain("Y: (00000001)"));
-        Assert.That(result.ToDisplayText(), Does.Contain(outcome.ToString()));
-        Assert.That(result.ToDisplayText(), Does.Contain(file.Path));
+        Assert.That(result.ToClearText(), Does.Contain("Y: (00000001)"));
+        Assert.That(result.ToClearText(), Does.Contain(outcome.ToString()));
+        Assert.That(result.ToClearText(), Does.Contain(file.Path));
         if (reason is not null)
-            Assert.That(result.ToDisplayText(), Does.Contain(reason));
+            Assert.That(result.ToClearText(), Does.Contain(reason));
     }
 
     [Test]
@@ -86,8 +84,8 @@ public class MftIndexCacheMaintenanceTests
     {
         var result = new MftIndexCacheMaintenanceResult([], [], ["inspection denied"]);
         Assert.That(result.Succeeded, Is.False);
-        Assert.That(result.ToDisplayText(), Does.Contain("inspection denied"));
-        Assert.That(result.ToDisplayText(), Does.Not.Contain("No canonical cached blocks remain"));
+        Assert.That(result.ToClearText(), Does.Contain("inspection denied"));
+        Assert.That(result.ToClearText(), Does.Not.Contain("No canonical cached blocks remain"));
     }
 
     [Test, Platform("Win")]

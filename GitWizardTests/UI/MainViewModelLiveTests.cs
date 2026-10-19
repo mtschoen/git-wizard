@@ -846,7 +846,7 @@ public class MainViewModelLiveTests
         var sourceReady = new TaskCompletionSource<ReadinessVolumeChangeSource>(TaskCreationOptions.RunContinuationsAsynchronously);
         var dispatcher = new QueuedLiveUiDispatcher();
         var viewModel = new MainViewModel(dispatcher, new StubUserDialogs(), new StubClipboardService());
-        var cacheModel = viewModel.CreateIndexCacheStatusViewModel();
+        var cacheModel = viewModel.IndexCache;
         var tooltipNotifications = new System.Runtime.CompilerServices.StrongBox<int>(0);
         viewModel.PropertyChanged += (_, arguments) =>
         {
@@ -929,7 +929,7 @@ public class MainViewModelLiveTests
         var dispatcher = new QueuedLiveUiDispatcher();
         var clock = new FixedClock();
         var viewModel = new MainViewModel(dispatcher, new StubUserDialogs(), new StubClipboardService(), clock);
-        var cacheModel = viewModel.CreateIndexCacheStatusViewModel();
+        var cacheModel = viewModel.IndexCache;
         viewModel.LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
         viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
         {

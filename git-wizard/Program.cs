@@ -148,7 +148,7 @@ git-wizard Session Started
         }
 
         var result = MftIndexCacheMaintenance.Clear(GitWizardApi.GetLocalFilesPath());
-        Console.WriteLine(result.ToDisplayText());
+        Console.WriteLine(result.ToClearText());
         if (!result.Succeeded)
         {
             await Console.Error.WriteLineAsync("Index cache clear incomplete; see per-drive outcomes and errors above.");

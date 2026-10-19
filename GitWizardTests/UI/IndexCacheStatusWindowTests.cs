@@ -25,7 +25,7 @@ public class IndexCacheStatusWindowTests
             MFTLib.Index.CachedBlockAvailability.InUse, null, null, null);
         var snapshot = new MftIndexCacheInspection(new FrozenCacheClock(), true,
             _ => new[] { row }).Capture(files.DirectoryPath);
-        var model = new IndexCacheStatusViewModel(new AvaloniaUiDispatcher(), () => snapshot);
+        var model = new IndexCacheViewModel(new AvaloniaUiDispatcher(), () => snapshot, NoClear);
         var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var offThread = false;
         model.PropertyChanged += (_, arguments) =>
@@ -57,7 +57,7 @@ public class IndexCacheStatusWindowTests
     {
         await using var mainWindow = new MainWindow();
         var mainModel = (MainViewModel)mainWindow.DataContext!;
-        var panelModel = mainModel.CreateIndexCacheStatusViewModel();
+        var panelModel = mainModel.IndexCache;
         var window = new IndexCacheStatusWindow(panelModel);
         try
         {
@@ -90,7 +90,7 @@ public class IndexCacheStatusWindowTests
     {
         await using var mainWindow = new MainWindow();
         var mainModel = (MainViewModel)mainWindow.DataContext!;
-        var panelModel = mainModel.CreateIndexCacheStatusViewModel();
+        var panelModel = mainModel.IndexCache;
         var window = new IndexCacheStatusWindow(panelModel);
         try
         {
@@ -120,4 +120,6 @@ public class IndexCacheStatusWindowTests
         }
         finally { window.Close(); }
     }
+
+    static MftIndexCacheMaintenanceResult NoClear() => new([], [], []);
 }

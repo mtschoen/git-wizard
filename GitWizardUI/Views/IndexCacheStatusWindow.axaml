@@ -3,12 +3,12 @@
         xmlns:vm="using:GitWizardUI.ViewModels"
         xmlns:watch="clr-namespace:GitWizard.Watch;assembly=GitWizard"
         x:Class="GitWizardUI.Views.IndexCacheStatusWindow"
-        x:DataType="vm:IndexCacheStatusViewModel"
+        x:DataType="vm:IndexCacheViewModel"
         Title="Index Cache Status" Width="850" Height="600"
         MinWidth="500" MinHeight="300">
   <Grid Margin="16" RowDefinitions="Auto,*">
     <Button x:Name="RefreshStatusButton" Content="Refresh status"
-            IsEnabled="{Binding CanRefresh}" Click="RefreshStatus_Click" />
+            IsEnabled="{Binding IsIdle}" Click="RefreshStatus_Click" />
     <ScrollViewer Grid.Row="1" Margin="0,12,0,0"
                   HorizontalScrollBarVisibility="Disabled"
                   VerticalScrollBarVisibility="Auto">

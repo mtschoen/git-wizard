@@ -1,213 +1,120 @@
 // ReSharper disable once CheckNamespace
 namespace GitWizard.CLI;
 
-public static partial class Program
+/// <summary>
+/// Configuration specified in command line arguments. The default instance is the parse of
+/// an empty command line.
+/// </summary>
+internal sealed record RunConfiguration
 {
     /// <summary>
-    /// Struct containing configuration details specified in command line arguments
+    /// The command this command line resolves to.
     /// </summary>
-    internal struct RunConfiguration
-    {
-        /// <summary>
-        /// Rebuild the list of repositories (instead of using cache).
-        /// </summary>
-        public readonly bool RebuildRepositoryList;
+    public CommandKind Command { get; init; } = CommandKind.Report;
 
-        /// <summary>
-        /// Rebuild the report from scratch (instead of using cache).
-        /// </summary>
-        public readonly bool RebuildReport;
+    /// <summary>
+    /// Rebuild the list of repositories (instead of using cache).
+    /// </summary>
+    public bool RebuildRepositoryList { get; init; }
 
-        /// <summary>
-        /// Delete repositories.txt and report.json before doing anything else; configuration and
-        /// persistent index blocks are preserved.
-        /// </summary>
-        public readonly bool ClearCache;
+    /// <summary>
+    /// Rebuild the report from scratch (instead of using cache).
+    /// </summary>
+    public bool RebuildReport { get; init; }
 
-        /// <summary>
-        /// Clear unlocked MFT index blocks in supported GitWizard policy directories, show
-        /// per-drive results and fresh cache state, then exit.
-        /// </summary>
-        public readonly bool ClearIndexCache;
+    /// <summary>
+    /// Delete repositories.txt and report.json before doing anything else; configuration and
+    /// persistent index blocks are preserved.
+    /// </summary>
+    public bool ClearCache { get; init; }
 
-        /// <summary>
-        /// Inspect the current MFT cache policy and exit without discovery or a broker.
-        /// </summary>
-        public readonly bool IndexCacheStatus;
+    /// <summary>
+    /// Delete all local files before doing anything else, refusing while the mft-index subtree exists.
+    /// </summary>
+    public bool DeleteAllLocalFiles { get; init; }
 
-        /// <summary>
-        /// Delete all local files before doing anything else, refusing while the mft-index subtree exists.
-        /// </summary>
-        public readonly bool DeleteAllLocalFiles;
+    /// <summary>
+    /// Add Windows Defender exclusions before running.
+    /// </summary>
+    public bool SetupDefender { get; init; }
 
-        /// <summary>
-        /// Add Windows Defender exclusions before running.
-        /// </summary>
-        public readonly bool SetupDefender;
+    /// <summary>
+    /// Skip MFT search and use recursive directory scan instead.
+    /// </summary>
+    public bool NoMft { get; init; }
 
-        /// <summary>
-        /// Print discovered repository paths and exit without refreshing.
-        /// </summary>
-        public readonly bool ScanOnly;
+    /// <summary>
+    /// Case-insensitive substring filter applied to repository paths in the output.
+    /// </summary>
+    public string? FilterPattern { get; init; }
 
-        /// <summary>
-        /// Skip MFT search and use recursive directory scan instead.
-        /// </summary>
-        public readonly bool NoMft;
+    /// <summary>
+    /// Explicit list of repository paths to report on, bypassing discovery.
+    /// Can be a file path (newline-separated) or comma-separated inline list.
+    /// </summary>
+    public string? PathsArgument { get; init; }
 
-        /// <summary>
-        /// Case-insensitive substring filter applied to repository paths in the output.
-        /// </summary>
-        public readonly string? FilterPattern;
+    /// <summary>
+    /// Output a condensed summary instead of the full report.
+    /// </summary>
+    public bool Summary { get; init; }
 
-        /// <summary>
-        /// Explicit list of repository paths to report on, bypassing discovery.
-        /// Can be a file path (newline-separated) or comma-separated inline list.
-        /// </summary>
-        public readonly string? PathsArgument;
+    /// <summary>
+    /// Glob pattern for tag matching in the tags inventory command (null means every tag).
+    /// </summary>
+    public string? TagMatchPattern { get; init; }
 
-        /// <summary>
-        /// Output a condensed summary instead of the full report.
-        /// </summary>
-        public readonly bool Summary;
+    /// <summary>
+    /// Base branch to compare against in the branches inventory command (null means each
+    /// repository's default branch).
+    /// </summary>
+    public string? NotMergedBranch { get; init; }
 
-        /// <summary>
-        /// Output the compact machine-sweep JSON contract.
-        /// </summary>
-        public readonly bool Sweep;
+    /// <summary>
+    /// Filter to branches not merged into the base branch.
+    /// </summary>
+    public bool NotMergedOnly { get; init; }
 
-        /// <summary>
-        /// Output the tags inventory JSON contract.
-        /// </summary>
-        public readonly bool Tags;
+    /// <summary>
+    /// Refresh the report based on the latest state (otherwise just print out the cached report).
+    /// </summary>
+    public bool RefreshReport { get; init; } = true;
 
-        /// <summary>
-        /// Glob pattern for tag matching in the tags inventory command.
-        /// </summary>
-        public readonly string? TagMatchPattern;
+    /// <summary>
+    /// Print/save the report as minified JSON.
+    /// </summary>
+    public bool Minified { get; init; }
 
-        /// <summary>
-        /// Output the branches inventory JSON contract.
-        /// </summary>
-        public readonly bool Branches;
+    /// <summary>
+    /// Path where the report will be saved to disk (otherwise it is only printed to the console).
+    /// </summary>
+    public string? SavePath { get; init; }
 
-        /// <summary>
-        /// Base branch to compare against in the branches inventory command.
-        /// </summary>
-        public readonly string? NotMergedBranch;
+    /// <summary>
+    /// Path to custom configuration file (otherwise global or default configuration is used).
+    /// </summary>
+    public string? CustomConfigurationPath { get; init; }
 
-        /// <summary>
-        /// Filter to branches not merged into the base branch.
-        /// </summary>
-        public readonly bool NotMergedOnly;
+    /// <summary>
+    /// Include all branches (default + boring) in the per-repo Branches list,
+    /// not just actionable branches.
+    /// </summary>
+    public bool AllBranches { get; init; }
 
-        /// <summary>
-        /// Targeted single-repo merge refresh: merge the repos named by --paths into the
-        /// existing report at --save-path, leaving other entries intact. Requires --paths
-        /// and --save-path.
-        /// </summary>
-        public readonly bool Merge;
+    /// <summary>
+    /// When true, skip the expensive per-branch local-commit-count iteration
+    /// in each repository refresh. Defaults to false (compute counts).
+    /// </summary>
+    public bool NoLocalCommitCount { get; init; }
 
-        /// <summary>
-        /// Refresh the report based on the latest state (otherwise just print out the cached report).
-        /// </summary>
-        public readonly bool RefreshReport;
+    /// <summary>
+    /// True if CLI parsing encountered validation errors (e.g., --save-path with
+    /// nonexistent parent directory, --config-path pointing to a missing file).
+    /// </summary>
+    public bool HasParseError { get; init; }
 
-        /// <summary>
-        /// Print/save the report as minified JSON.
-        /// </summary>
-        public readonly bool Minified;
-
-        /// <summary>
-        /// Path where the report will be saved to disk (otherwise it is only printed to the console).
-        /// </summary>
-        public readonly string? SavePath;
-
-        /// <summary>
-        /// Path to custom configuration file (otherwise global or default configuration is used)
-        /// </summary>
-        public readonly string? CustomConfigurationPath;
-
-        /// <summary>
-        /// Show the size of the GitWizard local files folder and exit.
-        /// </summary>
-        public readonly bool DbSize;
-
-        /// <summary>
-        /// Include all branches (default + boring) in the per-repo Branches list,
-        /// not just actionable branches.
-        /// </summary>
-        public readonly bool AllBranches;
-
-        /// <summary>
-        /// Watch tracked repositories for changes via platform volume change detection
-        /// (Windows USN journal or Linux fanotify) and print a line per repo that changes.
-        /// </summary>
-        public readonly bool Watch;
-
-        /// <summary>
-        /// When true, skip the expensive per-branch local-commit-count iteration
-        /// in each repository refresh. Defaults to false (compute counts).
-        /// </summary>
-        public readonly bool NoLocalCommitCount;
-
-        /// <summary>
-        /// True if CLI parsing encountered validation errors (e.g., --save-path with
-        /// nonexistent parent directory, --config-path pointing to a missing file).
-        /// </summary>
-        public readonly bool HasParseError;
-
-        /// <summary>
-        /// True when McMaster already printed help or version text (--help, --version) and
-        /// the caller should exit immediately without running any report generation.
-        /// </summary>
-        public readonly bool ExitRequested;
-
-        /// <summary>
-        /// Suppress console output (errors still print to stderr).
-        /// </summary>
-        public readonly bool Silent;
-
-        /// <summary>
-        /// Initialize a RunConfiguration using Environment.GetCommandLineArgs
-        /// </summary>
-        public RunConfiguration()
-            : this(CliParser.ParseProcessArgs(Environment.GetCommandLineArgs()))
-        {
-        }
-
-        internal RunConfiguration(RunConfigurationResult result)
-        {
-            RebuildRepositoryList = result.RebuildRepositoryList;
-            RebuildReport = result.RebuildReport;
-            ClearCache = result.ClearCache;
-            ClearIndexCache = result.ClearIndexCache;
-            IndexCacheStatus = result.IndexCacheStatus;
-            DeleteAllLocalFiles = result.DeleteAllLocalFiles;
-            SetupDefender = result.SetupDefender;
-            ScanOnly = result.ScanOnly;
-            NoMft = result.NoMft;
-            FilterPattern = result.FilterPattern;
-            PathsArgument = result.PathsArgument;
-            Summary = result.Summary;
-            Sweep = result.Sweep;
-            Tags = result.Tags;
-            TagMatchPattern = result.TagMatchPattern;
-            Branches = result.Branches;
-            NotMergedBranch = result.NotMergedBranch;
-            NotMergedOnly = result.NotMergedOnly;
-            Merge = result.Merge;
-            RefreshReport = result.RefreshReport;
-            Minified = result.Minified;
-            SavePath = result.SavePath;
-            CustomConfigurationPath = result.CustomConfigurationPath;
-            DbSize = result.DbSize;
-            AllBranches = result.AllBranches;
-            Watch = result.Watch;
-            NoLocalCommitCount = result.NoLocalCommitCount;
-            HasParseError = result.HasError;
-            ExitRequested = result.ExitRequested;
-            Silent = result.Silent;
-        }
-    }
+    /// <summary>
+    /// Suppress console output (errors still print to stderr).
+    /// </summary>
+    public bool Silent { get; init; }
 }

@@ -5,18 +5,6 @@ namespace GitWizard.CLI;
 
 public static partial class Program
 {
-    static readonly JsonSerializerOptions IndentedSerializerOptions = new()
-    {
-        WriteIndented = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
-    };
-
-    static readonly JsonSerializerOptions CompactSerializerOptions = new()
-    {
-        WriteIndented = false,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault
-    };
-
     internal static async Task<int> RunDefaultReportCoreAsync(
         RunConfiguration runConfiguration,
         GitWizardConfiguration configuration,
@@ -102,7 +90,7 @@ public static partial class Program
         if (runConfiguration.Summary)
         {
             var summary = GitWizardSummary.FromReport(filteredReport);
-            var options = runConfiguration.Minified ? CompactSerializerOptions : IndentedSerializerOptions;
+            var options = GetSerializerOptions(runConfiguration, JsonIgnoreCondition.WhenWritingDefault);
             jsonString = JsonSerializer.Serialize(summary, options);
         }
         else
@@ -164,7 +152,7 @@ public static partial class Program
         // Stamp the current schema version so console output never carries
         // a stale version loaded from an older cache.
         report.SchemaVersion = GitWizardReport.CurrentSchemaVersion;
-        var options = runConfiguration.Minified ? CompactSerializerOptions : IndentedSerializerOptions;
+        var options = GetSerializerOptions(runConfiguration, JsonIgnoreCondition.WhenWritingDefault);
 
         var jsonString = JsonSerializer.Serialize(report, options);
         return jsonString;
@@ -185,7 +173,7 @@ public static partial class Program
 
         foreach (var kvp in report.Repositories)
         {
-            if (kvp.Key.Contains(runConfiguration.FilterPattern, StringComparison.OrdinalIgnoreCase))
+            if (MatchesFilter(kvp.Key, runConfiguration.FilterPattern))
                 filtered.Repositories[kvp.Key] = kvp.Value;
         }
 

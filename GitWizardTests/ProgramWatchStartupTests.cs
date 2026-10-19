@@ -262,7 +262,7 @@ public class ProgramWatchStartupTests
         using var files = new PackedIndexFixture();
         var coordinator = CreateCoordinator(files);
         var config = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
-        var runConfig = new Program.RunConfiguration(CliParser.Parse(["--watch"]));
+        var runConfig = CliParser.Parse(["--watch"]);
 
         var stdout = new StringWriter();
         var stderr = new StringWriter();
@@ -281,7 +281,7 @@ public class ProgramWatchStartupTests
         using var files = new PackedIndexFixture();
         var coordinator = CreateCoordinator(files);
         var configuration = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
-        var runConfiguration = new Program.RunConfiguration(CliParser.Parse(["--watch"]));
+        var runConfiguration = CliParser.Parse(["--watch"]);
         using var stdout = new StringWriter();
         using var stderr = new StringWriter();
         ProcessStartInfo? capturedStartInfo = null;
@@ -317,7 +317,7 @@ public class ProgramWatchStartupTests
         using var files = new PackedIndexFixture();
         var coordinator = CreateCoordinator(files);
         var configuration = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
-        var runConfiguration = new Program.RunConfiguration(CliParser.Parse(["--watch"]));
+        var runConfiguration = CliParser.Parse(["--watch"]);
         using var stdout = new StringWriter();
         using var stderr = new StringWriter();
         Program._isWindows = () => false;
@@ -367,7 +367,7 @@ public class ProgramWatchStartupTests
         });
 
         var config = new GitWizardConfiguration { SearchPaths = { files.TreePath }, IncludeTempDirectories = true };
-        var runConfig = new Program.RunConfiguration(CliParser.Parse(["--watch"]));
+        var runConfig = CliParser.Parse(["--watch"]);
 
         var stdout = new StringWriter();
         var stderr = new StringWriter();

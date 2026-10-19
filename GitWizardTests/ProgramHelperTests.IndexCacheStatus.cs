@@ -10,9 +10,9 @@ public partial class ProgramEntryPointTests
     public void IndexCacheStatusParsesAsReadOnly()
     {
         var result = CliParser.Parse(["--index-cache-status"]);
-        Assert.That(result.HasError, Is.False);
-        Assert.That(result.IndexCacheStatus, Is.True);
-        Assert.That(result.ClearIndexCache, Is.False);
+        Assert.That(result.HasParseError, Is.False);
+        Assert.That(result.Command, Is.EqualTo(CommandKind.IndexCacheStatus));
+        Assert.That(result.Command, Is.Not.EqualTo(CommandKind.ClearIndexCache));
         Assert.That(result.ClearCache, Is.False);
         Assert.That(result.DeleteAllLocalFiles, Is.False);
     }
@@ -21,7 +21,7 @@ public partial class ProgramEntryPointTests
     [TestCase("--clear-cache")]
     [TestCase("--delete-all-local-files")]
     public void IndexCacheStatusRejectsDestructiveCombinations(string flag) =>
-        Assert.That(CliParser.Parse(["--index-cache-status", flag]).HasError, Is.True);
+        Assert.That(CliParser.Parse(["--index-cache-status", flag]).HasParseError, Is.True);
 
     [Test]
     public async Task IndexCacheStatusWriterReportsInspectionError()

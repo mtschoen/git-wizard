@@ -2,14 +2,11 @@ namespace GitWizard.CLI;
 
 public static partial class Program
 {
-    static async Task<bool> TryHandleIndexCacheStatusAsync(RunConfiguration configuration)
+    static async Task RunIndexCacheStatusAsync()
     {
-        if (!configuration.IndexCacheStatus)
-            return false;
         GitWizardLog.LogMethod = Console.Error.WriteLine;
         var snapshot = new MftIndexCacheInspection().Capture(GitWizardApi.GetLocalFilesPath());
         Environment.ExitCode = await WriteIndexCacheStatusAsync(snapshot, Console.Out, Console.Error);
-        return true;
     }
 
     internal static async Task<int> WriteIndexCacheStatusAsync(MftIndexCacheSnapshot snapshot,

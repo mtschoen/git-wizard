@@ -10,8 +10,8 @@ public partial class ProgramEntryPointTests
     public void ClearIndexCacheParsesWithoutChangingExistingClearFlag()
     {
         var result = CliParser.Parse(["--clear-index-cache"]);
-        Assert.That(result.HasError, Is.False);
-        Assert.That(result.ClearIndexCache, Is.EqualTo(true));
+        Assert.That(result.HasParseError, Is.False);
+        Assert.That(result.Command, Is.EqualTo(CommandKind.ClearIndexCache));
         Assert.That(result.ClearCache, Is.False);
     }
 

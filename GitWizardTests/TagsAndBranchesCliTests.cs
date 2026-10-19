@@ -27,10 +27,10 @@ public class TagsAndBranchesCliTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(result.Tags, Is.True);
+            Assert.That(result.Command, Is.EqualTo(CommandKind.Tags));
             Assert.That(result.TagMatchPattern, Is.EqualTo("*"));
-            Assert.That(result.HasError, Is.False);
-            Assert.That(result.ExitRequested, Is.False);
+            Assert.That(result.HasParseError, Is.False);
+            Assert.That(result.Command, Is.Not.EqualTo(CommandKind.HelpPrinted));
         });
     }
 
@@ -41,9 +41,9 @@ public class TagsAndBranchesCliTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(result.Tags, Is.True);
+            Assert.That(result.Command, Is.EqualTo(CommandKind.Tags));
             Assert.That(result.TagMatchPattern, Is.EqualTo("archive/*"));
-            Assert.That(result.HasError, Is.False);
+            Assert.That(result.HasParseError, Is.False);
         });
     }
 
@@ -54,9 +54,9 @@ public class TagsAndBranchesCliTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(result.Tags, Is.True);
+            Assert.That(result.Command, Is.EqualTo(CommandKind.Tags));
             Assert.That(result.TagMatchPattern, Is.EqualTo("v1.*"));
-            Assert.That(result.HasError, Is.False);
+            Assert.That(result.HasParseError, Is.False);
         });
     }
 
@@ -67,7 +67,7 @@ public class TagsAndBranchesCliTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(result.Tags, Is.True);
+            Assert.That(result.Command, Is.EqualTo(CommandKind.Tags));
             Assert.That(result.PathsArgument, Is.EqualTo("/repo/one,/repo/two"));
             Assert.That(result.FilterPattern, Is.EqualTo("repo"));
             Assert.That(result.Minified, Is.True);
@@ -81,7 +81,7 @@ public class TagsAndBranchesCliTests
     {
         var result = CliParser.Parse(["tags", "--help"]);
 
-        Assert.That(result.ExitRequested, Is.True);
+        Assert.That(result.Command, Is.EqualTo(CommandKind.HelpPrinted));
     }
 
     [Test]
@@ -91,11 +91,11 @@ public class TagsAndBranchesCliTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(result.Branches, Is.True);
+            Assert.That(result.Command, Is.EqualTo(CommandKind.Branches));
             Assert.That(result.NotMergedOnly, Is.False);
             Assert.That(result.NotMergedBranch, Is.Null);
-            Assert.That(result.HasError, Is.False);
-            Assert.That(result.ExitRequested, Is.False);
+            Assert.That(result.HasParseError, Is.False);
+            Assert.That(result.Command, Is.Not.EqualTo(CommandKind.HelpPrinted));
         });
     }
 
@@ -106,10 +106,10 @@ public class TagsAndBranchesCliTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(result.Branches, Is.True);
+            Assert.That(result.Command, Is.EqualTo(CommandKind.Branches));
             Assert.That(result.NotMergedOnly, Is.True);
             Assert.That(result.NotMergedBranch, Is.EqualTo("main"));
-            Assert.That(result.HasError, Is.False);
+            Assert.That(result.HasParseError, Is.False);
         });
     }
 
@@ -120,10 +120,10 @@ public class TagsAndBranchesCliTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(result.Branches, Is.True);
+            Assert.That(result.Command, Is.EqualTo(CommandKind.Branches));
             Assert.That(result.NotMergedOnly, Is.True);
             Assert.That(result.NotMergedBranch, Is.EqualTo("develop"));
-            Assert.That(result.HasError, Is.False);
+            Assert.That(result.HasParseError, Is.False);
         });
     }
 
@@ -134,7 +134,7 @@ public class TagsAndBranchesCliTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(result.Branches, Is.True);
+            Assert.That(result.Command, Is.EqualTo(CommandKind.Branches));
             Assert.That(result.PathsArgument, Is.EqualTo("/path/a"));
             Assert.That(result.FilterPattern, Is.EqualTo("alpha"));
             Assert.That(result.Minified, Is.True);
@@ -147,6 +147,6 @@ public class TagsAndBranchesCliTests
     {
         var result = CliParser.Parse(["branches", "-h"]);
 
-        Assert.That(result.ExitRequested, Is.True);
+        Assert.That(result.Command, Is.EqualTo(CommandKind.HelpPrinted));
     }
 }

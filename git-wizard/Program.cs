@@ -1,24 +1,9 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using MFTLib;
 
 namespace GitWizard.CLI;
 
 public static partial class Program
 {
-
-    static readonly JsonSerializerOptions IndentedSweepSerializerOptions = new()
-    {
-        WriteIndented = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-    };
-
-    static readonly JsonSerializerOptions CompactSweepSerializerOptions = new()
-    {
-        WriteIndented = false,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-    };
-
     const string SessionStartMessage = @"Session Start Message
 =======================================================================================================================
 git-wizard Session Started
@@ -36,12 +21,12 @@ git-wizard Session Started
         if (TryHandleElevatedHelperModes(args))
             return;
 
-        var runConfiguration = new RunConfiguration();
+        var runConfiguration = CliParser.ParseProcessArgs(args);
 
         // --help/--version already printed their text via McMaster; stop here rather than
         // falling through to a full report run (they carry no other flags to distinguish
         // them from a bare invocation).
-        if (runConfiguration.ExitRequested)
+        if (runConfiguration.Command == CommandKind.HelpPrinted)
             return;
 
         if (runConfiguration.HasParseError)
@@ -51,13 +36,20 @@ git-wizard Session Started
             return;
         }
 
-        if (await TryHandleIndexCacheStatusAsync(runConfiguration))
-            return;
+        switch (runConfiguration.Command)
+        {
+            case CommandKind.IndexCacheStatus:
+                await RunIndexCacheStatusAsync();
+                return;
+            case CommandKind.ClearIndexCache:
+                await RunIndexCacheClearAsync();
+                return;
+            case CommandKind.DbSize:
+                Console.WriteLine(ByteSizeFormatter.Format(GitWizardApi.GetLocalFilesSize()));
+                return;
+        }
 
-        if (await TryHandleIndexCacheClearAsync(runConfiguration))
-            return;
-
-        if (TryHandleImmediateExitFlags(runConfiguration))
+        if (TryHandleLocalFileFlags(runConfiguration))
             return;
 
         var exitCode = await RunCommandCoreAsync(runConfiguration).ConfigureAwait(false);
@@ -76,28 +68,42 @@ git-wizard Session Started
         stdout ??= Console.Out;
         stderr ??= Console.Error;
 
-        if (runConfiguration.Sweep)
+        switch (runConfiguration.Command)
         {
-            configuration ??= await GetConfigurationAsync(runConfiguration).ConfigureAwait(false);
-            return await RunSweepAsync(runConfiguration, configuration, coordinator, stdout, stderr, cancellationToken).ConfigureAwait(false);
+            case CommandKind.Sweep:
+                configuration ??= await GetConfigurationAsync(runConfiguration).ConfigureAwait(false);
+                return await RunSweepAsync(runConfiguration, configuration, coordinator, stdout, stderr, cancellationToken).ConfigureAwait(false);
+            case CommandKind.Tags:
+                configuration ??= await GetConfigurationAsync(runConfiguration).ConfigureAwait(false);
+                return await RunTagsAsync(runConfiguration, configuration, coordinator, stdout, stderr, cancellationToken).ConfigureAwait(false);
+            case CommandKind.Branches:
+                configuration ??= await GetConfigurationAsync(runConfiguration).ConfigureAwait(false);
+                return await RunBranchesAsync(runConfiguration, configuration, coordinator, stdout, stderr, cancellationToken).ConfigureAwait(false);
+            case CommandKind.Merge:
+                configuration = await PrepareInteractiveRunAsync(runConfiguration, configuration).ConfigureAwait(false);
+                RunMerge(runConfiguration, configuration);
+                return 0;
+            case CommandKind.ScanOnly:
+                configuration = await PrepareInteractiveRunAsync(runConfiguration, configuration).ConfigureAwait(false);
+                return await RunScanOnlyAsync(runConfiguration, configuration, coordinator, stdout, stderr, cancellationToken).ConfigureAwait(false);
+            case CommandKind.Watch:
+                configuration = await PrepareInteractiveRunAsync(runConfiguration, configuration).ConfigureAwait(false);
+                return await RunWatchAsync(runConfiguration, configuration, coordinator, stdout, stderr, cancellationToken).ConfigureAwait(false);
+            case CommandKind.Report:
+                configuration = await PrepareInteractiveRunAsync(runConfiguration, configuration).ConfigureAwait(false);
+                return await RunDefaultReportCoreAsync(runConfiguration, configuration, coordinator, stdout, stderr, cancellationToken).ConfigureAwait(false);
+            default:
+                throw new ArgumentOutOfRangeException(
+                    nameof(runConfiguration), runConfiguration.Command, "This command exits before RunCommandCoreAsync.");
         }
+    }
 
-        if (runConfiguration.Tags)
-        {
-            configuration ??= await GetConfigurationAsync(runConfiguration).ConfigureAwait(false);
-            return await RunTagsAsync(runConfiguration, configuration, coordinator, stdout, stderr, cancellationToken).ConfigureAwait(false);
-        }
-
-        if (runConfiguration.Branches)
-        {
-            configuration ??= await GetConfigurationAsync(runConfiguration).ConfigureAwait(false);
-            return await RunBranchesAsync(runConfiguration, configuration, coordinator, stdout, stderr, cancellationToken).ConfigureAwait(false);
-        }
-
-        if (runConfiguration.ScanOnly)
-        {
+    // The session banner, configuration load and Defender setup shared by the report-style commands.
+    static async Task<GitWizardConfiguration> PrepareInteractiveRunAsync(
+        RunConfiguration runConfiguration, GitWizardConfiguration? configuration)
+    {
+        if (runConfiguration.Command == CommandKind.ScanOnly)
             GitWizardLog.LogMethod = Console.Error.WriteLine;
-        }
 
         GitWizardLog.Log(SessionStartMessage);
         configuration ??= await GetConfigurationAsync(runConfiguration).ConfigureAwait(false);
@@ -108,26 +114,8 @@ git-wizard Session Started
             WindowsDefender.AddExclusions();
         }
 
-        if (runConfiguration.Merge)
-        {
-            RunMerge(runConfiguration, configuration);
-            return 0;
-        }
-
-        if (runConfiguration.ScanOnly)
-        {
-            return await RunScanOnlyAsync(runConfiguration, configuration, coordinator, stdout, stderr, cancellationToken).ConfigureAwait(false);
-        }
-
-        if (runConfiguration.Watch)
-        {
-            return await RunWatchAsync(runConfiguration, configuration, coordinator, stdout, stderr, cancellationToken).ConfigureAwait(false);
-        }
-
-        return await RunDefaultReportCoreAsync(runConfiguration, configuration, coordinator, stdout, stderr, cancellationToken).ConfigureAwait(false);
+        return configuration;
     }
-
-
 
     // Handle elevated helper modes (launched by self-elevation). Returns true if one of the
     // helper-mode args was found and handled, meaning the caller should return immediately.
@@ -140,13 +128,8 @@ git-wizard Session Started
         return true;
     }
 
-    static async Task<bool> TryHandleIndexCacheClearAsync(RunConfiguration runConfiguration)
+    static async Task RunIndexCacheClearAsync()
     {
-        if (!runConfiguration.ClearIndexCache)
-        {
-            return false;
-        }
-
         var result = MftIndexCacheMaintenance.Clear(GitWizardApi.GetLocalFilesPath());
         Console.WriteLine(result.ToClearText());
         if (!result.Succeeded)
@@ -155,21 +138,13 @@ git-wizard Session Started
         }
 
         Environment.Exit(result.Succeeded ? 0 : 1);
-        return true;
     }
 
-    // Handle the flags that resolve to an immediate exit before any report is generated
-    // (--db-size, --delete-all-local-files, --clear-cache). Returns true if Main should return
-    // immediately; false if execution should continue into report generation.
-    static bool TryHandleImmediateExitFlags(RunConfiguration runConfiguration)
+    // Handle the flags that delete local files before any report is generated
+    // (--delete-all-local-files, --clear-cache). Returns true if Main should return
+    // immediately; false if execution should continue into the command.
+    static bool TryHandleLocalFileFlags(RunConfiguration runConfiguration)
     {
-        if (runConfiguration.DbSize)
-        {
-            var sizeBytes = GitWizardApi.GetLocalFilesSize();
-            Console.WriteLine(ByteSizeFormatter.Format(sizeBytes));
-            Environment.Exit(0);
-        }
-
         if (runConfiguration.DeleteAllLocalFiles)
         {
             // A refusal is a command failure, so it is printed even under --silent.

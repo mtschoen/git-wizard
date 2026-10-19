@@ -4,12 +4,12 @@ using GitWizard.CLI;
 namespace GitWizardTests;
 
 /// <summary>
-/// Coverage-boost tests for <see cref="Program.RunConfiguration"/>: default values,
+/// Coverage-boost tests for <see cref="RunConfiguration"/>: default values,
 /// individual flag parsing, parameterized arguments, and flag combinations.
 /// </summary>
 public class CoverageBoostRunConfigurationTests
 {
-    static RunConfigurationResult Parse(params string[] args) => CliParser.Parse(args);
+    static RunConfiguration Parse(params string[] args) => CliParser.Parse(args);
 
     bool _originalVerboseMode;
     bool _originalSilentMode;
@@ -44,15 +44,15 @@ public class CoverageBoostRunConfigurationTests
             Assert.That(parsed.ClearCache, Is.False);
             Assert.That(parsed.DeleteAllLocalFiles, Is.False);
             Assert.That(parsed.SetupDefender, Is.False);
-            Assert.That(parsed.ScanOnly, Is.False);
+            Assert.That(parsed.Command, Is.Not.EqualTo(CommandKind.ScanOnly));
             Assert.That(parsed.NoMft, Is.False);
             Assert.That(parsed.Summary, Is.False);
-            Assert.That(parsed.Merge, Is.False);
+            Assert.That(parsed.Command, Is.Not.EqualTo(CommandKind.Merge));
             Assert.That(parsed.RefreshReport, Is.True); // default is true
             Assert.That(parsed.Minified, Is.False);
-            Assert.That(parsed.DbSize, Is.False);
+            Assert.That(parsed.Command, Is.Not.EqualTo(CommandKind.DbSize));
             Assert.That(parsed.AllBranches, Is.False);
-            Assert.That(parsed.Watch, Is.False);
+            Assert.That(parsed.Command, Is.Not.EqualTo(CommandKind.Watch));
             Assert.That(parsed.FilterPattern, Is.Null);
             Assert.That(parsed.PathsArgument, Is.Null);
             Assert.That(parsed.SavePath, Is.Null);
@@ -140,7 +140,6 @@ public class CoverageBoostRunConfigurationTests
         var parsed = Parse("--scan-only");
         Assert.Multiple(() =>
         {
-            Assert.That(parsed.ScanOnly, Is.True);
             Assert.That(parsed.RebuildRepositoryList, Is.True);
         });
     }
@@ -163,7 +162,7 @@ public class CoverageBoostRunConfigurationTests
     public void ParseCommandLine_Merge_SetsMerge()
     {
         var parsed = Parse("--merge");
-        Assert.That(parsed.Merge, Is.True);
+        Assert.That(parsed.Command, Is.EqualTo(CommandKind.Merge));
     }
 
     [Test]
@@ -191,7 +190,7 @@ public class CoverageBoostRunConfigurationTests
     public void ParseCommandLine_DbSize_SetsDbSize()
     {
         var parsed = Parse("--db-size");
-        Assert.That(parsed.DbSize, Is.True);
+        Assert.That(parsed.Command, Is.EqualTo(CommandKind.DbSize));
     }
 
     [Test]
@@ -205,7 +204,7 @@ public class CoverageBoostRunConfigurationTests
     public void ParseCommandLine_Watch_SetsWatch()
     {
         var parsed = Parse("--watch");
-        Assert.That(parsed.Watch, Is.True);
+        Assert.That(parsed.Command, Is.EqualTo(CommandKind.Watch));
     }
 
     [Test]
@@ -256,7 +255,7 @@ public class CoverageBoostRunConfigurationTests
         Assert.Multiple(() =>
         {
             Assert.That(parsed.SavePath, Is.Null);
-            Assert.That(parsed.HasError, Is.True);
+            Assert.That(parsed.HasParseError, Is.True);
         });
     }
 
@@ -309,14 +308,13 @@ public class CoverageBoostRunConfigurationTests
         var parsed = Parse("--merge", "--paths", "C:/repo", "--save-path", "out.json");
         Assert.Multiple(() =>
         {
-            Assert.That(parsed.Merge, Is.True);
             Assert.That(parsed.PathsArgument, Is.EqualTo("C:/repo"));
             Assert.That(parsed.SavePath, Is.EqualTo("out.json"));
         });
     }
 
     [Test]
-    public void ParseCommandLine_AllBooleanFlagsAtOnce_AllTrue()
+    public void ParseCommandLine_AllBooleanFlagsAtOnce_KeepsEveryFlagAndTheFirstCommand()
     {
         var parsed = Parse(
             "--rebuild-report", "--rebuild-repo-list", "--clear-cache",
@@ -331,16 +329,13 @@ public class CoverageBoostRunConfigurationTests
             Assert.That(parsed.ClearCache, Is.True);
             Assert.That(parsed.DeleteAllLocalFiles, Is.True);
             Assert.That(parsed.SetupDefender, Is.True);
-            Assert.That(parsed.ScanOnly, Is.True);
             Assert.That(parsed.NoMft, Is.True);
             Assert.That(parsed.NoLocalCommitCount, Is.True);
             Assert.That(parsed.Summary, Is.True);
-            Assert.That(parsed.Merge, Is.True);
             Assert.That(parsed.RefreshReport, Is.False);
             Assert.That(parsed.Minified, Is.True);
-            Assert.That(parsed.DbSize, Is.True);
+            Assert.That(parsed.Command, Is.EqualTo(CommandKind.DbSize));
             Assert.That(parsed.AllBranches, Is.True);
-            Assert.That(parsed.Watch, Is.True);
         });
     }
 }

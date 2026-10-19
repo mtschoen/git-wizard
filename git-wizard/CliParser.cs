@@ -12,10 +12,10 @@ static partial class CliParser
     /// which expects a program-name-excluded argument array (the same contract as
     /// <c>Main(string[] args)</c>).
     /// </summary>
-    internal static RunConfigurationResult ParseProcessArgs(string[] processArgs) =>
+    internal static RunConfiguration ParseProcessArgs(string[] processArgs) =>
         Parse(processArgs.Length > 0 ? processArgs[1..] : processArgs);
 
-    public static RunConfigurationResult Parse(string[] args)
+    public static RunConfiguration Parse(string[] args)
     {
         using var app = new CommandLineApplication();
         app.Name = "git-wizard";
@@ -25,20 +25,19 @@ static partial class CliParser
         var versionOption = app.VersionOption("--version", "0.4.1");
 
         var rootOptions = SetupOptions(app);
-        RunConfigurationResult? lastResult = null;
-
-        var (tagsHelpOption, executeTags) = SetupTagsCommand(app, result => lastResult = result);
-        var (branchesHelpOption, executeBranches) = SetupBranchesCommand(app, result => lastResult = result);
+        var tagsCommand = SetupTagsCommand(app);
+        var branchesCommand = SetupBranchesCommand(app);
+        RunConfiguration? parsed = null;
 
         try
         {
             var parseResult = app.Parse(args);
             if (parseResult.SelectedCommand == app)
-                lastResult = ExecuteHandler(rootOptions);
-            else if (parseResult.SelectedCommand.Name == "tags")
-                executeTags();
-            else if (parseResult.SelectedCommand.Name == "branches")
-                executeBranches();
+                parsed = ExecuteHandler(rootOptions);
+            else if (parseResult.SelectedCommand == tagsCommand.Application)
+                parsed = tagsCommand.Build();
+            else if (parseResult.SelectedCommand == branchesCommand.Application)
+                parsed = branchesCommand.Build();
         }
         catch (CommandParsingException ex)
         {
@@ -48,16 +47,16 @@ static partial class CliParser
             // Unknown/unrecognized flags are surfaced as a parse error so that
             // stale callers fail loudly (exit 2) instead of silently running with
             // defaults - important during the CLI flag migration.
-            return CreateDefaultResult() with { HasError = true };
+            return new RunConfiguration { HasParseError = true };
         }
 
         // McMaster prints the help/version text itself and skips OnExecute, but that leaves
         // no signal in the returned result - without this, the caller can't tell "--help" or
         // "--version" apart from "no args at all" and falls through to a full run.
-        if (helpOption.HasValue() || versionOption.HasValue() || tagsHelpOption?.HasValue() == true || branchesHelpOption?.HasValue() == true)
-            return CreateDefaultResult() with { ExitRequested = true };
+        if (helpOption.HasValue() || versionOption.HasValue() || tagsCommand.HelpOption.HasValue() || branchesCommand.HelpOption.HasValue())
+            return new RunConfiguration { Command = CommandKind.HelpPrinted };
 
-        return lastResult ?? CreateDefaultResult();
+        return parsed ?? new RunConfiguration();
     }
 
     sealed record RootOptions(
@@ -150,7 +149,7 @@ static partial class CliParser
             configPathOption);
     }
 
-    static RunConfigurationResult ExecuteHandler(RootOptions options)
+    static RunConfiguration ExecuteHandler(RootOptions options)
     {
         var hasError = false;
 
@@ -183,33 +182,49 @@ static partial class CliParser
             hasError = true;
         }
 
-        return new RunConfigurationResult(
-            rebuildRepoList,
-            rebuildReport,
-            options.ClearCache.HasValue(),
-            options.DeleteAllLocalFiles.HasValue(),
-            options.SetupDefender.HasValue(),
-            scanOnly,
-            options.NoMft.HasValue(),
-            filterValue,
-            pathsValue,
-            options.Summary.HasValue(),
-            options.Sweep.HasValue(),
-            options.Merge.HasValue(),
-            !options.NoRefresh.HasValue(),
-            options.PrintMinified.HasValue(),
-            savePath,
-            configPath,
-            options.DbSize.HasValue(),
-            options.AllBranches.HasValue(),
-            options.Watch.HasValue(),
-            options.NoLocalCommitCount.HasValue(),
-            hasError)
+        return new RunConfiguration
         {
-            ClearIndexCache = options.ClearIndexCache.HasValue(),
-            IndexCacheStatus = options.IndexCacheStatus.HasValue(),
+            Command = ResolveCommand(options),
+            RebuildRepositoryList = rebuildRepoList,
+            RebuildReport = rebuildReport,
+            ClearCache = options.ClearCache.HasValue(),
+            DeleteAllLocalFiles = options.DeleteAllLocalFiles.HasValue(),
+            SetupDefender = options.SetupDefender.HasValue(),
+            NoMft = options.NoMft.HasValue(),
+            FilterPattern = filterValue,
+            PathsArgument = pathsValue,
+            Summary = options.Summary.HasValue(),
+            RefreshReport = !options.NoRefresh.HasValue(),
+            Minified = options.PrintMinified.HasValue(),
+            SavePath = savePath,
+            CustomConfigurationPath = configPath,
+            AllBranches = options.AllBranches.HasValue(),
+            NoLocalCommitCount = options.NoLocalCommitCount.HasValue(),
+            HasParseError = hasError,
             Silent = options.Silent.HasValue()
         };
+    }
+
+    // The order is the order Program runs the commands in, so a command line that names several
+    // modes keeps the one that used to win.
+    static CommandKind ResolveCommand(RootOptions options)
+    {
+        if (options.IndexCacheStatus.HasValue())
+            return CommandKind.IndexCacheStatus;
+        if (options.ClearIndexCache.HasValue())
+            return CommandKind.ClearIndexCache;
+        if (options.DbSize.HasValue())
+            return CommandKind.DbSize;
+        if (options.Sweep.HasValue())
+            return CommandKind.Sweep;
+        if (options.Merge.HasValue())
+            return CommandKind.Merge;
+        if (options.ScanOnly.HasValue())
+            return CommandKind.ScanOnly;
+        if (options.Watch.HasValue())
+            return CommandKind.Watch;
+
+        return CommandKind.Report;
     }
 
     static string? GetLastValue(CommandOption opt)
@@ -245,9 +260,4 @@ static partial class CliParser
             }
         }
     }
-
-    static RunConfigurationResult CreateDefaultResult() =>
-        new(
-            false, false, false, false, false, false, false, null, null,
-            false, false, false, true, false, null, null, false, false, false, false, false);
 }

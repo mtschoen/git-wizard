@@ -144,7 +144,7 @@ public class ReportPublicationTests
         if (minified) args.Add("--minified");
         if (silent) args.Add("--silent");
 
-        var runConfig = new Program.RunConfiguration(CliParser.Parse(args.ToArray()));
+        var runConfig = CliParser.Parse(args.ToArray());
         var gitWizardConfig = new GitWizardConfiguration
         {
             SearchPaths = { files.TreePath, dRoot }
@@ -186,7 +186,7 @@ public class ReportPublicationTests
         var (cachedReportPath, _) = SeedCachedReport();
         var customSavePath = Path.Combine(files.DirectoryPath, "empty-save.json");
 
-        var runConfig = new Program.RunConfiguration(CliParser.Parse(["--rebuild-report", "--save-path", customSavePath]));
+        var runConfig = CliParser.Parse(["--rebuild-report", "--save-path", customSavePath]);
         var gitWizardConfig = new GitWizardConfiguration
         {
             SearchPaths = { files.TreePath, dRoot }
@@ -249,7 +249,7 @@ public class ReportPublicationTests
             await File.WriteAllTextAsync(Path.Combine(tempDir, "uncommitted.txt"), "pending changes");
 
             var customSavePath = Path.Combine(tempDir, "explicit-report.json");
-            var runConfig = new Program.RunConfiguration(CliParser.Parse(["--paths", tempDir, "--save-path", customSavePath]));
+            var runConfig = CliParser.Parse(["--paths", tempDir, "--save-path", customSavePath]);
             var gitWizardConfig = new GitWizardConfiguration();
 
             using var stdout = new StringWriter();

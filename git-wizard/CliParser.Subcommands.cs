@@ -5,144 +5,94 @@ using McMaster.Extensions.CommandLineUtils;
 
 static partial class CliParser
 {
-    static (CommandOption? HelpOption, Action Execute) SetupTagsCommand(CommandLineApplication app, Action<RunConfigurationResult> onExecute)
+    /// <summary>
+    /// A registered subcommand: its application (to recognize it as the selected command), its
+    /// help option, and the builder that turns the parsed options into a configuration.
+    /// </summary>
+    sealed record SubcommandHandle(
+        CommandLineApplication Application,
+        CommandOption HelpOption,
+        Func<RunConfiguration> Build);
+
+    /// <summary>
+    /// The options every inventory subcommand shares, registered after the subcommand's own
+    /// options so help output lists them last.
+    /// </summary>
+    sealed record InventoryOptions(
+        CommandOption Paths,
+        CommandOption Filter,
+        CommandOption SavePath,
+        CommandOption ConfigPath,
+        CommandOption PrintMinified,
+        CommandOption NoMft,
+        CommandOption Verbose,
+        CommandOption Silent,
+        CommandOption Help);
+
+    static SubcommandHandle SetupTagsCommand(CommandLineApplication app)
     {
-        CommandOption? tagsHelpOption = null;
-        Action execute = () => { };
-        app.Command("tags", tagsApp =>
-        {
-            tagsApp.Description = "Scan all clones for tags matching a pattern and report whether they exist on remotes.";
-            var matchOption = tagsApp.Option("-m|--match <PATTERN>", "Glob pattern to match tag names against (e.g. 'archive/*')", CommandOptionType.SingleValue);
-            var pathsOption = tagsApp.Option("-p|--paths <PATHS>", "Report on specific repo paths (newline-separated file or comma-separated list)", CommandOptionType.MultipleValue);
-            var filterOption = tagsApp.Option("-f|--filter <PATTERN>", "Filter output to repositories whose path contains <PATTERN> (case-insensitive)", CommandOptionType.MultipleValue);
-            var savePathOption = tagsApp.Option("--save-path <PATH>", "Path where the report will be saved to disk", CommandOptionType.MultipleValue);
-            var configPathOption = tagsApp.Option("--config-path <PATH>", "Path to custom configuration file", CommandOptionType.MultipleValue);
-            var printMinifiedOption = tagsApp.Option("--print-minified", "Print the output as minified JSON", CommandOptionType.NoValue);
-            var noMftOption = tagsApp.Option("--no-mft", "Use explicit recursive directory discovery instead of MFT index search (for users unable to accept the UAC elevation prompt); does not promise an unelevated NTFS journal watch", CommandOptionType.NoValue);
-            var verboseOption = tagsApp.Option("-v|--verbose", "Enable verbose logging.", CommandOptionType.NoValue);
-            var silentOption = tagsApp.Option("-s|--silent", "Do not print to the console", CommandOptionType.NoValue);
-            tagsHelpOption = tagsApp.HelpOption("-h|-?|--help");
+        var tagsApp = app.Command("tags", _ => { });
+        tagsApp.Description = "Scan all clones for tags matching a pattern and report whether they exist on remotes.";
+        var matchOption = tagsApp.Option("-m|--match <PATTERN>", "Glob pattern to match tag names against (e.g. 'archive/*')", CommandOptionType.SingleValue);
+        var inventoryOptions = AddInventoryOptions(tagsApp);
 
-            execute = () =>
+        return new SubcommandHandle(tagsApp, inventoryOptions.Help, () =>
+            BuildInventoryConfiguration(inventoryOptions, CommandKind.Tags) with
             {
-                var hasError = false;
-                GitWizardLog.VerboseMode = verboseOption.HasValue();
-                GitWizardLog.SilentMode = silentOption.HasValue();
-
-                var savePath = GetLastValue(savePathOption);
-                var configPath = GetLastValue(configPathOption);
-                var filterValue = GetLastValue(filterOption);
-                var pathsValue = GetLastValue(pathsOption);
-                var matchValue = matchOption.Value() ?? "*";
-
-                ValidateSavePath(ref savePath, ref hasError);
-                ValidateConfigPath(ref configPath, ref hasError);
-
-                onExecute(new RunConfigurationResult(
-                    RebuildRepositoryList: false,
-                    RebuildReport: false,
-                    ClearCache: false,
-                    DeleteAllLocalFiles: false,
-                    SetupDefender: false,
-                    ScanOnly: false,
-                    NoMft: noMftOption.HasValue(),
-                    FilterPattern: filterValue,
-                    PathsArgument: pathsValue,
-                    Summary: false,
-                    Sweep: false,
-                    Merge: false,
-                    RefreshReport: false,
-                    Minified: printMinifiedOption.HasValue(),
-                    SavePath: savePath,
-                    CustomConfigurationPath: configPath,
-                    DbSize: false,
-                    AllBranches: false,
-                    Watch: false,
-                    NoLocalCommitCount: false,
-                    HasError: hasError)
-                {
-                    Tags = true,
-                    TagMatchPattern = matchValue,
-                    Silent = silentOption.HasValue()
-                });
-            };
-            tagsApp.OnExecute(() => execute());
-        });
-
-        return (tagsHelpOption, execute);
+                TagMatchPattern = matchOption.Value() ?? "*"
+            });
     }
 
-    static (CommandOption? HelpOption, Action Execute) SetupBranchesCommand(CommandLineApplication app, Action<RunConfigurationResult> onExecute)
+    static SubcommandHandle SetupBranchesCommand(CommandLineApplication app)
     {
-        CommandOption? branchesHelpOption = null;
-        Action execute = () => { };
-        app.Command("branches", branchesApp =>
-        {
-            branchesApp.Description = "Scan all clones for local branches and report upstream divergence and unique commit counts.";
-            var notMergedOption = branchesApp.Option("--not-merged <BRANCH>", "Filter to branches not merged into <BRANCH> (defaults to the repo's default branch)", CommandOptionType.SingleValue);
-            var notOption = branchesApp.Option("--not <BRANCH>", "Alias for --not-merged <BRANCH>", CommandOptionType.SingleValue);
-            var pathsOption = branchesApp.Option("-p|--paths <PATHS>", "Report on specific repo paths (newline-separated file or comma-separated list)", CommandOptionType.MultipleValue);
-            var filterOption = branchesApp.Option("-f|--filter <PATTERN>", "Filter output to repositories whose path contains <PATTERN> (case-insensitive)", CommandOptionType.MultipleValue);
-            var savePathOption = branchesApp.Option("--save-path <PATH>", "Path where the report will be saved to disk", CommandOptionType.MultipleValue);
-            var configPathOption = branchesApp.Option("--config-path <PATH>", "Path to custom configuration file", CommandOptionType.MultipleValue);
-            var printMinifiedOption = branchesApp.Option("--print-minified", "Print the output as minified JSON", CommandOptionType.NoValue);
-            var noMftOption = branchesApp.Option("--no-mft", "Use explicit recursive directory discovery instead of MFT index search (for users unable to accept the UAC elevation prompt); does not promise an unelevated NTFS journal watch", CommandOptionType.NoValue);
-            var verboseOption = branchesApp.Option("-v|--verbose", "Enable verbose logging.", CommandOptionType.NoValue);
-            var silentOption = branchesApp.Option("-s|--silent", "Do not print to the console", CommandOptionType.NoValue);
-            branchesHelpOption = branchesApp.HelpOption("-h|-?|--help");
+        var branchesApp = app.Command("branches", _ => { });
+        branchesApp.Description = "Scan all clones for local branches and report upstream divergence and unique commit counts.";
+        var notMergedOption = branchesApp.Option("--not-merged <BRANCH>", "Filter to branches not merged into <BRANCH> (defaults to the repo's default branch)", CommandOptionType.SingleValue);
+        var notOption = branchesApp.Option("--not <BRANCH>", "Alias for --not-merged <BRANCH>", CommandOptionType.SingleValue);
+        var inventoryOptions = AddInventoryOptions(branchesApp);
 
-            execute = () =>
+        return new SubcommandHandle(branchesApp, inventoryOptions.Help, () =>
+            BuildInventoryConfiguration(inventoryOptions, CommandKind.Branches) with
             {
-                var hasError = false;
-                GitWizardLog.VerboseMode = verboseOption.HasValue();
-                GitWizardLog.SilentMode = silentOption.HasValue();
+                NotMergedBranch = notMergedOption.Value() ?? notOption.Value(),
+                NotMergedOnly = notMergedOption.HasValue() || notOption.HasValue()
+            });
+    }
 
-                var savePath = GetLastValue(savePathOption);
-                var configPath = GetLastValue(configPathOption);
-                var filterValue = GetLastValue(filterOption);
-                var pathsValue = GetLastValue(pathsOption);
+    static InventoryOptions AddInventoryOptions(CommandLineApplication subcommand) => new(
+        Paths: subcommand.Option("-p|--paths <PATHS>", "Report on specific repo paths (newline-separated file or comma-separated list)", CommandOptionType.MultipleValue),
+        Filter: subcommand.Option("-f|--filter <PATTERN>", "Filter output to repositories whose path contains <PATTERN> (case-insensitive)", CommandOptionType.MultipleValue),
+        SavePath: subcommand.Option("--save-path <PATH>", "Path where the report will be saved to disk", CommandOptionType.MultipleValue),
+        ConfigPath: subcommand.Option("--config-path <PATH>", "Path to custom configuration file", CommandOptionType.MultipleValue),
+        PrintMinified: subcommand.Option("--print-minified", "Print the output as minified JSON", CommandOptionType.NoValue),
+        NoMft: subcommand.Option("--no-mft", "Use explicit recursive directory discovery instead of MFT index search (for users unable to accept the UAC elevation prompt); does not promise an unelevated NTFS journal watch", CommandOptionType.NoValue),
+        Verbose: subcommand.Option("-v|--verbose", "Enable verbose logging.", CommandOptionType.NoValue),
+        Silent: subcommand.Option("-s|--silent", "Do not print to the console", CommandOptionType.NoValue),
+        Help: subcommand.HelpOption("-h|-?|--help"));
 
-                var notMergedHasValue = notMergedOption.HasValue();
-                var notHasValue = notOption.HasValue();
-                var notMergedOnly = notMergedHasValue || notHasValue;
+    static RunConfiguration BuildInventoryConfiguration(InventoryOptions options, CommandKind command)
+    {
+        var hasError = false;
+        GitWizardLog.VerboseMode = options.Verbose.HasValue();
+        GitWizardLog.SilentMode = options.Silent.HasValue();
 
-                var baseBranch = notMergedOption.Value() ?? notOption.Value();
+        var savePath = GetLastValue(options.SavePath);
+        var configPath = GetLastValue(options.ConfigPath);
+        ValidateSavePath(ref savePath, ref hasError);
+        ValidateConfigPath(ref configPath, ref hasError);
 
-                ValidateSavePath(ref savePath, ref hasError);
-                ValidateConfigPath(ref configPath, ref hasError);
-
-                onExecute(new RunConfigurationResult(
-                    RebuildRepositoryList: false,
-                    RebuildReport: false,
-                    ClearCache: false,
-                    DeleteAllLocalFiles: false,
-                    SetupDefender: false,
-                    ScanOnly: false,
-                    NoMft: noMftOption.HasValue(),
-                    FilterPattern: filterValue,
-                    PathsArgument: pathsValue,
-                    Summary: false,
-                    Sweep: false,
-                    Merge: false,
-                    RefreshReport: false,
-                    Minified: printMinifiedOption.HasValue(),
-                    SavePath: savePath,
-                    CustomConfigurationPath: configPath,
-                    DbSize: false,
-                    AllBranches: false,
-                    Watch: false,
-                    NoLocalCommitCount: false,
-                    HasError: hasError)
-                {
-                    Branches = true,
-                    NotMergedBranch = baseBranch,
-                    NotMergedOnly = notMergedOnly,
-                    Silent = silentOption.HasValue()
-                });
-            };
-            branchesApp.OnExecute(() => execute());
-        });
-
-        return (branchesHelpOption, execute);
+        return new RunConfiguration
+        {
+            Command = command,
+            NoMft = options.NoMft.HasValue(),
+            FilterPattern = GetLastValue(options.Filter),
+            PathsArgument = GetLastValue(options.Paths),
+            RefreshReport = false,
+            Minified = options.PrintMinified.HasValue(),
+            SavePath = savePath,
+            CustomConfigurationPath = configPath,
+            HasParseError = hasError,
+            Silent = options.Silent.HasValue()
+        };
     }
 }

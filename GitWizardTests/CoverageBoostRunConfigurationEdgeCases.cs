@@ -4,12 +4,12 @@ using GitWizard.CLI;
 namespace GitWizardTests;
 
 /// <summary>
-/// Coverage-boost tests for <see cref="Program.RunConfiguration"/>: edge cases,
+/// Coverage-boost tests for <see cref="RunConfiguration"/>: edge cases,
 /// path validation, and additional flag combination tests.
 /// </summary>
 public class CoverageBoostRunConfigurationEdgeCases
 {
-    static RunConfigurationResult Parse(params string[] args) => CliParser.Parse(args);
+    static RunConfiguration Parse(params string[] args) => CliParser.Parse(args);
 
     bool _originalVerboseMode;
     bool _originalSilentMode;
@@ -105,7 +105,7 @@ public class CoverageBoostRunConfigurationEdgeCases
             // Missing value for a string option triggers CommandParsingException,
             // which now surfaces as a parse error (non-zero exit) rather than
             // silently falling through to defaults.
-            Assert.That(parsed.HasError, Is.True);
+            Assert.That(parsed.HasParseError, Is.True);
         });
     }
 
@@ -160,7 +160,7 @@ public class CoverageBoostRunConfigurationEdgeCases
     {
         var parsed = Parse("--save-path", @"/nonexistent/path/to/output.json");
         Assert.That(parsed.SavePath, Is.Null);
-        Assert.That(parsed.HasError, Is.True);
+        Assert.That(parsed.HasParseError, Is.True);
     }
 
     [Test]
@@ -182,7 +182,7 @@ public class CoverageBoostRunConfigurationEdgeCases
     {
         var parsed = Parse("--config-path", "/nonexistent/path/to/config.json");
         Assert.That(parsed.CustomConfigurationPath, Is.Null);
-        Assert.That(parsed.HasError, Is.True);
+        Assert.That(parsed.HasParseError, Is.True);
     }
 
     [Test]
@@ -199,7 +199,7 @@ public class CoverageBoostRunConfigurationEdgeCases
             {
                 Assert.That(parsed.CustomConfigurationPath, Is.EqualTo(configFile));
                 Assert.That(parsed.Summary, Is.True);
-                Assert.That(parsed.HasError, Is.False);
+                Assert.That(parsed.HasParseError, Is.False);
             });
         }
         finally { cleanup(); }
@@ -213,7 +213,7 @@ public class CoverageBoostRunConfigurationEdgeCases
         {
             Assert.That(parsed.SavePath, Is.Null);
             Assert.That(parsed.CustomConfigurationPath, Is.Null);
-            Assert.That(parsed.HasError, Is.True);
+            Assert.That(parsed.HasParseError, Is.True);
         });
     }
 
@@ -222,9 +222,9 @@ public class CoverageBoostRunConfigurationEdgeCases
     // ---------------------------------------------------------------
 
     [Test]
-    public void RunConfiguration_DefaultConstructor_DoesNotThrow()
+    public void RunConfiguration_DefaultInstance_IsAReport()
     {
-        Assert.DoesNotThrow(() => _ = new Program.RunConfiguration());
+        Assert.That(new RunConfiguration().Command, Is.EqualTo(CommandKind.Report));
     }
 
     [Test]
@@ -248,7 +248,7 @@ public class CoverageBoostRunConfigurationEdgeCases
         var parsed = Parse("--scan-only", "--filter", "my-proj");
         Assert.Multiple(() =>
         {
-            Assert.That(parsed.ScanOnly, Is.True);
+            Assert.That(parsed.Command, Is.EqualTo(CommandKind.ScanOnly));
             Assert.That(parsed.RebuildRepositoryList, Is.True);
             Assert.That(parsed.FilterPattern, Is.EqualTo("my-proj"));
         });
@@ -260,7 +260,7 @@ public class CoverageBoostRunConfigurationEdgeCases
         var parsed = Parse("--watch", "--no-mft");
         Assert.Multiple(() =>
         {
-            Assert.That(parsed.Watch, Is.True);
+            Assert.That(parsed.Command, Is.EqualTo(CommandKind.Watch));
             Assert.That(parsed.NoMft, Is.True);
         });
     }
@@ -272,7 +272,7 @@ public class CoverageBoostRunConfigurationEdgeCases
         var parsed = Parse("--db-size", "--silent");
         Assert.Multiple(() =>
         {
-            Assert.That(parsed.DbSize, Is.True);
+            Assert.That(parsed.Command, Is.EqualTo(CommandKind.DbSize));
             Assert.That(GitWizardLog.SilentMode, Is.True);
         });
     }
@@ -293,7 +293,7 @@ public class CoverageBoostRunConfigurationEdgeCases
     {
         var parsed = Parse("--sweep");
 
-        Assert.That(parsed.Sweep, Is.True);
+        Assert.That(parsed.Command, Is.EqualTo(CommandKind.Sweep));
     }
 
     [Test]
@@ -357,21 +357,21 @@ public class CoverageBoostRunConfigurationEdgeCases
     public void ParseCommandLine_Help_SetsExitRequested()
     {
         var parsed = Parse("--help");
-        Assert.That(parsed.ExitRequested, Is.True);
+        Assert.That(parsed.Command, Is.EqualTo(CommandKind.HelpPrinted));
     }
 
     [Test]
     public void ParseCommandLine_Version_SetsExitRequested()
     {
         var parsed = Parse("--version");
-        Assert.That(parsed.ExitRequested, Is.True);
+        Assert.That(parsed.Command, Is.EqualTo(CommandKind.HelpPrinted));
     }
 
     [Test]
     public void ParseCommandLine_NoHelpOrVersion_ExitRequestedIsFalse()
     {
         var parsed = Parse("--summary");
-        Assert.That(parsed.ExitRequested, Is.False);
+        Assert.That(parsed.Command, Is.Not.EqualTo(CommandKind.HelpPrinted));
     }
 
     // ---------------------------------------------------------------
@@ -384,8 +384,8 @@ public class CoverageBoostRunConfigurationEdgeCases
         var parsed = Parse("--bogus-flag");
         Assert.Multiple(() =>
         {
-            Assert.That(parsed.HasError, Is.True);
-            Assert.That(parsed.ExitRequested, Is.False);
+            Assert.That(parsed.HasParseError, Is.True);
+            Assert.That(parsed.Command, Is.Not.EqualTo(CommandKind.HelpPrinted));
         });
     }
 
@@ -398,8 +398,8 @@ public class CoverageBoostRunConfigurationEdgeCases
         var parsed = Parse("-save-path");
         Assert.Multiple(() =>
         {
-            Assert.That(parsed.HasError, Is.True);
-            Assert.That(parsed.ExitRequested, Is.False);
+            Assert.That(parsed.HasParseError, Is.True);
+            Assert.That(parsed.Command, Is.Not.EqualTo(CommandKind.HelpPrinted));
         });
     }
 
@@ -409,8 +409,8 @@ public class CoverageBoostRunConfigurationEdgeCases
         var parsed = Parse("--unknown-flag", "-v");
         Assert.Multiple(() =>
         {
-            Assert.That(parsed.HasError, Is.True);
-            Assert.That(parsed.ExitRequested, Is.False);
+            Assert.That(parsed.HasParseError, Is.True);
+            Assert.That(parsed.Command, Is.Not.EqualTo(CommandKind.HelpPrinted));
         });
     }
 

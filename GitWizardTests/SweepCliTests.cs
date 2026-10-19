@@ -41,7 +41,7 @@ public class SweepCliTests
             SearchPaths = { searchPath },
             IncludeTempDirectories = true
         };
-        var runConfiguration = new Program.RunConfiguration(CliParser.Parse(["--sweep", "--no-mft"]));
+        var runConfiguration = CliParser.Parse(["--sweep", "--no-mft"]);
         using var stdout = new StringWriter();
         using var stderr = new StringWriter();
 

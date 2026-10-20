@@ -60,14 +60,33 @@
     .\scripts\ui-live-timing.ps1 -Kind warm -UiExe .\GitWizardUI\bin\Release\net10.0\GitWizardUI.exe -CliExe .\git-wizard\bin\Release\net10.0\git-wizard.exe
 #>
 
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName = 'Execute')]
 param(
-    [Parameter(Mandatory)] [ValidateSet('cold', 'warm')] [string] $Kind,
-    [Parameter(Mandatory)] [string] $UiExe,
-    [Parameter(Mandatory)] [string] $CliExe,
-    [int] $StartupTimeoutSeconds = 600
+    [Parameter(Mandatory, ParameterSetName = 'Execute')]
+    [ValidateSet('cold', 'warm')][string]$Kind,
+    [Parameter(Mandatory, ParameterSetName = 'Execute')][string]$UiExe,
+    [Parameter(Mandatory, ParameterSetName = 'Execute')][string]$CliExe,
+    [int]$StartupTimeoutSeconds = 600,
+    [Parameter(Mandatory, ParameterSetName = 'FunctionsOnly')][switch]$FunctionsOnly
 )
 $ErrorActionPreference = 'Stop'
+
+function Get-ReadinessLayout {
+    param([AllowEmptyCollection()][object[]]$Elements, [double]$Left, [double]$Right)
+    foreach ($element in $Elements) {
+        if ($element.Name -notmatch '^(Ready \(|[A-Z]: (catching up|caught up))') { continue }
+        [pscustomobject]@{
+            Name = $element.Name
+            X = $element.X
+            Y = $element.Y
+            Right = $element.Right
+            Width = $element.Width
+            Inside = ($element.Right -le $Right) -and ($element.X -ge $Left)
+        }
+    }
+}
+
+if ($FunctionsOnly) { return }
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 $native = Add-Type -MemberDefinition @'
@@ -184,14 +203,21 @@ try {
         $script:layoutFailures = 0
         $windowRect = $root.Current.BoundingRectangle
         "$label window rect: x=$([int]$windowRect.X) right=$([int]$windowRect.Right) width=$([int]$windowRect.Width)"
-        foreach ($element in $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $textCondition)) {
-            $name = $element.Current.Name
-            if ($name -notmatch '^(Ready \(|[A-Z]: (catching up|caught up))') { continue }
-            $script:layoutInspected++
-            $rect = $element.Current.BoundingRectangle
-            $inside = ($rect.Right -le $windowRect.Right) -and ($rect.X -ge $windowRect.X)
-            if (-not $inside) { $script:layoutFailures++ }
-            "$label layout: '$name' x=$([int]$rect.X) y=$([int]$rect.Y) right=$([int]$rect.Right) width=$([int]$rect.Width) result=$(if ($inside) { 'PASS' } else { 'FAIL' })"
+        $elements = @($root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $textCondition) | ForEach-Object {
+            $rectangle = $_.Current.BoundingRectangle
+            [pscustomobject]@{
+                Name = $_.Current.Name
+                X = $rectangle.X
+                Y = $rectangle.Y
+                Right = $rectangle.Right
+                Width = $rectangle.Width
+            }
+        })
+        $observations = @(Get-ReadinessLayout -Elements $elements -Left $windowRect.X -Right $windowRect.Right)
+        $script:layoutInspected = $observations.Count
+        $script:layoutFailures = @($observations | Where-Object { -not $_.Inside }).Count
+        foreach ($observation in $observations) {
+            "$label layout: '$($observation.Name)' x=$([int]$observation.X) y=$([int]$observation.Y) right=$([int]$observation.Right) width=$([int]$observation.Width) result=$(if ($observation.Inside) { 'PASS' } else { 'FAIL' })"
         }
     }
 

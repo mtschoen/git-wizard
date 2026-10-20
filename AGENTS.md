@@ -14,6 +14,15 @@ Default CLI reports (including `--summary`) reserve stdout for the JSON document
 and `GitWizardLog` diagnostics use stderr. The CLI `UpdateHandler` renders progress and
 immediate verbose lifecycle messages; the desktop view model owns the remaining command queue.
 
+## Maintained developer tools
+
+[Maintained developer tools](docs/maintained-developer-tools.md) lists every
+script under `scripts/`, its purpose, operator, and CI coverage.
+Only redundant code is deleted. A tool is not redundant because production or CI does not
+call it; add CI coverage for hand-run tools instead of deleting them.
+The shared `contracts` gate checks the inventory, parses scripts, and runs
+isolated helper tests. Windows CI also renders and uploads a fixture screenshot.
+
 ## Research notes
 
 - [Prior art: multi-repo dashboards and related tooling](docs/notes/prior-art-multi-repo-dashboards.md) records the 2026-05-05 research on repository dashboards and cross-host state exchange. Research notes are retained as dated context for future design work.
@@ -190,6 +199,7 @@ InspectCode; provision `jb` on PATH with the runner's global naming configuratio
 Linux explicitly skips Windows InspectCode; Windows explicitly skips Linux coverage
 enforcement. Neither host proves the other host's platform-specific tests. macOS is
 refused because there is no matching CI job. Missing required tools fail their gate.
+The contracts gate also validates the maintained-tools inventory, parses Bash/Python scripts, and tests hook logic on both hosts; Windows requires PowerShell parsing and isolated helper tests. Linux reports an explicit PowerShell skip when pwsh is absent.
 
 CI and local execution share `ci/gates.sh`, `ci/windows-gates.ps1` and
 `ci/aislop-gate.sh`, including the pinned fork and C# file-count check. Prepare
@@ -335,7 +345,7 @@ session) live in [`docs/manual-test-plan.md`](docs/manual-test-plan.md). Run its
 
 Run `scripts/update-screenshots.ps1` (any shell with PowerShell; no display, elevation or WinAppDriver needed). It builds and runs `GitWizardUI.Screenshot` (headless Avalonia, in `git-wizard.slnx`) against a synthetic three-repository fixture (`GITWIZARD_HOME` redirected under `artifacts/`, `GITWIZARD_NO_MFT=1` so no UAC broker launches) under a hard timeout, and writes `Screenshots/GitWizardUI.png`; `-OutputPath <file>` writes elsewhere. Agents that need to "see" the UI run it and read the image. Never run the tool against this machine's real repositories: a live refresh of hundreds of them never settles within the capture window.
 
-The Windows job in `ci.yml` runs the script to `artifacts/GitWizardUI-ci.png` on every non-pin-only run and uploads it as the `GitWizardUI-screenshot` artifact, so the generator cannot rot unseen. Manually run development tools are kept and exercised in CI, never deleted for lacking a CI caller; `ci/test_parse_jb_report.py` and `ci/test_verify_windows.py` do this for `ci/parse-jb-report.py` and `scripts/verify-windows.sh` in the contracts gate.
+The Windows job in `ci.yml` runs the script to `artifacts/GitWizardUI-ci.png` on every non-pin-only run and uploads it as the `GitWizardUI-screenshot` artifact, so the generator cannot rot unseen. Both CI capture entry points call the same fixture wrapper, a 10-minute step deadline also covers build/setup, and missing screenshot artifacts fail their upload step. Manually run development tools are kept and exercised in CI, never deleted for lacking a CI caller; `ci/test_parse_jb_report.py` and `ci/test_verify_windows.py` do this for `ci/parse-jb-report.py` and `scripts/verify-windows.sh` in the contracts gate.
 
 ### CI (recommended for release prep)
 
@@ -348,7 +358,7 @@ curl -fsSL -X POST -H "Authorization: token $(cat ~/.gitea-token)" \
     "https://gitea.fleet.sticktoitive.net/api/v1/repos/schoen/git-wizard/actions/workflows/screenshot.yml/dispatches"
 ```
 
-The workflow runs on `windows-latest`, captures the screenshot using Avalonia headless rendering, and uploads `GitWizardUI.png` as a workflow artifact. Download the artifact and commit it to `Screenshots/`.
+The workflow runs on `windows-latest`, captures the screenshot via the same fixture wrapper with a 10-minute step deadline, and uploads `GitWizardUI.png` as a workflow artifact (failing if missing). Download the artifact and commit it to `Screenshots/`.
 
 ## Release checklist
 

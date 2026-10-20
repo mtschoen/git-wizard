@@ -217,6 +217,11 @@ jobs:
         with:
           msbuild-architecture: x64
 
+      - name: Preflight contract tests
+        if: steps.changed-files.outputs.pin_only != 'true'
+        shell: bash
+        run: bash ci/gates.sh contracts
+
       - name: Build MFTLib (native + managed)
         if: steps.changed-files.outputs.pin_only != 'true'
         shell: bash
@@ -287,7 +292,8 @@ jobs:
       - name: Generate headless screenshot
         if: steps.changed-files.outputs.pin_only != 'true'
         shell: pwsh
-        run: pwsh -NoProfile -File scripts/update-screenshots.ps1 -OutputPath artifacts/GitWizardUI-ci.png
+        timeout-minutes: 10
+        run: pwsh -NoProfile -NonInteractive -File scripts/update-screenshots.ps1 -OutputPath artifacts/GitWizardUI-ci.png -TimeoutSeconds 180
 
       - name: Upload screenshot
         if: always() && steps.changed-files.outputs.pin_only != 'true'
@@ -295,7 +301,7 @@ jobs:
         with:
           name: GitWizardUI-screenshot
           path: artifacts/GitWizardUI-ci.png
-          if-no-files-found: warn
+          if-no-files-found: error
 
       # Verify that build, InspectCode, and tests left no tracked-file modifications
       # before this checkout is discarded. git clean -ffxd removes build artifacts and

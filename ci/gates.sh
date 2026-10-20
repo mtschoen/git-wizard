@@ -6,7 +6,7 @@ projects=(GitWizard/GitWizard.csproj git-wizard/git-wizard.csproj GitWizardUI/Gi
 windows=false
 case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) windows=true ;; esac
 python_command=python3
-if $windows; then python_command=python; fi
+if $windows || ! command -v python3 > /dev/null; then python_command=python; fi
 case "${1:?gate required}" in
     native)
         if $windows; then

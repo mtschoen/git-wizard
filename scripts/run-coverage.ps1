@@ -6,10 +6,9 @@
 # coverage.cobertura.xml under TestResults (so the non-admin and elevated runs add up). That is the
 # same parser the CI gate uses, so local and CI numbers stay comparable.
 #
-# Build note: while MFTLib is referenced as a local ProjectReference (pre-0.3.0-publish; see
-# AGENTS.md -> "MFTLib Local Development"), `dotnet build` cannot build MFTLib's native vcxproj.
-# In that mode, build first with VS MSBuild (Platform=x64) and pass -NoBuild here. Once MFTLib
-# 0.3.0 is a PackageReference again, plain `dotnet` works and -NoBuild is unnecessary.
+# Build note: MFTLib is a source submodule consumed through assembly HintPaths.
+# Build its native and managed assemblies first (AGENTS.md, Build). The consumer
+# projects then build with dotnet; -NoBuild reuses an already-built test project.
 #
 # Usage:
 #   .\scripts\run-coverage.ps1                   # full run, self-elevates for RequiresAdmin tests

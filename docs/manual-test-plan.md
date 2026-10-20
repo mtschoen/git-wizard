@@ -6,6 +6,10 @@ below first, before any GitWizardUI (desktop) testing - it exercises the same
 discovery and watch machinery with far less setup, gates on the `ready:` marker,
 and its known gaps usually explain UI-level symptoms before they are chased there.
 
+The drivers are [maintained developer tools](maintained-developer-tools.md).
+CI checks their syntax and isolated helper logic. Those checks do not replace
+the attended elevation, journal, and desktop procedures below.
+
 ## CLI live smoke (run first)
 
 Scripted as `scripts/cli-live-smoke.ps1`. It drives a real `git-wizard --watch`

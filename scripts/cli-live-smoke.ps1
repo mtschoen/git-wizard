@@ -66,7 +66,8 @@ param(
     [int]$UacTimeoutSeconds = 300,
     [int]$StartupTimeoutSeconds = 600,
     [string]$EvidenceDirectory,
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$FunctionsOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -145,6 +146,29 @@ function Get-LastStartupLine {
 # When PathFilter is set, a line is only considered if it also contains that substring - this
 # is how the scratch root is isolated from other accounts' repositories in the same stream,
 # without editing the real ~/.GitWizard/config.json ignoredPaths.
+function Find-SmokeLogMatch {
+    param(
+        [AllowEmptyCollection()][string[]]$Lines,
+        [Parameter(Mandatory)][string]$Pattern,
+        [int]$StartLine = 0,
+        [string]$PathFilter
+    )
+    for ($index = $StartLine; $index -lt $Lines.Count; $index++) {
+        $line = $Lines[$index]
+        $content = $line -replace $script:Stamp, ''
+        if ($PathFilter -and $content -notmatch [regex]::Escape($PathFilter)) { continue }
+        if ($line -match $Pattern) {
+            return [pscustomobject]@{
+                Line = $line
+                NextStartLine = $index + 1
+                ClientExited = $false
+                LastStartupLine = $null
+            }
+        }
+    }
+    return $null
+}
+
 function Wait-ForLogPattern {
     param(
         [Parameter(Mandatory)][string]$LogPath,
@@ -159,19 +183,8 @@ function Wait-ForLogPattern {
     do {
         if (Test-Path -LiteralPath $LogPath) {
             $lines = @(Get-Content -LiteralPath $LogPath -ErrorAction SilentlyContinue)
-            for ($index = $StartLine; $index -lt $lines.Count; $index++) {
-                $line = $lines[$index]
-                $content = $line -replace $script:Stamp, ''
-                if ($PathFilter -and $content -notmatch [regex]::Escape($PathFilter)) { continue }
-                if ($line -match $Pattern) {
-                    return [pscustomobject]@{
-                        Line = $line
-                        NextStartLine = $index + 1
-                        ClientExited = $false
-                        LastStartupLine = $null
-                    }
-                }
-            }
+            $match = Find-SmokeLogMatch -Lines $lines -Pattern $Pattern -StartLine $StartLine -PathFilter $PathFilter
+            if ($null -ne $match) { return $match }
         }
         if ($ClientProcessId -gt 0 -and -not (Get-Process -Id $ClientProcessId -ErrorAction SilentlyContinue)) {
             return [pscustomobject]@{
@@ -207,6 +220,8 @@ function Add-StepResult {
     Write-Host "    $Evidence"
     if ($Notes) { Write-Host "    $Notes" }
 }
+
+if ($FunctionsOnly) { return }
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 if (-not $CliPath) {

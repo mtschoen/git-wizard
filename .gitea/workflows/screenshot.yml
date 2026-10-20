@@ -30,7 +30,11 @@ jobs:
         shell: pwsh
         run: |
           msbuild external\MFTLib\MFTLibNative\MFTLibNative.vcxproj -t:Build -p:Configuration=Debug -p:Platform=x64 -nologo -v:minimal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet build external\MFTLib\MFTLib\MFTLib.csproj -c Debug -p:Platform=x64
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build external\MFTLib\MFTLibTestExtensions\MFTLibTestExtensions.csproj -c Debug -p:Platform=x64
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Restore dependencies
         run: dotnet restore git-wizard.slnx
@@ -39,9 +43,9 @@ jobs:
         run: dotnet build GitWizardUI/GitWizardUI.csproj -c Debug --no-restore
 
       - name: Capture screenshot (Avalonia headless)
-        run: |
-          dotnet restore GitWizardUI.Screenshot/GitWizardUI.Screenshot.csproj
-          dotnet run --project GitWizardUI.Screenshot/GitWizardUI.Screenshot.csproj -c Debug --no-restore
+        shell: pwsh
+        timeout-minutes: 10
+        run: pwsh -NoProfile -NonInteractive -File scripts/update-screenshots.ps1 -Configuration Debug -OutputPath Screenshots/GitWizardUI.png -TimeoutSeconds 180
 
       - name: Upload screenshot artifact
         if: always()
@@ -51,4 +55,5 @@ jobs:
         with:
           name: GitWizardUI-screenshot
           path: Screenshots/GitWizardUI.png
+          if-no-files-found: error
           retention-days: 30

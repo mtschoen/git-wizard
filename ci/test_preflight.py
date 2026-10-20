@@ -259,6 +259,7 @@ class PreflightTests(unittest.TestCase):
         fallback.write_text("preserve")
         self.stamp.write_text("invalidate")
         with (
+            patch.object(preflight.platform, "system", return_value="Linux"),
             patch.object(preflight, "git", return_value=str(fallback)),
             patch.object(
                 preflight.subprocess,

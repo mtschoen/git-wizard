@@ -149,12 +149,13 @@ public class MftIndexSessionTests
         Assert.That(broker.ConnectionCount, Is.EqualTo(1));
     }
 
-    [Test]
-    public async Task OneDriveFailureKeepsOtherDrive()
+    [TestCase("w:/")]
+    [TestCase(" w/ ", TestName = "Issue370_Session_AcceptsOptionalColonDriveSpec")]
+    public async Task OneDriveFailureKeepsOtherDrive(string identityFailureSpec)
     {
         await using var broker = new BlockBrokerFixture(scanError: "volume denied") { FailedDrive = "X" };
         await using var session = await MftIndexSession.OpenSelectedVolumesAsync(
-            ["w:/", "X:", "x:\\", "Y", @"\\server\share", "C:not-root", ""],
+            [identityFailureSpec, "X:", "x:\\", "Y", @"\\server\share", "C:not-root", ""],
             drive => drive == 'W' ? throw new IOException("identity denied") : broker.Drive(drive.Letter),
             broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);
         Assert.That(session.Drives, Is.EqualTo(new[] { "W", "X", "Y" }));
@@ -215,6 +216,24 @@ public class MftIndexSessionTests
         Assert.That(session.Index.Search(new SearchQuery("ordinary.txt", NameMatchMode.Exact)), Is.Empty);
         Assert.That(session.Index.Search(new SearchQuery("repo", NameMatchMode.Exact)).Single().IsDirectory, Is.True);
         Assert.That(session.Index.Root('X').RecordKey.ProducerKind, Is.EqualTo(ProducerKind.Mft));
+    }
+
+    [Test]
+    public async Task EnumerationSessionRetainsMarkersWithoutConnectingBroker()
+    {
+        using var files = new PackedIndexFixture();
+        files.AddMarker("repository", isDirectory: false);
+        files.AddMarker(".hidden/nested");
+        await File.WriteAllTextAsync(Path.Combine(files.TreePath, "repository", "HEAD"), "ref: refs/heads/main");
+        await File.WriteAllTextAsync(Path.Combine(files.TreePath, "repository", "ordinary.txt"), "not retained");
+        var drive = new IndexedDrive('X', files.TreePath, 1, ProducerKind.Enumeration);
+        await using var session = await MftIndexSession.OpenAsync([drive],
+            BrokerTestHarness.CreateSession(_ => throw new AssertionException("Enumeration must not connect.")),
+            files.BlockDirectory, null, CancellationToken.None);
+        Assert.That(session.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)), Has.Count.EqualTo(2));
+        Assert.That(session.Index.Search(new SearchQuery("HEAD", NameMatchMode.Exact)).Single().IsDirectory, Is.False);
+        Assert.That(session.Index.Search(new SearchQuery("ordinary.txt", NameMatchMode.Exact)), Is.Empty);
+        Assert.That(session.Index.Search(new SearchQuery("nested", NameMatchMode.Exact)).Single().IsDirectory, Is.True);
     }
 
     [Test]

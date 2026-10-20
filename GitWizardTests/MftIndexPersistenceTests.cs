@@ -15,6 +15,7 @@ public class MftIndexPersistenceTests
             Drives = [drive],
             CacheDirectory = cache,
             CacheTag = MftIndexCachePolicy.CacheTag,
+            RetainedFileNames = MftIndexCachePolicy.DirectoryScanFileNames,
             MftSource = SyntheticIndexSource.Create(files.Producer)
         }, CancellationToken.None);
         Assert.That(seed.Drives.Single().Block?.Origin, Is.EqualTo(BlockOrigin.ProducedByScan));
@@ -132,6 +133,7 @@ public class MftIndexPersistenceTests
             Drives = [drive],
             CacheDirectory = cache,
             CacheTag = MftIndexCachePolicy.CacheTag,
+            RetainedFileNames = MftIndexCachePolicy.DirectoryScanFileNames,
             MftSource = SyntheticIndexSource.Create(
                 new SyntheticMftProducer(_ => throw new AssertionException("Warm open must not produce.")), source)
         }, CancellationToken.None);

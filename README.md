@@ -72,10 +72,13 @@ owns that slot.
 
 Windows discovery uses GitWizard-owned persistent index blocks below
 `GetLocalFilesPath()/mft-index/blocks` (normally `~/.GitWizard/mft-index/blocks`).
-The scan uses `DirectoryScanFileNames = [".git", "HEAD"]`, retaining directories and those
-marker files. MFTLib stamps the `GWMI` cache tag, version 2, into each block.
-Changing the retention policy requires incrementing the tag version. A tag mismatch causes
-a snapshot open to decline the block or a normal open to cold-scan; blocks are not migrated.
+The scan sets `FileIndexOptions.RetainedFileNames` to `[".git", "HEAD"]`, retaining
+directories and those marker files. MFTLib stamps the `GWMI` application cache tag,
+version 2, and independently validates the scan shape derived from row-shaping
+options. A tag or shape mismatch is declined by a snapshot open and triggers a
+cold scan for a normal open. Cached blocks are not migrated; a library format
+change can also require a cold scan. GitWizard applies repository scope, ignore,
+hidden-directory, and temporary-directory policy when admitting candidates.
 
 The stored metadata covers directories and retained marker names across each selected volume,
 potentially including other users' directory names. Search, ignore, hidden-directory and

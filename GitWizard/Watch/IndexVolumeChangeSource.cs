@@ -88,9 +88,14 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var requested = NormalizeDrives(volumes);
+            var requestedKeys = volumes
+                .Select(value => DriveKey.TryParse(value, out var drive) ? (DriveKey?)drive : null)
+                .OfType<DriveKey>().Distinct().ToArray();
+            var requested = requestedKeys.Select(drive => drive.ToString()).ToArray();
             if (_owner is null || _owner.IsDisposed || _owner.IsFaulted ||
-                !requested.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(NormalizeDrives(_owner.Drives)))
+                !requestedKeys.ToHashSet().SetEquals(_owner.Drives
+                    .Select(value => DriveKey.TryParse(value, out var drive) ? (DriveKey?)drive : null)
+                    .OfType<DriveKey>()))
             {
                 var prepared = _owner;
                 _owner = null;
@@ -188,12 +193,6 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
             return StartWatch(owner, cancellationToken);
         }
     }
-
-    static string[] NormalizeDrives(IEnumerable<string> volumes) => volumes
-        .Select(volume => (WatchPath.Parse(volume.Trim()).Volume ?? volume.Trim().TrimEnd(':', '\\', '/'))
-            .ToUpperInvariant())
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .ToArray();
 
     public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync([EnumeratorCancellation] CancellationToken ct)
     {

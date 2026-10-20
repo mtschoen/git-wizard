@@ -113,24 +113,44 @@ public class RepositoryDiscoveryCoordinatorTests
         });
     }
 
-    [Test]
-    public async Task ListMiss_CacheDeclined_RescansAndUsesScanSource()
+    [TestCase(false)]
+    [TestCase(true, TestName = "Issue370_ListMiss_SameTagDifferentShape_Rescans")]
+    public async Task ListMiss_CacheDeclined_RescansAndUsesScanSource(bool seedDifferentRetention)
     {
         await using var broker = new BlockBrokerFixture();
         var cache = MftIndexCachePolicy.GetCacheDirectory(broker.CacheDirectory);
-        var session = await MftIndexSession.OpenAsync([broker.Drive('X')], broker.CreateSession(),
+        if (seedDifferentRetention)
+        {
+            await using var seedBroker = broker.CreateSession();
+            await using var seed = await FileIndex.OpenAsync(new FileIndexOptions
+            {
+                Drives = [broker.Drive('X')],
+                CacheDirectory = cache,
+                CacheTag = MftIndexCachePolicy.CacheTag,
+                MftSource = seedBroker.CreateIndexSource()
+            }, CancellationToken.None);
+            Assert.That(seed.Drives.Single().Block?.Origin, Is.EqualTo(BlockOrigin.ProducedByScan));
+        }
+
+        await using var session = await MftIndexSession.OpenAsync([broker.Drive('X')], broker.CreateSession(),
             cache, CacheMode.ExistingOnly, null, CancellationToken.None);
+        Assert.That(session.CaptureDriveStatuses().Single().IndexStatus!.State, Is.EqualTo(DriveState.Failed));
+        Assert.That(session.CaptureDriveStatuses().Single().IndexStatus!.Failure?.Kind,
+            Is.EqualTo(seedDifferentRetention
+                ? DriveFailureKind.CacheIdentityMismatch
+                : DriveFailureKind.CacheDeclined));
 
         var configuration = new GitWizardConfiguration { SearchPaths = { broker.Drive('X').RootDirectory } };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, false, []);
 
+        var openedSession = session;
         var dependencies = new RepositoryDiscoveryDependencies
         {
             IsWindows = true,
             IsLinux = false,
             ClassifyRoot = root => new RootClassification(root, RootFileSystem.Ntfs, "X", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS crawler invoked"),
-            OpenIndexAsync = (_, _, _, _) => Task.FromResult(session),
+            OpenIndexAsync = (_, _, _, _) => Task.FromResult(openedSession),
             ReadListAsync = _ => Task.FromResult<string[]?>(null),
             WriteListAsync = (_, _) => Task.CompletedTask,
             CandidateExists = (_, _) => true,
@@ -142,7 +162,8 @@ public class RepositoryDiscoveryCoordinatorTests
 
         Assert.That(result.Inventory.Observations.Single().Source, Is.EqualTo(DiscoverySource.Scan));
         Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.CompleteNonempty));
-        Assert.That(broker.ConnectionCount, Is.EqualTo(1));
+        Assert.That(broker.ConnectionCount, Is.EqualTo(seedDifferentRetention ? 2 : 1));
+        Assert.That(broker.Scans.Count, Is.EqualTo(seedDifferentRetention ? 2 : 1));
     }
 
     [Test]

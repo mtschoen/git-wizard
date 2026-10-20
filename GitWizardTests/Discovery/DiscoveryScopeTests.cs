@@ -5,22 +5,37 @@ namespace GitWizardTests.Discovery;
 [TestFixture]
 public class DiscoveryScopeTests
 {
-    [Test]
-    public void ScopeKeepsFailedDriveAndRetainedOutsideDrive()
+    [TestCase("letter")]
+    [TestCase("spec", TestName = "Issue370_Scope_ParsesTrimmedDriveSpecs")]
+    [TestCase("path", TestName = "Issue370_Scope_ExtractsFullPathRoot")]
+    [TestCase("fallback", TestName = "Issue370_Scope_UsesRootWhenDriveIsAbsent")]
+    public void ScopeKeepsFailedDriveAndRetainedOutsideDrive(string driveForm)
     {
         var configuration = new GitWizardConfiguration
         {
             SearchPaths = { @"C:\repos", @"D:\repos", @"Z:\shared" }
         };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Watch, false, false,
-            [@"E:\retained"]);
-        RootClassification Classify(string root) => root.StartsWith(@"Z:\", StringComparison.Ordinal)
-            ? new(root, RootFileSystem.Recursive, null, null)
-            : new(root, RootFileSystem.Ntfs, root[..1], null);
+            [@"E:\retained", @"c:\retained"]);
+        RootClassification Classify(string root)
+        {
+            if (root.StartsWith(@"Z:\", StringComparison.Ordinal))
+                return new(root, RootFileSystem.Recursive, null, null);
+            string? drive = driveForm switch
+            {
+                "letter" => root[..1],
+                "spec" => $" {root[..1].ToLowerInvariant()}/ ",
+                "path" => root.ToLowerInvariant(),
+                "fallback" => null,
+                _ => throw new AssertionException("Unexpected drive form.")
+            };
+            return new(root, RootFileSystem.Ntfs, drive, null);
+        }
 
         var scope = DiscoveryScope.CreateExpanded(request, configuration.SearchPaths.ToArray(),
             request.RetainedRoots, [], Classify);
         Assert.That(scope.RequestedNtfsDrives, Is.EquivalentTo(new[] { "C", "D", "E" }));
+        Assert.That(scope.RequestedNtfsDrives, Is.EqualTo(new[] { "C", "D", "E" }));
         Assert.That(scope.RecursiveRoots, Is.EqualTo(new[] { @"Z:\shared" }));
     }
 

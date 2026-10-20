@@ -8,32 +8,13 @@ namespace GitWizardTests;
 [TestFixture]
 public class MftIndexCachePolicyTests
 {
-    // One row per CacheTag version ever shipped. Changing scan retention changes
-    // ScanShape and fails CurrentScanShapeIsPinnedToItsCacheTagVersion until the version in
-    // MftIndexCachePolicy is incremented and a new row is added here. Never edit an existing row.
-    static readonly Dictionary<uint, string> ScanShapeByVersion = new()
-    {
-        [1] = "DirectoryIndex|.git,HEAD",
-        [2] = "directories|.git,HEAD"
-    };
-
-    [Test]
-    public void CurrentScanShapeIsPinnedToItsCacheTagVersion()
-    {
-        var tag = MftIndexCachePolicy.CacheTag;
-        Assert.That(ScanShapeByVersion, Does.ContainKey(SyntheticCacheTag.GetVersion(tag)),
-            "Add a row for the new CacheTag version to ScanShapeByVersion.");
-        Assert.That(MftIndexCachePolicy.ScanShape, Is.EqualTo(ScanShapeByVersion[SyntheticCacheTag.GetVersion(tag)]),
-            "Scan retention changed: increment CacheTagVersion in MftIndexCachePolicy.");
-        Assert.That(SyntheticCacheTag.GetVersion(tag), Is.EqualTo(ScanShapeByVersion.Keys.Max()));
-    }
-
     [Test]
     public void PolicyDefinesTheDiscoveryScanAndOneCacheDirectory()
     {
         using var files = new PackedIndexFixture();
         Assert.That(MftIndexCachePolicy.DirectoryScanFileNames, Is.EqualTo(new[] { ".git", "HEAD" }));
-        Assert.That(MftIndexCachePolicy.CacheTag, Is.Not.EqualTo(default(CacheTag)));
+        Assert.That(SyntheticCacheTag.GetFourCharacterCode(MftIndexCachePolicy.CacheTag), Is.EqualTo("GWMI"));
+        Assert.That(SyntheticCacheTag.GetVersion(MftIndexCachePolicy.CacheTag), Is.EqualTo(2u));
         Assert.That(Path.GetDirectoryName(MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath)),
             Is.EqualTo(MftIndexCachePolicy.GetCacheRoot(files.DirectoryPath)));
     }
@@ -62,7 +43,7 @@ public class MftIndexCachePolicyTests
         await using (var first = await FileIndex.OpenAsync(Options(1, false), CancellationToken.None))
             Assert.That(first.Drives.Single().Block?.Origin, Is.EqualTo(BlockOrigin.ProducedByScan));
         await using (var declined = await FileIndex.OpenAsync(Options(version, true), CancellationToken.None))
-            Assert.That(declined.Drives.Single().Failure?.Kind, Is.EqualTo(DriveFailureKind.CacheTagMismatch));
+            Assert.That(declined.Drives.Single().Failure?.Kind, Is.EqualTo(DriveFailureKind.CacheIdentityMismatch));
         Assert.That(calls, Is.EqualTo(1));
         await using (var second = await FileIndex.OpenAsync(Options(version, false), CancellationToken.None))
             Assert.That(second.Drives.Single().Block?.Origin, Is.EqualTo(BlockOrigin.ProducedByScan));

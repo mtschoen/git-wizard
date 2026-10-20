@@ -152,9 +152,15 @@ public partial class RepositoryDiscoveryCoordinator
         if (prepared is null)
             return null;
 
-        if (!prepared.IsDisposed && !prepared.IsFaulted &&
-            scope.RequestedNtfsDrives.All(drive => prepared.Drives.Contains(drive, StringComparer.OrdinalIgnoreCase)))
-            return prepared;
+        if (!prepared.IsDisposed && !prepared.IsFaulted)
+        {
+            var available = prepared.Drives
+                .Select(value => DriveKey.TryParse(value, out var drive) ? (DriveKey?)drive : null)
+                .OfType<DriveKey>().ToHashSet();
+            if (scope.RequestedNtfsDrives.All(value =>
+                DriveKey.TryParse(value, out var drive) && available.Contains(drive)))
+                return prepared;
+        }
 
         await prepared.DisposeAsync().ConfigureAwait(false);
         return null;
@@ -229,7 +235,7 @@ public partial class RepositoryDiscoveryCoordinator
             return false;
         if (purpose == DiscoveryPurpose.Rebuild)
             return true;
-        if (status.Failure?.Kind is DriveFailureKind.CacheDeclined or DriveFailureKind.CacheTagMismatch)
+        if (status.Failure?.Kind is DriveFailureKind.CacheDeclined or DriveFailureKind.CacheIdentityMismatch)
             return true;
         return purpose == DiscoveryPurpose.Watch && status.Watch.CheckpointLoss is { } loss &&
                !IsResolvedByOpeningScan(loss, status);

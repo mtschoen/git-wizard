@@ -58,8 +58,11 @@ public sealed partial class MftIndexSession
         BrokerSession brokerSession,
         CacheSelection cache, IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken)
     {
-        var requested = drives.Select(NormalizeVolume).OfType<string>()
-            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var requested = drives
+            .Select(value => DriveKey.TryParse(value, out var drive) ? (DriveKey?)drive : null)
+            .OfType<DriveKey>()
+            .Distinct()
+            .ToArray();
         var identities = new List<IndexedDrive>();
         var errors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         try
@@ -69,11 +72,11 @@ public sealed partial class MftIndexSession
                 cancellationToken.ThrowIfCancellationRequested();
                 try
                 {
-                    identities.Add(acquireIdentity(drive[0]));
+                    identities.Add(acquireIdentity(drive));
                 }
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
                 {
-                    errors[drive] = exception.Message;
+                    errors[drive.ToString()] = exception.Message;
                 }
             }
         }
@@ -92,7 +95,7 @@ public sealed partial class MftIndexSession
                 new Dictionary<string, string>(errors, StringComparer.OrdinalIgnoreCase));
             foreach (var error in session.ScanErrors)
                 errors[error.Key] = error.Value;
-            session.Drives = Array.AsReadOnly(requested);
+            session.Drives = Array.AsReadOnly(requested.Select(drive => drive.ToString()).ToArray());
             session.ScanErrors = new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(errors);
             return session;
         }
@@ -101,16 +104,5 @@ public sealed partial class MftIndexSession
             await session.DisposeAsync().ConfigureAwait(false);
             throw;
         }
-    }
-
-    static string? NormalizeVolume(string drive)
-    {
-        var token = drive.AsSpan().Trim();
-        if (token.Length == 0 || !char.IsAsciiLetter(token[0]))
-            return null;
-        if (token.Length != 1 && !(token.Length == 2 && token[1] == ':') &&
-            !(token.Length == 3 && token[1] == ':' && token[2] is '\\' or '/'))
-            return null;
-        return char.ToUpperInvariant(token[0]).ToString();
     }
 }

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using GitWizard.Watch;
+using MFTLib.Index;
 
 namespace GitWizard;
 
@@ -76,7 +77,7 @@ public sealed class DiscoveryScope
     {
         var classifications = new List<RootClassification>();
         var errors = new Dictionary<string, string>(initialErrors ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
-        var requestedNtfsDrives = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var requestedNtfsDrives = new HashSet<DriveKey>();
         var recursiveRoots = new List<string>();
         var watchExcludedRoots = new List<string>();
 
@@ -88,8 +89,9 @@ public sealed class DiscoveryScope
 
             if (classification.FileSystem == RootFileSystem.Ntfs)
             {
-                var drive = NormalizeDriveLetter(classification.NtfsDrive ?? root);
-                if (drive is not null)
+                var pathOrDrive = (classification.NtfsDrive ?? root).Trim();
+                var volume = WatchPath.Parse(pathOrDrive).Volume ?? pathOrDrive;
+                if (DriveKey.TryParse(volume, out var drive))
                     requestedNtfsDrives.Add(drive);
             }
             else if (classification.FileSystem == RootFileSystem.Recursive)
@@ -123,8 +125,9 @@ public sealed class DiscoveryScope
 
             if (classification.FileSystem == RootFileSystem.Ntfs)
             {
-                var drive = NormalizeDriveLetter(classification.NtfsDrive ?? root);
-                if (drive is not null)
+                var pathOrDrive = (classification.NtfsDrive ?? root).Trim();
+                var volume = WatchPath.Parse(pathOrDrive).Volume ?? pathOrDrive;
+                if (DriveKey.TryParse(volume, out var drive))
                     requestedNtfsDrives.Add(drive);
             }
             else
@@ -137,7 +140,8 @@ public sealed class DiscoveryScope
             }
         }
 
-        var sortedDrives = requestedNtfsDrives.OrderBy(d => d, StringComparer.OrdinalIgnoreCase).ToArray();
+        var sortedDrives = requestedNtfsDrives.OrderBy(drive => drive.Letter)
+            .Select(drive => drive.ToString()).ToArray();
 
         return new DiscoveryScope(
             request,
@@ -149,20 +153,5 @@ public sealed class DiscoveryScope
             recursiveRoots,
             watchExcludedRoots,
             errors);
-    }
-
-    static string? NormalizeDriveLetter(string pathOrDrive)
-    {
-        var wp = WatchPath.Parse(pathOrDrive);
-        if (wp.IsWindows && wp.Volume is { Length: 1 } vol && char.IsAsciiLetter(vol[0]))
-            return vol.ToUpperInvariant();
-
-        if (pathOrDrive.Length >= 1 && char.IsAsciiLetter(pathOrDrive[0]))
-        {
-            if (pathOrDrive.Length == 1 || (pathOrDrive.Length >= 2 && pathOrDrive[1] == ':'))
-                return char.ToUpperInvariant(pathOrDrive[0]).ToString();
-        }
-
-        return null;
     }
 }

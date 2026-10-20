@@ -65,8 +65,12 @@ public class IndexVolumeChangeSourceTests
         Assert.That(change.PreviousPath, Is.EqualTo(Path.Combine(root, "repo")));
     }
 
-    [Test]
-    public async Task ReusesMatchingPreparedIndex()
+    [TestCase(null)]
+    [TestCase("Y:relative", TestName = "Issue370_Watch_RejectsDriveRelativePath")]
+    [TestCase(@"Y:\repository", TestName = "Issue370_Watch_RejectsFullPathAsSpec")]
+    [TestCase(@"\\server\share", TestName = "Issue370_Watch_RejectsUncSpec")]
+    [TestCase("", TestName = "Issue370_Watch_IgnoresEmptySpec")]
+    public async Task ReusesMatchingPreparedIndex(string? invalidSpec)
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
@@ -77,7 +81,8 @@ public class IndexVolumeChangeSourceTests
             throw new AssertionException("Matching prepared owner must be reused."), owner);
         try
         {
-            var result = await source.ArmAndCatchUpAsync([@"x:\", "X:"], CancellationToken.None);
+            string[] volumes = invalidSpec is null ? [@"x:\", "X:"] : [@"x:\", "X:", invalidSpec];
+            var result = await source.ArmAndCatchUpAsync(volumes, CancellationToken.None);
             Assert.That(result.Errors["Z"], Is.EqualTo("scan denied"));
             Assert.That(owner.IsDisposed, Is.False);
             Assert.That(owner.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single().Parent!.Value.Name, Is.EqualTo("repo"));

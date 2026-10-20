@@ -104,10 +104,8 @@ public sealed partial class MftIndexSession : IAsyncDisposable
             CacheDirectory = cacheDirectory,
             CacheTag = MftIndexCachePolicy.CacheTag,
             CacheMode = cacheMode,
-            MftSource = brokerSession.CreateIndexSource(new MftScanOptions
-            {
-                RetainedFileNames = MftIndexCachePolicy.DirectoryScanFileNames
-            }),
+            RetainedFileNames = MftIndexCachePolicy.DirectoryScanFileNames,
+            MftSource = brokerSession.CreateIndexSource(),
             ScanProgress = progress,
             Diagnostics = diagnostics.Report
         };

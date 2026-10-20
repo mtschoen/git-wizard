@@ -13,7 +13,7 @@ The `SchemaVersion` field at the top of every report indicates the schema versio
 
 ## JSON serialization note
 
-The report is written with `System.Text.Json`'s `DefaultIgnoreCondition = WhenWritingDefault`. **Numeric fields equal to `0`, boolean fields equal to `false`, and reference fields equal to `null` are omitted from the JSON output.** Consumers should treat absent fields as their default value (`0`/`false`/`null`), not as "unknown". Every non-nullable field documented below is guaranteed to be present *in spirit* - the serializer may simply elide it. (Empty non-null collections are still written, e.g. `[]`.)
+The report is written with `System.Text.Json`'s `DefaultIgnoreCondition = WhenWritingDefault`. **Numeric fields equal to `0`, boolean fields equal to `false`, and reference fields equal to `null` are omitted from the JSON output** (with the exception of `run` counters, which are always serialized). Consumers should treat absent fields as their default value (`0`/`false`/`null`), not as "unknown". Every non-nullable field documented below is guaranteed to be present *in spirit* - the serializer may simply elide it. (Empty non-null collections are still written, e.g. `[]`.)
 
 ### Discovery resources are not report data
 
@@ -61,6 +61,7 @@ merge of disjoint updates must serialize their writes externally.
 | `IncludeTempDirectories` | `bool` | Whether this report's scan included temp directories. Absent when unset (the default: excluded). |
 | `Repositories` | `object` | Map of repo path → repository object |
 | `DeletedPaths` | `string[]` | Repo paths removed from the cache during the last refresh (no longer on disk). Usually empty/absent. |
+| `run` | `object` | Run execution metadata (callback counts and warnings); see below |
 
 ## Repository object
 
@@ -131,32 +132,48 @@ A local branch's relationship to the repository's default branch. By default the
 | `Date` | `string` (ISO 8601) | Author date |
 | `AuthorEmail` | `string` | Author email |
 
-## Summary output (`-summary` flag)
+## Run metadata (`run` object)
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `SchemaVersion` | `string` | Schema version |
-| `TotalRepositories` | `int` | Total repo count |
-| `Dirty` | `int` | Repos with uncommitted changes |
-| `Unpushed` | `int` | Repos with local-only commits |
-| `Stale` | `int` | Repos with no commits in 30+ days |
-| `MergedBranches` | `int` | Repos with at least one merged (safe-to-delete) branch |
-| `BehindRemote` | `int` | Repos whose checked-out branch is behind its upstream remote (`BehindRemoteCount > 0`) |
-| `NeedingAttention` | `AttentionItem[]` | Repos that are dirty, have unpushed commits, have merged branches, or are behind their remote |
+`run` is an additive object on ordinary CLI report output and saved ordinary reports.
+Its keys are lowercase: `created`, `refreshed`, `skipped` (integer callback counts),
+and `warnings` (string array). All three counts are serialized even when zero.
+Created counts accepted repository, initialized-submodule and worktree creation
+callbacks; refreshed counts completion callbacks whose creation was observed first.
+Skipped counts rejected ordering/invalid-path callbacks. An uninitialized submodule
+does not increment created. Repeated accepted callbacks count separately.
 
-## AttentionItem object
+Counts describe the full generation before display filtering. Cached reports retain
+their generation metadata; older files can lack `run`. An ordinary CLI display of an
+older cached file supplies zero counts and an empty warning array without rewriting
+the file. Targeted merge preserves prior generation metadata. Automation inventory
+schemas do not gain this field. A failed discovery prints diagnostic-only JSON with
+`run` and no `Repositories`, exits 3, and leaves published files untouched.
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `Path` | `string` | Repository path |
-| `Reasons` | `string[]` | Why it needs attention (`"dirty"`, `"unpushed"`, `"merged-branches"`, `"behind-remote"`) |
+## Human report output
+
+The default CLI report formats output as human-readable text rather than JSON:
+
+```text
+Repositories: 2; dirty=1 unpushed=1 stale=1 merged-branches=0 behind-remote=0
+/repos/active: dirty, unpushed
+/repos/old: stale
+Run: created=2 refreshed=2 skipped=0
+```
+
+Use `git-wizard --json` for strict JSON report output. Ordinary report compact output is
+`git-wizard --json --minified`. Obsolete report flags exit 2 with a usage error: `--summary`,
+`--print-minified` (rejected for ordinary reports even when combined with `--json`), and bare
+`--minified` without `--json`. Automation modes
+(`--sweep`, `tags`, `branches`) remain pure JSON and continue to accept `--print-minified`
+and `--minified`. Legacy single-dash options `-paths`, `-save-path`, and `-silent` are
+accepted for project-tracker compatibility.
 
 ## Exit codes
 
 | Code | Meaning |
 |------|---------|
 | `0` | All repos clean, pushed, and not behind their remote |
-| `1` | At least one repo has pending changes, unpushed commits, or is behind its remote (`BehindRemoteCount > 0`) |
+| `1` | At least one repo has pending changes, unpushed commits, or is behind its remote (`BehindRemoteCount > 0`). Human display of stale or merged-only reasons does not alter exit status |
 | `2` | Command-line parsing or usage errors |
 | `3` | A report-producing run's discovery cannot publish a full inventory (partial or unusable outcome). The previous `~/.GitWizard/report.json` and any requested `--save-path` file are left untouched, no full-report JSON document is emitted, and the prior `repositories.txt` is preserved per the list-reconciliation rules. Runs scoped by explicit `--paths` never produce this code |
 

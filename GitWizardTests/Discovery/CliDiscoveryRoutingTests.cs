@@ -79,7 +79,6 @@ public class CliDiscoveryRoutingTests
         }
     }
 
-    [TestCase("report")]
     [TestCase("sweep")]
     [TestCase("tags")]
     [TestCase("branches")]
@@ -99,6 +98,27 @@ public class CliDiscoveryRoutingTests
         {
             Assert.That(exitCode, Is.EqualTo(3));
             Assert.That(fixture.Stderr.ToString(), Does.Contain("Drive C failure"));
+        });
+    }
+
+    [Test]
+    public async Task IncompleteDiscovery_Report_KeepsDiagnosticsOffStderr_Exits3()
+    {
+        await using var fixture = new CliDiscoveryFixture("report");
+        fixture.Configuration.SearchPaths.Clear();
+        fixture.Configuration.SearchPaths.Add(fixture.Dependencies.IndexFixture.TreePath);
+
+        var indexFixture = fixture.Dependencies.IndexFixture;
+        fixture.Dependencies.CustomOpenIndexAsync = (drives, _, _, _) => StatusSessions.OpenAsync(
+            indexFixture, drives.Select(drive => (drive[0], SyntheticDriveBehavior.ProducerFails)).ToArray());
+
+        var exitCode = await fixture.RunAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(exitCode, Is.EqualTo(3));
+            Assert.That(fixture.Stdout.ToString(), Does.Contain("Drive C failure"));
+            Assert.That(fixture.Stderr.ToString(), Does.Not.Contain("Drive C failure"));
         });
     }
 

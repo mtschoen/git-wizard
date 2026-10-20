@@ -55,9 +55,9 @@ internal sealed record RunConfiguration
     public string? PathsArgument { get; init; }
 
     /// <summary>
-    /// Output a condensed summary instead of the full report.
+    /// Print the ordinary report as strict JSON instead of human-readable text.
     /// </summary>
-    public bool Summary { get; init; }
+    public bool Json { get; init; }
 
     /// <summary>
     /// Glob pattern for tag matching in the tags inventory command (null means every tag).
@@ -81,7 +81,7 @@ internal sealed record RunConfiguration
     public bool RefreshReport { get; init; } = true;
 
     /// <summary>
-    /// Print/save the report as minified JSON.
+    /// Print stdout JSON in compact form (requires --json for ordinary reports).
     /// </summary>
     public bool Minified { get; init; }
 

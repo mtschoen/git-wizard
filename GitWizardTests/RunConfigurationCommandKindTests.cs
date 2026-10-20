@@ -32,7 +32,7 @@ internal sealed class RunConfigurationCommandKindTests
     }
 
     [TestCase(new string[0], CommandKind.Report)]
-    [TestCase(new[] { "--summary" }, CommandKind.Report)]
+    [TestCase(new[] { "--json" }, CommandKind.Report)]
     [TestCase(new[] { "--sweep" }, CommandKind.Sweep)]
     [TestCase(new[] { "tags" }, CommandKind.Tags)]
     [TestCase(new[] { "branches" }, CommandKind.Branches)]

@@ -40,6 +40,7 @@ public class GitWizardSummary
             if (repository.DaysSinceLastCommit > 30)
             {
                 summary.Stale++;
+                reasons.Add("stale");
             }
 
             if (repository.Branches != null && repository.Branches.Any(b => b.IsMerged))

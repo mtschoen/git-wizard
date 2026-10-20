@@ -18,7 +18,7 @@ public partial class ProgramEntryPointTests
         {
             var result = await RunCliInHomeAsync(
                 home,
-                "--clear-cache", "--no-mft", "--rebuild-report", "--no-local-commit-count", "--paths", repository.Path);
+                "--clear-cache", "--no-mft", "--rebuild-report", "--no-local-commit-count", "--paths", repository.Path, "--json");
 
             using var document = JsonDocument.Parse(result.StandardOutput);
             Assert.Multiple(() =>

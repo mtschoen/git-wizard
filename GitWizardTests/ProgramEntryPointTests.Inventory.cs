@@ -204,13 +204,14 @@ public partial class ProgramEntryPointTests
         });
     }
 
-    [Test]
-    public async Task Main_TagsWithPrintMinified_PrintsSingleLineJson()
+    [TestCase("--print-minified")]
+    [TestCase("--minified")]
+    public async Task Main_TagsWithMinifiedOption_PrintsSingleLineJson(string minifiedOption)
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         fixture.AddTag("v1.0.0");
 
-        var result = await RunCliAsync("tags", "--print-minified", "-p", fixture.Path);
+        var result = await RunCliAsync("tags", minifiedOption, "-p", fixture.Path);
 
         using var document = JsonDocument.Parse(result.StandardOutput);
         Assert.Multiple(() =>
@@ -247,13 +248,14 @@ public partial class ProgramEntryPointTests
         });
     }
 
-    [Test]
-    public async Task Main_BranchesWithPrintMinified_PrintsSingleLineJson()
+    [TestCase("--print-minified")]
+    [TestCase("--minified")]
+    public async Task Main_BranchesWithMinifiedOption_PrintsSingleLineJson(string minifiedOption)
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         fixture.CommitOnNewBranch("feature-min", "f.txt");
 
-        var result = await RunCliAsync("branches", "--print-minified", "-p", fixture.Path);
+        var result = await RunCliAsync("branches", minifiedOption, "-p", fixture.Path);
 
         using var document = JsonDocument.Parse(result.StandardOutput);
         Assert.Multiple(() =>
@@ -262,6 +264,56 @@ public partial class ProgramEntryPointTests
             Assert.That(result.StandardError, Is.Empty);
             Assert.That(result.StandardOutput.TrimEnd(), Does.Not.Contain('\n'));
             Assert.That(document.RootElement.GetProperty("Repositories").GetArrayLength(), Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public async Task Main_ProjectTrackerArguments_SaveJsonWithoutConsoleOutput()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var destination = Path.Combine(fixture.Path, "consumer-report.json");
+        var result = await RunCliAsync("-paths", fixture.Path, "-save-path", destination, "-silent");
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.AnyOf(0, 1));
+            Assert.That(result.StandardOutput, Is.Empty);
+            Assert.That(result.StandardError, Is.Empty);
+        });
+        using var document = JsonDocument.Parse(await File.ReadAllTextAsync(destination));
+        Assert.That(document.RootElement.GetProperty("Repositories").EnumerateObject().Count(), Is.EqualTo(1));
+        Assert.That(document.RootElement.GetProperty("run").GetProperty("created").GetInt32(), Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task Main_DefaultReport_IsHumanReadable()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        await File.WriteAllTextAsync(Path.Combine(fixture.Path, "pending.txt"), "dirty");
+        var result = await RunCliAsync("--paths", fixture.Path);
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(1));
+            Assert.That(result.StandardOutput, Does.Contain("dirty").And.Contain("Run: created=1 refreshed=1 skipped=0"));
+            Assert.That(result.StandardOutput, Does.Not.Contain("\"Repositories\""));
+            Assert.That(result.StandardError, Does.Contain("Scanning repositories").And.Not.Contain("Session Started"));
+        });
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public async Task Main_JsonReport_IsOneDocument(bool minified)
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var arguments = new List<string> { "--paths", fixture.Path, "--json" };
+        if (minified) arguments.Add("--minified");
+        var result = await RunCliAsync(arguments.ToArray());
+        using var document = JsonDocument.Parse(result.StandardOutput);
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ExitCode, Is.AnyOf(0, 1));
+            Assert.That(document.RootElement.GetProperty("run").GetProperty("created").GetInt32(), Is.EqualTo(1));
+            Assert.That(document.RootElement.GetProperty("Repositories").EnumerateObject().Count(), Is.EqualTo(1));
+            Assert.That(result.StandardOutput.TrimEnd().Contains('\n'), Is.EqualTo(!minified));
         });
     }
 

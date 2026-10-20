@@ -15,6 +15,41 @@ static partial class CliParser
     internal static RunConfiguration ParseProcessArgs(string[] processArgs) =>
         Parse(processArgs.Length > 0 ? processArgs[1..] : processArgs);
 
+    static string[] NormalizeConsumerAliases(string[] args)
+    {
+        var normalized = new string[args.Length];
+        var expectsValue = false;
+        var index = 0;
+        var endOfOptions = false;
+        foreach (var argument in args)
+        {
+            if (endOfOptions || expectsValue)
+            {
+                expectsValue = false;
+                normalized[index++] = argument;
+                continue;
+            }
+            if (argument == "--")
+            {
+                endOfOptions = true;
+                normalized[index++] = argument;
+                continue;
+            }
+            var resolved = argument switch
+            {
+                "-paths" => "--paths",
+                "-save-path" => "--save-path",
+                "-silent" => "--silent",
+                _ => argument
+            };
+            normalized[index++] = resolved;
+            expectsValue = resolved is "--paths" or "-p" or "--save-path"
+                or "--config-path" or "--filter" or "-f" or "--match" or "-m"
+                or "--not" or "--not-merged";
+        }
+        return normalized;
+    }
+
     public static RunConfiguration Parse(string[] args)
     {
         using var app = new CommandLineApplication();
@@ -31,7 +66,7 @@ static partial class CliParser
 
         try
         {
-            var parseResult = app.Parse(args);
+            var parseResult = app.Parse(NormalizeConsumerAliases(args));
             if (parseResult.SelectedCommand == app)
                 parsed = ExecuteHandler(rootOptions);
             else if (parseResult.SelectedCommand == tagsCommand.Application)
@@ -70,7 +105,7 @@ static partial class CliParser
         CommandOption ScanOnly,
         CommandOption NoMft,
         CommandOption NoLocalCommitCount,
-        CommandOption Summary,
+        CommandOption Json,
         CommandOption Sweep,
         CommandOption Merge,
         CommandOption ClearCache,
@@ -78,6 +113,7 @@ static partial class CliParser
         CommandOption IndexCacheStatus,
         CommandOption DeleteAllLocalFiles,
         CommandOption PrintMinified,
+        CommandOption Minified,
         CommandOption DbSize,
         CommandOption AllBranches,
         CommandOption Watch,
@@ -99,7 +135,7 @@ static partial class CliParser
         var scanOnlyOption = app.Option("--scan-only", "Print discovered repository paths (one per line) and exit without refreshing", CommandOptionType.NoValue);
         var noMftOption = app.Option("--no-mft", "Use explicit recursive directory discovery instead of MFT index search (for users unable to accept the UAC elevation prompt); does not promise an unelevated NTFS journal watch", CommandOptionType.NoValue);
         var noLocalCommitCountOption = app.Option("--no-local-commit-count", "Skip the expensive per-branch local-commit-count iteration in each repository refresh", CommandOptionType.NoValue);
-        var summaryOption = app.Option("--summary", "Output a condensed summary (dirty/unpushed/stale counts + repos needing attention)", CommandOptionType.NoValue);
+        var jsonOption = app.Option("--json", "Print the ordinary report as strict JSON", CommandOptionType.NoValue);
         var sweepOption = app.Option("--sweep", "Output automation-focused JSON: tracked dirty files, branches with commits absent from all remote-tracking refs, and stash counts", CommandOptionType.NoValue);
         var mergeOption = app.Option("--merge", "Targeted single-repo refresh: merge the repos named by --paths into the existing report at --save-path (insert/update those entries, leave all others intact), then write back atomically. Requires --paths and --save-path.", CommandOptionType.NoValue);
         var clearCacheOption = app.Option("--clear-cache", "Delete repositories.txt and report.json only; preserve configuration and persistent index blocks (combine with --no-refresh to avoid rebuilding the report/list).", CommandOptionType.NoValue);
@@ -110,7 +146,8 @@ static partial class CliParser
             "Inspect the current MFT cache policy and exit without discovery or a broker; Windows only. Cannot combine with cache deletion flags.",
             CommandOptionType.NoValue);
         var deleteAllLocalFilesOption = app.Option("--delete-all-local-files", "Delete local files only when no mft-index subtree exists; refuse otherwise. This command does not clear persistent index blocks (combine with --no-refresh to avoid recreating local files).", CommandOptionType.NoValue);
-        var printMinifiedOption = app.Option("--print-minified", "Print the output to the console as minified JSON", CommandOptionType.NoValue);
+        var printMinifiedOption = app.Option("--print-minified", "Compatibility formatting flag for automation commands only", CommandOptionType.NoValue);
+        var minifiedOption = app.Option("--minified", "Compact JSON output (requires --json for ordinary reports)", CommandOptionType.NoValue);
         var dbSizeOption = app.Option("--db-size", "Show the size of the GitWizard local files folder (~/.GitWizard/) and exit", CommandOptionType.NoValue);
         var allBranchesOption = app.Option("--all-branches", "Include all branches (even clean/merged/no-work branches) in the report instead of only actionable ones", CommandOptionType.NoValue);
         var watchOption = app.Option("--watch", "Watch search paths for filesystem changes and print one line per repository event (changed:/created:/deleted: <path>). Prints one 'ready:' line when the watch is caught up: on Windows when every requested NTFS drive has applied its USN journal backlog or been excluded, on Linux when fanotify marks are installed and startup discovery finished (no historical backlog exists). With -v, lines carry an ISO-8601 UTC timestamp and per-drive 'drive:'/'startup:' diagnostics.", CommandOptionType.NoValue);
@@ -132,7 +169,7 @@ static partial class CliParser
             scanOnlyOption,
             noMftOption,
             noLocalCommitCountOption,
-            summaryOption,
+            jsonOption,
             sweepOption,
             mergeOption,
             clearCacheOption,
@@ -140,6 +177,7 @@ static partial class CliParser
             indexCacheStatusOption,
             deleteAllLocalFilesOption,
             printMinifiedOption,
+            minifiedOption,
             dbSizeOption,
             allBranchesOption,
             watchOption,
@@ -182,9 +220,19 @@ static partial class CliParser
             hasError = true;
         }
 
+        var command = ResolveCommand(options);
+        var json = options.Json.HasValue();
+        var minified = options.Minified.HasValue() || options.PrintMinified.HasValue();
+        if (command == CommandKind.Report &&
+            (options.PrintMinified.HasValue() || (minified && !json)))
+        {
+            GitWizardLog.Log("Ordinary reports use --json --minified for compact JSON.", GitWizardLog.LogType.Error);
+            hasError = true;
+        }
+
         return new RunConfiguration
         {
-            Command = ResolveCommand(options),
+            Command = command,
             RebuildRepositoryList = rebuildRepoList,
             RebuildReport = rebuildReport,
             ClearCache = options.ClearCache.HasValue(),
@@ -193,9 +241,9 @@ static partial class CliParser
             NoMft = options.NoMft.HasValue(),
             FilterPattern = filterValue,
             PathsArgument = pathsValue,
-            Summary = options.Summary.HasValue(),
+            Json = json,
             RefreshReport = !options.NoRefresh.HasValue(),
-            Minified = options.PrintMinified.HasValue(),
+            Minified = minified,
             SavePath = savePath,
             CustomConfigurationPath = configPath,
             AllBranches = options.AllBranches.HasValue(),

@@ -69,7 +69,7 @@ public class CoverageBoostRunConfigurationEdgeCases
         Assert.Multiple(() =>
         {
             Assert.That(parsed.FilterPattern, Is.EqualTo("pattern"));
-            Assert.That(parsed.Summary, Is.False);
+            Assert.That(parsed.Json, Is.False);
             Assert.That(parsed.RefreshReport, Is.True);
         });
     }
@@ -77,8 +77,8 @@ public class CoverageBoostRunConfigurationEdgeCases
     [Test]
     public void ParseCommandLine_DuplicateFlags_LastWins()
     {
-        var parsed = Parse("--summary", "--summary");
-        Assert.That(parsed.Summary, Is.True);
+        var parsed = Parse("--json", "--json");
+        Assert.That(parsed.Json, Is.True);
     }
 
     [Test]
@@ -194,11 +194,11 @@ public class CoverageBoostRunConfigurationEdgeCases
             var configFile = Path.Combine(tempDir, "config.json");
             File.WriteAllText(configFile, "{}");
 
-            var parsed = Parse("--config-path", configFile, "--summary");
+            var parsed = Parse("--config-path", configFile, "--json");
             Assert.Multiple(() =>
             {
                 Assert.That(parsed.CustomConfigurationPath, Is.EqualTo(configFile));
-                Assert.That(parsed.Summary, Is.True);
+                Assert.That(parsed.Json, Is.True);
                 Assert.That(parsed.HasParseError, Is.False);
             });
         }
@@ -278,13 +278,13 @@ public class CoverageBoostRunConfigurationEdgeCases
     }
 
     [Test]
-    public void ParseCommandLine_AllBranchesWithSummary_BothSet()
+    public void ParseCommandLine_AllBranchesWithJson_BothSet()
     {
-        var parsed = Parse("--all-branches", "--summary");
+        var parsed = Parse("--all-branches", "--json");
         Assert.Multiple(() =>
         {
             Assert.That(parsed.AllBranches, Is.True);
-            Assert.That(parsed.Summary, Is.True);
+            Assert.That(parsed.Json, Is.True);
         });
     }
 
@@ -370,7 +370,7 @@ public class CoverageBoostRunConfigurationEdgeCases
     [Test]
     public void ParseCommandLine_NoHelpOrVersion_ExitRequestedIsFalse()
     {
-        var parsed = Parse("--summary");
+        var parsed = Parse("--json");
         Assert.That(parsed.Command, Is.Not.EqualTo(CommandKind.HelpPrinted));
     }
 

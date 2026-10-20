@@ -78,7 +78,7 @@ public class ReportPublicationTests
     public async Task Refusal_IncompleteDiscovery_PreservesCachedReportAndCustomSavePath_Exits3(
         DiscoveryOutcome outcome,
         bool nonzeroCandidates,
-        bool summary,
+        bool json,
         bool minified,
         bool silent,
         bool seedSavePath)
@@ -102,11 +102,12 @@ public class ReportPublicationTests
         }
 
         var args = new List<string> { "--rebuild-report", "--save-path", customSavePath };
-        if (summary) args.Add("--summary");
+        if (json || minified) args.Add("--json");
         if (minified) args.Add("--minified");
         if (silent) args.Add("--silent");
 
         var runConfig = CliParser.Parse(args.ToArray());
+        Assert.That(runConfig.HasParseError, Is.False);
         var gitWizardConfig = new GitWizardConfiguration
         {
             SearchPaths = { files.TreePath, dRoot }
@@ -122,6 +123,7 @@ public class ReportPublicationTests
             stdout,
             stderr);
 
+        var output = stdout.ToString();
         Assert.Multiple(() =>
         {
             Assert.That(exitCode, Is.EqualTo(3));
@@ -130,8 +132,26 @@ public class ReportPublicationTests
                 Assert.That(File.ReadAllBytes(customSavePath), Is.EqualTo(priorSaveBytes));
             else
                 Assert.That(File.Exists(customSavePath), Is.False);
-            Assert.That(stdout.ToString(), Does.Not.Contain("\"Repositories\""));
-            Assert.That(stderr.ToString(), Does.Contain("D"));
+
+            if (silent)
+            {
+                Assert.That(output, Is.Empty);
+                Assert.That(stderr.ToString(), Is.Empty);
+            }
+            else if (json || minified)
+            {
+                using var document = JsonDocument.Parse(output);
+                Assert.That(document.RootElement.TryGetProperty("Repositories", out _), Is.False);
+                var warnings = document.RootElement.GetProperty("run").GetProperty("warnings");
+                Assert.That(warnings.EnumerateArray().Any(w => w.GetString()?.Contains('D') == true), Is.True);
+                Assert.That(stderr.ToString(), Does.Not.Contain("Discovery error"));
+            }
+            else
+            {
+                Assert.That(output, Does.Contain($"Run: created={(nonzeroCandidates ? 1 : 0)} refreshed={(nonzeroCandidates ? 1 : 0)} skipped=0").And.Contain("D"));
+                Assert.That(output, Does.Not.Contain("\"Repositories\""));
+                Assert.That(stderr.ToString(), Does.Not.Contain("Discovery error"));
+            }
         });
     }
 

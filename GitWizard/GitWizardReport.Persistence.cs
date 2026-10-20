@@ -179,6 +179,7 @@ public partial class GitWizardReport
             Repositories = repositoriesSnapshot,
             DeletedPaths = DeletedPaths,
             NonRepositoryPaths = NonRepositoryPaths,
+            Run = Run,
         };
     }
 

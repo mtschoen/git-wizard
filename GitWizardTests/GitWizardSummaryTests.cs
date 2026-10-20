@@ -109,5 +109,6 @@ public class GitWizardSummaryTests
         var summary = GitWizardSummary.FromReport(report);
 
         Assert.That(summary.Stale, Is.EqualTo(1));
+        Assert.That(summary.NeedingAttention.Single().Reasons, Does.Contain("stale"));
     }
 }

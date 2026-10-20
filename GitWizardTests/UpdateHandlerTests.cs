@@ -173,4 +173,106 @@ public class UpdateHandlerTests
             Assert.That(_capturedError.ToString(), Does.Contain(expectedBar));
         });
     }
+
+    [TestCase("submodule", "[SKIPPED] Submodule parent not created yet: parent")]
+    [TestCase("uninitialized", "[SKIPPED] Uninitialized submodule parent not created yet: parent")]
+    [TestCase("refresh", "[MISSING] Refresh completed but item not created: child")]
+    [TestCase("null-parent-submodule", "[SKIPPED] Submodule parent has null path")]
+    [TestCase("null-parent-uninitialized", "[SKIPPED] Uninitialized submodule parent has null path")]
+    [TestCase("refresh-empty", "[MISSING] Refresh completed but item not created:")]
+    public void OrderingViolation_IsRetainedAfterLaterCreation(string kind, string warning)
+    {
+        var handler = new UpdateHandler();
+        var parent = new GitWizardRepository("parent");
+        var child = new GitWizardRepository("child");
+        switch (kind)
+        {
+            case "submodule": handler.OnSubmoduleCreated(parent, child); break;
+            case "uninitialized": handler.OnUninitializedSubmoduleCreated(parent, "child"); break;
+            case "refresh": handler.OnRepositoryRefreshCompleted(child); break;
+            case "null-parent-submodule": handler.OnSubmoduleCreated(new GitWizardRepository(null!), child); break;
+            case "null-parent-uninitialized": handler.OnUninitializedSubmoduleCreated(new GitWizardRepository(null!), "child"); break;
+            case "refresh-empty": handler.OnRepositoryRefreshCompleted(new GitWizardRepository(null!)); break;
+        }
+        handler.OnRepositoryCreated(parent);
+        handler.OnRepositoryCreated(child);
+        var run = handler.CaptureRun();
+        Assert.Multiple(() =>
+        {
+            Assert.That(run.Created, Is.EqualTo(2));
+            Assert.That(run.Refreshed, Is.Zero);
+            Assert.That(run.Skipped, Is.EqualTo(1));
+            Assert.That(run.Warnings, Has.Length.EqualTo(1));
+            Assert.That(run.Warnings[0], Does.StartWith(warning));
+            Assert.That(_capturedOut.ToString(), Is.Empty);
+            Assert.That(_capturedError.ToString(), Is.Empty);
+        });
+    }
+
+    [Test]
+    public void OrderedCallbacks_CountAcceptedEventsAndDetachSnapshots()
+    {
+        var handler = new UpdateHandler();
+        var parent = new GitWizardRepository("parent");
+        var child = new GitWizardRepository("child");
+        handler.OnRepositoryCreated(parent);
+        handler.OnSubmoduleCreated(parent, child);
+        handler.OnWorktreeCreated(new GitWizardRepository("worktree"));
+        handler.OnUninitializedSubmoduleCreated(parent, "uninitialized");
+        handler.OnRepositoryRefreshCompleted(parent);
+        handler.OnRepositoryRefreshCompleted(child);
+        var before = handler.CaptureRun();
+        handler.OnRepositoryCreated(parent);
+        handler.RecordWarning("later warning");
+        Assert.Multiple(() =>
+        {
+            Assert.That(before.Created, Is.EqualTo(3));
+            Assert.That(before.Refreshed, Is.EqualTo(2));
+            Assert.That(before.Skipped, Is.Zero);
+            Assert.That(before.Warnings, Is.Empty);
+            Assert.That(handler.CaptureRun().Created, Is.EqualTo(4));
+            Assert.That(handler.CaptureRun().Warnings, Is.EqualTo(new[] { "later warning" }));
+        });
+    }
+
+    [Test]
+    public async Task MultipleProgress_Updates_AreThreadSafe()
+    {
+        using var writer = new ProgressLockWriter();
+        var handler = new UpdateHandler(writer);
+        var field = typeof(UpdateHandler).GetField("_progressLock",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        writer.ProgressLock = field.GetValue(handler)!;
+        handler.StartProgress("Parallel test", 32);
+        await Task.WhenAll(Enumerable.Range(1, 32)
+            .Select(count => Task.Run(() => handler.UpdateProgress(count))));
+        Assert.Multiple(() =>
+        {
+            Assert.That(writer.UnlockedWrites, Is.Zero);
+            Assert.That(writer.Lines, Has.Count.EqualTo(33));
+            Assert.That(writer.Lines, Has.Some.Contains("32/32"));
+            Assert.That(writer.Newlines, Is.EqualTo(1));
+        });
+    }
+
+    sealed class ProgressLockWriter : TextWriter
+    {
+        int _unlockedWrites;
+        int _newlines;
+        public object ProgressLock { get; set; } = null!;
+        public System.Collections.Concurrent.ConcurrentQueue<string> Lines { get; } = new();
+        public int UnlockedWrites => Volatile.Read(ref _unlockedWrites);
+        public int Newlines => Volatile.Read(ref _newlines);
+        public override System.Text.Encoding Encoding => System.Text.Encoding.UTF8;
+        public override void Write(string? value)
+        {
+            if (!Monitor.IsEntered(ProgressLock)) Interlocked.Increment(ref _unlockedWrites);
+            Lines.Enqueue(value ?? string.Empty);
+        }
+        public override void WriteLine()
+        {
+            if (!Monitor.IsEntered(ProgressLock)) Interlocked.Increment(ref _unlockedWrites);
+            Interlocked.Increment(ref _newlines);
+        }
+    }
 }

@@ -97,7 +97,6 @@ git-wizard Session Started
                     configuration = await PrepareInteractiveRunAsync(runConfiguration, configuration).ConfigureAwait(false);
                     return await RunWatchAsync(runConfiguration, configuration, coordinator, stdout, stderr, cancellationToken).ConfigureAwait(false);
                 case CommandKind.Report:
-                    configuration = await PrepareInteractiveRunAsync(runConfiguration, configuration).ConfigureAwait(false);
                     return await RunDefaultReportCoreAsync(runConfiguration, configuration, coordinator, stdout, stderr, cancellationToken).ConfigureAwait(false);
                 default:
                     throw new ArgumentOutOfRangeException(

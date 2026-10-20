@@ -7,7 +7,7 @@ public static partial class Program
 {
     internal static async Task<int> RunDefaultReportCoreAsync(
         RunConfiguration runConfiguration,
-        GitWizardConfiguration configuration,
+        GitWizardConfiguration? configuration = null,
         RepositoryDiscoveryCoordinator? coordinator = null,
         TextWriter? stdout = null,
         TextWriter? stderr = null,
@@ -15,16 +15,16 @@ public static partial class Program
     {
         stdout ??= Console.Out;
         stderr ??= Console.Error;
+        var updateHandler = new UpdateHandler(runConfiguration.Silent || GitWizardLog.SilentMode ? TextWriter.Null : stderr);
+        using var logScope = new ReportLogScope(updateHandler, runConfiguration, stdout, stderr);
         var originalLogMethod = GitWizardLog.LogMethod;
         try
         {
             GitWizardLog.LogMethod = stderr.WriteLine;
+            configuration = await PrepareInteractiveRunAsync(runConfiguration, configuration).ConfigureAwait(false);
 
             var explicitPaths = ParseExplicitPaths(runConfiguration);
             var isFullInventory = explicitPaths == null;
-
-            var updateHandler = new UpdateHandler(stderr);
-            GitWizardReport report;
 
             if (isFullInventory)
             {
@@ -35,36 +35,22 @@ public static partial class Program
                     {
                         await using (cachedReport)
                         {
-                            return OutputReport(cachedReport, runConfiguration, stdout);
+                            var cachedRun = cachedReport.Run ?? new ReportRunSummary();
+                            cachedReport.Run = cachedRun with
+                            {
+                                Warnings = [.. cachedRun.Warnings, .. updateHandler.CaptureRun().Warnings]
+                            };
+                            return OutputReport(cachedReport, runConfiguration, stdout, fromCache: true);
                         }
                     }
                 }
 
                 if (!EnsureUsableSearchPaths(configuration, _ => { }))
-                    return 1;
-
-                var reportOptions = new GitWizardReportOptions
-                {
-                    NoMft = runConfiguration.NoMft,
-                    AllBranches = runConfiguration.AllBranches,
-                    ComputeLocalCommitCount = !runConfiguration.NoLocalCommitCount,
-                    DiscoveryCoordinator = coordinator,
-                    DiscoveryPurpose = runConfiguration.RebuildRepositoryList ? DiscoveryPurpose.Rebuild : DiscoveryPurpose.Ordinary,
-                    AllowRepositoryList = !runConfiguration.RebuildRepositoryList
-                };
-
-                report = await GitWizardReport.GenerateReportAsync(configuration, null, updateHandler, reportOptions).ConfigureAwait(false);
+                    return OutputFailedRun(updateHandler.CaptureRun(), runConfiguration, stdout, 1);
             }
-            else
-            {
-                var reportOptions = new GitWizardReportOptions
-                {
-                    NoMft = runConfiguration.NoMft,
-                    AllBranches = runConfiguration.AllBranches,
-                    ComputeLocalCommitCount = !runConfiguration.NoLocalCommitCount
-                };
-                report = await GitWizardReport.GenerateReportAsync(configuration, explicitPaths, updateHandler, reportOptions).ConfigureAwait(false);
-            }
+
+            var report = await GenerateReportForRunAsync(
+                runConfiguration, configuration, explicitPaths, updateHandler, coordinator).ConfigureAwait(false);
 
             await using (report)
             {
@@ -72,11 +58,13 @@ public static partial class Program
                 if (exitCode is { } failureExitCode)
                 {
                     if (report.DiscoveryInventory is not null)
-                        WriteDiscoveryDiagnostics(report.DiscoveryInventory, stderr);
-                    return failureExitCode;
+                        RecordDiscoveryDiagnostics(report.DiscoveryInventory, updateHandler);
+                    return OutputFailedRun(updateHandler.CaptureRun(), runConfiguration, stdout, failureExitCode);
                 }
 
+                report.Run = updateHandler.CaptureRun();
                 await SaveReportAsync(runConfiguration, report).ConfigureAwait(false);
+                report.Run = updateHandler.CaptureRun();
 
                 return OutputReport(report, runConfiguration, stdout);
             }
@@ -87,27 +75,73 @@ public static partial class Program
         }
     }
 
-    static int OutputReport(GitWizardReport report, RunConfiguration runConfiguration, TextWriter stdout)
+    static Task<GitWizardReport> GenerateReportForRunAsync(
+        RunConfiguration runConfiguration,
+        GitWizardConfiguration configuration,
+        string[]? explicitPaths,
+        IUpdateHandler updateHandler,
+        RepositoryDiscoveryCoordinator? coordinator)
     {
+        if (explicitPaths == null)
+        {
+            var reportOptions = new GitWizardReportOptions
+            {
+                NoMft = runConfiguration.NoMft,
+                AllBranches = runConfiguration.AllBranches,
+                ComputeLocalCommitCount = !runConfiguration.NoLocalCommitCount,
+                DiscoveryCoordinator = coordinator,
+                DiscoveryPurpose = runConfiguration.RebuildRepositoryList ? DiscoveryPurpose.Rebuild : DiscoveryPurpose.Ordinary,
+                AllowRepositoryList = !runConfiguration.RebuildRepositoryList
+            };
+
+            return GitWizardReport.GenerateReportAsync(configuration, null, updateHandler, reportOptions);
+        }
+
+        var explicitOptions = new GitWizardReportOptions
+        {
+            NoMft = runConfiguration.NoMft,
+            AllBranches = runConfiguration.AllBranches,
+            ComputeLocalCommitCount = !runConfiguration.NoLocalCommitCount
+        };
+        return GitWizardReport.GenerateReportAsync(configuration, explicitPaths, updateHandler, explicitOptions);
+    }
+
+    static void RecordDiscoveryDiagnostics(DiscoveryInventory inventory, UpdateHandler updateHandler)
+    {
+        using var diagnostics = new StringWriter();
+        WriteDiscoveryDiagnostics(inventory, diagnostics);
+        foreach (var line in diagnostics.ToString().Split(
+            Environment.NewLine, StringSplitOptions.RemoveEmptyEntries))
+            updateHandler.RecordWarning(line);
+    }
+
+    internal static int OutputFailedRun(ReportRunSummary run, RunConfiguration configuration,
+        TextWriter stdout, int exitCode)
+    {
+        if (!configuration.Silent && !GitWizardLog.SilentMode)
+        {
+            if (configuration.Json)
+                stdout.WriteLine(JsonSerializer.Serialize(new { run },
+                    GetSerializerOptions(configuration, JsonIgnoreCondition.WhenWritingDefault)));
+            else
+                ReportTextFormatter.WriteRun(stdout, run);
+        }
+        return exitCode;
+    }
+
+    internal static int OutputReport(GitWizardReport report, RunConfiguration runConfiguration, TextWriter stdout,
+        bool fromCache = false)
+    {
+        report.Run ??= new ReportRunSummary();
         var filteredReport = ApplyFilter(runConfiguration, report);
-        var needsAttention = ReportNeedsAttention(filteredReport);
-
-        string jsonString;
-        if (runConfiguration.Summary)
-        {
-            var summary = GitWizardSummary.FromReport(filteredReport);
-            var options = GetSerializerOptions(runConfiguration, JsonIgnoreCondition.WhenWritingDefault);
-            jsonString = JsonSerializer.Serialize(summary, options);
-        }
-        else
-        {
-            jsonString = SerializeReport(runConfiguration, filteredReport);
-        }
-
         if (!GitWizardLog.SilentMode && !runConfiguration.Silent)
-            stdout.WriteLine(jsonString);
-
-        return needsAttention ? 1 : 0;
+        {
+            if (runConfiguration.Json)
+                stdout.WriteLine(SerializeReport(runConfiguration, filteredReport));
+            else
+                ReportTextFormatter.Write(stdout, filteredReport, fromCache);
+        }
+        return ReportNeedsAttention(filteredReport) ? 1 : 0;
     }
 
     /// <summary>
@@ -172,7 +206,10 @@ public static partial class Program
             SchemaVersion = report.SchemaVersion,
             SearchPaths = report.SearchPaths,
             IgnoredPaths = report.IgnoredPaths,
-            IncludeTempDirectories = report.IncludeTempDirectories
+            IncludeTempDirectories = report.IncludeTempDirectories,
+            Run = report.Run,
+            BranchScope = report.BranchScope,
+            SkipHiddenDirectories = report.SkipHiddenDirectories
         };
 
         foreach (var kvp in report.Repositories)

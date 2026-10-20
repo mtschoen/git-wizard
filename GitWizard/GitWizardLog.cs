@@ -42,8 +42,10 @@ public static class GitWizardLog
     public static bool VerboseMode { get; set; }
 
     /// <summary>
-    /// Suppress ordinary log messages and exception context callbacks.
-    /// Exception body callbacks and exception file records remain enabled.
+    /// Suppress console and file output of ordinary log messages and console dispatch of
+    /// exception context. A typed sink still receives warning and error messages and exception
+    /// context so report collection survives silence. Exception body callbacks and exception
+    /// file records remain enabled.
     /// </summary>
     public static bool SilentMode { get; set; }
 
@@ -52,6 +54,15 @@ public static class GitWizardLog
     /// Default: Console.WriteLine
     /// </summary>
     public static Action<string?> LogMethod { get; set; } = Console.WriteLine;
+
+    public static Action<string?, LogType>? TypedLogMethod { get; set; }
+
+    static void DispatchConsole(string? message, LogType type)
+    {
+        var sink = TypedLogMethod;
+        if (sink == null) LogMethod(message);
+        else sink(message, type);
+    }
 
     static readonly object LogFileLock = new();
     static readonly TimeSpan LogFileLifetime = TimeSpan.FromDays(30);
@@ -84,14 +95,21 @@ public static class GitWizardLog
     /// <param name="type">The type of log message.</param>
     public static void Log(string message, LogType type = LogType.Info)
     {
-        if (SilentMode)
-            return;
-
         if ((type is LogType.Verbose or LogType.Debug) && !VerboseMode)
             return;
 
         var formattedMessage = string.Format(CultureInfo.InvariantCulture, LogMessageCompositeFormat, DateTime.UtcNow, type, message);
-        LogMethod(formattedMessage);
+        if (SilentMode)
+        {
+            // Silence suppresses console and file output only; a typed sink (the report
+            // diagnostic collector) still receives warnings and errors so the saved
+            // run.warnings survive --silent.
+            if (type is LogType.Warning or LogType.Error)
+                TypedLogMethod?.Invoke(formattedMessage, type);
+            return;
+        }
+
+        DispatchConsole(formattedMessage, type);
         LogToFile(formattedMessage);
     }
 
@@ -101,7 +119,8 @@ public static class GitWizardLog
     /// Console callbacks retain separate message, stack, and inner-exception label outputs.
     /// </summary>
     /// <remarks>
-    /// Silent mode suppresses only the context callback for this method.
+    /// Silent mode suppresses console dispatch of the context callback for this method; a
+    /// typed sink still receives it.
     /// The bounded best-effort file queue may drop whole records; this method does not flush it.
     /// </remarks>
     /// <param name="exception">The exception to log.</param>
@@ -118,20 +137,27 @@ public static class GitWizardLog
         var body = exception.ToString();
         LogToFile(context == null ? body : $"{context}{Environment.NewLine}{body}");
 
-        if (context != null && !SilentMode)
-            LogMethod(context);
+        if (context != null)
+        {
+            // Silent mode suppresses the context's console dispatch only; a typed sink
+            // (the report diagnostic collector) still receives it.
+            if (SilentMode)
+                TypedLogMethod?.Invoke(context, LogType.Error);
+            else
+                DispatchConsole(context, LogType.Error);
+        }
         LogExceptionToConsole(exception);
     }
 
     static void LogExceptionToConsole(Exception exception)
     {
-        LogMethod(exception.Message);
-        LogMethod(exception.StackTrace);
+        DispatchConsole(exception.Message, LogType.Error);
+        DispatchConsole(exception.StackTrace, LogType.Error);
 
         var innerException = exception.InnerException;
         if (innerException != null)
         {
-            LogMethod("Inner exception:");
+            DispatchConsole("Inner exception:", LogType.Error);
             LogExceptionToConsole(innerException);
         }
     }

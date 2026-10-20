@@ -73,6 +73,9 @@ public partial class GitWizardReport : IAsyncDisposable
     [JsonIgnore]
     public DiscoveryInventory? DiscoveryInventory { get; internal set; }
 
+    [JsonPropertyName("run")]
+    public ReportRunSummary? Run { get; set; }
+
     public static string GetCachedReportPath()
     {
         return Path.Combine(GitWizardApi.GetLocalFilesPath(), "report.json");

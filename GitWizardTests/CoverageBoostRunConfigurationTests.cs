@@ -46,7 +46,7 @@ public class CoverageBoostRunConfigurationTests
             Assert.That(parsed.SetupDefender, Is.False);
             Assert.That(parsed.Command, Is.Not.EqualTo(CommandKind.ScanOnly));
             Assert.That(parsed.NoMft, Is.False);
-            Assert.That(parsed.Summary, Is.False);
+            Assert.That(parsed.Json, Is.False);
             Assert.That(parsed.Command, Is.Not.EqualTo(CommandKind.Merge));
             Assert.That(parsed.RefreshReport, Is.True); // default is true
             Assert.That(parsed.Minified, Is.False);
@@ -151,11 +151,24 @@ public class CoverageBoostRunConfigurationTests
         Assert.That(parsed.NoMft, Is.True);
     }
 
-    [Test]
-    public void ParseCommandLine_Summary_SetsSummary()
+    [TestCase("--summary")]
+    [TestCase("--print-minified")]
+    [TestCase("--minified")]
+    public void ParseCommandLine_ObsoleteOrIncompleteReportFormatting_IsError(string argument)
     {
-        var parsed = Parse("--summary");
-        Assert.That(parsed.Summary, Is.True);
+        Assert.That(Parse(argument).HasParseError, Is.True);
+    }
+
+    [Test]
+    public void ParseCommandLine_JsonMinified_SelectsExplicitJson()
+    {
+        var parsed = Parse("--json", "--minified");
+        Assert.Multiple(() =>
+        {
+            Assert.That(parsed.HasParseError, Is.False);
+            Assert.That(parsed.Json, Is.True);
+            Assert.That(parsed.Minified, Is.True);
+        });
     }
 
     [Test]
@@ -179,12 +192,7 @@ public class CoverageBoostRunConfigurationTests
         Assert.That(parsed.DeleteAllLocalFiles, Is.True);
     }
 
-    [Test]
-    public void ParseCommandLine_PrintMinified_SetsMinified()
-    {
-        var parsed = Parse("--print-minified");
-        Assert.That(parsed.Minified, Is.True);
-    }
+
 
     [Test]
     public void ParseCommandLine_DbSize_SetsDbSize()
@@ -280,10 +288,10 @@ public class CoverageBoostRunConfigurationTests
     [Test]
     public void ParseCommandLine_MultipleSimpleFlags_AllSetCorrectly()
     {
-        var parsed = Parse("--summary", "--no-mft", "--print-minified", "--all-branches");
+        var parsed = Parse("--json", "--no-mft", "--minified", "--all-branches");
         Assert.Multiple(() =>
         {
-            Assert.That(parsed.Summary, Is.True);
+            Assert.That(parsed.Json, Is.True);
             Assert.That(parsed.NoMft, Is.True);
             Assert.That(parsed.Minified, Is.True);
             Assert.That(parsed.AllBranches, Is.True);
@@ -293,10 +301,10 @@ public class CoverageBoostRunConfigurationTests
     [Test]
     public void ParseCommandLine_FlagAndParameterCombination_BothApplied()
     {
-        var parsed = Parse("--summary", "--filter", "foo", "--no-refresh");
+        var parsed = Parse("--json", "--filter", "foo", "--no-refresh");
         Assert.Multiple(() =>
         {
-            Assert.That(parsed.Summary, Is.True);
+            Assert.That(parsed.Json, Is.True);
             Assert.That(parsed.FilterPattern, Is.EqualTo("foo"));
             Assert.That(parsed.RefreshReport, Is.False);
         });
@@ -319,8 +327,8 @@ public class CoverageBoostRunConfigurationTests
         var parsed = Parse(
             "--rebuild-report", "--rebuild-repo-list", "--clear-cache",
             "--delete-all-local-files", "--setup-defender", "--scan-only",
-            "--no-mft", "--no-local-commit-count", "--summary", "--merge", "--no-refresh",
-            "--print-minified", "--db-size", "--all-branches", "--watch"
+            "--no-mft", "--no-local-commit-count", "--json", "--merge", "--no-refresh",
+            "--minified", "--db-size", "--all-branches", "--watch"
         );
         Assert.Multiple(() =>
         {
@@ -331,11 +339,34 @@ public class CoverageBoostRunConfigurationTests
             Assert.That(parsed.SetupDefender, Is.True);
             Assert.That(parsed.NoMft, Is.True);
             Assert.That(parsed.NoLocalCommitCount, Is.True);
-            Assert.That(parsed.Summary, Is.True);
+            Assert.That(parsed.Json, Is.True);
             Assert.That(parsed.RefreshReport, Is.False);
             Assert.That(parsed.Minified, Is.True);
             Assert.That(parsed.Command, Is.EqualTo(CommandKind.DbSize));
             Assert.That(parsed.AllBranches, Is.True);
+        });
+    }
+    [Test]
+    public void ParseCommandLine_ConsumerAliases_NormalizedCorrectly()
+    {
+        var savePath = Path.Combine(Path.GetTempPath(), "report.json");
+        var parsed = Parse("-paths", "/test/repo", "-save-path", savePath, "-silent");
+        Assert.Multiple(() =>
+        {
+            Assert.That(parsed.PathsArgument, Is.EqualTo("/test/repo"));
+            Assert.That(parsed.SavePath, Is.EqualTo(savePath));
+            Assert.That(parsed.Silent, Is.True);
+        });
+    }
+
+    [Test]
+    public void ParseCommandLine_PathsWithLiteralDashSilent_PreservesValue()
+    {
+        var parsed = Parse("--paths", "-silent");
+        Assert.Multiple(() =>
+        {
+            Assert.That(parsed.PathsArgument, Is.EqualTo("-silent"));
+            Assert.That(parsed.Silent, Is.False);
         });
     }
 }

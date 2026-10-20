@@ -60,13 +60,15 @@ public class TagsAndBranchesCliTests
         });
     }
 
-    [Test]
-    public void Parse_TagsCommand_WithStandardOptions()
+    [TestCase("--print-minified")]
+    [TestCase("--minified")]
+    public void Parse_TagsCommand_WithStandardOptions(string minifiedOption)
     {
-        var result = CliParser.Parse(["tags", "-p", "/repo/one,/repo/two", "-f", "repo", "--print-minified", "--no-mft", "-v"]);
+        var result = CliParser.Parse(["tags", "-p", "/repo/one,/repo/two", "-f", "repo", minifiedOption, "--no-mft", "-v"]);
 
         Assert.Multiple(() =>
         {
+            Assert.That(result.HasParseError, Is.False);
             Assert.That(result.Command, Is.EqualTo(CommandKind.Tags));
             Assert.That(result.PathsArgument, Is.EqualTo("/repo/one,/repo/two"));
             Assert.That(result.FilterPattern, Is.EqualTo("repo"));
@@ -127,13 +129,15 @@ public class TagsAndBranchesCliTests
         });
     }
 
-    [Test]
-    public void Parse_BranchesCommand_WithStandardOptions()
+    [TestCase("--print-minified")]
+    [TestCase("--minified")]
+    public void Parse_BranchesCommand_WithStandardOptions(string minifiedOption)
     {
-        var result = CliParser.Parse(["branches", "-p", "/path/a", "-f", "alpha", "--print-minified", "--no-mft"]);
+        var result = CliParser.Parse(["branches", "-p", "/path/a", "-f", "alpha", minifiedOption, "--no-mft"]);
 
         Assert.Multiple(() =>
         {
+            Assert.That(result.HasParseError, Is.False);
             Assert.That(result.Command, Is.EqualTo(CommandKind.Branches));
             Assert.That(result.PathsArgument, Is.EqualTo("/path/a"));
             Assert.That(result.FilterPattern, Is.EqualTo("alpha"));

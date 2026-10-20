@@ -33,9 +33,16 @@ dotnet build GitWizardUI/GitWizardUI.csproj
 
 On first run, configure your search paths in Settings. GitWizard will scan those paths for git repositories and cache the results for fast subsequent launches.
 
-The default CLI report writes one JSON document to stdout. Progress and diagnostics go to
-stderr, so `git-wizard > report.json` produces a parseable report. `--summary` uses the same
-stream split; `--print-minified` controls JSON formatting.
+The default CLI report prints a human-readable attention overview and repository paths,
+followed by one run summary (created, refreshed and skipped callback counts) and any
+ordering warnings. Dirty, unpushed, stale, merged-branch and behind-remote reasons are
+shown. Use `git-wizard --json > report.json` for a strict JSON report, or add
+`--minified` for compact JSON. Progress and verbose debug logging use stderr during
+report execution; report warnings are retained in the report's `run.warnings` array.
+`--save-path` always writes JSON, and `--silent` suppresses successful console output
+without suppressing saved run metadata. `--no-refresh` displays the cached generation's
+run metadata. Automation commands (`--sweep`, `tags`, `branches`) continue to emit their
+existing JSON schemas and accept their existing compact-output flag.
 
 Before pushing source changes, run `bash tools/ci-preflight.sh --all` to execute
 the host's shared CI gates. See [AGENTS.md](AGENTS.md#local-ci-preflight) for
@@ -236,7 +243,7 @@ git-wizard --sweep --print-minified
 git-wizard --sweep --paths /work/repo-a,/work/repo-b
 ```
 
-It emits stable JSON containing each repository path, dirty tracked files, local branches with commits absent from all local remote-tracking refs, and stash count. Without `--paths`, every sweep performs fresh discovery under the configured search paths and replaces `repositories.txt` on complete discovery; it does not reuse the cached repository list or a stale index snapshot. With `--paths`, only the supplied repositories are inspected. The sweep does not modify repositories or fetch, so remote-tracking freshness depends on the machine's last fetch. `--summary` remains an ordinary report mode with its existing cache behavior. See [the sweep schema](docs/report-schema.md#repository-sweep-output---sweep) and the local/SSH agent workflow in [skills-dev/sweeping-git-work](skills-dev/sweeping-git-work/SKILL.md).
+It emits stable JSON containing each repository path, dirty tracked files, local branches with commits absent from all local remote-tracking refs, and stash count. Without `--paths`, every sweep performs fresh discovery under the configured search paths and replaces `repositories.txt` on complete discovery; it does not reuse the cached repository list or a stale index snapshot. With `--paths`, only the supplied repositories are inspected. The sweep does not modify repositories or fetch, so remote-tracking freshness depends on the machine's last fetch. Ordinary reports retain their repository-list and snapshot cache behavior; sweep discovery remains fresh. See [the sweep schema](docs/report-schema.md#repository-sweep-output---sweep) and the local/SSH agent workflow in [skills-dev/sweeping-git-work](skills-dev/sweeping-git-work/SKILL.md).
 
 ### Fleet-wide tag and branch inventory
 

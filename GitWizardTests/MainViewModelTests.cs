@@ -367,11 +367,13 @@ public class MainViewModelTests
     public void StartProgress_MakesProgressVisible()
     {
         var vm = CreateViewModel();
+        vm.IsScanning = true;
 
         vm.StartProgress("scanning", 10);
 
         Assert.That(vm.IsProgressVisible, Is.True);
         Assert.That(vm.ProgressText, Does.Contain("scanning"));
+        Assert.That(vm.IsScanning, Is.False, "StartProgress must disable the scanning indicator.");
     }
 
     sealed class ThrowingClipboardService : IClipboardService

@@ -115,6 +115,28 @@ from a module initializer; referencing MFTLibTestExtensions alone does not activ
 Journal isolation has no reset and is not inherited by child processes. Synthetic journal
 windows remain the test seam. GlobalTestSetup's GITWIZARD_HOME redirect is independent.
 
+### Test organization and consolidation
+
+Place behavioral tests beside the fixture for their production subject. Use
+table-driven cases for inputs with the same setup and assertions. Test filenames
+describe the subject and exclude `CoverageBoost`, `CoverageSafetyBoost`,
+`Additional`, `More`, and `SmallFiles`.
+
+Before deleting a repeated test, record its surviving test/case and compare
+covered production line sets by assembly and file before and after the subject
+batch, using the same host, build configuration, filter, and
+`GitWizardTests/coverlet.runsettings`. Preserve the TRX and Cobertura results
+outside the checkout. A passing 55% aggregate gate alone does not prove that a
+specific covered line or assertion survived.
+
+Filename check (PowerShell, repository root):
+
+    $bad = Get-ChildItem GitWizardTests -Recurse -File -Filter *.cs |
+        Where-Object { $_.Name -match 'CoverageBoost|CoverageSafetyBoost|Additional|More|SmallFiles' }
+    if ($bad) { throw ($bad.FullName -join [Environment]::NewLine) }
+
+Expected: no output and successful exit.
+
 ## Cleaning the working tree
 
 `git clean -ffxd` must always be safe to run. It is the check that this checkout still matches a fresh clone, so it is run before starting new work, and it must never be the thing that loses something.

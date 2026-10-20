@@ -54,6 +54,76 @@ public class GitWizardReportDiscoveryProgressTests
         Assert.That(handler.MaxReportedCount, Is.EqualTo(_searchPaths.Count));
     }
 
+    [Test]
+    public async Task ReportGetRepositoryPaths_NoMft_FallsBackToDirectoryScan()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "gw-report-scan-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "myrepo", ".git"));
+        try
+        {
+            var report = new GitWizardReport
+            {
+                SearchPaths = { root },
+                IgnoredPaths = new SortedSet<string>()
+            };
+            var paths = new SortedSet<string>();
+            await report.GetRepositoryPathsAsync(paths, noMft: true);
+            Assert.That(paths, Has.Count.EqualTo(1));
+            Assert.That(paths.Single(), Does.Contain("myrepo").IgnoreCase);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Test]
+    public void ReportGetRepositoryPaths_WithThrowingProgressHandler_DoesNotCrash()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "gw-throw-prog-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "repo", ".git"));
+        try
+        {
+            var report = new GitWizardReport
+            {
+                SearchPaths = { root },
+                IgnoredPaths = new SortedSet<string>()
+            };
+            var paths = new SortedSet<string>();
+            var handler = new ThrowingProgressHandler();
+            Assert.DoesNotThrowAsync(() => report.GetRepositoryPathsAsync(paths, handler, noMft: true));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task ReportGetRepositoryPaths_MultipleSearchPaths_MergesResults()
+    {
+        var root1 = Path.Combine(Path.GetTempPath(), "gw-multi1-" + Guid.NewGuid().ToString("N"));
+        var root2 = Path.Combine(Path.GetTempPath(), "gw-multi2-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root1, "repoA", ".git"));
+        Directory.CreateDirectory(Path.Combine(root2, "repoB", ".git"));
+        try
+        {
+            var report = new GitWizardReport
+            {
+                SearchPaths = { root1, root2 },
+                IgnoredPaths = new SortedSet<string>()
+            };
+            var paths = new SortedSet<string>();
+            await report.GetRepositoryPathsAsync(paths, noMft: true);
+            Assert.That(paths, Has.Count.EqualTo(2));
+        }
+        finally
+        {
+            if (Directory.Exists(root1)) Directory.Delete(root1, recursive: true);
+            if (Directory.Exists(root2)) Directory.Delete(root2, recursive: true);
+        }
+    }
+
     sealed class RecordingProgressHandler : IUpdateHandler
     {
         readonly ConcurrentBag<int> _reportedCounts = new();
@@ -68,5 +138,27 @@ public class GitWizardReportDiscoveryProgressTests
         public void OnWorktreeCreated(GitWizardRepository worktree) { }
         public void OnUninitializedSubmoduleCreated(GitWizardRepository parent, string submodulePath) { }
         public void OnRepositoryRefreshCompleted(GitWizardRepository gitWizardRepository) { }
+    }
+
+    sealed class ThrowingProgressHandler : IUpdateHandler
+    {
+        public void StartProgress(string description, int total) => throw new InvalidOperationException("boom");
+        public void UpdateProgress(int count) => throw new InvalidOperationException("boom");
+        public void SendUpdateMessage(string? message) { }
+        public void OnRepositoryCreated(GitWizardRepository gitWizardRepository) { }
+        public void OnSubmoduleCreated(GitWizardRepository parent, GitWizardRepository submodule) { }
+        public void OnWorktreeCreated(GitWizardRepository worktree) { }
+        public void OnUninitializedSubmoduleCreated(GitWizardRepository parent, string submodulePath) { }
+        public void OnRepositoryRefreshCompleted(GitWizardRepository gitWizardRepository) { }
+    }
+    [Test]
+    public async Task GetRepositoryPaths_EmptyOrNonExistentSearchPath_FindsNothing()
+    {
+        GitWizardLog.SilentMode = true;
+        var report = new GitWizardReport();
+        report.SearchPaths.Add("/nonexistent/search/path");
+        var paths = new SortedSet<string>();
+        await report.GetRepositoryPathsAsync(paths, noMft: true);
+        Assert.That(paths, Is.Empty);
     }
 }

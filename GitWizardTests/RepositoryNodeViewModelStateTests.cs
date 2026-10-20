@@ -73,6 +73,20 @@ public class RepositoryNodeViewModelStateTests
     }
 
     [Test]
+    public void RecentRepo_DoesNotMatchStaleFilter()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var node = RefreshedNode(fixture);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(node.Repository.DaysSinceLastCommit, Is.Not.Null,
+                "A refreshed repo must have a known age; the stale predicate must distinguish it from an old age.");
+            Assert.That(node.MatchesFilter(FilterType.Stale), Is.False);
+        });
+    }
+
+    [Test]
     public void DetachedHeadWithMatchingBranch_DrivesFilterDisplayAndCheckout()
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();

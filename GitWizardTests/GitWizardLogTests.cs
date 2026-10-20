@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using GitWizard;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests;
 
@@ -77,14 +78,42 @@ public class GitWizardLogTests
         }
     }
 
-    [Test]
-    public void Log_SilentMode_DoesNotOutput()
+    static InvalidOperationException CaptureDeepNestedException(string token)
     {
+        try
+        {
+            try
+            {
+                try
+                {
+                    throw new FormatException($"innermost-{token}");
+                }
+                catch (FormatException innermost)
+                {
+                    throw new ArgumentException($"middle-{token}", innermost);
+                }
+            }
+            catch (ArgumentException middle)
+            {
+                throw new InvalidOperationException($"outer-{token}", middle);
+            }
+        }
+        catch (InvalidOperationException outer)
+        {
+            return outer;
+        }
+    }
+
+    [TestCase(false, "Test message", GitWizardLog.LogType.Info)]
+    [TestCase(true, "should not appear", GitWizardLog.LogType.Verbose)]
+    public void Log_SilentMode_DoesNotOutput(bool verbose, string message, GitWizardLog.LogType logType)
+    {
+        GitWizardLog.VerboseMode = verbose;
         GitWizardLog.SilentMode = true;
         var output = string.Empty;
         GitWizardLog.LogMethod = msg => { output = msg!; };
 
-        GitWizardLog.Log("Test message");
+        GitWizardLog.Log(message, logType);
 
         Assert.That(output, Is.Empty);
     }
@@ -112,6 +141,19 @@ public class GitWizardLogTests
 
         Assert.That(output, Is.Not.Empty);
         Assert.That(output, Does.Contain("Verbose message"));
+    }
+
+    [Test]
+    public void Log_VerboseEnabled_NonVerboseMessage_StillOutputs()
+    {
+        GitWizardLog.VerboseMode = true;
+        GitWizardLog.SilentMode = false;
+        var output = string.Empty;
+        GitWizardLog.LogMethod = msg => { output = msg!; };
+
+        GitWizardLog.Log("info message");
+
+        Assert.That(output, Does.Contain("info message"));
     }
 
     [Test]
@@ -146,7 +188,11 @@ public class GitWizardLogTests
 
         GitWizardLog.Log("Warning message", GitWizardLog.LogType.Warning);
 
-        Assert.That(output, Does.Contain("Warning"));
+        Assert.Multiple(() =>
+        {
+            Assert.That(output, Does.Contain("Warning"));
+            Assert.That(output, Does.Contain("Warning message"));
+        });
     }
 
     [Test]
@@ -226,36 +272,6 @@ public class GitWizardLogTests
 
         // Should contain timestamp pattern [yyyy-MM-dd|HH:mm:ss.ffff]
         Assert.That(output, Does.Match(@"\[\d{4}-\d{2}-\d{2}\|"));
-    }
-
-    [Test]
-    public void VerboseMode_PropertyDefaultIsFalse()
-    {
-        Assert.That(GitWizardLog.VerboseMode, Is.False);
-    }
-
-    [Test]
-    public void SilentMode_PropertyDefaultIsFalse()
-    {
-        Assert.That(GitWizardLog.SilentMode, Is.False);
-    }
-
-    [Test]
-    public void LogMethod_PropertyHasDefaultImplementation()
-    {
-        Assert.That(GitWizardLog.LogMethod, Is.Not.Null);
-    }
-
-    [Test]
-    public void LogType_ValuesAreDistinct()
-    {
-        var values = new[] {
-            GitWizardLog.LogType.Verbose,
-            GitWizardLog.LogType.Info,
-            GitWizardLog.LogType.Warning,
-            GitWizardLog.LogType.Error
-        };
-        Assert.That(values.Distinct().Count(), Is.EqualTo(values.Length));
     }
 
     [Test]
@@ -369,6 +385,8 @@ public class GitWizardLogTests
 
     [TestCase("nested", false)]
     [TestCase("nested", true)]
+    [TestCase("deep-nested", false)]
+    [TestCase("deep-nested", true)]
     [TestCase("no-context", false)]
     [TestCase("no-context", true)]
     [TestCase("never-thrown", false)]
@@ -380,10 +398,12 @@ public class GitWizardLogTests
         var token = Guid.NewGuid().ToString("N");
         var first = CaptureNestedException($"first-{token}");
         var second = CaptureNestedException($"second-{token}");
+        var deep = scenario == "deep-nested" ? CaptureDeepNestedException($"deep-{token}") : null;
         Exception exception = scenario switch
         {
             "never-thrown" => new InvalidOperationException($"unthrown-{token}"),
             "aggregate" => new AggregateException($"aggregate-{token}", first, second),
+            "deep-nested" => deep!,
             _ => first
         };
         var context = scenario == "no-context" ? null : $"context-{token}";
@@ -437,6 +457,7 @@ public class GitWizardLogTests
         {
             "aggregate" => [exception, first, first.InnerException!, second, second.InnerException!],
             "never-thrown" => [exception],
+            "deep-nested" => [exception, exception.InnerException!, exception.InnerException!.InnerException!],
             _ => [first, first.InnerException!]
         };
         foreach (var detail in details)
@@ -445,12 +466,19 @@ public class GitWizardLogTests
             Assert.That(record, Does.Contain(detail.Message));
             if (detail.StackTrace != null)
             {
-                Assert.That(detail.StackTrace, Does.Contain(nameof(CaptureNestedException)));
+                Assert.That(detail.StackTrace, Does.Contain(nameof(CaptureNestedException))
+                    .Or.Contain(nameof(CaptureDeepNestedException)));
                 Assert.That(record, Does.Contain(detail.StackTrace));
             }
         }
         if (scenario == "never-thrown")
             Assert.That(exception.StackTrace, Is.Null);
+        else if (scenario == "deep-nested")
+        {
+            Assert.That(exception.StackTrace, Is.Not.Null);
+            Assert.That(exception.InnerException!.StackTrace, Is.Not.Null);
+            Assert.That(exception.InnerException!.InnerException!.StackTrace, Is.Not.Null);
+        }
         else
         {
             Assert.That(first.StackTrace, Is.Not.Null);
@@ -522,5 +550,36 @@ public class GitWizardLogTests
         Assert.That(output, Does.Contain("Debug message"));
         Assert.That(output, Does.Contain("Debug"));
     }
-}
 
+    [Test]
+    public async Task CleanLogFolder_DeletesOldFiles()
+    {
+        var tempRoot = TestUtilities.RedirectLocalFilesToTemp();
+        try
+        {
+            var logFolder = GitWizardApi.GetLogFolderPath();
+            Directory.CreateDirectory(logFolder);
+
+            var oldFile = Path.Combine(logFolder, "old.log");
+            await File.WriteAllTextAsync(oldFile, "old content");
+            File.SetCreationTimeUtc(oldFile, DateTime.UtcNow.AddDays(-31));
+
+            var newFile = Path.Combine(logFolder, "new.log");
+            await File.WriteAllTextAsync(newFile, "new content");
+
+            GitWizardLog.CleanLogFolder();
+
+            await AsyncCondition.WaitUntilAsync(() => !File.Exists(oldFile));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(File.Exists(oldFile), Is.False);
+                Assert.That(File.Exists(newFile), Is.True);
+            });
+        }
+        finally
+        {
+            TestUtilities.ClearLocalFilesRedirect(tempRoot);
+        }
+    }
+}

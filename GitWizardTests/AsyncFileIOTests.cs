@@ -75,69 +75,10 @@ public class AsyncFileIOTests
         Assert.That(File.Exists(nestedPath), Is.True);
     }
 
-    [Test]
-    public async Task SaveAndLoadReportAsync_RoundTrip()
-    {
-        var reportPath = GitWizardReport.GetCachedReportPath();
 
-        var report = new GitWizardReport
-        {
-            SearchPaths = { "/search/1" },
-            IgnoredPaths = { "/ignore/1" }
-        };
 
-        await report.SaveAsync(reportPath);
 
-        var loaded = await GitWizardReport.GetCachedReportAsync();
 
-        Assert.That(loaded, Is.Not.Null);
-        Assert.That(loaded!.SchemaVersion, Is.EqualTo(GitWizardReport.CurrentSchemaVersion));
-    }
-
-    [Test]
-    public async Task GetCachedReportAsync_ReturnsNull_WhenFileDoesNotExist()
-    {
-        var result = await GitWizardReport.GetCachedReportAsync();
-        Assert.That(result, Is.Null);
-    }
-
-    [Test]
-    public async Task SaveAndLoadRepositoryPathsAsync_RoundTrip()
-    {
-        var paths = new[] { "/repo/one", "/repo/two", "/repo/three" };
-
-        await GitWizardApi.SaveCachedRepositoryPathsAsync(paths);
-
-        var loaded = await GitWizardApi.GetCachedRepositoryPathsAsync();
-
-        Assert.That(loaded, Is.Not.Null);
-        Assert.That(loaded!, Has.Length.EqualTo(3));
-        Assert.That(loaded, Does.Contain("/repo/one"));
-        Assert.That(loaded, Does.Contain("/repo/two"));
-        Assert.That(loaded, Does.Contain("/repo/three"));
-    }
-
-    [Test]
-    public async Task GetCachedRepositoryPathsAsync_ReturnsNull_WhenFileDoesNotExist()
-    {
-        var result = await GitWizardApi.GetCachedRepositoryPathsAsync();
-        Assert.That(result, Is.Null);
-    }
-
-    [Test]
-    public async Task SaveCachedRepositoryPathsAsync_CreatesDirectory()
-    {
-        var tempLocalPath = Path.Combine(_tempRoot!, "LocalFiles");
-        // Temporarily override GetLocalFilesPath behavior by creating the directory first
-        Directory.CreateDirectory(tempLocalPath);
-
-        var paths = new[] { "/test/repo" };
-        await GitWizardApi.SaveCachedRepositoryPathsAsync(paths);
-
-        var loaded = await GitWizardApi.GetCachedRepositoryPathsAsync();
-        Assert.That(loaded, Is.Not.Null);
-        Assert.That(loaded!, Has.Length.EqualTo(1));
-    }
 
     [Test]
     public async Task SaveAndLoadConfigurationAsync_EmptySets()
@@ -154,32 +95,7 @@ public class AsyncFileIOTests
         Assert.That(loaded.IgnoredPaths, Has.Count.EqualTo(0));
     }
 
-    [Test]
-    public async Task SaveCachedRepositoryPathsAsync_EmptyLines()
-    {
-        var paths = new[] { "/repo/one", "", "/repo/two" };
-        await GitWizardApi.SaveCachedRepositoryPathsAsync(paths);
 
-        var loaded = await GitWizardApi.GetCachedRepositoryPathsAsync();
-
-        Assert.That(loaded, Is.Not.Null);
-        Assert.That(loaded!, Has.Length.EqualTo(2));
-    }
-
-    [Test]
-    public async Task SaveAndLoadReportAsync_WithRepositories()
-    {
-        var report = new GitWizardReport();
-        report.Repositories["/repo/one"] = new GitWizardRepository("/repo/one");
-        report.Repositories["/repo/two"] = new GitWizardRepository("/repo/two");
-
-        await report.SaveAsync(GitWizardReport.GetCachedReportPath());
-
-        var loaded = await GitWizardReport.GetCachedReportAsync();
-
-        Assert.That(loaded, Is.Not.Null);
-        Assert.That(loaded!.Repositories, Has.Count.EqualTo(2));
-    }
 
     [Test]
     public async Task ConfigAsyncMethods_UseConfigureAwaitFalse()

@@ -66,8 +66,6 @@ public class GitWizardRepositoryRemoteDivergenceTests
     [Test]
     public void Refresh_WithFetch_DetectsBehindRemote_AndRecordsLastFetchTime()
     {
-        // This is the founding UniMerge-flub scenario: a checkout is behind origin and must be
-        // detected, with a trustworthy timestamp for when that comparison was made.
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         fixture.AddOriginRemoteAndPush();
         fixture.AdvanceOriginIndependently("upstream-change.txt");
@@ -90,20 +88,16 @@ public class GitWizardRepositoryRemoteDivergenceTests
     [Test]
     public void Refresh_WithoutFetch_DoesNotSeeRemoteAdvance_AndLeavesLastFetchTimeNull()
     {
-        // Without fetchRemotes, the stale remote-tracking ref must not silently report "clean" -
-        // it should simply reflect what was known at the last fetch (here: never), matching the
-        // "silently rot between manual fetches" failure mode called out in git-wizard#78.
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         fixture.AddOriginRemoteAndPush();
         fixture.AdvanceOriginIndependently("upstream-change.txt");
         var repo = new GitWizardRepository(fixture.Path);
 
-        repo.Refresh(); // fetchRemotes defaults to false
+        repo.Refresh();
 
         Assert.Multiple(() =>
         {
-            Assert.That(repo.BehindRemoteCount, Is.EqualTo(0),
-                "The remote-tracking ref was never updated locally, so no divergence is visible yet.");
+            Assert.That(repo.BehindRemoteCount, Is.EqualTo(0));
             Assert.That(repo.LastFetchTime, Is.Null);
         });
     }
@@ -115,6 +109,16 @@ public class GitWizardRepositoryRemoteDivergenceTests
         fixture.AddOriginRemoteAndPush();
         var repo = new GitWizardRepository(fixture.Path);
 
+        repo.Refresh();
+
+        Assert.That(repo.IsPublishReady, Is.True);
+    }
+
+    [Test]
+    public void IsPublishReady_CleanOnDefaultBranch_NoBehind_IsTrue()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var repo = new GitWizardRepository(fixture.Path);
         repo.Refresh();
 
         Assert.That(repo.IsPublishReady, Is.True);
@@ -149,6 +153,17 @@ public class GitWizardRepositoryRemoteDivergenceTests
     }
 
     [Test]
+    public void IsPublishReady_WithPendingChanges_IsFalse()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        File.WriteAllText(Path.Combine(fixture.Path, "dirty.txt"), "dirty");
+        var repo = new GitWizardRepository(fixture.Path);
+        repo.Refresh();
+
+        Assert.That(repo.IsPublishReady, Is.False);
+    }
+
+    [Test]
     public void IsPublishReady_NotOnDefaultBranch_IsFalse()
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
@@ -161,6 +176,18 @@ public class GitWizardRepositoryRemoteDivergenceTests
 
         Assert.That(repo.IsPublishReady, Is.False,
             "A checkout on a non-default branch must not be reported as publish-ready.");
+    }
+
+    [Test]
+    public void IsPublishReady_DetachedHead_IsFalse()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.DetachHead();
+        var repo = new GitWizardRepository(fixture.Path);
+        repo.Refresh();
+
+        Assert.That(repo.IsPublishReady, Is.False,
+            "A detached HEAD means CurrentBranch won't match DefaultBranch.");
     }
 
     [Test]

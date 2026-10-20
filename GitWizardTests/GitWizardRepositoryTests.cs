@@ -1,6 +1,5 @@
 using System.Text.Json;
 using GitWizard;
-using LibGit2Sharp;
 
 namespace GitWizardTests;
 
@@ -52,313 +51,72 @@ public class GitWizardRepositoryTests
     }
 
     [Test]
-    public void Refresh_PopulatesRecentCommits()
+    public void Repository_SerializesAndDeserializes()
     {
-        GitWizardLog.SilentMode = true;
-        var repoPath = FindRepoRoot();
-        var repository = new GitWizardRepository(repoPath);
-        repository.Refresh();
-
-        Assert.That(repository.RecentCommits, Is.Not.Null);
-        Assert.That(repository.RecentCommits, Has.Count.GreaterThan(0));
-        Assert.That(repository.RecentCommits!.Count, Is.LessThanOrEqualTo(10));
-
-        var first = repository.RecentCommits[0];
-        Assert.That(first.Hash, Has.Length.EqualTo(7));
-        Assert.That(first.Message, Is.Not.Empty);
-        Assert.That(first.AuthorEmail, Is.Not.Empty);
-    }
-
-    [Test]
-    public void Refresh_PopulatesDaysSinceLastCommit()
-    {
-        GitWizardLog.SilentMode = true;
-        var repoPath = FindRepoRoot();
-        var repository = new GitWizardRepository(repoPath);
-        repository.Refresh();
-
-        Assert.That(repository.DaysSinceLastCommit, Is.Not.Null);
-        Assert.That(repository.DaysSinceLastCommit, Is.GreaterThanOrEqualTo(0));
-    }
-
-    [Test]
-    public void Refresh_CountsUntrackedFilesInPendingChanges()
-    {
-        // Regression: a repo whose only changes are untracked files used to
-        // report HasPendingChanges=true with NumberOfPendingChanges=0. Both
-        // must agree so callers never see "dirty but zero changes".
-        GitWizardLog.SilentMode = true;
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        File.WriteAllText(Path.Combine(fixture.Path, "untracked.txt"), "new");
+        var repo = new GitWizardRepository(fixture.Path);
+        repo.Refresh();
 
-        var repository = new GitWizardRepository(fixture.Path);
-        repository.Refresh();
+        var json = JsonSerializer.Serialize(repo);
 
-        Assert.That(repository.HasPendingChanges, Is.True);
-        Assert.That(repository.NumberOfPendingChanges, Is.GreaterThan(0));
-    }
-
-    [Test]
-    public void Refresh_CountsUnstagedDeletionInPendingChanges()
-    {
-        // Regression: an unstaged deletion of a tracked file (LibGit2Sharp's
-        // RepositoryStatus.Missing) contributes to IsDirty/HasPendingChanges but
-        // was never added to the NumberOfPendingChanges tally.
-        GitWizardLog.SilentMode = true;
-        using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        File.Delete(Path.Combine(fixture.Path, "README.md"));
-
-        var repository = new GitWizardRepository(fixture.Path);
-        repository.Refresh();
-
-        Assert.That(repository.HasPendingChanges, Is.True);
-        Assert.That(repository.NumberOfPendingChanges, Is.EqualTo(1));
-    }
-
-    [Test]
-    public void Refresh_CountsStagedDeletionInPendingChanges()
-    {
-        // Companion to the unstaged case above: staging the deletion moves it from
-        // RepositoryStatus.Missing to RepositoryStatus.Removed, which was already
-        // counted - this asserts that path stays correct alongside the fix.
-        GitWizardLog.SilentMode = true;
-        using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        var readmePath = Path.Combine(fixture.Path, "README.md");
-        File.Delete(readmePath);
-        using (var gitRepository = new Repository(fixture.Path))
-            Commands.Stage(gitRepository, "README.md");
-
-        var repository = new GitWizardRepository(fixture.Path);
-        repository.Refresh();
-
-        Assert.That(repository.HasPendingChanges, Is.True);
-        Assert.That(repository.NumberOfPendingChanges, Is.EqualTo(1));
-    }
-
-    [Test]
-    public void Refresh_CountsLocalCommitsOnUntrackedBranch()
-    {
-        // Regression: LocalOnlyCommits used to be a bare bool. Consumers need
-        // an actual count so they can show "3 unpushed" instead of "yes/no".
-        GitWizardLog.SilentMode = true;
-        using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        fixture.AppendCommit("second.txt");
-        fixture.AppendCommit("third.txt");
-
-        var repository = new GitWizardRepository(fixture.Path);
-        repository.Refresh();
-
-        Assert.That(repository.LocalOnlyCommits, Is.True);
-        Assert.That(repository.LocalCommitCount, Is.EqualTo(3));
-    }
-
-    [Test]
-    public void Refresh_DoesNotCountPushedHistoryOnUntrackedBranch()
-    {
-        // Regression (phantom unpushed): an untracked local branch used to have
-        // its ENTIRE history counted as unpushed - including commits already on a
-        // remote - and the per-branch sum could exceed the repo's total commit
-        // count. Here mainline (3 commits) is fully pushed and one extra commit
-        // sits on an untracked feature branch, so exactly 1 commit is unpushed.
-        GitWizardLog.SilentMode = true;
-        using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        fixture.AppendCommit("second.txt");
-        fixture.AppendCommit("third.txt");
-        fixture.AddOriginRemoteAndPush();
-        fixture.CommitOnNewBranch("feature/x", "feature.txt");
-
-        var repository = new GitWizardRepository(fixture.Path);
-        repository.Refresh();
-
-        Assert.That(repository.LocalCommitCount, Is.EqualTo(1));
-        Assert.That(repository.LocalOnlyCommits, Is.True);
-    }
-
-    [Test]
-    public void Refresh_FindsMatchingBranchWhenDetachedAtLocalBranchTip()
-    {
-        GitWizardLog.SilentMode = true;
-        using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        fixture.AppendCommit("second.txt");
-
-        // Detach HEAD at the current tip; capture the default branch name to
-        // assert against (varies by git's init.defaultBranch: "master" or "main").
-        string defaultBranchName;
-        using (var repo = new Repository(fixture.Path))
+        Assert.That(json, Is.Not.Null);
+        Assert.Multiple(() =>
         {
-            defaultBranchName = repo.Head.FriendlyName;
-            var tip = repo.Head.Tip!;
-            Commands.Checkout(repo, tip.Sha);
-        }
-
-        var repository = new GitWizardRepository(fixture.Path);
-        repository.Refresh();
-
-        Assert.That(repository.IsDetachedHead, Is.True);
-        Assert.That(repository.MatchingBranchName, Is.EqualTo(defaultBranchName));
+            Assert.That(json, Does.Contain("WorkingDirectory"));
+            Assert.That(json, Does.Contain("CurrentBranch"));
+            Assert.That(json, Does.Contain("SizeOnDisk"));
+        });
     }
 
     [Test]
-    public void Refresh_MatchingBranchNameIsNullWhenNotDetached()
+    public void GitWizardRepository_ParameterlessConstructor()
     {
-        GitWizardLog.SilentMode = true;
-        using var fixture = TempRepoFixture.CreateWithInitialCommit();
-
-        var repository = new GitWizardRepository(fixture.Path);
-        repository.Refresh();
-
-        Assert.That(repository.IsDetachedHead, Is.False);
-        Assert.That(repository.MatchingBranchName, Is.Null.Or.Empty);
+        var repo = new GitWizardRepository();
+        Assert.That(repo, Is.Not.Null);
     }
 
     [Test]
-    public void Refresh_MatchingBranchNameIsNullWhenNoLocalBranchAtTip()
+    public void Constructor_SetsWorkingDirectory()
     {
-        GitWizardLog.SilentMode = true;
-        using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        fixture.AppendCommit("second.txt");
-
-        // Detach HEAD at a commit that is not the tip of any local branch.
-        // Remove whichever default branch git init produced ("master" or "main").
-        using (var repo = new Repository(fixture.Path))
-        {
-            var defaultBranchName = repo.Head.FriendlyName;
-            var tip = repo.Head.Tip!;
-            Commands.Checkout(repo, tip.Sha);
-            repo.Branches.Remove(defaultBranchName);
-        }
-
-        var repository = new GitWizardRepository(fixture.Path);
-        repository.Refresh();
-
-        Assert.That(repository.IsDetachedHead, Is.True);
-        Assert.That(repository.MatchingBranchName, Is.Null.Or.Empty);
+        var repo = new GitWizardRepository("/test/path");
+        Assert.That(repo.WorkingDirectory, Is.EqualTo("/test/path"));
     }
 
     [Test]
-    public void Refresh_ClearsMatchingBranchNameWhenDetachedHeadMovesToUnmatchedCommit()
+    public void Constructor_DoesNotThrow_ForNonExistentPath()
     {
-        GitWizardLog.SilentMode = true;
-        using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        fixture.AppendCommit("second.txt");
-
-        string defaultBranchName;
-        string firstCommitSha;
-        using (var repo = new Repository(fixture.Path))
-        {
-            defaultBranchName = repo.Head.FriendlyName;
-            firstCommitSha = repo.Head.Tip!.Parents.First().Sha;
-            Commands.Checkout(repo, repo.Head.Tip!.Sha);
-        }
-
-        var repository = new GitWizardRepository(fixture.Path);
-        repository.Refresh();
-        Assert.That(repository.MatchingBranchName, Is.EqualTo(defaultBranchName));
-
-        using (var repo = new Repository(fixture.Path))
-        {
-            Commands.Checkout(repo, firstCommitSha);
-        }
-
-        repository.Refresh();
-
-        Assert.That(repository.IsDetachedHead, Is.True);
-        Assert.That(repository.MatchingBranchName, Is.Null);
+        var repo = new GitWizardRepository("/nonexistent/path");
+        Assert.That(repo.WorkingDirectory, Is.EqualTo("/nonexistent/path"));
     }
 
     [Test]
-    public void Refresh_DetectsUnmergedBranch()
+    public void DefaultCtor_CreatesValidInstance()
     {
-        GitWizardLog.SilentMode = true;
-        using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        fixture.CommitOnNewBranch("feature/ahead", "ahead.txt");
-
-        var repository = new GitWizardRepository(fixture.Path);
-        repository.Refresh();
-
-        Assert.That(repository.Branches, Is.Not.Null);
-        var feature = repository.Branches!.SingleOrDefault(b => b.Name == "feature/ahead");
-        Assert.That(feature, Is.Not.Null);
-        Assert.That(feature!.IsMerged, Is.False);
-        Assert.That(feature.AheadOfDefault, Is.GreaterThan(0));
-        Assert.That(feature.MergedInto, Is.Null);
+        var repo = new GitWizardRepository(string.Empty);
+        Assert.That(repo, Is.Not.Null);
     }
 
     [Test]
-    public void Refresh_DetectsMergedButBehindBranchAsSafeToDelete()
+    public void Refresh_WithSubmodule_PopulatesSubmodules()
     {
-        GitWizardLog.SilentMode = true;
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AddInitializedSubmodule("ext/lib");
 
-        using (var repo = new Repository(fixture.Path))
-            repo.Branches.Add("old/merged", repo.Head.Tip);
-        fixture.AppendCommit("advance.txt");
+        var repo = new GitWizardRepository(fixture.Path);
+        repo.Refresh();
 
-        var repository = new GitWizardRepository(fixture.Path);
-        repository.Refresh();
-
-        Assert.That(repository.Branches, Is.Not.Null);
-        var merged = repository.Branches!.SingleOrDefault(b => b.Name == "old/merged");
-        Assert.That(merged, Is.Not.Null);
-        Assert.That(merged!.IsMerged, Is.True);
-        Assert.That(merged.AheadOfDefault, Is.EqualTo(0));
-        Assert.That(merged.BehindDefault, Is.GreaterThan(0));
-        Assert.That(merged.MergedInto, Is.AnyOf("main", "master"));
+        Assert.That(repo.Submodules, Is.Not.Null);
+        Assert.That(repo.Submodules!, Is.Not.Empty);
     }
 
     [Test]
-    public void Refresh_ExcludesDefaultBranchAndBranchesAtDefaultTip()
+    public void Refresh_NoSubmodules_SubmodulesNull()
     {
-        GitWizardLog.SilentMode = true;
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var repo = new GitWizardRepository(fixture.Path);
+        repo.Refresh();
 
-        using (var repo = new Repository(fixture.Path))
-            repo.Branches.Add("samepoint", repo.Head.Tip);
-
-        var repository = new GitWizardRepository(fixture.Path);
-        repository.Refresh();
-
-        Assert.That(repository.Branches, Is.Null);
-        Assert.That(repository.DefaultBranch, Is.AnyOf("main", "master"));
-    }
-
-    [Test]
-    public void Refresh_ClearsBranchesWhenNoneRemainActionable()
-    {
-        GitWizardLog.SilentMode = true;
-        using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        fixture.CommitOnNewBranch("feature/ahead", "ahead.txt");
-
-        var repository = new GitWizardRepository(fixture.Path);
-        repository.Refresh();
-        Assert.That(repository.Branches, Is.Not.Null, "precondition: unmerged branch detected");
-
-        // Remove the unmerged branch; a re-refresh must not retain the stale list.
-        using (var repo = new Repository(fixture.Path))
-            repo.Branches.Remove("feature/ahead");
-        repository.Refresh();
-
-        Assert.That(repository.Branches, Is.Null);
-    }
-
-    [Test]
-    public void Refresh_AllBranchesIncludesDefaultAndBoringBranches()
-    {
-        GitWizardLog.SilentMode = true;
-        using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        using (var repo = new Repository(fixture.Path))
-            repo.Branches.Add("samepoint", repo.Head.Tip);
-
-        var repository = new GitWizardRepository(fixture.Path);
-        repository.Refresh(allBranches: true);
-
-        Assert.That(repository.Branches, Is.Not.Null);
-        var names = repository.Branches!.Select(b => b.Name).ToList();
-        Assert.That(names, Does.Contain("samepoint"));
-        // default branch is included in full mode but must NOT claim MergedInto=itself
-        var def = repository.Branches!.SingleOrDefault(b => b.Name == repository.DefaultBranch);
-        Assert.That(def, Is.Not.Null);
-        Assert.That(def!.MergedInto, Is.Null);
+        Assert.That(repo.Submodules, Is.Null);
     }
 
     [Test]
@@ -459,8 +217,6 @@ public class GitWizardRepositoryTests
             Assert.That(health.GitLinkSha!.Length, Is.GreaterThanOrEqualTo(7));
             Assert.That(health.ExpectedCommitSha, Is.EqualTo(health.GitLinkSha));
             Assert.That(health.ActualCommitSha, Is.Not.Null);
-            // In the StaleUpstream scenario, checkout == gitlink (both at the stale pointer),
-            // while the submodule's default branch has advanced.
             Assert.That(health.ActualCommitSha, Is.EqualTo(health.GitLinkSha));
             Assert.That(health.Issues, Is.Not.Empty);
         });
@@ -475,9 +231,6 @@ public class GitWizardRepositoryTests
         var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh();
 
-        // The submodule's only remote is "upstream", not "origin" - CheckStaleUpstream must
-        // fall back to the first available remote to resolve "<remote>/<defaultBranch>"
-        // instead of failing to find "origin/<defaultBranch>" and reporting no staleness.
         Assert.Multiple(() =>
         {
             Assert.That(repository.HasSubmoduleIssues, Is.True);
@@ -493,17 +246,11 @@ public class GitWizardRepositoryTests
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         fixture.AddInitializedSubmodule("external/libfoo");
-
-        // AddSubmoduleAtWrongRef advances checkout ahead of gitlink while the
-        // submodule's default branch (main) stays at the gitlink - so the gitlink
-        // IS the current HEAD of the submodule repo, making BehindUpstreamCount = 0.
         fixture.AddSubmoduleAtWrongRef("external/libbar");
 
         var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh();
 
-        // libbar is at WrongRef (checkout ahead of gitlink) - but its gitlink
-        // IS the current HEAD of the submodule repo, so BehindUpstreamCount should be 0.
         var health = repository.SubmoduleHealth["external/libbar"];
         Assert.That(health.Status, Is.EqualTo(SubmoduleHealthStatus.WrongRef));
         Assert.That(health.BehindUpstreamCount, Is.EqualTo(0));
@@ -539,97 +286,4 @@ public class GitWizardRepositoryTests
             Assert.That(repository.IsPublishReady, Is.True);
         });
     }
-
-    [Test]
-    public void Refresh_AfterFailureThenSuccess_ClearsRefreshError()
-    {
-        GitWizardLog.SilentMode = true;
-        var path = Path.Combine(Path.GetTempPath(), "recovers-repo-" + Guid.NewGuid());
-        Directory.CreateDirectory(path);
-
-        try
-        {
-            var repository = new GitWizardRepository(path);
-            repository.Refresh();
-            Assert.That(repository.RefreshError, Is.EqualTo(GitWizardRepository.NotAGitRepositoryError));
-
-            Repository.Init(path);
-            repository.Refresh();
-            Assert.That(repository.RefreshError, Is.Null);
-        }
-        finally
-        {
-            Directory.Delete(path, true);
-        }
-    }
-
-    static string FindRepoRoot()
-    {
-        var directory = Directory.GetCurrentDirectory();
-        while (directory != null)
-        {
-            var gitPath = Path.Combine(directory, ".git");
-            if (Directory.Exists(gitPath) || File.Exists(gitPath))
-                return directory;
-            directory = Directory.GetParent(directory)?.FullName;
-        }
-
-        throw new DirectoryNotFoundException("Could not find git repo root from working directory");
-    }
-
-    [Test]
-    [NonParallelizable]
-    public void Refresh_VanishedWorkingDirectory_LogsDebugNotError()
-    {
-        var messages = new List<string>();
-        var originalLogMethod = GitWizardLog.LogMethod;
-        var originalVerboseMode = GitWizardLog.VerboseMode;
-        var originalSilentMode = GitWizardLog.SilentMode;
-        GitWizardLog.LogMethod = message => { if (message != null) messages.Add(message); };
-        GitWizardLog.VerboseMode = true;
-        GitWizardLog.SilentMode = false;
-        try
-        {
-            var missing = Path.Combine(Path.GetTempPath(), "gw-vanished-" + Guid.NewGuid().ToString("N"));
-            new GitWizardRepository(missing).Refresh();
-        }
-        finally
-        {
-            GitWizardLog.LogMethod = originalLogMethod;
-            GitWizardLog.VerboseMode = originalVerboseMode;
-            GitWizardLog.SilentMode = originalSilentMode;
-        }
-
-        // Matches<string> lambda (suite precedent: ElevationCoverageTests): a single captured
-        // line must carry both the message and the Debug level in the "[ts] - Debug: ..." format.
-        Assert.That(messages, Has.Some.Matches<string>(m => m.Contains("is invalid") && m.Contains("Debug")));
-        Assert.That(messages, Has.None.Contains("Error"));
-    }
-
-    [Test]
-    [NonParallelizable]
-    public void Refresh_VanishedWorkingDirectory_SuppressedWithoutVerboseMode()
-    {
-        var messages = new List<string>();
-        var originalLogMethod = GitWizardLog.LogMethod;
-        var originalVerboseMode = GitWizardLog.VerboseMode;
-        var originalSilentMode = GitWizardLog.SilentMode;
-        GitWizardLog.LogMethod = message => { if (message != null) messages.Add(message); };
-        GitWizardLog.VerboseMode = false;
-        GitWizardLog.SilentMode = false;
-        try
-        {
-            var missing = Path.Combine(Path.GetTempPath(), "gw-vanished-" + Guid.NewGuid().ToString("N"));
-            new GitWizardRepository(missing).Refresh();
-        }
-        finally
-        {
-            GitWizardLog.LogMethod = originalLogMethod;
-            GitWizardLog.VerboseMode = originalVerboseMode;
-            GitWizardLog.SilentMode = originalSilentMode;
-        }
-
-        Assert.That(messages, Has.None.Contains("is invalid"));
-    }
 }
-

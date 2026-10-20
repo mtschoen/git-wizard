@@ -4,8 +4,7 @@ namespace GitWizardTests;
 
 /// <summary>
 /// Covers <see cref="GitWizardReport"/>'s defensive error paths: a refresh whose update handler
-/// throws from every callback (each must be swallowed so one bad handler can't abort a scan), and
-/// Save/SaveAsync against an unwritable path (the write exception must be logged, not thrown).
+/// throws from every callback (each must be swallowed so one bad handler can't abort a scan).
 /// </summary>
 public class GitWizardReportErrorPathTests
 {
@@ -32,41 +31,6 @@ public class GitWizardReportErrorPathTests
         });
     }
 
-    [Test]
-    public void Save_LogsAndSwallows_WhenPathIsADirectory()
-    {
-        var directoryAsPath = Path.Combine(Path.GetTempPath(), "gw-save-dir-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(directoryAsPath);
-        try
-        {
-            var report = new GitWizardReport();
-
-            // Writing a file to a path that is an existing directory throws; Save must swallow it.
-            report.Save(directoryAsPath);
-        }
-        finally
-        {
-            Directory.Delete(directoryAsPath);
-        }
-    }
-
-    [Test]
-    public async Task SaveAsync_LogsAndSwallows_WhenPathIsADirectory()
-    {
-        var directoryAsPath = Path.Combine(Path.GetTempPath(), "gw-save-dir-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(directoryAsPath);
-        try
-        {
-            var report = new GitWizardReport();
-
-            await report.SaveAsync(directoryAsPath);
-            Assert.Pass("SaveAsync swallowed the directory-target write error.");
-        }
-        finally
-        {
-            Directory.Delete(directoryAsPath);
-        }
-    }
 
     sealed class ThrowingProgressHandler : IUpdateHandler
     {

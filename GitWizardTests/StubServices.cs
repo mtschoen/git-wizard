@@ -28,10 +28,8 @@ public sealed class StubFolderPicker : IFolderPicker
 public sealed class StubUserDialogs : IUserDialogs
 {
     public record AlertCall(string Title, string Message);
-    public record ConfirmCall(string Title, string Message);
 
     public List<AlertCall> AlertCalls { get; } = new();
-    public List<ConfirmCall> ConfirmCalls { get; } = new();
     public bool NextConfirmResult { get; set; }
 
     public Task ShowAlertAsync(string title, string message, string okLabel = "OK")
@@ -42,7 +40,6 @@ public sealed class StubUserDialogs : IUserDialogs
 
     public Task<bool> ConfirmAsync(string title, string message, string acceptLabel = "Yes", string cancelLabel = "No")
     {
-        ConfirmCalls.Add(new ConfirmCall(title, message));
         return Task.FromResult(NextConfirmResult);
     }
 }

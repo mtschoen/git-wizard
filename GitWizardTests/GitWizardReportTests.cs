@@ -21,15 +21,184 @@ public class GitWizardReportTests
         Assert.That(deserialized!.SchemaVersion, Is.EqualTo("2.1"));
     }
 
-    [Test]
-    public async Task GeneratedReport_DefaultsBranchScopeToActionable()
+    [TestCase(null, "actionable")]
+    [TestCase(false, "actionable")]
+    [TestCase(true, "all")]
+    public async Task GeneratedReport_SetsExpectedBranchScope(bool? allBranches, string expectedScope)
     {
         GitWizardLog.SilentMode = true;
         var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
-        var report = await GitWizardReport.GenerateReportAsync(configuration, new List<string>());
+        var options = allBranches.HasValue ? new GitWizardReportOptions { AllBranches = allBranches.Value } : null;
+        var report = await GitWizardReport.GenerateReportAsync(configuration, new List<string>(), options: options);
 
+        Assert.Multiple(() =>
+        {
+            Assert.That(report.BranchScope, Is.EqualTo(expectedScope));
+            Assert.That(report.SchemaVersion, Is.EqualTo("2.1"));
+            Assert.That(report.Repositories, Is.Empty);
+        });
+    }
+
+    [Test]
+    public void BranchScope_PropertySetters_Work()
+    {
+        var report = new GitWizardReport();
+        Assert.That(report.BranchScope, Is.Null);
+        report.BranchScope = "actionable";
         Assert.That(report.BranchScope, Is.EqualTo("actionable"));
-        Assert.That(report.SchemaVersion, Is.EqualTo("2.1"));
+        report.BranchScope = "all";
+        Assert.That(report.BranchScope, Is.EqualTo("all"));
+    }
+
+    [Test]
+    public void DefaultCtor_InitializesCollectionsAndProperties()
+    {
+        var report = new GitWizardReport();
+        Assert.Multiple(() =>
+        {
+            Assert.That(report.SearchPaths, Is.InstanceOf<SortedSet<string>>().And.Empty);
+            Assert.That(report.IgnoredPaths, Is.InstanceOf<SortedSet<string>>().And.Empty);
+            Assert.That(report.Repositories, Is.InstanceOf<SortedDictionary<string, GitWizardRepository>>().And.Empty);
+            Assert.That(report.DeletedPaths, Is.InstanceOf<HashSet<string>>().And.Empty);
+            Assert.That(report.NonRepositoryPaths, Is.InstanceOf<HashSet<string>>().And.Empty);
+            Assert.That(report.BranchScope, Is.Null);
+            Assert.That(report.SchemaVersion, Is.EqualTo("2.1"));
+        });
+    }
+
+    [Test]
+    public void Constructor_FromConfiguration_CopiesSearchAndIgnoredPaths()
+    {
+        var config = new GitWizardConfiguration
+        {
+            SearchPaths = { "/search1", "/search2" },
+            IgnoredPaths = { "/ignore1" }
+        };
+        var report = new GitWizardReport(config);
+        Assert.Multiple(() =>
+        {
+            Assert.That(report.SearchPaths, Is.EqualTo(new[] { "/search1", "/search2" }));
+            Assert.That(report.IgnoredPaths, Is.EqualTo(new[] { "/ignore1" }));
+        });
+    }
+
+    [Test]
+    public async Task GenerateReportAsync_WithRealRepo_PopulatesRepository()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var config = GitWizardConfiguration.CreateDefaultConfiguration();
+        var report = await GitWizardReport.GenerateReportAsync(config, new List<string> { fixture.Path });
+
+        Assert.That(report.Repositories, Has.Count.EqualTo(1));
+        Assert.That(report.Repositories.ContainsKey(fixture.Path), Is.True);
+    }
+
+    [Test]
+    public async Task GenerateReportAsync_NullPaths_TriesDiscovery()
+    {
+        GitWizardLog.SilentMode = true;
+        var config = new GitWizardConfiguration
+        {
+            SearchPaths = new SortedSet<string>(),
+            IgnoredPaths = new SortedSet<string>()
+        };
+        var options = new GitWizardReportOptions { NoMft = true };
+        var report = await GitWizardReport.GenerateReportAsync(config, options: options);
+
+        Assert.That(report, Is.Not.Null);
+        Assert.That(report.Repositories, Is.Empty);
+    }
+
+    [Test]
+    public void Refresh_WithUpdateHandler_CallsStartProgressAndUpdateProgress()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var config = GitWizardConfiguration.CreateDefaultConfiguration();
+        var report = new GitWizardReport(config);
+        var handler = new ProgressTrackingHandler();
+
+        report.Refresh(new SortedSet<string> { fixture.Path }, handler);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(handler.StartProgressCalled, Is.True);
+            Assert.That(handler.UpdateProgressCalled, Is.True);
+            Assert.That(handler.RepositoriesCreated, Is.GreaterThan(0));
+        });
+    }
+
+    [Test]
+    public void Refresh_EmptyPaths_DoesNotThrow()
+    {
+        GitWizardLog.SilentMode = true;
+        var config = GitWizardConfiguration.CreateDefaultConfiguration();
+        var report = new GitWizardReport(config);
+        Assert.DoesNotThrow(() => report.Refresh(new SortedSet<string>()));
+    }
+
+    [Test]
+    public void Refresh_MultipleNonRepoPaths_AllTracked()
+    {
+        GitWizardLog.SilentMode = true;
+        var dir1 = Path.Combine(Path.GetTempPath(), "gw-nonrepo1-" + Guid.NewGuid().ToString("N"));
+        var dir2 = Path.Combine(Path.GetTempPath(), "gw-nonrepo2-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir1);
+        Directory.CreateDirectory(dir2);
+        try
+        {
+            var config = GitWizardConfiguration.CreateDefaultConfiguration();
+            var report = new GitWizardReport(config);
+            report.Refresh(new SortedSet<string> { dir1, dir2 });
+
+            Assert.That(report.NonRepositoryPaths, Has.Count.EqualTo(2));
+        }
+        finally
+        {
+            Directory.Delete(dir1, recursive: true);
+            Directory.Delete(dir2, recursive: true);
+        }
+    }
+
+    [Test]
+    public void RefreshSingleRepository_SetsRefreshTimeSeconds()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var config = GitWizardConfiguration.CreateDefaultConfiguration();
+        var report = new GitWizardReport(config);
+
+        report.Refresh(new SortedSet<string> { fixture.Path });
+
+        var repo = report.Repositories[fixture.Path];
+        Assert.That(repo.RefreshTimeSeconds, Is.GreaterThanOrEqualTo(0));
+    }
+
+    [Test]
+    public void GetRepositoryPaths_Enumerable_ReturnsAllKeys()
+    {
+        var report = new GitWizardReport();
+        report.Repositories["/a"] = new GitWizardRepository("/a");
+        report.Repositories["/b"] = new GitWizardRepository("/b");
+        var keys = report.GetRepositoryPaths().ToList();
+        Assert.That(keys, Is.EqualTo(new[] { "/a", "/b" }));
+    }
+
+    sealed class ProgressTrackingHandler : IUpdateHandler
+    {
+        public bool StartProgressCalled { get; private set; }
+        public bool UpdateProgressCalled { get; private set; }
+        public int RepositoriesCreated { get; private set; }
+
+        public void StartProgress(string description, int total) => StartProgressCalled = true;
+        public void UpdateProgress(int count) => UpdateProgressCalled = true;
+        public void SendUpdateMessage(string? message) { }
+        public void OnRepositoryCreated(GitWizardRepository gitWizardRepository) => RepositoriesCreated++;
+        public void OnSubmoduleCreated(GitWizardRepository parent, GitWizardRepository submodule) { }
+        public void OnWorktreeCreated(GitWizardRepository worktree) { }
+        public void OnUninitializedSubmoduleCreated(GitWizardRepository parent, string submodulePath) { }
+        public void OnRepositoryRefreshCompleted(GitWizardRepository gitWizardRepository) { }
     }
 
     [Test]

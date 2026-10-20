@@ -75,6 +75,29 @@ public class LocalFilesCacheGuardTests
         Assert.That(File.Exists(GitWizardReport.GetCachedReportPath()), Is.False);
     }
 
+    [TestCase(false, false)]
+    [TestCase(true, false)]
+    [TestCase(false, true)]
+    [TestCase(true, true)]
+    public void ClearCache_RemovesExistingFiles_AndDoesNotThrowWhenAbsent(bool createRepoList, bool createReport)
+    {
+        GitWizardApi.EnsureLocalFolderExists();
+        var repoListPath = GitWizardApi.GetCachedRepositoryListPath();
+        var reportPath = GitWizardReport.GetCachedReportPath();
+        if (createRepoList)
+            File.WriteAllText(repoListPath, "path1\npath2");
+        if (createReport)
+            File.WriteAllText(reportPath, "{}");
+
+        Assert.DoesNotThrow(() => GitWizardApi.ClearCache());
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(File.Exists(repoListPath), Is.False);
+            Assert.That(File.Exists(reportPath), Is.False);
+        });
+    }
+
     [Test]
     public void DeleteAbsentRootSucceeds()
     {

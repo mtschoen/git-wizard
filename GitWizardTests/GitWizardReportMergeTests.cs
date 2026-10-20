@@ -145,8 +145,9 @@ public class GitWizardReportMergeTests
         }
     }
 
-    [Test]
-    public void Merge_CorruptExistingFile_StartsFresh_AndStillWritesTarget()
+    [TestCase(false)]
+    [TestCase(true)]
+    public void Merge_CorruptExistingFile_StartsFresh_AndStillWritesTarget(bool hasTargetRepo)
     {
         GitWizardLog.SilentMode = true;
         using var repo = TempRepoFixture.CreateWithInitialCommit();
@@ -159,12 +160,42 @@ public class GitWizardReportMergeTests
 
         try
         {
-            var merged = GitWizardReport.MergeIntoFile(savePath, configuration,
-                new List<string> { repo.Path });
+            var targetPaths = hasTargetRepo ? new List<string> { repo.Path } : new List<string>();
+            var merged = GitWizardReport.MergeIntoFile(savePath, configuration, targetPaths);
 
-            Assert.That(merged.Repositories.ContainsKey(repo.Path), Is.True);
-            var onDisk = JsonSerializer.Deserialize<GitWizardReport>(File.ReadAllText(savePath));
-            Assert.That(onDisk!.Repositories.ContainsKey(repo.Path), Is.True);
+            if (hasTargetRepo)
+            {
+                Assert.That(merged.Repositories.ContainsKey(repo.Path), Is.True);
+                var onDisk = JsonSerializer.Deserialize<GitWizardReport>(File.ReadAllText(savePath));
+                Assert.That(onDisk!.Repositories.ContainsKey(repo.Path), Is.True);
+            }
+            else
+            {
+                Assert.That(merged.Repositories, Is.Empty);
+                Assert.That(File.Exists(savePath), Is.True);
+            }
+        }
+        finally
+        {
+            if (File.Exists(savePath)) File.Delete(savePath);
+        }
+    }
+
+    [Test]
+    public void Merge_ExistingFileWithNoRepositories_AddsRepositoriesNode()
+    {
+        GitWizardLog.SilentMode = true;
+        var savePath = TempReportPath();
+        var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
+        var existing = new JsonObject { ["SchemaVersion"] = "1.0" };
+        File.WriteAllText(savePath, existing.ToJsonString());
+
+        try
+        {
+            GitWizardReport.MergeIntoFile(savePath, configuration, new List<string>());
+            var onDisk = JsonNode.Parse(File.ReadAllText(savePath))!.AsObject();
+            Assert.That(onDisk.ContainsKey("Repositories"), Is.True);
+            Assert.That(onDisk["Repositories"], Is.InstanceOf<JsonObject>());
         }
         finally
         {
@@ -196,25 +227,33 @@ public class GitWizardReportMergeTests
         }
     }
 
-    [Test]
-    public void Merge_EmptyPaths_DoesNotThrow_AndStampsSchema()
+    [TestCase(false)]
+    [TestCase(true)]
+    public void Merge_EmptyPaths_DoesNotThrow_AndStampsSchema(bool existingFile)
     {
         GitWizardLog.SilentMode = true;
         var savePath = TempReportPath();
         var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
 
         const string existingPath = "/keep/me";
-        var existing = new GitWizardReport();
-        existing.Repositories[existingPath] = new GitWizardRepository(existingPath);
-        existing.Save(savePath);
+        if (existingFile)
+        {
+            var existing = new GitWizardReport();
+            existing.Repositories[existingPath] = new GitWizardRepository(existingPath);
+            existing.Save(savePath);
+        }
 
         try
         {
             var merged = GitWizardReport.MergeIntoFile(savePath, configuration,
                 new List<string>());
 
-            Assert.That(merged.Repositories.ContainsKey(existingPath), Is.True);
+            if (existingFile)
+                Assert.That(merged.Repositories.ContainsKey(existingPath), Is.True);
             Assert.That(merged.SchemaVersion, Is.EqualTo(GitWizardReport.CurrentSchemaVersion));
+
+            var onDisk = JsonSerializer.Deserialize<GitWizardReport>(File.ReadAllText(savePath));
+            Assert.That(onDisk!.SchemaVersion, Is.EqualTo(GitWizardReport.CurrentSchemaVersion));
         }
         finally
         {

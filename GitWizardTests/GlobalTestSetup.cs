@@ -8,13 +8,13 @@ namespace GitWizardTests;
 /// ~/.GitWizard - even one that forgets to call <see cref="TestUtilities.RedirectLocalFilesToTemp"/>.
 ///
 /// This exists because the per-class opt-in redirect pattern leaked twice: GitWizardConfigurationTests
-/// wrote to the real config, and GitWizardApiAdditionalTests called the delete-all-local-files API
+/// wrote to the real config, and the historical API local-files test called the delete-all-local-files API
 /// without a redirect and recursively DELETED the user's real ~/.GitWizard (their search paths,
 /// including custom include folders, were lost). A safety net makes isolation the default, not an
 /// opt-in every new test class has to remember.
 ///
 /// The temp home is placed under the user profile so path-shape assertions still hold cross-platform
-/// (e.g. GitWizardApiAdditionalTests.GetLocalFilesPath_ContainsUserProfile). Per-class redirects via
+/// (e.g. GitWizardApiTests.GetLocalFilesPath_ContainsUserProfile). Per-class redirects via
 /// <see cref="TestUtilities.RedirectLocalFilesToTemp"/> still override this for their own isolation;
 /// their teardown restores this fallback (see <see cref="TestUtilities.ClearLocalFilesRedirect"/>).
 /// </summary>

@@ -1,452 +1,273 @@
 # GitWizard
 
-Multi-project solution for scanning and reporting on git repositories.
+Cross-tool instructions for the core library, CLI, Avalonia desktop, headless
+screenshot tool and NUnit tests. Open the linked reference before changing its area.
 
-## Projects
+## Projects and boundaries
 
-- **GitWizard/** - Core class library (cross-platform: Windows, macOS, Linux)
-- **git-wizard/** - CLI tool
-- **GitWizardUI/** - Avalonia cross-platform desktop app (Windows/macOS/Linux); contains the view models under `ViewModels/` (behind `IUiDispatcher` / `IUserDialogs` / `IFolderPicker`)
-- **GitWizardUI.Screenshot/** - Headless Avalonia screenshot tool (used by CI)
-- **GitWizardTests/** - NUnit test project
-
-The default CLI report prints human-readable attention details and run diagnostics; only `--json` reserves stdout for strict JSON. Progress and verbose debug diagnostics use stderr during report execution; the desktop view model owns the remaining command queue.
-
-## Maintained developer tools
-
-[Maintained developer tools](docs/maintained-developer-tools.md) lists every
-script under `scripts/`, its purpose, operator, and CI coverage.
-Only redundant code is deleted. A tool is not redundant because production or CI does not
-call it; add CI coverage for hand-run tools instead of deleting them.
-The shared `contracts` gate checks the inventory, parses scripts, and runs
-isolated helper tests. Windows CI also renders and uploads a fixture screenshot.
-
-## Research notes
-
-- [Prior art: multi-repo dashboards and related tooling](docs/notes/prior-art-multi-repo-dashboards.md) records the 2026-05-05 research on repository dashboards and cross-host state exchange. Research notes are retained as dated context for future design work.
+- `GitWizard/`: cross-platform core library, discovery coordinator and watch pipeline.
+- `git-wizard/`: CLI. Default reports are human-readable; only `--json` reserves stdout
+  for strict JSON. Progress and debug diagnostics go to stderr.
+- `GitWizardUI/`: Avalonia desktop; view models in `ViewModels/` use
+  `IUiDispatcher`, `IUserDialogs` and `IFolderPicker`.
+- `GitWizardUI.Screenshot/`: headless Avalonia capture, exercised by CI.
+- `GitWizardTests/`: NUnit tests. All five projects target `net10.0`.
 
 ## Build
 
-MFTLib is a git **submodule** at `external/MFTLib`, built from source (MFTLib `0.3.0` isn't on
-NuGet yet). Run `git submodule update --init` once after cloning - the tree does not build until
-the submodule is checked out. It has a native C++ project (`MFTLibNative.vcxproj`, v143 toolset)
-that only **VS MSBuild** can compile on Windows (CMake on Linux), while git-wizard's own projects
-build entirely with the **`dotnet`** CLI. All five consumer projects target plain `net10.0`
-and the whole solution builds on Linux. Build both managed submodule assemblies before the
-consumer: `MFTLib.dll` and the test-only `MFTLibTestExtensions.dll`. A full native build uses
-both toolchains:
+Initialize with `.\init.ps1` (cmd: `.\init.bat`) or `./init.sh`; add `-Build` /
+`--build` for builds. Keep cmd's `.\` prefix. Init checks, never installs,
+prerequisites; see [building and testing](docs/testing.md).
 
-```bash
-git submodule update --init
+MFTLib is pinned at `external/MFTLib`. Initialize it with
+`git submodule update --init`. Use `bash ci/gates.sh native` for the shared Release
+native and managed recipe, then `dotnet restore git-wizard.slnx` and
+`dotnet build git-wizard.slnx -c Release --no-restore`.
+On Windows, native C++ requires VS MSBuild, not `dotnet build`.
 
-# Windows: build the native lib with VS MSBuild (dotnet cannot load the .vcxproj), then
-# everything managed - MFTLib.dll and the git-wizard solution - with dotnet.
-"C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" external/MFTLib/MFTLibNative/MFTLibNative.vcxproj -t:Build -p:Configuration=Release -p:Platform=x64 -nologo -v:minimal
-dotnet build external/MFTLib/MFTLib/MFTLib.csproj -c Release -p:Platform=x64
-dotnet build external/MFTLib/MFTLibTestExtensions/MFTLibTestExtensions.csproj -c Release -p:Platform=x64
-dotnet restore git-wizard.slnx
-dotnet build git-wizard.slnx -c Release --no-restore
+`Directory.Build.targets` owns the HintPath bridge, native copying and retire-to-NuGet
+instructions. Do not pull `.vcxproj` into dotnet through project references.
+Build both managed dependency assemblies first; only tests reference TestExtensions.
+The relative submodule URL is `../MFTLib.git`; publish pinned commits to both remotes.
 
-# Linux: build the native lib with CMake/Ninja into the fixed external/MFTLib/build-linux
-# binary dir, then MFTLib.dll and the solution with dotnet. Managed-only builds (and the
-# whole test suite) work without the native step - only the runtime P/Invoke surface needs it.
-cmake -S external/MFTLib/MFTLibNative -B external/MFTLib/build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build external/MFTLib/build-linux
-dotnet build external/MFTLib/MFTLib/MFTLib.csproj -c Release -p:Platform=x64
-dotnet build external/MFTLib/MFTLibTestExtensions/MFTLibTestExtensions.csproj -c Release -p:Platform=x64
-dotnet build git-wizard.slnx -c Release
-```
+For dependency changes, edit the submodule, rebuild, and commit its new pin only
+after publishing the dependency commit. Read MFTLib's own
+[instructions](external/MFTLib/AGENTS.md),
+[architecture](external/MFTLib/docs/architecture.md),
+[broker lifetime](external/MFTLib/docs/broker-lifetime.md),
+[watch lifetime](external/MFTLib/docs/watch-lifetime.md),
+[block ownership](external/MFTLib/docs/block-ownership.md) and
+[test isolation](external/MFTLib/docs/test-isolation.md) rather than maintaining
+a second description of library contracts here.
 
-Every git-wizard project consumes MFTLib as a built **assembly** (a HintPath `<Reference>` in the
-repo-root `Directory.Build.targets`), not a `<ProjectReference>` - a `ProjectReference` would drag
-the native `.vcxproj` into every consumer's `dotnet` build graph, which `dotnet` cannot load
-(MSB4278). `Directory.Build.targets` also copies the built native library beside each project's
-output on both platforms. `dotnet publish` works normally against the source-built submodule -
-there is no publish guard. The header of `Directory.Build.targets` carries the retire-to-NuGet
-note (swap to a `PackageReference` when MFTLib `0.3.0` ships); see it for the exact steps rather
-than duplicating them here. The bridge resolves both managed assemblies from their `net10.0`
-output directories, controlled by `_MFTLibTfm`, and fails before reference resolution if either
-required assembly is missing. Only `GitWizardTests` references `MFTLibTestExtensions`.
+## Testing
 
-To **run the NUnit suite**, build first, then run tests with `--no-build` (a plain `dotnet test`
-re-invokes the build). Use the same configuration as the successful build. Assembly setup
-creates a temporary home under `Environment.SpecialFolder.UserProfile`; a sandbox with a
-read-only user profile cannot execute the suite, even when loopback sockets are allowed. In
-that environment, the controller runs the suite outside the sandbox:
+Build first, then run NUnit with `--no-build` and the same configuration. Keep
+results outside disposable checkouts, unique for every full-suite/stress run:
 
 ```powershell
 $results = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) ("GitWizard/test-results/" + [Guid]::NewGuid().ToString('N'))
 dotnet test GitWizardTests/GitWizardTests.csproj --no-build -c Release --nologo --results-directory "$results"
 ```
 
-The results directory is deliberately outside a disposable checkout, so it survives a
-`git clean -ffxd` or a worktree teardown. `GitWizardTests/coverlet.runsettings` enables TRX
-logging even without a `--logger` argument. Preserve the results path VSTest prints on every
-failed run before cleaning or removing a worktree; never overwrite it with a rerun. Use a unique
-directory outside the checkout for full-suite and stress runs. On Linux, use a unique directory
-under `${XDG_STATE_HOME:-$HOME/.local/state}/git-wizard/test-results`. CI uploads
-`test-results-linux` and `test-results-windows` even when tests fail, but successful artifact
-upload and download must still be verified - the documented Linux runner CA problem (see
-"CI infrastructure", below) can still prevent retention.
+Preserve failed TRX paths; never overwrite a run or assume uploads succeeded.
+Tests need a writable profile; the controller runs outside read-only sandboxes.
 
-For test-duration investigations, preserve the Windows and Linux `test-results-*` TRX artifacts from the same CI revision. Rank `UnitTestResult.duration`, retaining `testName`, its `TestDefinitions` class, and outcome. Record the CI Test-step wall clock separately from TRX start-to-finish and summed test durations. Keep runner identity and coverage settings with the comparison; do not turn these observations into elapsed-time assertions in NUnit. Individual-test duration reductions do not establish a full-step improvement under runner variability; verify and record both before and after CI Test-step timestamps and linked job/TRX evidence, and retain an incomplete disposition for the tracking issue if the required full-step reduction is not demonstrated.
+[Testing reference](docs/testing.md): follow its test layout and consolidation evidence rules. Duration work retains same-revision host TRX,
+class/outcome and CI-step evidence. No wall-time assertions; prove individual and
+full-step improvements. Select explicit `RespawnLimit_Stress` by qualified name;
+a pass does not prove historical reproduction. Preserve AsyncCondition's
+first-exception failure and stack/expression/poll/elapsed diagnostics.
 
-`LiveWatchControllerTests.RespawnLimit_Stress` is an `[Explicit]` stress entry point that runs
-the respawn-limit scenario 200 times across four concurrent workers; it is skipped by an
-ordinary run and must be selected explicitly:
+Tests supply owned cache directories and synthetic journal windows.
+`GitWizardTests` activates `JournalIsolation.ForbidLiveJournalReads()` in its module
+initializer; `GlobalTestSetup` redirects `GITWIZARD_HOME` independently. Follow
+MFTLib's linked test-isolation contract for the library behavior.
 
-```powershell
-dotnet test GitWizardTests/GitWizardTests.csproj --no-build -c Release --nologo `
-    --filter "FullyQualifiedName=GitWizardTests.UI.LiveWatchControllerTests.RespawnLimit_Stress" `
-    --results-directory "$results"
-```
-
-`AsyncCondition.WaitUntilAsync` (`GitWizardTests/TestSupport/AsyncCondition.cs`) fails on the
-first predicate exception rather than retrying, and its assertion message includes the original
-exception's `ToString()` (stack included), the polled expression text, the poll count, and the
-elapsed duration - do not read a passing stress run as proof that any specific historical failure
-reproduced; it only demonstrates that this revised scenario is not itself racy.
-
-Cached FileIndex opens require an explicit nonblank FileIndexOptions.CacheDirectory,
-including empty-drive opens. Tests supply owned temporary directories; MFTLib has no
-default cache directory or cache guard. CacheMode.Disabled ignores supplied paths without resolving
-or creating a directory. GitWizardTests activates JournalIsolation.ForbidLiveJournalReads()
-from a module initializer; referencing MFTLibTestExtensions alone does not activate it.
-Journal isolation has no reset and is not inherited by child processes. Synthetic journal
-windows remain the test seam. GlobalTestSetup's GITWIZARD_HOME redirect is independent.
-
-### Test organization and consolidation
-
-Place behavioral tests beside the fixture for their production subject. Use
-table-driven cases for inputs with the same setup and assertions. Test filenames
-describe the subject and exclude `CoverageBoost`, `CoverageSafetyBoost`,
-`Additional`, `More`, and `SmallFiles`.
-
-Before deleting a repeated test, record its surviving test/case and compare
-covered production line sets by assembly and file before and after the subject
-batch, using the same host, build configuration, filter, and
-`GitWizardTests/coverlet.runsettings`. Preserve the TRX and Cobertura results
-outside the checkout. A passing 55% aggregate gate alone does not prove that a
-specific covered line or assertion survived.
-
-Filename check (PowerShell, repository root):
-
-    $bad = Get-ChildItem GitWizardTests -Recurse -File -Filter *.cs |
-        Where-Object { $_.Name -match 'CoverageBoost|CoverageSafetyBoost|Additional|More|SmallFiles' }
-    if ($bad) { throw ($bad.FullName -join [Environment]::NewLine) }
-
-Expected: no output and successful exit.
+`AgentInstructionsTests` guards this file below 15000 characters, every
+blank-line-delimited block below 3000, linked docs, documented CLI flags and
+the shared version. Run it after instruction changes. Preserve still-true rules;
+move narrative verbatim into linked docs, correcting false claims in place.
+Do not cite source line numbers in prose.
 
 ## Cleaning the working tree
 
-`git clean -ffxd` must always be safe to run. It is the check that this checkout still matches a fresh clone, so it is run before starting new work, and it must never be the thing that loses something.
-
-That safety comes from an invariant, not from a wrapper: **nothing unrecoverable lives in the working tree.** Every file here is either tracked and pushed, or reproducible by re-running a tool. There is no exclude list, because an exclude list would leave the tree unequal to a fresh clone and defeat the reason for cleaning.
-
-Anything that fails that test belongs somewhere else. If a file is worth keeping, track it and push it; if it is only worth keeping on one machine, keep it outside the working tree. Do not add a file to this repository that is neither.
-
-Git offers no way to protect a file from `git clean`. Aliases cannot shadow built-in commands, there is no `pre-clean` hook, and `-x` overrides `.git/info/exclude`. Only tracked files and files outside the tree are safe, which is why the invariant above is the whole mechanism.
-
-What a clean removes and how each comes back:
-
-| Removed | Restored by |
-| --- | --- |
-| `bin/`, `obj/`, `Debug/`, `.vs/`, `TestResults/` | rebuild / re-run the test suite |
-| `build-diag.log`, `build.binlog`, `smoke-stderr.log` at the repository root | re-run the build or coverage command that produced them |
-| `.claude/scripts/` scan output and tool caches (`.pi-subagents/`, `.ruff_cache/`, `.superpowers/`) | re-run the corresponding tool |
-| `.claude/settings.local.json` | re-granted as needed; broad grants live in the user-scope settings, and any provisioned project-scope overrides are re-applied by the tool that wrote them |
-| `.claude/AISLOP.md`, `.claude/CLAUDE.md` | `aislop hook install claude --project` |
-| `external/MFTLib/` (submodule contents) | `git submodule update --init --recursive`, or `init.ps1`/`init.sh` below |
-
-`.claude/AISLOP.md` and `.claude/CLAUDE.md` are generated boilerplate the aislop installer writes into a sentinel-fenced block, which is why they are not tracked. They do not restore themselves - nothing rewrites them until that command is run, so run it after a clean. It is also how to refresh them after an aislop upgrade.
-
-### Getting back to work after a clean
-
-`init.ps1` (Windows) and `init.sh` (Linux) at the repository root do the things a clean does not undo by itself - the `external/MFTLib` submodule checkout, the NuGet restore, and the generated agent files - and report any prerequisite they cannot install for you:
+`git clean -ffxd` must be safe before new work: nothing unrecoverable belongs in
+the checkout. Files are tracked and pushed or reproducible. Machine-only valuable
+files belong outside it. No exclude list can protect files from `-x`. Do not clean
+away uncommitted work. See [checkout maintenance](docs/checkout-maintenance.md)
+for the restore inventory and init verification.
 
 ```powershell
-git clean -ffxd && .\init.ps1          # restore only, a few seconds
-git clean -ffxd && .\init.ps1 -Build   # also build MFTLib (native + managed) and the solution
+git clean -ffxd && .\init.ps1
+git clean -ffxd && .\init.ps1 -Build
 ```
-
-From `cmd.exe`, use `init.bat`, which forwards to the same script:
-
-```bat
-git clean -ffxd && .\init.bat
-git clean -ffxd && .\init.bat -Build
-```
-
-Keep the `.\` prefix. This machine sets `NoDefaultCurrentDirectoryInExePath=1`, so `cmd.exe` does not search the working directory for executables and a bare `init.bat` fails with "not recognized as an internal or external command".
 
 ```bash
-git clean -ffxd && ./init.sh           # restore only
-git clean -ffxd && ./init.sh --build   # also build native (cmake/ninja) + managed
+git clean -ffxd && ./init.sh
+git clean -ffxd && ./init.sh --build
 ```
 
-Both are idempotent, so they are safe to run at any time, not only after a clean.
+Regenerate agent files after clean/upgrades: `aislop hook install claude --project`.
+Init also restores these and optional provisioner-owned settings. Keep it idempotent.
+Verify post-clean locally for init/submodule/build-input changes; CI `init-verify`
+runs only after non-pin-only main pushes, not PRs.
 
-CI verifies this post-clean path in `.gitea/workflows/ci.yml`: `test-windows` runs a main-push-only clean/status assertion after tests to catch any stray tracked-file modifications before discarding that checkout, while the dedicated `init-verify` job runs the full post-clean cycle (`git clean -ffxd`, `init.ps1` twice, `init.bat`, `init.ps1 -Build`, then a clean-tree check). That job runs only on pushes to `main` (the merge), never on pull requests, and not for a pin-only push; it is gated by a job-level `if:` rather than workflow-level `paths`, and no branch-protection check depends on it. A pull request that breaks the clean-tree invariant is therefore caught one merge later; run the commands above locally when changing `init.*`, the submodule wiring, or build inputs.
-
-They also make one optional call: if a settings-provisioning tool is on PATH, they ask it to re-apply the project-scope settings it owns, since a clean removes `.claude/settings.local.json`. The call names a single feature rather than running the tool's whole pipeline, and the step is skipped entirely when the tool is absent, so nothing here depends on it.
-
-They are separate scripts rather than one cross-platform script because the work genuinely differs: Windows resolves MSBuild through `vswhere` and builds `MFTLibNative.vcxproj` (the only toolchain that can), while Linux drives cmake/Ninja directly and restores/builds the four cross-platform projects individually rather than `git-wizard.slnx` as a whole, mirroring the Linux CI job exactly (`.gitea/workflows/ci.yml`).
-
-Prerequisites checked but not installed - Windows: .NET SDK, Visual Studio with the MSVC C++ workload, aislop. Linux: .NET SDK, cmake, ninja, g++, aislop.
-
-## Linting / lint gate
-
-### Local CI preflight
+## Local CI preflight
 
 Run `bash tools/ci-preflight.sh --all` before pushing, or
 `bash tools/ci-preflight.sh --changed-from main`. The latter validates the ref
-and conservatively runs every host gate; it never guesses which gates a diff can skip.
-Use `--only format` (repeatable) for diagnosis. Scopes: `native`, `restore`,
-`format`, `build`, `inspect`, `test`, `coverage`, `contracts`, `aislop`.
-Every selected gate completes even after another fails; the final exit is nonzero
-on failure (2 for invalid arguments or unsupported platforms).
+but still runs every host gate. Diagnostic scopes are repeatable `--only`:
+`native`, `restore`, `format`, `build`, `inspect`, `test`, `coverage`, `contracts`,
+`aislop`. Every selected gate finishes even after failure. Invalid arguments and
+unsupported platforms exit 2; gate failures exit nonzero.
 
-The wrapper declares `pr-crew-preflight-protocol: 1`. Complete successful runs
-on clean, unchanged HEAD write the protocol stamp at the Git-resolved
-`pr-crew/preflight-stamp.json` path. Targeted runs invalidate but never mint stamps.
-The protocol's fixed gate-set labels (`gates`, `node`, `python`, `test-delta`)
-identify a complete publication run, not this repository's scope names.
+Preserve preflight protocol 1: only complete successful clean, unchanged-HEAD runs
+mint the Git-path `pr-crew/preflight-stamp.json`; targeted runs invalidate it.
+Protocol gate labels denote the whole publication run, not local scope names.
 
-Linux runs the native/managed MFTLib build, project restore/build and analyzer gate,
-solution format check, NUnit with coverage, the existing 55% coverage gate,
-preflight contracts, and pinned aislop. Windows (Git Bash + Python 3 + PowerShell 7)
-runs its native/full-solution build, format, NUnit, contracts, pinned aislop and
-InspectCode; provision `jb` on PATH with the runner's global naming configuration.
-Linux explicitly skips Windows InspectCode; Windows explicitly skips Linux coverage
-enforcement. Neither host proves the other host's platform-specific tests. macOS is
-refused because there is no matching CI job. Missing required tools fail their gate.
-The contracts gate also validates the maintained-tools inventory, parses Bash/Python scripts, and tests hook logic on both hosts; Windows requires PowerShell parsing and isolated helper tests. Linux reports an explicit PowerShell skip when pwsh is absent.
+Linux gates include coverage (55% line floor), not InspectCode. Windows requires
+Git Bash/Python 3/PowerShell 7 and provisioned `jb` with global naming configuration;
+it runs InspectCode, not Linux coverage enforcement. Missing tools fail, macOS is
+refused, and neither host proves the other's tests.
 
-CI and local execution share `ci/gates.sh`, `ci/windows-gates.ps1` and
-`ci/aislop-gate.sh`, including the pinned fork and C# file-count check. Prepare
-the scanner once with `bash ci/aislop-gate.sh prepare` (network required);
-the local gate refuses a missing/mismatched pin or successful-build receipt instead
-of downloading implicitly. Preparation invalidates that receipt before any work
-and writes the pin only after installation (including its build lifecycle) succeeds.
-Its default tool directory is `git-wizard/aislop` under `LOCALAPPDATA` on Windows
-or `${XDG_STATE_HOME:-$HOME/.local/state}` elsewhere, outside the scanned checkout
-(`RUNNER_TEMP/aislop` on CI); `AISLOP_TOOL_DIRECTORY` can point
-to an owned cache elsewhere. With populated tool/NuGet caches no network services
-or forge credentials are required for gate verdicts. Results use unique directories
-outside the checkout as described above. Set `CI_RESULTS_DIRECTORY` explicitly to
-reuse a results root, including separate `--only test` and `--only coverage` invocations.
-Each test invocation writes a fresh child directory and replaces the root's
-`current-test-directory` pointer. Coverage evaluates only that invocation's reports;
-older results remain available for diagnosis but never contribute to the verdict.
-When a selected test gate fails without producing Cobertura input, a later coverage
-gate in that run is explicitly skipped; the failed test still makes the run fail.
-Current-invocation Cobertura input is evaluated even if tests fail. Coverage alone still
-fails on missing input. `CI_PREFLIGHT_STAMP_PATH` overrides the Git-resolved stamp
-location for isolated execution; contract tests redirect it and state/results paths
-to owned temporary directories, leaving developer stamps and state untouched.
-Provisioning, status posts, uploads,
-release/preview/screenshot jobs, destructive main-only clean/init verification,
-and attended elevation/desktop tests are explicitly skipped at runtime, not passed.
+Share recipes in `ci/gates.sh`, `ci/windows-gates.ps1`, `ci/aislop-gate.sh`.
+Explicitly prepare the pinned C# scanner: `bash ci/aislop-gate.sh prepare`.
+Require matching pin/build receipt; no implicit downloads or public npm substitute.
+Keep tools outside the checkout (`AISLOP_TOOL_DIRECTORY` overrides the state cache).
 
-The bar is **0 findings** across every configured analyzer. Three tiers:
+`CI_RESULTS_DIRECTORY` reuses a root, never a test invocation. Coverage reads only
+`current-test-directory`, including failed-test input; missing input fails coverage
+alone and skips it after failed tests without input (the run still fails).
+Contract tests redirect stamp/state/results to owned temporary paths.
 
-- **Analyzers + naming (CA*/IDE*/RCS*)** - `Directory.Build.props` sets `EnableNETAnalyzers`, `AnalysisLevel=latest-Recommended`, `EnforceCodeStyleInBuild`, and **`TreatWarningsAsErrors`**, so a normal `dotnet build`/MSBuild build *is* the gate. Roslynator 4.15.0 contributes only the explicitly pinned RCS1161 (explicit enum values), RCS1168 (contract-consistent parameter names), and RCS1238 (no nested conditional operators) rules from `.editorconfig`; every other RCS rule remains disabled by default, so dependency updates cannot silently expand the gate. AsyncFixer supplies the async checks, and `CA2000`/`CA1849`/`CA2016` the disposal, blocking-call, and token-forwarding ones. `EnforceCodeStyleInBuild` also turns the `.editorconfig` naming ruleset (IDE1006, at `warning`) into a **build error** - so the editorconfig is the **authoritative naming gate**, not just an IDE hint. MFTLib (outside this tree) does not inherit these.
-- **Formatting + naming** - `.editorconfig` is the canonical fleet C# standard (source of truth: `~/.claude/notes/idioms_csharp_naming.md`): **utf-8 (no BOM)**, CRLF, 4-space, and the full naming ruleset at `warning` -> build error (PascalCase types/members/const/static-readonly; `_camelCase` **all** private/internal fields incl. mutable static; camelCase params/locals; no `m_`/`k_`/`s_`). Formatting/charset check: `dotnet format git-wizard.slnx --verify-no-changes`; apply: `dotnet format git-wizard.slnx`. Local on-save hooks (`scripts/format-on-save.py`, wired in the tracked `.claude/settings.json` for Claude and `.agents/hooks.json` for Antigravity/AGY) run whitespace formatting per edit. The Python entry point is the single cross-platform implementation for both harnesses: it parses the hook JSON from stdin and runs `dotnet format whitespace` directly via `subprocess`, reporting one of three outcomes the calling harness can tell apart - a benign `skipped` (not applicable, or `dotnet` unavailable, exit 0), a successful `applied` (exit 0), or a loud `FAILED` when the formatter ran and returned a nonzero exit code (stderr, exit 2). (`dotnet format` fixes charset/whitespace/style but **cannot** auto-fix IDE1006 naming - rename via Rider/`jb cleanupcode`.)
-- **Deep inspection** - `jb inspectcode git-wizard.slnx -o=jb-report.json --settings=git-wizard.slnx.DotSettings --severity=WARNING --no-updates --properties:Configuration=Release`, gated by `ci/windows-gates.ps1 inspect` (parses the SARIF report, prints per-rule counts and exits non-zero on any finding). To locate findings, run `python ci/parse-jb-report.py <report> [--max N]` on the same report (it prints each finding as `uri:line`); `ci/test_parse_jb_report.py` exercises it in the contracts gate. Match the gate's invocation exactly - omitting `--settings`/`--severity` reports hundreds of suggestion-tier findings the gate never sees. Now a *supplementary* deep pass - the editorconfig (above) is the primary naming gate. **jb-CLI binds `InconsistentNaming` to the machine's *global* ReSharper config, not the solution `.DotSettings`** - the global config here is aligned to the canonical convention; Rider uses the solution `.DotSettings` (which has the ExtraRules jb-CLI ignores).
-- **aislop** (AI-slop gate) - `.gitea/workflows/aislop.yml` gates the whole repo (C# + Python) at `failBelow: 100` in `.aislop/config.yml`. The C# engine lives **only in the personal fork `gitea.fleet.sticktoitive.net/schoen/aislop`** (the public npm `aislop` scores just the Python `ci/` tooling - 2 files; `github.com/mtschoen/aislop` is a mirror that can lag behind, so the workflow clones from Gitea, the canonical source), so the workflow clones + installs (`pnpm`, via `npx`) and builds that fork at the commit pinned in **`.aislop/fork-commit`** and runs the built `dist/cli.js`, then sanity-fails if the scan covers <10 files (catching a silent Python-only pass). The job carries no .NET toolchain: `lint.csharp.projectEvaluation` is `false`, so the project-backed C# tools stay in `ci.yml` and are not paid for twice. `failBelow: 100` enforces a 0-findings bar, same as the other analyzers. Findings map to fixes, not mutes: oversized files split into partials, long functions extracted, TODOs tracked as gitea issues, narrative comments reworded to trip aislop's why-marker exemption. The pin is normally bumped by the aislop fork's sync-consumers workflow via a PR that edits `.aislop/fork-commit`; a manual bump is the same edit, made deliberately (don't track the moving `schoen/main`).
+Provisioning, posts/uploads, release/preview/screenshot jobs, destructive main-only
+verification and attended elevation/desktop tests are skipped locally, not proved.
+[CI and release reference](docs/ci-and-release.md) carries the workflow detail.
+Keep job/check names unchanged. Pin-only detection and clean-tree verification
+live in `ci/checkout.py`; do not duplicate their logic in workflows.
 
-Run evidence is not tracked in the repository: coverage verdicts live in the informational `pr-crew/coverage` commit status and the CI job summary (see **CI infrastructure** -> Coverage gate), and attended verification passes are recorded as comments on the issue they verify.
+## Lint gate
 
-CI wires all three (`.gitea/workflows/ci.yml`). Both jobs (Linux + Windows) check out the
-`external/MFTLib` submodule, build it from source with the platform-appropriate toolchain (see the
-**Build** section), then restore/build/test/format-check the solution green with the `dotnet` CLI.
-(Before the submodule, CI was dormant/red-by-design because the committed local `ProjectReference`
-to a sibling MFTLib checkout couldn't be restored on the runners.)
+The bar is **0 findings**, not suppressions. Preserve `Directory.Build.props`
+analyzers/code style/warnings-as-errors and `.editorconfig`: UTF-8 no BOM, CRLF,
+four spaces, PascalCase members/types/const/static-readonly, `_camelCase` private
+and internal fields including mutable static, camelCase locals/parameters. Full
+words; no `m_`/`k_`/`s_`. Keep only RCS1161/RCS1168/RCS1238 enabled by default,
+plus AsyncFixer and CA2000/CA1849/CA2016.
 
-## MFTLib Local Development
+Run `dotnet format git-wizard.slnx --verify-no-changes`; use
+`dotnet format git-wizard.slnx` to apply fixes. Naming is a separate rename,
+not a whitespace fix. `scripts/format-on-save.py` serves Claude and AGY hooks:
+keep skipped/applied success distinct from FAILED (stderr, exit 2).
 
-MFTLib lives in the repo as a submodule at `external/MFTLib`, pinned to a specific commit.
-git-wizard depends on MFTLib `0.3.0` (the `IElevationProvider` API), which is **not on NuGet
-yet**. To iterate on MFTLib changes, edit files directly under `external/MFTLib/` and rebuild
-(native + managed, per platform - see the **Build** section). To move git-wizard to a different
-MFTLib commit:
+Deep inspection uses exactly:
 
-```bash
-cd external/MFTLib && git fetch && git checkout <ref> && cd ../..
-git add external/MFTLib && git commit -m "build: bump MFTLib submodule to <ref>"
+```text
+jb inspectcode git-wizard.slnx -o=jb-report.json --settings=git-wizard.slnx.DotSettings --severity=WARNING --no-updates --properties:Configuration=Release
+python ci/parse-jb-report.py jb-report.json
 ```
 
-The submodule URL in `.gitmodules` is relative (`../MFTLib.git`), so it resolves to GitHub for a
-local clone (origin = github.com/mtschoen/git-wizard) and to Gitea on the CI runner. **The pinned
-commit must exist on both MFTLib remotes.**
+Inspect rejects any finding; match settings/severity and global ReSharper naming.
+Keep manually run tools and their contract tests, including parse-jb-report and
+verify-windows; lack of a production caller is not grounds for deletion.
 
-**Retiring the submodule** (when MFTLib `0.3.0` ships to NuGet): see the retire-to-NuGet note in
-`Directory.Build.targets`'s header for the exact steps (delete the submodule + that file, add a
-`PackageReference` to `GitWizard/GitWizard.csproj`).
+Use installed `aislop scan .` before completion and `aislop scan --staged` before
+commit. Preserve `failBelow: 100` and C# file-count validation. Fix findings, never
+mute rules/config; split oversized files, extract methods, track TODOs as issues,
+retain rationale. Pin `.aislop/fork-commit` deliberately, never a moving branch.
 
-## Key Architecture
+Keep run evidence outside the repository. Coverage verdicts belong in
+`pr-crew/coverage` and the CI summary; attended evidence belongs on its issue.
 
-- **MFTLib** - Windows MFT discovery uses the packed columnar `MFTLib.Index.FileIndex`. `MftIndexSession` owns the index and its broker session, disposing the index before the session. It scans through the owned `BrokerSession`'s index source with `DirectoryScanFileNames = [".git", "HEAD"]` from `MftIndexCachePolicy`, so blocks retain directories plus `.git` and bare-repository `HEAD` markers. Null retention selects a full scan, an empty list retains directories only, and names add case-insensitive file retention. Discovery queries `FileIndex.Search` with `NameMatchMode.Exact` for ".git" and "HEAD", plus `FileEntry.Parent`, applies consumer scope/ignore policy to entry paths translated onto each drive's real indexed root (`TranslateToRealRoot`), then validates candidates through the Windows filesystem boundary. Linux and `--no-mft` retain recursive discovery. `TryDiscoverRepositoriesUsingMftAsync` returns a result that owns the session; the UI report can transfer a prepared owner for Live to adopt without another cold scan or UAC prompt.
-- **Discovery scope and persistent cache policy** - Windows discovery uses GitWizard-owned persistent index blocks in one directory, `GetLocalFilesPath()/mft-index/blocks` (normally `~/.GitWizard/mft-index/blocks`). `MftIndexCachePolicy` (static) is the single source of `DirectoryScanFileNames = [".git", "HEAD"]`, the MFTLib `CacheTag` (`GWMI`, version 2) and the directory; every open and inspection caller resolves the directory through it. MFTLib stamps the tag into each block and discards a block whose tag differs, so changing retention requires incrementing `CacheTagVersion` in `MftIndexCachePolicy.cs`; `MftIndexCachePolicyTests` pins the scan shape per version and fails until a version row is added. Blocks are never migrated; a tag mismatch cold-scans for normal opens and is declined for snapshots. The stored metadata covers directories and retained marker names across each selected volume, potentially including other users' directory names. Search, ignore, hidden-directory and temporary-directory settings filter repository candidates after collection; they do not restrict the metadata written to the index. Live hydration can add metadata for observed ordinary files. A process running as the user can read these mapped or backing blocks. MFTLib protects the supplied cache directory and owns cache validation and locking.
-  - **Cache modes.** Session and discovery opens take the library `CacheMode` and accept only `Persistent` or `ExistingOnly` (`Disabled` is refused). `CacheMode.Persistent` (every existing overload) can reuse a cached block; a concurrent normal open that cannot own its canonical slot scans into a private delete-on-close block without modifying that canonical block. `CacheMode.ExistingOnly` (explicit `OpenWindowsAsync` overload only; no CLI flag) adopts cached blocks only: it does not launch the broker, scan, or start watching. Ordinary discovery and watch preparation both open cache-only with `ExistingOnly` first, then rescan only the drives their purpose requires (see **Source selection** and **Watch startup**). Missing (`CacheDeclined`), in-use (`InUse`), offline and identity-failed outcomes remain visible through `MftIndexSession.CaptureDriveStatuses()` (`MftDriveStatus` wraps the library's immutable `DriveStatus`, or carries the identity failure when no producer ran); they are not evidence of an empty repository inventory. `MftDiscoveryResult.DriveStatuses` freezes those snapshots, even on unsuccessful discovery. Cache opening and inspection can create lock files and perform library-managed housekeeping; snapshot means no scan or watch, not a filesystem read-only promise.
-  - **Snapshot age.** A snapshot can be stale. `ScanTimestamp` describes the block's scan age, not a catch-up-completion time, and a warm open does not mean caught up. A valid snapshot can retain a lost journal checkpoint; it remains queryable but cannot resume that checkpoint until an explicit rescan.
-  - **Ownership.** The producer and watch source stay lazy in both intents: later watch or `RescanAsync` work connects through the session's owned `MFTLib.BrokerSession`, which launches the elevated `BrokerProcess` on first use, serializes that launch against disposal, never caches a failed launch, and reclaims a process whose launch returned after cancellation; every scan and watch then runs on its own per-drive channel of that one process. `MftIndexSession.IsFaulted` reads `BrokerSession.Ended.IsCompleted`: `Ended` completes only for a real broker end, never at disposal, so no disposal latch is needed. `BrokerSession` observes the process's never-faulting Ended task once, including when it is already complete, and reclaims every process it launches. Disposal stops and disposes the index before disposing the session, then the `MftIndexDiagnostics` relay drains. The relay feeds `FileIndexOptions.Diagnostics` into `GitWizardLog` at Info level from a worker; the library callback only enqueues (256 records, oldest dropped, drop count logged on drain).
-  - **Local-file commands.** `ClearCache` and `--clear-cache` delete only `repositories.txt` and `report.json`; configuration and index blocks remain. `MftIndexCacheMaintenance.Clear(GetLocalFilesPath())` backs CLI `--clear-index-cache` and the sidebar Clear Index Cache action. It calls `CacheDirectory.DeleteCached` for the `blocks` directory and any leftover `v1-<64 hex>` directory from earlier releases (the only recognition of that name left, kept so Clear reclaims their disk space), then `InspectCached` for a fresh inventory. It never deletes files itself, releases an active owner, or opens a broker. Per-block failures continue; directory/inspection errors are reported. Busy drives remain while unlocked drives clear. The CLI exits 0 on success, 1 on incomplete maintenance, and does not proceed into discovery/report generation. `IndexCacheViewModel` owns Refresh (inspect, rendered by `MftIndexCacheStatusFormatter`, the same text as `--index-cache-status`) and Clear behind one busy guard for both the sidebar and the status window; its work runs off-thread and posts result/busy properties through IUiDispatcher. Inspection is point-in-time, not a permission to delete. Locks and directories remain, so Delete All Local Files continues to refuse while mft-index exists. The `blocks` directory and leftover `v1-<hash>` directories can be explicitly cleared; MFTLib deletes a block with a superseded tag the next time its drive is opened. `TryDeleteAllLocalFiles` (CLI `--delete-all-local-files`, UI Delete All Local Files) refuses while the `mft-index` subtree exists, including an empty subtree, before deleting anything; the CLI exits 1 with the reason on stderr and the UI shows "Files Not Deleted". Do not manually remove lock files while indexes are in use.
-  - **Index cache status and inventory.** `MftIndexCacheInspection` inspects the cache directory (`MftIndexCachePolicy.GetCacheDirectory(localFilesPath)`). Non-Windows platforms report that MFT index cache is not applicable and bypass inspection calls without cache initialization. On Windows, an explicit directory preflight (`File.GetAttributes`) verifies the directory exists and is a directory (throwing an error for non-directories and returning empty inventory for missing paths) before calling `CacheDirectory.InspectCached`. Inspection can create persistent `.lock` siblings, which are never unlinked. The snapshot carries the requested `MftIndexCachePolicy.CacheTag` (`RequestedCacheTag`) and each inventory row prints the block's stored `CachedBlockStatus.CacheTag` beside it (`unavailable` when the block could not be inspected). Active session backing is captured via `MftIndexSession.CaptureCacheStatus()` and `IndexVolumeChangeSource.CaptureCacheStatus()`, returning immutable `MftActiveCacheSession` snapshots carrying volume identities and `DriveStatus` under existing disposal gates without transferring ownership. `CacheLocation` is independent of `BlockOrigin`: `CacheLocation` describes whether a ready drive owns the canonical slot (`OwnedCanonical`) or runs on a private fallback (`PrivateFallback`), while `BlockOrigin` reports whether the block was loaded from cache or produced by scan. A private fallback does not prove the canonical slot is still held now. A null `CacheLocation` and blockless drives have no backing label. Refresh rereads in-memory statuses, including after `RescanAsync` (which may promote a private fallback to canonical ownership). Status observations are point-in-time, holder identity is unavailable for held slots, and directory-entry last-write time is labeled as such rather than as scan or catch-up time. Report schema remains 2.1.
-  - **Not applicable.** `DuplicateNames` and `Largest` are inapplicable to repository discovery: discovery does not group arbitrary duplicate names or rank file sizes. Retaining `HEAD` does not change the `.git`-based candidate-selection rules. Recursive discovery on Linux and with `--no-mft` is unchanged.
-- **Marker matching (P14)** - `GitWizardApi.SelectGitEntries` deliberately adopts the case-insensitive matching of `FileIndex.Search(new SearchQuery(GitEntryName, NameMatchMode.Exact))` (`CaseSensitive` defaults to false). A directory named `.GIT` is therefore discovered as a repository marker, subject to the same scope and filesystem validation as `.git`. This matches NTFS's default case-insensitive behavior; do not add an ordinal post-filter. `FileEntry.Path` renders the drive's real indexed root with host separators, so scopes are translated onto that root before comparison; for enumeration indexes over a temporary tree the root is that tree, not a synthetic drive letter. Keep filesystem validation at the Windows boundary; tests inspect entry structure rather than opening index paths.
-- **Discovery ownership** - Exactly one consumer owns the transferable `MftIndexSession` at a time: discovery result -> report -> view model -> `IndexVolumeChangeSource` -> disposal. `FileIndex` is borrowed query access, not a second resource owner. Detach/take operations clear the previous holder; replacing an owner disposes the previous one. Untransferred discovery results and reports dispose their retained owner. `DiscoveryIndex` and its owner are never serialized; report schema remains **2.1** and Git metadata remains owned and reported by the existing Git repository layer. This port changes repository discovery, not Git reporting. Stopping Live detaches handlers and stops the pump before disposing the session, which disposes the index before its broker connection. Restart creates a new source and follows the same single-owner rule; a disposed, faulted, or drive-mismatched prepared owner is disposed and replaced, never reused.
-- **MFTLib.ElevationUtilities** - Elevation helpers from MFTLib: `IElevationProvider.IsElevated()`, `CanSelfElevate()`, `TryRunElevated(arguments, timeout)`, reached through `ElevationUtilities.DefaultProvider` in production and faked per-test. `TryRunElevated` is used by WindowsDefender for adding exclusions; MFT discovery always uses the journal broker, including when the caller is already elevated.
-- **Windows Defender setup:** On Windows, Configure Windows Defender adds process-name exclusions for `dotnet.exe`, `git.exe`, `git-lfs.exe`, `git-wizard.exe`, and `GitWizardUI.exe`. The desktop executable also hosts its elevated MFT broker. The result and process list appear in the setup alert and the in-memory Errors window; this window includes successful Defender setup diagnostics as well as errors. These exclusions reduce protection for files opened by any executable with a matching name, regardless of location; they do not exclude the executable file itself or guarantee that every Defender capability is bypassed. No MFT cache-path, temporary-directory, or volume exclusion is added.
-- **Self-elevation** - Both CLI and GitWizardUI dispatch MFTLib's elevated `--broker` child mode via `ElevatedEntryPoint.RunBrokerIfRequested` (for broker-backed MFT discovery, `--watch`, and the UI's Live mode), plus the `--elevated-defender` hidden arg for Defender exclusions, before any normal/Avalonia startup.
-- **Desktop single instance:** `GitWizardUI.Program.Run` dispatches the MFTLib
-  broker and Defender child modes before evaluating the mutex name or touching
-  Avalonia. `DesktopInstance` uses a stable named mutex scoped to the current OS
-  user across sessions; Windows names include the user's SID. Ownership is taken
-  with `WaitOne(0)` and held synchronously through the desktop lifetime, released
-  in `finally` on the same thread. Abandonment transfers admission ownership.
-  A duplicate reports `git-wizard is already running`, shows a native Windows
-  notice where applicable, and returns 1 without starting the application.
-  Do not move this rule into MFTLib, the CLI, App initialization, or the screenshot
-  executable. It does not describe canonical-versus-private MFT backing and must
-  not change the library's private fallback. Startup tests use unique mutex names
-  and distinct threads because same-thread mutex waits are recursive.
-- **IUpdateHandler** - Interface for progress reporting, used by both CLI (UpdateHandler) and GitWizardUI (MainViewModel).
-- **Collection swap pattern** - `ApplyFilterAndGrouping()` builds a new `ObservableCollection` off-screen and swaps it in one shot to avoid per-item layout updates with 700+ repos.
-- **UI command queue** - Background refresh threads enqueue `RepositoryUICommand` structs; the first enqueue of a burst starts one 250 ms batching window on the injected `TimeProvider`, and its expiry posts one drain to the UI dispatcher that applies the whole batch and the latest progress; `DisposeAsync` stops the window.
-- **RefreshStatus enum** - Per-repo status (Refreshing/Success/Timeout/Error) drives the status icon in column 0. `MarkRefreshFailed()` on `GitWizardRepository` handles timeout/error paths.
-- **Discovery coordinator** - `GitWizard/Discovery/RepositoryDiscoveryCoordinator*.cs` backs every entry point (CLI report/scan/tags/branches, `--watch`, desktop refresh, desktop Live). `DiscoveryScope.Create` classifies each expanded search root and retained root by filesystem through the injectable `ClassifyRoot` boundary: NTFS roots drive index discovery, confirmed non-NTFS/network roots and explicit `--no-mft` use recursive discovery scoped to those roots, and an unknown filesystem is a visible error, never permission to crawl. `CandidateAdmissionPolicy` (`GitWizard/Discovery/`) owns candidate admission for the indexed filter, watch replay and Linux retained roots: an ignored root rejects itself and every descendant, `skipHiddenDirectories` rejects a dot-prefixed or Hidden-attribute directory between the search root and the candidate, and temporary directories are rejected unless opted in or the search root is itself temporary. It takes plain paths and flags so the recursive walk's replacement reuses it. The selected NTFS drive set is computed once from configured scope plus the request's retained exact roots and passed through discovery, prepared owner, and watch arming.
-  - **Outcomes and publication.** Every discovery reports `CompleteEmpty`, `CompleteNonempty`, `Partial`, or `Unusable` (`DiscoveryInventory`, with per-root `RootObservation`s, per-drive errors, and drive statuses). Only complete outcomes publish a full inventory (`CanPublishFullInventory`): complete-empty clears `repositories.txt` and publishes an empty report; unusable preserves the previous list and published report with no automatic crawl or second elevation attempt; partial reconciles the successfully observed scope and retains failed or unobserved scope, and a partial zero-result is never globally empty. A report-producing CLI run whose discovery cannot publish exits **3** (`GetDiscoveryExitCode`); explicit `--paths` runs are unaffected. Report schema stays **2.1**.
-  - **Source selection.** Ordinary non-watch discovery uses `repositories.txt` when allowed (`AllowRepositoryList`, purpose `Ordinary`). On a list miss, Windows tries a cache-only `Snapshot` open without UAC and labels its scan age; cache misses requiring discovery use a broker-backed scan. Purpose `Rebuild` (CLI `--rebuild-repo-list`, `--sweep` without `--paths`, desktop Shift+Refresh) always requires a current scan, never a warm snapshot. Sweeps bypass the cached repository list and replace it on complete discovery; explicit `--paths` sweeps inspect only those paths. Ordinary report output retains its cache behavior. Bare repositories are found through retained `HEAD` markers and validated by `objects` + `refs` layout; internal `.git` directories and unrelated `HEAD` files are excluded. Replay candidates (journal changes reconciled during watch startup) get the same ignored/hidden/temp policy as indexed candidate selection.
-  - **Watch startup.** `PrepareWatchAsync` (CLI `--watch` and desktop Live start/respawn) arms the platform source first, reconciles membership against the exact watched session (including retained roots outside the search roots' drives), buffers journal changes during arming, and returns a `WatchStartupResult`: inventory, arm result, source, watch volumes, and the buffered batches. `RepositoryWatchService` delivers the buffered batches through its normal ordered event path once filters are built, so changes made during catch-up are not dropped. A null source means nothing to watch: complete-empty (report and stop) or unusable (surface errors, no respawn). Linux arms fanotify marks over search plus retained roots before one recursive discovery pass per start, then consumes queued events; no MFT cache on Linux.
-- **Journal watch (`--watch` CLI, and the UI's Live mode)** - Auto-detects changes in tracked repositories, one UAC prompt for the whole run. The pipeline lives in `GitWizard/Watch/` behind the `IVolumeChangeSource` platform seam.
-  - **`IndexVolumeChangeSource`** (Windows) owns a `MftIndexSession`, adopting a prepared discovery owner only when it is usable and its normalized drive set matches. Otherwise it disposes that owner and opens a replacement. An arm that opens a fresh session forwards the broker's throttled ScanProgress frames as `IVolumeScanProgress.ScanProgress` (`VolumeScanProgress`: drive, 1-based drive ordinal/total, rows written and nullable total); an adopted prepared owner scans nothing and reports nothing. `FileIndex` owns live mutation, path resolution, replay, and resume cursors; the adapter maps `Changed` into volume batches and consumes `WatchFaulted`. Every `WatchFault` names one drive. `WatchFault.IsRecovering` classifies the recovery associated with a notification: MFTLib rescans and restarts only the affected drive for `Drive` or `Apply`, or a `CatchUpLost` notification whose exception has `RecoveryStopped = false`. The Windows source subscribes to MFTLib's per-drive WatchStateChanged notifications, reading `WatchStateChange.Watch.State` and `Watch.StateVersion`, and seeds from each `DriveStatus.Watch` snapshot. Equal and older versions are ignored. Recovery reconciliation runs off the library callback thread and publishes CaughtUp only if its version is still current. WatchFaulted remains the source of fault diagnostics and terminal-drive policy; recoverable Faulted then Recovering transitions do not exclude the drive. No recovery timer or status polling is used. Because a recovery publishes a freshly scanned block and a block swap raises no `Changed` events, the source records the drive's `.git` marker paths when the recovery starts and, once the recovered watch has caught up and before it publishes `CaughtUp`, delivers the difference as ordinary change entries (`IndexVolumeChangeSource.RecoveryReconciliation.cs`): a vanished marker as `Deleted`, a new one as `Created`, and a surviving one as `Modified` so its repository is refreshed. `RepositoryWatchService` applies its usual membership, scope and refresh rules to them. Otherwise the observation stays pending: a recoverable fault is followed, and a terminal one is excluded by its own notification. A fault that lands just after the publication is published by its handler over it. A `Channel`, `Recovery` or `RescanRestart` fault, or a lost catch-up whose exception reports `RecoveryStopped = true`, excludes the drive: optional `IVolumeChangeDiagnostics.DriveFailed` fires while healthy drives continue. `DriveWatchStatus.RecoveryStopped` is the persistent exhaustion decision, independent of failure text; consumers do not infer it from a retry count or limit. A drive that reads `Recovering` when its startup catch-up wait faults is followed the same way instead of being excluded. When the faulted drive reports a `JournalCheckpointLossDetection.LiveWatch` or `ScanCatchUp` loss (MFTLib records it before raising `WatchFaulted`) the source first raises `IVolumeChangeDiagnostics.JournalWarningDetected` with the drive's refreshed hint; an unrelated fault raises no warning and leaves the open's standing report untouched. Arm-time `JournalCheckpointLossDetection.DriveOpening` losses, including a cache-declined drive's discarded checkpoint, reach the arm result as `JournalWarning`s. `DriveStatus.Watch.FailureMessage` is independent of `DriveState`: a failed watch may leave a `Ready`, queryable block. When the last usable drive is excluded (the broker process ending loses every drive's channel) the source raises `SourceDied` once and closes the output channel; a recovering drive keeps the source alive. Subscriber faults reach the reader as errors. Shutdown detaches index handlers and stops the pump before disposing its owner.
-  - **`FanotifyInterop`** (Linux) is the P/Invoke layer plus capability probe for the `fanotify` counterpart (`Available` / `RequiresElevation` / `UnsupportedKernel` / `UnsupportedFileSystem`, kernel floor 5.9). Probed by `MainViewModel` to enable Live mode on supported kernels and filesystems while gracefully disabling it with user-facing reasons on older kernels or unsupported filesystems.
-  - **`FanotifyVolumeChangeSource`** (Linux) is the `IVolumeChangeSource` backend for whole-filesystem change detection via fanotify. It emits every batch under the single routing volume `/` (`LinuxWatchRouting.Volume`, also the only startup watch volume), using marked roots only for native arming, readiness and error attribution. A directory arriving through `FAN_MOVED_TO` is emitted as `MovedIn`; file creation and file moves stay `Created`. Each decoded handle carries the event's filesystem identifier (`FileHandleKey` includes it), and `MountRootTable` remembers the marked root paths grouped by filesystem. Each decoded batch opens a short-lived descriptor on the first registered root that currently reaches the event's filesystem (a root that was renamed, removed, overmounted or unmounted is skipped because its path no longer reaches the filesystem), resolves that batch's handles through it for `open_by_handle_at`, and closes it, so no descriptor is held between batches and a plain `umount` of a watched filesystem is never blocked. Resolved paths carry the prefix of the mount that produced them: when a batch reaches a filesystem through a different root than the previous batch, or no root reaches it, that filesystem's cached handles are discarded before the cache is consulted, so a detached mount's prefix is never emitted. An event whose filesystem has no reachable root is dropped, and an event from an unmarked filesystem is skipped. Every re-arm, including empty and initialization-failed attempts, forgets the registered roots and cached handles; disposal does the same.
-  - **`RepositoryWatchService`** is the platform-agnostic layer on top: it groups tracked roots by volume, maps change batches through `GitWizard.RepositoryChangeFilter.ClassifyEntry`/`TryClassifyMovedInCandidate`, and dedupes/debounces per window. The filter set is live: a repository whose `.git` creation classifies under a search root (or is probed from a moved-in candidate) is adopted into that volume's running filter, and a deleted repository's root is dropped, so repositories created while Live runs are tracked for changes without restarting Live. Directory renames arrive as `Deleted` + `MovedIn` (see `IndexChangeMapping`): a `MovedIn` path under a tracked root classifies as `Changed`, while an untracked one under a search root is probed once at flush time for `<path>\.git` (a directory, or a file for a gitfile worktree) and surfaces as `Created` on a hit, skipping ignored and temp-excluded paths. Probe-emitted `Created` events flush after the window's `Deleted` events so the UI's pending-delete rename correlation sees the old root first. It subscribes to optional drive diagnostics and optional `IVolumeScanProgress` before arming and detaches on shutdown, publishing immutable `ScanErrors` snapshots for initial scan errors and later watch failures plus immutable `ScanWarnings` journal-hint snapshots, where a mid-run `JournalWarningDetected` replaces the same drive's earlier hint, and re-raising `ScanProgress`. `ScanErrorsChanged` fires outside the error lock, so a warning does not depend on a repository event. Sources without diagnostics retain their existing watch behavior.
-  - **`RepositoryChangeFilter`** is I/O-free and cross-platform-testable, with a tracked root set that `AddRepositoryRoot`/`RemoveRepositoryRoot` mutate mid-run (single-threaded, on the watch pump). `ClassifyEntry` is path-based and emits Changed/Created/Deleted for one entry; `TryClassifyMovedInCandidate` separately reports `MovedInCandidates` (untracked directories renamed into a search root, or a case-only rename of a tracked root, left for the service layer to probe - the filter itself never touches the filesystem). Both respect configured ignored paths and the temp-directory exclusion (`includeTempDirectories`). Paths compare through `GitWizard.Watch.WatchPath`, which retains a path's syntax (Windows-rooted vs POSIX) instead of rewriting separators, so a POSIX root is reported back as `/repos/repo-a` rather than `\repos\repo-a`.
-  - **Consumers.** `Program.cs` dispatches the elevated `--broker` child through `ElevatedEntryPoint.RunBrokerIfRequested` before normal startup. `--watch` uses the platform source factory (`IndexVolumeChangeSource` on Windows), prints `changed:` / `created:` / `deleted: <root>`, prints each new or changed `scan error on <drive>: <message>` once while the stream is live, and prints each journal hint line when it first appears and again when its wording changes (a live-watch loss rephrases the drive's arm-time hint). CLI `--watch` runs `RepositoryDiscoveryCoordinator.PrepareWatchAsync` with the readable cached list as retained exact roots, so cached repositories on drives outside the configured search roots stay in discovery and in the journal watch's selected drive set; it replaces `repositories.txt` only with a publishable outcome. Repositories created since the previous cache write are therefore tracked without a rename. Discovery respects the configured ignore, hidden-directory and temp-directory policies. This adds startup latency at each CLI watch start; it does not launch an additional MFT broker or elevation prompt. An empty discovery clears the repository-list cache and the CLI reports that there is nothing to watch; an unusable discovery preserves the previous list and exits 1. `LiveWatchController` forwards `ScanErrorsChanged` and `ScanProgress`; the UI shows "Scanning D: (n of N), x of y records" with a progress bar next to the amber Live button until the watch reports started (green), the start fails, or Live stops. The UI posts warning changes through its dispatcher even without repository events. A drive-specific failure keeps Live active on healthy drives. A Live run that ends in source death keeps the drives' journal hints on screen; a user-initiated stop still clears them. Terminal loss retains the existing stop policy and at most three elevated respawns. `Started` and the green Live state describe pump startup, never a catch-up completion fence ([MFTLib#139](https://gitea.fleet.sticktoitive.net/schoen/MFTLib/issues/139)). Readiness is a separate contract: `IVolumeReadiness` (`GitWizard/Watch/VolumeReadiness.cs`) exposes immutable per-volume `CatchingUp`/`CaughtUp`/`Excluded` state with `Warm`/`Cold` origin; `IndexVolumeChangeSource` sets it only from each drive's `WaitForCatchUpAsync` outcome and later watch faults, and `FanotifyVolumeChangeSource` sets `CaughtUp` when a mark installs (mode `FilesystemMarks`, no backlog fence). `RepositoryWatchService.Ready` fires exactly once per run when the snapshot is settled with at least one caught-up volume, the startup batches are delivered and the run is not terminal; terminal marking and publication share one lock so death or cancellation cannot race out a late marker. `LiveWatchController` forwards `Ready`, `VolumeReadinessChanged` and `StartupProgress`; the CLI prints `ready:` (grammar in README) and, under `-v`, timestamped `drive:`/`startup:` lines. `RepositoryDiscoveryCoordinator.PrepareWatchAsync` takes an `IProgress<WatchStartupProgress>` because the arm and catch-up complete before any consumer holds the source; `RequestingElevation`/`BrokerConnected` come from `BrokerSession.Connecting`/`Connected`. Broker process existence is never readiness evidence. The UI still correlates delete/create pairs by remote URL. Desktop readiness uses one reserved, nonwrapping toolbar line; per-drive state, origin, and failure reasons are shown only in its tooltip and the Index Cache Status window, sharing MainViewModel.LiveVolumes. The readiness tooltip and Index Cache Status window list recent watch transitions separately from current volume readiness. Faulted and Recovering are retained as separate observations even when recovery is immediate. The list retains up to 64 observations for 30 seconds and clears on an explicit Live stop or a new run. It is in-memory only and is not part of report.json. UI summary updates on later snapshots do not re-emit RepositoryWatchService.Ready. Cache-status refresh remains independent of live readiness updates.
+## Architecture rules
 
-## Local files
+[Architecture](docs/architecture.md) and [watch/recovery](docs/watch-and-recovery.md)
+hold the full consumer contracts. Preserve the following boundaries.
 
-GitWizard stores config and cache in `~/.GitWizard/`:
-- `config.json` - Search paths, ignored paths, `includeTempDirectories` (temp directories -
-  every profile's `AppData\Local\Temp` on Windows, the process's %TEMP%/%TMP%, and `/tmp` plus
-  `$TMPDIR` on Linux - are excluded from discovery and Live by default; set true to include
-  them), `skipHiddenDirectories` (directories whose name starts with `.`, or on Windows carries the Hidden attribute, are
-  included in discovery and Live by default; set true to skip them)
-- `repositories.txt` - Cached repo list
-- `report.json` - Cached report
-- `mft-index/blocks` - Persistent filtered MFT index metadata (Windows), versioned by the
-  `GWMI` cache tag; not a repository list. Cleared explicitly via `--clear-index-cache`
-  or sidebar Clear Index Cache (locks and directories remain). Delete All Local Files refuses while
-  it exists, and Clear Cache leaves it alone
+Single ownership: discovery result -> report -> view model -> watch source ->
+disposal. Detach clears, replacement disposes; queries borrow. Never serialize
+the index/owner; schema stays 2.1. Dispose index before broker session. Replace
+unusable or drive-mismatched prepared owners.
 
-## Debugging
+`MftIndexCachePolicy` owns `[".git", "HEAD"]`, directory and `GWMI` tag. Retention
+changes increment its version and test table. Scope/ignore/hidden/temp settings
+filter candidates, not stored metadata. No ordinal `.git` post-filter; retain
+case-insensitive matching and Windows-boundary filesystem validation.
 
-.NET diagnostic CLI tools are installed globally:
-- `dotnet-dump collect -p <pid>` - capture a dump of a hung/crashed process
-- `dotnet-dump analyze <dump>` - inspect threads, stacks, exceptions (`pe` for last exception, `clrstack` for managed stacks)
-- `dotnet-stack report -p <pid>` - quick stack trace of all threads without killing the process
+Unknown filesystem means error, not crawl permission. Reuse `CandidateAdmissionPolicy`;
+ignored roots reject descendants. Temp paths require opt-in or an explicit search
+root; hidden paths default included. Temp fixtures opt in explicitly.
 
-Use these to debug crashes/freezes instead of guessing. For the GUI app, run the exe in the background, get its PID, and collect a dump if it hangs.
+Only complete discovery publishes globally; complete-empty clears. Unusable
+preserves list/report, without automatic crawl/second elevation. Partial retains
+failed/unobserved scope, never treats zero as globally empty. Preserve report
+exit 3 (explicit paths unaffected). Ordinary Refresh uses cached membership;
+Rebuild/Shift+Refresh and non-explicit sweeps scan without clearing caches first.
 
-VS2026 is installed at `C:/Program Files/Microsoft Visual Studio/18/Community/` for interactive debugging when CLI tools aren't enough.
+Never unlink active index locks. Use `MftIndexCacheMaintenance`/library clearing.
+Clear Cache deletes list/report only. Delete All Local Files refuses while
+`mft-index` exists, even empty. Status is point-in-time, not deletion permission
+or proof another holder still exists.
 
-## Manual testing
+Dispatch `ElevatedEntryPoint.RunBrokerIfRequested`/Defender child modes first.
+Desktop admission stays in `GitWizardUI.Program.Run`/`DesktopInstance`, before
+Avalonia, not MFTLib/CLI/App/screenshot. Hold the per-user mutex through lifetime,
+release on its thread; duplicates exit 1. Tests use distinct threads/unique names.
 
-Attended verification steps that cannot run on CI (real elevation prompts, a real desktop
-session) live in [`docs/manual-test-plan.md`](docs/manual-test-plan.md). Run its
-**CLI live smoke** pass first on any attended re-test, before GitWizardUI testing -
-`scripts/cli-live-smoke.ps1` drives it end to end and prints PASS/FAIL per step.
+Defender excludes process names only (dotnet/git/git-lfs/git-wizard/GitWizardUI),
+never cache/temp/volumes. Preserve the protection warning and successful setup
+diagnostics in alert/Errors; exclusions affect matching names at any location.
 
-## Screenshots
+Build collections off-screen, swap once; dispatch visual-tree hooks. Coalesce
+status posts; one 250 ms TimeProvider window per command burst, not per-message
+posts. Buttons call view-model methods; observe async faults via `RunAndLogFaults`.
+Use `StringToThicknessConverter` for string padding.
 
-### Local
+Scroll: materialize once with `ScrollIntoView`, then bound corrections from row Y,
+not estimated extent. Verify headed; headless misses it. During-refresh clear/stream
+jump is accepted, separate from final snap-back.
 
-Run `scripts/update-screenshots.ps1` (any shell with PowerShell; no display, elevation or WinAppDriver needed). It builds and runs `GitWizardUI.Screenshot` (headless Avalonia, in `git-wizard.slnx`) against a synthetic three-repository fixture (`GITWIZARD_HOME` redirected under `artifacts/`, `GITWIZARD_NO_MFT=1` so no UAC broker launches) under a hard timeout, and writes `Screenshots/GitWizardUI.png`; `-OutputPath <file>` writes elsewhere. Agents that need to "see" the UI run it and read the image. Never run the tool against this machine's real repositories: a live refresh of hundreds of them never settles within the capture window.
+Keep `Repository.IsValid` inside Refresh's try. `ResolveTrackedBranch` decides
+upstream; catch only `InvalidSpecificationException`. Config reads name diagnostics.
+Preserve git conditional-include fallback, common-repository dedupe and per-refresh
+branch/value warnings; no `Branch.RemoteName`/`Repository.Config`/suffix substitutes.
 
-The Windows job in `ci.yml` runs the script to `artifacts/GitWizardUI-ci.png` on every non-pin-only run and uploads it as the `GitWizardUI-screenshot` artifact, so the generator cannot rot unseen. Both CI capture entry points call the same fixture wrapper, a 10-minute step deadline also covers build/setup, and missing screenshot artifacts fail their upload step. Manually run development tools are kept and exercised in CI, never deleted for lacking a CI caller; `ci/test_parse_jb_report.py` and `ci/test_verify_windows.py` do this for `ci/parse-jb-report.py` and `scripts/verify-windows.sh` in the contracts gate.
+## Watch rules
 
-### CI (recommended for release prep)
+Arm first, reconcile against the exact watched session, then deliver buffered
+startup events through the normal ordered path. Preserve retained roots outside
+search drives. A null source means complete-empty or unusable, not a respawn cue.
+Keep optional diagnostics and scan-progress subscriptions attached before arming
+and detached on shutdown. Deliver warning changes even without repository events.
 
-Trigger the Gitea Actions workflow manually from the Actions tab or via API:
+Recoverable faults retain drives; terminal failures exclude only affected drives.
+Use structured recovery/checkpoint data, not text/retry guesses. Version-check
+publication; reconcile markers before CaughtUp. No recovery polling. SourceDied
+fires once when no usable/recovering drive remains. Detach/stop before disposal.
 
-```bash
-curl -fsSL -X POST -H "Authorization: token $(cat ~/.gitea-token)" \
-    -H "Content-Type: application/json" \
-    -d '{"ref":"main"}' \
-    "https://gitea.fleet.sticktoitive.net/api/v1/repos/schoen/git-wizard/actions/workflows/screenshot.yml/dispatches"
-```
+Started/green is pump startup, not caught-up. Ready fires once after startup batches
+and settled readiness with a caught-up volume; terminal/cancel wins races. Broker
+existence is not readiness. Keep CLI ready grammar/verbose timestamps and separate
+desktop readiness/history: reserved line, tooltip/cache detail, 64 entries/30 seconds,
+cleared on stop/new run. Cache refresh remains independent.
 
-The workflow runs on `windows-latest`, captures the screenshot via the same fixture wrapper with a 10-minute step deadline, and uploads `GitWizardUI.png` as a workflow artifact (failing if missing). Download the artifact and commit it to `Screenshots/`.
+Keep live membership, flush-time moved-in probes and Deleted before probed Created
+for rename correlation. Filter stays I/O-free; WatchPath preserves syntax. Linux
+routes under `/`, selects roots by event filesystem; no cross-batch descriptors
+or stale mount prefixes.
 
-## Release checklist
+## Debugging, attended testing and screenshots
 
-1. Update `<Version>` in `GitWizardUI/GitWizardUI.csproj`
-2. Update version in CLI help text in `git-wizard/Program.cs`
-3. Update screenshot: trigger CI workflow (see above) or run locally
-4. Commit version bump, screenshot, and all pending changes
-5. `git tag v0.x.y && git push origin main --tags`
-6. CI builds and publishes the release with all artifacts attached, then mirrors it to `github.com/mtschoen/git-wizard`. Watch `https://gitea.fleet.sticktoitive.net/schoen/git-wizard/actions`. The release workflow's publish job asserts the tag matches the csproj `<Version>` and fails fast on drift.
+Diagnose hangs/crashes with dotnet-stack/dotnet-dump, not guesses; launch GUI
+diagnostics in background. [Manual tests](docs/manual-test-plan.md) require
+`scripts/cli-live-smoke.ps1` before attended desktop retests.
 
-The release attaches: `git-wizard-{ver}-{rid}.zip` and `GitWizardUI-{ver}-{rid}.zip` for `rid in {win-x64, linux-x64, osx-x64}`. See `.gitea/workflows/release.yml` and the **CI infrastructure** section below.
-
-## CI infrastructure
-
-Workflows live in `.gitea/workflows/` (`ci.yml`, `release.yml`) - the YAML is the source of truth for jobs and steps. Operational setup that is *not* in the YAML:
-
-- **Windows toolchain:** `windows-latest` is a host-mode runner; the .NET SDK is provisioned on the host, so Windows jobs in `ci.yml` carry no `actions/setup-*` step under the runner provisioning policy (setup actions are permitted only in Linux containers; `preview.yml`, `release.yml`, and `screenshot.yml` still use setup-dotnet until updated).
-- **Runners:** `ci.yml` splits across two self-hosted Gitea runners - `llamabox-ubuntu` (label `ubuntu-latest`, cross-platform build + the NUnit suite with coverage) and `llamabox-windows` (label `windows-latest`, full-solution build + all NUnit tests). Both runners run the test suite; only the Linux job collects coverage.
-- **Coverage gate:** the Linux job runs `ci/post-coverage-status.py`, which (a) posts the informational `pr-crew/coverage` commit status, (b) writes a line/branch table to the job summary, and (c) **fails the job when line coverage drops below `--gate-line` (currently 55%)**. Re-baselined to the whole `GitWizardUI` assembly after the VM fold (2026-05-26) - the app's untestable Avalonia glue (Views/App/Program) now sits in coverage scope; ratchets up as ViewModel coverage grows (issue #36). The Cobertura XML is also uploaded as the `coverage-cobertura` artifact.
-- **`ci-bot` identity:** the release workflow authenticates as a dedicated Gitea user `ci-bot` (reusable across personal repos). Provision on the Gitea host:
-  ```bash
-  sudo -u git gitea admin user create --username ci-bot --email ci-bot@llamabox.internal --random-password --must-change-password=false
-  sudo -u git gitea admin user generate-access-token --username ci-bot --token-name git-wizard-ci --scopes write:repository --raw
-  ```
-  Add `ci-bot` as a **Write** collaborator on `schoen/git-wizard` (needed to create releases + upload assets). `write:repository` is the only scope required.
-- **Secret:** store `ci-bot`'s PAT as the repo secret **`CI_GITEA_TOKEN`** (Settings -> Actions -> Secrets). `release.yml` reads `${{ secrets.CI_GITEA_TOKEN }}`. To rotate: re-run `generate-access-token` and re-paste the value - no code change.
-- **GitHub release mirror:** after a tag push creates the Gitea release and uploads all assets, `release.yml` creates the matching release at `github.com/mtschoen/git-wizard` and uploads the same zip files. The mirror is deliberately skipped by PR publish-smoke runs. A mirror failure fails the release job loudly; the Gitea release may already exist, so repair or remove the partial releases before rerunning the tag workflow.
-- **GitHub mirror secret:** store a GitHub PAT with `repo` scope for `mtschoen/git-wizard` as the Gitea repo Actions secret **`GITHUB_RELEASE_TOKEN`**. The workflow validates that credential before creating the Gitea release, so a missing or revoked token fails without leaving a Gitea-only release. Before the first real release, use a throwaway branch to set the app and CLI versions to `0.0.0-mirror-test`, tag it `v0.0.0-mirror-test`, and push that tag. Verify both prerelease pages and their assets, then delete both releases and the test tag.
-- **Branch protection** (`main`, configured in the Gitea UI, not in any file): require status checks `CI / Build + Test (Linux, cross-platform projects) (pull_request)`, `CI / Build + Test (Windows, full solution) (pull_request)` and `aislop / quality-gate (pull_request)`, require one approval, restrict force-pushes. Configure *after* the first green CI run so you don't lock yourself out.
-- **Deliberate non-goals:** no binary signing, no MAUI (retired 2026-05-26 - GitWizardUI is the Avalonia app, covering cross-platform desktop), and no macOS CI runner.
-- **Artifact-upload cert gap:** TLS verification stays enabled in both workflows without exception. Rather than bypassing verification, `ci.yml` tolerates upload failure (`continue-on-error: true`) for the coverage-artifact upload because the Linux runner's Node does not trust the mkcert CA on the act_runner artifact backend. The coverage gate reads the cobertura file directly, so the upload is a nice-to-have. Tracked in `PLAN.md` -> Infrastructure.
-
-### Preview builds (`/preview`)
-
-`/preview` on a git-wizard PR (pr-crew comment command or the ops-dashboard button) builds and runs that PR's `GitWizardUI` on the platform you ask for. Default platform is **windows**; `/preview linux` targets llamabox.
-
-- **Windows** (`.gitea/workflows/preview.yml`, dispatched on `windows-latest`): MSVC native build -> self-contained `win-x64` publish -> zip -> upload to the gitea generic package registry at `.../packages/schoen/generic/git-wizard-pr-<N>/<head-sha>/GitWizardUI-windows-x64.zip` (auth: `CI_GITEA_TOKEN`). The upload is existence-guarded so a re-dispatch for the same SHA is a no-op.
-- **Linux** (`.preview/up`, run by pr-crew on llamabox in a detached PR-head worktree): CMake native build -> self-contained `linux-x64` publish -> zip -> registry upload (auth: `PREVIEW_GITEA_TOKEN`). If a live graphical session exists it launches the app on llamabox's hyprland display via XWayland - GitWizardUI is Avalonia 11.2 (X11-only on Linux), so `DISPLAY` is the load-bearing var (`kind: "app"`, PID in `$PREVIEW_PID_FILE`); otherwise it posts artifact links only (`kind: "artifact"`). `.preview/down` kills the launched process.
-- **Run a published artifact yourself:** `scripts/run-preview.ps1 [<PR#>]` (Windows) or `scripts/run-preview.sh [<PR#>]` (Linux). No arg fetches the newest git-wizard preview package; both download the current-OS zip from the registry, unzip to a temp dir, and launch `GitWizardUI`. Set `GITEA_BASE_URL` to the Gitea origin; set `GITEA_TOKEN` if anonymous registry reads are refused.
-
-Enrollment (adding git-wizard to pr-crew's `[preview]` config on llamabox) is an operator step, not in this repo - see the plan's deploy notes.
+Use `scripts/update-screenshots.ps1 [-OutputPath <file>]` for isolated synthetic
+capture, never real repositories. Preserve CI capture/upload verification.
 
 ## Maintained developer tools
 
-The CLI ordering checks in `git-wizard/UpdateHandler.cs` diagnose callback ordering:
-`[SKIPPED] Submodule parent not created yet`, `[SKIPPED] Uninitialized submodule parent
-not created yet`, and `[MISSING] Refresh completed but item not created`. They are
-collected even in silent runs, shown after the human run summary, and serialized in
-`run.warnings` for JSON and saved reports. `UpdateHandlerTests` exercises each check;
-`MultipleProgress_Updates_AreThreadSafe` additionally guards progress-lock ownership
-under concurrent updates. These diagnostics are maintained runtime tooling, not dead
-code merely because their consumer is the run summary.
+[Maintained developer tools](docs/maintained-developer-tools.md) inventories every
+script under `scripts/`.
+Only redundant code is deleted. Add CI coverage for a hand-run tool instead of
+deleting it, and add a row when adding a tool. Keep the `UpdateHandler`
+ordering checks.
 
-## Tips
+## Release and CLI reference
 
-- `deepRefresh` parameter skips expensive `git update-index --refresh` during auto-refresh; per-repo ↻ button triggers it on demand
-- **Avalonia buttons call view model methods from code-behind:** the view models expose plain methods (async where needed) plus `bool` busy properties (`CanToggleLive`, `IndexCache.IsIdle`), not `ICommand` objects, so Avalonia buttons wire `Click=` handlers that call the method. Async calls go fire-and-forget through `GitWizardUI.Services.TaskFaultLogging.RunAndLogFaults` (`_ = vm.FooAsync().RunAndLogFaults("...")`), which logs any fault to `GitWizardLog` instead of leaving it unobserved. Filter/Group/Sort sidebar buttons carry their enum value in `Tag` (set via `{x:Static}` in MainWindow.axaml) and share one Click handler per row that routes it to `ToggleFilter`/`ToggleGroupMode`/`SetSortMode`.
-- **Avalonia bindings don't apply the target property's `TypeConverter`** - binding a *string* to a `Thickness` property - e.g. `RepositoryNodeViewModel.ItemPaddingString` -> `Padding` - throws `InvalidCastException` on every realized row during scroll. Avalonia's default converter *does* handle string->primitive, string->enum (`FontWeight`), and string->`IBrush` (`StatusColorHex`->`Foreground`), but NOT `Thickness`. Use an explicit `IValueConverter` (`StringToThicknessConverter`) and keep the VM framework-agnostic (string in, convert in the view).
-- **`LibGit2Sharp.Repository.IsValid(path)` is not fully non-throwing:** it returns `false` for a plain non-repo directory, but *throws* `LibGit2SharpException` for other conditions - notably git's "repository path ... is not owned by current user" ownership protection. `GitWizardRepository.Refresh` guards `new Repository(...)` with `IsValid` to skip stale/non-repo cache entries without spamming first-chance `RepositoryNotFoundException`, but that check lives **inside** the existing try so ownership/other errors still fall through to the catch as a normal refresh error (`RefreshConcurrencyGateTests` covers this). Don't hoist the `IsValid` call outside the try.
-- **Refresh vs discovery/UAC:** ordinary GUI Refresh re-checks cached repository paths (`~/.GitWizard/repositories.txt`) without MFT discovery or UAC. A missing cache triggers discovery. Shift+click Refresh forces a fresh scan (discovery purpose `Rebuild`) without clearing the caches first; an unusable or partial outcome preserves the previous list, published report, and displayed rows instead of clearing them up front. Replacing the prepared discovery owner disposes the previous one. Starting Live transfers that owner to the coordinator's watch preparation; a disposed, faulted, or mismatched owner is replaced.
-- **Temp directories are excluded by default:** discovery and Live ignore every profile's
-  `AppData\Local\Temp` (any drive/profile), the process's %TEMP%/%TMP%, and `/tmp`/`$TMPDIR`,
-  via the shared `TempDirectories.IsTempPath` check. A search root configured inside a temp
-  directory opts that subtree back in; `includeTempDirectories: true` disables the exclusion
-  globally. Test fixtures live under temp, so fixture-based discovery tests pass
-  `includeTempDirectories: true` explicitly.
-- **Avalonia UI updates:** `MainViewModel.SendUpdateMessage` coalesces status posts (at most one UI update in flight) so a large/recursive scan can't flood the dispatcher and wedge the window ("Not Responding"). Don't revert it to `_ui.Post` per message.
-- **Refresh runs `ApplyFilterAndGrouping` off the UI thread:** `RefreshAsync` awaits with `ConfigureAwait(false)`, so its tail (incl. `ApplyFilterAndGrouping` and the `Repositories` swap) runs on a thread-pool thread. Avalonia *tolerates* the off-thread collection-property swap, but visual-tree access (e.g. `ScrollViewer.Offset`) calls `VerifyAccess()` and throws `Call from invalid thread`. The swap + its `AfterRepositoriesSwap` hook are therefore marshaled to the UI thread via `_ui.Post` when `!_ui.IsOnUiThread` (the off-screen build stays off-thread for the 700-repo perf win). Keep any UI-touching swap work inside that marshaled block.
-- **Scroll preservation on refresh (RESOLVED - `MainWindow.RestoreScrollAnchor`):** the `Repositories` swap resets the `ListBox` to the top. Restoring is NOT a one-shot `ScrollViewer.Offset` set - under `VirtualizingStackPanel` the scrollable extent is an *estimate* that's wrong until layout settles (AvaloniaUI/Avalonia#17460/#17848), so a single offset set lands against a stale extent and is silently clamped (the old symptom: "scroll did nothing"). The working recipe is a **closed loop**: `ScrollIntoView(anchor)` *once* to materialize it, then a bounded `DispatcherTimer` measures the anchor row's actual Y each layout pass and corrects `offset += containerY + above` until it reaches the top (converges in 1-2 passes). Don't re-call `ScrollIntoView` each pass (it re-aligns a partly-off-top row and fights the nudge -> oscillation). `ScrollIntoView` alone does NOT top-align, and a two-step ScrollIntoView trick is unreliable with variable row heights. Validated headless + real window by the `avalonia-vsp-scroll-top` spike (`~/.claude/notes/spike_avalonia-vsp-scroll-top.md`). **Headless does NOT reproduce the bug** (a single offset set sticks when layout is pumped synchronously) - validate scroll/extent timing in a real `--headed` window.
-- The during-refresh jump-to-top (list empties + streams back from row 0) is a *separate, accepted* behavior, not the swap reset: `RefreshAsync` `Repositories.Clear()`s at the start and `AddRepository` streams rows back via `Repositories.Add`. Keeping scroll through the whole scan would mean not mutating the visible list during refresh (losing live per-row feedback) or an in-place diff (fights the sort/group atomic-swap perf path). Deliberately left as snap-back-after-refresh.
-- **URL-valued or stale `branch.<name>.remote`, including through a conditional include:** git permits a branch's remote to be a URL ("fetch from this URL") or a remote that is no longer configured, and either can be true only via a `gitdir:` conditional include that a standalone, repository-less config read never evaluates. `GitWizardRepository.ResolveTrackedBranch` (`GitWizardRepository.UpstreamDiagnostics.cs`) is the single decision point `CollectBranches` and `RefreshRemoteDivergence` both call: it resolves the upstream through native `Branch.TrackedBranch` (which reads the repository's own config and therefore does evaluate `includeIf`), catches only `InvalidSpecificationException` (the URL form, git-wizard#185), and otherwise treats a `null` result as untracked. A `Configuration.BuildFrom` read of the common repository's `config` file (never `Branch.RemoteName` or `Repository.Config`, which would drop a linked worktree's shared config - see the file header) supplies the value named in the diagnostic when `TrackedBranch` merely returns `null`; only when it throws `InvalidSpecificationException` instead - typically because a conditional include overrides an otherwise-valid base value to a URL, which that repository-less read never evaluates - does `GetEffectiveUpstreamRemoteViaGit` run `git config --null --get branch.<name>.remote` in the repository's own working directory instead, since only that (or native resolution) evaluates `includeIf`; neither read decides anything, each only names the value the diagnostic reports. The branch reports as untracked (`HasUpstream = false`, remote divergence 0/0) with one Warning per (common repository, branch, value) for the lifetime of one refresh (`UnresolvedUpstreamDiagnosticScope`, opened once per outermost `Refresh`/`GitWizardReport.Refresh` call and flowing into parallel worker branches via `AsyncLocal`), deduped across worktree paths via the common repository directory read from the gitdir's `commondir` file (falling back to the gitdir itself when no `commondir` file exists), not a path-suffix heuristic. The same unguarded `TrackedBranch` call remains in `BranchInventoryReport.CreateBranchInfo`; tracked as a follow-up issue.
+[CLI options](docs/cli-options.md) is the complete flag list, checked against
+parser and help by tests. Keep the list current when changing options.
+
+[CI and release](docs/ci-and-release.md): change the single `<Version>` in
+`Directory.Build.props`, update screenshots, commit/push intended changes, then
+tag `v<Version>`. CLI help/version and desktop metadata inherit that property;
+release rejects a mismatched tag. Preserve Gitea/GitHub asset mirroring, secret
+validation, TLS verification and failure reporting. Repair partial releases
+before retrying. Never treat a tolerated coverage-artifact upload as gate success.
+
+Windows preview uses `PREVIEW_REGISTRY_TOKEN`. Enrollment is an operator step.
+Keep no-display artifact fallback and DISPLAY for XWayland; run-preview scripts
+launch artifacts. Do not edit live deployment configuration from this checkout.
+
+[Prior-art notes](docs/notes/prior-art-multi-repo-dashboards.md) are dated research.

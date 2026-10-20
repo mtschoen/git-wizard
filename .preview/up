@@ -34,14 +34,12 @@ git submodule update --init 1>&2
 # on this host; fall back to the provider env token.
 PKG_TOKEN="$(cat "$HOME/.pr-crew/preview-registry-token" 2>/dev/null || printf %s "$PREVIEW_GITEA_TOKEN")"
 
-# Build native (CMake/Ninja), then the managed MFTLib.dll (HintPath reference —
+# Build native (CMake/Ninja), then the managed MFTLib.dll (HintPath reference -
 # dotnet publish does NOT build it transitively), then publish the
 # self-contained linux GUI. Same three-step as ci.yml; Directory.Build.targets
 # adds libMFTLibNative.so to the publish output once the native build exists.
 # Progress to stderr so stdout stays clean for the JSON contract line.
-cmake -S external/MFTLib/MFTLibNative -B external/MFTLib/build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release 1>&2
-cmake --build external/MFTLib/build-linux 1>&2
-dotnet build external/MFTLib/MFTLib/MFTLib.csproj -c Release -p:Platform=x64 1>&2
+bash ci/gates.sh native 1>&2
 dotnet publish GitWizardUI/GitWizardUI.csproj -c Release -r linux-x64 --self-contained -o publish/gui/linux-x64 1>&2
 
 # Zip the publish folder's CONTENTS (exe at archive root, matching run-preview).

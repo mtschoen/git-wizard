@@ -9,7 +9,6 @@
     <ApplicationIcon>Assets\appicon.ico</ApplicationIcon>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <RootNamespace>GitWizardUI</RootNamespace>
-    <Version>0.4.1</Version>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.2.*" />

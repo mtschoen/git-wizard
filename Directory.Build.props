@@ -7,6 +7,7 @@
        <TreatWarningsAsErrors> is set below: the build is the analyzer gate. -->
 
   <PropertyGroup>
+    <Version>0.4.1</Version>
     <!-- Make the SDK (CA*/IDE*) analyzer set explicit and pick up the full
          recommended ruleset rather than the SDK default subset. -->
     <EnableNETAnalyzers>true</EnableNETAnalyzers>

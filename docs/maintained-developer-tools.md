@@ -36,3 +36,14 @@ The screenshot wrapper redirects GITWIZARD_HOME to a three-repository fixture
 and sets GITWIZARD_NO_MFT=1. Both screenshot workflows use it, impose a
 10-minute step deadline in addition to its capture timeout, and upload its
 nonempty PNG. Never run screenshot capture against real repositories.
+
+## CLI ordering checks
+
+The CLI ordering checks in `git-wizard/UpdateHandler.cs` diagnose callback ordering:
+`[SKIPPED] Submodule parent not created yet`, `[SKIPPED] Uninitialized submodule parent
+not created yet`, and `[MISSING] Refresh completed but item not created`. They are
+collected even in silent runs, shown after the human run summary, and serialized in
+`run.warnings` for JSON and saved reports. `UpdateHandlerTests` exercises each check;
+`MultipleProgress_Updates_AreThreadSafe` additionally guards progress-lock ownership
+under concurrent updates. These diagnostics are maintained runtime tooling, not dead
+code merely because their consumer is the run summary.

@@ -37,27 +37,7 @@ jobs:
           EVENT_BEFORE: ${{ github.event.before }}
           EVENT_AFTER: ${{ github.event.after }}
         run: |
-          PIN_ONLY=false
-          if [ "$GITHUB_EVENT_NAME" = "pull_request" ] && [ -n "$GITHUB_BASE_REF" ]; then
-            if git fetch --depth=1 origin "$GITHUB_BASE_REF" 2>/dev/null; then
-              CHANGED=$(git diff --name-only FETCH_HEAD HEAD 2>/dev/null || true)
-              echo "Changed files vs $GITHUB_BASE_REF:"
-              echo "$CHANGED"
-              if [ "$CHANGED" = ".aislop/fork-commit" ]; then
-                PIN_ONLY=true
-              fi
-            fi
-          elif [ "$GITHUB_EVENT_NAME" = "push" ] && [ -n "$EVENT_BEFORE" ] && [ "$EVENT_BEFORE" != "0000000000000000000000000000000000000000" ]; then
-            if git fetch --depth=1 origin "$EVENT_BEFORE" 2>/dev/null; then
-              CHANGED=$(git diff --name-only "$EVENT_BEFORE" "$EVENT_AFTER" 2>/dev/null || true)
-              echo "Changed files ($EVENT_BEFORE..$EVENT_AFTER):"
-              echo "$CHANGED"
-              if [ "$CHANGED" = ".aislop/fork-commit" ]; then
-                PIN_ONLY=true
-              fi
-            fi
-          fi
-          echo "pin_only=$PIN_ONLY" >> "$GITHUB_OUTPUT"
+          python3 ci/checkout.py pin-only
 
       - name: Set up .NET 10 SDK
         if: steps.changed-files.outputs.pin_only != 'true'
@@ -176,34 +156,7 @@ jobs:
           EVENT_BEFORE: ${{ github.event.before }}
           EVENT_AFTER: ${{ github.event.after }}
         run: |
-          $pinOnly = $false
-          try {
-            if ($env:GITHUB_EVENT_NAME -eq "pull_request" -and $env:GITHUB_BASE_REF) {
-              git fetch --depth=1 origin $env:GITHUB_BASE_REF 2>$null
-              if ($LASTEXITCODE -eq 0) {
-                $changed = @(git diff --name-only FETCH_HEAD HEAD 2>$null)
-                Write-Host "Changed files vs $($env:GITHUB_BASE_REF):"
-                $changed | ForEach-Object { Write-Host $_ }
-                if ($changed.Count -eq 1 -and $changed[0] -eq ".aislop/fork-commit") {
-                  $pinOnly = $true
-                }
-              }
-            } elseif ($env:GITHUB_EVENT_NAME -eq "push" -and $env:EVENT_BEFORE -and $env:EVENT_BEFORE -ne "0000000000000000000000000000000000000000") {
-              git fetch --depth=1 origin $env:EVENT_BEFORE 2>$null
-              if ($LASTEXITCODE -eq 0) {
-                $changed = @(git diff --name-only $env:EVENT_BEFORE $env:EVENT_AFTER 2>$null)
-                Write-Host "Changed files ($($env:EVENT_BEFORE)..$($env:EVENT_AFTER)):"
-                $changed | ForEach-Object { Write-Host $_ }
-                if ($changed.Count -eq 1 -and $changed[0] -eq ".aislop/fork-commit") {
-                  $pinOnly = $true
-                }
-              }
-            }
-          } catch {
-            Write-Host "Changed-file detection failed, running the job in full: $_"
-            $pinOnly = $false
-          }
-          "pin_only=$($pinOnly.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          python ci/checkout.py pin-only
 
       # No setup-dotnet here: windows-latest is a host-mode runner whose .NET 10 SDK
       # is provisioned on the host (workflow provisioning policy; setup actions are
@@ -311,23 +264,7 @@ jobs:
       - name: Verify git clean -ffxd leaves a clean tree
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.changed-files.outputs.pin_only != 'true'
         shell: pwsh
-        run: |
-          git clean -ffxd
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "::error::git clean -ffxd exited $LASTEXITCODE."
-            exit 1
-          }
-          $status = git status --porcelain
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "::error::git status exited $LASTEXITCODE after git clean -ffxd - cleanliness is unverified."
-            exit 1
-          }
-          if ($status) {
-            Write-Host "::error::git clean -ffxd left untracked/modified entries behind:"
-            Write-Host $status
-            exit 1
-          }
-          Write-Host "git clean -ffxd left a clean tree."
+        run: python ci/checkout.py clean
 
   # Post-clean init verification (AGENTS.md "Cleaning the working tree"): git clean -ffxd
   # must be safe to run, and init.ps1/init.bat must restore the checkout from that state,
@@ -358,23 +295,7 @@ jobs:
 
       - name: Verify git clean -ffxd leaves a clean tree
         shell: pwsh
-        run: |
-          git clean -ffxd
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "::error::git clean -ffxd exited $LASTEXITCODE."
-            exit 1
-          }
-          $status = git status --porcelain
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "::error::git status exited $LASTEXITCODE after git clean -ffxd - cleanliness is unverified."
-            exit 1
-          }
-          if ($status) {
-            Write-Host "::error::git clean -ffxd left untracked/modified entries behind:"
-            Write-Host $status
-            exit 1
-          }
-          Write-Host "git clean -ffxd left a clean tree."
+        run: python ci/checkout.py clean
 
       - name: Run init.ps1 (post-clean restore, first run)
         shell: pwsh

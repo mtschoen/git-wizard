@@ -12,6 +12,9 @@ on:
       - 'GitWizardUI/GitWizardUI.csproj'
       - 'git-wizard/git-wizard.csproj'
       - 'Directory.Build.targets'
+      - 'Directory.Build.props'
+      - 'ci/gates.sh'
+      - 'ci/windows-gates.ps1'
       - '.gitmodules'
   workflow_dispatch:
     inputs:
@@ -57,9 +60,7 @@ jobs:
       - name: Build MFTLib (native + managed)
         run: |
           apt-get update && apt-get install -y cmake ninja-build g++ zip
-          cmake -S external/MFTLib/MFTLibNative -B external/MFTLib/build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release
-          cmake --build external/MFTLib/build-linux
-          dotnet build external/MFTLib/MFTLib/MFTLib.csproj -c Release -p:Platform=x64
+          bash ci/gates.sh native
 
       - name: Resolve version
         id: ver
@@ -72,16 +73,16 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Resolved version: $VERSION"
 
-      - name: Validate tag matches GitWizardUI <Version> (push only)
+      - name: Validate tag matches shared Version (push only)
         if: github.event_name == 'push'
         run: |
-          appVer=$(grep -oP '(?<=<Version>)[^<]+' GitWizardUI/GitWizardUI.csproj)
-          tagVer="${{ steps.ver.outputs.version }}"
-          if [ "$appVer" != "$tagVer" ]; then
-            echo "Tag version '$tagVer' does not match GitWizardUI.csproj <Version> '$appVer'. Bump the csproj or move the tag." >&2
+          application_version=$(dotnet msbuild git-wizard/git-wizard.csproj -getProperty:Version)
+          tag_version="${{ steps.ver.outputs.version }}"
+          if [ "$application_version" != "$tag_version" ]; then
+            echo "Tag version '$tag_version' does not match Directory.Build.props Version '$application_version'. Bump the property or move the tag." >&2
             exit 1
           fi
-          echo "Version match: $tagVer"
+          echo "Version match: $tag_version"
 
       - name: Publish CLI
         run: |
@@ -140,10 +141,8 @@ jobs:
           msbuild-architecture: x64
 
       - name: Build MFTLib (native + managed)
-        shell: pwsh
-        run: |
-          msbuild external\MFTLib\MFTLibNative\MFTLibNative.vcxproj -t:Build -p:Configuration=Release -p:Platform=x64 -nologo -v:minimal
-          dotnet build external\MFTLib\MFTLib\MFTLib.csproj -c Release -p:Platform=x64
+        shell: bash
+        run: bash ci/gates.sh native
 
       - name: Resolve version
         id: ver
@@ -156,6 +155,14 @@ jobs:
           }
           "version=$version" | Out-File -Append $env:GITHUB_OUTPUT
           Write-Host "Resolved version: $version"
+
+      - name: Validate tag matches shared Version (push only)
+        if: github.event_name == 'push'
+        shell: pwsh
+        run: |
+          $applicationVersion = dotnet msbuild git-wizard/git-wizard.csproj -getProperty:Version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($applicationVersion -ne '${{ steps.ver.outputs.version }}') { throw 'Tag differs from Directory.Build.props Version' }
 
       - name: Publish CLI
         shell: pwsh

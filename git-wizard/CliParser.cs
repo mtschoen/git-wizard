@@ -57,7 +57,10 @@ static partial class CliParser
         app.Description = "Multi-project solution for scanning and reporting on git repositories.";
 
         var helpOption = app.HelpOption("-h|-?|--help");
-        var versionOption = app.VersionOption("--version", "0.4.1");
+        var version = typeof(CliParser).Assembly
+            .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+            .Cast<System.Reflection.AssemblyInformationalVersionAttribute>().Single().InformationalVersion.Split('+')[0];
+        var versionOption = app.VersionOption("--version", version);
 
         var rootOptions = SetupOptions(app);
         var tagsCommand = SetupTagsCommand(app);

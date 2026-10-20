@@ -41,16 +41,9 @@ jobs:
 
       # VS MSBuild is the only toolchain that can compile MFTLib's native vcxproj.
       # Directory.Build.targets then registers the built DLL for publish.
-      - name: Build MFTLib native (MSVC)
-        shell: pwsh
-        run: msbuild external\MFTLib\MFTLibNative\MFTLibNative.vcxproj -t:Build -p:Configuration=Release -p:Platform=x64 -nologo -v:minimal
-
-      # The managed MFTLib.dll must exist before publish: every project
-      # references it via HintPath (never ProjectReference), so dotnet publish
-      # does NOT build it transitively. Same step as ci.yml/release.yml.
-      - name: Build MFTLib managed (HintPath assembly)
-        shell: pwsh
-        run: dotnet build external/MFTLib/MFTLib/MFTLib.csproj -c Release -p:Platform=x64
+      - name: Build MFTLib (native + managed)
+        shell: bash
+        run: bash ci/gates.sh native
 
       # Plain self-contained folder publish (no single-file flags) so run-preview
       # can launch GitWizardUI.exe straight from the unzipped folder.
@@ -63,14 +56,14 @@ jobs:
         run: Compress-Archive -Path publish/gui/win-x64/* -DestinationPath GitWizardUI-windows-x64.zip -Force
 
       # Existence-guarded upload: a re-dispatch for the same SHA finds the file
-      # already present (HEAD 2xx) and skips the PUT — the registry refuses a
+      # already present (HEAD 2xx) and skips the PUT - the registry refuses a
       # duplicate name+version+file with 409, so re-dispatch must stay green.
       - name: Upload to gitea generic registry (idempotent)
         shell: pwsh
         env:
           # Package-registry ops need a package-scoped token (write:package on
           # the schoen namespace). CI_GITEA_TOKEN is repo-scoped (release
-          # assets) and 401s on /api/packages — do not reuse it here.
+          # assets) and 401s on /api/packages - do not reuse it here.
           PREVIEW_REGISTRY_TOKEN: ${{ secrets.PREVIEW_REGISTRY_TOKEN }}
         run: |
           $url = "https://gitea.fleet.sticktoitive.net/api/packages/schoen/generic/${{ inputs.preview_id }}/${{ inputs.head_sha }}/GitWizardUI-windows-x64.zip"

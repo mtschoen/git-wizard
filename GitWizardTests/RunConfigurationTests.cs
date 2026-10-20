@@ -464,9 +464,12 @@ internal sealed class RunConfigurationTests
         {
             CliParser.Parse(["--version"]);
             var output = sw.ToString();
+            var version = typeof(RunConfiguration).Assembly
+                .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+                .Cast<System.Reflection.AssemblyInformationalVersionAttribute>().Single().InformationalVersion.Split('+')[0];
             Assert.Multiple(() =>
             {
-                Assert.That(output, Does.Contain("0.4.1"));
+                Assert.That(output.Trim(), Is.EqualTo(version));
                 Assert.That(output, Does.Not.Match(@"git-wizard.*git-wizard"));
             });
         }

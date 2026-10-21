@@ -18,7 +18,8 @@ name: aislop
 on:
   pull_request:
   push:
-    branches: [main]
+    # pr-crew merge train pushes its synthetic batch commit to this branch and polls this run's statuses before landing the batch.
+    branches: [main, 'pr-crew/merge-train/**']
   workflow_dispatch:
 
 # A newer commit on a pull request supersedes the run in flight. Every other run gets

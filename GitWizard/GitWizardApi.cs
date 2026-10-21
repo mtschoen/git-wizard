@@ -20,7 +20,9 @@ public static partial class GitWizardApi
         // the config relocatable for any user who wants it elsewhere.
         var overridePath = Environment.GetEnvironmentVariable("GITWIZARD_HOME");
         if (!string.IsNullOrEmpty(overridePath))
+        {
             return overridePath;
+        }
 
         var homeFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         return Path.Combine(homeFolder, GitWizardFolder);
@@ -35,7 +37,9 @@ public static partial class GitWizardApi
     {
         var path = GetLocalFilesPath();
         if (!Directory.Exists(path))
+        {
             Directory.CreateDirectory(path);
+        }
     }
 
     /// <summary>
@@ -57,10 +61,14 @@ public static partial class GitWizardApi
         if (rootPath == "~"
             || rootPath.StartsWith("~/", StringComparison.Ordinal)
             || rootPath.StartsWith("~\\", StringComparison.Ordinal))
+        {
             rootPath = string.Concat(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), rootPath.AsSpan(1));
+        }
 
         if (!Directory.Exists(rootPath))
+        {
             return null;
+        }
 
         return NormalizePath(rootPath);
     }
@@ -77,7 +85,7 @@ public static partial class GitWizardApi
         {
             path = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                path.Substring(2));
+                path[2..]);
         }
 
         return path;
@@ -96,7 +104,9 @@ public static partial class GitWizardApi
         // because "C:" without a trailing slash is a relative path on Windows.
         var root = Path.GetPathRoot(fullPath);
         if (fullPath.Length > 1 && fullPath != root)
+        {
             fullPath = fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
 
         return RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
             ? fullPath.ToLowerInvariant()
@@ -120,7 +130,9 @@ public static partial class GitWizardApi
     public static string? ExpandIgnoredPath(string path)
     {
         if (string.IsNullOrWhiteSpace(path))
+        {
             return null;
+        }
 
         path = Environment.ExpandEnvironmentVariables(path);
 
@@ -143,11 +155,10 @@ public static partial class GitWizardApi
     /// </summary>
     public static List<string> ExpandIgnoredPaths(IEnumerable<string> ignoredPaths)
     {
-        return ignoredPaths
+        return [.. ignoredPaths
             .Select(ExpandIgnoredPath)
             .Where(path => !string.IsNullOrEmpty(path))
-            .Cast<string>()
-            .ToList();
+            .Cast<string>()];
     }
 
     internal static bool IsSameOrChildPath(string path, string rootPath) =>
@@ -159,11 +170,15 @@ public static partial class GitWizardApi
         {
             var cachedRepositoryListPath = GetCachedRepositoryListPath();
             if (File.Exists(cachedRepositoryListPath))
+            {
                 File.Delete(cachedRepositoryListPath);
+            }
 
             var cachedReportPath = GitWizardReport.GetCachedReportPath();
             if (File.Exists(cachedReportPath))
+            {
                 File.Delete(cachedReportPath);
+            }
         }
         catch (Exception exception)
         {
@@ -179,11 +194,15 @@ public static partial class GitWizardApi
     {
         var fileName = GetCachedRepositoryListPath();
         if (!File.Exists(fileName))
+        {
             return null;
+        }
 
         var paths = await File.ReadAllTextAsync(fileName, cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(paths))
+        {
             return null;
+        }
 
         return paths
             .Split(LineSeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -197,11 +216,15 @@ public static partial class GitWizardApi
     {
         var fileName = GetCachedRepositoryListPath();
         if (!File.Exists(fileName))
+        {
             return null;
+        }
 
         var paths = File.ReadAllText(fileName);
         if (string.IsNullOrWhiteSpace(paths))
+        {
             return null;
+        }
 
         return paths
             .Split(LineSeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -230,7 +253,9 @@ public static partial class GitWizardApi
     {
         var path = GetLocalFilesPath();
         if (!Directory.Exists(path))
+        {
             return 0;
+        }
 
         return GetDirectorySize(path);
     }
@@ -239,7 +264,7 @@ public static partial class GitWizardApi
     /// Recursively calculate total size of all files in <paramref name="path"/>.
     /// Includes hidden and system files. Skips directories/files that cause access or I/O errors.
     /// </summary>
-    private static long GetDirectorySize(string path)
+    static long GetDirectorySize(string path)
     {
         long totalSize = 0;
 

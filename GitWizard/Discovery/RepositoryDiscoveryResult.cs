@@ -29,6 +29,8 @@ public sealed class RepositoryDiscoveryResult : IAsyncDisposable
     {
         var session = DetachIndexSession();
         if (session is not null)
+        {
             await session.DisposeAsync().ConfigureAwait(false);
+        }
     }
 }

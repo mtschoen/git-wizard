@@ -48,9 +48,13 @@ public partial class MainViewModel
         {
             var mid = low + (high - low) / 2;
             if (CompareWorkingDirectory(nodes[mid].WorkingDirectory, workingDirectory) <= 0)
+            {
                 low = mid + 1;
+            }
             else
+            {
                 high = mid;
+            }
         }
 
         return low;
@@ -73,19 +77,27 @@ public partial class MainViewModel
     void MergeBatchIntoDisplay(ObservableCollection<RepositoryNodeViewModel> nodes, List<RepositoryNodeViewModel> batch)
     {
         if (batch.Count == 0)
+        {
             return;
+        }
 
         if (nodes.Count == 0)
         {
             foreach (var node in SortBatchForDisplay(batch))
+            {
                 nodes.Add(node);
+            }
+
             return;
         }
 
         if (_activeSortMode != SortMode.WorkingDirectory)
         {
             foreach (var node in batch)
+            {
                 nodes.Add(node);
+            }
+
             return;
         }
 
@@ -95,9 +107,14 @@ public partial class MainViewModel
         {
             var index = FindSortedInsertionIndex(nodes, node.WorkingDirectory, searchStart);
             if (index == nodes.Count)
+            {
                 nodes.Add(node);
+            }
             else
+            {
                 nodes.Insert(index, node);
+            }
+
             searchStart = index + 1;
         }
     }

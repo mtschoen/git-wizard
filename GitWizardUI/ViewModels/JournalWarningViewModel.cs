@@ -20,7 +20,7 @@ public class JournalWarningViewModel : INotifyPropertyChanged
 
     public string DriveLetter => Warning.DriveLetter;
 
-    private string _statusMessage = string.Empty;
+    string _statusMessage = string.Empty;
     public string StatusMessage
     {
         get => _statusMessage;

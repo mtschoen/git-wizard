@@ -15,7 +15,10 @@ public sealed class ScanErrorChangeFilter
         lock (_gate)
         {
             if (_reported.TryGetValue(drive, out var previous) && previous == message)
+            {
                 return false;
+            }
+
             _reported[drive] = message;
             return true;
         }
@@ -24,6 +27,8 @@ public sealed class ScanErrorChangeFilter
     public void Clear()
     {
         lock (_gate)
+        {
             _reported.Clear();
+        }
     }
 }

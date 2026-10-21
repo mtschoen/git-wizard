@@ -7,7 +7,10 @@ public sealed partial class MftIndexSession
         lock (_disposalLock)
         {
             if (IsDisposed || _cacheDirectory is null)
+            {
                 return null;
+            }
+
             var identities = IndexedDrives.ToDictionary(
                 drive => drive.Drive.Letter);
             var rows = CaptureDriveStatuses().Select(drive => new MftActiveCacheDrive(

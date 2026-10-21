@@ -20,7 +20,9 @@ public static partial class GitWizardApi
         IUpdateHandler? updateHandler = null, bool noMft = false)
     {
         if (!OperatingSystem.IsWindows() || noMft)
+        {
             return Task.FromResult(new MftDiscoveryResult(false));
+        }
 
         brokerLauncher ??= BrokerLauncher.Launch;
         var roots = configuration.SearchPaths.Select(ExpandSearchPath).OfType<string>().ToArray();
@@ -33,14 +35,20 @@ public static partial class GitWizardApi
         IReadOnlyList<string> drives, Func<string, bool> brokerLauncher, TimeSpan? connectTimeout = null)
     {
         if (!OperatingSystem.IsWindows())
+        {
             throw new PlatformNotSupportedException("MFT discovery requires Windows.");
+        }
+
         return MftIndexSession.OpenWindowsAsync(drives, brokerLauncher, connectTimeout, CancellationToken.None);
     }
 
     static bool WindowsCandidateExists(string path, RepositoryCandidateKind kind)
     {
         if (!OperatingSystem.IsWindows())
+        {
             throw new PlatformNotSupportedException("Windows candidates require Windows filesystem validation.");
+        }
+
         return RepositoryCandidateProbe.Exists(path, kind);
     }
 
@@ -55,7 +63,9 @@ public static partial class GitWizardApi
             .OfType<string>()
             .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         if (expandedRoots.Count == 0 || drives.Length == 0)
+        {
             return new MftDiscoveryResult(false);
+        }
 
         MftIndexSession? owner = null;
         IReadOnlyList<MftDriveStatus>? openedStatuses = null;
@@ -80,11 +90,17 @@ public static partial class GitWizardApi
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             foreach (var candidate in candidates)
+            {
                 paths.Add(candidate);
+            }
+
             updateHandler?.SendUpdateMessage($"MFT search found {candidates.Length} repositories");
             if (candidates.Length == 0)
+            {
                 return new MftDiscoveryResult(false, scanErrors: owner.ScanErrors,
                     driveStatuses: owner.CaptureDriveStatuses());
+            }
+
             var result = new MftDiscoveryResult(true, owner);
             owner = null;
             return result;
@@ -102,7 +118,9 @@ public static partial class GitWizardApi
         finally
         {
             if (owner is not null)
+            {
                 await owner.DisposeAsync().ConfigureAwait(false);
+            }
         }
     }
 }

@@ -35,6 +35,8 @@ public sealed class MftDiscoveryResult : IAsyncDisposable
     {
         var owner = DetachIndexSession();
         if (owner is not null)
+        {
             await owner.DisposeAsync().ConfigureAwait(false);
+        }
     }
 }

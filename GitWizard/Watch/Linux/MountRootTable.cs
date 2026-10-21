@@ -7,7 +7,7 @@ namespace GitWizard.Watch.Linux;
 /// closes it when the batch is decoded. No descriptor is held between batches, so the watch never keeps a
 /// watched filesystem busy and a plain <c>umount</c> succeeds.
 /// </summary>
-internal sealed class MountRootTable
+sealed class MountRootTable
 {
     readonly IFanotifyNative _native;
     readonly Lock _gate = new();
@@ -24,16 +24,23 @@ internal sealed class MountRootTable
     {
         var openResult = _native.OpenDirectory(path);
         if (openResult.Value < 0)
+        {
             return $"Could not open a descriptor on {path} (errno {openResult.ErrorNumber}).";
+        }
 
         using var descriptor = new SafeUnixFileDescriptor(openResult.Value, _native);
         if (!_native.TryReadFilesystemIdentifier(descriptor.Value, out var filesystemId))
+        {
             return $"Could not read the filesystem identifier of {path}.";
+        }
 
         lock (_gate)
         {
             if (!_roots.TryGetValue(filesystemId, out var paths))
+            {
                 _roots.Add(filesystemId, paths = []);
+            }
+
             paths.Add(path);
         }
 
@@ -55,7 +62,9 @@ internal sealed class MountRootTable
     List<string> RootsOf(long filesystemId)
     {
         lock (_gate)
+        {
             return _roots.TryGetValue(filesystemId, out var paths) ? [.. paths] : [];
+        }
     }
 
     /// <summary>Records the root a batch resolved through and reports whether it differs from the previous choice.</summary>
@@ -109,7 +118,9 @@ internal sealed class MountRootTable
             {
                 opened = OpenReaching(root, filesystemId);
                 if (opened is null)
+                {
                     continue;
+                }
 
                 chosenRoot = root;
                 break;
@@ -124,7 +135,9 @@ internal sealed class MountRootTable
         public void Dispose()
         {
             foreach (var descriptor in _descriptors.Values)
+            {
                 descriptor?.Dispose();
+            }
 
             _descriptors.Clear();
         }
@@ -133,11 +146,15 @@ internal sealed class MountRootTable
         {
             var openResult = _table._native.OpenDirectory(root);
             if (openResult.Value < 0)
+            {
                 return null;
+            }
 
             var candidate = new SafeUnixFileDescriptor(openResult.Value, _table._native);
             if (_table._native.TryReadFilesystemIdentifier(candidate.Value, out var reached) && reached == filesystemId)
+            {
                 return candidate;
+            }
 
             candidate.Dispose();
             return null;

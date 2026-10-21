@@ -32,11 +32,15 @@ public partial class RepositoryDiscoveryCoordinator
         IReadOnlyList<string> previous, DiscoveryInventory inventory)
     {
         if (inventory.Outcome == DiscoveryOutcome.Unusable)
+        {
             return previous.ToArray();
+        }
 
         if (inventory.CanPublishFullInventory &&
             inventory.Observations.All(item => item.Source != DiscoverySource.Snapshot))
+        {
             return inventory.Paths.ToArray();
+        }
 
         var retained = previous.Where(path =>
             inventory.Observations.Any(item => !item.Complete && Contains(item, path)) ||
@@ -49,10 +53,14 @@ public partial class RepositoryDiscoveryCoordinator
         IReadOnlyList<string> previous, DiscoveryInventory inventory, CancellationToken cancellationToken)
     {
         if (inventory.Outcome == DiscoveryOutcome.Unusable)
+        {
             return;
+        }
 
         if (_dependencies is null)
+        {
             return;
+        }
 
         var pathsToSave = inventory.CanPublishFullInventory &&
             inventory.Observations.All(item => item.Source != DiscoverySource.Snapshot)

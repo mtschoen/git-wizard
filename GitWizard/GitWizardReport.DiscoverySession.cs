@@ -17,7 +17,9 @@ public partial class GitWizardReport
     {
         var previous = Interlocked.Exchange(ref _discoveryIndex, nextIndex);
         if (previous is not null && !ReferenceEquals(previous, nextIndex))
+        {
             await previous.DisposeAsync().ConfigureAwait(false);
+        }
     }
 
     public async ValueTask DisposeAsync()
@@ -50,7 +52,9 @@ public partial class GitWizardReport
         var result = await DiscoverRepositoryPathsAsync(request, coordinator, updateHandler, cancellationToken).ConfigureAwait(false);
 
         foreach (var path in result.Inventory.Paths)
+        {
             repositoryPaths.Add(path);
+        }
 
         if (retainDiscoveryIndex)
         {

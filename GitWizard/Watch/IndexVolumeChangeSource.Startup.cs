@@ -52,7 +52,9 @@ public sealed partial class IndexVolumeChangeSource
             if (results is [{ Outcome: DriveOperationOutcome.Succeeded }])
             {
                 if (StartupCatchUpSettledForTest is { } settled)
+                {
                     await settled(upper).ConfigureAwait(false);
+                }
             }
             else if (results is [{ Outcome: DriveOperationOutcome.Failed, Failure: var failure }])
             {
@@ -81,10 +83,16 @@ public sealed partial class IndexVolumeChangeSource
             lock (_watchStateLock)
             {
                 if (_watchStatesStopped || !ContainsUsableDrive(drive))
+                {
                     return;
+                }
+
                 if (Readiness.TryGet(drive.ToString(), out var status) &&
                     status.State == VolumeWatchState.CaughtUp)
+                {
                     return;
+                }
+
                 changed = _watchStateChanged.Task;
             }
             await changed.WaitAsync(token).ConfigureAwait(false);
@@ -97,7 +105,10 @@ public sealed partial class IndexVolumeChangeSource
         lock (_watchStateLock)
         {
             if (_watchStatesStopped)
+            {
                 return;
+            }
+
             RemoveUsableDrive(upper);
             _recoveryBaselines.Remove(upper);
             VolumeBlockOrigin origin;

@@ -3,7 +3,7 @@ using GitWizard.Watch;
 namespace GitWizard;
 
 /// <summary>Reads the Hidden attribute of a candidate's ancestors from disk for routes without an index.</summary>
-internal static class DiskHiddenAncestors
+static class DiskHiddenAncestors
 {
     /// <summary>
     /// Returns a probe answering whether any of the nearest N directories of
@@ -13,7 +13,9 @@ internal static class DiskHiddenAncestors
     public static Func<int, bool>? For(WatchPath candidate)
     {
         if (!candidate.IsWindows || !OperatingSystem.IsWindows())
+        {
             return null;
+        }
 
         return depth =>
         {
@@ -23,7 +25,9 @@ internal static class DiskHiddenAncestors
                 try
                 {
                     if (CandidateAdmissionPolicy.HasHiddenAttribute(File.GetAttributes(directory)))
+                    {
                         return true;
+                    }
                 }
                 catch (Exception exception) when (
                     exception is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)

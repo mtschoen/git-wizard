@@ -42,7 +42,9 @@ public sealed class TagInventoryReport
         ArgumentNullException.ThrowIfNull(repositoryPaths);
 
         if (string.IsNullOrWhiteSpace(matchPattern))
+        {
             matchPattern = "*";
+        }
 
         var report = new TagInventoryReport
         {
@@ -76,7 +78,9 @@ public sealed class TagInventoryReport
         try
         {
             if (!Repository.IsValid(path))
+            {
                 return null;
+            }
 
             using var repository = new Repository(path);
 
@@ -90,7 +94,9 @@ public sealed class TagInventoryReport
             }
 
             if (matchingTags.Count == 0)
+            {
                 return null;
+            }
 
             var remotes = repository.Network.Remotes.ToList();
             var remoteTagMap = new Dictionary<string, IReadOnlySet<string>>(StringComparer.Ordinal);
@@ -98,7 +104,9 @@ public sealed class TagInventoryReport
             foreach (var remote in remotes)
             {
                 if (string.IsNullOrEmpty(remote.Url))
+                {
                     continue;
+                }
 
                 if (!remoteCache.TryGetValue(remote.Url, out var remoteTags))
                 {
@@ -131,7 +139,7 @@ public sealed class TagInventoryReport
                 });
             }
 
-            item.Tags = item.Tags.OrderBy(t => t.Name, StringComparer.Ordinal).ToList();
+            item.Tags = [.. item.Tags.OrderBy(t => t.Name, StringComparer.Ordinal)];
             return item;
         }
         catch (Exception exception)
@@ -144,10 +152,14 @@ public sealed class TagInventoryReport
     internal static bool IsTagMatch(string tagName, string pattern)
     {
         if (pattern == "*")
+        {
             return true;
+        }
 
         if (!pattern.Contains('*') && !pattern.Contains('?'))
+        {
             return string.Equals(tagName, pattern, StringComparison.Ordinal);
+        }
 
         var regexPattern = "^" + Regex.Escape(pattern).Replace(@"\*", ".*").Replace(@"\?", ".") + "$";
         return Regex.IsMatch(tagName, regexPattern, RegexOptions.None);
@@ -173,12 +185,16 @@ public sealed class TagInventoryReport
 
             using var process = Process.Start(processStartInfo);
             if (process == null)
+            {
                 return new HashSet<string>(StringComparer.Ordinal);
+            }
 
             await using var registration = cancellationToken.Register(static state =>
             {
                 if (state is Process proc)
+                {
                     TryKillProcess(proc, "cancellation");
+                }
             }, process);
 
             var readOutputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
@@ -198,7 +214,9 @@ public sealed class TagInventoryReport
             var output = await readOutputTask.ConfigureAwait(false);
             await readErrorTask.ConfigureAwait(false);
             if (process.ExitCode != 0)
+            {
                 return new HashSet<string>(StringComparer.Ordinal);
+            }
 
             return ParseLsRemoteOutput(output);
         }
@@ -235,7 +253,9 @@ public sealed class TagInventoryReport
         {
             var tabIndex = line.IndexOf('\t');
             if (tabIndex < 0)
+            {
                 continue;
+            }
 
             var refName = line[(tabIndex + 1)..].Trim();
             const string tagPrefix = "refs/tags/";
@@ -243,7 +263,9 @@ public sealed class TagInventoryReport
             {
                 var rawTag = refName[tagPrefix.Length..];
                 if (rawTag.EndsWith("^{}", StringComparison.Ordinal))
+                {
                     rawTag = rawTag[..^3];
+                }
 
                 tags.Add(rawTag);
             }

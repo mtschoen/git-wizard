@@ -36,7 +36,9 @@ public static partial class GitWizardApi
 
             GitWizardLog.CloseCurrentLogFile();
             foreach (var entry in entries)
+            {
                 DeleteEntry(entry);
+            }
             // Nonrecursive, so a cache created after the snapshot above fails the delete instead of being entered.
             Directory.Delete(root, recursive: false);
             return true;
@@ -52,8 +54,12 @@ public static partial class GitWizardApi
     {
         var attributes = File.GetAttributes(entry);
         if ((attributes & FileAttributes.Directory) != 0)
+        {
             Directory.Delete(entry, recursive: (attributes & FileAttributes.ReparsePoint) == 0);
+        }
         else
+        {
             File.Delete(entry);
+        }
     }
 }

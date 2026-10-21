@@ -22,16 +22,22 @@ public partial class RepositoryDiscoveryCoordinator
     {
         var dependencies = Dependencies;
         if (!dependencies.IsWindows && prepared is not null)
+        {
             await prepared.DisposeAsync().ConfigureAwait(false);
+        }
 
         ArgumentNullException.ThrowIfNull(request);
         var scope = DiscoveryScope.Create(request, dependencies.ClassifyRoot);
 
         if (dependencies.IsWindows)
+        {
             return await PrepareWindowsWatchAsync(request, scope, prepared, progress, cancellationToken).ConfigureAwait(false);
+        }
 
         if (dependencies.IsLinux)
+        {
             return await PrepareLinuxWatchAsync(request, scope, progress, cancellationToken).ConfigureAwait(false);
+        }
 
         throw new PlatformNotSupportedException("Watch mode currently requires Windows or Linux.");
     }
@@ -53,11 +59,15 @@ public partial class RepositoryDiscoveryCoordinator
             cancellationToken.ThrowIfCancellationRequested();
 
             if (source?.Session is { } session)
+            {
                 accumulator.RecordDriveStatuses(session.CaptureDriveStatuses());
+            }
 
             progress?.Report(new WatchStartupProgress(WatchStartupPhase.Discovering));
             if (source?.Index is { } index && !request.NoMft)
+            {
                 AddIndexedCandidates(index, accumulator, cancellationToken);
+            }
 
             await CrawlRecursiveRootsAsync(request, accumulator, null, cancellationToken).ConfigureAwait(false);
 
@@ -90,7 +100,9 @@ public partial class RepositoryDiscoveryCoordinator
         finally
         {
             if (source is not null)
+            {
                 await source.DisposeAsync().ConfigureAwait(false);
+            }
         }
     }
 
@@ -104,7 +116,10 @@ public partial class RepositoryDiscoveryCoordinator
         if (scope.RequestedNtfsDrives.Count == 0)
         {
             if (prepared is not null)
+            {
                 await prepared.DisposeAsync().ConfigureAwait(false);
+            }
+
             return (null, new VolumeArmResult(accumulator.Errors, []));
         }
 
@@ -112,7 +127,9 @@ public partial class RepositoryDiscoveryCoordinator
         var (source, detachBroker) = await OpenPreparedWatchSourceAsync(scope, prepared, accumulator, progress, cancellationToken).ConfigureAwait(false);
         var armResult = new VolumeArmResult(accumulator.Errors, []);
         if (source is null)
+        {
             return (null, armResult);
+        }
 
         void ForwardReadiness(VolumeReadinessSnapshot snapshot) =>
             progress?.Report(new WatchStartupProgress(WatchStartupPhase.CatchingUp, null, snapshot));
@@ -123,7 +140,10 @@ public partial class RepositoryDiscoveryCoordinator
             source.StartStartupBuffering();
             armResult = await source.ArmAndCatchUpAsync(scope.RequestedNtfsDrives, cancellationToken).ConfigureAwait(false);
             foreach (var (drive, message) in armResult.Errors)
+            {
                 accumulator.Errors[drive] = message;
+            }
+
             return (source, armResult);
         }
         catch
@@ -157,7 +177,10 @@ public partial class RepositoryDiscoveryCoordinator
                                               !cancellationToken.IsCancellationRequested)
             {
                 foreach (var drive in scope.RequestedNtfsDrives)
+                {
                     accumulator.Errors[drive] = exception.Message;
+                }
+
                 return (null, null);
             }
         }
@@ -196,7 +219,9 @@ public partial class RepositoryDiscoveryCoordinator
         finally
         {
             if (session is not null)
+            {
                 await session.DisposeAsync().ConfigureAwait(false);
+            }
         }
     }
 
@@ -214,14 +239,20 @@ public partial class RepositoryDiscoveryCoordinator
             foreach (var entry in batch.Entries)
             {
                 foreach (var target in GetReconciliationTargets(entry.FullPath))
+                {
                     ReconcileCandidateInvalidation(target, accumulator);
+                }
 
                 if (entry.Kind != VolumeEntryKind.MovedIn)
+                {
                     continue;
+                }
 
                 var movedRoot = WatchPath.Parse(entry.FullPath);
                 if (!movedRoots.Any(movedRoot.IsUnderOrEqual))
+                {
                     movedRoots.Add(movedRoot);
+                }
             }
         }
 
@@ -233,7 +264,9 @@ public partial class RepositoryDiscoveryCoordinator
             {
                 var candidatePath = WatchPath.Parse(candidate.Path);
                 if (movedRoots.Any(candidatePath.IsUnderOrEqual))
+                {
                     ReconcileCandidateInvalidation(candidate.Path, accumulator);
+                }
             }
         }
 
@@ -245,12 +278,16 @@ public partial class RepositoryDiscoveryCoordinator
         var targets = new HashSet<string>(WatchPath.StringComparer);
 
         if (WatchPath.Parse(entryPath).TryGetGitDirectoryParent(out var parent))
+        {
             targets.Add(parent.Original);
+        }
 
         targets.Add(entryPath);
         var directory = Path.GetDirectoryName(entryPath);
         if (!string.IsNullOrEmpty(directory))
+        {
             targets.Add(directory);
+        }
 
         return targets;
     }

@@ -71,14 +71,18 @@ public partial class GitWizardRepository
     bool IsSubmodulePublishReady()
     {
         if (SubmoduleHealth.Values.Any(health => health.Status != SubmoduleHealthStatus.Healthy))
+        {
             return false;
+        }
 
         if (Submodules != null)
         {
             foreach (var sub in Submodules.Values)
             {
-                if (sub is not null && !sub.IsSubmodulePublishReady())
+                if (sub?.IsSubmodulePublishReady() == false)
+                {
                     return false;
+                }
             }
         }
 
@@ -145,7 +149,9 @@ public partial class GitWizardRepository
             cancellationToken.ThrowIfCancellationRequested();
 
             if (fetchRemotes && FetchAllRemotes(WorkingDirectory))
+            {
                 LastFetchTime = DateTimeOffset.Now;
+            }
 
             GitWizardLog.Log($"Refreshing {WorkingDirectory}");
 
@@ -205,12 +211,18 @@ public partial class GitWizardRepository
         Step(() => RefreshSubmodules(updateHandler, repository, workingDirectory, cancellationToken));
         Step(() => CheckSubmoduleHealth(repository, workingDirectory));
         if (!IsWorktree)
+        {
             Step(() => RefreshWorktrees(updateHandler, repository, cancellationToken));
+        }
+
         Step(() => RefreshHeadInfo(repository));
         Step(() => RefreshPendingChangesStatus(repository, deepRefresh));
         Step(() => RefreshRemoteUrls(repository));
         if (computeLocalCommitCount)
+        {
             Step(() => RefreshLocalOnlyCommits(repository));
+        }
+
         Step(() => RefreshBranchDivergence(repository, allBranches));
         Step(() => RefreshRemoteDivergence(repository));
         Step(() => RefreshAuthorEmails(repository));
@@ -225,12 +237,19 @@ public partial class GitWizardRepository
         CurrentBranch = repository.Head.FriendlyName;
         IsDetachedHead = repository.Head.Reference is not SymbolicReference;
         if (IsDetachedHead)
+        {
             FindMatchingBranch(repository);
+        }
         else
+        {
             MatchingBranchName = null;
+        }
+
         LastCommitDate = repository.Head.Tip?.Author.When;
         if (LastCommitDate.HasValue)
+        {
             DaysSinceLastCommit = (int)(DateTimeOffset.Now - LastCommitDate.Value).TotalDays;
+        }
     }
 
     internal void RefreshPendingChangesStatus(Repository repository, bool deepRefresh)
@@ -240,7 +259,9 @@ public partial class GitWizardRepository
             // Refresh the index to update stale stat data (slow on large repos / slow drives)
             // Only run during deep refresh to keep auto-refresh fast
             if (deepRefresh)
+            {
                 RefreshIndex(repository);
+            }
 
             var status = repository.RetrieveStatus();
             HasPendingChanges = status.IsDirty;
@@ -298,7 +319,9 @@ public partial class GitWizardRepository
                     .Where(tip => tip != null)
                     .ToList();
                 if (remoteTips.Count > 0)
+                {
                     filter.ExcludeReachableFrom = remoteTips;
+                }
 
                 LocalCommitCount = repository.Commits.QueryBy(filter).Count();
                 LocalOnlyCommits = LocalCommitCount > 0;

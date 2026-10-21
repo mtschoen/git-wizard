@@ -36,7 +36,9 @@ public sealed partial class IndexVolumeChangeSource
     void SeedWatchStates(FileIndex index)
     {
         foreach (var status in index.Drives)
+        {
             AcceptWatchState(status.Drive.Letter, status.Watch, null, recordTransition: false);
+        }
     }
 
     void FailWatchState(char drive, Exception exception)
@@ -44,7 +46,10 @@ public sealed partial class IndexVolumeChangeSource
         lock (_watchStateLock)
         {
             if (_watchStatesStopped)
+            {
                 return;
+            }
+
             _output.Writer.TryComplete(exception);
         }
         RecordStartupDriveFailure(drive, exception.Message);
@@ -57,14 +62,19 @@ public sealed partial class IndexVolumeChangeSource
         {
             if (_watchStatesStopped || !ContainsUsableDrive(drive) ||
                 (_watchStateVersions.TryGetValue(drive, out var version) && watch.StateVersion <= version))
+            {
                 return;
+            }
+
             _watchStateVersions[drive] = watch.StateVersion;
             if (recordTransition)
             {
                 lock (_faultLock)
+                {
                     _readiness = _readiness.WithTransition(new VolumeWatchTransition(
                         _watchSessionId, drive.ToString(), watch.StateVersion, watch.State.ToString(),
                         fault?.Exception.Message, DateTimeOffset.UtcNow));
+                }
             }
             var previous = Readiness.TryGet(drive.ToString(), out var status) ? status : null;
             var origin = previous?.Origin ?? VolumeBlockOrigin.Unknown;
@@ -74,7 +84,10 @@ public sealed partial class IndexVolumeChangeSource
                 with
             { WatchStateVersion = watch.StateVersion });
             if (watch.State == WatchState.CaughtUp)
+            {
                 QueueCaughtUpLocked(drive, watch.StateVersion);
+            }
+
             PulseWatchStateLocked();
         }
         RefreshJournalWarningForState(drive, watch);

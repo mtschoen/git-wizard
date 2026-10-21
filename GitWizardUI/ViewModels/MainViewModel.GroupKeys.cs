@@ -32,7 +32,9 @@ public partial class MainViewModel
         {
             var path = repo.WorkingDirectory;
             if (string.IsNullOrEmpty(path))
+            {
                 return new List<string> { "(unknown)" };
+            }
 
             var root = Path.GetPathRoot(path);
             return new List<string> { string.IsNullOrEmpty(root) ? "(unknown)" : NormalizeDriveGroupKey(root) };
@@ -42,7 +44,9 @@ public partial class MainViewModel
         {
             var urls = repo.Repository.RemoteUrls;
             if (urls.Count == 0)
+            {
                 return new List<string> { "(no remote)" };
+            }
 
             // Normalize remote URLs for grouping (strip .git suffix, normalize casing)
             return urls.Select(NormalizeRemoteUrl).Distinct().ToList();
@@ -62,7 +66,9 @@ public partial class MainViewModel
     {
         url = url.Trim();
         if (url.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
+        {
             url = url[..^4];
+        }
 
         // Normalize SSH URLs (git@github.com:user/repo) to match HTTPS style for grouping
         if (url.StartsWith("git@", StringComparison.OrdinalIgnoreCase))
@@ -91,7 +97,9 @@ public partial class MainViewModel
         IReadOnlyDictionary<string, GitWizardRepository> healthyRepos)
     {
         if (erroredRepo.RemoteUrls.Count == 0)
+        {
             return null;
+        }
 
         foreach (var remoteUrl in erroredRepo.RemoteUrls)
         {
@@ -99,11 +107,16 @@ public partial class MainViewModel
             foreach (var (path, healthyRepo) in healthyRepos)
             {
                 if (path == oldPath)
+                {
                     continue;
+                }
+
                 foreach (var healthyRemote in healthyRepo.RemoteUrls)
                 {
                     if (NormalizeRemoteUrl(healthyRemote) == normalizedRemote)
+                    {
                         return path;
+                    }
                 }
             }
         }
@@ -148,7 +161,9 @@ public partial class MainViewModel
             else
             {
                 foreach (var node in bucket)
+                {
                     header.Children.Add(node);
+                }
             }
 
             header.UpdateDisplayText();
@@ -166,13 +181,20 @@ public partial class MainViewModel
         header = RepositoryNodeViewModel.CreateGroupHeader(key);
         var nodesToAdd = sort ? SortBatchForDisplay(bucket) : bucket;
         foreach (var node in nodesToAdd)
+        {
             header.Children.Add(node);
+        }
+
         header.UpdateDisplayText();
 
         if (header.Children.Count >= minGroupSize)
+        {
             Repositories.Add(header);
+        }
         else
+        {
             _pendingGroups[key] = header;
+        }
     }
 
     // Rebuilds an expanded header's flat display rows from its own (just-merged) Children,
@@ -184,18 +206,26 @@ public partial class MainViewModel
     void RefreshExpandedFlatChildren(RepositoryNodeViewModel header)
     {
         if (!header.IsExpanded)
+        {
             return;
+        }
 
         var headerIndex = Repositories.IndexOf(header);
         if (headerIndex < 0)
+        {
             return;
+        }
 
         var removeFrom = headerIndex + 1;
         while (removeFrom < Repositories.Count && !Repositories[removeFrom].IsGroupHeader)
+        {
             Repositories.RemoveAt(removeFrom);
+        }
 
         var insertAt = removeFrom;
         foreach (var child in header.Children)
+        {
             Repositories.Insert(insertAt++, child);
+        }
     }
 }

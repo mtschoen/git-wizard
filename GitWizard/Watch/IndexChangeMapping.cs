@@ -2,7 +2,7 @@ using MFTLib.Index;
 
 namespace GitWizard.Watch;
 
-internal static class IndexChangeMapping
+static class IndexChangeMapping
 {
     // Captured locations preserve event history because Entry.Path follows later moves.
     // Entry.IsDirectory is read here, on the watch thread; when a slot was reused in the same batch,

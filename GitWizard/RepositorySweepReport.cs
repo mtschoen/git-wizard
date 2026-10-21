@@ -63,12 +63,11 @@ public sealed class RepositorySweepReport
             FileStatus.Unreadable |
             FileStatus.Conflicted;
 
-        return repository.RetrieveStatus()
+        return [.. repository.RetrieveStatus()
             .Where(entry => (entry.State & trackedChanges) != 0)
             .Select(entry => entry.FilePath)
             .Distinct(StringComparer.Ordinal)
-            .Order(StringComparer.Ordinal)
-            .ToList();
+            .Order(StringComparer.Ordinal)];
     }
 
     static List<UnpushedBranchInfo> CollectUnpushedBranches(Repository repository)
@@ -83,7 +82,9 @@ public sealed class RepositorySweepReport
         {
             var filter = new CommitFilter { IncludeReachableFrom = branch.Tip };
             if (remoteTips.Count > 0)
+            {
                 filter.ExcludeReachableFrom = remoteTips;
+            }
 
             var commitCount = repository.Commits.QueryBy(filter).Count();
             if (commitCount > 0)
@@ -96,7 +97,7 @@ public sealed class RepositorySweepReport
             }
         }
 
-        return branches.OrderBy(branch => branch.Name, StringComparer.Ordinal).ToList();
+        return [.. branches.OrderBy(branch => branch.Name, StringComparer.Ordinal)];
     }
 }
 

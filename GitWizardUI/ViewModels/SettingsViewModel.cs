@@ -9,12 +9,12 @@ namespace GitWizardUI.ViewModels;
 public partial class SettingsViewModel : INotifyPropertyChanged
 {
     readonly IFolderPicker _folderPicker;
-    private GitWizardConfiguration _configuration;
+    readonly GitWizardConfiguration _configuration;
 
     public ObservableCollection<string> SearchPaths { get; } = new();
     public ObservableCollection<string> IgnoredPaths { get; } = new();
 
-    private string _newSearchPath = string.Empty;
+    string _newSearchPath = string.Empty;
     public string NewSearchPath
     {
         get => _newSearchPath;
@@ -25,7 +25,7 @@ public partial class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
-    private string _newIgnoredPath = string.Empty;
+    string _newIgnoredPath = string.Empty;
     public string NewIgnoredPath
     {
         get => _newIgnoredPath;
@@ -36,21 +36,21 @@ public partial class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
-    private string? _selectedSearchPath;
+    string? _selectedSearchPath;
     public string? SelectedSearchPath
     {
         get => _selectedSearchPath;
         set { _selectedSearchPath = value; OnPropertyChanged(); }
     }
 
-    private string? _selectedIgnoredPath;
+    string? _selectedIgnoredPath;
     public string? SelectedIgnoredPath
     {
         get => _selectedIgnoredPath;
         set { _selectedIgnoredPath = value; OnPropertyChanged(); }
     }
 
-    private string _forkPath;
+    string _forkPath;
     public string ForkPath
     {
         get => _forkPath;
@@ -62,7 +62,7 @@ public partial class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
-    private bool _skipHiddenDirectories;
+    bool _skipHiddenDirectories;
     public bool SkipHiddenDirectories
     {
         get => _skipHiddenDirectories;
@@ -74,7 +74,7 @@ public partial class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
-    private bool _includeTempDirectories;
+    bool _includeTempDirectories;
     public bool IncludeTempDirectories
     {
         get => _includeTempDirectories;
@@ -97,10 +97,14 @@ public partial class SettingsViewModel : INotifyPropertyChanged
         JournalWarnings = mainViewModel?.JournalWarnings ?? new();
 
         foreach (var path in _configuration.SearchPaths)
+        {
             SearchPaths.Add(path);
+        }
 
         foreach (var path in _configuration.IgnoredPaths)
+        {
             IgnoredPaths.Add(path);
+        }
 
         // Load into the backing field, not the property: the setter calls SaveInternal(), so
         // assigning ForkPath here would write config.json (a fire-and-forget async save) on every
@@ -137,7 +141,10 @@ public partial class SettingsViewModel : INotifyPropertyChanged
     {
         var path = await _folderPicker.PickFolderAsync();
         if (path is null || string.IsNullOrWhiteSpace(path))
+        {
             return;
+        }
+
         if (!SearchPaths.Contains(path))
         {
             SearchPaths.Add(path);
@@ -158,7 +165,10 @@ public partial class SettingsViewModel : INotifyPropertyChanged
     {
         var path = await _folderPicker.PickFolderAsync();
         if (path is null || string.IsNullOrWhiteSpace(path))
+        {
             return;
+        }
+
         if (!IgnoredPaths.Contains(path))
         {
             IgnoredPaths.Add(path);
@@ -179,11 +189,15 @@ public partial class SettingsViewModel : INotifyPropertyChanged
     {
         _configuration.SearchPaths.Clear();
         foreach (var path in SearchPaths)
+        {
             _configuration.SearchPaths.Add(path);
+        }
 
         _configuration.IgnoredPaths.Clear();
         foreach (var path in IgnoredPaths)
+        {
             _configuration.IgnoredPaths.Add(path);
+        }
 
         _configuration.ForkPath = string.IsNullOrWhiteSpace(ForkPath) ? null : ForkPath;
         _configuration.SkipHiddenDirectories = SkipHiddenDirectories;
@@ -196,11 +210,15 @@ public partial class SettingsViewModel : INotifyPropertyChanged
     {
         _configuration.SearchPaths.Clear();
         foreach (var path in SearchPaths)
+        {
             _configuration.SearchPaths.Add(path);
+        }
 
         _configuration.IgnoredPaths.Clear();
         foreach (var path in IgnoredPaths)
+        {
             _configuration.IgnoredPaths.Add(path);
+        }
 
         _configuration.ForkPath = string.IsNullOrWhiteSpace(ForkPath) ? null : ForkPath;
         _configuration.SkipHiddenDirectories = SkipHiddenDirectories;
@@ -220,11 +238,15 @@ public partial class SettingsViewModel : INotifyPropertyChanged
 
         SearchPaths.Clear();
         foreach (var path in defaults.SearchPaths)
+        {
             SearchPaths.Add(path);
+        }
 
         IgnoredPaths.Clear();
         foreach (var path in defaults.IgnoredPaths)
+        {
             IgnoredPaths.Add(path);
+        }
 
         // Set the backing field directly rather than the ForkPath property: the property setter
         // calls Save() itself, which would save once here and again below.

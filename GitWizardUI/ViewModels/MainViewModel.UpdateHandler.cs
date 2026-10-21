@@ -26,7 +26,9 @@ public partial class MainViewModel
     public void SendUpdateMessage(string? message)
     {
         if (message == null)
+        {
             return;
+        }
 
         _latestStatusMessage = message;
 

@@ -43,7 +43,9 @@ public partial class GitWizardReport
         var refreshed = new GitWizardReport(configuration);
 #pragma warning restore CA2000
         if (repositoryPaths.Count > 0)
+        {
             refreshed.Refresh(repositoryPaths, updateHandler, allBranches: allBranches, computeLocalCommitCount: computeLocalCommitCount);
+        }
 
         // Read the existing report as a JSON DOM rather than deserializing into GitWizardReport.
         // Deserialize-then-reserialize would drop every `private set` field (e.g. CurrentBranch)
@@ -59,7 +61,9 @@ public partial class GitWizardReport
 
         // Upsert ONLY the refreshed repos by path key; every other entry's JsonNode is untouched.
         foreach (var kvp in refreshed.Repositories)
+        {
             repositories[kvp.Key] = JsonSerializer.SerializeToNode(kvp.Value, SerializerOptions);
+        }
 
         root[nameof(SchemaVersion)] = CurrentSchemaVersion;
 
@@ -74,14 +78,19 @@ public partial class GitWizardReport
         var result = JsonSerializer.Deserialize<GitWizardReport>(jsonText)
                      ?? new GitWizardReport(configuration);
         foreach (var kvp in refreshed.Repositories)
+        {
             result.Repositories[kvp.Key] = kvp.Value;
+        }
+
         return result;
     }
 
     static JsonObject? ReadJsonObjectFromFile(string path)
     {
         if (!File.Exists(path))
+        {
             return null;
+        }
 
         try
         {
@@ -93,7 +102,10 @@ public partial class GitWizardReport
             {
                 var read = RandomAccess.Read(handle, buffer.AsSpan(totalRead), totalRead);
                 if (read == 0)
+                {
                     break;
+                }
+
                 totalRead += read;
             }
             var text = System.Text.Encoding.UTF8.GetString(buffer, 0, totalRead);
@@ -110,11 +122,15 @@ public partial class GitWizardReport
     public void Save(string path)
     {
         if (DiscoveryInventory is { CanPublishFullInventory: false })
+        {
             throw new InvalidOperationException("Incomplete discovery report cannot be saved.");
+        }
 
         var directory = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+        {
             Directory.CreateDirectory(directory);
+        }
 
         try
         {
@@ -131,11 +147,15 @@ public partial class GitWizardReport
     public async Task SaveAsync(string path, CancellationToken cancellationToken = default)
     {
         if (DiscoveryInventory is { CanPublishFullInventory: false })
+        {
             throw new InvalidOperationException("Incomplete discovery report cannot be saved.");
+        }
 
         var directory = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+        {
             Directory.CreateDirectory(directory);
+        }
 
         try
         {
@@ -192,7 +212,9 @@ public partial class GitWizardReport
     public void SaveAtomic(string path)
     {
         if (DiscoveryInventory is { CanPublishFullInventory: false })
+        {
             throw new InvalidOperationException("Incomplete discovery report cannot be saved.");
+        }
 
         SchemaVersion = CurrentSchemaVersion;
         var snapshot = CreateSnapshotForSerialization();
@@ -209,7 +231,9 @@ public partial class GitWizardReport
     {
         var directory = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+        {
             Directory.CreateDirectory(directory);
+        }
 
         // Temp file in the SAME directory as the destination so File.Move stays on one volume
         // (cross-volume moves are a copy+delete and lose atomicity).
@@ -230,7 +254,9 @@ public partial class GitWizardReport
             try
             {
                 if (File.Exists(tempPath))
+                {
                     File.Delete(tempPath);
+                }
             }
             catch (Exception cleanupException)
             {

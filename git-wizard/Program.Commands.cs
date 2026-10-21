@@ -69,7 +69,9 @@ public static partial class Program
         GitWizardLog.LogMethod = Console.Error.WriteLine;
 
         if (!EnsureUsableSearchPaths(configuration, _ => { }))
+        {
             return 1;
+        }
 
         await using var result = await DiscoverForCommandAsync(
             runConfiguration, configuration, coordinator, cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -77,7 +79,9 @@ public static partial class Program
         WriteDiscoveryDiagnostics(result.Inventory, stderr);
 
         foreach (var path in result.Inventory.Paths.Where(path => MatchesFilter(path, runConfiguration.FilterPattern)))
+        {
             await stdout.WriteLineAsync(path).ConfigureAwait(false);
+        }
 
         return result.Inventory.CanPublishFullInventory ? 0 : 1;
     }

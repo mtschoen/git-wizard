@@ -5,7 +5,7 @@ namespace GitWizard.CLI;
 /// The one thing a command line asks git-wizard to do. When several mode flags appear together
 /// the parser keeps the one that runs first, so every parsed configuration names exactly one kind.
 /// </summary>
-internal enum CommandKind
+enum CommandKind
 {
     /// <summary>
     /// Generate or print the repository report (the default when no mode flag is given).

@@ -98,7 +98,9 @@ public partial class RepositoryNodeViewModel : INotifyPropertyChanged
         get
         {
             if (Repository.SubmoduleHealth is not { Count: > 0 })
+            {
                 return "Submodule issue";
+            }
 
             var issues = Repository.SubmoduleHealth.Values.SelectMany(health => health.Issues);
             return "Submodule issues:\n" + string.Join("\n", issues);
@@ -163,7 +165,9 @@ public partial class RepositoryNodeViewModel : INotifyPropertyChanged
         {
             var behindCount = Repository.BehindRemoteCount;
             if (behindCount <= 0)
+            {
                 return null;
+            }
 
             var fetchTime = Repository.LastFetchTime;
             var asOf = fetchTime.HasValue
@@ -200,13 +204,21 @@ public partial class RepositoryNodeViewModel : INotifyPropertyChanged
     public void Update()
     {
         if (Repository.IsRefreshing)
+        {
             Status = RefreshStatus.Refreshing;
+        }
         else if (!string.IsNullOrEmpty(Repository.RefreshError))
+        {
             Status = Repository.RefreshError.Contains("Timed out") ? RefreshStatus.Timeout : RefreshStatus.Error;
+        }
         else if (Repository.HasSubmoduleIssues)
+        {
             Status = RefreshStatus.SubmoduleIssue;
+        }
         else
+        {
             Status = RefreshStatus.Success;
+        }
 
         UpdateDisplayText();
     }
@@ -272,7 +284,9 @@ public partial class RepositoryNodeViewModel : INotifyPropertyChanged
     public void CheckoutMatchingBranch()
     {
         if (string.IsNullOrEmpty(MatchingBranchName))
+        {
             return;
+        }
 
         Repository.CheckoutBranch(MatchingBranchName);
         Update();
@@ -301,33 +315,50 @@ public partial class RepositoryNodeViewModel : INotifyPropertyChanged
     bool IsMyRepository(string? userEmail)
     {
         if (string.IsNullOrEmpty(userEmail) || Repository.AuthorEmails == null)
+        {
             return false;
+        }
 
         return Repository.AuthorEmails.Contains(userEmail);
     }
 
     bool HasPendingChangesRecursive()
     {
-        if (Repository.HasPendingChanges) return true;
+        if (Repository.HasPendingChanges)
+        {
+            return true;
+        }
+
         return Children.Any(c => c.HasPendingChangesRecursive());
     }
 
     bool HasDetachedHeadRecursive()
     {
-        if (Repository.IsDetachedHead) return true;
+        if (Repository.IsDetachedHead)
+        {
+            return true;
+        }
+
         return Children.Any(c => c.HasDetachedHeadRecursive());
     }
 
     bool HasSubmoduleCheckoutIssues()
     {
-        if (Repository.Submodules == null || Repository.Submodules.Count == 0) return false;
+        if (Repository.Submodules == null || Repository.Submodules.Count == 0)
+        {
+            return false;
+        }
         // Submodules with pending changes or local-only commits indicate they're not at the expected pointer
         return Children.Any(c => c.Repository.HasPendingChanges || c.Repository.LocalOnlyCommits || c.HasSubmoduleCheckoutIssues());
     }
 
     bool HasUninitializedSubmodules()
     {
-        if (Repository.Submodules != null && Repository.Submodules.Values.Any(v => v == null)) return true;
+        if (Repository.Submodules?.Values.Any(v => v == null) == true)
+        {
+            return true;
+        }
+
         return Children.Any(c => c.HasUninitializedSubmodules());
     }
 
@@ -335,8 +366,16 @@ public partial class RepositoryNodeViewModel : INotifyPropertyChanged
     {
         // A submodule config issue is when .gitmodules and the index disagree.
         // We approximate this by checking for submodules that exist in the dictionary but failed to load.
-        if (Repository.Submodules == null || Repository.Submodules.Count == 0) return false;
-        if (Repository.Submodules.Values.Any(v => v == null)) return true;
+        if (Repository.Submodules == null || Repository.Submodules.Count == 0)
+        {
+            return false;
+        }
+
+        if (Repository.Submodules.Values.Any(v => v == null))
+        {
+            return true;
+        }
+
         return Children.Any(c => c.HasSubmoduleConfigIssues());
     }
 

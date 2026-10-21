@@ -8,7 +8,10 @@ public sealed partial class IndexVolumeChangeSource
         lock (_lifecycleLock)
         {
             if (_disposed)
+            {
                 return null;
+            }
+
             owner = _owner;
         }
         return owner?.CaptureCacheStatus();

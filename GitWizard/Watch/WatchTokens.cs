@@ -42,7 +42,7 @@ public static class WatchTokens
         _ => throw Unmapped(phase)
     };
 
-    private static ArgumentOutOfRangeException Unmapped<TEnum>(TEnum value) where TEnum : struct, Enum =>
+    static ArgumentOutOfRangeException Unmapped<TEnum>(TEnum value) where TEnum : struct, Enum =>
         new(nameof(value), value, $"{typeof(TEnum).Name} has no watch token for this member.");
 
     /// <summary>Turns a hyphenated token into spaced display wording.</summary>

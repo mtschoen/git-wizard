@@ -18,7 +18,10 @@ public sealed class AvaloniaUserDialogs : IUserDialogs
     static async Task<bool> ShowDialogAsync(string title, string message, string acceptLabel, string? cancelLabel)
     {
         var owner = (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
-        if (owner is null) return false;
+        if (owner is null)
+        {
+            return false;
+        }
 
         var tcs = new TaskCompletionSource<bool>();
         var accept = new Button { Content = acceptLabel, Margin = new Thickness(4) };
@@ -26,7 +29,10 @@ public sealed class AvaloniaUserDialogs : IUserDialogs
 
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
         buttons.Children.Add(accept);
-        if (cancel is not null) buttons.Children.Add(cancel);
+        if (cancel is not null)
+        {
+            buttons.Children.Add(cancel);
+        }
 
         var window = new Window
         {
@@ -46,7 +52,11 @@ public sealed class AvaloniaUserDialogs : IUserDialogs
         };
 
         accept.Click += (_, _) => { tcs.TrySetResult(true); window.Close(); };
-        if (cancel is not null) cancel.Click += (_, _) => { tcs.TrySetResult(false); window.Close(); };
+        if (cancel is not null)
+        {
+            cancel.Click += (_, _) => { tcs.TrySetResult(false); window.Close(); };
+        }
+
         window.Closed += (_, _) => tcs.TrySetResult(false);
 
         await window.ShowDialog(owner);

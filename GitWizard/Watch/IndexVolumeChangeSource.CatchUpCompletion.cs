@@ -6,7 +6,9 @@ public sealed partial class IndexVolumeChangeSource
     internal Task WaitForCatchUpWorkForTestAsync()
     {
         lock (_watchStateLock)
+        {
             return Task.WhenAll(_catchUpWork.Values);
+        }
     }
 
     void QueueCaughtUpLocked(char drive, long version)
@@ -35,11 +37,17 @@ public sealed partial class IndexVolumeChangeSource
         HashSet<string>? baseline;
         var owner = _owner;
         if (owner is null)
+        {
             return;
+        }
+
         lock (_watchStateLock)
         {
             if (!IsCurrentWatchStateLocked(drive, version))
+            {
                 return;
+            }
+
             _recoveryBaselines.Remove(drive, out baseline);
         }
         if (baseline is not null && !DeliverRecoveryReconciliation(drive, baseline))
@@ -51,7 +59,9 @@ public sealed partial class IndexVolumeChangeSource
             lock (_watchStateLock)
             {
                 if (!_watchStatesStopped)
+                {
                     _recoveryBaselines[drive] = baseline;
+                }
             }
             return;
         }
@@ -59,7 +69,10 @@ public sealed partial class IndexVolumeChangeSource
         lock (_watchStateLock)
         {
             if (!IsCurrentWatchStateLocked(drive, version))
+            {
                 return;
+            }
+
             PublishVolumeState(VolumeWatchStatus.CaughtUp(drive.ToString(), origin)
                 with
             { WatchStateVersion = version });

@@ -86,6 +86,6 @@ public static class MftIndexCacheMaintenance
             errors.Add($"Listing {root}: {exception.Message}");
         }
 
-        return directories.Order(StringComparer.Ordinal).ToArray();
+        return [.. directories.Order(StringComparer.Ordinal)];
     }
 }

@@ -20,9 +20,8 @@ public class GitWizardSummary
             TotalRepositories = report.Repositories.Count
         };
 
-        foreach (var kvp in report.Repositories)
+        foreach (var (path, repository) in report.Repositories)
         {
-            var repository = kvp.Value;
             var reasons = new List<string>();
 
             if (repository.HasPendingChanges)
@@ -43,7 +42,7 @@ public class GitWizardSummary
                 reasons.Add("stale");
             }
 
-            if (repository.Branches != null && repository.Branches.Any(b => b.IsMerged))
+            if (repository.Branches?.Any(b => b.IsMerged) == true)
             {
                 summary.MergedBranches++;
                 reasons.Add("merged-branches");
@@ -59,7 +58,7 @@ public class GitWizardSummary
             {
                 summary.NeedingAttention.Add(new AttentionItem
                 {
-                    Path = kvp.Key,
+                    Path = path,
                     Reasons = reasons
                 });
             }

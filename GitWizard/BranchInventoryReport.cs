@@ -51,7 +51,9 @@ public sealed class BranchInventoryReport
         try
         {
             if (!Repository.IsValid(path))
+            {
                 return null;
+            }
 
             using var repository = new Repository(path);
 
@@ -76,7 +78,9 @@ public sealed class BranchInventoryReport
             {
                 // Skip the base branch itself
                 if (baseBranch != null && string.Equals(branch.FriendlyName, baseBranch.FriendlyName, StringComparison.Ordinal))
+                {
                     continue;
+                }
 
                 var branchInfo = CreateBranchInfo(repository, branch, baseBranch, remoteTips, notMergedOnly);
                 if (branchInfo != null)
@@ -86,7 +90,9 @@ public sealed class BranchInventoryReport
             }
 
             if (item.Branches.Count == 0)
+            {
                 return null;
+            }
 
             return item;
         }
@@ -117,7 +123,9 @@ public sealed class BranchInventoryReport
         }
 
         if (notMergedOnly && isMerged)
+        {
             return null;
+        }
 
         var remoteName = branch.RemoteName;
         // URL-valued branch remotes are valid Git config but cannot be resolved by TrackedBranch.
@@ -159,23 +167,31 @@ public sealed class BranchInventoryReport
         {
             var branch = repository.Branches[baseBranchName];
             if (branch != null)
+            {
                 return branch;
+            }
 
             // Check if there is an origin/<baseBranchName> remote branch
             var remoteBranch = repository.Branches[$"origin/{baseBranchName}"] ?? repository.Branches.FirstOrDefault(b => b.IsRemote && b.FriendlyName.EndsWith($"/{baseBranchName}", StringComparison.OrdinalIgnoreCase));
             if (remoteBranch != null)
+            {
                 return remoteBranch;
+            }
         }
 
         foreach (var name in new[] { "main", "master", "develop" })
         {
             var candidate = repository.Branches[name];
             if (candidate is { IsRemote: false })
+            {
                 return candidate;
+            }
         }
 
         if (repository.Head.Reference is SymbolicReference)
+        {
             return repository.Head;
+        }
 
         return null;
     }
@@ -187,7 +203,9 @@ public sealed class BranchInventoryReport
         List<Commit> remoteTips)
     {
         if (branch.Tip == null)
+        {
             return 0;
+        }
 
         var filter = new CommitFilter
         {

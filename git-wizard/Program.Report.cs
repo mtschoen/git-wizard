@@ -46,7 +46,9 @@ public static partial class Program
                 }
 
                 if (!EnsureUsableSearchPaths(configuration, _ => { }))
+                {
                     return OutputFailedRun(updateHandler.CaptureRun(), runConfiguration, stdout, 1);
+                }
             }
 
             var report = await GenerateReportForRunAsync(
@@ -58,7 +60,10 @@ public static partial class Program
                 if (exitCode is { } failureExitCode)
                 {
                     if (report.DiscoveryInventory is not null)
+                    {
                         RecordDiscoveryDiagnostics(report.DiscoveryInventory, updateHandler);
+                    }
+
                     return OutputFailedRun(updateHandler.CaptureRun(), runConfiguration, stdout, failureExitCode);
                 }
 
@@ -112,7 +117,9 @@ public static partial class Program
         WriteDiscoveryDiagnostics(inventory, diagnostics);
         foreach (var line in diagnostics.ToString().Split(
             Environment.NewLine, StringSplitOptions.RemoveEmptyEntries))
+        {
             updateHandler.RecordWarning(line);
+        }
     }
 
     internal static int OutputFailedRun(ReportRunSummary run, RunConfiguration configuration,
@@ -121,10 +128,14 @@ public static partial class Program
         if (!configuration.Silent && !GitWizardLog.SilentMode)
         {
             if (configuration.Json)
+            {
                 stdout.WriteLine(JsonSerializer.Serialize(new { run },
                     GetSerializerOptions(configuration, JsonIgnoreCondition.WhenWritingDefault)));
+            }
             else
+            {
                 ReportTextFormatter.WriteRun(stdout, run);
+            }
         }
         return exitCode;
     }
@@ -137,9 +148,13 @@ public static partial class Program
         if (!GitWizardLog.SilentMode && !runConfiguration.Silent)
         {
             if (runConfiguration.Json)
+            {
                 stdout.WriteLine(SerializeReport(runConfiguration, filteredReport));
+            }
             else
+            {
                 ReportTextFormatter.Write(stdout, filteredReport, fromCache);
+            }
         }
         return ReportNeedsAttention(filteredReport) ? 1 : 0;
     }
@@ -171,14 +186,18 @@ public static partial class Program
     static async Task SaveReportAsync(RunConfiguration runConfiguration, GitWizardReport report)
     {
         if (report.DiscoveryInventory is { CanPublishFullInventory: false })
+        {
             throw new InvalidOperationException("Incomplete discovery report cannot be saved.");
+        }
 
         // Always save a cache
         await report.SaveAsync(GitWizardReport.GetCachedReportPath()).ConfigureAwait(false);
 
         var savePath = runConfiguration.SavePath;
         if (savePath == null)
+        {
             return;
+        }
 
         GitWizardLog.Log($"Saving report to {savePath}");
 
@@ -199,7 +218,9 @@ public static partial class Program
     internal static GitWizardReport ApplyFilter(RunConfiguration runConfiguration, GitWizardReport report)
     {
         if (string.IsNullOrEmpty(runConfiguration.FilterPattern))
+        {
             return report;
+        }
 
         var filtered = new GitWizardReport
         {
@@ -215,7 +236,9 @@ public static partial class Program
         foreach (var kvp in report.Repositories)
         {
             if (MatchesFilter(kvp.Key, runConfiguration.FilterPattern))
+            {
                 filtered.Repositories[kvp.Key] = kvp.Value;
+            }
         }
 
         return filtered;
@@ -226,7 +249,9 @@ public static partial class Program
         foreach (var kvp in report.Repositories)
         {
             if (kvp.Value.HasPendingChanges || kvp.Value.LocalOnlyCommits || kvp.Value.BehindRemoteCount > 0)
+            {
                 return true;
+            }
         }
 
         return false;

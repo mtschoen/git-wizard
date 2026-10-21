@@ -56,7 +56,9 @@ sealed class DiscoveryAccumulator
             var classification = Scope.Classifications.FirstOrDefault(item =>
                 string.Equals(item.Root, root, StringComparison.OrdinalIgnoreCase));
             if (classification is not { FileSystem: RootFileSystem.Ntfs, NtfsDrive: { } drive })
+            {
                 continue;
+            }
 
             var driveStatus = FinalStatuses.FirstOrDefault(item =>
                 string.Equals(item.Drive, drive, StringComparison.OrdinalIgnoreCase));
@@ -66,7 +68,9 @@ sealed class DiscoveryAccumulator
             var error = isSuccess ? null : Errors.GetValueOrDefault(drive) ?? classification.Error;
 
             if (isSuccess && source == DiscoverySource.Snapshot && timestamp.HasValue)
+            {
                 snapshotUpdates?.SendUpdateMessage($"Using index snapshot for {drive}: (scan timestamp {timestamp.Value:O}; may be stale)");
+            }
 
             Observations.Add(new RootObservation(root, exactRoot, isSuccess, source, timestamp, error));
         }
@@ -75,9 +79,14 @@ sealed class DiscoveryAccumulator
     public void AddCrawlResult(string root, RecursiveDiscovery crawlResult, DiscoverySource source)
     {
         foreach (var path in crawlResult.Paths)
+        {
             Paths.Add(path);
+        }
+
         foreach (var (key, message) in crawlResult.Errors)
+        {
             Errors[key] = message;
+        }
 
         var isComplete = crawlResult.Errors.Count == 0 && crawlResult.FailedSubtrees.Count == 0;
         var crawlError = isComplete ? null : crawlResult.Errors.GetValueOrDefault(root);
@@ -95,9 +104,14 @@ sealed class DiscoveryAccumulator
         foreach (var root in Scope.SearchRoots.Concat(Scope.RetainedRoots))
         {
             if (!Scope.ClassificationErrors.TryGetValue(root, out var classificationError))
+            {
                 continue;
+            }
+
             if (Observations.Any(item => string.Equals(item.Root, root, StringComparison.OrdinalIgnoreCase)))
+            {
                 continue;
+            }
 
             var isExact = Scope.RetainedRoots.Contains(root);
             Observations.Add(new RootObservation(root, isExact, false, DiscoverySource.Recursive, null, classificationError));
@@ -130,7 +144,9 @@ sealed class DiscoveryAccumulator
 
         var hasFailures = Errors.Count > 0 || Observations.Any(item => !item.Complete);
         if (!hasFailures)
+        {
             return pathCount == 0 ? DiscoveryOutcome.CompleteEmpty : DiscoveryOutcome.CompleteNonempty;
+        }
 
         return Observations.Any(item => item.Complete) ? DiscoveryOutcome.Partial : DiscoveryOutcome.Unusable;
     }

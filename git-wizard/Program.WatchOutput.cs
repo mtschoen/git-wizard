@@ -18,21 +18,29 @@ public static partial class Program
         {
             var text = verbose ? $"{FormatTimestamp(clock.GetUtcNow())} {line}" : line;
             lock (_gate)
+            {
                 sink(text);
+            }
         }
 
         public void WriteVerbose(string line)
         {
             if (verbose)
+            {
                 Write(line);
+            }
         }
 
         public void WriteStartup(WatchStartupProgress progress)
         {
             if (progress.Readiness is { } snapshot)
+            {
                 WriteVolumes(snapshot);
+            }
             else
+            {
                 WriteVerbose(FormatStartupLine(progress));
+            }
         }
 
         // Prints only transitions, so a snapshot repeating an already-printed state is silent.
@@ -47,7 +55,9 @@ public static partial class Program
                     _printedVolumes[status.Volume] = status;
                 }
                 if (changed)
+                {
                     WriteVerbose(FormatVolumeLine(status));
+                }
             }
         }
     }

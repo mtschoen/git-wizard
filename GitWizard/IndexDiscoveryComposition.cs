@@ -9,7 +9,7 @@ namespace GitWizard;
 /// <param name="OpenIndex">Opens the owner for the selected drives. Invoked lazily, only for a
 ///     nonempty selection, so an empty search never reaches a broker connection.</param>
 /// <param name="CandidateExists">Validates one candidate path and kind on the host filesystem.</param>
-internal sealed record IndexDiscoveryComposition(
+sealed record IndexDiscoveryComposition(
     Func<IReadOnlyList<string>, Task<MftIndexSession>> OpenIndex,
     Func<string, RepositoryCandidateKind, bool> CandidateExists)
 {

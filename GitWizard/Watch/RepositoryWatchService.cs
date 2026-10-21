@@ -30,7 +30,7 @@ public sealed partial class RepositoryWatchService
 
     readonly Lock _errorsLock = new();
     FrozenDictionary<string, string> _scanErrors = FrozenDictionary<string, string>.Empty;
-    FrozenSet<JournalWarning> _scanWarnings = FrozenSet<JournalWarning>.Empty;
+    FrozenSet<JournalWarning> _scanWarnings = [];
 
     public event Action? ScanErrorsChanged;
 
@@ -45,10 +45,10 @@ public sealed partial class RepositoryWatchService
     /// A failed watch does not imply that the drive's index is unavailable for queries.
     /// </summary>
     [UsedImplicitly]
-    public IReadOnlyDictionary<string, string> ScanErrors { get { lock (_errorsLock) return _scanErrors; } }
+    public IReadOnlyDictionary<string, string> ScanErrors { get { lock (_errorsLock) { return _scanErrors; } } }
 
     [UsedImplicitly]
-    public IReadOnlyCollection<JournalWarning> ScanWarnings { get { lock (_errorsLock) return _scanWarnings; } }
+    public IReadOnlyCollection<JournalWarning> ScanWarnings { get { lock (_errorsLock) { return _scanWarnings; } } }
 
     public RepositoryWatchService(
         IVolumeChangeSource source,
@@ -72,7 +72,7 @@ public sealed partial class RepositoryWatchService
         lock (_errorsLock)
         {
             _scanErrors = FrozenDictionary<string, string>.Empty;
-            _scanWarnings = FrozenSet<JournalWarning>.Empty;
+            _scanWarnings = [];
         }
         var readinessSource = _source as IVolumeReadiness;
         ResetReadiness(readinessSource?.Mode ?? WatchReadinessMode.PumpActive);
@@ -83,7 +83,11 @@ public sealed partial class RepositoryWatchService
             diagnostics.JournalWarningDetected += OnJournalWarningDetected;
         }
         var scanProgress = _source as IVolumeScanProgress;
-        if (scanProgress is not null) scanProgress.ScanProgress += OnScanProgress;
+        if (scanProgress is not null)
+        {
+            scanProgress.ScanProgress += OnScanProgress;
+        }
+
         if (readinessSource is not null)
         {
             // Subscribe before anything starts, then fold in the state that already exists: in the
@@ -94,19 +98,27 @@ public sealed partial class RepositoryWatchService
         try
         {
             await foreach (var changeEvent in RunCoreAsync(ct).ConfigureAwait(false))
+            {
                 yield return changeEvent;
+            }
         }
         finally
         {
             MarkTerminal();
             if (readinessSource is not null)
+            {
                 readinessSource.ReadinessChanged -= OnVolumeReadinessChanged;
+            }
+
             if (diagnostics is not null)
             {
                 diagnostics.DriveFailed -= OnDriveFailed;
                 diagnostics.JournalWarningDetected -= OnJournalWarningDetected;
             }
-            if (scanProgress is not null) scanProgress.ScanProgress -= OnScanProgress;
+            if (scanProgress is not null)
+            {
+                scanProgress.ScanProgress -= OnScanProgress;
+            }
         }
     }
 
@@ -135,7 +147,9 @@ public sealed partial class RepositoryWatchService
         }
 
         if (_startup is not null)
+        {
             InventoryReady?.Invoke(_startup.Inventory);
+        }
 
         Started?.Invoke();
         var pumpTask = PumpAsync(filtersByVolume, channel.Writer, deathSignal.Token);
@@ -143,7 +157,9 @@ public sealed partial class RepositoryWatchService
         try
         {
             await foreach (var changeEvent in channel.Reader.ReadAllAsync(ct).ConfigureAwait(false))
+            {
                 yield return changeEvent;
+            }
         }
         finally
         {
@@ -159,7 +175,10 @@ public sealed partial class RepositoryWatchService
         lock (_errorsLock)
         {
             if (_scanErrors.TryGetValue(drive, out var previous) && previous == message)
+            {
                 return;
+            }
+
             var errors = new Dictionary<string, string>(_scanErrors, StringComparer.OrdinalIgnoreCase) { [drive] = message };
             _scanErrors = errors.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
         }
@@ -194,7 +213,10 @@ public sealed partial class RepositoryWatchService
         {
             var errors = new Dictionary<string, string>(armResult.Errors, StringComparer.OrdinalIgnoreCase);
             foreach (var (drive, message) in _scanErrors)
+            {
                 errors[drive] = message;
+            }
+
             _scanErrors = errors.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
 
             var warnings = armResult.JournalWarnings
@@ -256,7 +278,11 @@ public sealed partial class RepositoryWatchService
         }
 
         FrozenDictionary<string, string> armErrors;
-        lock (_errorsLock) armErrors = _scanErrors;
+        lock (_errorsLock)
+        {
+            armErrors = _scanErrors;
+        }
+
         SetPumpVolumes(volumes.Where(volume => !armErrors.ContainsKey(volume)).ToArray());
 
         return volumes.ToDictionary(
@@ -275,9 +301,16 @@ public sealed partial class RepositoryWatchService
         foreach (var root in roots)
         {
             var volume = GetVolume(root);
-            if (volume is null) continue;
+            if (volume is null)
+            {
+                continue;
+            }
+
             if (!result.TryGetValue(volume, out var list))
+            {
                 result[volume] = list = [];
+            }
+
             list.Add(root);
         }
         return result;

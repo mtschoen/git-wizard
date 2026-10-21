@@ -2,7 +2,7 @@ using MFTLib.Index;
 
 namespace GitWizard.Watch;
 
-internal static class JournalHintBuilder
+static class JournalHintBuilder
 {
     // The retained loss says what happened and when it was found; the watch state and the
     // recovery-stopped flag say where recovery stands now. A null state means the caller does not
@@ -110,7 +110,9 @@ internal static class JournalHintBuilder
     static string BuildRecoveryClause(WatchState? watchState, bool recoveryStopped)
     {
         if (recoveryStopped)
+        {
             return " Automatic recovery stopped, so this drive is not being kept current. Rescan this drive.";
+        }
 
         return watchState switch
         {

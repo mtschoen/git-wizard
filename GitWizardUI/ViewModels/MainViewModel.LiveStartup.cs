@@ -25,7 +25,9 @@ public partial class MainViewModel
         }
 
         if (IsRefreshing)
+        {
             return;
+        }
 
         _reportedLiveScanErrors.Clear();
         var trackedRoots = _allRepositories.Select(node => node.WorkingDirectory)
@@ -108,7 +110,9 @@ public partial class MainViewModel
             foreach (var path in current)
             {
                 if (!membershipSet.Contains(path))
+                {
                     RemoveRepositoryPathFromUi(path);
+                }
             }
 
             var currentSet = new HashSet<string>(current, StringComparer.OrdinalIgnoreCase);
@@ -121,7 +125,10 @@ public partial class MainViewModel
             await Task.Run(() => repository.Refresh()).ConfigureAwait(false);
             // A short-lived repository may already be gone by the time its refresh ran.
             if (!Directory.Exists(path))
+            {
                 continue;
+            }
+
             _ui.Post(() => AddRepository(repository));
         }
     }
@@ -131,7 +138,9 @@ public partial class MainViewModel
         void PostIfActive(Action action) => _ui.Post(() =>
         {
             if (ReferenceEquals(_liveController, controller) && (IsLive || IsLiveStarting))
+            {
                 action();
+            }
         });
 
         void OnStarted() => PostIfActive(() =>
@@ -161,7 +170,10 @@ public partial class MainViewModel
             if (inventory.Outcome == DiscoveryOutcome.Unusable)
             {
                 foreach (var (root, message) in inventory.Errors)
+                {
                     LogError($"Live discovery error on {root}: {message}");
+                }
+
                 HeaderText = $"Live watch could not start: {inventory.Errors.Values.FirstOrDefault() ?? "discovery unusable"}";
             }
             else
@@ -219,7 +231,9 @@ public partial class MainViewModel
     async Task StopLiveAsync()
     {
         if (_liveController != null)
+        {
             await _liveController.StopAsync().ConfigureAwait(false);
+        }
 
         await _ui.InvokeAsync(() =>
         {
@@ -240,11 +254,16 @@ public partial class MainViewModel
         foreach (var (drive, message) in controller.ScanErrors)
         {
             if (!_reportedLiveScanErrors.TryReport(drive, message))
+            {
                 continue;
+            }
+
             HeaderText = $"Live scan error on {drive}: {message}";
         }
         if (JournalWarnings.Count > 0)
+        {
             UpdateJournalWarningHeader();
+        }
     }
 
     static string FormatLiveScanErrorSuffix(LiveWatchController controller) =>

@@ -53,7 +53,10 @@ public sealed class IndexCacheViewModel : INotifyPropertyChanged
     async Task RunExclusiveAsync(Func<Task> operation, string failureHeading)
     {
         if (Interlocked.CompareExchange(ref _operation, 1, 0) != 0)
+        {
             return;
+        }
+
         try
         {
             await _dispatcher.InvokeAsync(() => Changed(nameof(IsIdle))).ConfigureAwait(false);

@@ -303,7 +303,9 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
         ErrorLog.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(ErrorLogViewModel.Count))
+            {
                 OnPropertyChanged(nameof(ErrorsButtonLabel));
+            }
         };
     }
 
@@ -343,7 +345,9 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
         get
         {
             lock (_preparedIndexLock)
+            {
                 return _preparedDiscoveryIndex;
+            }
         }
     }
 
@@ -367,7 +371,9 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
         }
 
         if (oldIndex != null && !ReferenceEquals(oldIndex, nextIndex))
+        {
             await oldIndex.DisposeAsync().ConfigureAwait(false);
+        }
     }
 
     public async ValueTask DisposeAsync()

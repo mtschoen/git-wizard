@@ -10,7 +10,9 @@ public static partial class WindowsRootClassifier
     public static RootClassification Classify(string root)
     {
         if (!OperatingSystem.IsWindows())
+        {
             return new RootClassification(root, RootFileSystem.Recursive, null, null);
+        }
 
         return ClassifyWindows(root);
     }
@@ -19,10 +21,14 @@ public static partial class WindowsRootClassifier
     static RootClassification ClassifyWindows(string root)
     {
         if (string.IsNullOrWhiteSpace(root))
+        {
             return new RootClassification(root, RootFileSystem.Unknown, null, "Path is empty");
+        }
 
         if (root.StartsWith(@"\\", StringComparison.Ordinal) || root.StartsWith("//", StringComparison.Ordinal))
+        {
             return new RootClassification(root, RootFileSystem.Recursive, null, null);
+        }
 
         var volumePathBuffer = new char[512];
         if (!GetVolumePathName(root, volumePathBuffer, (uint)volumePathBuffer.Length))
@@ -34,11 +40,15 @@ public static partial class WindowsRootClassifier
         var volumePath = new string(volumePathBuffer).TrimEnd('\0');
         var nullIndex = volumePath.IndexOf('\0');
         if (nullIndex >= 0)
+        {
             volumePath = volumePath[..nullIndex];
+        }
 
         var driveType = GetDriveType(volumePath);
         if (driveType == 4) // DRIVE_REMOTE
+        {
             return new RootClassification(root, RootFileSystem.Recursive, null, null);
+        }
 
         var fsNameBuffer = new char[256];
         if (!GetVolumeInformation(volumePath, null, 0, out _, out _, out _, fsNameBuffer, (uint)fsNameBuffer.Length))
@@ -50,7 +60,9 @@ public static partial class WindowsRootClassifier
         var fileSystemName = new string(fsNameBuffer).TrimEnd('\0');
         nullIndex = fileSystemName.IndexOf('\0');
         if (nullIndex >= 0)
+        {
             fileSystemName = fileSystemName[..nullIndex];
+        }
 
         if (string.Equals(fileSystemName, "NTFS", StringComparison.OrdinalIgnoreCase))
         {
@@ -61,7 +73,9 @@ public static partial class WindowsRootClassifier
             }
 
             if (selectedDrive is null)
+            {
                 return new RootClassification(root, RootFileSystem.Unknown, null, "Unsupported volume identity without drive letter");
+            }
 
             try
             {

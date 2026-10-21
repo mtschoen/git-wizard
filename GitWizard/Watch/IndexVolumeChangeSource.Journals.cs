@@ -20,7 +20,9 @@ public sealed partial class IndexVolumeChangeSource
         get
         {
             lock (_publishedWarningsLock)
+            {
                 return _publishedWarnings.Values.Select(published => published.Warning).ToArray();
+            }
         }
     }
 
@@ -38,7 +40,9 @@ public sealed partial class IndexVolumeChangeSource
         }
 
         if (!drive.Watch.IsSupported)
+        {
             return;
+        }
 
         var letter = drive.Drive.Letter;
         AddUsableDrive(letter);
@@ -59,7 +63,10 @@ public sealed partial class IndexVolumeChangeSource
         var drive = owner?.Index.Drives.FirstOrDefault(candidate =>
             candidate.Drive.Letter == driveLetter);
         if (owner is null || drive is null)
+        {
             return;
+        }
+
         ProcessFaultedDrive(drive, owner, GitWizardConfiguration.GetGlobalConfiguration());
     }
 
@@ -73,7 +80,10 @@ public sealed partial class IndexVolumeChangeSource
     internal void ProcessFaultedDrive(DriveStatus drive, MftIndexSession owner, GitWizardConfiguration configuration)
     {
         if (drive.Watch.CheckpointLoss is not { DetectedDuring: JournalCheckpointLossDetection.LiveWatch or JournalCheckpointLossDetection.ScanCatchUp })
+        {
             return;
+        }
+
         var letter = drive.Drive.Letter;
         if (_raisedFaultLosses.TryGetValue(letter, out var raised) && ReferenceEquals(raised, drive.Watch.CheckpointLoss))
         {
@@ -82,7 +92,10 @@ public sealed partial class IndexVolumeChangeSource
             return;
         }
         if (BuildJournalWarning(drive, owner, configuration) is not { } warning)
+        {
             return;
+        }
+
         _raisedFaultLosses[letter] = warning.Loss;
         PublishJournalWarning(letter, warning, drive.Watch.StateVersion);
     }
@@ -108,10 +121,16 @@ public sealed partial class IndexVolumeChangeSource
                 !ReferenceEquals(published.Warning.Loss, watch.CheckpointLoss) ||
                 watch.StateVersion < published.StateVersion ||
                 configuration.IgnoredJournalWarnings.Contains(published.Warning.VolumeSerial))
+            {
                 return;
+            }
+
             if (published.Warning.WatchState == watch.State &&
                 published.Warning.IsRecoveryStopped == watch.IsRecoveryStopped)
+            {
                 return;
+            }
+
             var refreshed = published.Warning with
             {
                 WatchState = watch.State,
@@ -135,9 +154,15 @@ public sealed partial class IndexVolumeChangeSource
             {
                 var isFailed = drive.State is DriveState.Failed or DriveState.Offline;
                 if (!isFailed && !drive.Watch.IsSupported)
+                {
                     continue;
+                }
+
                 if (BuildJournalWarning(drive, owner, configuration) is not { } warning)
+                {
                     continue;
+                }
+
                 warnings.Add(warning);
                 _publishedWarnings[drive.Drive.Letter] = new PublishedWarning(warning, drive.Watch.StateVersion);
             }
@@ -152,7 +177,9 @@ public sealed partial class IndexVolumeChangeSource
         lock (_publishedWarningsLock)
         {
             if (!_publishedWarnings.ContainsKey(letter))
+            {
                 return;
+            }
         }
         RefreshJournalWarning(letter, watch, GitWizardConfiguration.GetGlobalConfiguration());
     }
@@ -161,7 +188,9 @@ public sealed partial class IndexVolumeChangeSource
         GitWizardConfiguration configuration, List<JournalWarning> warnings)
     {
         if (BuildJournalWarning(drive, owner, configuration) is { } warning)
+        {
             warnings.Add(warning);
+        }
     }
 
     static JournalWarning? BuildJournalWarning(DriveStatus drive, MftIndexSession owner,
@@ -170,9 +199,14 @@ public sealed partial class IndexVolumeChangeSource
         var indexedDrive = owner.IndexedDrives.FirstOrDefault(candidate =>
             candidate.Drive == drive.Drive);
         if (indexedDrive is null || configuration.IgnoredJournalWarnings.Contains(indexedDrive.VolumeSerial))
+        {
             return null;
+        }
+
         if (drive.Watch.CheckpointLoss is not { } loss)
+        {
             return null;
+        }
 
         return new JournalWarning
         {

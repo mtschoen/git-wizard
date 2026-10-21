@@ -42,14 +42,22 @@ sealed class UpdateHandler : IUpdateHandler
 
     void RecordCreated(string? path)
     {
-        if (string.IsNullOrEmpty(path)) return;
+        if (string.IsNullOrEmpty(path))
+        {
+            return;
+        }
+
         _createdPaths.Add(path);
         _created++;
     }
 
     bool AcceptParent(string? parentPath, string kind)
     {
-        if (!string.IsNullOrEmpty(parentPath) && _createdPaths.Contains(parentPath)) return true;
+        if (!string.IsNullOrEmpty(parentPath) && _createdPaths.Contains(parentPath))
+        {
+            return true;
+        }
+
         _skipped++;
         _warnings.Add(string.IsNullOrEmpty(parentPath)
             ? $"[SKIPPED] {kind} parent has null path"
@@ -70,7 +78,11 @@ sealed class UpdateHandler : IUpdateHandler
 
     public void OnRepositoryCreated(GitWizardRepository gitWizardRepository)
     {
-        lock (_stateLock) RecordCreated(gitWizardRepository.WorkingDirectory);
+        lock (_stateLock)
+        {
+            RecordCreated(gitWizardRepository.WorkingDirectory);
+        }
+
         GitWizardLog.Log($"[CREATED] {gitWizardRepository.WorkingDirectory}", GitWizardLog.LogType.Verbose);
     }
 
@@ -95,21 +107,32 @@ sealed class UpdateHandler : IUpdateHandler
     void PrintProgress(int count, int total)
     {
         if (total <= 0)
+        {
             return;
+        }
 
-        double fraction = (double)count / total;
-        int barWidth = 20;
-        int filled = (int)Math.Round(fraction * barWidth);
-        if (filled > barWidth) filled = barWidth;
-        if (filled < 0) filled = 0;
+        var fraction = (double)count / total;
+        const int barWidth = 20;
+        var filled = (int)Math.Round(fraction * barWidth);
+        if (filled > barWidth)
+        {
+            filled = barWidth;
+        }
+
+        if (filled < 0)
+        {
+            filled = 0;
+        }
 
         var bar = new string('█', filled) + new string('░', barWidth - filled);
-        int percent = (int)Math.Round(fraction * 100);
-        string progressLine = $"\r  [{bar}] {percent,3}%  {_progressDescription}  {count}/{total}  ";
+        var percent = (int)Math.Round(fraction * 100);
+        var progressLine = $"\r  [{bar}] {percent,3}%  {_progressDescription}  {count}/{total}  ";
         _stderr.Write(progressLine);
 
         if (count >= total)
+        {
             _stderr.WriteLine();
+        }
     }
 
     public void OnSubmoduleCreated(GitWizardRepository parent, GitWizardRepository submodule)
@@ -117,7 +140,9 @@ sealed class UpdateHandler : IUpdateHandler
         lock (_stateLock)
         {
             if (AcceptParent(parent.WorkingDirectory, "Submodule"))
+            {
                 RecordCreated(submodule.WorkingDirectory);
+            }
         }
         GitWizardLog.Log($"[SUBMODULE] {submodule.WorkingDirectory} (Parent={parent.WorkingDirectory})",
             GitWizardLog.LogType.Verbose);
@@ -125,13 +150,21 @@ sealed class UpdateHandler : IUpdateHandler
 
     public void OnWorktreeCreated(GitWizardRepository worktree)
     {
-        lock (_stateLock) RecordCreated(worktree.WorkingDirectory);
+        lock (_stateLock)
+        {
+            RecordCreated(worktree.WorkingDirectory);
+        }
+
         GitWizardLog.Log($"[WORKTREE] {worktree.WorkingDirectory}", GitWizardLog.LogType.Verbose);
     }
 
     public void OnUninitializedSubmoduleCreated(GitWizardRepository parent, string submodulePath)
     {
-        lock (_stateLock) AcceptParent(parent.WorkingDirectory, "Uninitialized submodule");
+        lock (_stateLock)
+        {
+            AcceptParent(parent.WorkingDirectory, "Uninitialized submodule");
+        }
+
         GitWizardLog.Log($"[UNINITIALIZED SUBMODULE] {submodulePath} (Parent={parent.WorkingDirectory})",
             GitWizardLog.LogType.Verbose);
     }
@@ -147,7 +180,9 @@ sealed class UpdateHandler : IUpdateHandler
                 _warnings.Add($"[MISSING] Refresh completed but item not created: {path} (IsRefreshing={gitWizardRepository.IsRefreshing})");
             }
             else
+            {
                 _refreshed++;
+            }
         }
         GitWizardLog.Log($"[COMPLETED] {gitWizardRepository.WorkingDirectory} (IsRefreshing={gitWizardRepository.IsRefreshing})",
             GitWizardLog.LogType.Verbose);

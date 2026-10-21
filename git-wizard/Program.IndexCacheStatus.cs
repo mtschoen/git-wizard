@@ -14,7 +14,10 @@ public static partial class Program
     {
         await output.WriteLineAsync(MftIndexCacheStatusFormatter.Format(snapshot)).ConfigureAwait(false);
         foreach (var message in snapshot.Errors)
+        {
             await error.WriteLineAsync(message).ConfigureAwait(false);
+        }
+
         return snapshot.Succeeded ? 0 : 1;
     }
 }

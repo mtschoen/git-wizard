@@ -43,7 +43,9 @@ static class Program
                 args.Length > 0 ? args[0] : Path.Combine("Screenshots", "GitWizardUI.png"));
             var screenshotDir = Path.GetDirectoryName(screenshotPath);
             if (!string.IsNullOrEmpty(screenshotDir) && !Directory.Exists(screenshotDir))
+            {
                 Directory.CreateDirectory(screenshotDir);
+            }
 
             // Trigger rendering and capture the rendered frame
             using var bitmap = window.CaptureRenderedFrame();

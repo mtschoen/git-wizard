@@ -9,7 +9,9 @@ public static partial class Program
     internal static string? GetUnsupportedPlatformMessage(bool isWindows, bool isLinux)
     {
         if (!isWindows && !isLinux)
+        {
             return "--watch requires Windows or Linux.";
+        }
 
         return null;
     }
@@ -71,7 +73,9 @@ public static partial class Program
         WriteDiscoveryDiagnostics(startup.Inventory, stderr);
 
         if (startup.Inventory.Outcome == DiscoveryOutcome.Unusable)
+        {
             return 1;
+        }
 
         if (startup.Source is null)
         {
@@ -88,7 +92,9 @@ public static partial class Program
         var stopped = await RunWatchLoopAsync(service, stdout.WriteLine, exitCode => capturedExit = exitCode, token, verbose, TimeProvider.System).ConfigureAwait(false);
 
         if (capturedExit is { } exitVal)
+        {
             return exitVal;
+        }
 
         return stopped ? 1 : 0;
     }
@@ -117,7 +123,9 @@ public static partial class Program
         startInfo.ArgumentList.Add($"GITWIZARD_HOME={localFilesPath}");
         startInfo.ArgumentList.Add(processPath);
         foreach (var argument in arguments)
+        {
             startInfo.ArgumentList.Add(argument);
+        }
 
         try
         {
@@ -168,7 +176,10 @@ public static partial class Program
                 foreach (var (drive, message) in service.ScanErrors)
                 {
                     if (!reported.TryReport(drive, message))
+                    {
                         continue;
+                    }
+
                     writer.Write($"scan error on {drive}: {message}");
                 }
             }
@@ -180,7 +191,10 @@ public static partial class Program
                 foreach (var warning in service.ScanWarnings)
                 {
                     if (!reportedWarnings.TryReport(warning.DriveLetter, warning.Message))
+                    {
                         continue;
+                    }
+
                     writer.Write(warning.Message);
                 }
             }
@@ -238,7 +252,9 @@ public static partial class Program
             catch (InvalidOperationException exception)
             {
                 if (!isStopped())
+                {
                     writer.Write($"Broker died: {exception.Message}");
+                }
 
                 return true;
             }

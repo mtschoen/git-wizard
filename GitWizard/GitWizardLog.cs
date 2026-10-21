@@ -60,8 +60,14 @@ public static class GitWizardLog
     static void DispatchConsole(string? message, LogType type)
     {
         var sink = TypedLogMethod;
-        if (sink == null) LogMethod(message);
-        else sink(message, type);
+        if (sink == null)
+        {
+            LogMethod(message);
+        }
+        else
+        {
+            sink(message, type);
+        }
     }
 
     static readonly object LogFileLock = new();
@@ -95,8 +101,10 @@ public static class GitWizardLog
     /// <param name="type">The type of log message.</param>
     public static void Log(string message, LogType type = LogType.Info)
     {
-        if ((type is LogType.Verbose or LogType.Debug) && !VerboseMode)
+        if (type is LogType.Verbose or LogType.Debug && !VerboseMode)
+        {
             return;
+        }
 
         var formattedMessage = string.Format(CultureInfo.InvariantCulture, LogMessageCompositeFormat, DateTime.UtcNow, type, message);
         if (SilentMode)
@@ -105,7 +113,10 @@ public static class GitWizardLog
             // diagnostic collector) still receives warnings and errors so the saved
             // run.warnings survive --silent.
             if (type is LogType.Warning or LogType.Error)
+            {
                 TypedLogMethod?.Invoke(formattedMessage, type);
+            }
+
             return;
         }
 
@@ -142,9 +153,13 @@ public static class GitWizardLog
             // Silent mode suppresses the context's console dispatch only; a typed sink
             // (the report diagnostic collector) still receives it.
             if (SilentMode)
+            {
                 TypedLogMethod?.Invoke(context, LogType.Error);
+            }
             else
+            {
                 DispatchConsole(context, LogType.Error);
+            }
         }
         LogExceptionToConsole(exception);
     }
@@ -190,12 +205,9 @@ public static class GitWizardLog
         oldChannel.Writer.Complete();
 
         // Wait for old writer task to finish draining
-        if (oldTask != null)
-        {
-            // Invariant: _writerTask is a fire-and-forget background task that never throws;
-            // blocking here is safe because there is no synchronization context to deadlock.
-            oldTask.GetAwaiter().GetResult();
-        }
+        // Invariant: _writerTask is a fire-and-forget background task that never throws;
+        // blocking here is safe because there is no synchronization context to deadlock.
+        oldTask?.GetAwaiter().GetResult();
 
         // Dispose old resources
         lock (LogFileLock)
@@ -246,7 +258,9 @@ public static class GitWizardLog
         }
 
         if (localWriter == null)
+        {
             return;
+        }
 
         try
         {
@@ -269,7 +283,9 @@ public static class GitWizardLog
             var fileName = string.Format(CultureInfo.InvariantCulture, LogFileNameCompositeFormat, DateTime.UtcNow);
             var logFolderPath = GitWizardApi.GetLogFolderPath();
             if (!Directory.Exists(logFolderPath))
+            {
                 Directory.CreateDirectory(logFolderPath);
+            }
 
             var logFilePath = Path.Combine(logFolderPath, fileName);
             var writer = File.Exists(logFilePath)
@@ -324,13 +340,17 @@ public static class GitWizardLog
         {
             var logFolder = GitWizardApi.GetLogFolderPath();
             if (!Directory.Exists(logFolder))
+            {
                 return;
+            }
 
             var now = DateTime.UtcNow;
             Parallel.ForEach(Directory.EnumerateFiles(logFolder), path =>
             {
                 if (now - File.GetCreationTimeUtc(path) > LogFileLifetime)
+                {
                     File.Delete(path);
+                }
             });
         }).Start();
     }

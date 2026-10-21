@@ -85,10 +85,14 @@ public static partial class Program
         var report = await command.ScanAsync(repositoryPaths, cancellationToken).ConfigureAwait(false);
         var json = SerializeInventoryReport(runConfiguration, report);
         if (runConfiguration.SavePath != null)
+        {
             await File.WriteAllTextAsync(runConfiguration.SavePath, json, cancellationToken).ConfigureAwait(false);
+        }
 
         if (!runConfiguration.Silent)
+        {
             await stdout.WriteLineAsync(json).ConfigureAwait(false);
+        }
 
         return 0;
     }

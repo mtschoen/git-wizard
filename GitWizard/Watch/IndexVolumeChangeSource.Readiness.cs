@@ -11,7 +11,13 @@ public sealed partial class IndexVolumeChangeSource : IVolumeReadiness
 
     public VolumeReadinessSnapshot Readiness
     {
-        get { lock (_faultLock) return _readiness; }
+        get
+        {
+            lock (_faultLock)
+            {
+                return _readiness;
+            }
+        }
     }
 
     public event Action<VolumeReadinessSnapshot>? ReadinessChanged;
@@ -57,10 +63,14 @@ public sealed partial class IndexVolumeChangeSource : IVolumeReadiness
             var letter = char.ToUpperInvariant(drive[0]);
             var usable = ContainsUsableDrive(letter);
             if (usable)
+            {
                 PublishVolumeState(VolumeWatchStatus.CatchingUp(letter.ToString(), origin));
+            }
             else
+            {
                 PublishVolumeState(VolumeWatchStatus.Excluded(letter.ToString(), origin,
-                    errors.TryGetValue(drive, out var error) ? error : NotWatchableReason));
+                    errors.GetValueOrDefault(drive, NotWatchableReason)));
+            }
         }
     }
 
@@ -72,14 +82,22 @@ public sealed partial class IndexVolumeChangeSource : IVolumeReadiness
         foreach (var status in owner.CaptureDriveStatuses())
         {
             if (status.IndexStatus is not { } index)
+            {
                 continue;
+            }
+
             var letter = char.ToUpperInvariant(status.Drive[0]);
             // A recovering drive can carry its fault's message and still come back.
             if (!driveSet.Contains(letter) || index.Watch.State == WatchState.Recovering)
+            {
                 continue;
+            }
+
             var message = index.Watch.FailureMessage;
             if (message is { Length: > 0 } || index.Watch.State == WatchState.Faulted)
+            {
                 RecordStartupDriveFailure(letter, message ?? "The drive's watch faulted during catch-up.");
+            }
         }
     }
 }

@@ -22,7 +22,9 @@ public partial class GitWizardRepository
     {
         var configurationPath = Path.Combine(GetCommonRepositoryDirectory(repository), "config");
         if (!File.Exists(configurationPath))
+        {
             return null;
+        }
 
         string? configuredRemote;
         using (var configuration = Configuration.BuildFrom(configurationPath))
@@ -32,7 +34,9 @@ public partial class GitWizardRepository
 
         // Unset, empty, and "." (local-to-local tracking) all mean "no remote upstream".
         if (string.IsNullOrEmpty(configuredRemote) || configuredRemote == ".")
+        {
             return null;
+        }
 
         // Compare against remote NAMES by enumeration. Do not index Remotes[configuredRemote]:
         // for a URL value that native lookup also throws InvalidSpecificationException.
@@ -75,7 +79,9 @@ public partial class GitWizardRepository
             {
                 var configuredRemote = GetUnresolvedUpstreamRemote(repository, branch);
                 if (configuredRemote != null)
+                {
                     LogUnresolvedUpstreamRemoteOnce(repository, branch.FriendlyName, configuredRemote);
+                }
             }
 
             return trackedBranch;
@@ -86,7 +92,9 @@ public partial class GitWizardRepository
             var namesConfiguredRemote = effectiveRemote != null &&
                 repository.Network.Remotes.Any(remote => remote.Name == effectiveRemote);
             if (string.IsNullOrEmpty(effectiveRemote) || effectiveRemote == "." || namesConfiguredRemote)
+            {
                 throw;
+            }
 
             LogUnresolvedUpstreamRemoteOnce(repository, branch.FriendlyName, effectiveRemote);
             return null;
@@ -131,7 +139,9 @@ public partial class GitWizardRepository
         {
             using var process = System.Diagnostics.Process.Start(psi);
             if (process == null)
+            {
                 return null;
+            }
 
             process.BeginErrorReadLine(); // drained but unused: only to keep a full stderr buffer from blocking WaitForExit.
 
@@ -142,7 +152,9 @@ public partial class GitWizardRepository
 
             var timedOut = !process.WaitForExit(5000);
             if (timedOut)
+            {
                 process.Kill();
+            }
 
             // Waits for the error-stream callback, which the timed overload can outrun. Once git
             // has exited or been killed its end of the pipe is closed, so the stdout read ends
@@ -151,7 +163,9 @@ public partial class GitWizardRepository
             var output = outputTask.GetAwaiter().GetResult();
 
             if (timedOut || process.ExitCode != 0)
+            {
                 return null;
+            }
 
             // --null ends the value with one NUL, so it is read raw and never trimmed: git already
             // dropped unquoted whitespace, and a quoted " origin " must not match a real "origin".
@@ -187,7 +201,9 @@ public partial class GitWizardRepository
         internal static UnresolvedUpstreamDiagnosticScope Open()
         {
             if (UnresolvedUpstreamRemoteDiagnostics.Value != null)
+            {
                 return new UnresolvedUpstreamDiagnosticScope(false);
+            }
 
             UnresolvedUpstreamRemoteDiagnostics.Value = new ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
             return new UnresolvedUpstreamDiagnosticScope(true);
@@ -196,7 +212,9 @@ public partial class GitWizardRepository
         public void Dispose()
         {
             if (_openedSet)
+            {
                 UnresolvedUpstreamRemoteDiagnostics.Value = null;
+            }
         }
     }
 
@@ -204,8 +222,10 @@ public partial class GitWizardRepository
     {
         var commonDirectory = GetCommonRepositoryDirectory(repository);
         var loggedKeys = UnresolvedUpstreamRemoteDiagnostics.Value;
-        if (loggedKeys != null && !loggedKeys.TryAdd($"{commonDirectory}|{branchName}|{configuredRemote}", 0))
+        if (loggedKeys?.TryAdd($"{commonDirectory}|{branchName}|{configuredRemote}", 0) == false)
+        {
             return;
+        }
 
         GitWizardLog.Log(
             $"Branch '{branchName}' has branch.{branchName}.remote set to '{configuredRemote}', which does not name a configured remote; reporting the branch as untracked. Common repository: {commonDirectory}.",

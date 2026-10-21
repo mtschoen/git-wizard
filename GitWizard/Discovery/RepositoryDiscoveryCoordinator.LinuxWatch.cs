@@ -24,7 +24,9 @@ public partial class RepositoryDiscoveryCoordinator
 
             var armResult = await source.ArmAndCatchUpAsync(allRoots, cancellationToken).ConfigureAwait(false);
             foreach (var (root, message) in armResult.Errors)
+            {
                 accumulator.Errors[root] = message;
+            }
 
             if (allRoots.Length > 0 && armResult.Errors.Count == allRoots.Length)
             {
@@ -51,7 +53,9 @@ public partial class RepositoryDiscoveryCoordinator
         finally
         {
             if (source is not null)
+            {
                 await source.DisposeAsync().ConfigureAwait(false);
+            }
         }
     }
 
@@ -108,7 +112,9 @@ public partial class RepositoryDiscoveryCoordinator
                          dependencies.CandidateExists(root, RepositoryCandidateKind.GitFile) ||
                          dependencies.CandidateExists(root, RepositoryCandidateKind.Bare);
             if (exists && CandidateAdmissionPolicy.AdmitsInventoryCandidate(scope, root))
+            {
                 accumulator.Paths.Add(root);
+            }
 
             accumulator.Observations.Add(new RootObservation(root, true, true, DiscoverySource.Scan, null, null));
         }

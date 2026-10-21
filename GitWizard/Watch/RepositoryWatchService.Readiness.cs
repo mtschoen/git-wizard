@@ -30,12 +30,24 @@ public sealed partial class RepositoryWatchService
 
     public WatchReadiness? Readiness
     {
-        get { lock (_readinessLock) return _readiness; }
+        get
+        {
+            lock (_readinessLock)
+            {
+                return _readiness;
+            }
+        }
     }
 
     public VolumeReadinessSnapshot VolumeReadiness
     {
-        get { lock (_readinessLock) return _volumeReadiness; }
+        get
+        {
+            lock (_readinessLock)
+            {
+                return _volumeReadiness;
+            }
+        }
     }
 
     void ResetReadiness(WatchReadinessMode mode)
@@ -64,7 +76,9 @@ public sealed partial class RepositoryWatchService
     void SetPumpVolumes(IReadOnlyList<string> volumes)
     {
         lock (_readinessLock)
+        {
             _pumpVolumes = volumes;
+        }
     }
 
     // Called by the pump after startup batches flushed and the source read is established,
@@ -81,13 +95,17 @@ public sealed partial class RepositoryWatchService
     void MarkTerminal()
     {
         lock (_readinessLock)
+        {
             _terminal = true;
+        }
     }
 
     void TryPublishReadyLocked()
     {
         if (_readiness is not null || _terminal || !_startupDelivered)
+        {
             return;
+        }
 
         WatchReadiness readiness;
         if (_readinessMode == WatchReadinessMode.PumpActive)
@@ -97,7 +115,10 @@ public sealed partial class RepositoryWatchService
         else
         {
             if (!_volumeReadiness.IsSettled || !_volumeReadiness.HasCaughtUpVolume)
+            {
                 return;
+            }
+
             readiness = new WatchReadiness(_readinessMode, _volumeReadiness.CaughtUpVolumes, _volumeReadiness.ExcludedVolumes);
         }
 

@@ -8,7 +8,6 @@ public sealed partial class MftIndexSession : IAsyncDisposable
 {
     readonly IAsyncDisposable? _connectionOwner;
     MftIndexDiagnostics? _diagnostics;
-    BrokerSession? _brokerSession;
     readonly Lock _disposalLock = new();
     readonly string? _cacheDirectory;
     Task? _disposal;
@@ -19,9 +18,9 @@ public sealed partial class MftIndexSession : IAsyncDisposable
 
     public FileIndex Index { get; }
     public IReadOnlyList<string> Drives { get; private set; }
-    public IReadOnlyList<IndexedDrive> IndexedDrives { get; private set; }
+    public IReadOnlyList<IndexedDrive> IndexedDrives { get; }
     public IReadOnlyDictionary<string, string> ScanErrors { get; private set; }
-    public bool IsFaulted => _brokerSession?.Ended.IsCompleted == true;
+    public bool IsFaulted => BrokerSession?.Ended.IsCompleted == true;
     public bool IsDisposed => Volatile.Read(ref _disposed) != 0;
 
     internal MftIndexSession(FileIndex index, IAsyncDisposable? connectionOwner,
@@ -55,7 +54,10 @@ public sealed partial class MftIndexSession : IAsyncDisposable
         CancellationToken cancellationToken)
     {
         if (cacheMode is not (CacheMode.Persistent or CacheMode.ExistingOnly))
+        {
             throw new ArgumentOutOfRangeException(nameof(cacheMode));
+        }
+
         MftIndexDiagnostics? diagnostics = null;
         var transferred = false;
         FileIndex? index = null;
@@ -70,7 +72,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
                 drives.Select(drive => drive.Drive.ToString()).ToArray(), drives,
                 CollectScanErrors(index), cacheDirectory)
             {
-                _brokerSession = brokerSession,
+                BrokerSession = brokerSession,
                 _diagnostics = diagnostics
             };
             transferred = true;
@@ -83,7 +85,9 @@ public sealed partial class MftIndexSession : IAsyncDisposable
             try
             {
                 if (!transferred)
+                {
                     await DisposeResourcesAsync(index, brokerSession, null).ConfigureAwait(false);
+                }
             }
             finally
             {
@@ -117,7 +121,9 @@ public sealed partial class MftIndexSession : IAsyncDisposable
         foreach (var drive in index.Drives)
         {
             if (drive.State is DriveState.Failed or DriveState.Offline)
+            {
                 errors[drive.Drive.ToString()] = drive.Failure?.Message ?? $"Drive is {drive.State}.";
+            }
         }
         return errors;
     }
@@ -133,19 +139,25 @@ public sealed partial class MftIndexSession : IAsyncDisposable
         try
         {
             if (index != null)
+            {
                 await index.DisposeAsync().ConfigureAwait(false);
+            }
         }
         finally
         {
             try
             {
                 if (connection != null)
+                {
                     await connection.DisposeAsync().ConfigureAwait(false);
+                }
             }
             finally
             {
                 if (diagnostics != null)
+                {
                     await diagnostics.DisposeAsync().ConfigureAwait(false);
+                }
             }
         }
     }
@@ -166,14 +178,12 @@ public sealed partial class MftIndexSession : IAsyncDisposable
     public ValueTask DisposeAsync()
     {
         lock (_disposalLock)
+        {
             return new ValueTask(_disposal ??= DisposeCoreAsync());
+        }
     }
 
-    internal BrokerSession? BrokerSession
-    {
-        get => _brokerSession;
-        set => _brokerSession = value;
-    }
+    internal BrokerSession? BrokerSession { get; set; }
 
     Task DisposeCoreAsync()
     {

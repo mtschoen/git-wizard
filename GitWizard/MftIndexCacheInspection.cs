@@ -29,8 +29,7 @@ public sealed class MftIndexCacheInspection
         {
             try
             {
-                inventory = _inspect(directory).OrderBy(row => row.File.Drive.Letter)
-                    .ThenBy(row => row.File.VolumeSerial).ToArray();
+                inventory = [.. _inspect(directory).OrderBy(row => row.File.Drive.Letter).ThenBy(row => row.File.VolumeSerial)];
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
@@ -62,7 +61,10 @@ public sealed class MftIndexCacheInspection
         catch (DirectoryNotFoundException) { return []; }
         catch (FileNotFoundException) { return []; }
         if ((attributes & FileAttributes.Directory) == 0)
+        {
             throw new IOException($"Cache path is not a directory: {directory}");
+        }
+
         return CacheDirectory.InspectCached(directory);
     }
 

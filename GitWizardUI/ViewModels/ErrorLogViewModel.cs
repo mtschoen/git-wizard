@@ -28,7 +28,9 @@ public sealed class ErrorLogViewModel : INotifyPropertyChanged
     {
         Entries.Insert(0, new ErrorLogEntry(DateTime.Now, repositoryPath, message));
         while (Entries.Count > MaxEntries)
+        {
             Entries.RemoveAt(Entries.Count - 1);
+        }
     }
 
     public void Clear() => Entries.Clear();

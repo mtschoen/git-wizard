@@ -84,7 +84,9 @@ public sealed class RepositoryChangeFilter
     {
         var path = WatchPath.Parse(entry.FullPath);
         if (IsIgnored(path))
+        {
             return null;
+        }
 
         switch (entry.Kind)
         {
@@ -230,7 +232,9 @@ public sealed class RepositoryChangeFilter
 
             var classification = ClassifyEntry(entry);
             if (classification is null)
+            {
                 continue;
+            }
 
             var (kind, root) = classification.Value;
             switch (kind)
@@ -256,16 +260,17 @@ public sealed class RepositoryChangeFilter
     bool IsExcludedTempPath(WatchPath path)
     {
         if (_includeTempDirectories)
+        {
             return false;
+        }
 
         if (!TempDirectories.IsTempPath(path.Original))
+        {
             return false;
+        }
 
         var searchRoot = FindContainingRoot(path, _orderedSearchRoots);
-        if (searchRoot is not null && TempDirectories.IsTempPath(searchRoot.Value.Original))
-            return false;
-
-        return true;
+        return searchRoot is null || !TempDirectories.IsTempPath(searchRoot.Value.Original);
     }
 
     /// <summary>
@@ -278,7 +283,9 @@ public sealed class RepositoryChangeFilter
     public void AddRepositoryRoot(string rootPath)
     {
         if (!_trackedRootsSet.Add(rootPath))
+        {
             return;
+        }
 
         var root = WatchPath.Parse(rootPath);
         var length = root.Comparison.Length;
@@ -302,17 +309,23 @@ public sealed class RepositoryChangeFilter
     public void RemoveRepositoryRoot(string rootPath)
     {
         if (!_trackedRootsSet.Remove(rootPath))
+        {
             return;
+        }
 
         var root = WatchPath.Parse(rootPath);
         var length = root.Comparison.Length;
         if (!_rootsByLength.TryGetValue(length, out var list))
+        {
             return;
+        }
 
         for (var index = 0; index < list.Count; index++)
         {
             if (!list[index].IsEqualTo(root))
+            {
                 continue;
+            }
 
             var lastIndex = list.Count - 1;
             if (index != lastIndex)
@@ -336,12 +349,16 @@ public sealed class RepositoryChangeFilter
         foreach (var length in _descendingLengths)
         {
             if (length > pathLength)
+            {
                 continue;
+            }
 
             foreach (var root in _rootsByLength[length])
             {
                 if (path.IsUnderOrEqual(root))
+                {
                     return root;
+                }
             }
         }
 
@@ -354,10 +371,14 @@ public sealed class RepositoryChangeFilter
         foreach (var root in orderedRoots)
         {
             if (root.Comparison.Length > pathLength)
+            {
                 continue;
+            }
 
             if (path.IsUnderOrEqual(root))
+            {
                 return root;
+            }
         }
 
         return null;
@@ -367,7 +388,5 @@ public sealed class RepositoryChangeFilter
     // (Windows-rooted vs POSIX) rather than rewriting separators. A '/' to '\\' rewrite would
     // report a Linux repository root back to consumers as "\repos\repo-a".
     static WatchPath[] OrderRootsForClassify(IReadOnlyCollection<string> roots) =>
-        roots.Select(WatchPath.Parse)
-            .OrderByDescending(root => root.Comparison.Length)
-            .ToArray();
+        [.. roots.Select(WatchPath.Parse).OrderByDescending(root => root.Comparison.Length)];
 }

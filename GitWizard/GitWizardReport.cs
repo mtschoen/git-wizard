@@ -13,7 +13,9 @@ public partial class GitWizardReport : IAsyncDisposable
     internal static void ResetCachedReport()
     {
         lock (ReportLock)
+        {
             _cachedReport = null;
+        }
     }
 
     /// <summary>Shared serializer options for report (de)serialization and the
@@ -86,12 +88,16 @@ public partial class GitWizardReport : IAsyncDisposable
         lock (ReportLock)
         {
             if (_cachedReport != null)
+            {
                 return _cachedReport;
+            }
         }
 
         var reportPath = GetCachedReportPath();
         if (!File.Exists(reportPath))
+        {
             return null;
+        }
 
         string jsonText;
         try
@@ -108,7 +114,9 @@ public partial class GitWizardReport : IAsyncDisposable
         {
             var report = JsonSerializer.Deserialize<GitWizardReport>(jsonText);
             lock (ReportLock)
+            {
                 _cachedReport = report;
+            }
         }
         catch (Exception exception)
         {
@@ -117,7 +125,9 @@ public partial class GitWizardReport : IAsyncDisposable
         }
 
         lock (ReportLock)
+        {
             return _cachedReport;
+        }
     }
 
     public static async Task<GitWizardReport?> GetCachedReportAsync(CancellationToken cancellationToken = default)
@@ -125,12 +135,16 @@ public partial class GitWizardReport : IAsyncDisposable
         lock (ReportLock)
         {
             if (_cachedReport != null)
+            {
                 return _cachedReport;
+            }
         }
 
         var reportPath = GetCachedReportPath();
         if (!File.Exists(reportPath))
+        {
             return null;
+        }
 
         string jsonText;
         try
@@ -147,7 +161,9 @@ public partial class GitWizardReport : IAsyncDisposable
         {
             var report = JsonSerializer.Deserialize<GitWizardReport>(jsonText);
             lock (ReportLock)
+            {
                 _cachedReport = report;
+            }
         }
         catch (Exception exception)
         {
@@ -156,7 +172,9 @@ public partial class GitWizardReport : IAsyncDisposable
         }
 
         lock (ReportLock)
+        {
             return _cachedReport;
+        }
     }
 
     public GitWizardReport()
@@ -198,7 +216,7 @@ public partial class GitWizardReport : IAsyncDisposable
             ICollection<string> pathsToRefresh;
             if (report.DiscoveryInventory is { CanPublishFullInventory: false })
             {
-                pathsToRefresh = report.DiscoveryInventory.Paths.ToList();
+                pathsToRefresh = [.. report.DiscoveryInventory.Paths];
             }
             else
             {
@@ -304,9 +322,13 @@ public partial class GitWizardReport : IAsyncDisposable
         foreach (var path in repositoryPaths)
         {
             if (Directory.Exists(path))
+            {
                 validPaths.Add(path);
+            }
             else
+            {
                 deletedPaths.Add(path);
+            }
         }
 
         DeletedPaths = new HashSet<string>(deletedPaths);

@@ -9,7 +9,11 @@ static class IconLoader
 
     public static WindowIcon Load()
     {
-        if (_cached is not null) return _cached;
+        if (_cached is not null)
+        {
+            return _cached;
+        }
+
         var rawStream = AssetLoader.Open(new Uri("avares://GitWizardUI/Assets/appicon.png"));
         try
         {

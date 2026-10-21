@@ -27,9 +27,15 @@ public partial class MainViewModel
         {
             var sessions = new List<MftActiveCacheSession>();
             if (source?.CaptureCacheStatus() is { } live)
+            {
                 sessions.Add(live);
+            }
+
             if (_preparedDiscoveryIndex?.CaptureCacheStatus() is { } prepared)
+            {
                 sessions.Add(prepared);
+            }
+
             return sessions.AsReadOnly();
         }
     }

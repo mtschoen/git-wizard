@@ -83,11 +83,17 @@ public partial class MainViewModel
     {
         var sequenceNumber = Interlocked.Increment(ref _liveEventSequenceNumber);
         if (ev.Kind == RepositoryChangeKind.Changed)
+        {
             await ApplyLiveChangedAsync(ev.RepoRoot).ConfigureAwait(false);
+        }
         else if (ev.Kind == RepositoryChangeKind.Created)
+        {
             await ApplyLiveCreatedAsync(ev.RepoRoot, sequenceNumber).ConfigureAwait(false);
+        }
         else if (ev.Kind == RepositoryChangeKind.Deleted)
+        {
             ApplyLiveDeleted(ev.RepoRoot, sequenceNumber);
+        }
     }
 
     async Task ApplyLiveChangedAsync(string repoRoot)
@@ -96,16 +102,24 @@ public partial class MainViewModel
         await _ui.InvokeAsync(() =>
         {
             if (!_inFlightLiveRefreshes.Add(repoRoot))
+            {
                 return;
+            }
 
             if (_repositoryMap.TryGetValue(repoRoot, out var node))
+            {
                 repository = node.Repository;
+            }
             else
+            {
                 _inFlightLiveRefreshes.Remove(repoRoot);
+            }
         }).ConfigureAwait(false);
 
         if (repository is null)
+        {
             return;
+        }
 
         try
         {
@@ -128,12 +142,17 @@ public partial class MainViewModel
         // A short-lived repository (CI/test scratch repos) may already be gone by the time its
         // refresh ran: drop it quietly instead of adding a phantom node.
         if (!Directory.Exists(repoRoot))
+        {
             return;
+        }
 
         _ui.Post(() =>
         {
             if (!_pendingCreateSequenceNumbers.TryGetValue(repoRoot, out var pendingSeq) || pendingSeq != sequenceNumber)
+            {
                 return;
+            }
+
             _pendingCreateSequenceNumbers.Remove(repoRoot);
 
             if (_pendingDeletedRepos.TryGetValue(repoRoot, out var pending) && pending.SequenceNumber < sequenceNumber)
@@ -144,7 +163,9 @@ public partial class MainViewModel
 
             var renamedFrom = TryCorrelateRename(repoRoot, repository);
             if (renamedFrom != null)
+            {
                 RemoveRepositoryPathFromUi(renamedFrom);
+            }
 
             AddRepository(repository);
         });
@@ -155,13 +176,19 @@ public partial class MainViewModel
         _ui.Post(() =>
         {
             if (_pendingCreateSequenceNumbers.TryGetValue(repoRoot, out var pendingSeq) && pendingSeq < sequenceNumber)
+            {
                 _pendingCreateSequenceNumbers.Remove(repoRoot);
+            }
 
             if (!_repositoryMap.TryGetValue(repoRoot, out var node))
+            {
                 return;
+            }
 
             if (_pendingDeletedRepos.TryGetValue(repoRoot, out var existing))
+            {
                 _ = CancelAndDisposeAsync(existing.ExpireCts);
+            }
 
             var expireCts = new CancellationTokenSource();
             _pendingDeletedRepos[repoRoot] = (node.Repository, expireCts, sequenceNumber);
@@ -179,7 +206,9 @@ public partial class MainViewModel
         foreach (var (oldPath, pending) in _pendingDeletedRepos)
         {
             if (FindRenamedRepo(pending.Repository, oldPath, healthyRepos) != repoRoot)
+            {
                 continue;
+            }
 
             _ = CancelAndDisposeAsync(pending.ExpireCts);
             _pendingDeletedRepos.Remove(oldPath);
@@ -197,7 +226,9 @@ public partial class MainViewModel
         _ui.Post(() =>
         {
             if (_pendingDeletedRepos.Remove(repoRoot))
+            {
                 RemoveRepositoryPathFromUi(repoRoot);
+            }
         });
     }
 

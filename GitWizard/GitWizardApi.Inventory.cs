@@ -45,7 +45,7 @@ public static partial class GitWizardApi
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(coordinator);
 
-        if (explicitPaths != null && explicitPaths.Count > 0)
+        if (explicitPaths?.Count > 0)
         {
             var expandedPaths = ExpandAllClonePaths(explicitPaths);
             var inventory = new DiscoveryInventory
@@ -117,7 +117,9 @@ public static partial class GitWizardApi
         foreach (var path in repositoryPaths)
         {
             if (string.IsNullOrWhiteSpace(path))
+            {
                 continue;
+            }
 
             CollectCloneAndDescendants(path, allClones);
         }
@@ -128,16 +130,22 @@ public static partial class GitWizardApi
     static void CollectCloneAndDescendants(string repositoryPath, HashSet<string> allClones)
     {
         if (string.IsNullOrWhiteSpace(repositoryPath) || !Directory.Exists(repositoryPath))
+        {
             return;
+        }
 
         var normalizedPath = NormalizePath(repositoryPath);
         if (allClones.Contains(normalizedPath))
+        {
             return;
+        }
 
         try
         {
             if (!Repository.IsValid(repositoryPath))
+            {
                 return;
+            }
 
             allClones.Add(normalizedPath);
 
@@ -151,7 +159,9 @@ public static partial class GitWizardApi
                     try
                     {
                         if (worktree == null)
+                        {
                             continue;
+                        }
 
                         using var worktreeRepository = worktree.WorktreeRepository;
                         var worktreePath = worktreeRepository?.Info?.WorkingDirectory;
@@ -181,7 +191,9 @@ public static partial class GitWizardApi
                     try
                     {
                         if (submodule == null || submodule.WorkDirCommitId == null)
+                        {
                             continue;
+                        }
 
                         var submodulePath = Path.Combine(workingDirectory, submodule.Path);
                         CollectCloneAndDescendants(submodulePath, allClones);

@@ -8,7 +8,7 @@ public static class ByteSizeFormatter
     /// <summary>Uses invariant culture, up to two decimal places, and units from B through TB.</summary>
     public static string Format(long bytes)
     {
-        string[] units = { "B", "KB", "MB", "GB", "TB" };
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
         double size = bytes;
         var unitIndex = 0;
         while (size >= 1024 && unitIndex < units.Length - 1)
@@ -16,6 +16,7 @@ public static class ByteSizeFormatter
             size /= 1024;
             unitIndex++;
         }
+
         return string.Create(CultureInfo.InvariantCulture, $"{size:0.##} {units[unitIndex]}");
     }
 
@@ -23,15 +24,23 @@ public static class ByteSizeFormatter
     public static string FormatForDisplay(long? bytes)
     {
         if (!bytes.HasValue)
+        {
             return string.Empty;
+        }
 
         const double bytesPerKilobyte = 1024;
         const double bytesPerMegabyte = bytesPerKilobyte * 1024;
         const double bytesPerGigabyte = bytesPerMegabyte * 1024;
         if (bytes.Value >= bytesPerGigabyte)
+        {
             return $"{bytes.Value / bytesPerGigabyte:F1} GB";
+        }
+
         if (bytes.Value >= bytesPerMegabyte)
+        {
             return $"{bytes.Value / bytesPerMegabyte:F1} MB";
+        }
+
         return $"{bytes.Value / bytesPerKilobyte:F1} KB";
     }
 }

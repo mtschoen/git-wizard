@@ -55,7 +55,13 @@ public sealed class LiveWatchController
 
     internal RepositoryWatchService? Service
     {
-        get { lock (_gate) return _service; }
+        get
+        {
+            lock (_gate)
+            {
+                return _service;
+            }
+        }
     }
 
     public WatchReadiness? Readiness
@@ -63,7 +69,9 @@ public sealed class LiveWatchController
         get
         {
             lock (_gate)
+            {
                 return _service?.Readiness;
+            }
         }
     }
 
@@ -84,7 +92,9 @@ public sealed class LiveWatchController
         get
         {
             lock (_gate)
+            {
                 return _service?.ScanErrors ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            }
         }
     }
 
@@ -93,7 +103,9 @@ public sealed class LiveWatchController
         get
         {
             lock (_gate)
+            {
                 return _service?.ScanWarnings ?? Array.Empty<JournalWarning>();
+            }
         }
     }
 
@@ -102,7 +114,9 @@ public sealed class LiveWatchController
         get
         {
             lock (_gate)
+            {
                 return (_lifetime as WatchStartupResult)?.Source;
+            }
         }
     }
 
@@ -121,7 +135,10 @@ public sealed class LiveWatchController
             lock (_gate)
             {
                 if (_stopRequested || ct.IsCancellationRequested)
+                {
                     return;
+                }
+
                 runCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 _runCts = runCts;
             }
@@ -130,7 +147,9 @@ public sealed class LiveWatchController
             {
                 var startup = await AcquireStartupAsync(runCts, ct).ConfigureAwait(false);
                 if (startup is null)
+                {
                     return;
+                }
 
                 var service = TryBeginRun(startup);
                 if (service is null)
@@ -140,11 +159,13 @@ public sealed class LiveWatchController
                     return;
                 }
 
-                string? died = await RunOnceAsync(service, runCts.Token).ConfigureAwait(false);
+                var died = await RunOnceAsync(service, runCts.Token).ConfigureAwait(false);
 
                 bool stopRequested;
                 lock (_gate)
+                {
                     stopRequested = _stopRequested;
+                }
 
                 var elevatedRespawn =
                     !stopRequested && !ct.IsCancellationRequested && died is not null && _isElevated()
@@ -170,7 +191,10 @@ public sealed class LiveWatchController
                 }
 
                 if (!stopRequested && !ct.IsCancellationRequested && died is not null)
+                {
                     _onStopped(died);
+                }
+
                 return;
             }
             finally
@@ -203,12 +227,17 @@ public sealed class LiveWatchController
         }
 
         if (startup.Source is not null)
+        {
             return startup;
+        }
 
         var inventory = startup.Inventory;
         await startup.DisposeAsync().ConfigureAwait(false);
         if (IsStopRequested(ct))
+        {
             return null;
+        }
+
         StartupUnavailable?.Invoke(inventory);
         return null;
     }
@@ -216,7 +245,9 @@ public sealed class LiveWatchController
     bool IsStopRequested(CancellationToken ct)
     {
         lock (_gate)
+        {
             return _stopRequested || ct.IsCancellationRequested;
+        }
     }
 
     // Publishes the next run's service and lifetime under the gate after the atomic
@@ -227,7 +258,9 @@ public sealed class LiveWatchController
         lock (_gate)
         {
             if (_stopRequested)
+            {
                 return null;
+            }
 
             var service = new RepositoryWatchService(startup);
             _lifetime = startup;
@@ -258,7 +291,9 @@ public sealed class LiveWatchController
         // Force-dispose outside the lock: a source whose WatchAsync ignores its token only
         // unwinds when its handle is disposed, so this is what actually stops the run in that case.
         if (lifetime is not null)
+        {
             await lifetime.DisposeAsync().ConfigureAwait(false);
+        }
     }
 
     async Task DisposeCurrentLifetimeAsync()
@@ -271,7 +306,9 @@ public sealed class LiveWatchController
         }
 
         if (lifetime is not null)
+        {
             await lifetime.DisposeAsync().ConfigureAwait(false);
+        }
     }
 
     async Task<string?> RunOnceAsync(RepositoryWatchService service, CancellationToken ct)
@@ -292,7 +329,9 @@ public sealed class LiveWatchController
         try
         {
             await foreach (var changeEvent in service.RunAsync(ct).ConfigureAwait(false))
+            {
                 _onEvent(changeEvent);
+            }
         }
         catch (OperationCanceledException)
         {

@@ -48,7 +48,7 @@ public static class FanotifyInterop
     }
 }
 
-internal sealed class FanotifyProbe
+sealed class FanotifyProbe
 {
     readonly IFanotifyNative _native;
 
@@ -61,18 +61,24 @@ internal sealed class FanotifyProbe
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         if (!Directory.Exists(path))
+        {
             throw new ArgumentException("Path must identify an existing directory.", nameof(path));
+        }
 
         var initializeResult = _native.Initialize(
             FanotifyConstants.CloseOnExecute | FanotifyConstants.ReportDirectoryFileIdAndName,
             FanotifyConstants.ReadOnly);
         if (initializeResult.Value < 0)
+        {
             return ClassifyFailure(initializeResult.ErrorNumber);
+        }
 
         using var descriptor = new SafeUnixFileDescriptor(initializeResult.Value, _native);
         var addResult = Mark(initializeResult.Value, FanotifyConstants.MarkAdd, path);
         if (addResult.Value < 0)
+        {
             return ClassifyFailure(addResult.ErrorNumber);
+        }
 
         var removeResult = Mark(initializeResult.Value, FanotifyConstants.MarkRemove, path);
         return removeResult.Value < 0
@@ -108,7 +114,7 @@ internal sealed class FanotifyProbe
     }
 }
 
-internal sealed class SafeUnixFileDescriptor : SafeHandleMinusOneIsInvalid
+sealed class SafeUnixFileDescriptor : SafeHandleMinusOneIsInvalid
 {
     readonly IFanotifyNative _native;
 
@@ -127,7 +133,7 @@ internal sealed class SafeUnixFileDescriptor : SafeHandleMinusOneIsInvalid
     }
 }
 
-internal interface IFanotifyNative
+interface IFanotifyNative
 {
     FanotifyNativeCallResult Initialize(uint flags, uint eventFileFlags);
 
@@ -153,10 +159,10 @@ internal interface IFanotifyNative
     string? ReadLink(string path);
 }
 
-internal readonly record struct FanotifyNativeCallResult(int Value, int ErrorNumber);
+readonly record struct FanotifyNativeCallResult(int Value, int ErrorNumber);
 
 [SupportedOSPlatform("linux")]
-internal sealed partial class FanotifyNative : IFanotifyNative
+sealed partial class FanotifyNative : IFanotifyNative
 {
     public static FanotifyNative Instance { get; } = new();
 
@@ -230,13 +236,17 @@ internal sealed partial class FanotifyNative : IFanotifyNative
         // The statfs layout below is the 64-bit Linux one (x86-64 and arm64), where f_fsid follows seven 8-byte fields.
         filesystemId = 0;
         if (nint.Size != 8)
+        {
             return false;
+        }
 
         unsafe
         {
             var buffer = stackalloc byte[FanotifyConstants.StatfsBufferSize];
             if (NativeFilesystemStatistics(descriptor, buffer) != 0)
+            {
                 return false;
+            }
 
             filesystemId = Unsafe.ReadUnaligned<long>(buffer + FanotifyConstants.StatfsFilesystemIdOffset);
             return true;
@@ -251,10 +261,14 @@ internal sealed partial class FanotifyNative : IFanotifyNative
             var buffer = stackalloc byte[initialSize];
             var result = NativeReadLink(path, buffer, initialSize);
             if (result <= 0)
+            {
                 return null;
+            }
 
             if (result < initialSize)
+            {
                 return System.Text.Encoding.UTF8.GetString(buffer, (int)result);
+            }
 
             var bufferSize = 4096;
             while (bufferSize <= 65536)
@@ -264,10 +278,14 @@ internal sealed partial class FanotifyNative : IFanotifyNative
                 {
                     result = NativeReadLink(path, pointer, (nuint)bufferSize);
                     if (result <= 0)
+                    {
                         return null;
+                    }
 
                     if (result < bufferSize)
+                    {
                         return System.Text.Encoding.UTF8.GetString(pointer, (int)result);
+                    }
                 }
 
                 bufferSize *= 2;
@@ -283,7 +301,7 @@ internal sealed partial class FanotifyNative : IFanotifyNative
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct PollFd
+    struct PollFd
     {
         public int Fd;
         public short Events;
@@ -327,7 +345,7 @@ internal sealed partial class FanotifyNative : IFanotifyNative
     private static unsafe partial nint NativeReadLink(string path, byte* buffer, nuint bufferSize);
 }
 
-internal static class FanotifyConstants
+static class FanotifyConstants
 {
     public const uint CloseOnExecute = 0x00000001;
     public const uint ReadOnly = 0;
@@ -369,7 +387,7 @@ internal static class FanotifyConstants
     public const int MountDescriptorFlags = (int)ReadOnly | OpenDirectory | OpenCloseOnExecute;
 }
 
-internal static class FanotifyError
+static class FanotifyError
 {
     public const int NotPermitted = 1;
     public const int NoDevice = 19;

@@ -4,10 +4,12 @@ namespace GitWizard.CLI;
 
 public static partial class Program
 {
-    const string SessionStartMessage = @"Session Start Message
-=======================================================================================================================
-git-wizard Session Started
-=======================================================================================================================";
+    const string SessionStartMessage = """
+        Session Start Message
+        =======================================================================================================================
+        git-wizard Session Started
+        =======================================================================================================================
+        """;
 
     public static async Task Main()
     {
@@ -16,7 +18,9 @@ git-wizard Session Started
         // Dispatch MFTLib's elevated journal-broker child mode (launched by --watch's
         // self-elevation) before any other startup work.
         if (ElevatedEntryPoint.RunBrokerIfRequested(args))
+        {
             return;
+        }
 
         if (WindowsDefender.TryRunElevatedHelper(args) is { } helperExitCode)
         {
@@ -30,7 +34,9 @@ git-wizard Session Started
         // falling through to a full report run (they carry no other flags to distinguish
         // them from a bare invocation).
         if (runConfiguration.Command == CommandKind.HelpPrinted)
+        {
             return;
+        }
 
         if (runConfiguration.HasParseError)
         {
@@ -53,11 +59,15 @@ git-wizard Session Started
         }
 
         if (TryHandleImmediateExitFlags(runConfiguration, Console.Error))
+        {
             return;
+        }
 
         var exitCode = await RunCommandCoreAsync(runConfiguration).ConfigureAwait(false);
         if (exitCode != 0)
+        {
             Environment.Exit(exitCode);
+        }
     }
 
     internal static async Task<int> RunCommandCoreAsync(
@@ -191,11 +201,15 @@ git-wizard Session Started
     {
         var customConfigurationPath = runConfiguration.CustomConfigurationPath;
         if (customConfigurationPath == null)
+        {
             return await GitWizardConfiguration.GetGlobalConfigurationAsync().ConfigureAwait(false);
+        }
 
         var configuration = await GitWizardConfiguration.GetConfigurationAtPathAsync(customConfigurationPath).ConfigureAwait(false);
         if (configuration != null)
+        {
             return configuration;
+        }
 
         GitWizardLog.Log($"Could not find custom configuration at path: {customConfigurationPath}", GitWizardLog.LogType.Error);
         Environment.Exit(1);
@@ -206,7 +220,9 @@ git-wizard Session Started
     {
         var argument = runConfiguration.PathsArgument;
         if (string.IsNullOrEmpty(argument))
+        {
             return null;
+        }
 
         // If it's a file, read lines from it
         if (File.Exists(argument))
@@ -231,7 +247,10 @@ git-wizard Session Started
         {
             GitWizardLog.SilentMode = false;
             foreach (var searchPath in configuration.SearchPaths)
+            {
                 GitWizardLog.Log($"Could not get repository paths at {searchPath} because it is not a directory", GitWizardLog.LogType.Error);
+            }
+
             GitWizardLog.Log(
                 $"{usableCount} of {configuration.SearchPaths.Count} configured search paths are usable",
                 GitWizardLog.LogType.Error);

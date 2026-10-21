@@ -19,7 +19,10 @@ public sealed partial class RepositoryWatchService
             if (_startup is { StartupBatches.Count: > 0 })
             {
                 foreach (var batch in _startup.StartupBatches)
+                {
                     ApplyBatch(filtersByVolume, batch, pending);
+                }
+
                 await FlushAsync(pending, filtersByVolume, writer, ct).ConfigureAwait(false);
             }
             await PumpLoopAsync(enumerator, filtersByVolume, pending, writer, ct).ConfigureAwait(false);
@@ -58,11 +61,15 @@ public sealed partial class RepositoryWatchService
         // without that signal has no better proxy than its own first read having begun, so the
         // same completed-false guard is applied to it immediately instead.
         if (_source is IPumpLifecycle pumpLifecycle)
+        {
             _ = pumpLifecycle.PumpStarted.ContinueWith(
                 _ => TryMarkStartupDelivered(firstBatch, ct),
                 CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        }
         else
+        {
             TryMarkStartupDelivered(firstBatch, ct);
+        }
 
         var idle = Task.Delay(Timeout.InfiniteTimeSpan, ct);
         var flushScheduled = false;
@@ -75,7 +82,10 @@ public sealed partial class RepositoryWatchService
                 if (winner == nextBatch)
                 {
                     if (!await nextBatch.ConfigureAwait(false))
+                    {
                         break;
+                    }
+
                     var hasRelevantChanges = ApplyBatch(filtersByVolume, enumerator.Current, pending);
                     nextBatch = enumerator.MoveNextAsync().AsTask();
                     if (hasRelevantChanges && !flushScheduled)
@@ -113,10 +123,15 @@ public sealed partial class RepositoryWatchService
     void TryMarkStartupDelivered(Task<bool> nextBatch, CancellationToken ct)
     {
         if (ct.IsCancellationRequested || nextBatch.IsFaulted || nextBatch.IsCanceled)
+        {
             return;
+        }
         // Because short-circuiting proves successful completion, reading Result cannot block.
         if (nextBatch.IsCompletedSuccessfully && !nextBatch.Result)
+        {
             return;
+        }
+
         MarkStartupDelivered();
     }
 
@@ -134,7 +149,9 @@ public sealed partial class RepositoryWatchService
         VolumeChangeBatch batch, PendingChanges pending)
     {
         if (!filtersByVolume.TryGetValue(batch.Volume, out var filter))
+        {
             return false;
+        }
 
         var hasRelevantChanges = false;
         foreach (var entry in batch.Entries)
@@ -160,14 +177,21 @@ public sealed partial class RepositoryWatchService
 
             var classification = filter.ClassifyEntry(entry);
             if (classification is null)
+            {
                 continue;
+            }
 
             hasRelevantChanges = true;
             var (kind, root) = classification.Value;
             if (kind == RepositoryChangeKind.Created)
+            {
                 filter.AddRepositoryRoot(root);
+            }
             else if (kind == RepositoryChangeKind.Deleted)
+            {
                 filter.RemoveRepositoryRoot(root);
+            }
+
             pending.Add(root, kind);
         }
 
@@ -183,9 +207,14 @@ public sealed partial class RepositoryWatchService
         foreach (var changeEvent in pending.DrainEvents())
         {
             if (changeEvent.Kind == RepositoryChangeKind.Created)
+            {
                 createdRoots.Add(changeEvent.RepoRoot);
+            }
             else if (changeEvent.Kind == RepositoryChangeKind.Deleted)
+            {
                 createdRoots.Remove(changeEvent.RepoRoot);
+            }
+
             await writer.WriteAsync(changeEvent, ct).ConfigureAwait(false);
         }
 
@@ -197,11 +226,15 @@ public sealed partial class RepositoryWatchService
         foreach (var candidate in pending.DrainMovedInCandidates())
         {
             if (createdRoots.Contains(candidate) || !LooksLikeRepository(candidate))
+            {
                 continue;
+            }
 
             var volume = WatchPath.Parse(candidate).Volume;
             if (volume is not null && filtersByVolume.TryGetValue(volume, out var filter))
+            {
                 filter.AddRepositoryRoot(candidate);
+            }
 
             createdRoots.Add(candidate);
             await writer.WriteAsync(new RepositoryChangeEvent(candidate, RepositoryChangeKind.Created), ct).ConfigureAwait(false);
@@ -239,12 +272,17 @@ public sealed partial class RepositoryWatchService
         public void Add(string root, RepositoryChangeKind kind)
         {
             if (!_stateByRoot.TryGetValue(root, out var state))
+            {
                 _stateByRoot[root] = state = new RootPendingState();
+            }
 
             if (kind == RepositoryChangeKind.Changed)
             {
                 if (state.HasChangedSinceLifecycle)
+                {
                     return;
+                }
+
                 state.LastEvent = RepositoryChangeKind.Changed;
                 state.HasChangedSinceLifecycle = true;
                 _events.Add(new RepositoryChangeEvent(root, RepositoryChangeKind.Changed));
@@ -252,7 +290,10 @@ public sealed partial class RepositoryWatchService
             }
 
             if (state.LastEvent == kind)
+            {
                 return;
+            }
+
             state.LastEvent = kind;
             state.HasChangedSinceLifecycle = false;
             _events.Add(new RepositoryChangeEvent(root, kind));

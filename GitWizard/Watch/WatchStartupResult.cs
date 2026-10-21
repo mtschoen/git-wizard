@@ -49,10 +49,14 @@ public sealed class WatchStartupResult : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
             return;
+        }
 
         var source = DetachSource();
         if (source is not null)
+        {
             await source.DisposeAsync().ConfigureAwait(false);
+        }
     }
 }

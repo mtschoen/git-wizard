@@ -12,7 +12,9 @@ public partial class MainViewModel
     internal void PruneStalePrePopulatedRepos(HashSet<string> freshPaths, HashSet<string> renamedOldPaths)
     {
         if (_prePopulatedNodes == null || _prePopulatedNodes.Count == 0)
+        {
             return;
+        }
 
         var stalePaths = _prePopulatedNodes
             .Select(node => node.WorkingDirectory)
@@ -21,7 +23,9 @@ public partial class MainViewModel
             .ToList();
 
         foreach (var path in stalePaths)
+        {
             RemoveRepositoryPathFromUi(path);
+        }
 
         _prePopulatedNodes = null;
     }
@@ -33,7 +37,9 @@ public partial class MainViewModel
     {
         var cachedPaths = await GitWizardApi.GetCachedRepositoryPathsAsync().ConfigureAwait(false);
         if (cachedPaths == null)
+        {
             return;
+        }
 
         var pathsToRemove = deletedPaths.Union(renamedOldPaths).Union(nonRepositoryPaths).ToHashSet();
         if (pathsToRemove.Count > 0)
@@ -47,10 +53,14 @@ public partial class MainViewModel
     void RemoveRenamedReposFromUi(HashSet<string> renamedOldPaths)
     {
         if (renamedOldPaths.Count == 0)
+        {
             return;
+        }
 
         foreach (var path in renamedOldPaths)
+        {
             RemoveRepositoryPathFromUi(path);
+        }
     }
 
     /// <summary>
@@ -72,7 +82,9 @@ public partial class MainViewModel
         for (var index = Repositories.Count - 1; index >= 0; index--)
         {
             if (Repositories[index].WorkingDirectory == path)
+            {
                 Repositories.RemoveAt(index);
+            }
         }
 
         foreach (var groupHeader in groupHeaders)
@@ -80,7 +92,9 @@ public partial class MainViewModel
             for (var index = groupHeader.Children.Count - 1; index >= 0; index--)
             {
                 if (groupHeader.Children[index].WorkingDirectory == path)
+                {
                     groupHeader.Children.RemoveAt(index);
+                }
             }
 
             groupHeader.UpdateDisplayText();

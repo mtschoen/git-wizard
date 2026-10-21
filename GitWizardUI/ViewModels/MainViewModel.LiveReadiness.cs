@@ -14,7 +14,10 @@ public partial class MainViewModel
         get
         {
             if (_liveWatchHistory is not null)
+            {
                 return _liveWatchHistory;
+            }
+
             _liveWatchHistory = new LiveWatchHistoryViewModel(_ui.Post, _timeProvider);
             _liveWatchHistory.Changed += () => OnPropertyChanged(nameof(LiveReadinessTooltip));
             return _liveWatchHistory;
@@ -42,7 +45,11 @@ public partial class MainViewModel
         get => _liveReadinessText;
         internal set
         {
-            if (_liveReadinessText == value) return;
+            if (_liveReadinessText == value)
+            {
+                return;
+            }
+
             _liveReadinessText = value;
             OnPropertyChanged();
         }
@@ -55,8 +62,14 @@ public partial class MainViewModel
         foreach (var status in snapshot.Volumes)
         {
             var existing = LiveVolumes.FirstOrDefault(row => string.Equals(row.Volume, status.Volume, StringComparison.OrdinalIgnoreCase));
-            if (existing is null) LiveVolumes.Add(new LiveVolumeStatusViewModel(status));
-            else existing.Update(status);
+            if (existing is null)
+            {
+                LiveVolumes.Add(new LiveVolumeStatusViewModel(status));
+            }
+            else
+            {
+                existing.Update(status);
+            }
         }
         OnPropertyChanged(nameof(LiveReadinessTooltip));
         if (_liveController?.Readiness is { } readiness)
@@ -69,8 +82,16 @@ public partial class MainViewModel
             .Select(volume => volume.Volume).ToArray();
         var excluded = snapshot.ExcludedVolumes.Select(volume => volume.Volume).ToArray();
         var parts = new List<string>();
-        if (catchingUp.Length > 0) parts.Add($"Catching up: {string.Join(", ", catchingUp)}");
-        if (excluded.Length > 0) parts.Add($"excluded: {string.Join(", ", excluded)}");
+        if (catchingUp.Length > 0)
+        {
+            parts.Add($"Catching up: {string.Join(", ", catchingUp)}");
+        }
+
+        if (excluded.Length > 0)
+        {
+            parts.Add($"excluded: {string.Join(", ", excluded)}");
+        }
+
         LiveReadinessText = string.Join("; ", parts);
     }
 
@@ -81,7 +102,10 @@ public partial class MainViewModel
             ? $"No caught-up volumes ({mode})"
             : $"Ready ({mode}): {string.Join(", ", readiness.CaughtUpVolumes)}";
         if (readiness.ExcludedVolumes.Count > 0)
+        {
             text += $"; excluded: {string.Join(", ", readiness.ExcludedVolumes.Select(volume => volume.Volume))}";
+        }
+
         LiveReadinessText = text;
     }
 

@@ -16,7 +16,9 @@ public sealed partial class FanotifyVolumeChangeSource
         {
             var eventLength = (int)BitConverter.ToUInt32(buffer, offset);
             if (eventLength < metadataHeaderLength || offset + eventLength > bytesRead)
+            {
                 break;
+            }
 
             var version = buffer[offset + 4];
             if (version != 3)
@@ -44,7 +46,9 @@ public sealed partial class FanotifyVolumeChangeSource
                 var infoType = buffer[infoOffset];
                 var infoLength = (int)BitConverter.ToUInt16(buffer, infoOffset + 2);
                 if (infoLength < 4 || infoOffset + infoLength > eventEnd)
+                {
                     break;
+                }
 
                 if (infoType is FanotifyConstants.EventInfoTypeDfidName
                     or FanotifyConstants.EventInfoTypeOldDfidName
@@ -56,7 +60,9 @@ public sealed partial class FanotifyVolumeChangeSource
                     if (entry is not null)
                     {
                         if (shouldInvalidate)
+                        {
                             InvalidateCacheForPath(entry.Value.FullPath);
+                        }
 
                         result.Add(entry.Value);
                     }
@@ -75,11 +81,15 @@ public sealed partial class FanotifyVolumeChangeSource
         byte[] buffer, int infoOffset, int infoLength, VolumeEntryKind kind, MountRootTable.MountBatch mounts)
     {
         if (infoLength < 20)
+        {
             return null;
+        }
 
         var handleBytes = (int)BitConverter.ToUInt32(buffer, infoOffset + 12);
         if (infoLength < 20 + handleBytes)
+        {
             return null;
+        }
 
         var filesystemId = BitConverter.ToInt64(buffer, infoOffset + 4);
         var handleTotalSize = 8 + handleBytes;
@@ -94,20 +104,30 @@ public sealed partial class FanotifyVolumeChangeSource
             var nullIndex = Array.IndexOf(buffer, (byte)0, nameOffset, maxNameBytes);
             var nameLength = nullIndex >= 0 ? nullIndex - nameOffset : maxNameBytes;
             if (nameLength > 0)
+            {
                 fileName = Encoding.UTF8.GetString(buffer, nameOffset, nameLength);
+            }
         }
 
         var directoryPath = ResolveDirectoryPath(new FileHandleKey(filesystemId, fileHandlePayload), mounts);
         if (directoryPath is null)
+        {
             return null;
+        }
 
         string fullPath;
         if (string.IsNullOrEmpty(fileName) || fileName == ".")
+        {
             fullPath = directoryPath;
+        }
         else if (directoryPath == "/")
+        {
             fullPath = "/" + fileName;
+        }
         else
+        {
             fullPath = Path.Combine(directoryPath, fileName);
+        }
 
         return new VolumeChangeEntry(fullPath, kind);
     }
@@ -118,15 +138,21 @@ public sealed partial class FanotifyVolumeChangeSource
         // path survives only while the filesystem is still reached through the root that resolved it.
         var reachable = mounts.TryGetDescriptor(key.FilesystemId, out var mountDescriptor, out var mountChanged);
         if (mountChanged)
+        {
             RemoveCacheForFilesystem(key.FilesystemId);
+        }
 
         if (!reachable)
+        {
             return null;
+        }
 
         lock (_handleCacheLock)
         {
             if (_handleCache.TryGetValue(key, out var cachedPath))
+            {
                 return cachedPath;
+            }
         }
 
         var directoryDescriptor = _native.OpenByHandle(
@@ -135,7 +161,9 @@ public sealed partial class FanotifyVolumeChangeSource
             FanotifyConstants.OpenDirectoryFlags);
 
         if (directoryDescriptor < 0)
+        {
             return null;
+        }
 
         try
         {
@@ -162,14 +190,18 @@ public sealed partial class FanotifyVolumeChangeSource
         lock (_handleCacheLock)
         {
             foreach (var key in _handleCache.Keys.Where(key => key.FilesystemId == filesystemId).ToList())
+            {
                 _handleCache.Remove(key);
+            }
         }
     }
 
     void InvalidateCacheForPath(string path)
     {
         if (string.IsNullOrEmpty(path))
+        {
             return;
+        }
 
         var prefix = path.EndsWith('/') ? path : path + "/";
         lock (_handleCacheLock)
@@ -185,7 +217,9 @@ public sealed partial class FanotifyVolumeChangeSource
             }
 
             foreach (var key in keysToRemove)
+            {
                 _handleCache.Remove(key);
+            }
         }
     }
 

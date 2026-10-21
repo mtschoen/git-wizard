@@ -32,7 +32,9 @@ public partial class MainViewModel
         {
             var path = repository.WorkingDirectory;
             if (string.IsNullOrEmpty(path))
+            {
                 continue;
+            }
 
             var node = new RepositoryNodeViewModel(repository);
             _repositoryMap[path] = node;
@@ -44,9 +46,13 @@ public partial class MainViewModel
                 _allRepositories[existingIndex] = node;
 
                 if (newNodesByPath.ContainsKey(path))
+                {
                     newNodesByPath[path] = node;
+                }
                 else
+                {
                     ReplaceVisibleRepositoryNode(existingNode, node);
+                }
 
                 continue;
             }
@@ -68,10 +74,15 @@ public partial class MainViewModel
         foreach (var node in newNodes)
         {
             if (!node.MatchesFilter(_activeFilter, GlobalUserEmail))
+            {
                 continue;
+            }
+
             if (!string.IsNullOrWhiteSpace(_searchText) &&
                 !node.WorkingDirectory.Contains(_searchText, StringComparison.OrdinalIgnoreCase))
+            {
                 continue;
+            }
 
             if (_activeGroupMode == GroupMode.None)
             {
@@ -99,7 +110,9 @@ public partial class MainViewModel
             if (IsRefreshing)
             {
                 foreach (var node in ungroupedBatch)
+                {
                     Repositories.Add(node);
+                }
             }
             else
             {
@@ -110,7 +123,9 @@ public partial class MainViewModel
         if (groupedBatches != null)
         {
             foreach (var (key, bucket) in groupedBatches)
+            {
                 MergeGroupBatch(key, bucket, sort: !IsRefreshing);
+            }
         }
     }
 }

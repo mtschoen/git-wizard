@@ -10,7 +10,10 @@ public sealed class AvaloniaFolderPicker : IFolderPicker
     public async Task<string?> PickFolderAsync()
     {
         var owner = (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
-        if (owner?.StorageProvider is null) return null;
+        if (owner?.StorageProvider is null)
+        {
+            return null;
+        }
 
         var result = await owner.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {

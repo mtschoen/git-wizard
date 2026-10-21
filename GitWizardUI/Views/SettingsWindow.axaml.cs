@@ -23,13 +23,17 @@ public partial class SettingsWindow : Window
     void EnlargeJournal_Click(object? sender, RoutedEventArgs eventArguments)
     {
         if (sender is Button { DataContext: JournalWarningViewModel warning })
+        {
             _ = _viewModel.EnlargeJournalAsync(warning).RunAndLogFaults("Enlarging the change journal");
+        }
     }
 
     void IgnoreJournalWarning_Click(object? sender, RoutedEventArgs eventArguments)
     {
         if (sender is Button { DataContext: JournalWarningViewModel warning })
+        {
             _ = _viewModel.IgnoreJournalWarningAsync(warning).RunAndLogFaults("Ignoring the journal warning");
+        }
     }
 
     async void AddSearchPath_Click(object? sender, RoutedEventArgs e)
@@ -56,7 +60,9 @@ public partial class SettingsWindow : Window
     void SearchPath_KeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter)
+        {
             return;
+        }
 
         _viewModel.AddSearchPath();
         e.Handled = true;
@@ -65,7 +71,9 @@ public partial class SettingsWindow : Window
     void IgnoredPath_KeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter)
+        {
             return;
+        }
 
         _viewModel.AddIgnoredPath();
         e.Handled = true;

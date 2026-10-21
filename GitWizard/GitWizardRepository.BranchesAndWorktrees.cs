@@ -25,7 +25,9 @@ public partial class GitWizardRepository
 
                     var path = worktree.WorktreeRepository.Info.WorkingDirectory;
                     if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                    {
                         path = path.ToLowerInvariant();
+                    }
 
                     bool hasExisting;
                     GitWizardRepository? worktreeRepository;
@@ -60,10 +62,7 @@ public partial class GitWizardRepository
                         }
                     }
 
-                    if (worktreeRepository != null)
-                    {
-                        worktreeRepository.Refresh(updateHandler, cancellationToken: cancellationToken);
-                    }
+                    worktreeRepository?.Refresh(updateHandler, cancellationToken: cancellationToken);
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {
@@ -111,14 +110,19 @@ public partial class GitWizardRepository
             var errorBuilder = new System.Text.StringBuilder();
             using var process = System.Diagnostics.Process.Start(psi);
             if (process == null)
+            {
                 return false;
+            }
 
             process.ErrorDataReceived += (_, args) =>
             {
                 if (args.Data != null)
                 {
                     if (errorBuilder.Length > 0)
+                    {
                         errorBuilder.AppendLine();
+                    }
+
                     errorBuilder.Append(args.Data);
                 }
             };
@@ -156,12 +160,16 @@ public partial class GitWizardRepository
         {
             var detachedTip = repository.Head.Tip;
             if (detachedTip == null)
+            {
                 return;
+            }
 
             foreach (var branch in repository.Branches)
             {
                 if (branch.IsRemote)
+                {
                     continue;
+                }
 
                 try
                 {
@@ -195,11 +203,15 @@ public partial class GitWizardRepository
         {
             var candidate = repository.Branches[name];
             if (candidate is { IsRemote: false })
+            {
                 return candidate;
+            }
         }
 
         if (repository.Head.Reference is SymbolicReference)
+        {
             return repository.Head;
+        }
 
         return null;
     }
@@ -216,7 +228,9 @@ public partial class GitWizardRepository
         var defaultBranch = ResolveDefaultBranch(repository);
         DefaultBranch = defaultBranch?.FriendlyName;
         if (defaultBranch?.Tip == null)
+        {
             return;
+        }
 
         var defaultTip = defaultBranch.Tip;
 
@@ -226,7 +240,9 @@ public partial class GitWizardRepository
             try
             {
                 if (branch.IsRemote || branch.Tip == null)
+                {
                     continue;
+                }
 
                 var divergence = repository.ObjectDatabase.CalculateHistoryDivergence(branch.Tip, defaultTip);
                 var ahead = divergence.AheadBy ?? 0;
@@ -237,7 +253,9 @@ public partial class GitWizardRepository
                 // "Boring": the default branch itself, or a branch identical to it.
                 var boring = isDefault || (ahead == 0 && behind == 0);
                 if (!allBranches && boring)
+                {
                     continue;
+                }
 
                 var hasUpstream = ResolveTrackedBranch(repository, branch) != null;
 
@@ -277,17 +295,23 @@ public partial class GitWizardRepository
         AheadOfRemoteCount = 0;
 
         if (IsDetachedHead)
+        {
             return;
+        }
 
         try
         {
             var head = repository.Head;
             if (head.Tip == null)
+            {
                 return;
+            }
 
             var trackedTip = ResolveTrackedBranch(repository, head)?.Tip;
             if (trackedTip == null)
+            {
                 return;
+            }
 
             var divergence = repository.ObjectDatabase.CalculateHistoryDivergence(head.Tip, trackedTip);
             AheadOfRemoteCount = divergence.AheadBy ?? 0;
@@ -302,7 +326,9 @@ public partial class GitWizardRepository
     public void CheckoutBranch(string branchName)
     {
         if (string.IsNullOrEmpty(WorkingDirectory))
+        {
             throw new InvalidOperationException($"Cannot checkout branch '{branchName}': working directory is not initialized");
+        }
 
         using var repository = new Repository(WorkingDirectory);
         var branch = repository.Branches[branchName];
@@ -337,7 +363,10 @@ public partial class GitWizardRepository
                     if (args.Data != null)
                     {
                         if (errorBuilder.Length > 0)
+                        {
                             errorBuilder.AppendLine();
+                        }
+
                         errorBuilder.Append(args.Data);
                     }
                 };

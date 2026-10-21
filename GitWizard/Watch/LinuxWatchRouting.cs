@@ -5,7 +5,7 @@ namespace GitWizard.Watch;
 /// roots drive native arming and readiness only, so the watch service filters every Linux batch
 /// under this single bucket.
 /// </summary>
-internal static class LinuxWatchRouting
+static class LinuxWatchRouting
 {
     public const string Volume = "/";
 }

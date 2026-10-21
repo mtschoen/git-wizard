@@ -21,9 +21,15 @@ public sealed class LiveVolumeStatusViewModel : INotifyPropertyChanged
 
     public void Update(VolumeWatchStatus status)
     {
-        if (_status == status) return;
+        if (_status == status)
+        {
+            return;
+        }
+
         _status = status;
         foreach (var name in new[] { nameof(StateText), nameof(OriginText), nameof(Reason), nameof(DisplayText) })
+        {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        }
     }
 }

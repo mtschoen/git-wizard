@@ -20,7 +20,9 @@ public partial class MainViewModel
     void EnqueueUICommand(RepositoryUICommand command)
     {
         if (_uiDrainDisposed)
+        {
             return;
+        }
 
         _uiCommands.Enqueue(command);
 
@@ -60,12 +62,16 @@ public partial class MainViewModel
     void ScheduleUIDrain()
     {
         if (Interlocked.CompareExchange(ref _uiDrainScheduled, 1, 0) != 0)
+        {
             return;
+        }
 
         lock (_uiDrainLock)
         {
             if (_uiDrainDisposed)
+            {
                 return;
+            }
 
             _uiDrainWindow = _timeProvider.CreateTimer(OnUIDrainWindowElapsed, null,
                 UiDrainBatchingWindow, Timeout.InfiniteTimeSpan);
@@ -77,7 +83,9 @@ public partial class MainViewModel
         lock (_uiDrainLock)
         {
             if (_uiDrainDisposed)
+            {
                 return;
+            }
 
             _uiDrainWindow?.Dispose();
             _uiDrainWindow = null;
@@ -89,7 +97,9 @@ public partial class MainViewModel
     void RunScheduledUIDrain()
     {
         if (_uiDrainDisposed)
+        {
             return;
+        }
 
         // Reset before draining so an arrival during the drain starts the next window.
         Interlocked.Exchange(ref _uiDrainScheduled, 0);
@@ -116,7 +126,9 @@ public partial class MainViewModel
     void ApplyProgress()
     {
         if (!_progressActive || _progressTotal <= 0)
+        {
             return;
+        }
 
         ProgressValue = (double)_progressCount / _progressTotal;
         ProgressText = $"{_progressDescription} {_progressCount} / {_progressTotal}";

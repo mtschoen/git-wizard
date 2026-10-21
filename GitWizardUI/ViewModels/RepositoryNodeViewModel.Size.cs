@@ -22,7 +22,9 @@ public partial class RepositoryNodeViewModel
     internal void AddParentHeader(RepositoryNodeViewModel header)
     {
         if (!_parentHeaders.Contains(header))
+        {
             _parentHeaders.Add(header);
+        }
     }
 
     internal void RemoveParentHeader(RepositoryNodeViewModel header)
@@ -38,7 +40,9 @@ public partial class RepositoryNodeViewModel
     void NotifyParentHeaders()
     {
         if (_parentHeaders.Count == 0)
+        {
             return;
+        }
 
         foreach (var header in _parentHeaders)
         {
@@ -51,10 +55,14 @@ public partial class RepositoryNodeViewModel
         get
         {
             if (_cachedSizeText != null)
+            {
                 return _cachedSizeText;
+            }
 
             if (IsGroupHeader)
+            {
                 return _cachedSizeText = ByteSizeFormatter.FormatForDisplay(_measuredChildCount > 0 ? _totalMeasuredBytes : null);
+            }
 
             return _cachedSizeText = ByteSizeFormatter.FormatForDisplay(MeasuredSize);
         }
@@ -68,7 +76,9 @@ public partial class RepositoryNodeViewModel
                 if (eventArguments.NewItems != null)
                 {
                     foreach (RepositoryNodeViewModel child in eventArguments.NewItems)
+                    {
                         AddChildTracking(child);
+                    }
                 }
                 break;
 
@@ -76,7 +86,9 @@ public partial class RepositoryNodeViewModel
                 if (eventArguments.OldItems != null)
                 {
                     foreach (RepositoryNodeViewModel child in eventArguments.OldItems)
+                    {
                         RemoveChildTracking(child);
+                    }
                 }
                 break;
 
@@ -84,12 +96,16 @@ public partial class RepositoryNodeViewModel
                 if (eventArguments.OldItems != null)
                 {
                     foreach (RepositoryNodeViewModel child in eventArguments.OldItems)
+                    {
                         RemoveChildTracking(child);
+                    }
                 }
                 if (eventArguments.NewItems != null)
                 {
                     foreach (RepositoryNodeViewModel child in eventArguments.NewItems)
+                    {
                         AddChildTracking(child);
+                    }
                 }
                 break;
 
@@ -107,16 +123,22 @@ public partial class RepositoryNodeViewModel
     void AddChildTracking(RepositoryNodeViewModel child)
     {
         if (_childStates.ContainsKey(child))
+        {
             return;
+        }
 
         var status = child.Status;
         var size = child.MeasuredSize;
         _childStates[child] = new ChildState(status, size);
 
         if (status == RefreshStatus.Error)
+        {
             _errorCount++;
+        }
         else if (status is RefreshStatus.Timeout or RefreshStatus.SubmoduleIssue)
+        {
             _warningCount++;
+        }
 
         if (size is { } measuredSize)
         {
@@ -132,9 +154,13 @@ public partial class RepositoryNodeViewModel
         if (_childStates.Remove(child, out var state))
         {
             if (state.Status == RefreshStatus.Error)
+            {
                 _errorCount--;
+            }
             else if (state.Status is RefreshStatus.Timeout or RefreshStatus.SubmoduleIssue)
+            {
                 _warningCount--;
+            }
 
             if (state.MeasuredSize is { } measuredSize)
             {
@@ -167,23 +193,35 @@ public partial class RepositoryNodeViewModel
     internal void OnChildUpdated(RepositoryNodeViewModel child)
     {
         if (!_childStates.TryGetValue(child, out var oldState))
+        {
             return;
+        }
 
         var newStatus = child.Status;
         var newSize = child.MeasuredSize;
 
         if (oldState.Status == newStatus && oldState.MeasuredSize == newSize)
+        {
             return;
+        }
 
         if (oldState.Status == RefreshStatus.Error)
+        {
             _errorCount--;
+        }
         else if (oldState.Status is RefreshStatus.Timeout or RefreshStatus.SubmoduleIssue)
+        {
             _warningCount--;
+        }
 
         if (newStatus == RefreshStatus.Error)
+        {
             _errorCount++;
+        }
         else if (newStatus is RefreshStatus.Timeout or RefreshStatus.SubmoduleIssue)
+        {
             _warningCount++;
+        }
 
         if (oldState.MeasuredSize is { } oldMeasuredSize)
         {
@@ -207,9 +245,21 @@ public partial class RepositoryNodeViewModel
         OnPropertyChanged(nameof(SizeText));
 
         var suffix = "";
-        if (_errorCount > 0) suffix += $" {_errorCount} error{(_errorCount > 1 ? "s" : "")}";
-        if (_warningCount > 0) suffix += $" {_warningCount} warning{(_warningCount > 1 ? "s" : "")}";
-        if (suffix.Length > 0) suffix = " -" + suffix;
+        if (_errorCount > 0)
+        {
+            suffix += $" {_errorCount} error{(_errorCount > 1 ? "s" : "")}";
+        }
+
+        if (_warningCount > 0)
+        {
+            suffix += $" {_warningCount} warning{(_warningCount > 1 ? "s" : "")}";
+        }
+
+        if (suffix.Length > 0)
+        {
+            suffix = " -" + suffix;
+        }
+
         DisplayText = $"{GroupKey} ({Children.Count}){suffix}";
         OnPropertyChanged(nameof(ExpandIndicator));
     }

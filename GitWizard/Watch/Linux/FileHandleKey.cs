@@ -5,7 +5,7 @@ namespace GitWizard.Watch.Linux;
 /// <c>struct file_handle</c> payload that fanotify reports together. Equal payloads on different
 /// filesystems are different keys.
 /// </summary>
-internal readonly struct FileHandleKey : IEquatable<FileHandleKey>
+readonly struct FileHandleKey : IEquatable<FileHandleKey>
 {
     readonly int _hashCode;
 
@@ -16,7 +16,10 @@ internal readonly struct FileHandleKey : IEquatable<FileHandleKey>
         var hash = new HashCode();
         hash.Add(filesystemId);
         foreach (var b in handleBytes)
+        {
             hash.Add(b);
+        }
+
         _hashCode = hash.ToHashCode();
     }
 

@@ -71,11 +71,17 @@ static partial class CliParser
         {
             var parseResult = app.Parse(NormalizeConsumerAliases(args));
             if (parseResult.SelectedCommand == app)
+            {
                 parsed = ExecuteHandler(rootOptions);
+            }
             else if (parseResult.SelectedCommand == tagsCommand.Application)
+            {
                 parsed = tagsCommand.Build();
+            }
             else if (parseResult.SelectedCommand == branchesCommand.Application)
+            {
                 parsed = branchesCommand.Build();
+            }
         }
         catch (CommandParsingException ex)
         {
@@ -92,7 +98,9 @@ static partial class CliParser
         // no signal in the returned result - without this, the caller can't tell "--help" or
         // "--version" apart from "no args at all" and falls through to a full run.
         if (helpOption.HasValue() || versionOption.HasValue() || tagsCommand.HelpOption.HasValue() || branchesCommand.HelpOption.HasValue())
+        {
             return new RunConfiguration { Command = CommandKind.HelpPrinted };
+        }
 
         return parsed ?? new RunConfiguration();
     }
@@ -198,7 +206,9 @@ static partial class CliParser
         GitWizardLog.VerboseMode = options.Verbose.HasValue();
         GitWizardLog.SilentMode = options.Silent.HasValue();
         if (options.ScanOnly.HasValue())
+        {
             GitWizardLog.LogMethod = Console.Error.WriteLine;
+        }
 
         var savePath = GetLastValue(options.SavePath);
         var configPath = GetLastValue(options.ConfigPath);
@@ -261,19 +271,39 @@ static partial class CliParser
     static CommandKind ResolveCommand(RootOptions options)
     {
         if (options.IndexCacheStatus.HasValue())
+        {
             return CommandKind.IndexCacheStatus;
+        }
+
         if (options.ClearIndexCache.HasValue())
+        {
             return CommandKind.ClearIndexCache;
+        }
+
         if (options.DbSize.HasValue())
+        {
             return CommandKind.DbSize;
+        }
+
         if (options.Sweep.HasValue())
+        {
             return CommandKind.Sweep;
+        }
+
         if (options.Merge.HasValue())
+        {
             return CommandKind.Merge;
+        }
+
         if (options.ScanOnly.HasValue())
+        {
             return CommandKind.ScanOnly;
+        }
+
         if (options.Watch.HasValue())
+        {
             return CommandKind.Watch;
+        }
 
         return CommandKind.Report;
     }
@@ -281,8 +311,11 @@ static partial class CliParser
     static string? GetLastValue(CommandOption opt)
     {
         if (opt.Values.Count == 0)
+        {
             return null;
-        return opt.Values[opt.Values.Count - 1];
+        }
+
+        return opt.Values[^1];
     }
 
     static void ValidateSavePath(ref string? savePath, ref bool hasError)

@@ -8,7 +8,9 @@ public partial class MainViewModel
     public void OpenInExplorer(RepositoryNodeViewModel? node)
     {
         if (node == null)
+        {
             return;
+        }
 
         if (node.IsGroupHeader)
         {
@@ -17,7 +19,9 @@ public partial class MainViewModel
         }
 
         if (string.IsNullOrEmpty(node.WorkingDirectory))
+        {
             return;
+        }
 
         try
         {
@@ -38,7 +42,9 @@ public partial class MainViewModel
     public async Task OpenInForkAsync(RepositoryNodeViewModel? node)
     {
         if (node == null || string.IsNullOrEmpty(node.WorkingDirectory))
+        {
             return;
+        }
 
         if (!Directory.Exists(node.WorkingDirectory))
         {
@@ -47,7 +53,7 @@ public partial class MainViewModel
         }
 
         var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync().ConfigureAwait(false);
-        string? forkPath = configuration.ForkPath;
+        var forkPath = configuration.ForkPath;
 
         if (string.IsNullOrWhiteSpace(forkPath))
         {
@@ -100,7 +106,9 @@ public partial class MainViewModel
     public async Task CopyToClipboardAsync(RepositoryNodeViewModel? node)
     {
         if (node == null || string.IsNullOrEmpty(node.WorkingDirectory))
+        {
             return;
+        }
 
         await _clipboard.SetPlainTextAsync(node.WorkingDirectory).ConfigureAwait(false);
         _ui.Post(() => node.JustCopied = true);
@@ -111,8 +119,10 @@ public partial class MainViewModel
 
     public void DeepRefreshRepository(RepositoryNodeViewModel? node)
     {
-        if (node == null || node.IsGroupHeader)
+        if (node?.IsGroupHeader != false)
+        {
             return;
+        }
 
         node.Status = RefreshStatus.Refreshing;
         Task.Run(() =>
@@ -126,11 +136,15 @@ public partial class MainViewModel
 
     public void CheckoutMatchingBranch(RepositoryNodeViewModel? node)
     {
-        if (node == null || node.IsGroupHeader)
+        if (node?.IsGroupHeader != false)
+        {
             return;
+        }
 
         if (string.IsNullOrEmpty(node.MatchingBranchName))
+        {
             return;
+        }
 
         var branchName = node.MatchingBranchName;
         Task.Run(() =>
@@ -138,7 +152,7 @@ public partial class MainViewModel
             try
             {
                 node.Repository.CheckoutBranch(branchName);
-                _ui.Post(() => node.Update());
+                _ui.Post(node.Update);
             }
             catch (Exception ex)
             {
@@ -151,12 +165,16 @@ public partial class MainViewModel
 
     public async Task CleanDownstreamBranchesAsync(RepositoryNodeViewModel? node)
     {
-        if (node == null || node.IsGroupHeader)
+        if (node?.IsGroupHeader != false)
+        {
             return;
+        }
 
         var downstream = node.Repository.Branches?.Where(b => b.IsMerged).ToList();
         if (downstream == null || downstream.Count == 0)
+        {
             return;
+        }
 
         var branchNames = string.Join(", ", downstream.Select(b => $"'{b.Name}'"));
         var message = $"Delete {downstream.Count} downstream branch(es)?\n\n{branchNames}";
@@ -270,12 +288,16 @@ public partial class MainViewModel
 
     internal void ToggleGroupExpand(RepositoryNodeViewModel? node)
     {
-        if (node == null || !node.IsGroupHeader)
+        if (node?.IsGroupHeader != true)
+        {
             return;
+        }
 
         var index = Repositories.IndexOf(node);
         if (index < 0)
+        {
             return;
+        }
 
         if (node.IsExpanded)
         {
@@ -333,13 +355,19 @@ public partial class MainViewModel
         }
 
         if (pendingRepositoryBatch != null)
+        {
             AddRepositoriesBatch(pendingRepositoryBatch);
+        }
 
         if (stagedCommands == null)
+        {
             return;
+        }
 
         foreach (var command in stagedCommands)
+        {
             ProcessUICommand(command);
+        }
     }
 
     void ProcessUICommand(RepositoryUICommand command)
@@ -348,23 +376,38 @@ public partial class MainViewModel
         {
             case RepositoryUICommandType.RepositoryCreated:
                 if (command.Repository != null)
+                {
                     AddRepository(command.Repository);
+                }
+
                 break;
             case RepositoryUICommandType.SubmoduleCreated:
                 if (command.ParentRepository != null && command.Repository != null)
+                {
                     AddSubmodule(command.ParentRepository, command.Repository);
+                }
+
                 break;
             case RepositoryUICommandType.WorktreeCreated:
                 if (command.Repository != null)
+                {
                     AddRepository(command.Repository);
+                }
+
                 break;
             case RepositoryUICommandType.UninitializedSubmoduleCreated:
                 if (command.ParentRepository != null && command.SubmodulePath != null)
+                {
                     AddUninitializedSubmodule(command.ParentRepository, command.SubmodulePath);
+                }
+
                 break;
             case RepositoryUICommandType.RefreshCompleted:
                 if (command.Repository != null)
+                {
                     UpdateCompletedRepository(command.Repository);
+                }
+
                 break;
         }
     }

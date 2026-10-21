@@ -5,7 +5,7 @@ namespace GitWizard.CLI;
 /// Configuration specified in command line arguments. The default instance is the parse of
 /// an empty command line.
 /// </summary>
-internal sealed record RunConfiguration
+sealed record RunConfiguration
 {
     /// <summary>
     /// The command this command line resolves to.

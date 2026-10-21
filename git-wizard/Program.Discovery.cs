@@ -34,7 +34,9 @@ public static partial class Program
         }
 
         if (explicitPaths != null)
+        {
             return Task.FromResult(new RepositoryDiscoveryResult(CreateExplicitPathInventory(explicitPaths)));
+        }
 
         coordinator ??= new RepositoryDiscoveryCoordinator();
 

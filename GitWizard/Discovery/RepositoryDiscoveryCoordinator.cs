@@ -31,7 +31,9 @@ public partial class RepositoryDiscoveryCoordinator
 
         var previousList = await dependencies.ReadListAsync(cancellationToken).ConfigureAwait(false) ?? [];
         if (request.Purpose == DiscoveryPurpose.Ordinary && request.AllowRepositoryList && previousList.Length > 0)
+        {
             return CreateRepositoryListResult(scope, previousList, updateHandler);
+        }
 
         var accumulator = new DiscoveryAccumulator(scope, new List<string>());
         MftIndexSession? session = null;
@@ -77,7 +79,9 @@ public partial class RepositoryDiscoveryCoordinator
         finally
         {
             if (session is not null)
+            {
                 await session.DisposeAsync().ConfigureAwait(false);
+            }
         }
     }
 
@@ -111,7 +115,9 @@ public partial class RepositoryDiscoveryCoordinator
     {
         var roots = accumulator.Scope.RecursiveRoots;
         if (roots.Count > 0)
+        {
             StartCrawlProgress(progressHandler, roots.Count);
+        }
 
         var completed = 0;
         foreach (var root in roots)
@@ -150,7 +156,9 @@ public partial class RepositoryDiscoveryCoordinator
     static async Task<MftIndexSession?> ReusePreparedSessionAsync(DiscoveryScope scope, MftIndexSession? prepared)
     {
         if (prepared is null)
+        {
             return null;
+        }
 
         if (!prepared.IsDisposed && !prepared.IsFaulted)
         {
@@ -159,7 +167,9 @@ public partial class RepositoryDiscoveryCoordinator
                 .OfType<DriveKey>().ToHashSet();
             if (scope.RequestedNtfsDrives.All(value =>
                 DriveKey.TryParse(value, out var drive) && available.Contains(drive)))
+            {
                 return prepared;
+            }
         }
 
         await prepared.DisposeAsync().ConfigureAwait(false);
@@ -178,10 +188,14 @@ public partial class RepositoryDiscoveryCoordinator
             .Select(driveStatus => driveStatus.Drive)
             .ToArray();
         foreach (var drive in drivesNeedingScan)
+        {
             progress?.Report(new WatchStartupProgress(WatchStartupPhase.Scanning, drive));
+        }
 
         if (drivesNeedingScan.Length == 0)
+        {
             return;
+        }
 
         var results = await session.Index.RescanAsync(drivesNeedingScan.Select(drive => (DriveKey)drive[0]),
             cancellationToken).ConfigureAwait(false);
@@ -189,25 +203,35 @@ public partial class RepositoryDiscoveryCoordinator
         {
             var drive = result.Drive.ToString();
             if (result.Outcome == DriveOperationOutcome.Succeeded)
+            {
                 accumulator.RescannedDrives.Add(drive);
+            }
             else if (result.Outcome == DriveOperationOutcome.Failed)
+            {
                 accumulator.Errors[drive] = result.Failure?.Message ?? "The drive rescan failed.";
+            }
         }
     }
 
     void AddIndexedCandidates(FileIndex index, DiscoveryAccumulator accumulator, CancellationToken cancellationToken)
     {
         if (accumulator.ObservedDrives.Count == 0)
+        {
             return;
+        }
 
         foreach (var candidate in GitWizardApi.SelectRepositoryCandidates(index, accumulator.Scope, cancellationToken))
         {
             var candidateDrive = FindCandidateDrive(accumulator.Scope, candidate.Path);
             if (candidateDrive is not null && !accumulator.ObservedDrives.Contains(candidateDrive))
+            {
                 continue;
+            }
 
             if (Dependencies.CandidateExists(candidate.Path, candidate.Kind))
+            {
                 accumulator.Paths.Add(candidate.Path);
+            }
         }
     }
 
@@ -222,9 +246,15 @@ public partial class RepositoryDiscoveryCoordinator
     static DiscoveryRoute DetermineRoute(DiscoveryScope scope)
     {
         if (scope.RequestedNtfsDrives.Count > 0 && scope.RecursiveRoots.Count > 0)
+        {
             return DiscoveryRoute.Mixed;
+        }
+
         if (scope.RequestedNtfsDrives.Count > 0)
+        {
             return DiscoveryRoute.Indexed;
+        }
+
         return DiscoveryRoute.RecursiveOnly;
     }
 
@@ -232,11 +262,20 @@ public partial class RepositoryDiscoveryCoordinator
     {
         if (drive.IndexStatus is not { } status || status.State == DriveState.Offline ||
             status.Failure?.Kind == DriveFailureKind.InUse)
+        {
             return false;
+        }
+
         if (purpose == DiscoveryPurpose.Rebuild)
+        {
             return true;
+        }
+
         if (status.Failure?.Kind is DriveFailureKind.CacheDeclined or DriveFailureKind.CacheIdentityMismatch)
+        {
             return true;
+        }
+
         return purpose == DiscoveryPurpose.Watch && status.Watch.CheckpointLoss is { } loss &&
                !IsResolvedByOpeningScan(loss, status);
     }

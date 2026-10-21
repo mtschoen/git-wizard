@@ -7,7 +7,7 @@ namespace GitWizard;
 /// only enqueues and never waits on logging. Best effort: at most 256 records are queued, the
 /// oldest are dropped when full, and the drop count is reported once the queue drains.
 /// </summary>
-internal sealed class MftIndexDiagnostics : IAsyncDisposable
+sealed class MftIndexDiagnostics : IAsyncDisposable
 {
     const int Capacity = 256;
     readonly Channel<string> _messages;
@@ -30,10 +30,15 @@ internal sealed class MftIndexDiagnostics : IAsyncDisposable
     async Task DrainAsync(Action<string> sink)
     {
         await foreach (var message in _messages.Reader.ReadAllAsync().ConfigureAwait(false))
+        {
             sink(message);
+        }
+
         var dropped = Interlocked.Read(ref _dropped);
         if (dropped != 0)
+        {
             sink($"MFT index diagnostics dropped {dropped} records because the log queue was full.");
+        }
     }
 
     /// <summary>A relay whose worker writes each record to <see cref="GitWizardLog" /> at its default Info level.</summary>

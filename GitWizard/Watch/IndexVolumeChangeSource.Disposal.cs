@@ -7,7 +7,9 @@ public sealed partial class IndexVolumeChangeSource
     Task StopOnceAsync()
     {
         lock (_lifecycleLock)
+        {
             return _stopping ??= StopCoreAsync();
+        }
     }
 
     async Task StopWatchStateWorkAsync()
@@ -17,7 +19,7 @@ public sealed partial class IndexVolumeChangeSource
         {
             _watchStatesStopped = true;
             PulseWatchStateLocked();
-            pending = _catchUpWork.Values.ToArray();
+            pending = [.. _catchUpWork.Values];
         }
         await Task.WhenAll(pending).ConfigureAwait(false);
         lock (_watchStateLock)
@@ -34,7 +36,10 @@ public sealed partial class IndexVolumeChangeSource
         await StopWatchStateWorkAsync().ConfigureAwait(false);
         var index = _watchedIndex;
         if (index is null)
+        {
             return;
+        }
+
         index.Changed -= OnChanged;
         index.WatchFaulted -= OnWatchFaulted;
         index.WatchStateChanged -= ApplyWatchState;
@@ -70,7 +75,10 @@ public sealed partial class IndexVolumeChangeSource
         // An arm following a drive's recovery must not hold disposal until that recovery ends.
         await StopWatchStateWorkAsync().ConfigureAwait(false);
         if (armFinished is not null)
+        {
             await armFinished.ConfigureAwait(false);
+        }
+
         try
         {
             await StopOnceAsync().ConfigureAwait(false);
@@ -78,7 +86,9 @@ public sealed partial class IndexVolumeChangeSource
         finally
         {
             if (_owner is not null)
+            {
                 await _owner.DisposeAsync().ConfigureAwait(false);
+            }
         }
     }
 }

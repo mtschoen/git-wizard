@@ -33,13 +33,19 @@ public static partial class VolumeChangeSourceFactory
     public static bool IsElevated()
     {
         if (_isElevatedOverride != null)
+        {
             return _isElevatedOverride();
+        }
 
         if (IsWindows())
+        {
             return ElevationUtilities.DefaultProvider.IsElevated();
+        }
 
         if (IsLinux())
+        {
             return OperatingSystem.IsLinux() && LinuxNative.GetEffectiveUserId() == 0;
+        }
 
         return false;
     }
@@ -64,7 +70,9 @@ public static partial class VolumeChangeSourceFactory
         Func<string, bool>? brokerLauncher = null)
     {
         if (_sourceFactoryOverride != null)
+        {
             return _sourceFactoryOverride();
+        }
 
         if (IsWindows())
         {
@@ -84,7 +92,10 @@ public static partial class VolumeChangeSourceFactory
         Func<string, bool>? brokerLauncher, IProgress<IndexScanProgress> progress, CancellationToken cancellationToken)
     {
         if (!OperatingSystem.IsWindows())
+        {
             throw new PlatformNotSupportedException("Opening a Windows index requires Windows.");
+        }
+
         return MftIndexSession.OpenWindowsAsync(drives, brokerLauncher ?? BrokerLauncher.Launch,
             null, progress, cancellationToken);
     }

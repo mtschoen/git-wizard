@@ -41,7 +41,9 @@ public partial class GitWizardRepository
         {
             var submodules = repository.Submodules;
             if (!submodules.Any())
+            {
                 return;
+            }
 
             var submodulesMap = Submodules ??= new SortedDictionary<string, GitWizardRepository?>();
             Parallel.ForEach(submodules, new ParallelOptions { CancellationToken = cancellationToken }, submodule =>
@@ -49,7 +51,9 @@ public partial class GitWizardRepository
                 cancellationToken.ThrowIfCancellationRequested();
                 var submoduleRepository = GetOrCreateSubmoduleRepository(submodule, workingDirectory, updateHandler, submodulesMap);
                 if (submoduleRepository == null)
+                {
                     return;
+                }
 
                 submoduleRepository.Refresh(updateHandler, cancellationToken: cancellationToken);
             });
@@ -68,7 +72,9 @@ public partial class GitWizardRepository
     {
         var path = Path.Combine(workingDirectory, submodule.Path);
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
             path = path.ToLowerInvariant();
+        }
 
         GitWizardRepository? submoduleRepository;
         bool hasExisting;
@@ -78,7 +84,9 @@ public partial class GitWizardRepository
         }
 
         if (hasExisting)
+        {
             return submoduleRepository;
+        }
 
         if (submodule.WorkDirCommitId == null)
         {
@@ -155,7 +163,9 @@ public partial class GitWizardRepository
             foreach (var entry in repository.Index)
             {
                 if (entry.Mode == Mode.GitLink)
+                {
                     indexedPaths.Add(entry.Path);
+                }
             }
 
             var allPaths = new HashSet<string>(declared.Values, StringComparer.OrdinalIgnoreCase);
@@ -185,7 +195,9 @@ public partial class GitWizardRepository
                 }
 
                 if (info.Status != SubmoduleHealthStatus.Healthy)
+                {
                     SubmoduleHealth[path] = info;
+                }
             }
 
             HasSubmoduleIssues = SubmoduleHealth.Count > 0;
@@ -215,7 +227,7 @@ public partial class GitWizardRepository
         info.ActualCommitSha = workDirCommit.Sha;
         info.GitLinkSha = indexCommit?.Sha;
 
-        if (indexCommit != null && !indexCommit.Equals(workDirCommit))
+        if (indexCommit?.Equals(workDirCommit) == false)
         {
             info.Status = SubmoduleHealthStatus.WrongRef;
             info.Issues.Add(
@@ -228,7 +240,9 @@ public partial class GitWizardRepository
         // Guard: indexCommit should not be null here (workdir is initialized, gitlink is in the index).
         // If it is, the submodule is in an inconsistent state and we skip stale-upstream analysis.
         if (indexCommit != null)
+        {
             CheckStaleUpstream(repository, path, indexCommit, info);
+        }
     }
 
     /// <summary>
@@ -303,14 +317,18 @@ public partial class GitWizardRepository
         var result = new Dictionary<string, string>();
         var gitmodulesPath = Path.Combine(workingDirectory, ".gitmodules");
         if (!File.Exists(gitmodulesPath))
+        {
             return result;
+        }
 
         string? currentName = null;
         foreach (var rawLine in File.ReadLines(gitmodulesPath))
         {
             var line = rawLine.Trim();
             if (line.Length == 0 || line[0] == '#')
+            {
                 continue;
+            }
 
             if (line[0] == '[' && line[^1] == ']')
             {
@@ -323,7 +341,9 @@ public partial class GitWizardRepository
             {
                 var parts = line.Split('=', 2);
                 if (parts.Length == 2)
+                {
                     result[currentName] = parts[1].Trim();
+                }
             }
         }
 

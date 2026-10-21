@@ -94,7 +94,10 @@ public sealed partial class MftIndexSession
             session._identityFailures = new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(
                 new Dictionary<string, string>(errors, StringComparer.OrdinalIgnoreCase));
             foreach (var error in session.ScanErrors)
+            {
                 errors[error.Key] = error.Value;
+            }
+
             session.Drives = Array.AsReadOnly(requested.Select(drive => drive.ToString()).ToArray());
             session.ScanErrors = new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(errors);
             return session;

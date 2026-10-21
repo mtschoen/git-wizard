@@ -6,19 +6,25 @@ public sealed partial class IndexVolumeChangeSource
     bool HasUsableDrives()
     {
         lock (_usableDrivesLock)
+        {
             return _usableDrives.Count > 0;
+        }
     }
 
     char[] CaptureUsableDrives()
     {
         lock (_usableDrivesLock)
-            return _usableDrives.ToArray();
+        {
+            return [.. _usableDrives];
+        }
     }
 
     void AddUsableDrive(char driveLetter)
     {
         lock (_usableDrivesLock)
+        {
             _usableDrives.Add(char.ToUpperInvariant(driveLetter));
+        }
     }
 
     bool RemoveUsableDrive(char driveLetter)
@@ -33,6 +39,8 @@ public sealed partial class IndexVolumeChangeSource
     bool ContainsUsableDrive(char driveLetter)
     {
         lock (_usableDrivesLock)
+        {
             return _usableDrives.Contains(char.ToUpperInvariant(driveLetter));
+        }
     }
 }

@@ -33,12 +33,19 @@ public sealed partial class IndexVolumeChangeSource
         lock (_watchStateLock)
         {
             if (_recoveryBaselines.ContainsKey(drive))
+            {
                 return;
+            }
         }
         if (CaptureRepositoryMarkers(drive) is not { } markers)
+        {
             return;
+        }
+
         lock (_watchStateLock)
+        {
             _recoveryBaselines.TryAdd(drive, markers);
+        }
     }
 
     // False when the drive's block could not be read (a newer recovery replaced it under the
@@ -59,10 +66,16 @@ public sealed partial class IndexVolumeChangeSource
                 return false;
             }
             if (current is null)
+            {
                 return false;
+            }
+
             ReconciliationCapturedForTest?.Invoke(drive);
             if (BuildRecoveryReconciliation(drive, baseline, current) is { } reconciliation)
+            {
                 Deliver(reconciliation);
+            }
+
             return true;
         }
     }
@@ -90,13 +103,18 @@ public sealed partial class IndexVolumeChangeSource
     {
         var owner = _owner;
         if (owner is null)
+        {
             return null;
+        }
+
         _driveRealRoots.TryGetValue(drive, out var realRoot);
         var markers = new HashSet<string>(WatchPath.StringComparer);
         foreach (var entry in GitWizardApi.SelectGitEntries(owner.Index, includeGitFiles: true))
         {
             if (entry.Drive.Letter != drive)
+            {
                 continue;
+            }
 
             string path;
             try
@@ -105,7 +123,9 @@ public sealed partial class IndexVolumeChangeSource
                 path = entry.Path;
                 // MFTLib validates identity before each read; reuse can still race the column read.
                 if (entry.IsDeleted)
+                {
                     continue;
+                }
             }
             catch (InvalidOperationException exception) when (exception is not ObjectDisposedException && entry.IsDeleted)
             {

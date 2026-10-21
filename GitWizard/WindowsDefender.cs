@@ -43,7 +43,9 @@ public static class WindowsDefender
     internal static int? TryRunElevatedHelper(string[] arguments, IElevationProvider? elevation)
     {
         if (!arguments.Contains(ElevatedHelperArgument))
+        {
             return null;
+        }
 
         return AddExclusions(elevation) ? 0 : 1;
     }

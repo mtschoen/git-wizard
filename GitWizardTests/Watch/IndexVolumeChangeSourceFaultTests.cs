@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using GitWizard;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
@@ -15,7 +16,6 @@ namespace GitWizardTests.Watch;
 [TestFixture]
 public class IndexVolumeChangeSourceFaultTests
 {
-    static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(10);
 
     [TestCase("drive")]
     [TestCase("apply")]
@@ -191,10 +191,78 @@ public class IndexVolumeChangeSourceFaultTests
         }
         finally
         {
-            await harness.DisposeAsync().AsTask().WaitAsync(HangGuard);
+            await harness.DisposeAsync().AsTask().WaitAsync(TestTimeouts.HangGuard);
         }
         Assert.That(harness.Owner.IsDisposed, Is.True);
         Assert.That(harness.Deaths, Is.Empty);
+    }
+
+    [Test]
+    public async Task CancellationAfterRescanProduction_PreservesSnapshotAndWatch()
+    {
+        await using var harness = await FaultHarness.StartAsync('X');
+        var originalWatch = harness.Scripted.WatchFor('X');
+        harness.Files.AddMarker("after-cancellation");
+        using var cancellation = new CancellationTokenSource();
+        Action cancel = cancellation.Cancel;
+        harness.Files.CatchUpLoss = _ =>
+        {
+            cancel();
+            return null;
+        };
+        var cancellationToken = cancellation.Token;
+        try
+        {
+            var rescan = harness.Owner.Index.RescanAsync(['X'], cancellationToken);
+            Assert.That(async () => await rescan.WaitAsync(TestTimeouts.HangGuard),
+                Throws.InstanceOf<OperationCanceledException>());
+        }
+        finally
+        {
+            harness.Files.CatchUpLoss = null;
+        }
+
+        Assert.That(harness.Owner.Index.Search(new SearchQuery(".git", NameMatchMode.Exact))
+            .Select(entry => entry.Parent!.Value.Name), Is.EqualTo(new[] { "repo" }));
+        Assert.That(harness.Scripted.WatchFor('X'), Is.SameAs(originalWatch));
+        Assert.That(harness.ReadinessOf('X'), Is.EqualTo(VolumeWatchState.CaughtUp));
+        Assert.That(harness.Failures, Is.Empty);
+        Assert.That(harness.Deaths, Is.Empty);
+
+        await harness.Owner.Index.RescanAsync(['X'], CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
+        await WaitUntilAsync(() => harness.ReadinessOf('X') == VolumeWatchState.CaughtUp);
+        Assert.That(harness.Owner.Index.Search(new SearchQuery(".git", NameMatchMode.Exact))
+            .Select(entry => entry.Parent!.Value.Name), Is.EquivalentTo(new[] { "repo", "after-cancellation" }));
+    }
+
+    [Test]
+    public async Task StartupFailure_ExcludesOnlyTheFailedDriveAndPreservesItsQueryableSnapshot()
+    {
+        using var files = new PackedIndexFixture();
+        files.AddMarker("repo");
+        var scripted = new ScriptedWatchSource
+        {
+            CatchUpOnStart = true,
+            StartFailure = drive => drive == 'X' ? new IOException("start refused") : null
+        };
+        var index = await files.OpenMftIndexAsync(scripted, 'X', 'Y');
+        var owner = IndexVolumeChangeSourceTests.Owner(index, "X", "Y");
+        await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
+        var failures = new ConcurrentQueue<(string Drive, string Message)>();
+        source.DriveFailed += (drive, message) => failures.Enqueue((drive, message));
+
+        var result = await source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None)
+            .WaitAsync(TestTimeouts.HangGuard);
+
+        Assert.That(result.Errors["X"], Does.Contain("start refused"));
+        Assert.That(result.Errors.ContainsKey("Y"), Is.False);
+        Assert.That(failures.Any(failure => failure.Drive == "X" && failure.Message.Contains("start refused")), Is.True);
+        Assert.That(source.Readiness.TryGet("X", out var failed), Is.True);
+        Assert.That(failed!.State, Is.EqualTo(VolumeWatchState.Excluded));
+        Assert.That(source.Readiness.TryGet("Y", out var healthy), Is.True);
+        Assert.That(healthy!.State, Is.EqualTo(VolumeWatchState.CaughtUp));
+        Assert.That(index.Drives.Select(drive => drive.State), Is.All.EqualTo(DriveState.Ready));
+        Assert.That(index.Search(new SearchQuery(".git", NameMatchMode.Exact)).ToArray(), Has.Length.EqualTo(2));
     }
 
     [Test]
@@ -209,12 +277,12 @@ public class IndexVolumeChangeSourceFaultTests
         source.DriveFailed += (drive, _) => failures.Add(drive);
 
         var arming = source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
-        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard);
+        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
         scripted.WatchFor('X').FailDrive(new IOException("X failed during catch-up"));
-        await scripted.WaitForStartAsync('X', 2, CancellationToken.None).WaitAsync(HangGuard);
+        await scripted.WaitForStartAsync('X', 2, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
         await scripted.WatchFor('X').PublishCaughtUpAsync();
 
-        var result = await arming.WaitAsync(HangGuard);
+        var result = await arming.WaitAsync(TestTimeouts.HangGuard);
         Assert.That(result.Errors, Is.Empty);
         Assert.That(failures, Is.Empty);
         Assert.That(source.Readiness.TryGet("X", out var status), Is.True);
@@ -224,7 +292,7 @@ public class IndexVolumeChangeSourceFaultTests
     sealed class FaultHarness : IAsyncDisposable
     {
         readonly PackedIndexFixture _files;
-        readonly CancellationTokenSource _cancellation = new(HangGuard);
+        readonly CancellationTokenSource _cancellation = new(TestTimeouts.HangGuard);
         readonly List<VolumeReadinessSnapshot> _snapshots = [];
         IAsyncEnumerator<VolumeChangeBatch>? _reader;
 
@@ -309,7 +377,7 @@ public class IndexVolumeChangeSourceFaultTests
             if (_pendingReadConsumed)
                 PendingRead = _reader!.MoveNextAsync().AsTask();
             _pendingReadConsumed = true;
-            return PendingRead.WaitAsync(HangGuard);
+            return PendingRead.WaitAsync(TestTimeouts.HangGuard);
         }
 
         public DriveStatus StatusOf(char drive) => Owner.Index.Drives.Single(status => status.Drive == drive);
@@ -338,7 +406,7 @@ public class IndexVolumeChangeSourceFaultTests
                     await _cancellation.CancelAsync();
                     try
                     {
-                        await PendingRead.WaitAsync(HangGuard);
+                        await PendingRead.WaitAsync(TestTimeouts.HangGuard);
                     }
                     catch (Exception exception) when (exception is OperationCanceledException or InvalidOperationException)
                     {

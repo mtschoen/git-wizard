@@ -12,7 +12,7 @@ namespace GitWizardTests;
 [NonParallelizable]
 public class ProgramWatchStartupTests
 {
-    string _home = null!;
+    LocalFilesSandbox? _sandbox;
     string _root = null!;
 
     [SetUp]
@@ -20,8 +20,8 @@ public class ProgramWatchStartupTests
     {
         VolumeChangeSourceFactory._isElevatedOverride = () => true;
         GitWizardLog.SilentMode = true;
-        _home = TestUtilities.RedirectLocalFilesToTemp();
-        _root = Path.Combine(_home, "search");
+        _sandbox = new LocalFilesSandbox();
+        _root = Path.Combine(_sandbox.Path, "search");
         Directory.CreateDirectory(_root);
     }
 
@@ -30,7 +30,8 @@ public class ProgramWatchStartupTests
     {
         try
         {
-            TestUtilities.ClearLocalFilesRedirect(_home);
+            _sandbox?.Dispose();
+            _sandbox = null;
         }
         finally
         {

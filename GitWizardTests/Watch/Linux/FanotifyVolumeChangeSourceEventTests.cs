@@ -1,6 +1,7 @@
 using System.Runtime.Versioning;
 using GitWizard.Watch;
 using GitWizard.Watch.Linux;
+using GitWizardTests.TestSupport;
 using static GitWizardTests.Watch.Linux.FanotifyEventBuffers;
 
 namespace GitWizardTests.Watch.Linux;
@@ -10,7 +11,7 @@ namespace GitWizardTests.Watch.Linux;
 [SupportedOSPlatform("linux")]
 public class FanotifyVolumeChangeSourceEventTests
 {
-    static readonly string ExistingDirectoryPath = Path.GetTempPath();
+    static readonly string ExistingDirectoryPath = TempDirectory.SystemTempPath;
 
     [Test]
     public async Task WatchAsync_DecodesEvents_WithAllVolumeEntryKinds()
@@ -25,9 +26,10 @@ public class FanotifyVolumeChangeSourceEventTests
         var bufferD = CreateSyntheticEventBuffer(FanotifyConstants.MovedTo, handleB, "moved_to.txt");
         var bufferE = CreateSyntheticEventBuffer(FanotifyConstants.Modify, handleC, "modified.txt");
 
+
         var combinedBuffer = CombineBuffers(bufferA, bufferB, bufferC, bufferD, bufferE);
 
-        var native = new FakeFanotifyVolumeNative
+        var native = new FakeFanotifyNative
         {
             InitializeResult = new FanotifyNativeCallResult(7, 0)
         };
@@ -69,7 +71,7 @@ public class FanotifyVolumeChangeSourceEventTests
         var handle = new byte[] { 21, 22, 23, 24 };
         var buffer = CreateSyntheticEventBuffer(FanotifyConstants.Modify | FanotifyConstants.OnDirectory, handle, "");
 
-        var native = new FakeFanotifyVolumeNative
+        var native = new FakeFanotifyNative
         {
             InitializeResult = new FanotifyNativeCallResult(7, 0)
         };
@@ -102,7 +104,7 @@ public class FanotifyVolumeChangeSourceEventTests
         var handle = new byte[] { 31, 32, 33, 34 };
         var buffer = CreateSyntheticEventBuffer(FanotifyConstants.Modify, handle, ".");
 
-        var native = new FakeFanotifyVolumeNative
+        var native = new FakeFanotifyNative
         {
             InitializeResult = new FanotifyNativeCallResult(7, 0)
         };
@@ -135,7 +137,7 @@ public class FanotifyVolumeChangeSourceEventTests
         var handle = new byte[] { 41, 42, 43, 44 };
         var buffer = CreateSyntheticEventBuffer(FanotifyConstants.Create, handle, "test.txt");
 
-        var native = new FakeFanotifyVolumeNative
+        var native = new FakeFanotifyNative
         {
             InitializeResult = new FanotifyNativeCallResult(7, 0)
         };
@@ -168,7 +170,7 @@ public class FanotifyVolumeChangeSourceEventTests
         var handle = new byte[] { 61, 62, 63, 64 };
         var buffer = CreateSyntheticEventBuffer(FanotifyConstants.Create, handle, "repo.git");
 
-        var native = new FakeFanotifyVolumeNative
+        var native = new FakeFanotifyNative
         {
             InitializeResult = new FanotifyNativeCallResult(7, 0)
         };
@@ -226,9 +228,10 @@ public class FanotifyVolumeChangeSourceEventTests
         var handleValid = new byte[] { 71, 72, 73, 74 };
         var validBuffer = CreateSyntheticEventBuffer(FanotifyConstants.Create, handleValid, "valid.txt");
 
+
         var combined = CombineBuffers(wrongVersion, shortInfo, incompleteInfo, unresolvedBuffer, validBuffer);
 
-        var native = new FakeFanotifyVolumeNative
+        var native = new FakeFanotifyNative
         {
             InitializeResult = new FanotifyNativeCallResult(7, 0)
         };
@@ -264,7 +267,7 @@ public class FanotifyVolumeChangeSourceEventTests
         var handleValid = new byte[] { 81, 82, 83, 84 };
         var validBuffer = CreateSyntheticEventBuffer(FanotifyConstants.Create, handleValid, "second.txt");
 
-        var native = new FakeFanotifyVolumeNative
+        var native = new FakeFanotifyNative
         {
             InitializeResult = new FanotifyNativeCallResult(7, 0)
         };
@@ -307,9 +310,10 @@ public class FanotifyVolumeChangeSourceEventTests
         var validHandle = new byte[] { 61, 62, 63, 64 };
         var validBuffer = CreateSyntheticEventBuffer(FanotifyConstants.Create, validHandle, "ok.txt");
 
+
         var combined = CombineBuffers(invalidHandleInfo, validBuffer);
 
-        var native = new FakeFanotifyVolumeNative
+        var native = new FakeFanotifyNative
         {
             InitializeResult = new FanotifyNativeCallResult(7, 0)
         };
@@ -343,9 +347,10 @@ public class FanotifyVolumeChangeSourceEventTests
         var directoryBuffer = CreateSyntheticEventBuffer(
             FanotifyConstants.MovedTo | FanotifyConstants.OnDirectory, parentHandle, "incoming");
         var fileBuffer = CreateSyntheticEventBuffer(FanotifyConstants.MovedTo, parentHandle, "note.txt");
-        var native = new FakeFanotifyVolumeNative { InitializeResult = new FanotifyNativeCallResult(7, 0) };
+        var native = new FakeFanotifyNative { InitializeResult = new FanotifyNativeCallResult(7, 0) };
         native.MapHandle(0L, GetFullHandleBytes(parentHandle), 310, "/repos");
         native.ReadQueue.Enqueue(CombineBuffers(directoryBuffer, fileBuffer));
+
 
         var source = new FanotifyVolumeChangeSource(native);
         await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);

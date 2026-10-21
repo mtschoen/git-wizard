@@ -1,25 +1,25 @@
-using System.Collections.Concurrent;
 using GitWizard;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests;
 
 public class GitWizardApiDiscoveryTests
 {
+    TempDirectory? _tempDirectory;
     string? _tempRoot;
 
     [SetUp]
     public void SetUp()
     {
         GitWizardLog.SilentMode = true;
-        _tempRoot = Path.Combine(Path.GetTempPath(), "gw-disc-test-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_tempRoot);
+        _tempDirectory = new TempDirectory("gw-disc-test-");
+        _tempRoot = _tempDirectory.Path;
     }
 
     [TearDown]
     public void TearDown()
     {
-        if (!string.IsNullOrEmpty(_tempRoot) && Directory.Exists(_tempRoot))
-            Directory.Delete(_tempRoot, recursive: true);
+        _tempDirectory?.Dispose();
     }
 
     [Test]
@@ -229,13 +229,21 @@ public class GitWizardApiDiscoveryTests
     {
         Directory.CreateDirectory(Path.Combine(_tempRoot!, "repo", ".git"));
         var paths = new List<string>();
-        var handler = new ThrowingMessageHandler();
+        var messageCalls = 0;
+        var handler = new RecordingUpdateHandler
+        {
+            SendingMessage = _ =>
+            {
+                messageCalls++;
+                throw new InvalidOperationException("message failure");
+            }
+        };
 
         Assert.DoesNotThrow(() => GitWizardApi.GetRepositoryPaths(_tempRoot!, paths, Array.Empty<string>(), handler));
 
         Assert.Multiple(() =>
         {
-            Assert.That(handler.MessageCalls, Is.GreaterThan(0),
+            Assert.That(messageCalls, Is.GreaterThan(0),
                 "The scan must call SendUpdateMessage (which throws and must be caught).");
             Assert.That(paths.Any(p => p.Contains("repo", StringComparison.OrdinalIgnoreCase)), Is.True,
                 "The repo must still be discovered despite the throwing handler.");
@@ -266,42 +274,4 @@ public class GitWizardApiDiscoveryTests
         Assert.That(result.Success, Is.False);
     }
 
-    sealed class RecordingUpdateHandler : IUpdateHandler
-    {
-        readonly ConcurrentQueue<string> _messages = new();
-        public IReadOnlyList<string> Messages => _messages.ToArray();
-
-        public void StartProgress(string description, int total) { }
-        public void UpdateProgress(int count) { }
-        public void SendUpdateMessage(string? message)
-        {
-            if (message != null)
-                _messages.Enqueue(message);
-        }
-        public void OnRepositoryCreated(GitWizardRepository gitWizardRepository) { }
-        public void OnSubmoduleCreated(GitWizardRepository parent, GitWizardRepository submodule) { }
-        public void OnWorktreeCreated(GitWizardRepository worktree) { }
-        public void OnUninitializedSubmoduleCreated(GitWizardRepository parent, string submodulePath) { }
-        public void OnRepositoryRefreshCompleted(GitWizardRepository gitWizardRepository) { }
-    }
-
-    sealed class ThrowingMessageHandler : IUpdateHandler
-    {
-        public int MessageCalls { get; private set; }
-
-        public void StartProgress(string description, int total) { }
-        public void UpdateProgress(int count) { }
-
-        public void SendUpdateMessage(string? message)
-        {
-            MessageCalls++;
-            throw new InvalidOperationException("message failure");
-        }
-
-        public void OnRepositoryCreated(GitWizardRepository gitWizardRepository) { }
-        public void OnSubmoduleCreated(GitWizardRepository parent, GitWizardRepository submodule) { }
-        public void OnWorktreeCreated(GitWizardRepository worktree) { }
-        public void OnUninitializedSubmoduleCreated(GitWizardRepository parent, string submodulePath) { }
-        public void OnRepositoryRefreshCompleted(GitWizardRepository gitWizardRepository) { }
-    }
 }

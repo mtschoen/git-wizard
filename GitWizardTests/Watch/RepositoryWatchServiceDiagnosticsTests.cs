@@ -197,7 +197,7 @@ public class RepositoryWatchServiceDiagnosticsTests
     {
         var errors = new Dictionary<string, string> { ["D"] = "drive not ready" };
         var svc = new RepositoryWatchService(
-            new FakeVolumeChangeSource(
+            new ScriptedVolumeChangeSource(
                 Array.Empty<VolumeChangeBatch>(), errors),
             trackedRoots: Array.Empty<string>(),
             searchRoots: Array.Empty<string>(),
@@ -212,7 +212,7 @@ public class RepositoryWatchServiceDiagnosticsTests
     public async Task NoArmErrors_ScanErrorsIsEmptyAfterRun()
     {
         var svc = new RepositoryWatchService(
-            new FakeVolumeChangeSource(Array.Empty<VolumeChangeBatch>()),
+            new ScriptedVolumeChangeSource(Array.Empty<VolumeChangeBatch>()),
             trackedRoots: Array.Empty<string>(),
             searchRoots: Array.Empty<string>(),
             debounce: TimeSpan.FromMilliseconds(10));
@@ -225,7 +225,7 @@ public class RepositoryWatchServiceDiagnosticsTests
     [Test]
     public async Task SourceDies_RaisesStoppedAndCompletesEnumeration()
     {
-        var source = new HangingVolumeChangeSource();
+        var source = new ScriptedVolumeChangeSource { KeepWatching = true };
         var svc = new RepositoryWatchService(
             source,
             trackedRoots: Array.Empty<string>(),
@@ -250,7 +250,7 @@ public class RepositoryWatchServiceDiagnosticsTests
     [Test]
     public async Task SourceDies_WithNoStoppedSubscriber_StillCompletesEnumeration()
     {
-        var source = new HangingVolumeChangeSource();
+        var source = new ScriptedVolumeChangeSource { KeepWatching = true };
         var svc = new RepositoryWatchService(
             source,
             trackedRoots: Array.Empty<string>(),

@@ -1,5 +1,6 @@
 using GitWizard;
 using GitWizard.Watch.Linux;
+using GitWizardTests.TestSupport;
 using GitWizardUI.ViewModels;
 
 namespace GitWizardTests.UI;
@@ -12,7 +13,7 @@ public class MainViewModelLiveCapabilityTests
     public void SetUp() => GitWizardLog.SilentMode = true;
 
     static MainViewModel NewViewModel()
-        => new(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+        => TestViewModels.Create();
 
 
     [Test]

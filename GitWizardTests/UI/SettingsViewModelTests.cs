@@ -1,12 +1,12 @@
 using System.Collections.ObjectModel;
 using GitWizard;
-using GitWizardUI.ViewModels;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests;
 
 public class SettingsViewModelTests
 {
-    string? _tempRoot;
+    LocalFilesSandbox? _sandbox;
 
     [SetUp]
     public void SetUp()
@@ -15,15 +15,14 @@ public class SettingsViewModelTests
         // Redirect the data dir to temp: these tests construct SettingsViewModel (which loads
         // config) and SaveAsync/Save write it back. Without the redirect they read/write
         // the real ~/.GitWizard/config.json, which caused order-dependent failures.
-        _tempRoot = TestUtilities.RedirectLocalFilesToTemp();
-        TestUtilities.ResetStaticCaches();
+        _sandbox = new LocalFilesSandbox();
     }
 
     [TearDown]
     public void TearDown()
     {
-        TestUtilities.ResetStaticCaches();
-        TestUtilities.ClearLocalFilesRedirect(_tempRoot);
+        _sandbox?.Dispose();
+        _sandbox = null;
     }
 
     [Test]
@@ -31,7 +30,7 @@ public class SettingsViewModelTests
     {
         var picker = new StubFolderPicker { NextResult = "/tmp/test" };
 
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
 
         Assert.That(vm, Is.Not.Null);
         Assert.That(vm.ForkPath, Is.Empty);
@@ -43,7 +42,7 @@ public class SettingsViewModelTests
     public void Construction_LoadsSkipHiddenDirectoriesFromConfiguration()
     {
         var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
 
         Assert.That(vm.SkipHiddenDirectories, Is.EqualTo(false));
     }
@@ -53,7 +52,7 @@ public class SettingsViewModelTests
     {
         var picker = new StubFolderPicker();
 
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
 
         Assert.That(vm.SearchPaths, Has.Count.GreaterThan(0));
     }
@@ -62,7 +61,7 @@ public class SettingsViewModelTests
     public void NewSearchPath_SetsValueAndTriggersNotification()
     {
         var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
         var propertyChangedFired = false;
         var changedName = string.Empty;
 
@@ -83,7 +82,7 @@ public class SettingsViewModelTests
     public void NewIgnoredPath_SetsValueAndTriggersNotification()
     {
         var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
         var propertyChangedFired = false;
         var changedName = string.Empty;
 
@@ -104,7 +103,7 @@ public class SettingsViewModelTests
     public void ForkPath_SetsValueAndTriggersSave()
     {
         var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
         var propertyChangedFired = false;
 
         vm.PropertyChanged += (_, _) =>
@@ -122,7 +121,7 @@ public class SettingsViewModelTests
     public void SkipHiddenDirectories_SetsValueAndTriggersNotification()
     {
         var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
         var propertyChangedFired = false;
         var changedName = string.Empty;
 
@@ -143,7 +142,7 @@ public class SettingsViewModelTests
     public void AddSearchPath_AddsNonEmptyPath()
     {
         var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
 
         var initialCount = vm.SearchPaths.Count;
         vm.NewSearchPath = "/added/path";
@@ -158,7 +157,7 @@ public class SettingsViewModelTests
     public void AddSearchPath_IgnoresEmptyPath()
     {
         var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
 
         var initialCount = vm.SearchPaths.Count;
         vm.NewSearchPath = string.Empty;
@@ -171,7 +170,7 @@ public class SettingsViewModelTests
     public void AddSearchPath_IgnoresWhitespacePath()
     {
         var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
 
         var initialCount = vm.SearchPaths.Count;
         vm.NewSearchPath = "   ";
@@ -184,7 +183,7 @@ public class SettingsViewModelTests
     public void AddSearchPath_IgnoresDuplicatePath()
     {
         var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
 
         var initialCount = vm.SearchPaths.Count;
         vm.NewSearchPath = vm.SearchPaths[0];
@@ -197,7 +196,7 @@ public class SettingsViewModelTests
     public void AddIgnoredPath_AddsNonEmptyPath()
     {
         var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
 
         var initialCount = vm.IgnoredPaths.Count;
         vm.NewIgnoredPath = "/ignored/added";
@@ -212,7 +211,7 @@ public class SettingsViewModelTests
     public void AddIgnoredPath_IgnoresEmptyPath()
     {
         var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
 
         var initialCount = vm.IgnoredPaths.Count;
         vm.NewIgnoredPath = string.Empty;
@@ -225,7 +224,7 @@ public class SettingsViewModelTests
     public async Task AddSearchPathAsync_AddsPathFromPicker()
     {
         var picker = new StubFolderPicker { NextResult = "/picked/path" };
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
 
         var initialCount = vm.SearchPaths.Count;
         await vm.AddSearchPathAsync();
@@ -238,7 +237,7 @@ public class SettingsViewModelTests
     public async Task AddSearchPathAsync_IgnoresNullPickerResult()
     {
         var picker = new StubFolderPicker { NextResult = null };
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
 
         var initialCount = vm.SearchPaths.Count;
         await vm.AddSearchPathAsync();
@@ -250,7 +249,7 @@ public class SettingsViewModelTests
     public async Task AddSearchPathAsync_IgnoresEmptyPickerResult()
     {
         var picker = new StubFolderPicker { NextResult = "" };
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
 
         var initialCount = vm.SearchPaths.Count;
         await vm.AddSearchPathAsync();
@@ -262,7 +261,7 @@ public class SettingsViewModelTests
     public async Task AddIgnoredPathAsync_AddsPathFromPicker()
     {
         var picker = new StubFolderPicker { NextResult = "/picked/ignored" };
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
 
         var initialCount = vm.IgnoredPaths.Count;
         await vm.AddIgnoredPathAsync();
@@ -275,7 +274,7 @@ public class SettingsViewModelTests
     public void RemoveSelectedSearchPath_RemovesSelectedPath()
     {
         var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
 
         vm.SelectedSearchPath = vm.SearchPaths[0];
         var initialCount = vm.SearchPaths.Count;
@@ -289,7 +288,7 @@ public class SettingsViewModelTests
     public void RemoveSelectedSearchPath_IgnoresNullSelection()
     {
         var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
 
         vm.SelectedSearchPath = null;
         var initialCount = vm.SearchPaths.Count;
@@ -303,7 +302,7 @@ public class SettingsViewModelTests
     public void RemoveSelectedIgnoredPath_RemovesSelectedPath()
     {
         var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
         // Default IgnoredPaths are platform-specific (none on Linux/macOS); seed one so this is
         // cross-platform-deterministic rather than indexing [0] on a possibly-empty collection.
         vm.IgnoredPaths.Add("/seed/ignored");
@@ -320,7 +319,7 @@ public class SettingsViewModelTests
     public void RemoveSelectedIgnoredPath_IgnoresNullSelection()
     {
         var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
 
         vm.SelectedIgnoredPath = null;
         var initialCount = vm.IgnoredPaths.Count;
@@ -334,7 +333,7 @@ public class SettingsViewModelTests
     public void Save_ExecutesSave()
     {
         var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
 
         vm.SearchPaths.Add("/new/search");
         vm.ForkPath = "/usr/local/bin/fork";
@@ -351,7 +350,7 @@ public class SettingsViewModelTests
     public async Task SaveAsync_SavesConfiguration()
     {
         var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
 
         vm.SearchPaths.Add("/saved/search");
         vm.ForkPath = "/usr/bin/fork";
@@ -367,7 +366,7 @@ public class SettingsViewModelTests
     public void OnPropertyChanged_FiresPropertyChange()
     {
         var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
         var fired = false;
 
         vm.PropertyChanged += (_, e) =>
@@ -384,7 +383,7 @@ public class SettingsViewModelTests
     public void OnPropertyChanged_WithCallerMemberName()
     {
         var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
         string? firedProperty = null;
 
         vm.PropertyChanged += (_, e) => firedProperty = e.PropertyName;
@@ -397,7 +396,7 @@ public class SettingsViewModelTests
     public void SearchPaths_IsObservableCollection()
     {
         var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
 
         Assert.That(vm.SearchPaths, Is.InstanceOf<ObservableCollection<string>>());
     }
@@ -406,7 +405,7 @@ public class SettingsViewModelTests
     public void IgnoredPaths_IsObservableCollection()
     {
         var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
 
         Assert.That(vm.IgnoredPaths, Is.InstanceOf<ObservableCollection<string>>());
     }
@@ -415,7 +414,7 @@ public class SettingsViewModelTests
     public void ResetToDefaults_RestoresDefaultSearchAndIgnoredPaths()
     {
         var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
 
         vm.SearchPaths.Clear();
         vm.SearchPaths.Add("/custom/search");
@@ -433,7 +432,8 @@ public class SettingsViewModelTests
     public void ResetToDefaults_ClearsForkPath()
     {
         var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher()) { ForkPath = "/custom/fork" };
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
+        vm.ForkPath = "/custom/fork";
 
         vm.ResetToDefaults();
 
@@ -444,7 +444,8 @@ public class SettingsViewModelTests
     public void ResetToDefaults_ResetsSkipHiddenDirectories()
     {
         var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher()) { SkipHiddenDirectories = true };
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
+        vm.SkipHiddenDirectories = true;
 
         vm.ResetToDefaults();
 
@@ -455,7 +456,8 @@ public class SettingsViewModelTests
     public void ResetToDefaults_PersistsAcrossReload()
     {
         var picker = new StubFolderPicker();
-        var vm = new SettingsViewModel(picker, null, new StubUiDispatcher()) { ForkPath = "/custom/fork" };
+        var vm = TestViewModels.CreateSettings(folderPicker: picker);
+        vm.ForkPath = "/custom/fork";
         vm.SearchPaths.Add("/custom/search");
 
         vm.ResetToDefaults();
@@ -470,7 +472,7 @@ public class SettingsViewModelTests
     [Test]
     public void Construction_LoadsIncludeTempDirectoriesDefaultUnchecked()
     {
-        var vm = new SettingsViewModel(new StubFolderPicker(), null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings();
 
         Assert.That(vm.IncludeTempDirectories, Is.False);
     }
@@ -478,7 +480,7 @@ public class SettingsViewModelTests
     [Test]
     public void IncludeTempDirectories_SetsValueAndTriggersNotification()
     {
-        var vm = new SettingsViewModel(new StubFolderPicker(), null, new StubUiDispatcher());
+        var vm = TestViewModels.CreateSettings();
         string? changedName = null;
         vm.PropertyChanged += (_, e) => changedName = e.PropertyName;
 
@@ -491,7 +493,8 @@ public class SettingsViewModelTests
     [Test]
     public void ResetToDefaults_ResetsIncludeTempDirectories()
     {
-        var vm = new SettingsViewModel(new StubFolderPicker(), null, new StubUiDispatcher()) { IncludeTempDirectories = true };
+        var vm = TestViewModels.CreateSettings();
+        vm.IncludeTempDirectories = true;
 
         vm.ResetToDefaults();
 

@@ -68,6 +68,28 @@ the shared version. Run it after instruction changes. Preserve still-true rules;
 move narrative verbatim into linked docs, correcting false claims in place.
 Do not cite source line numbers in prose.
 
+### Shared test support (`GitWizardTests/TestSupport/`)
+
+Central test scaffolding lives in `GitWizardTests/TestSupport/` (`TempDirectory`, `LocalFilesSandbox`,
+`RecordingUpdateHandler`, `QueuedUiDispatcher`, `ThreadedUiDispatcher`, `TestViewModels`,
+`ScriptedVolumeChangeSource`, `FakeFanotifyNative`, `DriveStatuses`, `TestTimeouts`, `AsyncCondition`);
+detailed doubles and fixtures are inventoried in [testing reference](docs/testing.md).
+
+Regression checks for test scaffolding:
+
+```bash
+# Direct temp path allocation is forbidden outside TestSupport
+grep -rn 'Path.GetTempPath()' GitWizardTests
+
+# Update handlers must be consolidated in TestSupport
+grep -rnE 'class .*: IUpdateHandler' GitWizardTests
+
+# Hang guards must use TestTimeouts properties, not local static fields
+grep -rn 'static readonly TimeSpan HangGuard' GitWizardTests
+```
+
+Expected: only `TestSupport/TempDirectory.cs` matches for temp path, only `TestSupport/RecordingUpdateHandler.cs` matches for `IUpdateHandler`, and zero matches for `static readonly TimeSpan HangGuard`.
+
 ## Cleaning the working tree
 
 `git clean -ffxd` must be safe before new work: nothing unrecoverable belongs in
@@ -94,36 +116,17 @@ runs only after non-pin-only main pushes, not PRs.
 ## Local CI preflight
 
 Run `bash tools/ci-preflight.sh --all` before pushing, or
-`bash tools/ci-preflight.sh --changed-from main`. The latter validates the ref
-but still runs every host gate. Diagnostic scopes are repeatable `--only`:
-`native`, `restore`, `format`, `build`, `inspect`, `test`, `coverage`, `contracts`,
-`aislop`. Every selected gate finishes even after failure. Invalid arguments and
-unsupported platforms exit 2; gate failures exit nonzero.
+`bash tools/ci-preflight.sh --changed-from main`. Scopes: `native`, `restore`,
+`format`, `build`, `inspect`, `test`, `coverage`, `contracts`, `aislop`.
+Every selected gate finishes even after failure.
 
-Preserve preflight protocol 1: only complete successful clean, unchanged-HEAD runs
-mint the Git-path `pr-crew/preflight-stamp.json`; targeted runs invalidate it.
-Protocol gate labels denote the whole publication run, not local scope names.
-
-Linux gates include coverage (55% line floor), not InspectCode. Windows requires
-Git Bash/Python 3/PowerShell 7 and provisioned `jb` with global naming configuration;
-it runs InspectCode, not Linux coverage enforcement. Missing tools fail, macOS is
-refused, and neither host proves the other's tests.
-
-Share recipes in `ci/gates.sh`, `ci/windows-gates.ps1`, `ci/aislop-gate.sh`.
-Explicitly prepare the pinned C# scanner: `bash ci/aislop-gate.sh prepare`.
-Require matching pin/build receipt; no implicit downloads or public npm substitute.
-Keep tools outside the checkout (`AISLOP_TOOL_DIRECTORY` overrides the state cache).
-
-`CI_RESULTS_DIRECTORY` reuses a root, never a test invocation. Coverage reads only
-`current-test-directory`, including failed-test input; missing input fails coverage
-alone and skips it after failed tests without input (the run still fails).
+Preserve preflight protocol 1: clean, unchanged-HEAD runs mint
+`pr-crew/preflight-stamp.json`; targeted runs invalidate it. Windows runs InspectCode;
+Linux enforces 55% coverage floor. Share recipes in `ci/gates.sh`, `ci/windows-gates.ps1`,
+`ci/aislop-gate.sh`. Prepare pinned scanner: `bash ci/aislop-gate.sh prepare`.
+Keep tools outside the checkout (`AISLOP_TOOL_DIRECTORY` overrides state cache).
 Contract tests redirect stamp/state/results to owned temporary paths.
-
-Provisioning, posts/uploads, release/preview/screenshot jobs, destructive main-only
-verification and attended elevation/desktop tests are skipped locally, not proved.
-[CI and release reference](docs/ci-and-release.md) carries the workflow detail.
-Keep job/check names unchanged. Pin-only detection and clean-tree verification
-live in `ci/checkout.py`; do not duplicate their logic in workflows.
+Workflow detail and verification live in [CI and release reference](docs/ci-and-release.md).
 
 ## Lint gate
 

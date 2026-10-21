@@ -2,7 +2,7 @@ using GitWizard.Watch;
 
 namespace GitWizardTests.UI;
 
-// Like HangingKillableSource, but its DisposeAsync parks until ReleaseDispose() is called - giving
+// Like ScriptedVolumeChangeSource, but its DisposeAsync parks until ReleaseDispose() is called - giving
 // a test a deterministic barrier inside the respawn path's dispose-before-re-check window.
 internal sealed class GatedDisposeKillableSource : IVolumeChangeSource
 {

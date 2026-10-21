@@ -12,7 +12,6 @@ namespace GitWizardTests;
 [TestFixture]
 public class IndexDiscoverySupersededEntryTests
 {
-    static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(10);
 
     [Test]
     public async Task SupersededEntryIsSkippedNotThrown()
@@ -22,7 +21,7 @@ public class IndexDiscoverySupersededEntryTests
         var scripted = new ScriptedWatchSource();
         await using var index = await files.OpenMftIndexAsync(scripted, 'X');
         await index.StartWatchingAsync(['X'], CancellationToken.None);
-        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard);
+        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
         var marker = GitWizardApi.SelectGitEntries(index, includeGitFiles: false).Single();
         var directory = marker.Parent!.Value;
         Assert.That(directory.Name, Is.EqualTo("repository"));

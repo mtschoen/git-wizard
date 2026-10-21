@@ -15,7 +15,6 @@ namespace GitWizardTests.Watch;
 [TestFixture]
 public class IndexVolumeChangeSourceCompletionTests
 {
-    static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(10);
 
     [TestCase("drive")]
     [TestCase("apply")]
@@ -24,7 +23,7 @@ public class IndexVolumeChangeSourceCompletionTests
         await using var scenario = await Scenario.CreateAsync(['X'], faultDuringFirstReconciliation: kind);
         var arming = scenario.Source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
 
-        await scenario.SecondFaultInjected.WaitAsync(HangGuard);
+        await scenario.SecondFaultInjected.WaitAsync(TestTimeouts.HangGuard);
         var productionsBefore = scenario.ProductionsAtSecondFault;
         await WaitUntilAsync(() => scenario.Productions > productionsBefore);
 
@@ -38,8 +37,8 @@ public class IndexVolumeChangeSourceCompletionTests
             TaskScheduler.Default);
         releaseIssued.SetResult();
         scenario.ReleaseHeldRescan();
-        var result = await arming.WaitAsync(HangGuard);
-        Assert.That(await completedBeforeRelease.WaitAsync(HangGuard), Is.False,
+        var result = await arming.WaitAsync(TestTimeouts.HangGuard);
+        Assert.That(await completedBeforeRelease.WaitAsync(TestTimeouts.HangGuard), Is.False,
             "The arm must not complete before the newer recovery finishes.");
         Assert.That(result.Errors, Is.Empty);
         Assert.That(scenario.StateOf('X'), Is.EqualTo(WatchState.CaughtUp));
@@ -55,7 +54,7 @@ public class IndexVolumeChangeSourceCompletionTests
         await scenario.Source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         scenario.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
 
-        await scenario.SecondFaultInjected.WaitAsync(HangGuard);
+        await scenario.SecondFaultInjected.WaitAsync(TestTimeouts.HangGuard);
         var productionsBefore = scenario.ProductionsAtSecondFault;
         await WaitUntilAsync(() => scenario.Productions > productionsBefore);
 
@@ -77,7 +76,7 @@ public class IndexVolumeChangeSourceCompletionTests
         await scenario.Source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
         scenario.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
 
-        await scenario.SecondFaultInjected.WaitAsync(HangGuard);
+        await scenario.SecondFaultInjected.WaitAsync(TestTimeouts.HangGuard);
         await WaitUntilAsync(() => scenario.ReadinessOf('X') == VolumeWatchState.Excluded);
 
         Assert.That(scenario.StateOf('X'), Is.EqualTo(WatchState.Faulted));
@@ -94,7 +93,7 @@ public class IndexVolumeChangeSourceCompletionTests
         await scenario.Source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
         scenario.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
 
-        await scenario.SecondFaultInjected.WaitAsync(HangGuard);
+        await scenario.SecondFaultInjected.WaitAsync(TestTimeouts.HangGuard);
         await WaitUntilAsync(() => scenario.ReadinessOf('X') == expected);
         Assert.That(scenario.StateOf('X'), Is.Not.EqualTo(WatchState.CaughtUp));
     }
@@ -201,7 +200,7 @@ public class IndexVolumeChangeSourceCompletionTests
         };
         await using var sourceLifetime = source;
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
-        using var cancellation = new CancellationTokenSource(HangGuard);
+        using var cancellation = new CancellationTokenSource(TestTimeouts.HangGuard);
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
 
         scripted.WatchFor('X').FailDrive(new IOException("X failed"));
@@ -210,7 +209,7 @@ public class IndexVolumeChangeSourceCompletionTests
         release.SetResult();
 
         // The reconciliation batch is delivered
-        Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(HangGuard), Is.True);
+        Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
         Assert.That(reader.Current.Entries, Does.Contain(new VolumeChangeEntry(@"X:\newrepo\.git", VolumeEntryKind.Created)));
 
         // The source still reads CatchingUp at next, not CaughtUp at the older version
@@ -341,7 +340,7 @@ public class IndexVolumeChangeSourceCompletionTests
                     break;
             }
             var settled = kind == "channel" ? WatchState.Faulted : WatchState.Recovering;
-            Assert.That(SpinWait.SpinUntil(() => StateOf(drive) == settled, HangGuard), Is.True);
+            Assert.That(SpinWait.SpinUntil(() => StateOf(drive) == settled, TestTimeouts.HangGuard), Is.True);
             _secondFaultInjected.TrySetResult();
         }
 

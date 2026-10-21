@@ -1,12 +1,12 @@
 using GitWizard;
-using GitWizardUI.ViewModels;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests;
 
 [TestFixture, NonParallelizable]
 public class LocalFilesCacheGuardTests
 {
-    string? _tempHome;
+    LocalFilesSandbox? _sandbox;
     bool _previousSilent;
     bool _previousVerbose;
 
@@ -16,15 +16,14 @@ public class LocalFilesCacheGuardTests
         _previousSilent = GitWizardLog.SilentMode;
         _previousVerbose = GitWizardLog.VerboseMode;
         GitWizardLog.SilentMode = true;
-        TestUtilities.ResetStaticCaches();
-        _tempHome = TestUtilities.RedirectLocalFilesToTemp();
+        _sandbox = new LocalFilesSandbox();
     }
 
     [TearDown]
     public void TearDown()
     {
-        TestUtilities.ResetStaticCaches();
-        TestUtilities.ClearLocalFilesRedirect(_tempHome);
+        _sandbox?.Dispose();
+        _sandbox = null;
         GitWizardLog.SilentMode = _previousSilent;
         GitWizardLog.VerboseMode = _previousVerbose;
     }
@@ -129,7 +128,7 @@ public class LocalFilesCacheGuardTests
         var sentinel = Path.Combine(cache, "sentinel.mlix");
         await File.WriteAllTextAsync(sentinel, "retained");
         var dialogs = new StubUserDialogs();
-        await using var viewModel = new MainViewModel(new StubUiDispatcher(), dialogs, new StubClipboardService());
+        await using var viewModel = TestViewModels.Create(dialogs: dialogs);
         await viewModel.DeleteAllLocalFilesAsync();
         Assert.That(dialogs.AlertCalls, Has.Count.EqualTo(1));
         Assert.That(dialogs.AlertCalls.Single().Title, Is.EqualTo("Files Not Deleted"));
@@ -142,7 +141,7 @@ public class LocalFilesCacheGuardTests
     {
         await File.WriteAllTextAsync(Path.Combine(GitWizardApi.GetLocalFilesPath(), "sentinel.txt"), "ordinary file");
         var dialogs = new StubUserDialogs();
-        await using var viewModel = new MainViewModel(new StubUiDispatcher(), dialogs, new StubClipboardService());
+        await using var viewModel = TestViewModels.Create(dialogs: dialogs);
         await viewModel.DeleteAllLocalFilesAsync();
         Assert.That(dialogs.AlertCalls.Single().Title, Is.EqualTo("Files Deleted"));
         Assert.That(Directory.Exists(GitWizardApi.GetLocalFilesPath()), Is.False);

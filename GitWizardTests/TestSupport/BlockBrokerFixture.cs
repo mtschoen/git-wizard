@@ -13,7 +13,6 @@ namespace GitWizardTests.TestSupport;
 /// </summary>
 internal sealed class BlockBrokerFixture : IAsyncDisposable
 {
-    static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(30);
     static readonly SyntheticJournalCursor Cursor = new(100UL, 1000L);
     static readonly SyntheticJournalCursor CaughtUpCursor = new(100UL, 1500L);
     static readonly SyntheticJournalCursor WatchCursor = new(100UL, 2000L);
@@ -139,14 +138,14 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
             // The scan fails only once the client has seen its process end, so the failure the
             // client observes is the crash, never an ordinary scan error.
             _handle!.Crash();
-            Shutdown.Wait(HangGuard, CancellationToken.None);
+            Shutdown.Wait(TestTimeouts.BrokerHangGuard, CancellationToken.None);
             throw new IOException("The broker host crashed during the scan.");
         }
         if (_scanError != null && (FailedDrive == null || FailedDrive == scan.Drive.ToString()))
             throw new IOException(_scanError);
         if (ParseProgressToReport is { } sample)
             scan.ReportParsed(sample.RecordsParsed, sample.TotalRecords);
-        AfterParseProgressAsync?.Invoke(scan.CancellationToken).Wait(HangGuard, CancellationToken.None);
+        AfterParseProgressAsync?.Invoke(scan.CancellationToken).Wait(TestTimeouts.BrokerHangGuard, CancellationToken.None);
         return YieldRecords(scan.CancellationToken);
     }
 
@@ -155,7 +154,7 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
         Interlocked.Increment(ref _recordsYielded);
         yield return [Directory(5, ".", 5)];
         if (MidScanAsync is { } midScan)
-            midScan(cancellationToken).Wait(HangGuard, CancellationToken.None);
+            midScan(cancellationToken).Wait(TestTimeouts.BrokerHangGuard, CancellationToken.None);
         cancellationToken.ThrowIfCancellationRequested();
         Interlocked.Add(ref _recordsYielded, 3);
         yield return [Directory(6, "code", 5), Directory(42, "repo", 6), Directory(43, ".git", 42)];

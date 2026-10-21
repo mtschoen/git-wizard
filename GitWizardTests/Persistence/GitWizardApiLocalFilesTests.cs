@@ -1,11 +1,12 @@
 using GitWizard;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests;
 
 [TestFixture, NonParallelizable]
 public class GitWizardApiLocalFilesTests
 {
-    string? _tempRoot;
+    LocalFilesSandbox? _sandbox;
     bool _previousSilent;
     bool _previousVerbose;
 
@@ -15,15 +16,14 @@ public class GitWizardApiLocalFilesTests
         _previousSilent = GitWizardLog.SilentMode;
         _previousVerbose = GitWizardLog.VerboseMode;
         GitWizardLog.SilentMode = true;
-        _tempRoot = TestUtilities.RedirectLocalFilesToTemp();
-        TestUtilities.ResetStaticCaches();
+        _sandbox = new LocalFilesSandbox();
     }
 
     [TearDown]
     public void TearDown()
     {
-        TestUtilities.ResetStaticCaches();
-        TestUtilities.ClearLocalFilesRedirect(_tempRoot);
+        _sandbox?.Dispose();
+        _sandbox = null;
         GitWizardLog.SilentMode = _previousSilent;
         GitWizardLog.VerboseMode = _previousVerbose;
     }

@@ -1,5 +1,6 @@
 using GitWizard;
 using GitWizard.Watch;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests;
 
@@ -36,8 +37,8 @@ public class RepositoryChangeFilterAdmissionTests
     {
         // The search root is the filesystem root, not the temp directory itself: a search root
         // inside a temp directory opts that subtree back in (see the carve-out test below).
-        var tempRepoGit = Path.Combine(Path.GetTempPath(), "gw-created-repo", ".git");
-        var searchRoot = Path.GetPathRoot(Path.GetTempPath())!;
+        var tempRepoGit = Path.Combine(TempDirectory.SystemTempPath, "gw-created-repo", ".git");
+        var searchRoot = Path.GetPathRoot(TempDirectory.SystemTempPath)!;
         var filter = new RepositoryChangeFilter([], [searchRoot]);
 
         var result = filter.Classify([Created(tempRepoGit)]);
@@ -48,9 +49,10 @@ public class RepositoryChangeFilterAdmissionTests
     [Test]
     public void Classify_GitCreatedWhenSearchRootInsideTemp_StillMapsToCreated()
     {
-        var tempRoot = Path.GetTempPath().TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var tempRoot = TempDirectory.SystemTempPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         var repoPath = Path.Combine(tempRoot, "gw-created-repo");
         var filter = new RepositoryChangeFilter([], [tempRoot]);
+
 
         var result = filter.Classify([Created(Path.Combine(repoPath, ".git"))]);
 

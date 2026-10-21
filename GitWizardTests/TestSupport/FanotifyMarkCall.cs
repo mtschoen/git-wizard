@@ -1,4 +1,4 @@
-namespace GitWizardTests.Watch.Linux;
+namespace GitWizardTests.TestSupport;
 
 internal readonly record struct FanotifyMarkCall(
     int Descriptor,

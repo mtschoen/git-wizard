@@ -7,19 +7,20 @@ namespace GitWizardTests;
 
 public class MftIndexCacheInspectionTests
 {
-    string? _home;
+    LocalFilesSandbox? _sandbox;
 
     [SetUp]
     public void SetUp()
     {
-        _home = TestUtilities.RedirectLocalFilesToTemp();
+        _sandbox = new LocalFilesSandbox();
     }
 
     [TearDown]
     public void TearDown()
     {
         GitWizardLog.CloseCurrentLogFile();
-        TestUtilities.ClearLocalFilesRedirect(_home);
+        _sandbox?.Dispose();
+        _sandbox = null;
     }
 
     static MftIndexCacheInspection Create() => new(new FrozenCacheClock(), true,

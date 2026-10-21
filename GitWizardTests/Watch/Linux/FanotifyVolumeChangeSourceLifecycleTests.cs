@@ -1,6 +1,7 @@
 using System.Runtime.Versioning;
 using GitWizard.Watch;
 using GitWizard.Watch.Linux;
+using GitWizardTests.TestSupport;
 using static GitWizardTests.Watch.Linux.FanotifyEventBuffers;
 
 namespace GitWizardTests.Watch.Linux;
@@ -10,12 +11,12 @@ namespace GitWizardTests.Watch.Linux;
 [SupportedOSPlatform("linux")]
 public class FanotifyVolumeChangeSourceLifecycleTests
 {
-    static readonly string ExistingDirectoryPath = Path.GetTempPath();
+    static readonly string ExistingDirectoryPath = TempDirectory.SystemTempPath;
 
     [Test]
     public async Task WatchAsync_SignalsPumpStartedOnceTheReadLoopIsActuallyRunning()
     {
-        var native = new FakeFanotifyVolumeNative
+        var native = new FakeFanotifyNative
         {
             InitializeResult = new FanotifyNativeCallResult(9, 0)
         };
@@ -48,7 +49,7 @@ public class FanotifyVolumeChangeSourceLifecycleTests
     [Test]
     public async Task WatchAsync_PollFails_RaisesSourceDied()
     {
-        var native = new FakeFanotifyVolumeNative
+        var native = new FakeFanotifyNative
         {
             InitializeResult = new FanotifyNativeCallResult(7, 0),
             PollResult = -1
@@ -75,7 +76,7 @@ public class FanotifyVolumeChangeSourceLifecycleTests
     [Test]
     public async Task WatchAsync_ReadReturnsZero_RaisesSourceDied()
     {
-        var native = new FakeFanotifyVolumeNative
+        var native = new FakeFanotifyNative
         {
             InitializeResult = new FanotifyNativeCallResult(7, 0),
             ReadReturnsZero = true
@@ -102,7 +103,7 @@ public class FanotifyVolumeChangeSourceLifecycleTests
     [Test]
     public async Task WatchAsync_ReadThrowsException_RaisesSourceDied()
     {
-        var native = new FakeFanotifyVolumeNative
+        var native = new FakeFanotifyNative
         {
             InitializeResult = new FanotifyNativeCallResult(7, 0),
             ReadThrowsException = true
@@ -129,7 +130,7 @@ public class FanotifyVolumeChangeSourceLifecycleTests
     [Test]
     public async Task DisposeAsync_DisposesDescriptorAndAllowsCleanExit()
     {
-        var native = new FakeFanotifyVolumeNative
+        var native = new FakeFanotifyNative
         {
             InitializeResult = new FanotifyNativeCallResult(77, 0)
         };
@@ -146,7 +147,7 @@ public class FanotifyVolumeChangeSourceLifecycleTests
     public async Task WatchAsync_QueueOverflowEvent_RaisesSourceDiedAndTerminates()
     {
         var overflowBuffer = CreateSyntheticOverflowBuffer();
-        var native = new FakeFanotifyVolumeNative
+        var native = new FakeFanotifyNative
         {
             InitializeResult = new FanotifyNativeCallResult(7, 0)
         };
@@ -173,7 +174,7 @@ public class FanotifyVolumeChangeSourceLifecycleTests
     [Test]
     public async Task WatchAsync_CancelledDuringWatch_TerminatesPumpCleanlyWithoutFaulting()
     {
-        var native = new FakeFanotifyVolumeNative
+        var native = new FakeFanotifyNative
         {
             InitializeResult = new FanotifyNativeCallResult(7, 0)
         };
@@ -194,7 +195,7 @@ public class FanotifyVolumeChangeSourceLifecycleTests
     [Test]
     public async Task WatchAsync_DisposeAsyncConcurrentWithEnumeration_DoesNotThrowObjectDisposedException()
     {
-        var native = new FakeFanotifyVolumeNative
+        var native = new FakeFanotifyNative
         {
             InitializeResult = new FanotifyNativeCallResult(7, 0)
         };

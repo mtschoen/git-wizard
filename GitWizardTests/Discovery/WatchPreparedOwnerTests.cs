@@ -11,7 +11,6 @@ namespace GitWizardTests.Discovery;
 [TestFixture]
 public class WatchPreparedOwnerTests
 {
-    static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(10);
 
     static RepositoryDiscoveryCoordinator CreateCoordinator(bool isLinux) =>
         new(new RepositoryDiscoveryDependencies
@@ -38,7 +37,7 @@ public class WatchPreparedOwnerTests
 
         await using var startup = await CreateCoordinator(isLinux: true)
             .PrepareWatchAsync(CreateRequest(), fixture.Owner, CancellationToken.None)
-            .WaitAsync(HangGuard);
+            .WaitAsync(TestTimeouts.HangGuard);
 
         Assert.Multiple(() =>
         {

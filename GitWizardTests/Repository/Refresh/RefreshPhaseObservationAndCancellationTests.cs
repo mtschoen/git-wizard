@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using GitWizard;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests;
 
@@ -184,18 +185,22 @@ public class RefreshPhaseObservationAndCancellationTests
         var repository = new GitWizardRepository(fixture.Path);
 
         using var cancellationTokenSource = new CancellationTokenSource();
-        var handler = new CancelingChildCreationHandler(cancellationTokenSource);
+        Action cancel = cancellationTokenSource.Cancel;
+        var handler = new RecordingUpdateHandler
+        {
+            CreatingSubmodule = (_, _) => cancel()
+        };
 
         var observedPhases = new List<int>();
         repository.PhaseObserverForTesting = observedPhases.Add;
 
         repository.Refresh(handler, cancellationToken: cancellationTokenSource.Token);
 
-        Assert.That(handler.SubmoduleCreatedCalls, Is.EqualTo(1),
+        Assert.That(handler.SubmodulesCreated.Length, Is.EqualTo(1),
             "Expected the submodule-created callback to fire from inside the RefreshSubmodules loop before cancellation stopped further work.");
         Assert.That(observedPhases, Does.Contain(0), "Expected the submodule refresh phase to be entered.");
 
-        var submodule = handler.CreatedSubmodule;
+        var submodule = handler.SubmodulesCreated.SingleOrDefault().Submodule;
         Assert.That(submodule, Is.Not.Null, "Expected the created submodule repository to be captured by the handler.");
         Assert.That(submodule!.RefreshError, Is.EqualTo("Timed out"),
             "Expected the submodule's own Refresh call to observe the token cancelled by the callback and stop immediately.");
@@ -223,18 +228,22 @@ public class RefreshPhaseObservationAndCancellationTests
         var repository = new GitWizardRepository(fixture.Path);
 
         using var cancellationTokenSource = new CancellationTokenSource();
-        var handler = new CancelingChildCreationHandler(cancellationTokenSource);
+        Action cancel = cancellationTokenSource.Cancel;
+        var handler = new RecordingUpdateHandler
+        {
+            CreatingWorktree = _ => cancel()
+        };
 
         var observedPhases = new List<int>();
         repository.PhaseObserverForTesting = observedPhases.Add;
 
         repository.Refresh(handler, cancellationToken: cancellationTokenSource.Token);
 
-        Assert.That(handler.WorktreeCreatedCalls, Is.EqualTo(1),
+        Assert.That(handler.WorktreesCreated.Length, Is.EqualTo(1),
             "Expected the worktree-created callback to fire from inside the RefreshWorktrees loop before cancellation stopped further work.");
         Assert.That(observedPhases, Does.Contain(2), "Expected the worktree refresh phase to be entered.");
 
-        var worktree = handler.CreatedWorktree;
+        var worktree = handler.WorktreesCreated.SingleOrDefault();
         Assert.That(worktree, Is.Not.Null, "Expected the created worktree repository to be captured by the handler.");
         Assert.That(worktree!.RefreshError, Is.EqualTo("Timed out"),
             "Expected the worktree's own Refresh call to observe the token cancelled by the callback and stop immediately.");

@@ -27,18 +27,18 @@ namespace GitWizardTests;
 [Platform("Win")]
 public class ElevationCoverageTests
 {
-    string _tempRoot = null!;
+    LocalFilesSandbox? _sandbox;
 
     [SetUp]
     public void SetUp()
     {
         GitWizardLog.SilentMode = true;
         // Safe even when we'll go Inconclusive: this only makes a temp dir, no elevation call.
-        _tempRoot = TestUtilities.RedirectLocalFilesToTemp();
+        _sandbox = new LocalFilesSandbox();
     }
 
     [TearDown]
-    public void TearDown() => TestUtilities.ClearLocalFilesRedirect(_tempRoot);
+    public void TearDown() => _sandbox?.Dispose();
 
     [Test]
     public async Task TryDiscoverRepositoriesUsingMftAsync_Elevated_FindsPreExistingRepository()
@@ -46,40 +46,35 @@ public class ElevationCoverageTests
         // Guard FIRST, in the body (NUnit does not reliably skip the body from a SetUp guard).
         if (!ElevationUtilities.DefaultProvider.IsElevated()) { Assert.Inconclusive("Requires admin"); return; }
 
-        var searchRoot = Path.Combine(Path.GetTempPath(), "GitWizardMftScan", Guid.NewGuid().ToString("N"));
+        using var rootDir = new TempDirectory("GitWizardMftScan-");
+        var searchRoot = rootDir.Path;
         var repositoryPath = Path.Combine(searchRoot, "repo");
         Directory.CreateDirectory(Path.Combine(repositoryPath, ".git"));
-        try
+
+        var configuration = new GitWizardConfiguration { SearchPaths = { searchRoot } };
+        var paths = new SortedSet<string>();
+
+        await using var result = await GitWizardApi.TryDiscoverRepositoriesUsingMftAsync(
+            configuration, paths, brokerLauncher: UiBrokerLauncher.LaunchUiBroker);
+
+        var connectionFailure = result.ScanErrors.Values.FirstOrDefault(IsBrokerConnectionFailure);
+        if (connectionFailure is not null)
         {
-            var configuration = new GitWizardConfiguration { SearchPaths = { searchRoot } };
-            var paths = new SortedSet<string>();
-
-            await using var result = await GitWizardApi.TryDiscoverRepositoriesUsingMftAsync(
-                configuration, paths, brokerLauncher: UiBrokerLauncher.LaunchUiBroker);
-
-            var connectionFailure = result.ScanErrors.Values.FirstOrDefault(IsBrokerConnectionFailure);
-            if (connectionFailure is not null)
-            {
-                Assert.Fail($"The UI app-host broker never connected: {connectionFailure}");
-                return;
-            }
-
-            if (result.ScanErrors.Count > 0)
-            {
-                Assert.Fail($"MFT scan failed: {string.Join("; ", result.ScanErrors.Values)}");
-                return;
-            }
-
-            using (Assert.EnterMultipleScope())
-            {
-                Assert.That(result.Success, Is.True,
-                    "The UI broker host connected, but the existing repository was not discovered.");
-                Assert.That(paths, Does.Contain(repositoryPath).IgnoreCase);
-            }
+            Assert.Fail($"The UI app-host broker never connected: {connectionFailure}");
+            return;
         }
-        finally
+
+        if (result.ScanErrors.Count > 0)
         {
-            Directory.Delete(searchRoot, recursive: true);
+            Assert.Fail($"MFT scan failed: {string.Join("; ", result.ScanErrors.Values)}");
+            return;
+        }
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Success, Is.True,
+                "The UI broker host connected, but the existing repository was not discovered.");
+            Assert.That(paths, Does.Contain(repositoryPath).IgnoreCase);
         }
     }
 
@@ -87,7 +82,7 @@ public class ElevationCoverageTests
     public async Task TryDiscoverRepositoriesUsingMftAsync_InjectedBrokerLauncher_InvokesLauncher()
     {
         var receivedBrokerArguments = new List<string>();
-        var configuration = new GitWizardConfiguration { SearchPaths = { Path.GetTempPath() } };
+        var configuration = new GitWizardConfiguration { SearchPaths = { TempDirectory.SystemTempPath } };
 
         await using var result = await GitWizardApi.TryDiscoverRepositoriesUsingMftAsync(
             configuration, new List<string>(), brokerLauncher: brokerArguments =>
@@ -107,7 +102,7 @@ public class ElevationCoverageTests
     public async Task TryDiscoverRepositoriesUsingMftAsync_BrokerNeverConnects_RecordsTimeoutInScanErrors()
     {
         var receivedBrokerArguments = new List<string>();
-        var configuration = new GitWizardConfiguration { SearchPaths = { Path.GetTempPath() } };
+        var configuration = new GitWizardConfiguration { SearchPaths = { TempDirectory.SystemTempPath } };
 
         await using var result = await GitWizardApi.TryDiscoverRepositoriesUsingMftAsync(
             configuration, new List<string>(),

@@ -4,7 +4,7 @@ using System.Threading.Channels;
 using GitWizard;
 using GitWizard.Watch;
 using GitWizard.Watch.Linux;
-using GitWizardTests.Watch.Linux;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests.Discovery;
 
@@ -12,7 +12,6 @@ namespace GitWizardTests.Discovery;
 [SupportedOSPlatform("linux")]
 public class LinuxWatchStartupTests
 {
-    static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(10);
 
     string _temporaryRoot = null!;
 
@@ -90,7 +89,7 @@ public class LinuxWatchStartupTests
 
         var config = new GitWizardConfiguration { SearchPaths = { searchRoot } };
         var request = new DiscoveryRequest(config, DiscoveryPurpose.Watch, false, false, []);
-        using var cts = new CancellationTokenSource(HangGuard);
+        using var cts = new CancellationTokenSource(TestTimeouts.HangGuard);
 
         var startupTask = coordinator.PrepareWatchAsync(request, null, cts.Token);
         await crawlEntered.Task.WaitAsync(cts.Token);
@@ -101,7 +100,7 @@ public class LinuxWatchStartupTests
         ]));
 
         finishCrawl.TrySetResult();
-        await using var startup = await startupTask.WaitAsync(HangGuard);
+        await using var startup = await startupTask.WaitAsync(TestTimeouts.HangGuard);
 
         Assert.That(startup.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.CompleteNonempty));
         Assert.That(startup.Inventory.Paths, Is.EquivalentTo(new[] { repositoryPath }));
@@ -122,7 +121,7 @@ public class LinuxWatchStartupTests
         await using var enumerator = service.RunAsync(cts.Token).GetAsyncEnumerator();
         var moveNext = enumerator.MoveNextAsync().AsTask();
 
-        Assert.That(await moveNext.WaitAsync(HangGuard), Is.True);
+        Assert.That(await moveNext.WaitAsync(TestTimeouts.HangGuard), Is.True);
         Assert.That(inventoryFired, Is.True);
         Assert.That(startedFired, Is.True);
         Assert.That(inventoryBeforeStarted, Is.True, "InventoryReady must fire before Started.");
@@ -133,7 +132,7 @@ public class LinuxWatchStartupTests
     [Test]
     public async Task FanotifyNative_QueueOverflow_ReportsSourceDied()
     {
-        var native = new FakeFanotifyVolumeNative
+        var native = new FakeFanotifyNative
         {
             InitializeResult = new FanotifyNativeCallResult(5, 0)
         };
@@ -158,9 +157,9 @@ public class LinuxWatchStartupTests
             CreateLinuxSource = () => source
         });
 
-        var config = new GitWizardConfiguration { SearchPaths = { Path.GetTempPath() } };
+        var config = new GitWizardConfiguration { SearchPaths = { TempDirectory.SystemTempPath } };
         var request = new DiscoveryRequest(config, DiscoveryPurpose.Watch, false, false, []);
-        using var cts = new CancellationTokenSource(HangGuard);
+        using var cts = new CancellationTokenSource(TestTimeouts.HangGuard);
 
         await using var startup = await coordinator.PrepareWatchAsync(request, null, cts.Token);
         var service = new RepositoryWatchService(startup);
@@ -170,9 +169,9 @@ public class LinuxWatchStartupTests
         await using var reader = service.RunAsync(cts.Token).GetAsyncEnumerator();
         var pending = reader.MoveNextAsync().AsTask();
 
-        var diedReason = await stoppedReason.Task.WaitAsync(HangGuard);
+        var diedReason = await stoppedReason.Task.WaitAsync(TestTimeouts.HangGuard);
         Assert.That(diedReason, Does.Contain("overflow"));
-        Assert.That(await pending.WaitAsync(HangGuard), Is.False);
+        Assert.That(await pending.WaitAsync(TestTimeouts.HangGuard), Is.False);
     }
 
     [Test]
@@ -198,7 +197,7 @@ public class LinuxWatchStartupTests
 
         var config = new GitWizardConfiguration { SearchPaths = { healthyRoot, failedRoot } };
         var request = new DiscoveryRequest(config, DiscoveryPurpose.Watch, false, false, []);
-        using var cts = new CancellationTokenSource(HangGuard);
+        using var cts = new CancellationTokenSource(TestTimeouts.HangGuard);
 
         await using var startup = await coordinator.PrepareWatchAsync(request, null, cts.Token);
 
@@ -235,7 +234,7 @@ public class LinuxWatchStartupTests
 
         var config = new GitWizardConfiguration { SearchPaths = { firstRoot, secondRoot } };
         var request = new DiscoveryRequest(config, DiscoveryPurpose.Watch, false, false, []);
-        using var cts = new CancellationTokenSource(HangGuard);
+        using var cts = new CancellationTokenSource(TestTimeouts.HangGuard);
 
         await using var startup = await coordinator.PrepareWatchAsync(request, null, cts.Token);
 
@@ -276,10 +275,10 @@ public class LinuxWatchStartupTests
         using var cts = new CancellationTokenSource();
 
         var startupTask = coordinator.PrepareWatchAsync(request, null, cts.Token);
-        await crawlEntered.Task.WaitAsync(HangGuard);
+        await crawlEntered.Task.WaitAsync(TestTimeouts.HangGuard);
         await cts.CancelAsync();
 
-        Assert.CatchAsync<OperationCanceledException>(async () => await startupTask.WaitAsync(HangGuard));
+        Assert.CatchAsync<OperationCanceledException>(async () => await startupTask.WaitAsync(TestTimeouts.HangGuard));
         Assert.That(source.Disposed, Is.True, "Cancelled preparation must dispose source.");
     }
 }

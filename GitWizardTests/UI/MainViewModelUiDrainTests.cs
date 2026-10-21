@@ -11,7 +11,7 @@ namespace GitWizardTests;
 public class MainViewModelUiDrainTests
 {
     static MainViewModel CreateViewModel(RecordingUiDispatcher dispatcher, ControlledDelayClock clock) =>
-        new(dispatcher, new StubUserDialogs(), new StubClipboardService(), clock);
+        TestViewModels.Create(dispatcher: dispatcher, timeProvider: clock);
 
     static GitWizardRepository Repo(string workingDirectory) => new(workingDirectory);
 

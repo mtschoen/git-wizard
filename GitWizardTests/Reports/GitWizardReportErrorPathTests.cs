@@ -1,4 +1,5 @@
 using GitWizard;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests;
 
@@ -16,7 +17,27 @@ public class GitWizardReportErrorPathTests
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         var report = new GitWizardReport();
-        var handler = new ThrowingProgressHandler();
+        var startProgressCalls = 0;
+        var repositoryCreatedCalls = 0;
+        var updateProgressCalls = 0;
+        var handler = new RecordingUpdateHandler
+        {
+            StartingProgress = (_, _) =>
+            {
+                startProgressCalls++;
+                throw new InvalidOperationException("start-progress failure");
+            },
+            CreatingRepository = _ =>
+            {
+                repositoryCreatedCalls++;
+                throw new InvalidOperationException("repository-created failure");
+            },
+            UpdatingProgress = _ =>
+            {
+                updateProgressCalls++;
+                throw new InvalidOperationException("update-progress failure");
+            }
+        };
 
         // Every handler callback throws; Refresh must complete and still record the repository.
         report.Refresh(new[] { fixture.Path }, handler);
@@ -25,42 +46,9 @@ public class GitWizardReportErrorPathTests
         {
             Assert.That(report.Repositories.ContainsKey(fixture.Path), Is.True,
                 "The repository must be scanned even though every handler callback threw.");
-            Assert.That(handler.StartProgressCalls, Is.GreaterThan(0));
-            Assert.That(handler.RepositoryCreatedCalls, Is.GreaterThan(0));
-            Assert.That(handler.UpdateProgressCalls, Is.GreaterThan(0));
+            Assert.That(startProgressCalls, Is.GreaterThan(0));
+            Assert.That(repositoryCreatedCalls, Is.GreaterThan(0));
+            Assert.That(updateProgressCalls, Is.GreaterThan(0));
         });
-    }
-
-
-    sealed class ThrowingProgressHandler : IUpdateHandler
-    {
-        public int StartProgressCalls { get; private set; }
-        public int RepositoryCreatedCalls { get; private set; }
-        public int UpdateProgressCalls { get; private set; }
-
-        public void StartProgress(string description, int total)
-        {
-            StartProgressCalls++;
-            throw new InvalidOperationException("start-progress failure");
-        }
-
-        public void UpdateProgress(int count)
-        {
-            UpdateProgressCalls++;
-            throw new InvalidOperationException("update-progress failure");
-        }
-
-        public void SendUpdateMessage(string? message) { }
-
-        public void OnRepositoryCreated(GitWizardRepository gitWizardRepository)
-        {
-            RepositoryCreatedCalls++;
-            throw new InvalidOperationException("repository-created failure");
-        }
-
-        public void OnSubmoduleCreated(GitWizardRepository parent, GitWizardRepository submodule) { }
-        public void OnWorktreeCreated(GitWizardRepository worktree) { }
-        public void OnUninitializedSubmoduleCreated(GitWizardRepository parent, string submodulePath) { }
-        public void OnRepositoryRefreshCompleted(GitWizardRepository gitWizardRepository) { }
     }
 }

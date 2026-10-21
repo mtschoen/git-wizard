@@ -1,4 +1,5 @@
 using GitWizard.Watch;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests.Watch;
 
@@ -31,7 +32,7 @@ public class RepositoryWatchServicePathShapeTests
                 }),
             };
         var svc = new RepositoryWatchService(
-            new FakeVolumeChangeSource(batches),
+            new ScriptedVolumeChangeSource(batches),
             trackedRoots: new[] { "/repo/A", "/repo/a" },
             searchRoots: Array.Empty<string>(),
             debounce: TimeSpan.FromMilliseconds(10));
@@ -60,9 +61,10 @@ public class RepositoryWatchServicePathShapeTests
                 }),
             };
         var svc = new RepositoryWatchService(
-            new FakeVolumeChangeSource(batches),
+            new ScriptedVolumeChangeSource(batches),
             trackedRoots: Array.Empty<string>(),
             searchRoots: new[] { @"C:\repo" });
+
 
         var events = await DrainAsync(svc);
 
@@ -85,7 +87,7 @@ public class RepositoryWatchServicePathShapeTests
                 new VolumeChangeEntry(@"\\server\share\repos\NewRepo\.GIT", VolumeEntryKind.Created)
             });
         var service = new RepositoryWatchService(
-            new FakeVolumeChangeSource(new[] { batch }),
+            new ScriptedVolumeChangeSource(new[] { batch }),
             trackedRoots: Array.Empty<string>(),
             searchRoots: new[] { @"\\Server\Share\Repos" },
             debounce: TimeSpan.FromMilliseconds(10));
@@ -107,7 +109,7 @@ public class RepositoryWatchServicePathShapeTests
                 new VolumeChangeEntry(@"\repos\repo\file.txt", VolumeEntryKind.Modified)
             });
         var service = new RepositoryWatchService(
-            new FakeVolumeChangeSource(new[] { batch }),
+            new ScriptedVolumeChangeSource(new[] { batch }),
             trackedRoots: new[] { repositoryRoot },
             searchRoots: Array.Empty<string>(),
             debounce: TimeSpan.FromMilliseconds(10));
@@ -130,7 +132,7 @@ public class RepositoryWatchServicePathShapeTests
                 new VolumeChangeEntry(@"c:\", VolumeEntryKind.Deleted),
             });
         var service = new RepositoryWatchService(
-            new FakeVolumeChangeSource(new[] { batch }),
+            new ScriptedVolumeChangeSource(new[] { batch }),
             trackedRoots: new[] { repositoryRoot },
             searchRoots: Array.Empty<string>(),
             debounce: TimeSpan.FromMilliseconds(10));
@@ -152,7 +154,7 @@ public class RepositoryWatchServicePathShapeTests
                 new VolumeChangeEntry("/repo/a/file.txt", VolumeEntryKind.Modified)
             });
         var svc = new RepositoryWatchService(
-            new FakeVolumeChangeSource(new[] { batch }),
+            new ScriptedVolumeChangeSource(new[] { batch }),
             trackedRoots: new[] { "/repo/a" },
             searchRoots: Array.Empty<string>(),
             debounce: TimeSpan.FromMilliseconds(10));
@@ -169,7 +171,7 @@ public class RepositoryWatchServicePathShapeTests
     public async Task RootWithoutDriveLetter_IsIgnoredWhenGroupingByVolume()
     {
         var svc = new RepositoryWatchService(
-            new FakeVolumeChangeSource(Array.Empty<VolumeChangeBatch>()),
+            new ScriptedVolumeChangeSource(Array.Empty<VolumeChangeBatch>()),
             trackedRoots: new[] { "relative-repo" },
             searchRoots: Array.Empty<string>(),
             debounce: TimeSpan.FromMilliseconds(10));

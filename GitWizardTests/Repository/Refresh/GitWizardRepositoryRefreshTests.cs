@@ -1,4 +1,5 @@
 using GitWizard;
+using GitWizardTests.TestSupport;
 using LibGit2Sharp;
 
 namespace GitWizardTests;
@@ -366,8 +367,8 @@ public class GitWizardRepositoryRefreshTests
     [Test]
     public void Refresh_InvalidPath_SetsRefreshError()
     {
-        var nonExistent = Path.Combine(Path.GetTempPath(), "gw-nonexist-" + Guid.NewGuid().ToString("N"));
-        var repo = new GitWizardRepository(nonExistent);
+        using var nonExistent = new TempDirectory("gw-nonexist-", create: false);
+        var repo = new GitWizardRepository(nonExistent.Path);
         repo.Refresh();
         Assert.That(repo.IsRefreshing, Is.False);
     }
@@ -383,40 +384,25 @@ public class GitWizardRepositoryRefreshTests
     [Test]
     public void Refresh_NotAGitRepo_SetsNotAGitRepositoryError()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), "gw-not-git-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(tempDir);
-        try
-        {
-            var repo = new GitWizardRepository(tempDir);
-            repo.Refresh();
-            Assert.That(repo.RefreshError, Is.EqualTo("Not a git repository"));
-        }
-        finally
-        {
-            Directory.Delete(tempDir, recursive: true);
-        }
+        using var tempDir = new TempDirectory("gw-not-git-");
+        var repo = new GitWizardRepository(tempDir.Path);
+        repo.Refresh();
+        Assert.That(repo.RefreshError, Is.EqualTo("Not a git repository"));
     }
 
     [Test]
     public void Refresh_AfterFailureThenSuccess_ClearsRefreshError()
     {
-        var path = Path.Combine(Path.GetTempPath(), "recovers-repo-" + Guid.NewGuid());
-        Directory.CreateDirectory(path);
+        using var directory = new TempDirectory("recovers-repo-");
+        var path = directory.Path;
 
-        try
-        {
-            var repository = new GitWizardRepository(path);
-            repository.Refresh();
-            Assert.That(repository.RefreshError, Is.EqualTo(GitWizardRepository.NotAGitRepositoryError));
+        var repository = new GitWizardRepository(path);
+        repository.Refresh();
+        Assert.That(repository.RefreshError, Is.EqualTo(GitWizardRepository.NotAGitRepositoryError));
 
-            Repository.Init(path);
-            repository.Refresh();
-            Assert.That(repository.RefreshError, Is.Null);
-        }
-        finally
-        {
-            Directory.Delete(path, true);
-        }
+        Repository.Init(path);
+        repository.Refresh();
+        Assert.That(repository.RefreshError, Is.Null);
     }
 
     [Test]
@@ -432,8 +418,8 @@ public class GitWizardRepositoryRefreshTests
         GitWizardLog.SilentMode = false;
         try
         {
-            var missing = Path.Combine(Path.GetTempPath(), "gw-vanished-" + Guid.NewGuid().ToString("N"));
-            new GitWizardRepository(missing).Refresh();
+            using var missing = new TempDirectory("gw-vanished-", create: false);
+            new GitWizardRepository(missing.Path).Refresh();
         }
         finally
         {
@@ -459,8 +445,8 @@ public class GitWizardRepositoryRefreshTests
         GitWizardLog.SilentMode = false;
         try
         {
-            var missing = Path.Combine(Path.GetTempPath(), "gw-vanished-" + Guid.NewGuid().ToString("N"));
-            new GitWizardRepository(missing).Refresh();
+            using var missing = new TempDirectory("gw-vanished-", create: false);
+            new GitWizardRepository(missing.Path).Refresh();
         }
         finally
         {
@@ -489,14 +475,14 @@ public class GitWizardRepositoryRefreshTests
     public void MarkRefreshFailed_RecordingHandler_SetsErrorAndNotifiesHandler()
     {
         var repo = new GitWizardRepository("/fake/path");
-        var handler = new CountingUpdateHandler();
+        var handler = new RecordingUpdateHandler();
         repo.MarkRefreshFailed("test error", handler);
 
         Assert.Multiple(() =>
         {
             Assert.That(repo.RefreshError, Is.EqualTo("test error"));
             Assert.That(repo.IsRefreshing, Is.False);
-            Assert.That(handler.RefreshCompletedCount, Is.EqualTo(1));
+            Assert.That(handler.RefreshCompleted.Length, Is.EqualTo(1));
         });
     }
 
@@ -504,7 +490,10 @@ public class GitWizardRepositoryRefreshTests
     public void MarkRefreshFailed_ThrowingHandler_DoesNotPropagate()
     {
         var repo = new GitWizardRepository("/fake/path");
-        var handler = new FailingUpdateHandler();
+        var handler = new RecordingUpdateHandler
+        {
+            CompletingRefresh = _ => throw new InvalidOperationException("callback failure")
+        };
         Assert.DoesNotThrow(() => repo.MarkRefreshFailed("error", handler));
     }
 
@@ -513,11 +502,11 @@ public class GitWizardRepositoryRefreshTests
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         var repo = new GitWizardRepository(fixture.Path);
-        var handler = new CountingUpdateHandler();
+        var handler = new RecordingUpdateHandler();
         repo.Refresh(handler);
 
-        Assert.That(handler.RefreshCompletedCount, Is.EqualTo(1));
-        Assert.That(handler.LastCompletedRepository, Is.SameAs(repo));
+        Assert.That(handler.RefreshCompleted.Length, Is.EqualTo(1));
+        Assert.That(handler.RefreshCompleted.Single(), Is.SameAs(repo));
     }
 
     [Test]
@@ -525,25 +514,23 @@ public class GitWizardRepositoryRefreshTests
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         var repo = new GitWizardRepository(fixture.Path);
-        var handler = new FailingUpdateHandler();
+        var handler = new RecordingUpdateHandler
+        {
+            CompletingRefresh = _ => throw new InvalidOperationException("callback failure")
+        };
         Assert.DoesNotThrow(() => repo.Refresh(handler));
     }
 
     [Test]
     public void Refresh_SwallowsAThrowingRefreshCompletedCallback()
     {
-        var directory = Path.Combine(Path.GetTempPath(), "gw-nongit-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(directory);
-        try
+        using var directory = new TempDirectory("gw-nongit-");
+        var repo = new GitWizardRepository(directory.Path);
+        repo.Refresh(new RecordingUpdateHandler
         {
-            var repo = new GitWizardRepository(directory);
-            repo.Refresh(new FailingUpdateHandler());
-            Assert.That(repo.RefreshError, Does.Contain("not a git repository").IgnoreCase);
-        }
-        finally
-        {
-            Directory.Delete(directory, recursive: true);
-        }
+            CompletingRefresh = _ => throw new InvalidOperationException("callback failure")
+        });
+        Assert.That(repo.RefreshError, Does.Contain("not a git repository").IgnoreCase);
     }
 
     [Test]
@@ -572,7 +559,10 @@ public class GitWizardRepositoryRefreshTests
     public void GitWizardRepository_NotifyRefreshCompleted_CatchesException()
     {
         var repo = new GitWizardRepository("/fake");
-        var handler = new FailingUpdateHandler();
+        var handler = new RecordingUpdateHandler
+        {
+            CompletingRefresh = _ => throw new InvalidOperationException("callback failure")
+        };
         Assert.DoesNotThrow(() => repo.NotifyRefreshCompleted(handler));
     }
 
@@ -587,15 +577,8 @@ public class GitWizardRepositoryRefreshTests
         var resultInvalid = GitWizardRepository.FetchAllRemotes("/invalid-dir-that-does-not-exist");
         Assert.That(resultInvalid, Is.False);
 
-        var nonGitDir = TestUtilities.CreateTempDir(out var cleanup);
-        try
-        {
-            var resultNonGit = GitWizardRepository.FetchAllRemotes(nonGitDir);
-            Assert.That(resultNonGit, Is.True);
-        }
-        finally
-        {
-            cleanup();
-        }
+        using var nonGitDir = new TempDirectory("gw-nongit-");
+        var resultNonGit = GitWizardRepository.FetchAllRemotes(nonGitDir.Path);
+        Assert.That(resultNonGit, Is.True);
     }
 }

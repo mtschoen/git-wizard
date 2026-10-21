@@ -5,7 +5,7 @@ namespace GitWizardTests;
 /// <summary>
 /// Assembly-wide safety net: redirects GitWizard's data dir (config/cache/report) to an isolated
 /// temp home for the ENTIRE test run via GITWIZARD_HOME, so no test ever reads or writes the real
-/// ~/.GitWizard - even one that forgets to call <see cref="TestUtilities.RedirectLocalFilesToTemp"/>.
+/// ~/.GitWizard - even one that forgets to call <see cref="GitWizardTests.TestSupport.LocalFilesSandbox"/>.
 ///
 /// This exists because the per-class opt-in redirect pattern leaked twice: GitWizardConfigurationTests
 /// wrote to the real config, and the historical API local-files test called the delete-all-local-files API
@@ -15,7 +15,7 @@ namespace GitWizardTests;
 ///
 /// The temp home is placed under the user profile so path-shape assertions still hold cross-platform
 /// (e.g. GitWizardApiTests.GetLocalFilesPath_ContainsUserProfile). Per-class redirects via
-/// <see cref="TestUtilities.RedirectLocalFilesToTemp"/> still override this for their own isolation;
+/// <see cref="GitWizardTests.TestSupport.LocalFilesSandbox"/> still override this for their own isolation;
 /// their teardown restores this fallback (see <see cref="TestUtilities.ClearLocalFilesRedirect"/>).
 /// </summary>
 [SetUpFixture]

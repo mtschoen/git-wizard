@@ -1,3 +1,4 @@
+using GitWizardTests.TestSupport;
 using GitWizardUI.ViewModels;
 
 namespace GitWizardTests;
@@ -6,8 +7,7 @@ namespace GitWizardTests;
 // Covers MainViewModel.cs.
 public class MainViewModelTests
 {
-    static MainViewModel CreateViewModel() =>
-        new(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+    static MainViewModel CreateViewModel() => TestViewModels.Create();
 
     [Test]
     public void Construction_RequiresInjectedServices()
@@ -16,7 +16,7 @@ public class MainViewModelTests
         var dialogs = new StubUserDialogs();
         var clipboard = new StubClipboardService();
 
-        var vm = new MainViewModel(dispatcher, dialogs, clipboard);
+        var vm = TestViewModels.Create(dispatcher, dialogs, clipboard);
 
         Assert.That(vm, Is.Not.Null);
         Assert.That(vm.HeaderText, Is.EqualTo("GitWizard"));
@@ -25,7 +25,7 @@ public class MainViewModelTests
     [Test]
     public void IsScanning_IsFalseBeforeAnyRefresh()
     {
-        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+        var vm = TestViewModels.Create();
 
         Assert.That(vm.IsScanning, Is.False);
     }

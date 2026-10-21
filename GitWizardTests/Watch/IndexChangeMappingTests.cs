@@ -151,7 +151,6 @@ public class IndexChangeMappingTests
         }));
     }
 
-    static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(10);
 
     [TestCase(false, false, true, TestName = "Synthetic_ModifiedRename")]
     [TestCase(true, false, true, TestName = "PR319_RealMft_FileRenameDeleteRecreate")]
@@ -196,7 +195,7 @@ public class IndexChangeMappingTests
                 changes.Add(change);
         };
         await index.StartWatchingAsync(['X'], CancellationToken.None);
-        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard);
+        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
 
         var targetName = isDirectory ? "current" : ".git";
         var targetEntry = index.Search(new SearchQuery(targetName, NameMatchMode.Exact)).Single();

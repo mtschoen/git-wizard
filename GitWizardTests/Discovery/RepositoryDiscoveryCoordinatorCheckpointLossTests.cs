@@ -15,7 +15,6 @@ namespace GitWizardTests.Discovery;
 [NonParallelizable]
 public class RepositoryDiscoveryCoordinatorCheckpointLossTests
 {
-    static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(10);
     static readonly SyntheticJournalWindow Healthy = new(PackedIndexFixture.JournalIdentifier, 0, 5_000, 64, 8_192);
     static readonly SyntheticJournalWindow Lost = new(PackedIndexFixture.JournalIdentifier, 1_500, 5_000, 64, 8_192);
 
@@ -97,7 +96,7 @@ public class RepositoryDiscoveryCoordinatorCheckpointLossTests
         Assert.That(session.Index.Drives.Single().Watch.CheckpointLoss, Is.Not.Null);
         Assert.That(session.Index.Drives.Single().Block?.Origin, Is.EqualTo(expectedInitialOrigin));
         var productionsBeforeWatch = _productions;
-        using var cancellation = new CancellationTokenSource(HangGuard);
+        using var cancellation = new CancellationTokenSource(TestTimeouts.HangGuard);
 
         await using var startup = await CreateCoordinator()
             .PrepareWatchAsync(CreateWatchRequest(), session, cancellation.Token);

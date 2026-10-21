@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using GitWizard;
 using GitWizard.Watch;
 using GitWizard.Watch.Linux;
@@ -23,10 +24,10 @@ public class MainViewModelLiveReadinessTests
     public async Task ReadinessDetailsReachTooltipAndCachePanelThroughDispatcher()
     {
         var sourceReady = new TaskCompletionSource<ReadinessVolumeChangeSource>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var dispatcher = new QueuedLiveUiDispatcher();
-        var viewModel = new MainViewModel(dispatcher, new StubUserDialogs(), new StubClipboardService());
+        var dispatcher = new QueuedUiDispatcher();
+        var viewModel = TestViewModels.Create(dispatcher: dispatcher);
         var cacheModel = viewModel.IndexCache;
-        var tooltipNotifications = new System.Runtime.CompilerServices.StrongBox<int>(0);
+        var tooltipNotifications = new StrongBox<int>(0);
         viewModel.PropertyChanged += (_, arguments) =>
         {
             if (arguments.PropertyName == nameof(MainViewModel.LiveReadinessTooltip))
@@ -105,9 +106,9 @@ public class MainViewModelLiveReadinessTests
     public async Task LiveWatchTransitionsReachTooltipAndPanelThroughDispatcherAndClearOnStop()
     {
         var sourceReady = new TaskCompletionSource<ReadinessVolumeChangeSource>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var dispatcher = new QueuedLiveUiDispatcher();
+        var dispatcher = new QueuedUiDispatcher();
         var clock = new FixedClock();
-        var viewModel = new MainViewModel(dispatcher, new StubUserDialogs(), new StubClipboardService(), clock);
+        var viewModel = TestViewModels.Create(dispatcher: dispatcher, timeProvider: clock);
         var cacheModel = viewModel.IndexCache;
         viewModel.LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
         viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>

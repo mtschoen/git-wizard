@@ -44,18 +44,15 @@ public class JournalSettingsWindowTests
     [AvaloniaTest]
     public async Task EnlargeButtonStaysVisibleButDisabledWithoutGrowAction()
     {
-        var temporaryRoot = TestUtilities.RedirectLocalFilesToTemp();
-        TestUtilities.ResetStaticCaches();
+        using var sandbox = new LocalFilesSandbox();
         var source = new FakeJournalSettingsSource();
         source.CheckpointLosses.Clear();
         source.CheckpointLosses.Add(FakeJournalSettingsSource.RecreatedLoss('C', 64L * 1024 * 1024));
-        var main = new MainViewModel(new AvaloniaUiDispatcher(), new StubUserDialogs(), new StubClipboardService())
-        {
-            LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
-                FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken),
-            LiveIsElevated = () => false,
-            LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0)
-        };
+        var main = TestViewModels.Create(dispatcher: new AvaloniaUiDispatcher());
+        main.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
+            FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
+        main.LiveIsElevated = () => false;
+        main.LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
         var running = main.ToggleLiveAsync();
         SettingsWindow? window = null;
         try
@@ -78,24 +75,20 @@ public class JournalSettingsWindowTests
             await main.DisposeAsync();
             await running;
             await source.DisposeAsync();
-            TestUtilities.ResetStaticCaches();
-            TestUtilities.ClearLocalFilesRedirect(temporaryRoot);
+
         }
     }
 
     [AvaloniaTest]
     public async Task EnlargeButtonUsesExistingSourceAndUpdatesOnUiThread()
     {
-        var temporaryRoot = TestUtilities.RedirectLocalFilesToTemp();
-        TestUtilities.ResetStaticCaches();
+        using var sandbox = new LocalFilesSandbox();
         var source = new FakeJournalSettingsSource();
-        var main = new MainViewModel(new AvaloniaUiDispatcher(), new StubUserDialogs(), new StubClipboardService())
-        {
-            LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
-                FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken),
-            LiveIsElevated = () => false,
-            LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0)
-        };
+        var main = TestViewModels.Create(dispatcher: new AvaloniaUiDispatcher());
+        main.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
+            FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
+        main.LiveIsElevated = () => false;
+        main.LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
         var running = main.ToggleLiveAsync();
         SettingsWindow? window = null;
         try
@@ -133,8 +126,7 @@ public class JournalSettingsWindowTests
             await main.DisposeAsync();
             await running;
             await source.DisposeAsync();
-            TestUtilities.ResetStaticCaches();
-            TestUtilities.ClearLocalFilesRedirect(temporaryRoot);
+
         }
     }
 }

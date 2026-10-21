@@ -1,4 +1,5 @@
 using GitWizard;
+using GitWizardTests.TestSupport;
 using LibGit2Sharp;
 
 namespace GitWizardTests;
@@ -118,15 +119,15 @@ public class GitWizardReportTests
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         var config = GitWizardConfiguration.CreateDefaultConfiguration();
         var report = new GitWizardReport(config);
-        var handler = new ProgressTrackingHandler();
+        var handler = new RecordingUpdateHandler();
 
         report.Refresh(new SortedSet<string> { fixture.Path }, handler);
 
         Assert.Multiple(() =>
         {
-            Assert.That(handler.StartProgressCalled, Is.True);
-            Assert.That(handler.UpdateProgressCalled, Is.True);
-            Assert.That(handler.RepositoriesCreated, Is.GreaterThan(0));
+            Assert.That(handler.ProgressStarts, Is.Not.Empty);
+            Assert.That(handler.ProgressCounts, Is.Not.Empty);
+            Assert.That(handler.RepositoriesCreated.Length, Is.GreaterThan(0));
         });
     }
 
@@ -143,23 +144,16 @@ public class GitWizardReportTests
     public void Refresh_MultipleNonRepoPaths_AllTracked()
     {
         GitWizardLog.SilentMode = true;
-        var dir1 = Path.Combine(Path.GetTempPath(), "gw-nonrepo1-" + Guid.NewGuid().ToString("N"));
-        var dir2 = Path.Combine(Path.GetTempPath(), "gw-nonrepo2-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(dir1);
-        Directory.CreateDirectory(dir2);
-        try
-        {
-            var config = GitWizardConfiguration.CreateDefaultConfiguration();
-            var report = new GitWizardReport(config);
-            report.Refresh(new SortedSet<string> { dir1, dir2 });
+        using var directory1 = new TempDirectory("gw-nonrepo1-");
+        using var directory2 = new TempDirectory("gw-nonrepo2-");
+        var dir1 = directory1.Path;
+        var dir2 = directory2.Path;
 
-            Assert.That(report.NonRepositoryPaths, Has.Count.EqualTo(2));
-        }
-        finally
-        {
-            Directory.Delete(dir1, recursive: true);
-            Directory.Delete(dir2, recursive: true);
-        }
+        var config = GitWizardConfiguration.CreateDefaultConfiguration();
+        var report = new GitWizardReport(config);
+        report.Refresh(new SortedSet<string> { dir1, dir2 });
+
+        Assert.That(report.NonRepositoryPaths, Has.Count.EqualTo(2));
     }
 
     [Test]
@@ -186,21 +180,6 @@ public class GitWizardReportTests
         Assert.That(keys, Is.EqualTo(new[] { "/a", "/b" }));
     }
 
-    sealed class ProgressTrackingHandler : IUpdateHandler
-    {
-        public bool StartProgressCalled { get; private set; }
-        public bool UpdateProgressCalled { get; private set; }
-        public int RepositoriesCreated { get; private set; }
-
-        public void StartProgress(string description, int total) => StartProgressCalled = true;
-        public void UpdateProgress(int count) => UpdateProgressCalled = true;
-        public void SendUpdateMessage(string? message) { }
-        public void OnRepositoryCreated(GitWizardRepository gitWizardRepository) => RepositoriesCreated++;
-        public void OnSubmoduleCreated(GitWizardRepository parent, GitWizardRepository submodule) { }
-        public void OnWorktreeCreated(GitWizardRepository worktree) { }
-        public void OnUninitializedSubmoduleCreated(GitWizardRepository parent, string submodulePath) { }
-        public void OnRepositoryRefreshCompleted(GitWizardRepository gitWizardRepository) { }
-    }
 
     [Test]
     [Repeat(20)]
@@ -260,7 +239,8 @@ public class GitWizardReportTests
     {
         GitWizardLog.SilentMode = true;
         using var validRepo = TempRepoFixture.CreateWithInitialCommit();
-        var deletedPath = Path.Combine(Path.GetTempPath(), "nonexistent-repo-" + Guid.NewGuid());
+        using var deleted = new TempDirectory("nonexistent-repo-", create: false);
+        var deletedPath = deleted.Path;
 
         var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
         var report = new GitWizardReport(configuration);
@@ -292,58 +272,44 @@ public class GitWizardReportTests
     public void Refresh_NonRepoPath_TracksAndPrunesNonRepositoryPath()
     {
         GitWizardLog.SilentMode = true;
-        var nonRepoPath = Path.Combine(Path.GetTempPath(), "not-a-repo-" + Guid.NewGuid());
-        Directory.CreateDirectory(nonRepoPath);
+        using var nonRepo = new TempDirectory("not-a-repo-");
+        var nonRepoPath = nonRepo.Path;
 
-        try
-        {
-            var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
-            var report = new GitWizardReport(configuration);
+        var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
+        var report = new GitWizardReport(configuration);
 
-            var paths = new SortedSet<string> { nonRepoPath };
-            report.Refresh(paths);
+        var paths = new SortedSet<string> { nonRepoPath };
+        report.Refresh(paths);
 
-            Assert.That(report.NonRepositoryPaths.Count, Is.EqualTo(1));
-            Assert.That(report.NonRepositoryPaths.Contains(nonRepoPath), Is.True);
-            Assert.That(report.Repositories.ContainsKey(nonRepoPath), Is.False);
+        Assert.That(report.NonRepositoryPaths.Count, Is.EqualTo(1));
+        Assert.That(report.NonRepositoryPaths.Contains(nonRepoPath), Is.True);
+        Assert.That(report.Repositories.ContainsKey(nonRepoPath), Is.False);
 
-            // A merely-missing directory must NOT be mistaken for a stale non-repo path.
-            Assert.That(report.DeletedPaths, Does.Not.Contain(nonRepoPath));
-        }
-        finally
-        {
-            Directory.Delete(nonRepoPath, true);
-        }
+        // A merely-missing directory must NOT be mistaken for a stale non-repo path.
+        Assert.That(report.DeletedPaths, Does.Not.Contain(nonRepoPath));
     }
 
     [Test]
     public void Refresh_RecoveredPath_IsNotPrunedAsNonRepository()
     {
         GitWizardLog.SilentMode = true;
-        var path = Path.Combine(Path.GetTempPath(), "recovers-repo-" + Guid.NewGuid());
-        Directory.CreateDirectory(path);
+        using var directory = new TempDirectory("recovers-repo-");
+        var path = directory.Path;
 
-        try
+        var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
+        var report = new GitWizardReport(configuration);
+        report.Repositories[path] = new GitWizardRepository(path)
         {
-            var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
-            var report = new GitWizardReport(configuration);
-            report.Repositories[path] = new GitWizardRepository(path)
-            {
-                RefreshError = GitWizardRepository.NotAGitRepositoryError
-            };
+            RefreshError = GitWizardRepository.NotAGitRepositoryError
+        };
 
-            Repository.Init(path);
+        Repository.Init(path);
 
-            var paths = new SortedSet<string> { path };
-            report.Refresh(paths);
+        var paths = new SortedSet<string> { path };
+        report.Refresh(paths);
 
-            Assert.That(report.Repositories.ContainsKey(path), Is.True);
-            Assert.That(report.NonRepositoryPaths, Does.Not.Contain(path));
-        }
-        finally
-        {
-            Directory.Delete(path, true);
-        }
+        Assert.That(report.Repositories.ContainsKey(path), Is.True);
+        Assert.That(report.NonRepositoryPaths, Does.Not.Contain(path));
     }
 
     [Test]
@@ -478,36 +444,22 @@ public class GitWizardReportTests
     public void Save_CreatesReportFile()
     {
         var report = new GitWizardReport();
-        var reportPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".json");
+        using var files = new TempDirectory();
+        var reportPath = Path.Combine(files.Path, "report.json");
 
-        try
-        {
-            report.Save(reportPath);
-            Assert.That(File.Exists(reportPath), Is.True);
-        }
-        finally
-        {
-            if (File.Exists(reportPath))
-                File.Delete(reportPath);
-        }
+        report.Save(reportPath);
+        Assert.That(File.Exists(reportPath), Is.True);
     }
 
     [Test]
     public async Task SaveAsync_CreatesReportFile()
     {
         var report = new GitWizardReport();
-        var reportPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".json");
+        using var files = new TempDirectory();
+        var reportPath = Path.Combine(files.Path, "report.json");
 
-        try
-        {
-            await report.SaveAsync(reportPath);
-            Assert.That(File.Exists(reportPath), Is.True);
-        }
-        finally
-        {
-            if (File.Exists(reportPath))
-                File.Delete(reportPath);
-        }
+        await report.SaveAsync(reportPath);
+        Assert.That(File.Exists(reportPath), Is.True);
     }
 
     [Test]
@@ -516,19 +468,12 @@ public class GitWizardReportTests
         var report = new GitWizardReport();
         report.Repositories["/test/repo"] = new GitWizardRepository("/test/repo");
 
-        var reportPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".json");
+        using var files = new TempDirectory();
+        var reportPath = Path.Combine(files.Path, "report.json");
 
-        try
-        {
-            report.Save(reportPath);
-            var json = File.ReadAllText(reportPath);
-            Assert.That(json, Does.Contain("\"/test/repo\""));
-        }
-        finally
-        {
-            if (File.Exists(reportPath))
-                File.Delete(reportPath);
-        }
+        report.Save(reportPath);
+        var json = File.ReadAllText(reportPath);
+        Assert.That(json, Does.Contain("\"/test/repo\""));
     }
 
     [Test]
@@ -562,32 +507,25 @@ public class GitWizardReportTests
         // saving repositories.txt back to disk, so stale entries never get persisted.
         GitWizardLog.SilentMode = true;
         using var validRepo = TempRepoFixture.CreateWithInitialCommit();
-        var nonRepoPath = Path.Combine(Path.GetTempPath(), "not-a-repo-" + Guid.NewGuid());
-        Directory.CreateDirectory(nonRepoPath);
+        using var nonRepo = new TempDirectory("not-a-repo-");
+        var nonRepoPath = nonRepo.Path;
 
-        try
-        {
-            var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
-            var report = new GitWizardReport(configuration);
+        var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
+        var report = new GitWizardReport(configuration);
 
-            var paths = new SortedSet<string> { validRepo.Path, nonRepoPath };
-            report.Refresh(paths);
+        var paths = new SortedSet<string> { validRepo.Path, nonRepoPath };
+        report.Refresh(paths);
 
-            // NonRepositoryPaths tracks the stale entry and Repositories excludes it.
-            Assert.That(report.NonRepositoryPaths, Is.Not.Empty);
-            Assert.That(report.Repositories.ContainsKey(nonRepoPath), Is.False);
+        // NonRepositoryPaths tracks the stale entry and Repositories excludes it.
+        Assert.That(report.NonRepositoryPaths, Is.Not.Empty);
+        Assert.That(report.Repositories.ContainsKey(nonRepoPath), Is.False);
 
-            // The CLI's implicit pruning contract: GetRepositoryPaths() only yields
-            // healthy repo paths, so the stale entry is excluded from the list that
-            // gets saved back to repositories.txt.
-            var savedPaths = report.GetRepositoryPaths().ToList();
-            Assert.That(savedPaths, Does.Not.Contain(nonRepoPath));
-            Assert.That(savedPaths, Does.Contain(validRepo.Path));
-        }
-        finally
-        {
-            Directory.Delete(nonRepoPath, true);
-        }
+        // The CLI's implicit pruning contract: GetRepositoryPaths() only yields
+        // healthy repo paths, so the stale entry is excluded from the list that
+        // gets saved back to repositories.txt.
+        var savedPaths = report.GetRepositoryPaths().ToList();
+        Assert.That(savedPaths, Does.Not.Contain(nonRepoPath));
+        Assert.That(savedPaths, Does.Contain(validRepo.Path));
     }
 
     [Test]
@@ -634,33 +572,24 @@ public class GitWizardReportTests
         // repo appears in GetRepositoryPaths, matching the CLI's save-back-to-cache behavior.
         GitWizardLog.SilentMode = true;
         using var validRepo = TempRepoFixture.CreateWithInitialCommit();
-        var nonRepoPath = Path.Combine(Path.GetTempPath(), "not-a-repo-" + Guid.NewGuid());
-        Directory.CreateDirectory(nonRepoPath);
-        var deletedPath = Path.Combine(Path.GetTempPath(), "deleted-" + Guid.NewGuid());
+        using var nonRepo = new TempDirectory("not-a-repo-");
+        var nonRepoPath = nonRepo.Path;
+        using var deleted = new TempDirectory("deleted-", create: false);
+        var deletedPath = deleted.Path;
 
-        try
-        {
-            var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
-            var report = new GitWizardReport(configuration);
+        var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
+        var report = new GitWizardReport(configuration);
 
-            var paths = new SortedSet<string> { validRepo.Path, nonRepoPath, deletedPath };
-            report.Refresh(paths);
+        var paths = new SortedSet<string> { validRepo.Path, nonRepoPath, deletedPath };
+        report.Refresh(paths);
 
-            Assert.That(report.Repositories.ContainsKey(validRepo.Path), Is.True);
-            Assert.That(report.NonRepositoryPaths.Contains(nonRepoPath), Is.True);
-            Assert.That(report.DeletedPaths.Contains(deletedPath), Is.True);
+        Assert.That(report.Repositories.ContainsKey(validRepo.Path), Is.True);
+        Assert.That(report.NonRepositoryPaths.Contains(nonRepoPath), Is.True);
+        Assert.That(report.DeletedPaths.Contains(deletedPath), Is.True);
 
-            // GetRepositoryPaths yields only healthy repos.
-            var savedPaths = report.GetRepositoryPaths().ToList();
-            Assert.That(savedPaths, Has.Count.EqualTo(1));
-            Assert.That(savedPaths[0], Is.EqualTo(validRepo.Path));
-        }
-        finally
-        {
-            if (Directory.Exists(nonRepoPath))
-                Directory.Delete(nonRepoPath, true);
-            if (Directory.Exists(deletedPath))
-                Directory.Delete(deletedPath, true);
-        }
+        // GetRepositoryPaths yields only healthy repos.
+        var savedPaths = report.GetRepositoryPaths().ToList();
+        Assert.That(savedPaths, Has.Count.EqualTo(1));
+        Assert.That(savedPaths[0], Is.EqualTo(validRepo.Path));
     }
 }

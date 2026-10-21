@@ -1,4 +1,5 @@
 using GitWizard;
+using GitWizardTests.TestSupport;
 using LibGit2Sharp;
 
 namespace GitWizardTests;
@@ -6,34 +7,21 @@ namespace GitWizardTests;
 [TestFixture]
 public class InventoryWalkTests
 {
+    TempDirectory? _tempDirectory;
     string? _tempRoot;
 
     [SetUp]
     public void SetUp()
     {
-        _tempRoot = Path.Combine(Path.GetTempPath(), "gw-inventory-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_tempRoot);
+        _tempDirectory = new TempDirectory("gw-inventory-");
+        _tempRoot = _tempDirectory.Path;
         TestUtilities.ResetStaticCaches();
     }
 
     [TearDown]
     public void TearDown()
     {
-        if (_tempRoot != null && Directory.Exists(_tempRoot))
-        {
-            try
-            {
-                foreach (var file in Directory.EnumerateFiles(_tempRoot, "*", SearchOption.AllDirectories))
-                {
-                    File.SetAttributes(file, FileAttributes.Normal);
-                }
-                Directory.Delete(_tempRoot, recursive: true);
-            }
-            catch
-            {
-                // Best-effort cleanup
-            }
-        }
+        _tempDirectory?.Dispose();
     }
 
     [Test]

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using GitWizard;
 using GitWizard.CLI;
+using GitWizardTests.TestSupport;
 using LibGit2Sharp;
 
 namespace GitWizardTests;
@@ -13,6 +14,7 @@ namespace GitWizardTests;
 [NonParallelizable]
 public class InventoryCommandOutputTests
 {
+    LocalFilesSandbox? _sandbox;
     string _temporaryHome = null!;
     string _alphaPath = null!;
     string _betaPath = null!;
@@ -20,8 +22,8 @@ public class InventoryCommandOutputTests
     [SetUp]
     public void SetUp()
     {
-        _temporaryHome = TestUtilities.RedirectLocalFilesToTemp();
-        TestUtilities.ResetStaticCaches();
+        _sandbox = new LocalFilesSandbox();
+        _temporaryHome = _sandbox.Path;
         _alphaPath = CreateRepository("AlphaRepo");
         _betaPath = CreateRepository("beta");
     }
@@ -29,8 +31,8 @@ public class InventoryCommandOutputTests
     [TearDown]
     public void TearDown()
     {
-        TestUtilities.ResetStaticCaches();
-        TestUtilities.ClearLocalFilesRedirect(_temporaryHome);
+        _sandbox?.Dispose();
+        _sandbox = null;
     }
 
     string CreateRepository(string name)

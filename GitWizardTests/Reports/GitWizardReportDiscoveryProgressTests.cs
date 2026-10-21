@@ -1,5 +1,5 @@
-using System.Collections.Concurrent;
 using GitWizard;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests;
 
@@ -15,26 +15,24 @@ namespace GitWizardTests;
 public class GitWizardReportDiscoveryProgressTests
 {
     readonly List<string> _searchPaths = new();
+    readonly List<TempDirectory> _searchDirectories = new();
 
     [OneTimeSetUp]
     public void CreateSearchPaths()
     {
         for (var index = 0; index < 40; index++)
         {
-            var path = Path.Combine(Path.GetTempPath(), "gw-progress-" + Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(path);
-            _searchPaths.Add(path);
+            var directory = new TempDirectory("gw-progress-");
+            _searchDirectories.Add(directory);
+            _searchPaths.Add(directory.Path);
         }
     }
 
     [OneTimeTearDown]
     public void DeleteSearchPaths()
     {
-        foreach (var path in _searchPaths)
-        {
-            if (Directory.Exists(path))
-                Directory.Delete(path, recursive: true);
-        }
+        foreach (var directory in _searchDirectories)
+            directory.Dispose();
     }
 
     [Test]
@@ -44,113 +42,75 @@ public class GitWizardReportDiscoveryProgressTests
         GitWizardLog.SilentMode = true;
         var configuration = new GitWizardConfiguration { SearchPaths = new SortedSet<string>(_searchPaths) };
         var report = new GitWizardReport(configuration);
-        var handler = new RecordingProgressHandler();
+        var handler = new RecordingUpdateHandler();
         var discoveredPaths = new SortedSet<string>();
 
         // noMft: true skips MFT discovery (which would pop UAC on Windows), so this always runs
         // the parallel per-search-path fallback loop that hazard 8 lives in.
         await report.GetRepositoryPathsAsync(discoveredPaths, handler, noMft: true);
 
-        Assert.That(handler.MaxReportedCount, Is.EqualTo(_searchPaths.Count));
+        Assert.That(handler.ProgressCounts.Max(), Is.EqualTo(_searchPaths.Count));
     }
 
     [Test]
     public async Task ReportGetRepositoryPaths_NoMft_FallsBackToDirectoryScan()
     {
-        var root = Path.Combine(Path.GetTempPath(), "gw-report-scan-" + Guid.NewGuid().ToString("N"));
+        using var rootDir = new TempDirectory("gw-report-scan-");
+        var root = rootDir.Path;
         Directory.CreateDirectory(Path.Combine(root, "myrepo", ".git"));
-        try
+
+        var report = new GitWizardReport
         {
-            var report = new GitWizardReport
-            {
-                SearchPaths = { root },
-                IgnoredPaths = new SortedSet<string>()
-            };
-            var paths = new SortedSet<string>();
-            await report.GetRepositoryPathsAsync(paths, noMft: true);
-            Assert.That(paths, Has.Count.EqualTo(1));
-            Assert.That(paths.Single(), Does.Contain("myrepo").IgnoreCase);
-        }
-        finally
-        {
-            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
-        }
+            SearchPaths = { root },
+            IgnoredPaths = new SortedSet<string>()
+        };
+        var paths = new SortedSet<string>();
+        await report.GetRepositoryPathsAsync(paths, noMft: true);
+        Assert.That(paths, Has.Count.EqualTo(1));
+        Assert.That(paths.Single(), Does.Contain("myrepo").IgnoreCase);
     }
 
     [Test]
     public void ReportGetRepositoryPaths_WithThrowingProgressHandler_DoesNotCrash()
     {
-        var root = Path.Combine(Path.GetTempPath(), "gw-throw-prog-" + Guid.NewGuid().ToString("N"));
+        using var rootDir = new TempDirectory("gw-throw-prog-");
+        var root = rootDir.Path;
         Directory.CreateDirectory(Path.Combine(root, "repo", ".git"));
-        try
+
+        var report = new GitWizardReport
         {
-            var report = new GitWizardReport
-            {
-                SearchPaths = { root },
-                IgnoredPaths = new SortedSet<string>()
-            };
-            var paths = new SortedSet<string>();
-            var handler = new ThrowingProgressHandler();
-            Assert.DoesNotThrowAsync(() => report.GetRepositoryPathsAsync(paths, handler, noMft: true));
-        }
-        finally
+            SearchPaths = { root },
+            IgnoredPaths = new SortedSet<string>()
+        };
+        var paths = new SortedSet<string>();
+        var handler = new RecordingUpdateHandler
         {
-            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
-        }
+            StartingProgress = (_, _) => throw new InvalidOperationException("boom"),
+            UpdatingProgress = _ => throw new InvalidOperationException("boom")
+        };
+        Assert.DoesNotThrowAsync(() => report.GetRepositoryPathsAsync(paths, handler, noMft: true));
     }
 
     [Test]
     public async Task ReportGetRepositoryPaths_MultipleSearchPaths_MergesResults()
     {
-        var root1 = Path.Combine(Path.GetTempPath(), "gw-multi1-" + Guid.NewGuid().ToString("N"));
-        var root2 = Path.Combine(Path.GetTempPath(), "gw-multi2-" + Guid.NewGuid().ToString("N"));
+        using var dir1 = new TempDirectory("gw-multi1-");
+        using var dir2 = new TempDirectory("gw-multi2-");
+        var root1 = dir1.Path;
+        var root2 = dir2.Path;
         Directory.CreateDirectory(Path.Combine(root1, "repoA", ".git"));
         Directory.CreateDirectory(Path.Combine(root2, "repoB", ".git"));
-        try
+
+        var report = new GitWizardReport
         {
-            var report = new GitWizardReport
-            {
-                SearchPaths = { root1, root2 },
-                IgnoredPaths = new SortedSet<string>()
-            };
-            var paths = new SortedSet<string>();
-            await report.GetRepositoryPathsAsync(paths, noMft: true);
-            Assert.That(paths, Has.Count.EqualTo(2));
-        }
-        finally
-        {
-            if (Directory.Exists(root1)) Directory.Delete(root1, recursive: true);
-            if (Directory.Exists(root2)) Directory.Delete(root2, recursive: true);
-        }
+            SearchPaths = { root1, root2 },
+            IgnoredPaths = new SortedSet<string>()
+        };
+        var paths = new SortedSet<string>();
+        await report.GetRepositoryPathsAsync(paths, noMft: true);
+        Assert.That(paths, Has.Count.EqualTo(2));
     }
 
-    sealed class RecordingProgressHandler : IUpdateHandler
-    {
-        readonly ConcurrentBag<int> _reportedCounts = new();
-
-        public int MaxReportedCount => _reportedCounts.IsEmpty ? 0 : _reportedCounts.Max();
-
-        public void StartProgress(string description, int total) { }
-        public void UpdateProgress(int count) => _reportedCounts.Add(count);
-        public void SendUpdateMessage(string? message) { }
-        public void OnRepositoryCreated(GitWizardRepository gitWizardRepository) { }
-        public void OnSubmoduleCreated(GitWizardRepository parent, GitWizardRepository submodule) { }
-        public void OnWorktreeCreated(GitWizardRepository worktree) { }
-        public void OnUninitializedSubmoduleCreated(GitWizardRepository parent, string submodulePath) { }
-        public void OnRepositoryRefreshCompleted(GitWizardRepository gitWizardRepository) { }
-    }
-
-    sealed class ThrowingProgressHandler : IUpdateHandler
-    {
-        public void StartProgress(string description, int total) => throw new InvalidOperationException("boom");
-        public void UpdateProgress(int count) => throw new InvalidOperationException("boom");
-        public void SendUpdateMessage(string? message) { }
-        public void OnRepositoryCreated(GitWizardRepository gitWizardRepository) { }
-        public void OnSubmoduleCreated(GitWizardRepository parent, GitWizardRepository submodule) { }
-        public void OnWorktreeCreated(GitWizardRepository worktree) { }
-        public void OnUninitializedSubmoduleCreated(GitWizardRepository parent, string submodulePath) { }
-        public void OnRepositoryRefreshCompleted(GitWizardRepository gitWizardRepository) { }
-    }
     [Test]
     public async Task GetRepositoryPaths_EmptyOrNonExistentSearchPath_FindsNothing()
     {

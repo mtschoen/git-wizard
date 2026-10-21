@@ -206,20 +206,4 @@ public class BrokerDiscoveryTests
         new GitWizardConfiguration { IncludeTempDirectories = true }, paths, [@"X:\"], [], new IndexDiscoveryComposition(
             _ => Task.FromResult(fixture.Owner), candidateExists ?? (_ => true)));
 
-    sealed class RecordingUpdateHandler : IUpdateHandler
-    {
-        public List<string> Messages { get; } = [];
-        public void SendUpdateMessage(string? message)
-        {
-            if (message is not null)
-                Messages.Add(message);
-        }
-        public void StartProgress(string description, int total) { }
-        public void UpdateProgress(int count) { }
-        public void OnRepositoryCreated(GitWizardRepository gitWizardRepository) { }
-        public void OnSubmoduleCreated(GitWizardRepository parent, GitWizardRepository submodule) { }
-        public void OnWorktreeCreated(GitWizardRepository worktree) { }
-        public void OnUninitializedSubmoduleCreated(GitWizardRepository parent, string submodulePath) { }
-        public void OnRepositoryRefreshCompleted(GitWizardRepository gitWizardRepository) { }
-    }
 }

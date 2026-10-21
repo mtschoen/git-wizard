@@ -1,4 +1,5 @@
 using GitWizard;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests;
 
@@ -61,9 +62,9 @@ public class TempDirectoriesTests
     [Test]
     public void IsTempPath_UnderCurrentProcessTemp_IsTrue()
     {
-        // Path.GetTempPath() resolves through TMP/TEMP on Windows and TMPDIR//tmp elsewhere,
+        // TempDirectory.SystemTempPath resolves through TMP/TEMP on Windows and TMPDIR//tmp elsewhere,
         // the same roots the check captures.
-        var underTemp = Path.Combine(Path.GetTempPath(), "gw-temp-check", "repo");
+        var underTemp = Path.Combine(TempDirectory.SystemTempPath, "gw-temp-check", "repo");
         Assert.That(TempDirectories.IsTempPath(underTemp), Is.True);
     }
 }

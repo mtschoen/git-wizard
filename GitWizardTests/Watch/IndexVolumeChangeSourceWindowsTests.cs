@@ -36,7 +36,7 @@ public class IndexVolumeChangeSourceWindowsTests
             return;
         }
 
-        var drive = GetFixtureDrive(Path.GetTempPath());
+        var drive = GetFixtureDrive(TempDirectory.SystemTempPath);
         var launches = 0;
         await using var source = new IndexVolumeChangeSource((drives, progress, cancellationToken) =>
             GitWizard.MftIndexSession.OpenWindowsAsync(drives, arguments =>
@@ -75,7 +75,7 @@ public class IndexVolumeChangeSourceWindowsTests
     {
         if (!ElevationUtilities.DefaultProvider.IsElevated()) { Assert.Inconclusive("Requires admin"); return; }
 
-        var drive = GetFixtureDrive(Path.GetTempPath());
+        var drive = GetFixtureDrive(TempDirectory.SystemTempPath);
         GitWizard.MftIndexSession? session = null;
         await using var source = new IndexVolumeChangeSource(async (drives, progress, cancellationToken) =>
         {
@@ -106,7 +106,8 @@ public class IndexVolumeChangeSourceWindowsTests
     {
         if (!ElevationUtilities.DefaultProvider.IsElevated()) { Assert.Inconclusive("Requires admin"); return; }
 
-        var temporaryPath = Path.Combine(Path.GetTempPath(), $"git-wizard-gap-{Guid.NewGuid():N}.tmp");
+        using var tempDir = new TempDirectory("gw-gap-");
+        var temporaryPath = Path.Combine(tempDir.Path, "git-wizard-gap.tmp");
         var drive = GetFixtureDrive(temporaryPath);
         await using var source = new IndexVolumeChangeSource((drives, progress, cancellationToken) =>
             GitWizard.MftIndexSession.OpenWindowsAsync(drives, UiBrokerLauncher.LaunchUiBroker, null, progress, cancellationToken));
@@ -125,7 +126,6 @@ public class IndexVolumeChangeSourceWindowsTests
         finally
         {
             await watchCancellation.CancelAsync();
-            File.Delete(temporaryPath);
         }
     }
 
@@ -135,7 +135,8 @@ public class IndexVolumeChangeSourceWindowsTests
     {
         if (!ElevationUtilities.DefaultProvider.IsElevated()) { Assert.Inconclusive("Requires admin"); return; }
 
-        var temporaryPath = Path.Combine(Path.GetTempPath(), $"git-wizard-watch-{Guid.NewGuid():N}.tmp");
+        using var tempDir = new TempDirectory("gw-watch-");
+        var temporaryPath = Path.Combine(tempDir.Path, "git-wizard-watch.tmp");
         var drive = GetFixtureDrive(temporaryPath);
         await using var source = new IndexVolumeChangeSource((drives, progress, cancellationToken) =>
             GitWizard.MftIndexSession.OpenWindowsAsync(drives, UiBrokerLauncher.LaunchUiBroker, null, progress, cancellationToken));
@@ -155,7 +156,6 @@ public class IndexVolumeChangeSourceWindowsTests
         finally
         {
             await watchCancellation.CancelAsync();
-            File.Delete(temporaryPath);
         }
     }
 

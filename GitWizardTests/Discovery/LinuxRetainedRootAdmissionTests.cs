@@ -1,6 +1,5 @@
-using System.Runtime.CompilerServices;
 using GitWizard;
-using GitWizard.Watch;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests.Discovery;
 
@@ -8,25 +7,9 @@ namespace GitWizardTests.Discovery;
 [TestFixture]
 public class LinuxRetainedRootAdmissionTests
 {
-    static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(10);
 
-    static readonly string Root = Path.Combine(Path.GetTempPath(), "gw-linux-admission");
+    static readonly string Root = Path.Combine(TempDirectory.SystemTempPath, "gw-linux-admission");
 
-    sealed class QuietSource : IVolumeChangeSource
-    {
-        public event Action<string>? SourceDied { add { } remove { } }
-
-        public Task<VolumeArmResult> ArmAndCatchUpAsync(IReadOnlyCollection<string> volumes, CancellationToken ct) =>
-            Task.FromResult(new VolumeArmResult(new Dictionary<string, string>(), []));
-
-        public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync([EnumeratorCancellation] CancellationToken ct)
-        {
-            await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false);
-            yield break;
-        }
-
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-    }
 
     internal static async Task<IReadOnlyList<string>> InventoryAsync(
         string searchRoot, string retainedRoot, string? ignoredRoot, bool skipHiddenDirectories, bool includeTempDirectories)
@@ -42,7 +25,7 @@ public class LinuxRetainedRootAdmissionTests
             ReadListAsync = _ => Task.FromResult<string[]?>([]),
             WriteListAsync = (_, _) => Task.CompletedTask,
             CandidateExists = (_, _) => true,
-            CreateLinuxSource = () => new QuietSource()
+            CreateLinuxSource = () => new ScriptedVolumeChangeSource { KeepWatching = true }
         });
         var configuration = new GitWizardConfiguration
         {
@@ -54,7 +37,7 @@ public class LinuxRetainedRootAdmissionTests
             configuration.IgnoredPaths.Add(ignoredRoot);
 
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Watch, false, false, [retainedRoot]);
-        using var cancellation = new CancellationTokenSource(HangGuard);
+        using var cancellation = new CancellationTokenSource(TestTimeouts.HangGuard);
         await using var startup = await coordinator.PrepareWatchAsync(request, null, cancellation.Token);
         return startup.Inventory.Paths;
     }

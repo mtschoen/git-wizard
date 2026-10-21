@@ -8,7 +8,6 @@ namespace GitWizardTests.Discovery;
 [TestFixture]
 public class WindowsWatchStartupTests
 {
-    static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(10);
 
 
     [Test]
@@ -38,11 +37,11 @@ public class WindowsWatchStartupTests
 
         var config = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
         var request = new DiscoveryRequest(config, DiscoveryPurpose.Watch, false, false, []);
-        using var cts = new CancellationTokenSource(HangGuard);
+        using var cts = new CancellationTokenSource(TestTimeouts.HangGuard);
 
         var startupTask = coordinator.PrepareWatchAsync(request, null, cts.Token);
 
-        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard);
+        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
         Assert.That(startupTask.IsCompleted, Is.False, "Startup must withhold completion until catch-up drains.");
         Assert.That(listWrites, Is.Empty, "List writes must not happen before catch-up.");
 
@@ -88,7 +87,7 @@ public class WindowsWatchStartupTests
 
         var config = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
         var request = new DiscoveryRequest(config, DiscoveryPurpose.Watch, true, false, []);
-        using var cts = new CancellationTokenSource(HangGuard);
+        using var cts = new CancellationTokenSource(TestTimeouts.HangGuard);
 
         await using var startup = await coordinator.PrepareWatchAsync(request, null, cts.Token);
 
@@ -121,7 +120,7 @@ public class WindowsWatchStartupTests
 
         var config = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
         var request = new DiscoveryRequest(config, DiscoveryPurpose.Watch, false, false, []);
-        using var cts = new CancellationTokenSource(HangGuard);
+        using var cts = new CancellationTokenSource(TestTimeouts.HangGuard);
 
         await using var startup = await coordinator.PrepareWatchAsync(request, null, cts.Token);
 
@@ -159,7 +158,7 @@ public class WindowsWatchStartupTests
 
         var config = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
         var request = new DiscoveryRequest(config, DiscoveryPurpose.Watch, false, false, [Path.Combine(retainedBase, "repo")]);
-        using var cts = new CancellationTokenSource(HangGuard);
+        using var cts = new CancellationTokenSource(TestTimeouts.HangGuard);
 
         await using var startup = await coordinator.PrepareWatchAsync(request, null, cts.Token);
 
@@ -196,7 +195,7 @@ public class WindowsWatchStartupTests
 
         var config = new GitWizardConfiguration { SearchPaths = { files.TreePath, nonNtfsDir } };
         var request = new DiscoveryRequest(config, DiscoveryPurpose.Watch, false, false, []);
-        using var cts = new CancellationTokenSource(HangGuard);
+        using var cts = new CancellationTokenSource(TestTimeouts.HangGuard);
 
         await using var startup = await coordinator.PrepareWatchAsync(request, null, cts.Token);
 
@@ -235,7 +234,7 @@ public class WindowsWatchStartupTests
 
         var config = new GitWizardConfiguration { SearchPaths = { files.TreePath, yDir } };
         var request = new DiscoveryRequest(config, DiscoveryPurpose.Watch, false, false, []);
-        using var cts = new CancellationTokenSource(HangGuard);
+        using var cts = new CancellationTokenSource(TestTimeouts.HangGuard);
 
         var startupTask = coordinator.PrepareWatchAsync(request, null, cts.Token);
         await Task.WhenAll(scripted.WaitForStartAsync('X', 1, cts.Token),
@@ -280,7 +279,7 @@ public class WindowsWatchStartupTests
 
         var config = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
         var request = new DiscoveryRequest(config, DiscoveryPurpose.Watch, false, false, []);
-        using var cts = new CancellationTokenSource(HangGuard);
+        using var cts = new CancellationTokenSource(TestTimeouts.HangGuard);
 
         await using var startup = await coordinator.PrepareWatchAsync(request, oldSession, cts.Token);
 
@@ -314,10 +313,10 @@ public class WindowsWatchStartupTests
 
         var config = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
         var request = new DiscoveryRequest(config, DiscoveryPurpose.Watch, false, false, []);
-        using var cts = new CancellationTokenSource(HangGuard);
+        using var cts = new CancellationTokenSource(TestTimeouts.HangGuard);
 
         var startupTask = coordinator.PrepareWatchAsync(request, null, cts.Token);
-        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard);
+        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
 
         // While buffering, simulate Create followed by Delete for temp-repo
         await scripted.WatchFor('X').PublishBatchAsync([
@@ -359,10 +358,10 @@ public class WindowsWatchStartupTests
 
         var config = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
         var request = new DiscoveryRequest(config, DiscoveryPurpose.Watch, false, false, []);
-        using var cts = new CancellationTokenSource(HangGuard);
+        using var cts = new CancellationTokenSource(TestTimeouts.HangGuard);
 
         var startupTask = coordinator.PrepareWatchAsync(request, null, cts.Token);
-        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard);
+        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
 
         // A modification under the already-tracked repository arrives during catch-up.
         await scripted.WatchFor('X').PublishBatchAsync([
@@ -414,10 +413,10 @@ public class WindowsWatchStartupTests
 
         var config = new GitWizardConfiguration { SearchPaths = { files.TreePath }, SkipHiddenDirectories = true };
         var request = new DiscoveryRequest(config, DiscoveryPurpose.Watch, false, false, []);
-        using var cts = new CancellationTokenSource(HangGuard);
+        using var cts = new CancellationTokenSource(TestTimeouts.HangGuard);
 
         var startupTask = coordinator.PrepareWatchAsync(request, null, cts.Token);
-        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard);
+        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
 
         await scripted.WatchFor('X').PublishBatchAsync([
             Entry(50, 5, "newrepo", SyntheticJournalReason.FileCreate, isDirectory: true),

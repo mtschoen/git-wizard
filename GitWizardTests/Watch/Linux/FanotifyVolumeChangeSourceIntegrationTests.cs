@@ -1,6 +1,7 @@
 using System.Runtime.Versioning;
 using GitWizard.Watch;
 using GitWizard.Watch.Linux;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests.Watch.Linux;
 
@@ -15,7 +16,7 @@ public class FanotifyVolumeChangeSourceIntegrationTests
     [SupportedOSPlatform("linux")]
     public async Task RealFanotify_DetectsFileCreationAndDeletion()
     {
-        var probe = FanotifyInterop.Probe(Path.GetTempPath());
+        var probe = FanotifyInterop.Probe(TempDirectory.SystemTempPath);
         if (probe.RequiresElevation)
         {
             Assert.Inconclusive("Requires root or CAP_SYS_ADMIN");

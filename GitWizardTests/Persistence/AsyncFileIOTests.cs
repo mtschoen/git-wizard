@@ -1,9 +1,11 @@
 using GitWizard;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests;
 
 public class AsyncFileIOTests
 {
+    LocalFilesSandbox? _sandbox;
     string? _tempRoot;
 
     [SetUp]
@@ -12,15 +14,15 @@ public class AsyncFileIOTests
         GitWizardLog.SilentMode = true;
         // Redirect the data dir to temp so cache/config/report I/O is fully isolated. This
         // replaces the old hack of deleting the real ~/.GitWizard cache files in teardown.
-        _tempRoot = TestUtilities.RedirectLocalFilesToTemp();
-        TestUtilities.ResetStaticCaches();
+        _sandbox = new LocalFilesSandbox();
+        _tempRoot = _sandbox.Path;
     }
 
     [TearDown]
     public void TearDown()
     {
-        TestUtilities.ResetStaticCaches();
-        TestUtilities.ClearLocalFilesRedirect(_tempRoot);
+        _sandbox?.Dispose();
+        _sandbox = null;
     }
 
     [Test]

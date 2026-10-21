@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using GitWizard;
+using GitWizardTests.TestSupport;
 using GitWizardUI.ViewModels;
 
 namespace GitWizardTests;
@@ -69,7 +70,7 @@ public class RepositoryNodeViewModelSizeTests
     [SetCulture("en-US")]
     public void RefreshCompleted_RepositoryInMultipleRemoteGroups_NotifiesEverySizeTotal()
     {
-        var viewModel = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+        var viewModel = TestViewModels.Create();
         var repository = new GitWizardRepository("/repositories/shared");
         repository.RemoteUrls.AddRange(["https://example.com/first", "https://example.com/second"]);
         viewModel.AddRepository(repository);
@@ -220,7 +221,7 @@ public class RepositoryNodeViewModelSizeTests
     [SetCulture("en-US")]
     public void UpdateCompletedRepository_GroupHeader_UpdatesTotalsIncrementallyAcrossCompletions()
     {
-        var viewModel = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+        var viewModel = TestViewModels.Create();
         const int repositoryCount = 500;
         var repositories = new GitWizardRepository[repositoryCount];
         for (var index = 0; index < repositoryCount; index++)
@@ -250,7 +251,7 @@ public class RepositoryNodeViewModelSizeTests
     [MethodImpl(MethodImplOptions.NoInlining)]
     public void Regrouping_DoesNotLeakAbandonedGroupHeaders()
     {
-        var viewModel = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+        var viewModel = TestViewModels.Create();
         var repository = new GitWizardRepository("C:/repositories/repo1");
         viewModel.AddRepository(repository);
 

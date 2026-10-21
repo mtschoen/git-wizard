@@ -1,11 +1,13 @@
 using System.Text.Json.Nodes;
 using GitWizard;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests;
 
 [TestFixture, NonParallelizable]
 public class GitWizardReportPersistenceTests
 {
+    LocalFilesSandbox? _sandbox;
     string? _tempRoot;
     bool _previousSilent;
     bool _previousVerbose;
@@ -16,15 +18,15 @@ public class GitWizardReportPersistenceTests
         _previousSilent = GitWizardLog.SilentMode;
         _previousVerbose = GitWizardLog.VerboseMode;
         GitWizardLog.SilentMode = true;
-        _tempRoot = TestUtilities.RedirectLocalFilesToTemp();
-        TestUtilities.ResetStaticCaches();
+        _sandbox = new LocalFilesSandbox();
+        _tempRoot = _sandbox.Path;
     }
 
     [TearDown]
     public void TearDown()
     {
-        TestUtilities.ResetStaticCaches();
-        TestUtilities.ClearLocalFilesRedirect(_tempRoot);
+        _sandbox?.Dispose();
+        _sandbox = null;
         GitWizardLog.SilentMode = _previousSilent;
         GitWizardLog.VerboseMode = _previousVerbose;
     }
@@ -198,19 +200,13 @@ public class GitWizardReportPersistenceTests
     [Test]
     public void SaveAtomic_WhenTargetIsDirectory_SwallowsExceptionAndLeavesNoTempFiles()
     {
-        var root = TestUtilities.CreateTempDir(out var cleanup);
-        try
-        {
-            var target = Path.Combine(root, "directory-target");
-            Directory.CreateDirectory(target);
-            var report = new GitWizardReport();
-            Assert.DoesNotThrow(() => report.SaveAtomic(target));
-            Assert.That(Directory.Exists(target), Is.True);
-            Assert.That(Directory.GetFiles(root, "*.tmp"), Is.Empty);
-        }
-        finally
-        {
-            cleanup();
-        }
+        using var directory = new TempDirectory();
+        var root = directory.Path;
+        var target = Path.Combine(root, "directory-target");
+        Directory.CreateDirectory(target);
+        var report = new GitWizardReport();
+        Assert.DoesNotThrow(() => report.SaveAtomic(target));
+        Assert.That(Directory.Exists(target), Is.True);
+        Assert.That(Directory.GetFiles(root, "*.tmp"), Is.Empty);
     }
 }

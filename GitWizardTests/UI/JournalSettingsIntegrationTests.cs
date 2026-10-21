@@ -12,8 +12,8 @@ namespace GitWizardTests.UI;
 
 public class JournalSettingsIntegrationTests
 {
-    string _temporaryRoot = null!;
-    readonly QueuedLiveUiDispatcher _dispatcher = new();
+    LocalFilesSandbox? _sandbox;
+    readonly QueuedUiDispatcher _dispatcher = new();
     FakeJournalSettingsSource _source = null!;
     MainViewModel _main = null!;
     Task _running = null!;
@@ -25,20 +25,17 @@ public class JournalSettingsIntegrationTests
     public async Task SetUp()
     {
         GitWizardLog.SilentMode = true;
-        _temporaryRoot = TestUtilities.RedirectLocalFilesToTemp();
-        TestUtilities.ResetStaticCaches();
+        _sandbox = new LocalFilesSandbox();
         _source = new FakeJournalSettingsSource();
-        _main = new MainViewModel(_dispatcher, new StubUserDialogs(), new StubClipboardService())
-        {
-            LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0),
-            LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
-                FakeLiveStartup.FromSourceArmedAsync(_source, request, cancellationToken),
-            LiveIsElevated = () => false
-        };
+        _main = TestViewModels.Create(dispatcher: _dispatcher);
+        _main.LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
+        _main.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
+            FakeLiveStartup.FromSourceArmedAsync(_source, request, cancellationToken);
+        _main.LiveIsElevated = () => false;
         _running = _main.ToggleLiveAsync();
         await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
         _dispatcher.Drain();
-        _settings = new SettingsViewModel(new StubFolderPicker(), _main, _dispatcher);
+        _settings = TestViewModels.CreateSettings(mainViewModel: _main, dispatcher: _dispatcher);
     }
 
     [TearDown]
@@ -49,8 +46,8 @@ public class JournalSettingsIntegrationTests
         await _running;
         await _source.DisposeAsync();
         _dispatcher.Drain();
-        TestUtilities.ResetStaticCaches();
-        TestUtilities.ClearLocalFilesRedirect(_temporaryRoot);
+        _sandbox?.Dispose();
+        _sandbox = null;
     }
 
     [Test]

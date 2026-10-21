@@ -1,6 +1,6 @@
 using GitWizard;
+using GitWizardTests.TestSupport;
 using GitWizardUI.ViewModels;
-using GitWizardUI.ViewModels.Services;
 
 namespace GitWizardTests;
 
@@ -11,29 +11,9 @@ public class MainViewModelCompleteRefreshTests
     [SetUp]
     public void SetUp() => GitWizardLog.SilentMode = true;
 
-    static MainViewModel CreateViewModel() =>
-        new(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+    static MainViewModel CreateViewModel() => TestViewModels.Create();
 
     static GitWizardRepository Repo(string workingDirectory) => new(workingDirectory);
-
-
-    sealed class ManualQueueUiDispatcher : IUiDispatcher
-    {
-        readonly Queue<Action> _queued = new();
-
-        public bool IsOnUiThread => false;
-        public int QueuedCount => _queued.Count;
-        public void Post(Action action) => _queued.Enqueue(action);
-        public Task InvokeAsync(Action action) { action(); return Task.CompletedTask; }
-        public Task InvokeAsync(Func<Task> action) => action();
-
-        public void RunNext()
-        {
-            if (!_queued.TryDequeue(out var action))
-                throw new InvalidOperationException("No UI callback is queued.");
-            action();
-        }
-    }
 
     // pr-crew final review of PR #241/#243: BeforeRepositoriesSwap is wired to the window's
     // CaptureScrollAnchor, which the window also calls explicitly at refresh start (before
@@ -97,8 +77,8 @@ public class MainViewModelCompleteRefreshTests
     [Test]
     public void CompleteRefresh_AnchorSuppression_SurvivesAnUnrelatedRebuildsSwapQueuedAheadOfIt()
     {
-        var dispatcher = new ManualQueueUiDispatcher();
-        var vm = new MainViewModel(dispatcher, new StubUserDialogs(), new StubClipboardService());
+        var dispatcher = new QueuedUiDispatcher(isOnUiThread: false);
+        var vm = TestViewModels.Create(dispatcher: dispatcher);
 
         vm.AddRepository(Repo("C:/repos/keep"));
 

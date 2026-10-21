@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using GitWizard;
 using GitWizard.Watch;
 using GitWizard.Watch.Linux;
@@ -11,9 +12,7 @@ namespace GitWizardTests.UI;
 [TestFixture]
 public class MainViewModelPreparedSessionTests
 {
-    static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(10);
-    static MainViewModel NewViewModel() =>
-        new(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+    static MainViewModel NewViewModel() => TestViewModels.Create();
 
     [SetUp]
     public void SetUp() => GitWizardLog.SilentMode = true;
@@ -151,19 +150,19 @@ public class MainViewModelPreparedSessionTests
         try
         {
             var starting = viewModel.ToggleLiveAsync();
-            await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard);
+            await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
             await WaitUntilAsync(() => viewModel.IsLive);
             Assert.That(opens, Is.Zero);
             Assert.That(viewModel.PreparedDiscoveryIndex, Is.Null);
             if (respawn)
             {
                 scripted.WatchFor('X').LoseChannel(new IOException("source died"));
-                await starting.WaitAsync(HangGuard);
+                await starting.WaitAsync(TestTimeouts.HangGuard);
             }
             else
             {
                 await viewModel.ToggleLiveAsync();
-                await starting.WaitAsync(HangGuard);
+                await starting.WaitAsync(TestTimeouts.HangGuard);
                 Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
                 await viewModel.ToggleLiveAsync();
             }
@@ -181,10 +180,6 @@ public class MainViewModelPreparedSessionTests
         DiscoveryRequest request, MftIndexSession? prepared, IProgress<WatchStartupProgress>? progress, CancellationToken cancellationToken) =>
         throw new InvalidOperationException("The test prepare seam must not be used after teardown.");
 
-    static async Task WaitUntilAsync(Func<bool> condition)
-    {
-        using var timeout = new CancellationTokenSource(HangGuard);
-        while (!condition())
-            await Task.Delay(10, timeout.Token);
-    }
+    static Task WaitUntilAsync(Func<bool> condition, [CallerArgumentExpression(nameof(condition))] string? expression = null) =>
+        AsyncCondition.WaitUntilAsync(condition, TestTimeouts.HangGuard, expression);
 }

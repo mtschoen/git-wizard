@@ -1,4 +1,5 @@
 using GitWizard;
+using GitWizardTests.TestSupport;
 using LibGit2Sharp;
 
 namespace GitWizardTests;
@@ -91,7 +92,7 @@ public class GitWizardRepositoryBranchesTests
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         var worktreePath = fixture.AddWorktree("wt-branch");
         var repo = new GitWizardRepository(fixture.Path);
-        var handler = new RecordingWorktreeHandler();
+        var handler = new RecordingUpdateHandler();
 
         repo.Refresh(handler);
 
@@ -100,7 +101,7 @@ public class GitWizardRepositoryBranchesTests
             Assert.That(repo.Worktrees, Is.Not.Null);
             Assert.That(repo.Worktrees!, Is.Not.Empty, "The linked worktree must be discovered.");
             Assert.That(repo.IsWorktree, Is.False, "The primary repository is not itself a worktree.");
-            Assert.That(handler.WorktreesCreated, Is.GreaterThan(0),
+            Assert.That(handler.WorktreesCreated.Length, Is.GreaterThan(0),
                 "OnWorktreeCreated must fire for the newly discovered worktree.");
         });
 
@@ -627,17 +628,4 @@ public class GitWizardRepositoryBranchesTests
         Assert.DoesNotThrow(() => repo.Refresh());
     }
 
-    sealed class RecordingWorktreeHandler : IUpdateHandler
-    {
-        public int WorktreesCreated { get; private set; }
-
-        public void StartProgress(string description, int total) { }
-        public void UpdateProgress(int count) { }
-        public void SendUpdateMessage(string? message) { }
-        public void OnRepositoryCreated(GitWizardRepository gitWizardRepository) { }
-        public void OnSubmoduleCreated(GitWizardRepository parent, GitWizardRepository submodule) { }
-        public void OnWorktreeCreated(GitWizardRepository worktree) => WorktreesCreated++;
-        public void OnUninitializedSubmoduleCreated(GitWizardRepository parent, string submodulePath) { }
-        public void OnRepositoryRefreshCompleted(GitWizardRepository gitWizardRepository) { }
-    }
 }

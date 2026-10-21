@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using GitWizard;
+using GitWizardTests.TestSupport;
 using LibGit2Sharp;
 
 namespace GitWizardTests;
@@ -274,8 +275,8 @@ public class GitWizardRepositoryInvalidUpstreamTests
         // create a new branch and check it out
         using (var repo = new Repository(fixture.Path))
         {
-            var branch = repo.Branches.Add("wt-branch", repo.Head.Tip);
-            Commands.Checkout(repo, branch);
+            var newBranch = repo.Branches.Add("wt-branch", repo.Head.Tip);
+            Commands.Checkout(repo, newBranch);
         }
 
         fixture.AppendCommit("wt.txt");
@@ -287,32 +288,26 @@ public class GitWizardRepositoryInvalidUpstreamTests
             Commands.Checkout(repo, repo.Branches["master"] ?? repo.Branches["main"]);
         }
 
-        var worktreePath = Path.Combine(Path.GetTempPath(), "gw-wt-valid-" + Guid.NewGuid().ToString("N"));
+        using var worktree = new TempDirectory("gw-wt-valid-", create: false);
+        var worktreePath = worktree.Path;
         TempRepoFixture.RunGit(fixture.Path, "worktree", "add", worktreePath, "wt-branch");
 
-        try
-        {
-            // The explicit identity matters on CI hosts with no global git identity, where
-            // the commit would otherwise fail and leave nothing ahead of the upstream.
-            TempRepoFixture.RunGit(worktreePath, "-c", "user.email=test@example.com", "-c", "user.name=Test",
-                "commit", "--allow-empty", "-m", "unpushed commit");
+        // The explicit identity matters on CI hosts with no global git identity, where
+        // the commit would otherwise fail and leave nothing ahead of the upstream.
+        TempRepoFixture.RunGit(worktreePath, "-c", "user.email=test@example.com", "-c", "user.name=Test",
+            "commit", "--allow-empty", "-m", "unpushed commit");
 
-            var worktreeRepo = new GitWizardRepository(worktreePath);
-            worktreeRepo.IsWorktree = true;
-            worktreeRepo.Refresh(allBranches: true);
+        var worktreeRepo = new GitWizardRepository(worktreePath);
+        worktreeRepo.IsWorktree = true;
+        worktreeRepo.Refresh(allBranches: true);
 
-            var branch = worktreeRepo.Branches?.FirstOrDefault(b => b.Name == "wt-branch");
-            Assert.Multiple(() =>
-            {
-                Assert.That(branch, Is.Not.Null);
-                Assert.That(branch!.HasUpstream, Is.True, "Valid tracking in a linked worktree should report HasUpstream = true");
-                Assert.That(worktreeRepo.AheadOfRemoteCount, Is.GreaterThan(0), "Should report ahead count for linked worktree");
-            });
-        }
-        finally
+        var branch = worktreeRepo.Branches?.FirstOrDefault(b => b.Name == "wt-branch");
+        Assert.Multiple(() =>
         {
-            DeleteTree(worktreePath);
-        }
+            Assert.That(branch, Is.Not.Null);
+            Assert.That(branch!.HasUpstream, Is.True, "Valid tracking in a linked worktree should report HasUpstream = true");
+            Assert.That(worktreeRepo.AheadOfRemoteCount, Is.GreaterThan(0), "Should report ahead count for linked worktree");
+        });
     }
 
     [Test]
@@ -336,41 +331,33 @@ public class GitWizardRepositoryInvalidUpstreamTests
         // A unique parent per run, with the repository ITSELF (not a subdirectory of it) named
         // "worktrees" - the case the old path-suffix heuristic could mistake for a linked
         // worktree.
-        var uniqueParent = Path.Combine(Path.GetTempPath(), "gw-test-" + Guid.NewGuid().ToString("N"));
-        var tempRoot = Path.Combine(uniqueParent, "worktrees");
+        using var uniqueParent = new TempDirectory();
+        var tempRoot = Path.Combine(uniqueParent.Path, "worktrees");
         Directory.CreateDirectory(tempRoot);
-        try
+        Repository.Init(tempRoot);
+        using (var repo = new Repository(tempRoot))
         {
-            Repository.Init(tempRoot);
-            using (var repo = new Repository(tempRoot))
-            {
-                File.WriteAllText(Path.Combine(tempRoot, "README.md"), "initial");
-                Commands.Stage(repo, "README.md");
-                repo.Commit("initial", new Signature("Test", "t@t.com", DateTimeOffset.Now), new Signature("Test", "t@t.com", DateTimeOffset.Now));
-                repo.Branches.Add("url-remote", repo.Head.Tip);
-                Commands.Checkout(repo, repo.Branches["url-remote"]);
-                File.WriteAllText(Path.Combine(tempRoot, "url-remote.txt"), "test");
-                Commands.Stage(repo, "url-remote.txt");
-                repo.Commit("add url-remote.txt", new Signature("Test", "t@t.com", DateTimeOffset.Now), new Signature("Test", "t@t.com", DateTimeOffset.Now));
-                Commands.Checkout(repo, repo.Branches["master"] ?? repo.Branches["main"]);
-            }
-            SetUpstreamRemote(tempRoot, "url-remote", "https://example.invalid/owner/repo.git");
-
-            var worktreePath = Path.Combine(Path.GetTempPath(), "gw-wt-" + Guid.NewGuid().ToString("N"));
-            TempRepoFixture.RunGit(tempRoot, "worktree", "add", worktreePath, "-b", "wt-url-remote");
-
-            var report = new GitWizardReport();
-            report.Refresh(new[] { tempRoot, worktreePath }, allBranches: true);
-
-            Assert.That(DiagnosticsFor("url-remote"), Is.EqualTo(1),
-                "Main and linked paths of one repo should share a key even if the repo is in a directory named 'worktrees'");
-
-            DeleteTree(worktreePath);
+            File.WriteAllText(Path.Combine(tempRoot, "README.md"), "initial");
+            Commands.Stage(repo, "README.md");
+            repo.Commit("initial", new Signature("Test", "t@t.com", DateTimeOffset.Now), new Signature("Test", "t@t.com", DateTimeOffset.Now));
+            repo.Branches.Add("url-remote", repo.Head.Tip);
+            Commands.Checkout(repo, repo.Branches["url-remote"]);
+            File.WriteAllText(Path.Combine(tempRoot, "url-remote.txt"), "test");
+            Commands.Stage(repo, "url-remote.txt");
+            repo.Commit("add url-remote.txt", new Signature("Test", "t@t.com", DateTimeOffset.Now), new Signature("Test", "t@t.com", DateTimeOffset.Now));
+            Commands.Checkout(repo, repo.Branches["master"] ?? repo.Branches["main"]);
         }
-        finally
-        {
-            DeleteTree(uniqueParent);
-        }
+        SetUpstreamRemote(tempRoot, "url-remote", "https://example.invalid/owner/repo.git");
+
+        using var worktree = new TempDirectory("gw-wt-", create: false);
+        var worktreePath = worktree.Path;
+        TempRepoFixture.RunGit(tempRoot, "worktree", "add", worktreePath, "-b", "wt-url-remote");
+
+        var report = new GitWizardReport();
+        report.Refresh(new[] { tempRoot, worktreePath }, allBranches: true);
+
+        Assert.That(DiagnosticsFor("url-remote"), Is.EqualTo(1),
+            "Main and linked paths of one repo should share a key even if the repo is in a directory named 'worktrees'");
     }
 
     [Test]
@@ -446,7 +433,7 @@ public class GitWizardRepositoryInvalidUpstreamTests
         }
         finally
         {
-            DeleteTree(includeDirectory);
+            TempDirectory.DeleteTree(includeDirectory);
         }
     }
 
@@ -552,27 +539,10 @@ public class GitWizardRepositoryInvalidUpstreamTests
         }
         finally
         {
-            DeleteTree(includeDirectory);
+            TempDirectory.DeleteTree(includeDirectory);
         }
     }
 
-    static void DeleteTree(string directory)
-    {
-        try
-        {
-            if (!Directory.Exists(directory))
-                return;
 
-            foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
-            {
-                File.SetAttributes(file, FileAttributes.Normal);
-            }
-            Directory.Delete(directory, recursive: true);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            TestContext.Progress.WriteLine($"Could not delete {directory}: {exception.Message}");
-        }
-    }
 
 }

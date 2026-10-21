@@ -1,5 +1,6 @@
 using System.Runtime.Versioning;
 using GitWizard.Watch.Linux;
+using GitWizardTests.TestSupport;
 using Win32Exception = System.ComponentModel.Win32Exception;
 
 namespace GitWizardTests.Watch.Linux;
@@ -11,7 +12,7 @@ public class FanotifyInteropTests
     const int NoSystemCall = 38;
     const int NotPermitted = 1;
     const int OperationNotSupported = 95;
-    static readonly string ExistingDirectoryPath = Path.GetTempPath();
+    static readonly string ExistingDirectoryPath = TempDirectory.SystemTempPath;
 
     [Test]
     public void MinimumKernelVersion_IsLinuxFivePointNine()
@@ -77,7 +78,8 @@ public class FanotifyInteropTests
     [Test]
     public void Probe_MissingPath_ThrowsBeforeCallingNativeApi()
     {
-        var missingPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        using var missing = new TempDirectory("gw-missing-", create: false);
+        var missingPath = missing.Path;
         var native = new FakeFanotifyNative(3);
         var probe = new FanotifyProbe(native);
 
@@ -254,7 +256,7 @@ public class FanotifyInteropTests
     {
         // open_by_handle_at fails with EBADF for an O_PATH mount descriptor, so the mount descriptor must not carry it.
         const int openPathFlag = 0x200000;
-        var opened = FanotifyNative.Instance.OpenDirectory(Path.GetTempPath());
+        var opened = FanotifyNative.Instance.OpenDirectory(TempDirectory.SystemTempPath);
         Assert.That(opened.Value, Is.GreaterThanOrEqualTo(0), $"errno {opened.ErrorNumber}");
         try
         {
@@ -276,7 +278,7 @@ public class FanotifyInteropTests
     [SupportedOSPlatform("linux")]
     public void Probe_RealFanotify_MarksAndUnmarksTemporaryFilesystem()
     {
-        var result = FanotifyInterop.Probe(Path.GetTempPath());
+        var result = FanotifyInterop.Probe(TempDirectory.SystemTempPath);
         if (result.RequiresElevation)
         {
             Assert.Inconclusive("Requires root or CAP_SYS_ADMIN");

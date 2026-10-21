@@ -9,21 +9,20 @@ namespace GitWizardTests.Discovery;
 [TestFixture]
 public class ReportPublicationTests
 {
-    string? _tempHome;
+    LocalFilesSandbox? _sandbox;
 
     [SetUp]
     public void SetUp()
     {
         GitWizardLog.SilentMode = true;
-        _tempHome = TestUtilities.RedirectLocalFilesToTemp();
-        TestUtilities.ResetStaticCaches();
+        _sandbox = new LocalFilesSandbox();
     }
 
     [TearDown]
     public void TearDown()
     {
-        TestUtilities.ResetStaticCaches();
-        TestUtilities.ClearLocalFilesRedirect(_tempHome);
+        _sandbox?.Dispose();
+        _sandbox = null;
     }
 
     static RepositoryDiscoveryCoordinator CreateCoordinator(
@@ -222,100 +221,86 @@ public class ReportPublicationTests
         };
         var throwingCoordinator = new RepositoryDiscoveryCoordinator(dependencies);
 
-        var tempDir = Path.Combine(Path.GetTempPath(), "gw-repo-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(tempDir);
-        try
+        using var tempDirOwner = new TempDirectory("gw-repo-");
+        var tempDir = tempDirOwner.Path;
+
+        Repository.Init(tempDir);
+        await File.WriteAllTextAsync(Path.Combine(tempDir, "uncommitted.txt"), "pending changes");
+
+        var customSavePath = Path.Combine(tempDir, "explicit-report.json");
+        var runConfig = CliParser.Parse(["--paths", tempDir, "--save-path", customSavePath]);
+        var gitWizardConfig = new GitWizardConfiguration();
+
+        using var stdout = new StringWriter();
+        using var stderr = new StringWriter();
+
+        var exitCode = await Program.RunDefaultReportCoreAsync(
+            runConfig,
+            gitWizardConfig,
+            throwingCoordinator,
+            stdout,
+            stderr);
+
+        Assert.Multiple(() =>
         {
-            Repository.Init(tempDir);
-            await File.WriteAllTextAsync(Path.Combine(tempDir, "uncommitted.txt"), "pending changes");
+            Assert.That(exitCode, Is.EqualTo(1));
+            Assert.That(File.Exists(customSavePath), Is.True);
+        });
 
-            var customSavePath = Path.Combine(tempDir, "explicit-report.json");
-            var runConfig = CliParser.Parse(["--paths", tempDir, "--save-path", customSavePath]);
-            var gitWizardConfig = new GitWizardConfiguration();
-
-            using var stdout = new StringWriter();
-            using var stderr = new StringWriter();
-
-            var exitCode = await Program.RunDefaultReportCoreAsync(
-                runConfig,
-                gitWizardConfig,
-                throwingCoordinator,
-                stdout,
-                stderr);
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(exitCode, Is.EqualTo(1));
-                Assert.That(File.Exists(customSavePath), Is.True);
-            });
-
-            var savedText = await File.ReadAllTextAsync(customSavePath);
-            using var doc = JsonDocument.Parse(savedText);
-            Assert.That(doc.RootElement.GetProperty("Repositories").EnumerateObject().Count(), Is.EqualTo(1));
-        }
-        finally
-        {
-            try { Directory.Delete(tempDir, recursive: true); }
-            catch { /* best effort */ }
-        }
+        var savedText = await File.ReadAllTextAsync(customSavePath);
+        using var doc = JsonDocument.Parse(savedText);
+        Assert.That(doc.RootElement.GetProperty("Repositories").EnumerateObject().Count(), Is.EqualTo(1));
     }
 
     [Test]
     public void InMemoryReport_RejectionGuards_ThrowWhenIncomplete()
     {
-        var tempFile = Path.Combine(Path.GetTempPath(), "gw-guard-" + Guid.NewGuid().ToString("N") + ".json");
-        try
+        using var tempDir = new TempDirectory();
+        var tempFile = Path.Combine(tempDir.Path, "gw-guard.json");
+        var incompleteReport = new GitWizardReport
         {
-            var incompleteReport = new GitWizardReport
+            DiscoveryInventory = new DiscoveryInventory
             {
-                DiscoveryInventory = new DiscoveryInventory
-                {
-                    Outcome = DiscoveryOutcome.Partial,
-                    Route = DiscoveryRoute.Mixed,
-                    Paths = [],
-                    RequestedNtfsDrives = [],
-                    Observations = [],
-                    DriveStatuses = [],
-                    Errors = new Dictionary<string, string> { ["D"] = "error" },
-                    WatchExcludedRoots = []
-                }
-            };
+                Outcome = DiscoveryOutcome.Partial,
+                Route = DiscoveryRoute.Mixed,
+                Paths = [],
+                RequestedNtfsDrives = [],
+                Observations = [],
+                DriveStatuses = [],
+                Errors = new Dictionary<string, string> { ["D"] = "error" },
+                WatchExcludedRoots = []
+            }
+        };
 
-            Assert.Multiple(() =>
-            {
-                Assert.Throws<InvalidOperationException>(() => incompleteReport.Save(tempFile));
-                Assert.ThrowsAsync<InvalidOperationException>(async () => await incompleteReport.SaveAsync(tempFile));
-                Assert.Throws<InvalidOperationException>(() => incompleteReport.SaveAtomic(tempFile));
-            });
-
-            var completeReport = new GitWizardReport
-            {
-                DiscoveryInventory = new DiscoveryInventory
-                {
-                    Outcome = DiscoveryOutcome.CompleteEmpty,
-                    Route = DiscoveryRoute.Indexed,
-                    Paths = [],
-                    RequestedNtfsDrives = [],
-                    Observations = [],
-                    DriveStatuses = [],
-                    Errors = new Dictionary<string, string>(),
-                    WatchExcludedRoots = []
-                }
-            };
-
-            Assert.DoesNotThrow(() => completeReport.Save(tempFile));
-            Assert.DoesNotThrowAsync(async () => await completeReport.SaveAsync(tempFile));
-            Assert.DoesNotThrow(() => completeReport.SaveAtomic(tempFile));
-
-            var nullInventoryReport = new GitWizardReport();
-            Assert.DoesNotThrow(() => nullInventoryReport.Save(tempFile));
-            Assert.DoesNotThrowAsync(async () => await nullInventoryReport.SaveAsync(tempFile));
-            Assert.DoesNotThrow(() => nullInventoryReport.SaveAtomic(tempFile));
-        }
-        finally
+        Assert.Multiple(() =>
         {
-            try { if (File.Exists(tempFile)) File.Delete(tempFile); }
-            catch { /* best effort */ }
-        }
+            Assert.Throws<InvalidOperationException>(() => incompleteReport.Save(tempFile));
+            Assert.ThrowsAsync<InvalidOperationException>(async () => await incompleteReport.SaveAsync(tempFile));
+            Assert.Throws<InvalidOperationException>(() => incompleteReport.SaveAtomic(tempFile));
+        });
+
+        var completeReport = new GitWizardReport
+        {
+            DiscoveryInventory = new DiscoveryInventory
+            {
+                Outcome = DiscoveryOutcome.CompleteEmpty,
+                Route = DiscoveryRoute.Indexed,
+                Paths = [],
+                RequestedNtfsDrives = [],
+                Observations = [],
+                DriveStatuses = [],
+                Errors = new Dictionary<string, string>(),
+                WatchExcludedRoots = []
+            }
+        };
+
+        Assert.DoesNotThrow(() => completeReport.Save(tempFile));
+        Assert.DoesNotThrowAsync(async () => await completeReport.SaveAsync(tempFile));
+        Assert.DoesNotThrow(() => completeReport.SaveAtomic(tempFile));
+
+        var nullInventoryReport = new GitWizardReport();
+        Assert.DoesNotThrow(() => nullInventoryReport.Save(tempFile));
+        Assert.DoesNotThrowAsync(async () => await nullInventoryReport.SaveAsync(tempFile));
+        Assert.DoesNotThrow(() => nullInventoryReport.SaveAtomic(tempFile));
     }
 }

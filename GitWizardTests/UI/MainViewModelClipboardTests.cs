@@ -21,7 +21,7 @@ public class MainViewModelClipboardTests
     public void CopyToClipboard_CopiesWorkingDirectoryToClipboard()
     {
         var clipboard = new StubClipboardService();
-        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), clipboard);
+        var vm = TestViewModels.Create(clipboard: clipboard);
 
         // The stub clipboard and dispatcher complete synchronously, so the write and the indicator
         // post have already run before the returned (still-pending) task is dropped.
@@ -35,7 +35,7 @@ public class MainViewModelClipboardTests
     [Test]
     public void CopyToClipboard_LightsTheRowCopiedIndicator()
     {
-        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+        var vm = TestViewModels.Create();
         var node = RepoNode("C:/projects/widget");
 
         _ = vm.CopyToClipboardAsync(node);
@@ -49,8 +49,7 @@ public class MainViewModelClipboardTests
     public async Task CopyToClipboardAsync_ClearsTheCopiedIndicatorAfterTheDelay()
     {
         var clock = new ControlledDelayClock();
-        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(),
-            new StubClipboardService(), clock);
+        var vm = TestViewModels.Create(timeProvider: clock);
         var node = RepoNode("C:/projects/widget");
         var copy = vm.CopyToClipboardAsync(node);
         try
@@ -76,7 +75,7 @@ public class MainViewModelClipboardTests
     public async Task CopyToClipboard_DoesNothingForNullOrGroupHeaderNodes()
     {
         var clipboard = new StubClipboardService();
-        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), clipboard);
+        var vm = TestViewModels.Create(clipboard: clipboard);
 
         await vm.CopyToClipboardAsync(null);
         await vm.CopyToClipboardAsync(RepositoryNodeViewModel.CreateGroupHeader("C:"));
@@ -89,7 +88,7 @@ public class MainViewModelClipboardTests
     [Test]
     public void CopyToClipboardAsync_FailsWithoutLightingIndicatorWhenClipboardThrows()
     {
-        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new ThrowingClipboardService());
+        var vm = TestViewModels.Create(clipboard: new ThrowingClipboardService());
         var node = RepoNode("C:/projects/widget");
 
         Assert.ThrowsAsync<InvalidOperationException>(() => vm.CopyToClipboardAsync(node));
@@ -100,7 +99,7 @@ public class MainViewModelClipboardTests
     public async Task CopyToClipboard_DoesNothing_ForNodeWithoutWorkingDirectory()
     {
         var clipboard = new StubClipboardService();
-        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), clipboard);
+        var vm = TestViewModels.Create(clipboard: clipboard);
         var node = new RepositoryNodeViewModel(new GitWizardRepository(""));
 
         await vm.CopyToClipboardAsync(node);

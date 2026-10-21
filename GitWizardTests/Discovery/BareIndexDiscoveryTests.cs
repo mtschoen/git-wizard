@@ -69,50 +69,37 @@ public class BareIndexDiscoveryTests
     [Test]
     public void CandidateProbe_ValidatesExistingRepositories()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), "CandidateProbeTest_" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(tempDir);
-        try
-        {
-            var ordinary = Path.Combine(tempDir, "ordinary");
-            Directory.CreateDirectory(Path.Combine(ordinary, ".git"));
+        using var directory = new TempDirectory("CandidateProbeTest_");
+        var tempDir = directory.Path;
 
-            var worktree = Path.Combine(tempDir, "worktree");
-            Directory.CreateDirectory(worktree);
-            File.WriteAllText(Path.Combine(worktree, ".git"), "gitdir: /somewhere");
+        var ordinary = Path.Combine(tempDir, "ordinary");
+        Directory.CreateDirectory(Path.Combine(ordinary, ".git"));
 
-            var bare = Path.Combine(tempDir, "bare");
-            Directory.CreateDirectory(bare);
-            File.WriteAllText(Path.Combine(bare, "HEAD"), "ref: refs/heads/main");
-            Directory.CreateDirectory(Path.Combine(bare, "objects"));
-            Directory.CreateDirectory(Path.Combine(bare, "refs"));
+        var worktree = Path.Combine(tempDir, "worktree");
+        Directory.CreateDirectory(worktree);
+        File.WriteAllText(Path.Combine(worktree, ".git"), "gitdir: /somewhere");
 
-            var internalGit = Path.Combine(ordinary, ".git");
+        var bare = Path.Combine(tempDir, "bare");
+        Directory.CreateDirectory(bare);
+        File.WriteAllText(Path.Combine(bare, "HEAD"), "ref: refs/heads/main");
+        Directory.CreateDirectory(Path.Combine(bare, "objects"));
+        Directory.CreateDirectory(Path.Combine(bare, "refs"));
 
-            var unrelated = Path.Combine(tempDir, "unrelated");
-            Directory.CreateDirectory(unrelated);
-            File.WriteAllText(Path.Combine(unrelated, "HEAD"), "not a repo");
+        var internalGit = Path.Combine(ordinary, ".git");
 
-            Assert.That(RepositoryCandidateProbe.Exists(ordinary, RepositoryCandidateKind.Ordinary), Is.True);
-            Assert.That(RepositoryCandidateProbe.Exists(worktree, RepositoryCandidateKind.GitFile), Is.True);
-            Assert.That(RepositoryCandidateProbe.Exists(bare, RepositoryCandidateKind.Bare), Is.True);
+        var unrelated = Path.Combine(tempDir, "unrelated");
+        Directory.CreateDirectory(unrelated);
+        File.WriteAllText(Path.Combine(unrelated, "HEAD"), "not a repo");
 
-            // Internal .git is excluded
-            Assert.That(RepositoryCandidateProbe.Exists(internalGit, RepositoryCandidateKind.Bare), Is.False);
-            Assert.That(RepositoryCandidateProbe.Exists(internalGit, RepositoryCandidateKind.Ordinary), Is.False);
+        Assert.That(RepositoryCandidateProbe.Exists(ordinary, RepositoryCandidateKind.Ordinary), Is.True);
+        Assert.That(RepositoryCandidateProbe.Exists(worktree, RepositoryCandidateKind.GitFile), Is.True);
+        Assert.That(RepositoryCandidateProbe.Exists(bare, RepositoryCandidateKind.Bare), Is.True);
 
-            // Unrelated HEAD is not a bare repo
-            Assert.That(RepositoryCandidateProbe.Exists(unrelated, RepositoryCandidateKind.Bare), Is.False);
-        }
-        finally
-        {
-            try
-            {
-                Directory.Delete(tempDir, true);
-            }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-            {
-                TestContext.Out.WriteLine($"Failed to delete temp directory '{tempDir}': {exception.Message}");
-            }
-        }
+        // Internal .git is excluded
+        Assert.That(RepositoryCandidateProbe.Exists(internalGit, RepositoryCandidateKind.Bare), Is.False);
+        Assert.That(RepositoryCandidateProbe.Exists(internalGit, RepositoryCandidateKind.Ordinary), Is.False);
+
+        // Unrelated HEAD is not a bare repo
+        Assert.That(RepositoryCandidateProbe.Exists(unrelated, RepositoryCandidateKind.Bare), Is.False);
     }
 }

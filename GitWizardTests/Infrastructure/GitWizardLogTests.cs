@@ -354,7 +354,7 @@ public class GitWizardLogTests
     [Test]
     public async Task Log_FileCreationFailure_WritesDiagnosticOnlyToStderr()
     {
-        var temporaryHome = TestUtilities.RedirectLocalFilesToTemp();
+        using var sandbox = new LocalFilesSandbox();
         var originalOut = Console.Out;
         var originalError = Console.Error;
         using var stdout = new StringWriter();
@@ -380,7 +380,6 @@ public class GitWizardLogTests
             GitWizardLog.CloseCurrentLogFile();
             Console.SetOut(originalOut);
             Console.SetError(originalError);
-            TestUtilities.ClearLocalFilesRedirect(temporaryHome);
         }
     }
 
@@ -555,32 +554,25 @@ public class GitWizardLogTests
     [Test]
     public async Task CleanLogFolder_DeletesOldFiles()
     {
-        var tempRoot = TestUtilities.RedirectLocalFilesToTemp();
-        try
+        using var sandbox = new LocalFilesSandbox();
+        var logFolder = GitWizardApi.GetLogFolderPath();
+        Directory.CreateDirectory(logFolder);
+
+        var oldFile = Path.Combine(logFolder, "old.log");
+        await File.WriteAllTextAsync(oldFile, "old content");
+        File.SetCreationTimeUtc(oldFile, DateTime.UtcNow.AddDays(-31));
+
+        var newFile = Path.Combine(logFolder, "new.log");
+        await File.WriteAllTextAsync(newFile, "new content");
+
+        GitWizardLog.CleanLogFolder();
+
+        await AsyncCondition.WaitUntilAsync(() => !File.Exists(oldFile));
+
+        Assert.Multiple(() =>
         {
-            var logFolder = GitWizardApi.GetLogFolderPath();
-            Directory.CreateDirectory(logFolder);
-
-            var oldFile = Path.Combine(logFolder, "old.log");
-            await File.WriteAllTextAsync(oldFile, "old content");
-            File.SetCreationTimeUtc(oldFile, DateTime.UtcNow.AddDays(-31));
-
-            var newFile = Path.Combine(logFolder, "new.log");
-            await File.WriteAllTextAsync(newFile, "new content");
-
-            GitWizardLog.CleanLogFolder();
-
-            await AsyncCondition.WaitUntilAsync(() => !File.Exists(oldFile));
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(File.Exists(oldFile), Is.False);
-                Assert.That(File.Exists(newFile), Is.True);
-            });
-        }
-        finally
-        {
-            TestUtilities.ClearLocalFilesRedirect(tempRoot);
-        }
+            Assert.That(File.Exists(oldFile), Is.False);
+            Assert.That(File.Exists(newFile), Is.True);
+        });
     }
 }

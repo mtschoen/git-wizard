@@ -28,13 +28,12 @@ public class IndexVolumeChangeSourceTests
         Assert.That(broker.ConnectionCount, Is.Zero);
         var settings = await source.GrowUsnJournalAsync('X',
                 new UsnJournalSettings { MaximumSize = 4096, AllocationDelta = 512 }, CancellationToken.None)
-            .WaitAsync(HangGuard);
+            .WaitAsync(TestTimeouts.HangGuard);
         Assert.That(settings.MaximumSize, Is.EqualTo(4096));
         Assert.That(settings.AllocationDelta, Is.EqualTo(512));
         Assert.That(broker.ConnectionCount, Is.EqualTo(1));
     }
 
-    static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(10);
 
     [Test]
     public async Task RealJournalRenameDivergesEntryPathFromChangePath()
@@ -46,12 +45,12 @@ public class IndexVolumeChangeSourceTests
         var observed = new TaskCompletionSource<FileChange>(TaskCreationOptions.RunContinuationsAsynchronously);
         index.Changed += change => observed.TrySetResult(change);
         await index.StartWatchingAsync(['X'], CancellationToken.None);
-        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard);
+        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
         await scripted.WatchFor('X').PublishBatchAsync([
             Entry(6, 5, "first", SyntheticJournalReason.RenameNewName, true),
             Entry(6, 5, "second", SyntheticJournalReason.RenameNewName, true)
         ], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
-        var change = await observed.Task.WaitAsync(HangGuard);
+        var change = await observed.Task.WaitAsync(TestTimeouts.HangGuard);
         await index.StopWatchingAsync(['X'], CancellationToken.None);
         await TestContext.Out.WriteLineAsync($"Entry.Path = '{change.Entry.Path}'; Path = '{change.Path}'");
         // This test subscribes to MFTLib's raw FileIndex.Changed event directly, bypassing
@@ -178,7 +177,7 @@ public class IndexVolumeChangeSourceTests
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
         var starts = scripted.Starts;
-        using var cancellation = new CancellationTokenSource(HangGuard);
+        using var cancellation = new CancellationTokenSource(TestTimeouts.HangGuard);
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
         var firstRead = reader.MoveNextAsync().AsTask();
         Assert.That(starts, Is.EquivalentTo(new[]
@@ -235,17 +234,17 @@ public class IndexVolumeChangeSourceTests
         owner.Index.Changed += change => observed.TrySetResult(change);
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
-        using var cancellation = new CancellationTokenSource(HangGuard);
+        using var cancellation = new CancellationTokenSource(TestTimeouts.HangGuard);
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
         var pending = reader.MoveNextAsync().AsTask();
-        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard);
+        await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
         await scripted.WatchFor('X').PublishBatchAsync([Entry(50, 6, "ordinary.txt", reason)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
         Assert.That(await pending, Is.True);
         Assert.That(reader.Current.Volume, Is.EqualTo("X"));
         // Routed through IndexVolumeChangeSource, which rewrites this back onto its own
         // configured drive letter (MFTLib #143), so this stays the pre-existing synthetic shape.
         Assert.That(reader.Current.Entries.Single(), Is.EqualTo(new VolumeChangeEntry(@"X:\repo\ordinary.txt", expected)));
-        var change = await observed.Task.WaitAsync(HangGuard);
+        var change = await observed.Task.WaitAsync(TestTimeouts.HangGuard);
         Assert.That(change.Entry.Name, Is.EqualTo("ordinary.txt"));
         Assert.That(change.Entry.IsDirectory, Is.False);
         Assert.That(change.Entry.Parent!.Value.Name, Is.EqualTo("repo"));
@@ -267,10 +266,10 @@ public class IndexVolumeChangeSourceTests
             try
             {
                 await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
-                using var cancellation = new CancellationTokenSource(HangGuard);
+                using var cancellation = new CancellationTokenSource(TestTimeouts.HangGuard);
                 await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
                 var pending = reader.MoveNextAsync().AsTask();
-                await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard);
+                await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
                 if (disposeSource)
                 {
                     await source.DisposeAsync();
@@ -282,7 +281,7 @@ public class IndexVolumeChangeSourceTests
                     await cancellation.CancelAsync();
                     Assert.CatchAsync<OperationCanceledException>(async () => await pending);
                 }
-                Assert.That(await scripted.WatchFor('X').ReadEnded.WaitAsync(HangGuard), Is.True);
+                Assert.That(await scripted.WatchFor('X').ReadEnded.WaitAsync(TestTimeouts.HangGuard), Is.True);
                 Assert.That(deaths, Is.Zero);
                 await source.DisposeAsync();
                 Assert.That(owner.IsDisposed, Is.True);
@@ -332,9 +331,9 @@ public class IndexVolumeChangeSourceTests
             [new IndexedDrive('X', files.TreePath, 12345u)], new Dictionary<string, string>());
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner), owner);
         var loss = SyntheticNotifications.CreateJournalCheckpointLoss('X', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.DriveOpening, new UsnJournalSettings { MaximumSize = 32L * 1024 * 1024, AllocationDelta = 8 * 1024 * 1024 }) with { BytesBehind = 4_000_000, SizeThatWouldHaveRetained = 136L * 1024 * 1024 };
-        var declinedBase = SyntheticNotifications.CreateDriveStatus('X', DriveState.Failed, null,
-            SyntheticNotifications.CreateDriveFailure(DriveFailureKind.CacheDeclined, "cache declined"));
-        var status = declinedBase with { Watch = declinedBase.Watch with { IsSupported = false, CheckpointLoss = loss } };
+        var declined = DriveStatuses.CreateDriveStatus('X', DriveState.Failed,
+            failure: SyntheticNotifications.CreateDriveFailure(DriveFailureKind.CacheDeclined, "cache declined"));
+        var status = declined with { Watch = declined.Watch with { CheckpointLoss = loss } };
         var errors = new Dictionary<string, string>();
         var warnings = new List<JournalWarning>();
 
@@ -359,9 +358,10 @@ public class IndexVolumeChangeSourceTests
         source.JournalWarningDetected += warnings.Add;
         var liveLoss = FakeJournalSettingsSource.TrimmedLoss('X', 32L * 1024 * 1024, 136L * 1024 * 1024,
             detectedDuring: JournalCheckpointLossDetection.LiveWatch);
-        var readyBase = SyntheticNotifications.CreateDriveStatus('X', DriveState.Ready,
-            SyntheticNotifications.CreateDriveBlockStatus(BlockOrigin.ProducedByScan, 10, false, DateTime.UtcNow), null);
-        var status = readyBase with { Watch = readyBase.Watch with { IsSupported = true, FailureMessage = "watch reached a position the journal no longer holds", CheckpointLoss = liveLoss, State = WatchState.Faulted, IsRecoveryStopped = true } };
+        var ready = DriveStatuses.CreateDriveStatus('X', DriveState.Ready,
+            SyntheticNotifications.CreateDriveBlockStatus(BlockOrigin.ProducedByScan, 10, false, DateTime.UtcNow),
+            watchSupported: true);
+        var status = ready with { Watch = ready.Watch with { FailureMessage = "watch reached a position the journal no longer holds", CheckpointLoss = liveLoss, State = WatchState.Faulted, IsRecoveryStopped = true } };
 
         source.ProcessFaultedDrive(status, owner, new GitWizardConfiguration());
 
@@ -393,9 +393,10 @@ public class IndexVolumeChangeSourceTests
         source.JournalWarningDetected += warnings.Add;
         var liveLoss = FakeJournalSettingsSource.TrimmedLoss('X', 32L * 1024 * 1024, 136L * 1024 * 1024,
             detectedDuring: JournalCheckpointLossDetection.LiveWatch);
-        var recreatedBase = SyntheticNotifications.CreateDriveStatus('X', DriveState.Ready,
-            SyntheticNotifications.CreateDriveBlockStatus(BlockOrigin.ProducedByScan, 10, false, DateTime.UtcNow), null);
-        var status = recreatedBase with { Watch = recreatedBase.Watch with { IsSupported = true, CheckpointLoss = liveLoss } };
+        var recreated = DriveStatuses.CreateDriveStatus('X', DriveState.Ready,
+            SyntheticNotifications.CreateDriveBlockStatus(BlockOrigin.ProducedByScan, 10, false, DateTime.UtcNow),
+            watchSupported: true);
+        var status = recreated with { Watch = recreated.Watch with { CheckpointLoss = liveLoss } };
 
         source.ProcessFaultedDrive(status, owner, new GitWizardConfiguration());
         // The library keeps the report after its recovery rescan, so a later fault of another

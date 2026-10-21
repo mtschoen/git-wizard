@@ -18,7 +18,6 @@ namespace GitWizardTests.Watch;
 [NonParallelizable]
 public class IndexVolumeChangeSourceCheckpointLossTests
 {
-    static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(10);
     static readonly SyntheticJournalWindow Healthy = new(PackedIndexFixture.JournalIdentifier, 0, 5_000, 64, 8_192);
     static readonly SyntheticJournalWindow Lost = new(PackedIndexFixture.JournalIdentifier, 1_500, 5_000, 64, 8_192);
 
@@ -39,7 +38,7 @@ public class IndexVolumeChangeSourceCheckpointLossTests
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         files.BeforeProduceAsync = (_, token) => release.Task.WaitAsync(token);
         var warnings = new ConcurrentQueue<JournalWarning>();
-        using var cancellation = new CancellationTokenSource(HangGuard);
+        using var cancellation = new CancellationTokenSource(TestTimeouts.HangGuard);
         IAsyncEnumerator<VolumeChangeBatch>? reader = null;
         var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         try
@@ -68,7 +67,7 @@ public class IndexVolumeChangeSourceCheckpointLossTests
             });
 
             await scripted.WatchFor('Y').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(50, 6, "while-x-recovers", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
-            Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(HangGuard), Is.True);
+            Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
             Assert.That(reader.Current.Volume, Is.EqualTo("Y"));
 
             // The recovery rescan reads a journal that holds its new cursor.
@@ -78,7 +77,7 @@ public class IndexVolumeChangeSourceCheckpointLossTests
                                        caughtUp.State == VolumeWatchState.CaughtUp);
             await scripted.WatchFor('X').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(51, 6, "after-recovery", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1003));
 
-            Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(HangGuard), Is.True);
+            Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
             Assert.That(reader.Current.Volume, Is.EqualTo("X"));
             Assert.That(scripted.Starts.Count(start => start.Drive == 'X'), Is.EqualTo(2));
 

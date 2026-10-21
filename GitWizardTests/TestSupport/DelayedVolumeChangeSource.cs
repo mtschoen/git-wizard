@@ -4,7 +4,7 @@ using GitWizard.Watch;
 namespace GitWizardTests.Watch;
 
 // A scripted IVolumeChangeSource that spaces its batches apart in real time, used only to
-// exercise RepositoryWatchService's debounce-window flush (FakeVolumeChangeSource yields its
+// exercise RepositoryWatchService's debounce-window flush (ScriptedVolumeChangeSource yields its
 // batches back-to-back, which never lets a debounce window elapse mid-stream).
 internal sealed class DelayedVolumeChangeSource : IVolumeChangeSource
 {

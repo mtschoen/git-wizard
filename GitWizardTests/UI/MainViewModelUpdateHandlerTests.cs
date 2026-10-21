@@ -1,4 +1,5 @@
 using GitWizard;
+using GitWizardTests.TestSupport;
 using GitWizardUI.ViewModels;
 
 namespace GitWizardTests;
@@ -10,8 +11,7 @@ public class MainViewModelUpdateHandlerTests
     [SetUp]
     public void SetUp() => GitWizardLog.SilentMode = true;
 
-    static MainViewModel CreateViewModel() =>
-        new(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+    static MainViewModel CreateViewModel() => TestViewModels.Create();
 
     static GitWizardRepository Repo(string workingDirectory) => new(workingDirectory);
 

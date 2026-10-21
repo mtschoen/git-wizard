@@ -1,8 +1,8 @@
+using System.Runtime.CompilerServices;
 using GitWizard;
 using GitWizard.Watch;
 using GitWizard.Watch.Linux;
 using GitWizardTests.TestSupport;
-using GitWizardTests.Watch;
 using GitWizardUI.ViewModels;
 
 namespace GitWizardTests.UI;
@@ -15,7 +15,7 @@ public class MainViewModelLiveStartupTests
     public void SetUp() => GitWizardLog.SilentMode = true;
 
     static MainViewModel NewViewModel()
-        => new(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+        => TestViewModels.Create();
 
     static GitWizardRepository Repo(string workingDirectory, params string[] remotes)
     {
@@ -25,15 +25,8 @@ public class MainViewModelLiveStartupTests
         return repository;
     }
 
-    static async Task WaitUntilAsync(Func<bool> condition)
-    {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        while (!condition())
-        {
-            timeout.Token.ThrowIfCancellationRequested();
-            await Task.Delay(10, timeout.Token);
-        }
-    }
+    static Task WaitUntilAsync(Func<bool> condition, [CallerArgumentExpression(nameof(condition))] string? expression = null) =>
+        AsyncCondition.WaitUntilAsync(condition, TestTimeouts.ShortHangGuard, expression);
 
 
     [Test]
@@ -41,8 +34,8 @@ public class MainViewModelLiveStartupTests
     {
         var sourceReady = new TaskCompletionSource<DiagnosticVolumeChangeSource>(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        var dispatcher = new QueuedLiveUiDispatcher();
-        var viewModel = new MainViewModel(dispatcher, new StubUserDialogs(), new StubClipboardService());
+        var dispatcher = new QueuedUiDispatcher();
+        var viewModel = TestViewModels.Create(dispatcher: dispatcher);
         viewModel.LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
         viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
         {
@@ -92,7 +85,8 @@ public class MainViewModelLiveStartupTests
     public async Task ExpandIgnoredPaths_PreservesNonExistentIgnoredPaths()
     {
         var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync();
-        var nonExistentIgnored = Path.Combine(Path.GetTempPath(), $"gw-nonexistent-{Guid.NewGuid():N}");
+        using var nonExistentOwner = new TempDirectory("gw-nonexistent-", create: false);
+        var nonExistentIgnored = nonExistentOwner.Path;
         configuration.IgnoredPaths.Add(nonExistentIgnored);
         try
         {
@@ -124,7 +118,12 @@ public class MainViewModelLiveStartupTests
     public async Task ToggleLiveAsync_WhileArming_ShowsStartingStateUntilStopped()
     {
         var viewModel = NewViewModel();
-        var source = new BlockingArmVolumeChangeSource();
+        var armGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var source = new ScriptedVolumeChangeSource
+        {
+            ArmGate = armGate.Task,
+            KeepWatching = true
+        };
         viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
         viewModel.LiveIsElevated = () => false;
@@ -150,7 +149,7 @@ public class MainViewModelLiveStartupTests
     public async Task ToggleLiveAsync_StartThenToggleAgain_StopsAndClearsIsLive()
     {
         var viewModel = NewViewModel();
-        var source = new HangingKillableSource();
+        var source = new ScriptedVolumeChangeSource { KeepWatching = true, ReplayDeathToLateSubscribers = true };
         viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
         viewModel.LiveIsElevated = () => false;
@@ -189,7 +188,7 @@ public class MainViewModelLiveStartupTests
     public async Task ToggleLiveAsync_SourceDiesNotElevated_ClearsIsLiveWithStoppedReason()
     {
         var viewModel = NewViewModel();
-        var source = new HangingKillableSource();
+        var source = new ScriptedVolumeChangeSource { KeepWatching = true, ReplayDeathToLateSubscribers = true };
         viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
         viewModel.LiveIsElevated = () => false;
@@ -210,7 +209,7 @@ public class MainViewModelLiveStartupTests
         var errors = new Dictionary<string, string> { ["D"] = "drive not ready" };
         var batch = new VolumeChangeBatch("C",
             new[] { new VolumeChangeEntry(@"C:\tracked\file.txt", VolumeEntryKind.Modified) });
-        var source = new FakeVolumeChangeSource(new[] { batch }, errors);
+        var source = new ScriptedVolumeChangeSource(new[] { batch }, errors);
 
         var viewModel = NewViewModel();
         viewModel.AddRepository(Repo(@"C:\tracked"));
@@ -246,7 +245,10 @@ public class MainViewModelLiveStartupTests
     public async Task ToggleLiveAsync_SourceDiesWithScanErrors_StoppedHeaderIncludesErrorSuffix()
     {
         var errors = new Dictionary<string, string> { ["D"] = "drive not ready" };
-        var source = new KillableSourceWithErrors(errors);
+        var source = new ScriptedVolumeChangeSource(errors: errors)
+        {
+            KeepWatching = true
+        };
         var viewModel = NewViewModel();
         viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
@@ -265,30 +267,23 @@ public class MainViewModelLiveStartupTests
     [Test]
     public async Task ToggleLiveAsync_WithConfiguredSearchPaths_ExpandsSearchPaths()
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"gw-search-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
-        try
-        {
-            var config = await GitWizardConfiguration.GetGlobalConfigurationAsync();
-            config.SearchPaths.Clear();
-            config.SearchPaths.Add(tempDir);
+        using var directory = new TempDirectory("gw-search-");
+        var tempDir = directory.Path;
+        var config = await GitWizardConfiguration.GetGlobalConfigurationAsync();
+        config.SearchPaths.Clear();
+        config.SearchPaths.Add(tempDir);
 
-            var source = new HangingKillableSource();
-            var viewModel = NewViewModel();
-            viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
-                FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
-            viewModel.LiveIsElevated = () => false;
+        var source = new ScriptedVolumeChangeSource { KeepWatching = true, ReplayDeathToLateSubscribers = true };
+        var viewModel = NewViewModel();
+        viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
+            FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
+        viewModel.LiveIsElevated = () => false;
 
-            var startTask = viewModel.ToggleLiveAsync();
-            await WaitUntilAsync(() => source.IsArmed);
+        var startTask = viewModel.ToggleLiveAsync();
+        await WaitUntilAsync(() => source.IsArmed);
 
-            await viewModel.ToggleLiveAsync();
-            await startTask;
-        }
-        finally
-        {
-            Directory.Delete(tempDir, recursive: true);
-        }
+        await viewModel.ToggleLiveAsync();
+        await startTask;
     }
 
     [Test]
@@ -315,7 +310,7 @@ public class MainViewModelLiveStartupTests
         var viewModel = NewViewModel();
         viewModel.AddRepository(Repo(oldPath, remoteUrl));
         viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
-            FakeLiveStartup.FromSourceArmedAsync(new FakeVolumeChangeSource(new[] { batch }), request, cancellationToken);
+            FakeLiveStartup.FromSourceArmedAsync(new ScriptedVolumeChangeSource(new[] { batch }), request, cancellationToken);
         viewModel.LiveIsElevated = () => false;
 
         await viewModel.ToggleLiveAsync();
@@ -341,7 +336,7 @@ public class MainViewModelLiveStartupTests
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         var repositoryPath = fixture.Path;
-        var source = new HangingKillableSource();
+        var source = new ScriptedVolumeChangeSource { KeepWatching = true, ReplayDeathToLateSubscribers = true };
         var viewModel = NewViewModel();
         viewModel.AddRepository(Repo("/stale"));
         viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>

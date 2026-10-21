@@ -2,12 +2,14 @@ using System.Runtime.Versioning;
 using System.Text.Json;
 using GitWizard;
 using GitWizard.CLI;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests;
 
 [NonParallelizable]
 public class ReportCliOutputTests
 {
+    LocalFilesSandbox? _sandbox;
     string _temporaryHome = null!;
     TextWriter _originalOut = null!;
     TextWriter _originalError = null!;
@@ -21,8 +23,8 @@ public class ReportCliOutputTests
     [SetUp]
     public void SetUp()
     {
-        _temporaryHome = TestUtilities.RedirectLocalFilesToTemp();
-        TestUtilities.ResetStaticCaches();
+        _sandbox = new LocalFilesSandbox();
+        _temporaryHome = _sandbox.Path;
         _originalOut = Console.Out;
         _originalError = Console.Error;
         _originalLogMethod = GitWizardLog.LogMethod;
@@ -49,8 +51,8 @@ public class ReportCliOutputTests
         GitWizardLog.VerboseMode = _originalVerboseMode;
         _consoleOut.Dispose();
         _consoleError.Dispose();
-        TestUtilities.ResetStaticCaches();
-        TestUtilities.ClearLocalFilesRedirect(_temporaryHome);
+        _sandbox?.Dispose();
+        _sandbox = null;
     }
 
     [Test]

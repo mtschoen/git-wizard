@@ -1,4 +1,5 @@
 using GitWizard;
+using GitWizardTests.TestSupport;
 using LibGit2Sharp;
 
 namespace GitWizardTests;
@@ -78,7 +79,8 @@ public class RepositorySweepReportTests
     {
         using var first = TempRepoFixture.CreateWithInitialCommit();
         using var second = TempRepoFixture.CreateWithInitialCommit();
-        var invalid = Path.Combine(Path.GetTempPath(), "gw-missing-" + Guid.NewGuid().ToString("N"));
+        using var invalidDir = new TempDirectory("gw-missing-", create: false);
+        var invalid = invalidDir.Path;
         var paths = new[] { second.Path, invalid, first.Path };
 
         var report = RepositorySweepReport.Scan(paths);

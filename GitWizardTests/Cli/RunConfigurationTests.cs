@@ -1,5 +1,6 @@
 using GitWizard;
 using GitWizard.CLI;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests;
 
@@ -153,45 +154,39 @@ internal sealed class RunConfigurationTests
     [TestCase("--config-path")]
     public void Parse_ValueFlag_PreservesValue(string argument)
     {
-        var tempDir = TestUtilities.CreateTempDir(out var cleanup);
-        try
+        using var directory = new TempDirectory();
+        var tempDir = directory.Path;
+        var value = argument switch
         {
-            var value = argument switch
-            {
-                "--filter" => "my pattern with spaces",
-                "--paths" => "/repo/a,/repo/b",
-                "--save-path" => Path.Combine(tempDir, "output.json"),
-                "--config-path" => Path.Combine(tempDir, "config.json"),
-                _ => throw new ArgumentOutOfRangeException(nameof(argument), argument, null)
-            };
-            if (argument == "--config-path")
-                File.WriteAllText(value, "{}");
+            "--filter" => "my pattern with spaces",
+            "--paths" => "/repo/a,/repo/b",
+            "--save-path" => Path.Combine(tempDir, "output.json"),
+            "--config-path" => Path.Combine(tempDir, "config.json"),
+            _ => throw new ArgumentOutOfRangeException(nameof(argument), argument, null)
+        };
+        if (argument == "--config-path")
+            File.WriteAllText(value, "{}");
 
-            var parsed = CliParser.Parse([argument, value]);
-            var actual = argument switch
-            {
-                "--filter" => parsed.FilterPattern,
-                "--paths" => parsed.PathsArgument,
-                "--save-path" => parsed.SavePath,
-                "--config-path" => parsed.CustomConfigurationPath,
-                _ => throw new ArgumentOutOfRangeException(nameof(argument), argument, null)
-            };
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(actual, Is.EqualTo(value));
-                Assert.That(parsed.HasParseError, Is.False);
-                if (argument == "--filter")
-                {
-                    Assert.That(parsed.Json, Is.False);
-                    Assert.That(parsed.RefreshReport, Is.True);
-                }
-            });
-        }
-        finally
+        var parsed = CliParser.Parse([argument, value]);
+        var actual = argument switch
         {
-            cleanup();
-        }
+            "--filter" => parsed.FilterPattern,
+            "--paths" => parsed.PathsArgument,
+            "--save-path" => parsed.SavePath,
+            "--config-path" => parsed.CustomConfigurationPath,
+            _ => throw new ArgumentOutOfRangeException(nameof(argument), argument, null)
+        };
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(actual, Is.EqualTo(value));
+            Assert.That(parsed.HasParseError, Is.False);
+            if (argument == "--filter")
+            {
+                Assert.That(parsed.Json, Is.False);
+                Assert.That(parsed.RefreshReport, Is.True);
+            }
+        });
     }
 
     [TestCase("m\u00fcnchen")]
@@ -248,7 +243,8 @@ internal sealed class RunConfigurationTests
     [Test]
     public void ParseCommandLine_SavePath_NonexistentParent_IsRejected()
     {
-        var missingParent = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "output.json");
+        using var files = new TempDirectory();
+        var missingParent = Path.Combine(files.Path, "absent", "output.json");
         var parsed = CliParser.Parse(["--save-path", missingParent]);
         Assert.Multiple(() =>
         {
@@ -324,14 +320,11 @@ internal sealed class RunConfigurationTests
     [Test]
     public void ParseProcessArgs_LeadingProgramPath_SavePathStillValidated()
     {
-        var tempDir = TestUtilities.CreateTempDir(out var cleanup);
-        try
-        {
-            var savePath = Path.Combine(tempDir, "out.json");
-            var parsed = CliParser.ParseProcessArgs([@"C:\some\path\git-wizard.dll", "--save-path", savePath]);
-            Assert.That(parsed.SavePath, Is.EqualTo(savePath));
-        }
-        finally { cleanup(); }
+        using var directory = new TempDirectory();
+        var tempDir = directory.Path;
+        var savePath = Path.Combine(tempDir, "out.json");
+        var parsed = CliParser.ParseProcessArgs([@"C:\some\path\git-wizard.dll", "--save-path", savePath]);
+        Assert.That(parsed.SavePath, Is.EqualTo(savePath));
     }
 
     [Test]
@@ -426,7 +419,8 @@ internal sealed class RunConfigurationTests
     [Test]
     public void Parse_ConsumerAliases_NormalizedCorrectly()
     {
-        var savePath = Path.Combine(Path.GetTempPath(), "report.json");
+        using var directory = new TempDirectory();
+        var savePath = Path.Combine(directory.Path, "report.json");
         var parsed = CliParser.Parse(["-paths", "/test/repo", "-save-path", savePath, "-silent"]);
         Assert.Multiple(() =>
         {

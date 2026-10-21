@@ -1,6 +1,7 @@
 using System.Text.Json;
 using GitWizard;
 using GitWizard.CLI;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests;
 
@@ -12,21 +13,22 @@ namespace GitWizardTests;
 public class ProgramHelperTests
 {
 
+    LocalFilesSandbox? _sandbox;
     string? _tempHome;
 
     [SetUp]
     public void SetUp()
     {
         GitWizardLog.SilentMode = true;
-        TestUtilities.ResetStaticCaches();
-        _tempHome = TestUtilities.RedirectLocalFilesToTemp();
+        _sandbox = new LocalFilesSandbox();
+        _tempHome = _sandbox.Path;
     }
 
     [TearDown]
     public void TearDown()
     {
-        TestUtilities.ResetStaticCaches();
-        TestUtilities.ClearLocalFilesRedirect(_tempHome);
+        _sandbox?.Dispose();
+        _sandbox = null;
     }
 
     static GitWizardRepository CreateRepoWithFlags(

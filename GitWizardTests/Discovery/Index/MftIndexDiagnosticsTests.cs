@@ -82,7 +82,7 @@ public class MftIndexDiagnosticsTests
         var previousSilent = GitWizardLog.SilentMode;
         // Logging also writes a file under the local-files home; keep that file in an owned home and
         // close it afterwards so no later child process finds the shared home's log held open.
-        var home = TestUtilities.RedirectLocalFilesToTemp();
+        using var sandbox = new LocalFilesSandbox();
         try
         {
             GitWizardLog.LogMethod = message => messages.Enqueue(message ?? string.Empty);
@@ -98,7 +98,6 @@ public class MftIndexDiagnosticsTests
             GitWizardLog.LogMethod = previousMethod;
             GitWizardLog.SilentMode = previousSilent;
             GitWizardLog.CloseCurrentLogFile();
-            TestUtilities.ClearLocalFilesRedirect(home);
         }
     }
 }

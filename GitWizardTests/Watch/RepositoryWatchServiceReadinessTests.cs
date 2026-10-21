@@ -8,7 +8,6 @@ namespace GitWizardTests.Watch;
 [TestFixture]
 public class RepositoryWatchServiceReadinessTests
 {
-    static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(5);
 
     sealed class Run : IAsyncDisposable
     {
@@ -51,7 +50,7 @@ public class RepositoryWatchServiceReadinessTests
         await using var source = new ReadinessVolumeChangeSource();
         var service = new RepositoryWatchService(source, [@"X:\repo", @"Y:\repo"], [], TimeSpan.Zero);
         await using var run = Run.Start(service);
-        await source.Started.WaitAsync(HangGuard);
+        await source.Started.WaitAsync(TestTimeouts.ShortHangGuard);
         await WaitUntilAsync(() => run.StartedRaised);
         Assert.That(run.Ready, Is.Empty, "Started is not a readiness fence.");
 
@@ -115,7 +114,7 @@ public class RepositoryWatchServiceReadinessTests
         var service = new RepositoryWatchService(startup, debounce: TimeSpan.Zero);
         var order = new List<string>();
         service.Ready += _ => order.Add("ready");
-        using var cancellation = new CancellationTokenSource(HangGuard);
+        using var cancellation = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var cancellationToken = cancellation.Token;
         var pump = Task.Run(async () =>
         {
@@ -200,13 +199,13 @@ public class RepositoryWatchServiceReadinessTests
         // A non-empty batch list, not an empty one: the first read must actually produce
         // something (or stay pending) so the pump-start fence sees a genuinely active pump
         // rather than an immediate end of stream, which is source death, not readiness.
-        var source = new FakeVolumeChangeSource([
+        var source = new ScriptedVolumeChangeSource([
             new VolumeChangeBatch("C", [new VolumeChangeEntry(@"C:\repo\a\file.txt", VolumeEntryKind.Modified)])
         ]);
         var service = new RepositoryWatchService(source, [@"C:\repo\a"], [], TimeSpan.Zero);
         WatchReadiness? readiness = null;
         service.Ready += value => readiness = value;
-        using var cancellation = new CancellationTokenSource(HangGuard);
+        using var cancellation = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         await foreach (var _ in service.RunAsync(cancellation.Token)) { }
         Assert.That(readiness, Is.Not.Null);
         Assert.That(readiness!.Mode, Is.EqualTo(WatchReadinessMode.PumpActive));
@@ -219,11 +218,11 @@ public class RepositoryWatchServiceReadinessTests
         // The generic-source fallback path (no IPumpLifecycle) has no better proxy for "pump
         // active" than its own first read having begun - but that proxy must still reject a
         // first read that already ended the stream, exactly as the pump-lifecycle path does.
-        var source = new FakeVolumeChangeSource([]);
+        var source = new ScriptedVolumeChangeSource([]);
         var service = new RepositoryWatchService(source, [@"C:\repo\a"], [], TimeSpan.Zero);
         WatchReadiness? readiness = null;
         service.Ready += value => readiness = value;
-        using var cancellation = new CancellationTokenSource(HangGuard);
+        using var cancellation = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         await foreach (var _ in service.RunAsync(cancellation.Token)) { }
         Assert.That(readiness, Is.Null, "An empty source ends on its first read; that is not readiness.");
     }
@@ -250,7 +249,7 @@ public class RepositoryWatchServiceReadinessTests
         await using var source = new ReadinessVolumeChangeSource(autoStartPump: false) { Mode = WatchReadinessMode.PumpActive };
         var service = new RepositoryWatchService(source, [@"X:\repo"], [], TimeSpan.Zero);
         await using var run = Run.Start(service);
-        await source.Started.WaitAsync(HangGuard);
+        await source.Started.WaitAsync(TestTimeouts.ShortHangGuard);
         Assert.That(run.Ready, Is.Empty, "The read was only started, not confirmed running by the pump itself.");
 
         source.SignalPumpStarted();
@@ -268,7 +267,7 @@ public class RepositoryWatchServiceReadinessTests
         source.Complete();
         var service = new RepositoryWatchService(source, [@"X:\repo"], [], TimeSpan.Zero);
         var run = Run.Start(service);
-        await source.Started.WaitAsync(HangGuard);
+        await source.Started.WaitAsync(TestTimeouts.ShortHangGuard);
         source.SignalPumpStarted();
         await WaitUntilAsync(() => run.Pump.IsCompleted);
         Assert.That(run.Ready, Is.Empty, "The first read already ended the stream; that is source death, not readiness.");

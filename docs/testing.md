@@ -94,6 +94,21 @@ Filename check (PowerShell, repository root):
 
 Expected: no output and successful exit.
 
+## Shared test support (`GitWizardTests/TestSupport/`)
+
+Central test scaffolding lives in `GitWizardTests/TestSupport/`:
+- `TempDirectory`: Owned temporary directory fixture providing disposable isolated filesystem trees and directory cleanup (`Path.GetTempPath()` is restricted to this fixture).
+- `LocalFilesSandbox`: Disposable test sandbox for `GITWIZARD_HOME` redirects, restoring prior environment state and clearing static caches on disposal.
+- `RecordingUpdateHandler`: Unified concurrent recording `IUpdateHandler` double with snapshot array properties and optional invocation hooks (`StartingProgress`, `CreatingRepository`, `CompletingRefresh`, etc.).
+- `QueuedUiDispatcher`: Synchronous or queued `IUiDispatcher` supporting manual draining, stepping, and off-UI-thread simulation without background threads.
+- `ThreadedUiDispatcher`: Dedicated-thread FIFO `IUiDispatcher` pumping callbacks for realistic UI-thread affinity and debounce assertions.
+- `TestViewModels`: Centralized factory methods for `MainViewModel` and `SettingsViewModel` with defaults to prevent scattered stub construction.
+- `ScriptedVolumeChangeSource`: Unified `IVolumeChangeSource` and `IVolumeScanProgress` double for scripted batch delivery, arm gates, failure simulation, and late subscriber death replay.
+- `FakeFanotifyNative` / `FanotifyMarkCall`: Rich in-memory Linux fanotify native mock supporting initialization, descriptor maps, directory opening, marks, read/poll, and handle resolution.
+- `DriveStatuses`: Consistent factory for synthetic `DriveStatus` instances with independent `watchSupported` policy.
+- `TestTimeouts`: Canonical timeouts exposed as get-only properties (`HangGuard` at 10s, `BrokerHangGuard` at 30s, `ShortHangGuard` at 5s).
+- `AsyncCondition`: Deterministic condition poller (`WaitUntilAsync`) reporting poll count, elapsed time, and expression details upon timeout or predicate failure.
+
 ## Debugging
 
 - `dotnet-dump collect -p <pid>` - capture a dump of a hung/crashed process

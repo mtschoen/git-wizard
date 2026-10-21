@@ -1,6 +1,7 @@
 using System.Text.Json;
 using GitWizard;
 using GitWizard.CLI;
+using GitWizardTests.TestSupport;
 using LibGit2Sharp;
 
 namespace GitWizardTests;
@@ -9,20 +10,21 @@ namespace GitWizardTests;
 [NonParallelizable]
 public class SweepCliTests
 {
+    LocalFilesSandbox? _sandbox;
     string _temporaryHome = null!;
 
     [SetUp]
     public void SetUp()
     {
-        _temporaryHome = TestUtilities.RedirectLocalFilesToTemp();
-        TestUtilities.ResetStaticCaches();
+        _sandbox = new LocalFilesSandbox();
+        _temporaryHome = _sandbox.Path;
     }
 
     [TearDown]
     public void TearDown()
     {
-        TestUtilities.ResetStaticCaches();
-        TestUtilities.ClearLocalFilesRedirect(_temporaryHome);
+        _sandbox?.Dispose();
+        _sandbox = null;
     }
 
     [Test]

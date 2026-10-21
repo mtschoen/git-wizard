@@ -14,7 +14,6 @@ namespace GitWizardTests.Watch;
 [TestFixture]
 public class IndexVolumeChangeSourceRecoveryTests
 {
-    static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(10);
 
     [Test]
     public async Task RecoveredDrive_ReconcilesRepositoriesChangedWhileItsWatchWasDown()
@@ -30,7 +29,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         await using var sourceLifetime = source;
         var service = new RepositoryWatchService(source, [@"X:\oldrepo", @"X:\keptrepo"], [@"X:\"],
             TimeSpan.Zero, includeTempDirectories: true);
-        using var cancellation = new CancellationTokenSource(HangGuard);
+        using var cancellation = new CancellationTokenSource(TestTimeouts.HangGuard);
         var events = new List<RepositoryChangeEvent>();
         var run = ConsumeAsync(service, events, cancellation.Token);
         await WaitUntilAsync(() => source.Readiness.TryGet("X", out var status) && status.State == VolumeWatchState.CaughtUp);
@@ -49,7 +48,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         files.AddMarker("newrepo");
         release.SetResult();
 
-        await recoveredCaughtUp.Task.WaitAsync(HangGuard);
+        await recoveredCaughtUp.Task.WaitAsync(TestTimeouts.HangGuard);
         await WaitUntilAsync(() =>
         {
             lock (events)
@@ -96,7 +95,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         files.AddMarker("newrepo");
         release.SetResult();
 
-        var delivered = await deliveredAtCaughtUp.Task.WaitAsync(HangGuard);
+        var delivered = await deliveredAtCaughtUp.Task.WaitAsync(TestTimeouts.HangGuard);
         Assert.That(delivered.Select(batch => batch.Volume), Is.All.EqualTo("X"));
         Assert.That(delivered.SelectMany(batch => batch.Entries), Is.EquivalentTo(new[]
         {
@@ -122,10 +121,10 @@ public class IndexVolumeChangeSourceRecoveryTests
             var marker = owner.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single();
             _ = scripted.WatchFor('X').QueueBatchAsync([IndexVolumeChangeSourceTests.Entry(marker.RecordKey.RecordNumber, marker.Parent!.Value.RecordKey.RecordNumber,
                     ".git", SyntheticJournalReason.FileDelete, directory: true)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1003));
-            Assert.That(SpinWait.SpinUntil(() => owner.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Count == 0, HangGuard), Is.True);
+            Assert.That(SpinWait.SpinUntil(() => owner.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Count == 0, TestTimeouts.HangGuard), Is.True);
         };
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
-        using var cancellation = new CancellationTokenSource(HangGuard);
+        using var cancellation = new CancellationTokenSource(TestTimeouts.HangGuard);
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
 
         scripted.WatchFor('X').FailDrive(new IOException("X failed"));
@@ -133,12 +132,12 @@ public class IndexVolumeChangeSourceRecoveryTests
         files.AddMarker("newrepo");
         release.SetResult();
 
-        Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(HangGuard), Is.True);
+        Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
         Assert.That(reader.Current.Entries, Is.EqualTo(new[]
         {
             new VolumeChangeEntry(@"X:\newrepo\.git", VolumeEntryKind.Created)
         }), "The reconciliation read the block before the deletion, so it is delivered first.");
-        Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(HangGuard), Is.True);
+        Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
         Assert.That(reader.Current.Entries, Is.EqualTo(new[]
         {
             new VolumeChangeEntry(@"X:\newrepo\.git", VolumeEntryKind.Deleted)
@@ -180,10 +179,10 @@ public class IndexVolumeChangeSourceRecoveryTests
 
         sourceUnderTest.SetResult(source);
         var arming = source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
-        await faultedAfterCatchUp.Task.WaitAsync(HangGuard);
+        await faultedAfterCatchUp.Task.WaitAsync(TestTimeouts.HangGuard);
         // The recovery rescan has begun and the source has published the drive as catching up, so
         // the arm has had its chance to wrongly report the superseded catch-up.
-        await rescanStarted.Task.WaitAsync(HangGuard);
+        await rescanStarted.Task.WaitAsync(TestTimeouts.HangGuard);
         await WaitUntilAsync(() => source.Readiness.TryGet("X", out var published) &&
                                    published.State == VolumeWatchState.CatchingUp);
 
@@ -196,8 +195,8 @@ public class IndexVolumeChangeSourceRecoveryTests
             TaskScheduler.Default);
         releaseIssued.SetResult();
         release.SetResult();
-        var result = await arming.WaitAsync(HangGuard);
-        Assert.That(await completedBeforeRelease.WaitAsync(HangGuard), Is.False,
+        var result = await arming.WaitAsync(TestTimeouts.HangGuard);
+        Assert.That(await completedBeforeRelease.WaitAsync(TestTimeouts.HangGuard), Is.False,
             "The arm must not complete before the recovery finishes.");
         Assert.That(result.Errors, Is.Empty);
         Assert.That(owner.Index.Drives.Single().Watch.State, Is.EqualTo(WatchState.CaughtUp));
@@ -234,7 +233,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         if (failBaseline)
             source.RepositoryMarkerReadingForTest = FailLastPath;
         scripted.WatchFor('X').FailDrive(new IOException("X failed"));
-        await scanStarted.WaitAsync(HangGuard);
+        await scanStarted.WaitAsync(TestTimeouts.HangGuard);
         source.RepositoryMarkerReadingForTest = failBaseline ? null : FailLastPath;
         release.SetResult();
         await WaitForRecoveredWorkAsync(source, owner.Index);
@@ -261,7 +260,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var scanStarted = HoldRecoveryScan(files, release.Task);
         scripted.WatchFor('X').FailDrive(new IOException("X failed"));
-        await scanStarted.WaitAsync(HangGuard);
+        await scanStarted.WaitAsync(TestTimeouts.HangGuard);
         var pathsRead = new List<string>();
         source.RepositoryMarkerReadingForTest = entry =>
         {
@@ -285,7 +284,7 @@ public class IndexVolumeChangeSourceRecoveryTests
             IndexVolumeChangeSourceTests.Entry(marker.RecordKey.RecordNumber, marker.Parent!.Value.RecordKey.RecordNumber,
                 ".git", SyntheticJournalReason.FileDelete, directory: true)
         ], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
-        Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(HangGuard), Is.True);
+        Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
         Assert.That(reader.Current.Entries.Single().Kind, Is.EqualTo(VolumeEntryKind.Deleted));
     }
 
@@ -301,7 +300,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var scanStarted = HoldRecoveryScan(files, release.Task);
         scripted.WatchFor('X').FailDrive(new IOException("X failed"));
-        await scanStarted.WaitAsync(HangGuard);
+        await scanStarted.WaitAsync(TestTimeouts.HangGuard);
         files.AddMarker("newrepo");
         Task? reuseDelivered = null;
         source.RepositoryMarkerReadingForTest = entry =>
@@ -316,7 +315,7 @@ public class IndexVolumeChangeSourceRecoveryTests
                     Usn = 1002 }
             ], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1003));
             Assert.That(SpinWait.SpinUntil(() => owner.Index.Search(
-                new SearchQuery("replacement", NameMatchMode.Exact)).Count == 1, HangGuard), Is.True);
+                new SearchQuery("replacement", NameMatchMode.Exact)).Count == 1, TestTimeouts.HangGuard), Is.True);
             Assert.That(entry.IsDeleted, Is.True);
             Assert.Throws<InvalidOperationException>(() => _ = entry.Path,
                 "The selected handle must be superseded before the production path read.");
@@ -324,7 +323,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         await using var reader = source.WatchAsync(CancellationToken.None).GetAsyncEnumerator();
         release.SetResult();
 
-        Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(HangGuard), Is.True);
+        Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
         Assert.That(reader.Current.Entries, Is.EquivalentTo(new[]
         {
             new VolumeChangeEntry(@"X:\supersededrepo\.git", VolumeEntryKind.Deleted),
@@ -334,11 +333,11 @@ public class IndexVolumeChangeSourceRecoveryTests
         Assert.That(source.Readiness.TryGet("X", out var readiness), Is.True);
         Assert.That(readiness!.State, Is.EqualTo(VolumeWatchState.CaughtUp));
         Assert.That(reuseDelivered, Is.Not.Null);
-        await reuseDelivered!.WaitAsync(HangGuard);
-        Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(HangGuard), Is.True);
+        await reuseDelivered!.WaitAsync(TestTimeouts.HangGuard);
+        Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
         Assert.That(reader.Current.Entries.Single(), Is.EqualTo(
             new VolumeChangeEntry(@"X:\supersededrepo\.git", VolumeEntryKind.Deleted)));
-        Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(HangGuard), Is.True);
+        Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
         Assert.That(reader.Current.Entries.Single(), Is.EqualTo(
             new VolumeChangeEntry(@"X:\supersededrepo\replacement", VolumeEntryKind.Created)));
 
@@ -347,7 +346,7 @@ public class IndexVolumeChangeSourceRecoveryTests
             IndexVolumeChangeSourceTests.Entry(marker.RecordKey.RecordNumber, marker.Parent!.Value.RecordKey.RecordNumber,
                 ".git", SyntheticJournalReason.FileDelete, directory: true) with { Usn = 1004 }
         ], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1005));
-        Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(HangGuard), Is.True);
+        Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
         Assert.That(reader.Current.Entries.Single(), Is.EqualTo(
             new VolumeChangeEntry(@"X:\newrepo\.git", VolumeEntryKind.Deleted)));
     }
@@ -368,7 +367,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         await WaitUntilAsync(() => index.Drives.Single().Watch.State == WatchState.CaughtUp &&
             source.Readiness.TryGet("X", out var status) &&
             (status.State == VolumeWatchState.Excluded || status.WatchStateVersion == index.Drives.Single().Watch.StateVersion));
-        await source.WaitForCatchUpWorkForTestAsync().WaitAsync(HangGuard);
+        await source.WaitForCatchUpWorkForTestAsync().WaitAsync(TestTimeouts.HangGuard);
     }
 
     static async Task ConsumeAsync(RepositoryWatchService service, List<RepositoryChangeEvent> events,

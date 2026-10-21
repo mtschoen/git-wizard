@@ -22,7 +22,7 @@ public class MainViewModelCommandTests
     {
         var clock = new ControlledDelayClock();
         var clipboard = new StubClipboardService();
-        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), clipboard, clock);
+        var vm = TestViewModels.Create(clipboard: clipboard, timeProvider: clock);
         var node = Node("C:/projects/widget");
         var copy = vm.CopyToClipboardAsync(node);
         try
@@ -46,7 +46,7 @@ public class MainViewModelCommandTests
     public async Task CopyToClipboardAsync_EmptyWorkingDirectory_DoesNothing()
     {
         var clipboard = new StubClipboardService();
-        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), clipboard);
+        var vm = TestViewModels.Create(clipboard: clipboard);
         var node = Node("");
 
         await vm.CopyToClipboardAsync(node);
@@ -62,7 +62,7 @@ public class MainViewModelCommandTests
     public void OpenInExplorer_NullNode_DoesNothing()
     {
         var dialogs = new StubUserDialogs();
-        var vm = new MainViewModel(new StubUiDispatcher(), dialogs, new StubClipboardService());
+        var vm = TestViewModels.Create(dialogs: dialogs);
 
         vm.OpenInExplorer(null);
 
@@ -73,7 +73,7 @@ public class MainViewModelCommandTests
     public void OpenInExplorer_EmptyWorkingDirectory_DoesNothing()
     {
         var dialogs = new StubUserDialogs();
-        var vm = new MainViewModel(new StubUiDispatcher(), dialogs, new StubClipboardService());
+        var vm = TestViewModels.Create(dialogs: dialogs);
         var node = Node("");
 
         vm.OpenInExplorer(node);
@@ -84,14 +84,14 @@ public class MainViewModelCommandTests
     [Test]
     public void DeepRefreshRepository_NullNode_DoesNothing()
     {
-        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+        var vm = TestViewModels.Create();
         vm.DeepRefreshRepository(null);
     }
 
     [Test]
     public void DeepRefreshRepository_GroupHeaderNode_DoesNothing()
     {
-        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+        var vm = TestViewModels.Create();
         var header = RepositoryNodeViewModel.CreateGroupHeader("C:\\");
 
         vm.DeepRefreshRepository(header);
@@ -104,7 +104,7 @@ public class MainViewModelCommandTests
     {
         var clock = new ControlledDelayClock();
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        await using var viewModel = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService(), clock);
+        await using var viewModel = TestViewModels.Create(timeProvider: clock);
         var repository = new GitWizardRepository(fixture.Path) { RefreshTimeSeconds = double.NaN };
         viewModel.AddRepository(repository);
         var node = viewModel.Repositories.Single();
@@ -124,14 +124,14 @@ public class MainViewModelCommandTests
     [Test]
     public void CheckoutMatchingBranch_NullNode_DoesNothing()
     {
-        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+        var vm = TestViewModels.Create();
         vm.CheckoutMatchingBranch(null);
     }
 
     [Test]
     public void CheckoutMatchingBranch_GroupHeader_DoesNothing()
     {
-        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+        var vm = TestViewModels.Create();
         var header = RepositoryNodeViewModel.CreateGroupHeader("C:\\");
 
         vm.CheckoutMatchingBranch(header);
@@ -142,7 +142,7 @@ public class MainViewModelCommandTests
     [Test]
     public void CheckoutMatchingBranch_EmptyMatchingBranch_DoesNothing()
     {
-        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+        var vm = TestViewModels.Create();
         var node = Node("C:/repos/alpha");
 
         vm.CheckoutMatchingBranch(node);
@@ -154,7 +154,7 @@ public class MainViewModelCommandTests
     public async Task CleanDownstreamBranches_NullNode_DoesNothing()
     {
         var dialogs = new StubUserDialogs();
-        var vm = new MainViewModel(new StubUiDispatcher(), dialogs, new StubClipboardService());
+        var vm = TestViewModels.Create(dialogs: dialogs);
 
         await vm.CleanDownstreamBranchesAsync(null);
 
@@ -165,7 +165,7 @@ public class MainViewModelCommandTests
     public async Task CleanDownstreamBranches_GroupHeader_DoesNothing()
     {
         var dialogs = new StubUserDialogs();
-        var vm = new MainViewModel(new StubUiDispatcher(), dialogs, new StubClipboardService());
+        var vm = TestViewModels.Create(dialogs: dialogs);
         var header = RepositoryNodeViewModel.CreateGroupHeader("C:\\");
 
         await vm.CleanDownstreamBranchesAsync(header);
@@ -184,7 +184,7 @@ public class MainViewModelCommandTests
         var node = new RepositoryNodeViewModel(repository);
 
         var dialogs = new StubUserDialogs();
-        var viewModel = new MainViewModel(new StubUiDispatcher(), dialogs, new StubClipboardService());
+        var viewModel = TestViewModels.Create(dialogs: dialogs);
 
         await viewModel.CleanDownstreamBranchesAsync(node);
 
@@ -206,7 +206,7 @@ public class MainViewModelCommandTests
         var node = new RepositoryNodeViewModel(repository);
 
         var dialogs = new StubUserDialogs();
-        var viewModel = new MainViewModel(new StubUiDispatcher(), dialogs, new StubClipboardService());
+        var viewModel = TestViewModels.Create(dialogs: dialogs);
 
         await viewModel.CleanDownstreamBranchesAsync(node);
 
@@ -218,7 +218,7 @@ public class MainViewModelCommandTests
     public async Task OpenInFork_InvalidRepositoryPath_ShowsError()
     {
         var dialogs = new StubUserDialogs();
-        var viewModel = new MainViewModel(new StubUiDispatcher(), dialogs, new StubClipboardService());
+        var viewModel = TestViewModels.Create(dialogs: dialogs);
 
         await viewModel.OpenInForkAsync(Node("/no/such/directory/xyz"));
 
@@ -230,7 +230,7 @@ public class MainViewModelCommandTests
     public async Task OpenInFork_NullNode_DoesNothing()
     {
         var dialogs = new StubUserDialogs();
-        var viewModel = new MainViewModel(new StubUiDispatcher(), dialogs, new StubClipboardService());
+        var viewModel = TestViewModels.Create(dialogs: dialogs);
 
         await viewModel.OpenInForkAsync(null);
 
@@ -241,7 +241,7 @@ public class MainViewModelCommandTests
     public async Task OpenInFork_EmptyWorkingDirectory_DoesNothing()
     {
         var dialogs = new StubUserDialogs();
-        var vm = new MainViewModel(new StubUiDispatcher(), dialogs, new StubClipboardService());
+        var vm = TestViewModels.Create(dialogs: dialogs);
 
         await vm.OpenInForkAsync(Node(""));
 
@@ -252,7 +252,7 @@ public class MainViewModelCommandTests
     public async Task OpenInFork_GroupHeader_DoesNothing()
     {
         var dialogs = new StubUserDialogs();
-        var vm = new MainViewModel(new StubUiDispatcher(), dialogs, new StubClipboardService());
+        var vm = TestViewModels.Create(dialogs: dialogs);
 
         await vm.OpenInForkAsync(RepositoryNodeViewModel.CreateGroupHeader("C:\\"));
 
@@ -262,8 +262,7 @@ public class MainViewModelCommandTests
     [Test]
     public async Task OpenInFork_ConfiguredForkPathWithEnvironmentVariable_IsExpandedBeforeUse()
     {
-        var temp = TestUtilities.RedirectLocalFilesToTemp();
-        TestUtilities.ResetStaticCaches();
+        using var sandbox = new LocalFilesSandbox();
         try
         {
             var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -272,39 +271,25 @@ public class MainViewModelCommandTests
             configuration.ForkPath = Path.Combine("~", "NoSuchTool", "tool.exe");
 
             var dialogs = new StubUserDialogs();
-            var vm = new MainViewModel(new StubUiDispatcher(), dialogs, new StubClipboardService());
-            var workingDirectory = TestUtilities.CreateTempDir(out var cleanupWorkingDirectory);
-            try
-            {
-                await vm.OpenInForkAsync(Node(workingDirectory));
+            var vm = TestViewModels.Create(dialogs: dialogs);
+            using var directory = new TempDirectory();
+            var workingDirectory = directory.Path;
+            await vm.OpenInForkAsync(Node(workingDirectory));
 
-                Assert.That(dialogs.AlertCalls.Any(a => a.Message.Contains(expected, StringComparison.Ordinal)),
-                    Is.True);
-            }
-            finally
-            {
-                cleanupWorkingDirectory();
-            }
+            Assert.That(dialogs.AlertCalls.Any(a => a.Message.Contains(expected, StringComparison.Ordinal)),
+                Is.True);
         }
         finally
         {
             TestUtilities.ResetStaticCaches();
-            TestUtilities.ClearLocalFilesRedirect(temp);
         }
     }
 
     [Test]
     public async Task ClearCacheAsync_CompletesWithoutError()
     {
-        var temp = TestUtilities.RedirectLocalFilesToTemp();
-        try
-        {
-            var viewModel = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
-            Assert.DoesNotThrowAsync(async () => await viewModel.ClearCacheAsync());
-        }
-        finally
-        {
-            TestUtilities.ClearLocalFilesRedirect(temp);
-        }
+        using var sandbox = new LocalFilesSandbox();
+        var viewModel = TestViewModels.Create();
+        Assert.DoesNotThrowAsync(async () => await viewModel.ClearCacheAsync());
     }
 }

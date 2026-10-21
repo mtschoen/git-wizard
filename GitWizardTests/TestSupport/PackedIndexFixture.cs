@@ -7,7 +7,8 @@ internal sealed class PackedIndexFixture : IDisposable
 {
     internal static readonly DateTime CompletionTimestamp = new(2026, 9, 12, 0, 0, 0, DateTimeKind.Utc);
     const uint RootRow = 5;
-    public string DirectoryPath { get; } = Path.Combine(Path.GetTempPath(), "gw-packed-" + Guid.NewGuid().ToString("N"));
+    readonly TempDirectory _directory = new("gw-packed-");
+    public string DirectoryPath => _directory.Path;
     public string TreePath { get; }
     public string BlockDirectory { get; }
 
@@ -107,5 +108,5 @@ internal sealed class PackedIndexFixture : IDisposable
         };
     }
 
-    public void Dispose() => Directory.Delete(DirectoryPath, recursive: true);
+    public void Dispose() => _directory.Dispose();
 }

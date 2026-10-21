@@ -1,24 +1,25 @@
 using GitWizard;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests;
 
 public class GitWizardApiTests
 {
+    TempDirectory? _tempDirectory;
     string? _tempRoot;
 
     [SetUp]
     public void SetUp()
     {
         GitWizardLog.SilentMode = true;
-        _tempRoot = Path.Combine(Path.GetTempPath(), "GitWizardApiTests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_tempRoot);
+        _tempDirectory = new TempDirectory("GitWizardApiTests");
+        _tempRoot = _tempDirectory.Path;
     }
 
     [TearDown]
     public void TearDown()
     {
-        if (!string.IsNullOrEmpty(_tempRoot) && Directory.Exists(_tempRoot))
-            Directory.Delete(_tempRoot, recursive: true);
+        _tempDirectory?.Dispose();
     }
 
     [Test]

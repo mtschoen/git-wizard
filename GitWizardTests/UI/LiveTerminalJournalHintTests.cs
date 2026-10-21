@@ -15,8 +15,8 @@ namespace GitWizardTests.UI;
 [TestFixture]
 public class LiveTerminalJournalHintTests
 {
-    string _temporaryRoot = null!;
-    readonly QueuedLiveUiDispatcher _dispatcher = new();
+    LocalFilesSandbox? _sandbox;
+    readonly QueuedUiDispatcher _dispatcher = new();
     DiagnosticVolumeChangeSource _source = null!;
     MainViewModel _main = null!;
     Task _running = null!;
@@ -25,16 +25,13 @@ public class LiveTerminalJournalHintTests
     public void SetUp()
     {
         GitWizardLog.SilentMode = true;
-        _temporaryRoot = TestUtilities.RedirectLocalFilesToTemp();
-        TestUtilities.ResetStaticCaches();
+        _sandbox = new LocalFilesSandbox();
         _source = new DiagnosticVolumeChangeSource();
-        _main = new MainViewModel(_dispatcher, new StubUserDialogs(), new StubClipboardService())
-        {
-            LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0),
-            LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
-                FakeLiveStartup.FromSourceArmedAsync(_source, request, cancellationToken),
-            LiveIsElevated = () => false
-        };
+        _main = TestViewModels.Create(dispatcher: _dispatcher);
+        _main.LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
+        _main.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
+            FakeLiveStartup.FromSourceArmedAsync(_source, request, cancellationToken);
+        _main.LiveIsElevated = () => false;
     }
 
     [TearDown]
@@ -44,8 +41,8 @@ public class LiveTerminalJournalHintTests
         await _running;
         await _source.DisposeAsync();
         _dispatcher.Drain();
-        TestUtilities.ResetStaticCaches();
-        TestUtilities.ClearLocalFilesRedirect(_temporaryRoot);
+        _sandbox?.Dispose();
+        _sandbox = null;
     }
 
     async Task StartLiveAsync()

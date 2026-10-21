@@ -1,33 +1,25 @@
 using GitWizard;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests.Discovery;
 
 [TestFixture]
 public class RecursiveDiscoveryTests
 {
+    TempDirectory? _tempDirectory;
     string _tempDir = null!;
 
     [SetUp]
     public void SetUp()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "GitWizardTests_Recurse_" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_tempDir);
+        _tempDirectory = new TempDirectory("GitWizardTests_Recurse_");
+        _tempDir = _tempDirectory.Path;
     }
 
     [TearDown]
     public void TearDown()
     {
-        if (Directory.Exists(_tempDir))
-        {
-            try
-            {
-                Directory.Delete(_tempDir, true);
-            }
-            catch
-            {
-                // Best effort cleanup in temp
-            }
-        }
+        _tempDirectory?.Dispose();
     }
 
     [Test]

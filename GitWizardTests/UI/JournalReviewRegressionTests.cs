@@ -1,6 +1,5 @@
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
-using GitWizardUI.ViewModels;
 
 namespace GitWizardTests.UI;
 
@@ -9,8 +8,7 @@ public class JournalReviewRegressionTests
     [Test]
     public async Task EnlargeWithoutLiveSessionFails()
     {
-        await using var viewModel = new MainViewModel(
-            new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+        await using var viewModel = TestViewModels.Create();
         var loss = FakeJournalSettingsSource.TrimmedLoss('C', 32L * 1024 * 1024, 512L * 1024 * 1024);
         Assert.ThrowsAsync<InvalidOperationException>(() => viewModel.EnlargeJournalAsync(
             new JournalWarning { DriveLetter = "C", VolumeSerial = 123, Loss = loss }));

@@ -2,9 +2,9 @@ using GitWizard;
 using GitWizard.CLI;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
-using GitWizardTests.Watch;
 using MFTLib.Index;
 using MFTLibTestExtensions;
+
 
 namespace GitWizardTests;
 
@@ -149,7 +149,7 @@ public class ProgramWatchLoopTests
             new VolumeChangeEntry(@"C:\repo\b\newrepo\.git", VolumeEntryKind.Created),
             new VolumeChangeEntry(@"C:\repo\gone\.git", VolumeEntryKind.Deleted),
         });
-        var source = new FakeVolumeChangeSource(new[] { batch }, errors);
+        var source = new ScriptedVolumeChangeSource(new[] { batch }, errors);
         var service = new RepositoryWatchService(
             source,
             trackedRoots: new[] { @"C:\repo\a", @"C:\repo\gone" },
@@ -181,7 +181,7 @@ public class ProgramWatchLoopTests
         // source death, not readiness, so an empty source would never print "ready:" here. The
         // batch names a volume no tracked/search root maps to, so it is silently dropped and
         // never becomes an observable line.
-        var source = new FakeVolumeChangeSource([
+        var source = new ScriptedVolumeChangeSource([
             new VolumeChangeBatch("Z", [new VolumeChangeEntry(@"Z:\unwatched\path", VolumeEntryKind.Modified)])
         ]);
         var service = new RepositoryWatchService(
@@ -201,7 +201,7 @@ public class ProgramWatchLoopTests
     [Test]
     public async Task RunWatchLoopAsync_SourceDies_PrintsBrokerDiedAndReturnsTrue()
     {
-        var source = new HangingVolumeChangeSource();
+        var source = new ScriptedVolumeChangeSource { KeepWatching = true };
         var service = new RepositoryWatchService(
             source,
             trackedRoots: Array.Empty<string>(),
@@ -222,7 +222,7 @@ public class ProgramWatchLoopTests
     [Test]
     public async Task RunWatchLoopAsync_BrokerSpawnFailure_PrintsMessageAndExitsOne()
     {
-        var source = new ThrowingArmVolumeChangeSource("The operation was canceled by the user.");
+        var source = new ScriptedVolumeChangeSource { ArmFailure = new InvalidOperationException("The operation was canceled by the user.") };
         var service = new RepositoryWatchService(
             source,
             trackedRoots: new[] { @"C:\repo\a" },
@@ -416,7 +416,7 @@ public class ProgramWatchLoopTests
             var volume = WatchPath.Parse(repoPath).Volume!;
             var batch = new VolumeChangeBatch(volume,
                 new[] { new VolumeChangeEntry(repoPath, VolumeEntryKind.MovedIn) });
-            var source = new FakeVolumeChangeSource(new[] { batch });
+            var source = new ScriptedVolumeChangeSource(new[] { batch });
             var service = new RepositoryWatchService(
                 source,
                 trackedRoots: Array.Empty<string>(),

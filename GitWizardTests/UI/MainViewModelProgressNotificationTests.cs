@@ -1,3 +1,4 @@
+using GitWizardTests.TestSupport;
 using GitWizardUI.ViewModels;
 
 namespace GitWizardTests;
@@ -6,8 +7,7 @@ namespace GitWizardTests;
 // Covers MainViewModel.UpdateHandler.cs.
 public class MainViewModelProgressNotificationTests
 {
-    static MainViewModel CreateViewModel() =>
-        new(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+    static MainViewModel CreateViewModel() => TestViewModels.Create();
 
     [Test]
     public void SendUpdateMessage_UpdatesHeaderText()

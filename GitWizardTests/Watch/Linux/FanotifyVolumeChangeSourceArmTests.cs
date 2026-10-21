@@ -1,6 +1,7 @@
 using System.Runtime.Versioning;
 using GitWizard.Watch;
 using GitWizard.Watch.Linux;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests.Watch.Linux;
 
@@ -9,7 +10,7 @@ namespace GitWizardTests.Watch.Linux;
 [SupportedOSPlatform("linux")]
 public class FanotifyVolumeChangeSourceArmTests
 {
-    static readonly string ExistingDirectoryPath = Path.GetTempPath();
+    static readonly string ExistingDirectoryPath = TempDirectory.SystemTempPath;
 
     [Test]
     public async Task Constructor_Default_CreatesInstance()
@@ -21,7 +22,7 @@ public class FanotifyVolumeChangeSourceArmTests
     [Test]
     public void ArmAndCatchUpAsync_NullVolumes_ThrowsArgumentNullException()
     {
-        var native = new FakeFanotifyVolumeNative();
+        var native = new FakeFanotifyNative();
         var source = new FanotifyVolumeChangeSource(native);
 
         Assert.ThrowsAsync<ArgumentNullException>(() =>
@@ -31,7 +32,7 @@ public class FanotifyVolumeChangeSourceArmTests
     [Test]
     public void ArmAndCatchUpAsync_CancellationRequested_ThrowsOperationCanceledException()
     {
-        var native = new FakeFanotifyVolumeNative();
+        var native = new FakeFanotifyNative();
         var source = new FanotifyVolumeChangeSource(native);
         using var cts = new CancellationTokenSource();
         cts.Cancel();
@@ -43,7 +44,7 @@ public class FanotifyVolumeChangeSourceArmTests
     [Test]
     public async Task ArmAndCatchUpAsync_EmptyVolumes_ReturnsEmptyErrors()
     {
-        var native = new FakeFanotifyVolumeNative();
+        var native = new FakeFanotifyNative();
         var source = new FanotifyVolumeChangeSource(native);
 
         var result = await source.ArmAndCatchUpAsync(Array.Empty<string>(), CancellationToken.None);
@@ -58,7 +59,7 @@ public class FanotifyVolumeChangeSourceArmTests
     [Test]
     public async Task ArmAndCatchUpAsync_InitializeFails_PopulatesErrorsForVolumes()
     {
-        var native = new FakeFanotifyVolumeNative
+        var native = new FakeFanotifyNative
         {
             InitializeResult = new FanotifyNativeCallResult(-1, FanotifyError.NotPermitted)
         };
@@ -78,14 +79,16 @@ public class FanotifyVolumeChangeSourceArmTests
     [Test]
     public async Task ArmAndCatchUpAsync_WhitespaceAndMissingDirectory_RecordsErrors()
     {
-        var native = new FakeFanotifyVolumeNative
+        var native = new FakeFanotifyNative
         {
             InitializeResult = new FanotifyNativeCallResult(5, 0)
         };
         var source = new FanotifyVolumeChangeSource(native);
-        var missingPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        using var missing = new TempDirectory("gw-missing-", create: false);
+        var missingPath = missing.Path;
 
         var result = await source.ArmAndCatchUpAsync(new[] { "  ", missingPath }, CancellationToken.None);
+
 
         Assert.Multiple(() =>
         {
@@ -99,7 +102,7 @@ public class FanotifyVolumeChangeSourceArmTests
     [Test]
     public async Task ArmAndCatchUpAsync_MarkFails_RecordsErrorForFailedVolume()
     {
-        var native = new FakeFanotifyVolumeNative
+        var native = new FakeFanotifyNative
         {
             InitializeResult = new FanotifyNativeCallResult(5, 0)
         };
@@ -119,7 +122,7 @@ public class FanotifyVolumeChangeSourceArmTests
     [Test]
     public async Task ArmAndCatchUpAsync_Success_MarksFilesystem()
     {
-        var native = new FakeFanotifyVolumeNative
+        var native = new FakeFanotifyNative
         {
             InitializeResult = new FanotifyNativeCallResult(12, 0)
         };
@@ -144,7 +147,7 @@ public class FanotifyVolumeChangeSourceArmTests
     [Test]
     public async Task ArmAndCatchUpAsync_CalledTwice_ReArmsAndDisposesPreviousDescriptor()
     {
-        var native = new FakeFanotifyVolumeNative
+        var native = new FakeFanotifyNative
         {
             InitializeResult = new FanotifyNativeCallResult(101, 0)
         };
@@ -165,43 +168,36 @@ public class FanotifyVolumeChangeSourceArmTests
     [Test]
     public async Task ArmPublishesMarkReadinessPerRoot()
     {
-        var native = new FakeFanotifyVolumeNative
+        var native = new FakeFanotifyNative
         {
             InitializeResult = new FanotifyNativeCallResult(5, 0)
         };
         native.MarkResults.Enqueue(new FanotifyNativeCallResult(0, 0));
         native.MarkResults.Enqueue(new FanotifyNativeCallResult(-1, 13));
-        var tempRoot = Path.Combine(Path.GetTempPath(), "gw-fanotify-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(tempRoot);
+        using var directory = new TempDirectory("gw-fanotify-");
+        var tempRoot = directory.Path;
         var okPath = Path.Combine(tempRoot, "ok");
         Directory.CreateDirectory(okPath);
         var brokenPath = Path.Combine(tempRoot, "broken");
         Directory.CreateDirectory(brokenPath);
-        try
-        {
-            var source = new FanotifyVolumeChangeSource(native);
-            var snapshots = new List<VolumeReadinessSnapshot>();
-            source.ReadinessChanged += snapshots.Add;
-            Assert.That(source.Mode, Is.EqualTo(WatchReadinessMode.FilesystemMarks));
 
-            var result = await source.ArmAndCatchUpAsync(new[] { okPath, brokenPath }, CancellationToken.None);
-            Assert.That(source.Readiness.IsSettled, Is.True);
-            Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo(new[] { okPath }));
-            var excluded = source.Readiness.ExcludedVolumes.Single();
-            Assert.That(excluded.Volume, Is.EqualTo(brokenPath));
-            Assert.That(excluded.ExclusionReason, Is.EqualTo(result.Errors[brokenPath]));
-            Assert.That(snapshots, Has.Count.EqualTo(2));
-        }
-        finally
-        {
-            if (Directory.Exists(tempRoot))
-                Directory.Delete(tempRoot, true);
-        }
+        var source = new FanotifyVolumeChangeSource(native);
+        var snapshots = new List<VolumeReadinessSnapshot>();
+        source.ReadinessChanged += snapshots.Add;
+        Assert.That(source.Mode, Is.EqualTo(WatchReadinessMode.FilesystemMarks));
+
+        var result = await source.ArmAndCatchUpAsync(new[] { okPath, brokenPath }, CancellationToken.None);
+        Assert.That(source.Readiness.IsSettled, Is.True);
+        Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo(new[] { okPath }));
+        var excluded = source.Readiness.ExcludedVolumes.Single();
+        Assert.That(excluded.Volume, Is.EqualTo(brokenPath));
+        Assert.That(excluded.ExclusionReason, Is.EqualTo(result.Errors[brokenPath]));
+        Assert.That(snapshots, Has.Count.EqualTo(2));
     }
     [Test]
     public void WatchAsync_BeforeArm_ThrowsInvalidOperationException()
     {
-        var native = new FakeFanotifyVolumeNative();
+        var native = new FakeFanotifyNative();
         var source = new FanotifyVolumeChangeSource(native);
 
         var enumerator = source.WatchAsync(CancellationToken.None).GetAsyncEnumerator();
@@ -212,7 +208,7 @@ public class FanotifyVolumeChangeSourceArmTests
     [Test]
     public async Task WatchAsync_AllVolumesFailedToArm_CompletesImmediately()
     {
-        var native = new FakeFanotifyVolumeNative
+        var native = new FakeFanotifyNative
         {
             InitializeResult = new FanotifyNativeCallResult(10, 0)
         };

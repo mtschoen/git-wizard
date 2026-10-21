@@ -1,9 +1,11 @@
 using GitWizard;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests;
 
 public class GitWizardConfigurationTests
 {
+    LocalFilesSandbox? _sandbox;
     string? _tempRoot;
 
     [SetUp]
@@ -15,19 +17,17 @@ public class GitWizardConfigurationTests
         // NOT the real ~/.GitWizard. Without this, SaveGlobalConfiguration_SavesConfiguration writes
         // "/global/test" to the user's real config.json (and the Get*GlobalConfiguration tests read
         // it). Mirrors the sibling classes (SettingsViewModelTests, AsyncFileIOTests,
-        // GitWizardReportAdditionalTests). RedirectLocalFilesToTemp creates the temp dir, so it also
+        // GitWizardReportAdditionalTests). LocalFilesSandbox creates the temp dir, so it also
         // serves as _tempRoot for the explicit-path Save_* tests.
-        _tempRoot = TestUtilities.RedirectLocalFilesToTemp();
-
-        TestUtilities.ResetStaticCaches();
+        _sandbox = new LocalFilesSandbox();
+        _tempRoot = _sandbox.Path;
     }
 
     [TearDown]
     public void TearDown()
     {
-        TestUtilities.ClearLocalFilesRedirect(_tempRoot);
-
-        TestUtilities.ResetStaticCaches();
+        _sandbox?.Dispose();
+        _sandbox = null;
     }
 
     [Test]

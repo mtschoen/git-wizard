@@ -2,6 +2,7 @@ using System.Runtime.Versioning;
 using GitWizard;
 using GitWizard.Watch;
 using GitWizard.Watch.Linux;
+using GitWizardTests.TestSupport;
 using static GitWizardTests.Watch.Linux.FanotifyEventBuffers;
 
 namespace GitWizardTests.Watch.Linux;
@@ -14,7 +15,6 @@ namespace GitWizardTests.Watch.Linux;
 [SupportedOSPlatform("linux")]
 public class FanotifyWatchRoutingContractTests
 {
-    static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(10);
 
     string _temporaryRoot = null!;
 
@@ -31,7 +31,7 @@ public class FanotifyWatchRoutingContractTests
         var searchRoot = Directory.CreateDirectory(Path.Combine(_temporaryRoot, "repos")).FullName;
         var repositoryPath = Path.Combine(searchRoot, "tracked");
         var handle = new byte[] { 11, 12, 13, 14 };
-        var native = new FakeFanotifyVolumeNative();
+        var native = new FakeFanotifyNative();
         native.MapHandle(0L, GetFullHandleBytes(handle), 500, repositoryPath);
         native.ReadQueue.Enqueue(CreateSyntheticEventBuffer(FanotifyConstants.Modify, handle, "file.txt"));
 
@@ -50,7 +50,7 @@ public class FanotifyWatchRoutingContractTests
         var movedInPath = Path.Combine(searchRoot, "incoming");
         Directory.CreateDirectory(Path.Combine(movedInPath, ".git"));
         var handle = new byte[] { 21, 22, 23, 24 };
-        var native = new FakeFanotifyVolumeNative();
+        var native = new FakeFanotifyNative();
         native.MapHandle(0L, GetFullHandleBytes(handle), 501, searchRoot);
         native.ReadQueue.Enqueue(CreateSyntheticEventBuffer(
             FanotifyConstants.MovedTo | FanotifyConstants.OnDirectory, handle, "incoming"));
@@ -65,14 +65,14 @@ public class FanotifyWatchRoutingContractTests
 
     static async Task<RepositoryChangeEvent> FirstEventAsync(RepositoryWatchService service)
     {
-        using var cancellation = new CancellationTokenSource(HangGuard);
+        using var cancellation = new CancellationTokenSource(TestTimeouts.HangGuard);
         await using var enumerator = service.RunAsync(cancellation.Token).GetAsyncEnumerator();
-        Assert.That(await enumerator.MoveNextAsync().AsTask().WaitAsync(HangGuard), Is.True);
+        Assert.That(await enumerator.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
         return enumerator.Current;
     }
 
     static async Task<WatchStartupResult> PrepareStartupAsync(
-        FakeFanotifyVolumeNative native, string searchRoot, string[] crawledRepositories)
+        FakeFanotifyNative native, string searchRoot, string[] crawledRepositories)
     {
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {
@@ -90,7 +90,7 @@ public class FanotifyWatchRoutingContractTests
 
         var config = new GitWizardConfiguration { SearchPaths = { searchRoot } };
         var request = new DiscoveryRequest(config, DiscoveryPurpose.Watch, false, false, []);
-        using var cancellation = new CancellationTokenSource(HangGuard);
+        using var cancellation = new CancellationTokenSource(TestTimeouts.HangGuard);
         return await coordinator.PrepareWatchAsync(request, null, cancellation.Token);
     }
 }

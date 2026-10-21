@@ -10,12 +10,14 @@ internal sealed class CliDiscoveryFixture : IAsyncDisposable
     readonly string[] _extraArgs;
     bool _createdZShared;
     bool _substMapped;
+    TempDirectory? _substDirectory;
 
     public DiscoveryDependencyRecorder Dependencies { get; } = new();
     public IReadOnlyList<IReadOnlyList<string>> OpenedDriveSets => Dependencies.OpenedDriveSets;
     public StringWriter Stdout { get; } = new();
     public StringWriter Stderr { get; } = new();
-    public string TempHome { get; }
+    readonly LocalFilesSandbox _sandbox = new();
+    public string TempHome => _sandbox.Path;
     public GitWizardConfiguration Configuration { get; set; }
     public bool NoMft { get; set; }
     public int ExitCode { get; private set; }
@@ -27,8 +29,6 @@ internal sealed class CliDiscoveryFixture : IAsyncDisposable
         _extraArgs = extraArgs;
 
         GitWizardLog.SilentMode = true;
-        TempHome = TestUtilities.RedirectLocalFilesToTemp();
-        TestUtilities.ResetStaticCaches();
 
         EnsureZShared();
 
@@ -46,9 +46,8 @@ internal sealed class CliDiscoveryFixture : IAsyncDisposable
         {
             if (!Directory.Exists(@"Z:\") && OperatingSystem.IsWindows())
             {
-                var tempZ = Path.Combine(Path.GetTempPath(), "gw-z-" + Guid.NewGuid().ToString("N"));
-                Directory.CreateDirectory(tempZ);
-                var psi = new ProcessStartInfo("subst", $"Z: \"{tempZ}\"")
+                _substDirectory = new TempDirectory("gw-z-");
+                var psi = new ProcessStartInfo("subst", $"Z: \"{_substDirectory.Path}\"")
                 {
                     CreateNoWindow = true,
                     UseShellExecute = false
@@ -156,9 +155,10 @@ internal sealed class CliDiscoveryFixture : IAsyncDisposable
             {
                 await TestContext.Out.WriteLineAsync($"Failed to unmap 'Z:' subst drive: {exception.Message}").ConfigureAwait(false);
             }
+
+            _substDirectory?.Dispose();
         }
 
-        TestUtilities.ResetStaticCaches();
-        TestUtilities.ClearLocalFilesRedirect(TempHome);
+        _sandbox.Dispose();
     }
 }

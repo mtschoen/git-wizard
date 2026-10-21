@@ -1,4 +1,5 @@
 using GitWizard;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests;
 
@@ -11,25 +12,12 @@ public static class TestUtilities
     /// <summary>
     /// Resets static caches in GitWizardReport and GitWizardConfiguration.
     /// Call in SetUp and TearDown to ensure test isolation.
-    /// Does NOT delete cached files - use TestUtilities.ResetStaticCaches for full cleanup.
+    /// Does NOT delete cached files.
     /// </summary>
     public static void ResetStaticCaches()
     {
         GitWizardReport.ResetCachedReport();
         GitWizardConfiguration.ResetGlobalConfiguration();
-    }
-
-    /// <summary>
-    /// Redirects GitWizard's data dir (config/cache/report) to a fresh temp dir via the
-    /// GITWIZARD_HOME env var, so a test never reads or writes the real ~/.GitWizard.
-    /// Call in SetUp; pass the returned path to <see cref="ClearLocalFilesRedirect"/> in TearDown.
-    /// </summary>
-    public static string RedirectLocalFilesToTemp()
-    {
-        var temp = Path.Combine(Path.GetTempPath(), "GitWizardHome", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(temp);
-        Environment.SetEnvironmentVariable("GITWIZARD_HOME", temp);
-        return temp;
     }
 
     /// <summary>
@@ -40,28 +28,7 @@ public static class TestUtilities
     public static string? DefaultHome { get; set; }
 
     /// <summary>
-    /// Creates a throwaway temp directory under <c>Path.GetTempPath()</c> and returns an
-    /// <see cref="Action"/> that deletes it.  Use with <c>using</c> or a <c>try/finally</c>
-    /// block to keep test boilerplate to one line:
-    /// <code>
-    /// var dir = TempDir.Create(out var cleanup);
-    /// try { /* ... */ } finally { cleanup(); }
-    /// </code>
-    /// </summary>
-    public static string CreateTempDir(out Action cleanup)
-    {
-        var dir = Path.Combine(Path.GetTempPath(), "gw-test-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(dir);
-        cleanup = () =>
-        {
-            try { if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* best-effort */ }
-        };
-        return dir;
-    }
-
-    /// <summary>
-    /// Clears the GITWIZARD_HOME redirect set by <see cref="RedirectLocalFilesToTemp"/> and
+    /// Clears the GITWIZARD_HOME redirect set by <see cref="LocalFilesSandbox"/> and
     /// deletes the temp dir. Safe to call with a null/missing path. NUnit runs TearDown even
     /// after a failing test, so the env var never leaks into the next test.
     /// </summary>
@@ -86,7 +53,7 @@ public static class TestUtilities
             try
             {
                 if (Directory.Exists(temp))
-                    Directory.Delete(temp, recursive: true);
+                    TempDirectory.DeleteTree(temp);
                 return;
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)

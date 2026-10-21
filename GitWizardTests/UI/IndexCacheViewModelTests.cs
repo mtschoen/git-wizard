@@ -130,8 +130,7 @@ public class IndexCacheViewModelTests
         }, CancellationToken.None);
         var session = new MftIndexSession(index, null, ["X"], drives,
             new Dictionary<string, string>(), files.BlockDirectory);
-        await using var main = new MainViewModel(new StubUiDispatcher(),
-            new StubUserDialogs(), new StubClipboardService());
+        await using var main = TestViewModels.Create();
         await main.SetPreparedDiscoveryIndexAsync(session);
         Assert.That(main.CaptureActiveCacheSessions().Single().Drives.Single().Drive.IndexStatus!.Block?.CacheLocation,
             Is.EqualTo(CacheLocation.OwnedCanonical));

@@ -1,4 +1,5 @@
 using GitWizard.Watch;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests.Watch;
 
@@ -20,10 +21,10 @@ public class RepositoryWatchServiceMembershipTests
     public async Task DotGitCreatedUnderTempDirectory_ExcludedByDefault()
     {
         var svc = new RepositoryWatchService(
-            new FakeVolumeChangeSource(
+            new ScriptedVolumeChangeSource(
                 new[] { new VolumeChangeBatch("C", new[]
-                    {
-                        new VolumeChangeEntry(@"C:\Users\gitea-runner\AppData\Local\Temp\pytest-1\repo\.git", VolumeEntryKind.Created)
+                {
+                    new VolumeChangeEntry(@"C:\Users\gitea-runner\AppData\Local\Temp\pytest-1\repo\.git", VolumeEntryKind.Created)
                     }) }),
             trackedRoots: Array.Empty<string>(),
             searchRoots: new[] { @"C:\" },
@@ -38,10 +39,10 @@ public class RepositoryWatchServiceMembershipTests
     public async Task DotGitCreatedUnderTempDirectory_EmittedWhenIncludeTempDirectories()
     {
         var svc = new RepositoryWatchService(
-            new FakeVolumeChangeSource(
+            new ScriptedVolumeChangeSource(
                 new[] { new VolumeChangeBatch("C", new[]
-                    {
-                        new VolumeChangeEntry(@"C:\Users\gitea-runner\AppData\Local\Temp\pytest-1\repo\.git", VolumeEntryKind.Created)
+                {
+                    new VolumeChangeEntry(@"C:\Users\gitea-runner\AppData\Local\Temp\pytest-1\repo\.git", VolumeEntryKind.Created)
                     }) }),
             trackedRoots: Array.Empty<string>(),
             searchRoots: new[] { @"C:\" },
@@ -61,10 +62,10 @@ public class RepositoryWatchServiceMembershipTests
     {
         const string trackedTempRepo = @"C:\Users\gitea-runner\AppData\Local\Temp\pytest-1\repo";
         var svc = new RepositoryWatchService(
-            new FakeVolumeChangeSource(
+            new ScriptedVolumeChangeSource(
                 new[]
                 {
-                        new VolumeChangeBatch("C", new[]
+                    new VolumeChangeBatch("C", new[]
                         {
                             new VolumeChangeEntry(Path.Combine(trackedTempRepo, "file.txt"), VolumeEntryKind.Modified),
                             new VolumeChangeEntry(Path.Combine(trackedTempRepo, ".git"), VolumeEntryKind.Created),
@@ -84,10 +85,10 @@ public class RepositoryWatchServiceMembershipTests
     {
         const string ignoredTempSubtree = @"C:\Users\gitea-runner\AppData\Local\Temp\ci-runner";
         var svc = new RepositoryWatchService(
-            new FakeVolumeChangeSource(
+            new ScriptedVolumeChangeSource(
                 new[]
                 {
-                        new VolumeChangeBatch("C", new[]
+                    new VolumeChangeBatch("C", new[]
                         {
                             new VolumeChangeEntry(Path.Combine(ignoredTempSubtree, "repo", ".git"), VolumeEntryKind.Created),
                         })
@@ -118,7 +119,7 @@ public class RepositoryWatchServiceMembershipTests
                 }),
             };
         var svc = new RepositoryWatchService(
-            new FakeVolumeChangeSource(batches),
+            new ScriptedVolumeChangeSource(batches),
             trackedRoots: Array.Empty<string>(),
             searchRoots: new[] { @"C:\repo" },
             debounce: TimeSpan.FromMilliseconds(10));
@@ -150,7 +151,7 @@ public class RepositoryWatchServiceMembershipTests
                 }),
             };
         var svc = new RepositoryWatchService(
-            new FakeVolumeChangeSource(batches),
+            new ScriptedVolumeChangeSource(batches),
             trackedRoots: new[] { @"C:\repo\gone" },
             searchRoots: new[] { @"C:\repo" },
             debounce: TimeSpan.FromMilliseconds(10));
@@ -181,7 +182,7 @@ public class RepositoryWatchServiceMembershipTests
                 }),
             };
         var svc = new RepositoryWatchService(
-            new FakeVolumeChangeSource(batches),
+            new ScriptedVolumeChangeSource(batches),
             trackedRoots: new[] { @"C:\repo\lifecycle" },
             searchRoots: new[] { @"C:\repo" },
             debounce: TimeSpan.FromMilliseconds(10));
@@ -206,7 +207,7 @@ public class RepositoryWatchServiceMembershipTests
                 new VolumeChangeEntry(@"C:\repo\lifecycle\file.txt", VolumeEntryKind.Modified),
             });
         var svc = new RepositoryWatchService(
-            new FakeVolumeChangeSource(new[] { batch }),
+            new ScriptedVolumeChangeSource(new[] { batch }),
             trackedRoots: new[] { @"C:\repo\lifecycle" },
             searchRoots: new[] { @"C:\repo" },
             debounce: TimeSpan.FromMilliseconds(10));
@@ -239,7 +240,7 @@ public class RepositoryWatchServiceMembershipTests
                     new VolumeChangeEntry(repoPath, VolumeEntryKind.MovedIn),
                 });
             var service = new RepositoryWatchService(
-                new FakeVolumeChangeSource(new[] { batch }),
+                new ScriptedVolumeChangeSource(new[] { batch }),
                 trackedRoots: Array.Empty<string>(),
                 searchRoots: new[] { searchRoot },
                 debounce: TimeSpan.FromMilliseconds(10));
@@ -327,7 +328,7 @@ public class RepositoryWatchServiceMembershipTests
                     new VolumeChangeEntry(upperPath, VolumeEntryKind.MovedIn),
                 });
             var service = new RepositoryWatchService(
-                new FakeVolumeChangeSource(new[] { batch }),
+                new ScriptedVolumeChangeSource(new[] { batch }),
                 trackedRoots: Array.Empty<string>(),
                 searchRoots: new[] { searchRoot },
                 debounce: TimeSpan.FromMilliseconds(10));

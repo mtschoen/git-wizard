@@ -1,4 +1,5 @@
 using GitWizard.Watch;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests.Watch;
 
@@ -13,7 +14,7 @@ public class RepositoryWatchServiceRepeatedBatchTests
     public async Task RepeatedRepositoryCreation_EmitsOneCreated()
     {
         var created = new VolumeChangeBatch("C", [new VolumeChangeEntry(@"C:\repo\newrepo\.git", VolumeEntryKind.Created)]);
-        var service = new RepositoryWatchService(new FakeVolumeChangeSource([created, created]),
+        var service = new RepositoryWatchService(new ScriptedVolumeChangeSource([created, created]),
             trackedRoots: [], searchRoots: [@"C:\repo"], debounce: TimeSpan.FromMilliseconds(10));
 
         var events = await DrainAsync(service);
@@ -27,7 +28,7 @@ public class RepositoryWatchServiceRepeatedBatchTests
     public async Task RepeatedRepositoryDeletion_EmitsOneDeleted()
     {
         var deleted = new VolumeChangeBatch("C", [new VolumeChangeEntry(@"C:\repo\a\.git", VolumeEntryKind.Deleted)]);
-        var service = new RepositoryWatchService(new FakeVolumeChangeSource([deleted, deleted]),
+        var service = new RepositoryWatchService(new ScriptedVolumeChangeSource([deleted, deleted]),
             trackedRoots: [@"C:\repo\a"], searchRoots: [@"C:\repo"], debounce: TimeSpan.FromMilliseconds(10));
 
         var events = await DrainAsync(service);

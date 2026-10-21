@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using GitWizard;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
@@ -13,7 +14,7 @@ public class MainViewModelLiveEventTests
     public void SetUp() => GitWizardLog.SilentMode = true;
 
     static MainViewModel NewViewModel()
-        => new(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+        => TestViewModels.Create();
 
     static GitWizardRepository Repo(string workingDirectory, params string[] remotes)
     {
@@ -23,15 +24,8 @@ public class MainViewModelLiveEventTests
         return repository;
     }
 
-    static async Task WaitUntilAsync(Func<bool> condition)
-    {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        while (!condition())
-        {
-            timeout.Token.ThrowIfCancellationRequested();
-            await Task.Delay(10, timeout.Token);
-        }
-    }
+    static Task WaitUntilAsync(Func<bool> condition, [CallerArgumentExpression(nameof(condition))] string? expression = null) =>
+        AsyncCondition.WaitUntilAsync(condition, TestTimeouts.ShortHangGuard, expression);
 
 
     [Test]
@@ -82,9 +76,11 @@ public class MainViewModelLiveEventTests
     public async Task ApplyLiveEvent_Created_VanishedRepo_IsDroppedQuietly()
     {
         var viewModel = NewViewModel();
-        var vanished = Path.Combine(Path.GetTempPath(), "gw-vanished-" + Guid.NewGuid().ToString("N"));
+        using var missing = new TempDirectory("gw-vanished-", create: false);
+        var vanished = missing.Path;
 
         await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(vanished, RepositoryChangeKind.Created));
+
 
         Assert.That(viewModel.Repositories, Is.Empty);
     }
@@ -173,8 +169,8 @@ public class MainViewModelLiveEventTests
     [Test]
     public async Task ApplyLiveEvent_DeletedThenCreatedThenDeletedSamePath_RemovesNode()
     {
-        var dispatcher = new QueuedLiveUiDispatcher();
-        var viewModel = new MainViewModel(dispatcher, new StubUserDialogs(), new StubClipboardService());
+        var dispatcher = new QueuedUiDispatcher();
+        var viewModel = TestViewModels.Create(dispatcher: dispatcher);
         viewModel.AddRepository(Repo("/a"));
 
         await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent("/a", RepositoryChangeKind.Deleted));
@@ -212,8 +208,8 @@ public class MainViewModelLiveEventTests
     public async Task ApplyLiveEvent_CreatedApplicationAfterNewerDeleteExpires_DoesNotRestoreNode()
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        var dispatcher = new QueuedLiveUiDispatcher();
-        var viewModel = new MainViewModel(dispatcher, new StubUserDialogs(), new StubClipboardService());
+        var dispatcher = new QueuedUiDispatcher();
+        var viewModel = TestViewModels.Create(dispatcher: dispatcher);
         viewModel.AddRepository(Repo(fixture.Path));
 
         await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Deleted));
@@ -242,8 +238,8 @@ public class MainViewModelLiveEventTests
     public async Task ApplyLiveEvent_OlderCreatedApplication_DoesNotReplaceNewerCreation()
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        var dispatcher = new QueuedLiveUiDispatcher();
-        var viewModel = new MainViewModel(dispatcher, new StubUserDialogs(), new StubClipboardService());
+        var dispatcher = new QueuedUiDispatcher();
+        var viewModel = TestViewModels.Create(dispatcher: dispatcher);
 
         await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
         var applyOlderCreation = dispatcher.TakeNext();

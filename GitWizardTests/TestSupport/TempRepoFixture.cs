@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using GitWizardTests.TestSupport;
 using LibGit2Sharp;
 
 namespace GitWizardTests;
@@ -10,17 +11,19 @@ namespace GitWizardTests;
 /// </summary>
 internal sealed class TempRepoFixture : IDisposable
 {
-    public string Path { get; }
+    readonly TempDirectory _directory;
+
+    public string Path => _directory.Path;
 
     static readonly Signature Author = new("Test", "test@example.com", DateTimeOffset.Now);
 
     // Temp directories (upstream submodule sources) created alongside this fixture
     // that must also be deleted on dispose.
-    readonly List<string> _extraCleanupDirs = new();
+    readonly List<TempDirectory> _extraCleanupDirs = new();
 
-    TempRepoFixture(string path)
+    TempRepoFixture(TempDirectory directory)
     {
-        Path = path;
+        _directory = directory;
     }
 
     static void WriteText(string path, string text)
@@ -40,23 +43,31 @@ internal sealed class TempRepoFixture : IDisposable
     /// </param>
     public static TempRepoFixture CreateWithInitialCommit(DateTimeOffset? commitTime = null)
     {
-        var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gw-test-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(path);
-        Repository.Init(path);
-
-        var signature = commitTime is { } when
-            ? new Signature("Test", "test@example.com", when)
-            : Author;
-
-        using (var repository = new Repository(path))
+        var directory = new TempDirectory();
+        try
         {
-            var readmePath = System.IO.Path.Combine(path, "README.md");
-            WriteText(readmePath, "initial");
-            Commands.Stage(repository, "README.md");
-            repository.Commit("initial", signature, signature);
-        }
+            var path = directory.Path;
+            Repository.Init(path);
 
-        return new TempRepoFixture(path);
+            var signature = commitTime is { } when
+                ? new Signature("Test", "test@example.com", when)
+                : Author;
+
+            using (var repository = new Repository(path))
+            {
+                var readmePath = System.IO.Path.Combine(path, "README.md");
+                WriteText(readmePath, "initial");
+                Commands.Stage(repository, "README.md");
+                repository.Commit("initial", signature, signature);
+            }
+
+            return new TempRepoFixture(directory);
+        }
+        catch
+        {
+            directory.Dispose();
+            throw;
+        }
     }
 
     public void AppendCommit(string fileName)
@@ -96,15 +107,14 @@ internal sealed class TempRepoFixture : IDisposable
     /// </summary>
     public void AddOriginRemoteAndPush()
     {
-        var upstream = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gw-origin-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(upstream);
-        Repository.Init(upstream, isBare: true);
+        var upstream = new TempDirectory("gw-origin-");
         _extraCleanupDirs.Add(upstream);
+        Repository.Init(upstream.Path, isBare: true);
 
         string branch;
         using (var repository = new Repository(Path))
         {
-            repository.Network.Remotes.Add("origin", upstream.Replace('\\', '/'));
+            repository.Network.Remotes.Add("origin", upstream.Path.Replace('\\', '/'));
             branch = repository.Head.FriendlyName;
         }
 
@@ -161,13 +171,13 @@ internal sealed class TempRepoFixture : IDisposable
         using (var repository = new Repository(Path))
             originUrl = repository.Network.Remotes["origin"].Url;
 
-        var scratch = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gw-scratch-" + Guid.NewGuid().ToString("N"));
-        RunGit(System.IO.Path.GetTempPath(), "clone", originUrl, scratch);
+        var scratch = new TempDirectory("gw-scratch-", create: false);
         _extraCleanupDirs.Add(scratch);
+        RunGit(TempDirectory.SystemTempPath, "clone", originUrl, scratch.Path);
 
-        WriteText(System.IO.Path.Combine(scratch, fileName), Guid.NewGuid().ToString());
-        StageAndCommit(scratch, fileName, $"add {fileName}");
-        RunGit(scratch, "push", "origin", "HEAD");
+        WriteText(System.IO.Path.Combine(scratch.Path, fileName), Guid.NewGuid().ToString());
+        StageAndCommit(scratch.Path, fileName, $"add {fileName}");
+        RunGit(scratch.Path, "push", "origin", "HEAD");
     }
 
     /// <summary>
@@ -241,7 +251,6 @@ internal sealed class TempRepoFixture : IDisposable
 
         // Clone the upstream so we have a working copy with origin/main.
         RunGit(Path, "-c", "protocol.file.allow=always", "clone", upstream, submoduleDir);
-        _extraCleanupDirs.Add(submoduleDir);
 
         if (remoteName != "origin")
             RunGit(submoduleDir, "remote", "rename", "origin", remoteName);
@@ -358,12 +367,11 @@ internal sealed class TempRepoFixture : IDisposable
     /// </summary>
     public string AddWorktree(string branchName)
     {
-        var worktreePath = System.IO.Path.Combine(
-            System.IO.Path.GetTempPath(), "gw-wt-" + Guid.NewGuid().ToString("N"));
+        var worktree = new TempDirectory("gw-wt-", create: false);
+        _extraCleanupDirs.Add(worktree);
         // git creates the directory; it must not exist beforehand.
-        RunGit(Path, "worktree", "add", worktreePath, "-b", branchName);
-        _extraCleanupDirs.Add(worktreePath);
-        return worktreePath;
+        RunGit(Path, "worktree", "add", worktree.Path, "-b", branchName);
+        return worktree.Path;
     }
 
     static void StageAndCommit(string repositoryPath, string fileName, string message)
@@ -375,19 +383,18 @@ internal sealed class TempRepoFixture : IDisposable
 
     string CreateUpstreamRepo()
     {
-        var upstream = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "gw-upstream-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(upstream);
-        Repository.Init(upstream);
-        using (var repository = new Repository(upstream))
+        var upstream = new TempDirectory("gw-upstream-");
+        _extraCleanupDirs.Add(upstream);
+        Repository.Init(upstream.Path);
+        using (var repository = new Repository(upstream.Path))
         {
-            WriteText(System.IO.Path.Combine(upstream, "lib.txt"), "lib");
+            WriteText(System.IO.Path.Combine(upstream.Path, "lib.txt"), "lib");
             Commands.Stage(repository, "lib.txt");
             repository.Commit("init upstream", Author, Author);
         }
 
-        _extraCleanupDirs.Add(upstream);
         // git wants forward slashes in the submodule URL, even on Windows.
-        return upstream.Replace('\\', '/');
+        return upstream.Path.Replace('\\', '/');
     }
 
     internal static void RunGit(string workingDirectory, params string[] arguments)
@@ -418,30 +425,22 @@ internal sealed class TempRepoFixture : IDisposable
     /// Delete the repository directory immediately - e.g. to simulate an external deletion
     /// mid-test. Idempotent with <see cref="Dispose"/>, which still runs at scope end.
     /// </summary>
-    public void DeleteNow() => DeleteTree(Path);
-
-    public void Dispose()
-    {
-        DeleteTree(Path);
-        foreach (var directory in _extraCleanupDirs)
-            DeleteTree(directory);
-    }
-
-    static void DeleteTree(string directory)
+    public void DeleteNow()
     {
         try
         {
-            // LibGit2Sharp leaves some files as read-only; clear attributes
-            // recursively before deletion so cleanup doesn't explode on CI.
-            foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
-            {
-                File.SetAttributes(file, FileAttributes.Normal);
-            }
-            Directory.Delete(directory, recursive: true);
+            TempDirectory.DeleteTree(Path);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             // Best-effort cleanup; ignore if the OS is still holding locks.
         }
+    }
+
+    public void Dispose()
+    {
+        _directory.Dispose();
+        foreach (var directory in _extraCleanupDirs)
+            directory.Dispose();
     }
 }

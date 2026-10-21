@@ -1,7 +1,6 @@
 using GitWizard;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
-using GitWizardTests.Watch;
 using GitWizardUI.Services;
 using MFTLib.Index;
 using MFTLibTestExtensions;
@@ -95,7 +94,7 @@ public class LiveWatchControllerTests
         try
         {
             var volume = WatchPath.Parse(searchRoot).Volume!;
-            var source = new FakeVolumeChangeSource(
+            var source = new ScriptedVolumeChangeSource(
                 new[]
                 {
                     new VolumeChangeBatch(volume, [new VolumeChangeEntry(Path.Combine(trackedRoot, "one.txt"), VolumeEntryKind.Modified)]),
@@ -130,7 +129,7 @@ public class LiveWatchControllerTests
     [Test]
     public async Task SourceDies_NotElevated_CallsOnStoppedOnceWithNoRespawn()
     {
-        var source = new HangingKillableSource();
+        var source = new ScriptedVolumeChangeSource { KeepWatching = true, ReplayDeathToLateSubscribers = true };
         var sourceFactoryCallCount = 0;
         Func<IVolumeChangeSource> factory = () =>
         {
@@ -163,8 +162,8 @@ public class LiveWatchControllerTests
     [Test]
     public async Task SourceDies_Elevated_RespawnsWithoutCallingOnStopped()
     {
-        var firstSource = new HangingKillableSource();
-        var secondSource = new FakeVolumeChangeSource(Array.Empty<VolumeChangeBatch>());
+        var firstSource = new ScriptedVolumeChangeSource { KeepWatching = true, ReplayDeathToLateSubscribers = true };
+        var secondSource = new ScriptedVolumeChangeSource(Array.Empty<VolumeChangeBatch>());
         var sources = new Queue<IVolumeChangeSource>(new IVolumeChangeSource[] { firstSource, secondSource });
         var sourceFactoryCallCount = 0;
         Func<IVolumeChangeSource> factory = () =>
@@ -205,7 +204,7 @@ public class LiveWatchControllerTests
     static async Task VerifyRespawnLimitAsync()
     {
         var sources = Enumerable.Range(0, 5)
-            .Select(_ => new HangingKillableSource()).ToArray();
+            .Select(_ => new ScriptedVolumeChangeSource { KeepWatching = true, ReplayDeathToLateSubscribers = true }).ToArray();
         var sourceFactoryCallCount = 0;
         var stoppedReasons = new List<string>();
         var controller = NewController(
@@ -268,7 +267,7 @@ public class LiveWatchControllerTests
     [Test]
     public async Task StopAsync_DoesNotCallOnStoppedOrRespawn()
     {
-        var source = new HangingKillableSource();
+        var source = new ScriptedVolumeChangeSource { KeepWatching = true, ReplayDeathToLateSubscribers = true };
         var sourceFactoryCallCount = 0;
         Func<IVolumeChangeSource> factory = () =>
         {
@@ -306,7 +305,7 @@ public class LiveWatchControllerTests
     public async Task StopAsync_DuringElevatedRespawn_CreatesNoNewSourceAndCompletes()
     {
         var firstSource = new GatedDisposeKillableSource();
-        var secondSource = new HangingKillableSource();
+        var secondSource = new ScriptedVolumeChangeSource { KeepWatching = true, ReplayDeathToLateSubscribers = true };
         var sources = new Queue<IVolumeChangeSource>(new IVolumeChangeSource[] { firstSource, secondSource });
         var sourceFactoryCallCount = 0;
         Func<IVolumeChangeSource> factory = () =>
@@ -370,7 +369,7 @@ public class LiveWatchControllerTests
     public void ScanErrors_BeforeStart_IsEmpty()
     {
         var controller = NewController(
-            () => new HangingKillableSource(),
+            () => new ScriptedVolumeChangeSource { KeepWatching = true, ReplayDeathToLateSubscribers = true },
             trackedRoots: Array.Empty<string>(),
             searchRoots: Array.Empty<string>(),
             onEvent: _ => { },
@@ -384,7 +383,7 @@ public class LiveWatchControllerTests
     public async Task ScanErrors_ReadsThroughToUnderlyingService()
     {
         var errors = new Dictionary<string, string> { ["D"] = "drive not ready" };
-        var source = new FakeVolumeChangeSource(Array.Empty<VolumeChangeBatch>(), errors);
+        var source = new ScriptedVolumeChangeSource(Array.Empty<VolumeChangeBatch>(), errors);
 
         var controller = NewController(
             () => source,
@@ -434,7 +433,7 @@ public class LiveWatchControllerTests
     [Test]
     public async Task Start_ForwardsScanProgressFromSource()
     {
-        var source = new HangingKillableSource();
+        var source = new ScriptedVolumeChangeSource { KeepWatching = true, ReplayDeathToLateSubscribers = true };
         var samples = new List<VolumeScanProgress>();
         var controller = NewController(
             () => source,
@@ -462,7 +461,7 @@ public class LiveWatchControllerTests
     [Test]
     public async Task Start_TempCreatedEvent_DroppedByDefault()
     {
-        var source = new FakeVolumeChangeSource(
+        var source = new ScriptedVolumeChangeSource(
             new[] { Batch(@"C:\Users\gitea-runner\AppData\Local\Temp\pytest-1\repo\.git", VolumeEntryKind.Created) });
 
         var events = new List<RepositoryChangeEvent>();
@@ -483,7 +482,7 @@ public class LiveWatchControllerTests
     [Test]
     public async Task Start_TempCreatedEvent_ForwardedWhenIncluded()
     {
-        var source = new FakeVolumeChangeSource(
+        var source = new ScriptedVolumeChangeSource(
             new[] { Batch(@"C:\Users\gitea-runner\AppData\Local\Temp\pytest-1\repo\.git", VolumeEntryKind.Created) });
 
         var events = new List<RepositoryChangeEvent>();
@@ -509,7 +508,7 @@ public class LiveWatchControllerTests
     public async Task Start_IgnoredPathCreatedEvent_DroppedEvenWhenIncludeTempDirectoriesTrue()
     {
         const string ignoredTempSubtree = @"C:\Users\gitea-runner\AppData\Local\Temp\ci-runner";
-        var source = new FakeVolumeChangeSource(
+        var source = new ScriptedVolumeChangeSource(
             new[] { Batch(Path.Combine(ignoredTempSubtree, "repo", ".git"), VolumeEntryKind.Created) });
 
         var events = new List<RepositoryChangeEvent>();
@@ -542,7 +541,7 @@ public class LiveWatchControllerTests
         try
         {
             var volume = WatchPath.Parse(searchRoot).Volume!;
-            var source = new FakeVolumeChangeSource(new[]
+            var source = new ScriptedVolumeChangeSource(new[]
             {
                 new VolumeChangeBatch(volume, new[]
                 {
@@ -577,7 +576,7 @@ public class LiveWatchControllerTests
     [Test]
     public async Task HangingSourcePublishesArmCompletion()
     {
-        await using var source = new HangingKillableSource();
+        await using var source = new ScriptedVolumeChangeSource { KeepWatching = true, ReplayDeathToLateSubscribers = true };
         var armed = source.Armed;
         Assert.That(armed.IsCompleted, Is.False);
         await source.ArmAndCatchUpAsync([], CancellationToken.None);

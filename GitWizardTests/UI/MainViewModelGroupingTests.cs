@@ -1,4 +1,5 @@
 using GitWizard;
+using GitWizardTests.TestSupport;
 using GitWizardUI.ViewModels;
 
 namespace GitWizardTests;
@@ -15,8 +16,7 @@ public class MainViewModelGroupingTests
     [SetUp]
     public void SetUp() => GitWizardLog.SilentMode = true;
 
-    static MainViewModel NewViewModel()
-        => new(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+    static MainViewModel NewViewModel() => TestViewModels.Create();
 
     static GitWizardRepository Repo(string workingDirectory, params string[] remotes)
     {
@@ -497,8 +497,10 @@ public class MainViewModelGroupingTests
         var vm = NewViewModel();
         vm.ToggleGroupMode(GroupMode.Drive);
 
-        var repo1 = new GitWizardRepository(Path.Combine(Path.GetTempPath(), "drive1"));
-        var repo2 = new GitWizardRepository(Path.Combine(Path.GetTempPath(), "drive2"));
+        using var missing1 = new TempDirectory("drive1-", create: false);
+        using var missing2 = new TempDirectory("drive2-", create: false);
+        var repo1 = new GitWizardRepository(missing1.Path);
+        var repo2 = new GitWizardRepository(missing2.Path);
 
         vm.AddRepository(repo1);
         Assert.That(vm.Repositories, Is.Not.Empty);
@@ -518,10 +520,12 @@ public class MainViewModelGroupingTests
         var vm = NewViewModel();
         vm.ToggleGroupMode(GroupMode.RemoteUrl);
 
-        var repo1 = new GitWizardRepository(Path.Combine(Path.GetTempPath(), "repo1"));
+        using var missing1 = new TempDirectory("repo1-", create: false);
+        using var missing2 = new TempDirectory("repo2-", create: false);
+        var repo1 = new GitWizardRepository(missing1.Path);
         repo1.RemoteUrls.Add("git@github.com:mtschoen/git-wizard.git");
 
-        var repo2 = new GitWizardRepository(Path.Combine(Path.GetTempPath(), "repo2"));
+        var repo2 = new GitWizardRepository(missing2.Path);
         repo2.RemoteUrls.Add("https://github.com/mtschoen/git-wizard.git");
 
         vm.AddRepository(repo1);

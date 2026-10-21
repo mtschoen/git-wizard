@@ -1,7 +1,6 @@
-using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
+using GitWizardTests.TestSupport;
 using GitWizardUI.ViewModels;
-using GitWizardUI.ViewModels.Services;
 
 namespace GitWizardTests;
 
@@ -9,76 +8,6 @@ namespace GitWizardTests;
 // Covers MainViewModel.Grouping.cs.
 public class MainViewModelGroupingInteractionTests
 {
-
-    /// <summary>
-    /// Test dispatcher backed by a real dedicated thread, so <see cref="IsOnUiThread"/> reflects
-    /// genuine thread identity. Work is queued FIFO and pumped on that thread.
-    /// </summary>
-    sealed class PumpUiDispatcher : IUiDispatcher, IDisposable
-    {
-        readonly BlockingCollection<Action> _queue = new();
-        readonly Thread _uiThread;
-
-        public PumpUiDispatcher()
-        {
-            _uiThread = new Thread(Pump) { IsBackground = true, Name = "test-ui-thread" };
-            _uiThread.Start();
-        }
-
-        void Pump()
-        {
-            foreach (var action in _queue.GetConsumingEnumerable())
-            {
-                // Swallow so a stray callback (e.g. the background UI-update loop firing after
-                // disposal) can't tear down the pump thread mid-test; InvokeAsync surfaces its
-                // own failures through the returned Task.
-                try { action(); } catch { /* test pump stays alive */ }
-            }
-        }
-
-        public bool IsOnUiThread => Thread.CurrentThread == _uiThread;
-
-        public int UiThreadId => _uiThread.ManagedThreadId;
-
-        public void Post(Action action)
-        {
-            if (!_queue.IsAddingCompleted)
-                _queue.Add(action);
-        }
-
-        public Task InvokeAsync(Action action)
-        {
-            if (_queue.IsAddingCompleted)
-                return Task.CompletedTask;
-
-            var completion = new TaskCompletionSource();
-            _queue.Add(() =>
-            {
-                try { action(); completion.SetResult(); }
-                catch (Exception exception) { completion.SetException(exception); }
-            });
-            return completion.Task;
-        }
-
-        public Task InvokeAsync(Func<Task> action)
-        {
-            if (_queue.IsAddingCompleted)
-                return Task.CompletedTask;
-
-            var completion = new TaskCompletionSource();
-            _queue.Add(() => _ = RunAndSignalAsync(action, completion));
-            return completion.Task;
-        }
-
-        static async Task RunAndSignalAsync(Func<Task> action, TaskCompletionSource completion)
-        {
-            try { await action(); completion.SetResult(); }
-            catch (Exception exception) { completion.SetException(exception); }
-        }
-
-        public void Dispose() => _queue.CompleteAdding();
-    }
-
     // Regression: the Repositories collection swap invokes view hooks that touch the visual tree
     // (the Avalonia ScrollViewer.Offset getter enforces UI-thread affinity). RefreshAsync reaches
     // ApplyFilterAndGrouping on a thread-pool thread via its ConfigureAwait(false) continuation, so
@@ -88,8 +17,8 @@ public class MainViewModelGroupingInteractionTests
     [Test]
     public async Task ApplyFilterAndGrouping_ReachedOffUiThread_RunsSwapOnUiThread()
     {
-        using var dispatcher = new PumpUiDispatcher();
-        var vm = new MainViewModel(dispatcher, new StubUserDialogs(), new StubClipboardService());
+        using var dispatcher = new ThreadedUiDispatcher();
+        var vm = TestViewModels.Create(dispatcher: dispatcher);
 
         // Capture the UI thread's id as a value, not the disposable dispatcher, so the swap callback
         // can assert it ran on that thread without capturing a variable the using scope disposes.
@@ -114,8 +43,8 @@ public class MainViewModelGroupingInteractionTests
     [Test]
     public async Task SearchText_DebouncesRapidKeystrokesIntoSingleFilterPass()
     {
-        using var dispatcher = new PumpUiDispatcher();
-        var vm = new MainViewModel(dispatcher, new StubUserDialogs(), new StubClipboardService());
+        using var dispatcher = new ThreadedUiDispatcher();
+        var vm = TestViewModels.Create(dispatcher: dispatcher);
 
         // Hold the count in a StrongBox so the captured variable (the box) is never reassigned -
         // only its contents mutate - which sidesteps AccessToModifiedClosure while the callback
@@ -157,7 +86,7 @@ public class MainViewModelGroupingInteractionTests
     [Test]
     public void ToggleFilter_TogglesActiveFilterOnRepeatClick()
     {
-        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+        var vm = TestViewModels.Create();
 
         vm.ToggleFilter(FilterType.Stale);
         Assert.That(vm.ActiveFilter, Is.EqualTo(FilterType.Stale));
@@ -172,7 +101,7 @@ public class MainViewModelGroupingInteractionTests
     [Test]
     public void ToggleFilter_RaisesPropertyChangedForActiveFilter()
     {
-        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+        var vm = TestViewModels.Create();
 
         var raised = false;
         vm.PropertyChanged += (_, e) => raised |= e.PropertyName == nameof(MainViewModel.ActiveFilter);
@@ -185,7 +114,7 @@ public class MainViewModelGroupingInteractionTests
     [Test]
     public void ToggleGroupMode_TogglesActiveGroupModeOnRepeatClick()
     {
-        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+        var vm = TestViewModels.Create();
 
         vm.ToggleGroupMode(GroupMode.Drive);
         Assert.That(vm.ActiveGroupMode, Is.EqualTo(GroupMode.Drive));
@@ -199,7 +128,7 @@ public class MainViewModelGroupingInteractionTests
     [Test]
     public void SetSortMode_SetsModeAndDoesNotToggleOff()
     {
-        var vm = new MainViewModel(new StubUiDispatcher(), new StubUserDialogs(), new StubClipboardService());
+        var vm = TestViewModels.Create();
 
         vm.SetSortMode(SortMode.RecentlyUsed);
         Assert.That(vm.ActiveSortMode, Is.EqualTo(SortMode.RecentlyUsed));

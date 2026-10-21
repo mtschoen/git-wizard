@@ -7,23 +7,6 @@ namespace GitWizardTests.Discovery;
 [TestFixture]
 public class RepositoryDiscoveryCoordinatorTests
 {
-    sealed class TestUpdateHandler : IUpdateHandler
-    {
-        readonly List<string> _messages = [];
-        public IReadOnlyList<string> Messages => _messages;
-        public void SendUpdateMessage(string? message)
-        {
-            if (message is not null)
-                _messages.Add(message);
-        }
-        public void StartProgress(string description, int total) { }
-        public void UpdateProgress(int count) { }
-        public void OnRepositoryCreated(GitWizardRepository gitWizardRepository) { }
-        public void OnSubmoduleCreated(GitWizardRepository parent, GitWizardRepository submodule) { }
-        public void OnWorktreeCreated(GitWizardRepository worktree) { }
-        public void OnUninitializedSubmoduleCreated(GitWizardRepository parent, string submodulePath) { }
-        public void OnRepositoryRefreshCompleted(GitWizardRepository gitWizardRepository) { }
-    }
 
     static Func<IReadOnlyList<string>, CacheMode, IProgress<IndexScanProgress>?, CancellationToken,
         Task<MftIndexSession>> OpenWithBroker(BlockBrokerFixture broker, IndexedDrive drive, string cache) =>
@@ -75,7 +58,7 @@ public class RepositoryDiscoveryCoordinatorTests
 
         var brokerConnections = 0;
         var crawlerCalls = new List<string>();
-        var updates = new TestUpdateHandler();
+        var updates = new RecordingUpdateHandler();
         using var cancellation = new CancellationTokenSource();
 
         var configuration = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
@@ -109,7 +92,7 @@ public class RepositoryDiscoveryCoordinatorTests
             Assert.That(result.Inventory.Observations.Single().ScanTimestamp, Is.EqualTo(PackedIndexFixture.CompletionTimestamp));
             Assert.That(brokerConnections, Is.Zero);
             Assert.That(crawlerCalls, Is.Empty);
-            Assert.That(updates.Messages.Any(message => message.Contains("snapshot", StringComparison.OrdinalIgnoreCase)), Is.True);
+            Assert.That(updates.Messages.Any(message => message is not null && message.Contains("snapshot", StringComparison.OrdinalIgnoreCase)), Is.True);
         });
     }
 

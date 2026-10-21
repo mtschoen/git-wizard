@@ -11,7 +11,6 @@ namespace GitWizardTests.Watch;
 [TestFixture]
 public class IndexVolumeChangeSourceReadinessTests
 {
-    static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(10);
 
     static MftIndexSession Owner(FileIndex index, params string[] drives) =>
         new(index, null, drives, [], new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
@@ -30,8 +29,8 @@ public class IndexVolumeChangeSourceReadinessTests
         Assert.That(source.Readiness.Volumes, Is.Empty);
 
         var arming = source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
-        await Task.WhenAll(scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard),
-            scripted.WaitForStartAsync('Y', 1, CancellationToken.None).WaitAsync(HangGuard));
+        await Task.WhenAll(scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard),
+            scripted.WaitForStartAsync('Y', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard));
         await WaitUntilAsync(() => source.Readiness.Volumes.Count == 2);
         Assert.That(arming.IsCompleted, Is.False, "The arm must wait for catch-up, not merely for pump start.");
         Assert.That(source.Readiness.Volumes.Select(v => (v.Volume, v.State, v.Origin)), Is.EquivalentTo(new[]
@@ -48,7 +47,7 @@ public class IndexVolumeChangeSourceReadinessTests
         Assert.That(source.Readiness.IsSettled, Is.False);
 
         scripted.WatchFor('Y').LoseChannel(new IOException("Y failed"));
-        var result = await arming.WaitAsync(HangGuard);
+        var result = await arming.WaitAsync(TestTimeouts.HangGuard);
         Assert.That(result.Errors["Y"], Is.EqualTo("Y failed"));
         Assert.That(source.Readiness.IsSettled, Is.True);
         Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo(new[] { "X" }));
@@ -133,7 +132,7 @@ public class IndexVolumeChangeSourceReadinessTests
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
         Assert.That(source.Readiness.CaughtUpVolumes, Is.EquivalentTo(new[] { "X", "Y" }));
-        using var cancellation = new CancellationTokenSource(HangGuard);
+        using var cancellation = new CancellationTokenSource(TestTimeouts.HangGuard);
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
         var pending = reader.MoveNextAsync().AsTask();
         scripted.WatchFor('Y').LoseChannel(new IOException("Y died later"));
@@ -160,15 +159,15 @@ public class IndexVolumeChangeSourceReadinessTests
                 snapshots.Add(s);
         };
         var arming = source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
-        await Task.WhenAll(scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(HangGuard),
-            scripted.WaitForStartAsync('Y', 1, CancellationToken.None).WaitAsync(HangGuard));
+        await Task.WhenAll(scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard),
+            scripted.WaitForStartAsync('Y', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard));
         await WaitUntilAsync(() => snapshots.Count >= 2);
 
         await Task.WhenAll(
             scripted.WatchFor('X').PublishCaughtUpAsync(),
             scripted.WatchFor('Y').PublishCaughtUpAsync());
 
-        await arming.WaitAsync(HangGuard);
+        await arming.WaitAsync(TestTimeouts.HangGuard);
         Assert.That(snapshots.Last().IsSettled, Is.True);
         Assert.That(snapshots.Last().CaughtUpVolumes, Is.EquivalentTo(new[] { "X", "Y" }));
         Assert.That(snapshots.Last(), Is.EqualTo(source.Readiness));

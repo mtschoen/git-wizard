@@ -1,6 +1,7 @@
 using System.Runtime.Versioning;
 using GitWizard.Watch;
 using GitWizard.Watch.Linux;
+using GitWizardTests.TestSupport;
 using static GitWizardTests.Watch.Linux.FanotifyEventBuffers;
 
 namespace GitWizardTests.Watch.Linux;
@@ -17,7 +18,7 @@ public class FanotifyFilesystemIdentifierTests
     string _firstRoot = null!;
     string _secondRoot = null!;
     string _siblingRoot = null!;
-    FakeFanotifyVolumeNative _native = null!;
+    FakeFanotifyNative _native = null!;
 
     [SetUp]
     public void CreateRootsOnTwoFilesystems()
@@ -26,7 +27,7 @@ public class FanotifyFilesystemIdentifierTests
         _firstRoot = Directory.CreateDirectory(Path.Combine(_temporaryRoot, "first")).FullName;
         _secondRoot = Directory.CreateDirectory(Path.Combine(_temporaryRoot, "second")).FullName;
         _siblingRoot = Directory.CreateDirectory(Path.Combine(_temporaryRoot, "sibling")).FullName;
-        _native = new FakeFanotifyVolumeNative { InitializeResult = new FanotifyNativeCallResult(7, 0) };
+        _native = new FakeFanotifyNative { InitializeResult = new FanotifyNativeCallResult(7, 0) };
         _native.FilesystemIdByMountPath[_firstRoot] = FirstFilesystem;
         _native.FilesystemIdByMountPath[_secondRoot] = SecondFilesystem;
         _native.FilesystemIdByMountPath[_siblingRoot] = FirstFilesystem;

@@ -54,7 +54,9 @@ public static partial class GitWizardApi
     {
         rootPath = Environment.ExpandEnvironmentVariables(rootPath);
 
-        if (rootPath.StartsWith("~/", StringComparison.Ordinal))
+        if (rootPath == "~"
+            || rootPath.StartsWith("~/", StringComparison.Ordinal)
+            || rootPath.StartsWith("~\\", StringComparison.Ordinal))
             rootPath = string.Concat(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), rootPath.AsSpan(1));
 
         if (!Directory.Exists(rootPath))

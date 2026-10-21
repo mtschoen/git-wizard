@@ -176,6 +176,23 @@ public class GitWizardApiTests
         }
     }
 
+    static readonly string[] BareAndNativeSeparatorTildeInputs = ["~", "~" + Path.DirectorySeparatorChar];
+
+    [TestCaseSource(nameof(BareAndNativeSeparatorTildeInputs))]
+    public void ExpandSearchPath_BareTilde_ExpandsToUserProfile(string input)
+    {
+        var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var result = GitWizardApi.ExpandSearchPath(input);
+        Assert.That(result, Is.EqualTo(GitWizardApi.NormalizePath(profile)));
+    }
+
+    [Test]
+    public void ExpandSearchPath_TildeUserName_IsNotTreatedAsHome()
+    {
+        var result = GitWizardApi.ExpandSearchPath("~git-wizard-no-such-user");
+        Assert.That(result, Is.Null);
+    }
+
     [Test]
     public void ExpandIgnoredPath_ExpandsPath_WithoutRequiringDirectoryExistence()
     {

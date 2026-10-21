@@ -3,10 +3,9 @@
 #
 #   verify-windows.sh <ref>
 #
-# Runs the WINDOWS NON-ADMIN suite on chonkers. This exists because plan 4's preflight found a
-# Critical that every Linux gate misses by construction: assertions that only execute on the
-# Windows branch of a platform switch (GitWizardTests/UI/MainViewModelLiveTests.cs:471 asserts the
-# concrete change-source type name). On Linux those branches take the fanotify path and pass.
+# Runs the WINDOWS NON-ADMIN suite on chonkers. This exists because platform-specific tests
+# only execute on their matching OS (such as IndexVolumeChangeSourceWindowsTests on Windows
+# or fanotify tests on Linux), creating the requirement to run both OS jobs.
 #
 # It does NOT run the elevated / RequiresAdmin tests. Those need an interactive UAC prompt and are
 # an attended step. NEVER report an elevated result from this script's output.

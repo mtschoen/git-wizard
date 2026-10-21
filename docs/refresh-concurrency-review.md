@@ -98,7 +98,7 @@ and `PruneNonRepositoryPaths` (`GitWizardReport.cs:246`) do not. Within one `Ref
 fine, because the prunes bracket the parallel region. Across two concurrent `Refresh` calls on one
 report it is not: thread A's prune can rebalance the red-black tree while thread B's parallel body
 inserts under a lock A never takes, which can corrupt the tree, throw, or loop forever. This is not
-theoretical: `GitWizardTests/GitWizardReportTests.cs:48` runs `Parallel.For(0, 10, _ =>
+theoretical: `GitWizardReportTests.Refresh_ConcurrentCallsOnOneReport_DoNotCorruptRepositories` runs `Parallel.For(0, 10, _ =>
 report.Refresh(repositoryPaths))` against a single report, so the test suite exercises exactly this
 interleaving today and passes only because the window is narrow. That test also asserts nothing.
 
@@ -178,8 +178,8 @@ the bar on an exact `_progressTotal == _progressCount` match
   `ApplyFilterAndGrouping` enumerates `_allRepositories` off the UI thread while queued
   `AddRepository` commands could still append to it. In practice the drain-wait at
   `MainViewModel.Refresh.cs:181` closes this window, so it is currently guarded, but only by timing.
-- `CountingUpdateHandler.RefreshCompletedCount++` (`GitWizardTests/TestUpdateHandlers.cs:20`) is
-  non-atomic and is called from parallel workers. Any new test that counts callbacks under
+- `CountingUpdateHandler.OnRepositoryRefreshCompleted` uses `Interlocked.Increment` to update `RefreshCompletedCount`. Historically, `CountingUpdateHandler.RefreshCompletedCount++` was
+  non-atomic and called from parallel workers. Any new test that counts callbacks under
   parallelism needs `Interlocked` here first.
 
 Things that are already correctly guarded, for the record: the `_uiCommands` and CLI command queues,
@@ -284,7 +284,7 @@ In `RefreshSingleRepository`, replace the bare `Task.Run` plus `Wait` with a
 (defaulting to five minutes) so tests can shorten it without sleeping. Keep the `Wait` for now; the
 token is what makes the abandonment bounded.
 
-Test: `Refresh_Cancelled_StopsAtPhaseBoundary`. Use the phase observer from phase 1 to cancel the
+Test: `RefreshPhaseObservationAndCancellationTests.Refresh_Cancelled_StopsAtPhaseBoundary`. Use the phase observer from phase 1 to cancel the
 token at phase three, and assert the observer never records phase four and that `RefreshError`
 reports a timeout. Fails before (all eleven phases run), passes after. The assertion is on the
 observed call pattern, not on elapsed time.
@@ -310,7 +310,7 @@ lock and serialize the copy. Note that this bounds the dictionary race, not the 
 race, which phase 1 handles.
 
 Test: `Refresh_ConcurrentCallsOnOneReport_DoNotCorruptRepositories`. Promote the existing
-`Refresh_ConcurrentCallsOnOneReport_DoNotCorruptRepositories` (`GitWizardTests/GitWizardReportTests.cs`) from a no-assertion smoke test
+`GitWizardReportTests.Refresh_ConcurrentCallsOnOneReport_DoNotCorruptRepositories` from a no-assertion smoke test
 into one that asserts `Repositories.Count` equals the seeded path count and that every value is
 non-null after ten concurrent refreshes. It will be flaky-to-failing before and stable after; run it
 with `[Repeat(20)]` to make the before-state visible.

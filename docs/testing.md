@@ -72,6 +72,8 @@ For cache and journal contracts, read MFTLib's [test isolation](../external/MFTL
 
 ## Test organization and consolidation
 
+Tests live under production-area folders in `GitWizardTests/`. Each fixture has a unique simple class name and one matching `<ClassName>.cs` file. Large fixture families split into independent concern-named classes with a one-line rationale. Shared helpers live in `TestSupport`; file moves preserve namespace-scoped setup. See [test organization](test-organization.md) for the area/partial map, layout check, and before/after per-file coverage procedure. `AgentInstructionsTests` verifies that test classes named here exist. Cite test classes and members by name, without source line numbers.
+
 Place behavioral tests beside the fixture for their production subject. Use
 table-driven cases for inputs with the same setup and assertions. Test filenames
 describe the subject and exclude `CoverageBoost`, `CoverageSafetyBoost`,

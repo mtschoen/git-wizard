@@ -53,9 +53,7 @@ dotnet test GitWizardTests/GitWizardTests.csproj --no-build -c Release --nologo 
 Preserve failed TRX paths; never overwrite a run or assume uploads succeeded.
 Tests need a writable profile; the controller runs outside read-only sandboxes.
 
-[Testing reference](docs/testing.md): follow its test layout and consolidation evidence rules. Duration work retains same-revision host TRX,
-class/outcome and CI-step evidence. No wall-time assertions; prove individual and
-full-step improvements. Select explicit `RespawnLimit_Stress` by qualified name;
+[Testing reference](docs/testing.md) and [test organization](docs/test-organization.md): follow their test layout and consolidation evidence rules. Select explicit `RespawnLimit_Stress` by qualified name;
 a pass does not prove historical reproduction. Preserve AsyncCondition's
 first-exception failure and stack/expression/poll/elapsed diagnostics.
 

@@ -59,7 +59,7 @@ merge of disjoint updates must serialize their writes externally.
 | `SearchPaths` | `string[]` | Configured search paths |
 | `IgnoredPaths` | `string[]` | Configured ignored paths |
 | `IncludeTempDirectories` | `bool` | Whether this report's scan included temp directories. Absent when unset (the default: excluded). |
-| `Repositories` | `object` | Map of repo path → repository object |
+| `Repositories` | `object` | Map of repo path to repository object |
 | `DeletedPaths` | `string[]` | Repo paths removed from the cache during the last refresh (no longer on disk). Usually empty/absent. |
 | `run` | `object` | Run execution metadata (callback counts and warnings); see below |
 
@@ -90,8 +90,8 @@ merge of disjoint updates must serialize their writes externally.
 | `RemoteUrls` | `string[]` | no | List of remote URLs |
 | `AuthorEmails` | `string[]` | yes | Unique author emails from last 200 commits |
 | `RecentCommits` | `CommitInfo[]` | yes | Last 10 commits on HEAD |
-| `Submodules` | `object` | yes | Map of path → repository object (null if uninitialized) |
-| `Worktrees` | `object` | yes | Map of path → repository object |
+| `Submodules` | `object` | yes | Map of path to repository object (null if uninitialized) |
+| `Worktrees` | `object` | yes | Map of path to repository object |
 
 ### `BehindDefault`/`AheadOfDefault` vs `BehindRemoteCount`/`AheadOfRemoteCount`
 
@@ -121,7 +121,7 @@ A local branch's relationship to the repository's default branch. By default the
 | `AheadOfDefault` | `int` | Commits on this branch not reachable from the default branch |
 | `BehindDefault` | `int` | Commits in the default branch not reachable from this branch |
 | `LastCommitDate` | `string` (ISO 8601) | Author timestamp of the branch tip; null if the branch has no commits |
-| `HasUpstream` | `bool` | True when the branch tracks a remote (false ⇒ unpushed local work). A branch whose `branch.<name>.remote` is a URL or names a remote that is not configured reports false (git-wizard#185), matching git, which does not treat a URL-valued remote as tracking anything. |
+| `HasUpstream` | `bool` | True when the branch tracks a remote (false implies unpushed local work). A branch whose `branch.<name>.remote` is a URL or names a remote that is not configured reports false (git-wizard#185), matching git, which does not treat a URL-valued remote as tracking anything. |
 
 ## CommitInfo object
 

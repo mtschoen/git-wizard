@@ -33,4 +33,8 @@
     <Using Include="NUnit.Framework" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\AGENTS.md" Link="AGENTS.md" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

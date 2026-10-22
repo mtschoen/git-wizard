@@ -12,8 +12,13 @@
 #
 # Adapted from plan 3's lanes/verify-windows.sh. Two conventions carried over verbatim, each of
 # which cost the campaign a session:
-#   - invoke MSBuild over ssh via `powershell -NoProfile -Command`, never `cmd /c`: the nested
-#     quoting collapses and cmd silently opens an interactive shell and exits 0.
+#   - run every remote step as PowerShell, never `cmd /c`: the nested quoting collapses and cmd
+#     silently opens an interactive shell and exits 0. Each step is ONE ssh call: the remote
+#     command is a short bootstrap (no dollar sign, no double quote, so it survives a cmd,
+#     PowerShell or Git Bash login shell) that reads the step's script from stdin, writes it to a
+#     uniquely named temp .ps1, runs it and deletes it. No scp/sftp and nothing is left installed.
+#     The script's `exit N` is ssh's exit status under cmd and Git Bash login shells; under a
+#     PowerShell login shell it collapses to 0/1, so a step that needs the precise code prints it.
 #   - on chonkers `origin` is the GitHub mirror; only the `gitea` remote has feature branches.
 set -euo pipefail
 
@@ -46,24 +51,52 @@ if ! [[ "$COMMIT_SHA" =~ ^[0-9a-fA-F]{7,40}$ ]]; then
     exit 1
 fi
 
-# Transport configurable values as base64-encoded UTF-8 strings to prevent command injection.
-B64_REMOTE=$(printf '%s' "$REMOTE" | base64 -w 0)
-B64_MFTLIB_URL=$(printf '%s' "$MFTLIB_URL" | base64 -w 0)
-B64_VSWHERE=$(printf '%s' "$VSWHERE" | base64 -w 0)
+# Configurable values enter the remote script as single-quoted PowerShell literals, which cannot
+# be broken out of except by a single quote; ps_quote doubles those, so a value is data only.
+# PowerShell treats U+2018, U+2019, U+201A and U+201B as single-quote delimiters too.
+ps_quote() {
+    local value="$1"
+    value="${value//\'/\'\'}"
+    value="${value//‘/‘‘}"
+    value="${value//’/’’}"
+    value="${value//‚/‚‚}"
+    value="${value//‛/‛‛}"
+    printf "'%s'" "$value"
+}
 
 PS_CONFIG_PREAMBLE="
-\$remote = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('$B64_REMOTE'))
-\$mftlibUrl = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('$B64_MFTLIB_URL'))
-\$vswhere = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('$B64_VSWHERE'))
-\$targetRef = '$COMMIT_SHA'
+\$remote = $(ps_quote "$REMOTE")
+\$mftlibUrl = $(ps_quote "$MFTLIB_URL")
+\$vswhere = $(ps_quote "$VSWHERE")
+\$targetRef = $(ps_quote "$COMMIT_SHA")
 "
 
+# Runs one PowerShell step on $HOST in a single ssh call and returns its exit status. The bootstrap
+# is the remote command and the step's script is its stdin; the bootstrap writes the script to a
+# temp .ps1 (UTF-8 with BOM so Windows PowerShell 5.1 reads it as UTF-8), runs it and deletes it in
+# a finally block. The token comes from the kernel RNG so the temp name is unguessable. The
+# bootstrap must hold no dollar sign and no double quote, or bash, cmd and PowerShell login shells
+# would each mangle it differently.
 run_remote() {
-    local ps_script="$1"
-    local encoded
-    encoded=$(printf '%s' "$ps_script" | iconv -f UTF-8 -t UTF-16LE | base64 -w 0)
-    timeout 900 ssh -o BatchMode=yes -o ConnectTimeout=15 "$HOST" \
-        "powershell -NoProfile -EncodedCommand $encoded" 2>&1 | tr -d '\r' | sed -E '/post-quantum|store now, decrypt later|openssh\.com\/pq/d'
+    local ps_script="$1" token temp_path bootstrap status=0
+    token=$(od -An -tx1 -N8 /dev/urandom | tr -d ' \n')
+    temp_path="(Join-Path ([IO.Path]::GetTempPath()) 'verify-windows-${token}.ps1')"
+    bootstrap="[Console]::InputEncoding=[Text.UTF8Encoding]::new(0); "
+    # A failure to write or parse the script is a terminating error with no LASTEXITCODE; the catch
+    # turns it into exit 1 so the step fails instead of reporting success.
+    bootstrap+="try { [IO.File]::WriteAllText(${temp_path}, [Console]::In.ReadToEnd(), [Text.UTF8Encoding]::new(1)); & ${temp_path} } "
+    bootstrap+="catch { [Console]::Error.WriteLine((Get-Variable -Name _ -ValueOnly)); exit 1 } "
+    bootstrap+="finally { Remove-Item -LiteralPath ${temp_path} -Force -ErrorAction Ignore }; "
+    bootstrap+="exit (Get-Variable LASTEXITCODE -ValueOnly -ErrorAction Ignore)"
+    if [[ ! "$token" =~ ^[0-9a-f]{16}$ ]] || [[ "$bootstrap" == *'$'* ]] || [[ "$bootstrap" == *'"'* ]]; then
+        echo "ERROR: bootstrap invariant violated (token not 16 hex chars, or dollar sign or double quote present)" >&2
+        return 1
+    fi
+    printf '%s\n' "$ps_script" |
+        timeout 900 ssh -o BatchMode=yes -o ConnectTimeout=15 "$HOST" \
+            "powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"$bootstrap\"" 2>&1 |
+        tr -d '\r' | sed -E '/post-quantum|store now, decrypt later|openssh\.com\/pq/d' || status=$?
+    return "$status"
 }
 
 echo "== fetching $COMMIT_SHA on $HOST:$REMOTE =="

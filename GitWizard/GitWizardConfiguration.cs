@@ -214,13 +214,4 @@ public class GitWizardConfiguration
         var path = GetGlobalConfigurationPath();
         return GetConfigurationAtPathAsync(path, cancellationToken);
     }
-
-    public void GetRepositoryPaths(ICollection<string> paths, IUpdateHandler? updateHandler = null)
-    {
-        Parallel.ForEach(SearchPaths, path =>
-        {
-            GitWizardApi.GetRepositoryPaths(path, paths, IgnoredPaths, updateHandler, SkipHiddenDirectories, IncludeTempDirectories);
-        });
-    }
 }
-

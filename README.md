@@ -129,7 +129,7 @@ The old **Clear Cache** / `--clear-cache` still only clears report/list files.
 **Delete All Local Files** still refuses while the `mft-index` subtree exists,
 including after successful block clearing. Configuration and report/list files
 are not removed by **Clear Index Cache**. Recursive discovery on Linux and with
-`--no-mft` is unchanged.
+`--no-mft` walks the root into an uncached enumeration index on every run.
 
 `git-wizard --index-cache-status` reports the current Windows MFT cache policy's directory, retention description, requested and stored cache tags, per-volume serial identity, size, directory-entry last-write time and age, validation and availability, then exits without repository discovery, opening an index, or launching an elevated broker. Linux and other platforms report that this cache is not applicable. Do not combine the status flag with cache deletion flags. Exit 0 means the observation succeeded, even when a block is invalid or in use; exit 1 means inspection failed, and exit 2 means the arguments were invalid.
 
@@ -144,7 +144,7 @@ group arbitrary duplicate names or rank file sizes. Retaining `HEAD` does not ch
 Every entry point (CLI report/scan/tags/branches, `--watch`, desktop refresh, and Live) runs
 through one discovery coordinator. It classifies each expanded search root by filesystem:
 NTFS roots use the repository list, a cache-only index snapshot, or a broker scan, while
-confirmed non-NTFS roots and explicit `--no-mft` use recursive directory discovery scoped to
+confirmed non-NTFS roots and explicit `--no-mft` use enumeration-backed discovery scoped to
 those roots. `--no-mft` is the explicit choice for users unable to accept the UAC elevation
 prompt; it does not promise an unelevated NTFS journal watch. Bare repositories are found
 through retained `HEAD` markers and validated by their `objects` and `refs` layout; internal

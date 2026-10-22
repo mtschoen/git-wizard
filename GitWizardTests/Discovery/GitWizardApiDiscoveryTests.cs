@@ -26,7 +26,7 @@ public class GitWizardApiDiscoveryTests
     public void GetRepositoryPaths_EmptyDirectory_ReturnsNoPaths()
     {
         var paths = new SortedSet<string>();
-        GitWizardApi.GetRepositoryPaths(_tempRoot!, paths, Array.Empty<string>());
+        EnumeratedDiscovery.GetRepositoryPaths(_tempRoot!, paths, Array.Empty<string>());
         Assert.That(paths, Is.Empty);
     }
 
@@ -35,7 +35,7 @@ public class GitWizardApiDiscoveryTests
     {
         var nonExistent = Path.Combine(_tempRoot!, "non-existent-" + Guid.NewGuid().ToString("N"));
         var paths = new SortedSet<string>();
-        Assert.DoesNotThrow(() => GitWizardApi.GetRepositoryPaths(nonExistent, paths, Array.Empty<string>()));
+        Assert.DoesNotThrow(() => EnumeratedDiscovery.GetRepositoryPaths(nonExistent, paths, Array.Empty<string>()));
         Assert.That(paths, Is.Empty);
     }
 
@@ -46,7 +46,7 @@ public class GitWizardApiDiscoveryTests
         Directory.CreateDirectory(Path.Combine(subRepo, ".git"));
 
         var paths = new SortedSet<string>();
-        GitWizardApi.GetRepositoryPaths(_tempRoot!, paths, Array.Empty<string>());
+        EnumeratedDiscovery.GetRepositoryPaths(_tempRoot!, paths, Array.Empty<string>());
 
         Assert.That(paths, Has.Count.EqualTo(1));
         Assert.That(paths.First(), Does.Contain(Path.Combine("sub", "repo")));
@@ -61,7 +61,7 @@ public class GitWizardApiDiscoveryTests
         Directory.CreateDirectory(Path.Combine(_tempRoot!, "parent", "child", ".git"));
 
         var paths = new SortedSet<string>();
-        GitWizardApi.GetRepositoryPaths(_tempRoot!, paths, Array.Empty<string>());
+        EnumeratedDiscovery.GetRepositoryPaths(_tempRoot!, paths, Array.Empty<string>());
 
         Assert.That(paths, Has.Count.EqualTo(7));
     }
@@ -74,7 +74,7 @@ public class GitWizardApiDiscoveryTests
         File.WriteAllText(Path.Combine(submodulePath, ".git"), "gitdir: /some/path");
 
         var paths = new SortedSet<string>();
-        GitWizardApi.GetRepositoryPaths(_tempRoot!, paths, Array.Empty<string>());
+        EnumeratedDiscovery.GetRepositoryPaths(_tempRoot!, paths, Array.Empty<string>());
 
         Assert.That(paths, Has.Count.EqualTo(1));
         Assert.That(paths.Single(), Does.Contain("submodule"));
@@ -91,7 +91,7 @@ public class GitWizardApiDiscoveryTests
         Directory.CreateDirectory(Path.Combine(normalDir, ".git"));
 
         var paths = new SortedSet<string>();
-        GitWizardApi.GetRepositoryPaths(_tempRoot!, paths, Array.Empty<string>(), skipHiddenDirectories: skipHidden);
+        EnumeratedDiscovery.GetRepositoryPaths(_tempRoot!, paths, Array.Empty<string>(), skipHiddenDirectories: skipHidden);
 
         Assert.That(paths, Has.Count.EqualTo(expectedCount));
         if (expectedCount == 1)
@@ -117,7 +117,7 @@ public class GitWizardApiDiscoveryTests
         try
         {
             var paths = new List<string>();
-            GitWizardApi.GetRepositoryPaths(_tempRoot!, paths, Array.Empty<string>(), skipHiddenDirectories: true);
+            EnumeratedDiscovery.GetRepositoryPaths(_tempRoot!, paths, Array.Empty<string>(), skipHiddenDirectories: true);
 
             Assert.That(paths.Any(p => p.Contains("repo", StringComparison.OrdinalIgnoreCase)), Is.False,
                 "A repo under a hidden-attribute directory must be skipped when skipHiddenDirectories is true.");
@@ -138,7 +138,7 @@ public class GitWizardApiDiscoveryTests
         var paths = new SortedSet<string>();
         var ignoredA = Path.Combine(_tempRoot!, "a");
         var ignoredB = Path.Combine(_tempRoot!, "b");
-        GitWizardApi.GetRepositoryPaths(_tempRoot!, paths, new[] { ignoredA, ignoredB });
+        EnumeratedDiscovery.GetRepositoryPaths(_tempRoot!, paths, new[] { ignoredA, ignoredB });
 
         Assert.That(paths, Has.Count.EqualTo(1));
         Assert.That(paths.Single(), Does.Contain("c").IgnoreCase);
@@ -148,7 +148,7 @@ public class GitWizardApiDiscoveryTests
     public void GetRepositoryPaths_WithNonExistentIgnoredPath_DoesNotThrow()
     {
         var paths = new SortedSet<string>();
-        Assert.DoesNotThrow(() => GitWizardApi.GetRepositoryPaths(_tempRoot!, paths, new[] { "/nonexistent/ignored/path" }));
+        Assert.DoesNotThrow(() => EnumeratedDiscovery.GetRepositoryPaths(_tempRoot!, paths, new[] { "/nonexistent/ignored/path" }));
         Assert.That(paths, Is.Empty);
     }
 
@@ -165,7 +165,7 @@ public class GitWizardApiDiscoveryTests
         try
         {
             var paths = new SortedSet<string>();
-            GitWizardApi.GetRepositoryPaths(_tempRoot!, paths, new[] { "%GITWIZARD_IGNORED%" });
+            EnumeratedDiscovery.GetRepositoryPaths(_tempRoot!, paths, new[] { "%GITWIZARD_IGNORED%" });
 
             Assert.That(paths, Has.Count.EqualTo(1));
             Assert.That(paths.Single(), Does.EndWith(Path.Combine("included", "repo")).IgnoreCase);
@@ -186,7 +186,7 @@ public class GitWizardApiDiscoveryTests
         Directory.CreateDirectory(Path.Combine(sibling, "repo", ".git"));
 
         var paths = new SortedSet<string>();
-        GitWizardApi.GetRepositoryPaths(_tempRoot!, paths, new[] { ignored });
+        EnumeratedDiscovery.GetRepositoryPaths(_tempRoot!, paths, new[] { ignored });
 
         Assert.That(paths, Has.Count.EqualTo(1));
         Assert.That(paths.Single(), Does.EndWith(Path.Combine("foobar", "repo")).IgnoreCase);
@@ -201,53 +201,12 @@ public class GitWizardApiDiscoveryTests
 
         var paths = new SortedSet<string>();
         if (includeTemp.HasValue)
-            GitWizardApi.GetRepositoryPaths(_tempRoot!, paths, Array.Empty<string>(), updateHandler: null,
+            EnumeratedDiscovery.GetRepositoryPaths(_tempRoot!, paths, Array.Empty<string>(),
                 skipHiddenDirectories: null, includeTempDirectories: includeTemp.Value);
         else
-            GitWizardApi.GetRepositoryPaths(_tempRoot!, paths, Array.Empty<string>());
+            EnumeratedDiscovery.GetRepositoryPaths(_tempRoot!, paths, Array.Empty<string>());
 
         Assert.That(paths, Does.Contain(tempRepo).IgnoreCase);
-    }
-
-    [Test]
-    public void GetRepositoryPaths_WithUpdateHandler_CallsSendUpdateMessage()
-    {
-        Directory.CreateDirectory(Path.Combine(_tempRoot!, "repo", ".git"));
-        var paths = new SortedSet<string>();
-        var handler = new RecordingUpdateHandler();
-        GitWizardApi.GetRepositoryPaths(_tempRoot!, paths, Array.Empty<string>(), handler);
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(paths, Has.Count.EqualTo(1));
-            Assert.That(handler.Messages, Does.Contain("Found 1 repositories"));
-        });
-    }
-
-    [Test]
-    public void GetRepositoryPaths_SwallowsThrowingUpdateHandler()
-    {
-        Directory.CreateDirectory(Path.Combine(_tempRoot!, "repo", ".git"));
-        var paths = new List<string>();
-        var messageCalls = 0;
-        var handler = new RecordingUpdateHandler
-        {
-            SendingMessage = _ =>
-            {
-                messageCalls++;
-                throw new InvalidOperationException("message failure");
-            }
-        };
-
-        Assert.DoesNotThrow(() => GitWizardApi.GetRepositoryPaths(_tempRoot!, paths, Array.Empty<string>(), handler));
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(messageCalls, Is.GreaterThan(0),
-                "The scan must call SendUpdateMessage (which throws and must be caught).");
-            Assert.That(paths.Any(p => p.Contains("repo", StringComparison.OrdinalIgnoreCase)), Is.True,
-                "The repo must still be discovered despite the throwing handler.");
-        });
     }
 
     [Test]
@@ -273,5 +232,4 @@ public class GitWizardApiDiscoveryTests
 
         Assert.That(result.Success, Is.False);
     }
-
 }

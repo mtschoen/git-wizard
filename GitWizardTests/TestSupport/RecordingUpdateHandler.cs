@@ -25,7 +25,6 @@ internal sealed class RecordingUpdateHandler : IUpdateHandler
 
     public Action<string, int>? StartingProgress { get; init; }
     public Action<int>? UpdatingProgress { get; init; }
-    public Action<string?>? SendingMessage { get; init; }
     public Action<GitWizardRepository>? CreatingRepository { get; init; }
     public Action<GitWizardRepository, GitWizardRepository>? CreatingSubmodule { get; init; }
     public Action<GitWizardRepository>? CreatingWorktree { get; init; }
@@ -35,7 +34,6 @@ internal sealed class RecordingUpdateHandler : IUpdateHandler
     public void SendUpdateMessage(string? message)
     {
         _messages.Enqueue(message);
-        SendingMessage?.Invoke(message);
     }
 
     public void OnRepositoryCreated(GitWizardRepository gitWizardRepository)

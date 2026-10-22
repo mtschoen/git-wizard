@@ -5,6 +5,8 @@ namespace GitWizard;
 
 public static partial class GitWizardApi
 {
+    internal const string GitEntryName = ".git";
+
     internal static IReadOnlyList<FileEntry> SelectGitEntries(
         FileIndex index, bool includeGitFiles, CancellationToken cancellationToken = default)
     {
@@ -17,20 +19,26 @@ public static partial class GitWizardApi
     /// Selects ordinary, gitfile, and bare repository candidates from the index matching the discovery scope.
     /// </summary>
     public static IReadOnlyList<RepositoryCandidate> SelectRepositoryCandidates(
-        FileIndex index, DiscoveryScope scope, CancellationToken cancellationToken = default)
+        FileIndex index, DiscoveryScope scope, CancellationToken cancellationToken = default) =>
+        SelectRepositoryCandidates(index, scope, null, cancellationToken);
+
+    internal static IReadOnlyList<RepositoryCandidate> SelectRepositoryCandidates(
+        FileIndex index, DiscoveryScope scope, CandidateSelectionDiagnostics? diagnostics,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var results = new List<RepositoryCandidate>();
         var seenPaths = new HashSet<string>(WatchPath.StringComparer);
 
-        var gitEntries = index.Search(new SearchQuery(GitEntryName, NameMatchMode.Exact), cancellationToken);
-        var headEntries = index.Search(new SearchQuery("HEAD", NameMatchMode.Exact), cancellationToken);
+        var gitEntries = ScanByName(index, GitEntryName, diagnostics, cancellationToken);
+        var headEntries = ScanByName(index, "HEAD", diagnostics, cancellationToken);
+        var layouts = new Lazy<BareLayoutIndex>(() => BareLayoutIndex.Build(index, diagnostics, cancellationToken));
 
         foreach (var candidateScope in BuildCandidateScopes(index, scope))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var scopeCandidates = SelectGitMarkerCandidates(gitEntries, candidateScope)
-                .Concat(SelectBareCandidates(headEntries, candidateScope, cancellationToken));
+            var scopeCandidates = SelectGitMarkerCandidates(gitEntries, candidateScope, diagnostics)
+                .Concat(SelectBareCandidates(headEntries, candidateScope, layouts, diagnostics));
             foreach (var candidate in scopeCandidates)
             {
                 if (seenPaths.Add(candidate.Path))
@@ -39,6 +47,15 @@ public static partial class GitWizardApi
         }
 
         return results.AsReadOnly();
+    }
+
+    // Every index scan the selection starts goes through here so a test can count them. The result is
+    // materialized because each candidate scope reads it again.
+    internal static IReadOnlyList<FileEntry> ScanByName(
+        FileIndex index, string name, CandidateSelectionDiagnostics? diagnostics, CancellationToken cancellationToken)
+    {
+        diagnostics?.RecordIndexScan();
+        return index.Search(new SearchQuery(name, NameMatchMode.Exact), cancellationToken).ToArray();
     }
 
     internal readonly record struct CandidateScope(
@@ -83,7 +100,7 @@ public static partial class GitWizardApi
         (root.IsWindows && root.Comparison is [_, ':', '/']);
 
     static IEnumerable<RepositoryCandidate> SelectGitMarkerCandidates(
-        IEnumerable<FileEntry> gitEntries, CandidateScope candidateScope)
+        IEnumerable<FileEntry> gitEntries, CandidateScope candidateScope, CandidateSelectionDiagnostics? diagnostics)
     {
         foreach (var entry in gitEntries)
         {
@@ -91,7 +108,7 @@ public static partial class GitWizardApi
                 continue;
             if (candidateScope.CoversDriveRoot && !isDirectory)
                 continue;
-            if (!TryGetScopedParent(entry, candidateScope, out _, out var candidate))
+            if (!TryGetScopedParent(entry, candidateScope, out _, out var candidate, diagnostics))
                 continue;
 
             var kind = isDirectory ? RepositoryCandidateKind.Ordinary : RepositoryCandidateKind.GitFile;
@@ -100,18 +117,19 @@ public static partial class GitWizardApi
     }
 
     static IEnumerable<RepositoryCandidate> SelectBareCandidates(
-        IEnumerable<FileEntry> headEntries, CandidateScope candidateScope, CancellationToken cancellationToken)
+        IEnumerable<FileEntry> headEntries, CandidateScope candidateScope, Lazy<BareLayoutIndex> layouts,
+        CandidateSelectionDiagnostics? diagnostics)
     {
         foreach (var entry in headEntries)
         {
             if (entry.IsDeleted || !TryReadIsDirectory(entry, out var isDirectory) || isDirectory)
                 continue;
-            if (!TryGetScopedParent(entry, candidateScope, out var parent, out var candidate))
+            if (!TryGetScopedParent(entry, candidateScope, out var parent, out var candidate, diagnostics))
                 continue;
             if (candidate.Comparison.Split('/').Any(segment =>
                     string.Equals(segment, GitEntryName, StringComparison.OrdinalIgnoreCase)))
                 continue;
-            if (!HasBareRepositoryLayout(parent, cancellationToken))
+            if (!layouts.Value.Contains(parent))
                 continue;
 
             yield return new RepositoryCandidate(candidate.Original, RepositoryCandidateKind.Bare);
@@ -136,7 +154,8 @@ public static partial class GitWizardApi
     }
 
     internal static bool TryGetScopedParent(
-        FileEntry entry, CandidateScope candidateScope, out FileEntry parent, out WatchPath candidate)
+        FileEntry entry, CandidateScope candidateScope, out FileEntry parent, out WatchPath candidate,
+        CandidateSelectionDiagnostics? diagnostics = null)
     {
         candidate = default;
         parent = default;
@@ -149,7 +168,14 @@ public static partial class GitWizardApi
             parent = entryParent;
             parentPath = parent.Path;
         }
-        catch (Exception exception) when (exception is InvalidDataException or InvalidOperationException)
+        catch (InvalidDataException)
+        {
+            // The parent chain is longer than the index can name, so this candidate is unobservable,
+            // which is different from a handle superseded mid-read.
+            diagnostics?.RecordUnresolvedPath();
+            return false;
+        }
+        catch (InvalidOperationException)
         {
             return false;
         }
@@ -188,25 +214,6 @@ public static partial class GitWizardApi
             return false;
         }
     }
-
-    static bool HasBareRepositoryLayout(FileEntry directory, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var children = directory.Children(cancellationToken);
-            return HasChildDirectory(children, "objects") && HasChildDirectory(children, "refs");
-        }
-        catch (Exception exception) when (
-            exception is InvalidDataException or IOException or InvalidOperationException)
-        {
-            return false;
-        }
-    }
-
-    static bool HasChildDirectory(IEnumerable<FileEntry> children, string name) =>
-        children.Any(child => !child.IsDeleted &&
-                              TryReadIsDirectory(child, out var isDirectory) && isDirectory &&
-                              string.Equals(child.Name, name, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Rewrites a drive-letter-rooted path onto that drive's real indexed root directory, so it can

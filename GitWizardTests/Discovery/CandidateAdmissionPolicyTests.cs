@@ -104,7 +104,7 @@ public class CandidateAdmissionPolicyTests
         AdmissionCase admissionCase, PackedIndexFixture fixture, DiscoveryRequest request,
         string scopePath, string? ignoredPath, string repositoryPath)
     {
-        var walk = GitWizardApi.DiscoverRecursively(request, scopePath, CancellationToken.None).Paths
+        var walk = EnumeratedDiscovery.Run(request, scopePath).Paths
             .Any(path => SamePath(path, repositoryPath));
 
         await using var index = await fixture.OpenIndexAsync();

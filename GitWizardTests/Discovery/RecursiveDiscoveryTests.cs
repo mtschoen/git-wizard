@@ -49,7 +49,7 @@ public class RecursiveDiscoveryTests
         };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, true, []);
 
-        var result = GitWizardApi.DiscoverRecursively(request, _tempDir, CancellationToken.None);
+        var result = EnumeratedDiscovery.Run(request, _tempDir);
 
         Assert.That(result.Paths, Does.Contain(GitWizardApi.NormalizePath(ordinaryRepo)));
         Assert.That(result.Paths, Does.Contain(GitWizardApi.NormalizePath(bareRepo)));
@@ -76,7 +76,7 @@ public class RecursiveDiscoveryTests
         };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, true, []);
 
-        var result = GitWizardApi.DiscoverRecursively(request, _tempDir, CancellationToken.None);
+        var result = EnumeratedDiscovery.Run(request, _tempDir);
 
         Assert.That(result.Paths, Does.Contain(GitWizardApi.NormalizePath(ordinaryRepo)));
         Assert.That(result.Paths, Does.Not.Contain(GitWizardApi.NormalizePath(internalGit)));
@@ -100,7 +100,7 @@ public class RecursiveDiscoveryTests
         };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, true, []);
 
-        var result = GitWizardApi.DiscoverRecursively(request, _tempDir, CancellationToken.None);
+        var result = EnumeratedDiscovery.Run(request, _tempDir);
 
         Assert.That(result.Paths, Does.Contain(GitWizardApi.NormalizePath(repo1)));
         Assert.That(result.Paths, Does.Not.Contain(GitWizardApi.NormalizePath(ignoredRepo)));
@@ -123,19 +123,16 @@ public class RecursiveDiscoveryTests
         cts.Cancel();
 
         Assert.Throws<OperationCanceledException>(() =>
-            GitWizardApi.DiscoverRecursively(request, _tempDir, cts.Token));
+            EnumeratedDiscovery.Run(request, _tempDir, cts.Token));
     }
 
     [Test]
     public void DiscoverRecursively_RecordsDeniedSubtreeInFailedSubtrees()
     {
-        var accessible = Path.Combine(_tempDir, "accessible");
-        Directory.CreateDirectory(accessible);
-        var accessibleRepo = Path.Combine(accessible, "repo");
+        var accessibleRepo = Path.Combine(_tempDir, "accessible", "repo");
         Directory.CreateDirectory(Path.Combine(accessibleRepo, ".git"));
-
         var denied = Path.Combine(_tempDir, "denied");
-        Directory.CreateDirectory(denied);
+        Directory.CreateDirectory(Path.Combine(denied, "inner"));
 
         var configuration = new GitWizardConfiguration
         {
@@ -144,25 +141,12 @@ public class RecursiveDiscoveryTests
         };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, true, []);
 
-        try
-        {
-            GitWizardApi.DirectoryEnumeratorOverride = path =>
-            {
-                if (path.Equals(denied, StringComparison.OrdinalIgnoreCase))
-                    throw new UnauthorizedAccessException("Simulated access denied");
-                return Directory.GetDirectories(path);
-            };
+        using var restore = DeniedDirectory.Deny(denied);
+        var result = EnumeratedDiscovery.Run(request, _tempDir);
 
-            var result = GitWizardApi.DiscoverRecursively(request, _tempDir, CancellationToken.None);
-
-            var normalizedDenied = GitWizardApi.NormalizePath(denied);
-            Assert.That(result.Paths, Does.Contain(GitWizardApi.NormalizePath(accessibleRepo)));
-            Assert.That(result.FailedSubtrees, Does.Contain(normalizedDenied));
-            Assert.That(result.Errors, Does.ContainKey(normalizedDenied));
-        }
-        finally
-        {
-            GitWizardApi.DirectoryEnumeratorOverride = null;
-        }
+        var normalizedRoot = GitWizardApi.NormalizePath(_tempDir);
+        Assert.That(result.Paths, Does.Contain(GitWizardApi.NormalizePath(accessibleRepo)));
+        Assert.That(result.FailedSubtrees, Does.Contain(normalizedRoot));
+        Assert.That(result.Errors, Does.ContainKey(normalizedRoot));
     }
 }

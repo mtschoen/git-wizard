@@ -42,6 +42,46 @@ internal static class TempDirectories
         return false;
     }
 
+    /// <summary>
+    /// The existing directories under <paramref name="searchRoot" />'s volume that
+    /// <see cref="IsTempPath" /> treats as temporary, as concrete paths a directory walk can prune:
+    /// every profile's <c>AppData\Local\Temp</c> on a Windows drive, and the process's temp roots.
+    /// </summary>
+    public static IReadOnlyList<string> ExpandConcretePaths(string searchRoot)
+    {
+        var candidates = new List<string>();
+        foreach (var variable in TempEnvironmentVariables)
+        {
+            var value = Environment.GetEnvironmentVariable(variable);
+            if (!string.IsNullOrEmpty(value))
+                candidates.Add(value);
+        }
+
+        candidates.Add("/tmp");
+        var parsedRoot = WatchPath.Parse(searchRoot);
+        if (parsedRoot.IsWindows && parsedRoot.Volume is { Length: 1 } volume)
+            candidates.AddRange(EnumerateProfileTempDirectories($"{volume}:{Path.DirectorySeparatorChar}"));
+
+        return candidates
+            .Where(candidate => Path.IsPathFullyQualified(candidate) && Directory.Exists(candidate) && IsTempPath(candidate))
+            .Distinct(WatchPath.StringComparer)
+            .ToArray();
+    }
+
+    static string[] EnumerateProfileTempDirectories(string driveRoot)
+    {
+        try
+        {
+            return Directory.EnumerateDirectories(Path.Combine(driveRoot, "Users"))
+                .Select(profile => Path.Combine(profile, "AppData", "Local", "Temp"))
+                .ToArray();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return [];
+        }
+    }
+
     // Syntactic match for <drive>:\Users\<name>\AppData\Local\Temp (or anywhere under it), for
     // any drive letter and any profile name, so scratch repositories under other accounts'
     // profiles (CI runners, service accounts) are covered without enumerating the filesystem.

@@ -29,7 +29,7 @@ public sealed class RepositoryDiscoveryDependencies
             IsWindows = OperatingSystem.IsWindows(),
             IsLinux = OperatingSystem.IsLinux(),
             ClassifyRoot = WindowsRootClassifier.Classify,
-            CrawlRootAsync = (request, root, token) => Task.Run(() => GitWizardApi.DiscoverRecursively(request, root, token), token),
+            CrawlRootAsync = (request, root, token) => EnumerationDiscovery.DiscoverAsync(request, root, token),
             OpenIndexAsync = (drives, cacheMode, progress, token) =>
             {
                 if (!OperatingSystem.IsWindows())

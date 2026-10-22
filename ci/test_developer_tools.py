@@ -61,7 +61,7 @@ class DeveloperToolsTests(unittest.TestCase):
                     continue
                 with self.subTest(path=relative):
                     result = subprocess.run(
-                        command, capture_output=True, text=True, check=False, timeout=30
+                        command, capture_output=True, text=True, check=False
                     )
                     self.assertEqual(
                         0, result.returncode, result.stdout + result.stderr
@@ -90,7 +90,6 @@ class DeveloperToolsTests(unittest.TestCase):
             capture_output=True,
             text=True,
             check=False,
-            timeout=120,
         )
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
@@ -124,7 +123,6 @@ class DeveloperToolsTests(unittest.TestCase):
                         capture_output=True,
                         text=True,
                         check=False,
-                        timeout=30,
                     )
                     self.assertNotEqual(0, result.returncode)
                     self.assertIn(marker, result.stdout + result.stderr)

@@ -79,9 +79,11 @@ jobs:
         # Cloned outside the workspace so aislop does not scan the fork's own source.
         # From Gitea (canonical, always current), not the github.com mirror (can lag
         # behind by many commits, so a freshly bumped pin can be absent there).
-        # The fork is a pnpm workspace (packageManager pnpm@10.28.0 + pnpm-lock.yaml);
+        # The fork is a pnpm workspace (its package.json packageManager field + pnpm-lock.yaml);
         # npm chokes on it on some npm versions, so install via pnpm through npx -y
-        # (hermetic - no corepack or preinstalled pnpm needed).
+        # (hermetic - no corepack or preinstalled pnpm needed). The pnpm version is read
+        # from the checkout's own packageManager field, so a pin bump that changes the
+        # fork's pnpm needs no edit here.
         run: bash ci/aislop-gate.sh prepare
       - name: aislop quality gate
         # Sanity-fail if the C# engine did not actually analyze the .cs tree (avoid a

@@ -55,12 +55,10 @@ fi
 # be broken out of except by a single quote; ps_quote doubles those, so a value is data only.
 # PowerShell treats U+2018, U+2019, U+201A and U+201B as single-quote delimiters too.
 ps_quote() {
-    local value="$1"
-    value="${value//\'/\'\'}"
-    value="${value//‘/‘‘}"
-    value="${value//’/’’}"
-    value="${value//‚/‚‚}"
-    value="${value//‛/‛‛}"
+    local value="$1" quote
+    for quote in "'" $'\xe2\x80\x98' $'\xe2\x80\x99' $'\xe2\x80\x9a' $'\xe2\x80\x9b'; do
+        value="${value//"$quote"/"$quote$quote"}"
+    done
     printf "'%s'" "$value"
 }
 

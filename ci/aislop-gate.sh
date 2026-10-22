@@ -22,7 +22,15 @@ if [[ "${1:-}" == prepare ]]; then
     fi
     git -C "$directory" fetch origin "$commit"
     git -C "$directory" checkout "$commit"
-    (cd "$directory" && npx -y pnpm@10.28.0 install --frozen-lockfile)
+    (
+        cd "$directory"
+        package_manager=$(node -p "require('./package.json').packageManager" | tr -d '\r')
+        if [[ ! "$package_manager" =~ ^pnpm@[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "aislop fork package.json packageManager is missing or not pnpm@x.y.z: '$package_manager'" >&2
+            exit 1
+        fi
+        npx -y "$package_manager" install --frozen-lockfile
+    )
     # The pinned package's prepare lifecycle builds dist during installation.
     test -f "$directory/dist/cli.js"
     printf '%s\n' "$commit" > "$receipt"

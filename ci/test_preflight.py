@@ -279,7 +279,7 @@ class PreflightTests(unittest.TestCase):
         log = self.directory / "commands.log"
         for name, source in {
             "git": '#!/usr/bin/env bash\n[[ "$1" == -C && "$2" -ef "$EXPECTED_CLONE" ]] || exit 9\nprintf "%s\\n" "${*:3}" >> "$COMMAND_LOG"\n',
-            "npx": "#!/usr/bin/env bash\nmkdir -p dist\ntouch dist/cli.js\n",
+            "npx": '#!/usr/bin/env bash\nprintf "npx %s\\n" "$*" >> "$COMMAND_LOG"\nmkdir -p dist\ntouch dist/cli.js\n',
         }.items():
             executable = executable_directory / name
             executable.write_text(source)
@@ -300,6 +300,9 @@ class PreflightTests(unittest.TestCase):
                 elif state_variable == "RUNNER_TEMP":
                     clone = state / "aislop"
                 (clone / ".git").mkdir(parents=True)
+                (clone / "package.json").write_text(
+                    '{"packageManager": "pnpm@12.14.0"}\n'
+                )
                 environment = dict(os.environ)
                 for variable in (
                     "AISLOP_TOOL_DIRECTORY",
@@ -333,6 +336,7 @@ class PreflightTests(unittest.TestCase):
                     [
                         f"fetch origin {commit}",
                         f"checkout {commit}",
+                        "npx -y pnpm@12.14.0 install --frozen-lockfile",
                     ],
                     commands,
                 )
@@ -357,6 +361,7 @@ class PreflightTests(unittest.TestCase):
         clone = self.directory / "scanner"
         (clone / ".git").mkdir(parents=True)
         (clone / "dist").mkdir()
+        (clone / "package.json").write_text('{"packageManager": "pnpm@12.14.0"}\n')
         (clone / "dist/cli.js").write_text(
             "console.log(JSON.stringify({score:100,summary:{files:10}}));\n"
         )
@@ -380,14 +385,26 @@ class PreflightTests(unittest.TestCase):
 
     def test_failed_aislop_upgrade_refuses_stale_dist(self):
         clone, environment = self.scanner_environment()
-        (clone / ".git/build-receipt").write_text("a" * 40 + "\n")
         environment["PREPARE_EXIT"] = "7"
-        status, output = self.run_scanner(environment, "prepare")
-        self.assertEqual(7, status, output)
-        self.assertTrue((clone / "dist/cli.js").exists())
-        status, output = self.run_scanner(environment)
-        self.assertNotEqual(0, status, output)
-        self.assertIn("Run: bash ci/aislop-gate.sh prepare", output)
+        for package_json, expected_exit in (
+            ("{}\n", 1),
+            ('{"packageManager": "npm@10.0.0"}\n', 1),
+            ('{"packageManager": "pnpm@12.14"}\n', 1),
+            ('{"packageManager": "pnpm@12.14.0"}\n', 7),
+        ):
+            with self.subTest(package_json=package_json):
+                (clone / ".git/build-receipt").write_text("a" * 40 + "\n")
+                (clone / "package.json").write_text(package_json)
+                status, output = self.run_scanner(environment, "prepare")
+                self.assertEqual(expected_exit, status, output)
+                if expected_exit == 1:
+                    self.assertIn(
+                        "packageManager is missing or not pnpm@x.y.z", output
+                    )
+                self.assertTrue((clone / "dist/cli.js").exists())
+                status, output = self.run_scanner(environment)
+                self.assertNotEqual(0, status, output)
+                self.assertIn("Run: bash ci/aislop-gate.sh prepare", output)
 
     def test_aislop_accepts_relative_results_directory(self):
         clone, environment = self.scanner_environment()

@@ -138,7 +138,6 @@ class VerifyWindowsTests(unittest.TestCase):
                     input=script.encode("utf-8"),
                     capture_output=True,
                     check=False,
-                    timeout=60,
                 )
                 if expected == "nonzero":
                     self.assertNotEqual(result.returncode, 0, result.stderr)

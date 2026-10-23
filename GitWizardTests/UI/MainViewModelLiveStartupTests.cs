@@ -8,7 +8,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests.UI;
 
 // Live watch tests are split by concern because the combined fixture exceeds 500 lines.
-// Covers MainViewModel.LiveStartup.cs and StatusHeaderViewModel.cs.
+// Covers MainViewModel.LiveStartup.cs, RepositoryListViewModel.Rows.cs, RepositoryListViewModel.CachedRows.cs, and StatusHeaderViewModel.cs.
 public class MainViewModelLiveStartupTests
 {
     [SetUp]
@@ -212,7 +212,7 @@ public class MainViewModelLiveStartupTests
         var source = new ScriptedVolumeChangeSource(new[] { batch }, errors);
 
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo(@"C:\tracked"));
+        viewModel.RepositoryList.AddRepository(Repo(@"C:\tracked"), streaming: false);
         viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
         viewModel.LiveIsElevated = () => false;
@@ -308,7 +308,7 @@ public class MainViewModelLiveStartupTests
                 new VolumeChangeEntry(fixture.Path, VolumeEntryKind.MovedIn),
             });
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo(oldPath, remoteUrl));
+        viewModel.RepositoryList.AddRepository(Repo(oldPath, remoteUrl), streaming: false);
         viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(new ScriptedVolumeChangeSource(new[] { batch }), request, cancellationToken);
         viewModel.LiveIsElevated = () => false;
@@ -338,7 +338,7 @@ public class MainViewModelLiveStartupTests
         var repositoryPath = fixture.Path;
         var source = new ScriptedVolumeChangeSource { KeepWatching = true, ReplayDeathToLateSubscribers = true };
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("/stale"));
+        viewModel.RepositoryList.AddRepository(Repo("/stale"), streaming: false);
         viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken,
                 inventoryPaths: [repositoryPath]);
@@ -363,7 +363,7 @@ public class MainViewModelLiveStartupTests
     public async Task ToggleLiveAsync_StartupUnusable_SurfacesErrorAndPreservesPriorRows()
     {
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("/keep-me"));
+        viewModel.RepositoryList.AddRepository(Repo("/keep-me"), streaming: false);
         viewModel.LivePrepareWatchAsync = (request, _, _, _) =>
             Task.FromResult(FakeLiveStartup.Unusable(request, "X", "broker declined"));
         viewModel.LiveIsElevated = () => false;

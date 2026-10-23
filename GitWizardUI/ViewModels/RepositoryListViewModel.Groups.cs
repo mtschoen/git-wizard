@@ -41,7 +41,7 @@ public sealed partial class RepositoryListViewModel
         ScrollToRequest?.Invoke(node);
     }
 
-    internal void AddToGroups(RepositoryNodeViewModel node)
+    void AddToGroups(RepositoryNodeViewModel node)
     {
         var keys = RepositoryGroupKeys.GetGroupKeys(node, _activeGroupMode);
         var minGroupSize = _activeGroupMode == GroupMode.RemoteUrl ? 2 : 1;
@@ -128,7 +128,7 @@ public sealed partial class RepositoryListViewModel
     // empty groups/pending state) or bulk-merges into an existing/pending one (the case
     // AddRepositoriesBatch can hit, merging against a header a prior prepopulation or drain
     // already created).
-    internal void MergeGroupBatch(string key, List<RepositoryNodeViewModel> bucket, bool sort = true)
+    void MergeGroupBatch(string key, List<RepositoryNodeViewModel> bucket, bool sort = true)
     {
         var minGroupSize = _activeGroupMode == GroupMode.RemoteUrl ? 2 : 1;
 

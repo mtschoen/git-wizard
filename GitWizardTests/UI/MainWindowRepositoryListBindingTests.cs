@@ -20,7 +20,7 @@ public class MainWindowRepositoryListBindingTests
         var previous = viewModel.RepositoryList.Repositories;
         Assert.That(list.ItemsSource, Is.SameAs(previous));
 
-        viewModel.AddRepository(new GitWizardRepository("C:/repos/alpha"));
+        viewModel.RepositoryList.AddRepository(new GitWizardRepository("C:/repos/alpha"), streaming: false);
         viewModel.RepositoryList.ApplyFilterAndGrouping();
         Dispatcher.UIThread.RunJobs();
 

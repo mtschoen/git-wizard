@@ -5,7 +5,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests;
 
 // Refresh tests are split by concern because the combined fixture exceeds 500 lines.
-// Covers MainViewModel.RefreshPrune.cs (PruneStalePrePopulatedRepos, RemoveRepositoryPathFromUi).
+// Covers RepositoryListViewModel.CachedRows.cs (PruneStalePrePopulatedRepos, RemoveRepositoryPathFromUi).
 public class MainViewModelRefreshPruneTests
 {
     [SetUp]
@@ -20,10 +20,10 @@ public class MainViewModelRefreshPruneTests
     public void RemoveRepositoryPathFromUi_ExistingPath_RemovesFromRepositories()
     {
         var vm = CreateViewModel();
-        vm.AddRepository(Repo("C:/repos/alpha"));
-        vm.AddRepository(Repo("C:/repos/beta"));
+        vm.RepositoryList.AddRepository(Repo("C:/repos/alpha"), streaming: false);
+        vm.RepositoryList.AddRepository(Repo("C:/repos/beta"), streaming: false);
 
-        vm.RemoveRepositoryPathFromUi("C:/repos/alpha");
+        vm.RepositoryList.RemoveRepositoryPathFromUi("C:/repos/alpha");
 
         Assert.That(vm.RepositoryList.Repositories.Select(node => node.WorkingDirectory), Is.EquivalentTo(new[] { "C:/repos/beta" }));
     }
@@ -32,9 +32,9 @@ public class MainViewModelRefreshPruneTests
     public void RemoveRepositoryPathFromUi_UnknownPath_NoOp()
     {
         var vm = CreateViewModel();
-        vm.AddRepository(Repo("C:/repos/alpha"));
+        vm.RepositoryList.AddRepository(Repo("C:/repos/alpha"), streaming: false);
 
-        Assert.DoesNotThrow(() => vm.RemoveRepositoryPathFromUi("C:/repos/does-not-exist"));
+        Assert.DoesNotThrow(() => vm.RepositoryList.RemoveRepositoryPathFromUi("C:/repos/does-not-exist"));
         Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1));
     }
 
@@ -52,11 +52,11 @@ public class MainViewModelRefreshPruneTests
         {
             SearchPaths = new SortedSet<string> { "C:/repos" }
         };
-        viewModel.PrePopulateFromReport(configuration, ["C:/repos/alpha"], report);
-        viewModel.AddRepository(new GitWizardRepository("C:/repos/alpha"));
+        viewModel.RepositoryList.PrePopulateFromReport(configuration, ["C:/repos/alpha"], report);
+        viewModel.RepositoryList.AddRepository(new GitWizardRepository("C:/repos/alpha"), streaming: false);
         var groupHeader = viewModel.RepositoryList.Repositories.Single(candidate => candidate.IsGroupHeader);
 
-        viewModel.PruneStalePrePopulatedRepos([], []);
+        viewModel.RepositoryList.PruneStalePrePopulatedRepos([], []);
 
         Assert.That(viewModel.RepositoryList.RepositoryMap, Is.Empty);
         Assert.That(viewModel.RepositoryList.AllRepositories, Is.Empty);
@@ -78,10 +78,10 @@ public class MainViewModelRefreshPruneTests
         {
             SearchPaths = new SortedSet<string> { "/repos" }
         };
-        viewModel.PrePopulateFromReport(configuration, ["/repos/old-alpha"], report);
-        viewModel.AddRepository(new GitWizardRepository("/repos/alpha"));
+        viewModel.RepositoryList.PrePopulateFromReport(configuration, ["/repos/old-alpha"], report);
+        viewModel.RepositoryList.AddRepository(new GitWizardRepository("/repos/alpha"), streaming: false);
 
-        viewModel.PruneStalePrePopulatedRepos(
+        viewModel.RepositoryList.PruneStalePrePopulatedRepos(
             ["/repos/old-alpha", "/repos/alpha"],
             ["/repos/old-alpha"]);
 
@@ -110,23 +110,21 @@ public class MainViewModelRefreshPruneTests
         var config = new GitWizardConfiguration { SearchPaths = new SortedSet<string> { "/repos" } };
 
         // Simulate RefreshAsync: clear backing collections, pre-populate from cache.
-        vm.RepositoryList.AllRepositories.Clear();
-        vm.RepositoryList.RepositoryMap.Clear();
-        vm.RepositoryList.Repositories.Clear();
-        vm.PrePopulateFromReport(config, ["/repos/alpha", "/repos/beta"], report);
+        vm.RepositoryList.ClearRepositories();
+        vm.RepositoryList.PrePopulateFromReport(config, ["/repos/alpha", "/repos/beta"], report);
         Assert.That(vm.RepositoryList.AllRepositories, Has.Count.EqualTo(2),
             "Pre-condition: two repos pre-populated.");
 
         // RepositoryCreated is raised before refresh validation, so both paths can
         // receive fresh nodes even though beta is subsequently classified as deleted.
         var freshAlpha = new GitWizardRepository("/repos/alpha");
-        vm.AddRepository(freshAlpha);
-        vm.AddRepository(new GitWizardRepository("/repos/beta"));
+        vm.RepositoryList.AddRepository(freshAlpha, streaming: false);
+        vm.RepositoryList.AddRepository(new GitWizardRepository("/repos/beta"), streaming: false);
 
         // beta is stale: its path is no longer in the validated fresh scan.
         // Pruning must remove the replacement node, not only the cached node identity.
         var freshPaths = new HashSet<string> { "/repos/alpha" };
-        vm.PruneStalePrePopulatedRepos(freshPaths, new HashSet<string>());
+        vm.RepositoryList.PruneStalePrePopulatedRepos(freshPaths, new HashSet<string>());
 
         Assert.That(vm.RepositoryList.RepositoryMap.ContainsKey("/repos/beta"), Is.False,
             "A deleted pre-populated repo must be removed from RepositoryMap.");

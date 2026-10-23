@@ -154,7 +154,7 @@ public class MainViewModelPreparedSessionTests
         };
         viewModel.LiveIsElevated = () => respawn;
         viewModel.LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
-        viewModel.AddRepository(new GitWizardRepository(@"X:\repo"));
+        viewModel.RepositoryList.AddRepository(new GitWizardRepository(@"X:\repo"), streaming: false);
         try
         {
             var starting = viewModel.ToggleLiveAsync();

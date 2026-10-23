@@ -41,13 +41,15 @@ Fixtures exercising `MainViewModel` and its extracted helpers live together unde
 | `RepositoryListViewModel.cs`<br>`RepositoryListViewModel.Groups.cs`<br>`SearchDebouncer.cs`<br>`RepositoryGroupKeys.cs` | `MainViewModelGroupingTests`<br>`MainViewModelGroupingInteractionTests` | Grouping hierarchies, publication, expansion, filter swapping, search debounce. |
 | `MainWindow.axaml`<br>`RepositoryListViewModel.cs` | `MainWindowRepositoryListBindingTests` | ItemsSource replacement and direct active-filter notification. |
 | `RepositorySortOrder.cs` | `MainViewModelWorkingDirectorySortTests` | Platform-aware path sorting, drive grouping ordering, sorted insertion. |
-| `MainViewModel.RefreshBatch.cs` | `MainViewModelRefreshBatchTests` | Bulk batch merges, drain deduplication, and batch sort reduction. |
+| `RepositoryListViewModel.Rows.cs`<br>`RepositoryListViewModel.CachedRows.cs`<br>`MainViewModel.Commands.cs` | `MainViewModelRefreshBatchTests` | Row batch merges, drain deduplication, and streaming/final-sort behavior. |
 | `MainViewModel.UiDrain.cs` | `MainViewModelUiDrainTests` | Background-to-UI message drain throttling and batching. |
 | `MainViewModel.UpdateHandler.cs` | `MainViewModelUpdateHandlerTests`<br>`MainViewModelProgressNotificationTests` | Queued scan callbacks and progress status notifications. |
 | `CancellationTokenSourceDisposal.cs` | `CancellationTokenSourceDisposalTests` | Cooperative cancellation callback completion and disposal sequencing. |
 | `MainViewModel.IndexCache.cs` | `MainViewModelIndexCacheTests` | Index cache integration, cache hit indicators, and session status. |
-| `MainViewModel.Refresh.cs` | `MainViewModelAddRepositoryTests`<br>`MainViewModelUpdateCompletedRepositoryTests`<br>`MainViewModelPrePopulateTests`<br>`MainViewModelCompleteRefreshTests`<br>`MainViewModelRefreshLifecycleTests` | Adding scanned repositories, report pre-population, completion updates, full refresh lifecycle. |
-| `MainViewModel.RefreshPrune.cs` | `MainViewModelCachedPathsTests`<br>`MainViewModelCachedNodeReplacementTests`<br>`MainViewModelRefreshPruneTests` | Cached path updates, node replacement, and stale path pruning. |
+| `RepositoryListViewModel.Rows.cs`<br>`RepositoryListViewModel.CachedRows.cs`<br>`MainViewModel.Commands.cs` | `MainViewModelAddRepositoryTests`<br>`MainViewModelUpdateCompletedRepositoryTests`<br>`MainViewModelPrePopulateTests` | Row materialization, completion updates, cached pre-population, and scanning ownership at queue drain. |
+| `MainViewModel.Refresh.cs`<br>`RepositoryListViewModel.cs` | `MainViewModelCompleteRefreshTests`<br>`MainViewModelRefreshLifecycleTests` | Refresh orchestration, final sorted collection publication, and anchor preservation. |
+| `RepositoryListViewModel.Rows.cs`<br>`RepositoryListViewModel.CachedRows.cs` | `MainViewModelCachedNodeReplacementTests`<br>`MainViewModelRefreshPruneTests` | Cached node replacement and stale/renamed UI path pruning. |
+| `MainViewModel.Refresh.cs` | `MainViewModelCachedPathsTests` | Persisted cached-path cleanup after scans. |
 | `MainViewModel.Live.cs`<br>`MainViewModel.LiveStartup.cs`<br>`MainViewModel.LiveProgress.cs`<br>`MainViewModel.LiveReadiness.cs` | `MainViewModelLiveEventTests`<br>`MainViewModelLiveCapabilityTests`<br>`MainViewModelLiveStartupTests`<br>`MainViewModelLiveProgressTests`<br>`MainViewModelLiveReadinessTests` | Live event dispatch, toggle capabilities, startup arming, progress display, readiness tooltips. |
 
 ## Verification Procedures

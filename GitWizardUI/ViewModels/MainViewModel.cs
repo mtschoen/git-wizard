@@ -19,7 +19,6 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
     int _uiDrainScheduled;
     volatile bool _uiDrainDisposed;
     readonly CancellationTokenSource _uiDrainShutdown = new();
-    HashSet<RepositoryNodeViewModel>? _prePopulatedNodes;
     readonly Stopwatch _stopwatch = new();
 
     double _progressValue;
@@ -179,7 +178,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
         TimeProvider? timeProvider = null)
     {
         _ui = ui;
-        RepositoryList = new RepositoryListViewModel(ui, StatusHeader);
+        RepositoryList = new RepositoryListViewModel(ui, StatusHeader, ErrorLog);
         _timeProvider = timeProvider ?? TimeProvider.System;
         _dialogs = dialogs;
         _clipboard = clipboard;
@@ -198,7 +197,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
     /// run on background refresh/command threads.
     /// </summary>
     internal void LogError(string message, string? repositoryPath = null)
-        => _ui.Post(() => ErrorLog.AddError(message, repositoryPath));
+        => ErrorLog.PostError(_ui, message, repositoryPath);
 
     /// <summary>
     /// Marshal a user-facing alert onto the UI thread, logging (not propagating) any dialog

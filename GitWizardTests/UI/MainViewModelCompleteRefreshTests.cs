@@ -5,7 +5,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests;
 
 // Refresh tests are split by concern because the combined fixture exceeds 500 lines.
-// Covers MainViewModel.Refresh.cs (CompleteRefresh) and RepositoryListViewModel.cs (ApplyFilterAndGrouping).
+// Covers MainViewModel.Refresh.cs (CompleteRefresh), RepositoryListViewModel.cs (ApplyFilterAndGrouping), and RepositoryListViewModel.Rows.cs.
 public class MainViewModelCompleteRefreshTests
 {
     [SetUp]
@@ -27,7 +27,7 @@ public class MainViewModelCompleteRefreshTests
         var vm = CreateViewModel();
 
         // Pre-refresh state: the user is anchored on "keep", alone at the top of the list.
-        vm.AddRepository(Repo("C:/repos/keep"));
+        vm.RepositoryList.AddRepository(Repo("C:/repos/keep"), streaming: false);
 
         // Stand-in for MainWindow.CaptureScrollAnchor: snapshots whatever currently sits at the
         // top of the displayed collection.
@@ -47,11 +47,9 @@ public class MainViewModelCompleteRefreshTests
         // RefreshAsync clears the backing collections, then streams arrivals in arrival order
         // (unsorted) while the refresh runs. "other" arrives first here, so it sits at the top of
         // the unsorted streaming list - a different row than the pre-refresh anchor.
-        vm.RepositoryList.AllRepositories.Clear();
-        vm.RepositoryList.RepositoryMap.Clear();
-        vm.RepositoryList.Repositories.Clear();
+        vm.RepositoryList.ClearRepositories();
         vm.IsRefreshing = true;
-        vm.AddRepositoriesBatch(new[] { Repo("C:/repos/other"), Repo("C:/repos/keep") });
+        vm.RepositoryList.AddRepositoriesBatch(new[] { Repo("C:/repos/other"), Repo("C:/repos/keep") }, streaming: true);
 
         Assert.That(vm.RepositoryList.Repositories[0].WorkingDirectory, Is.EqualTo("C:/repos/other"),
             "Pre-condition: the unsorted streaming list's top differs from the pre-refresh anchor.");
@@ -80,7 +78,7 @@ public class MainViewModelCompleteRefreshTests
         var dispatcher = new QueuedUiDispatcher(isOnUiThread: false);
         var vm = TestViewModels.Create(dispatcher: dispatcher);
 
-        vm.AddRepository(Repo("C:/repos/keep"));
+        vm.RepositoryList.AddRepository(Repo("C:/repos/keep"), streaming: false);
 
         var beforeSwapInvocationCount = 0;
         vm.RepositoryList.BeforeRepositoriesSwap = () => beforeSwapInvocationCount++;
@@ -92,11 +90,9 @@ public class MainViewModelCompleteRefreshTests
 
         // The refresh itself proceeds: clear, stream arrivals, then complete - queuing its own
         // (suppressed) swap behind the rebuild's already-queued one.
-        vm.RepositoryList.AllRepositories.Clear();
-        vm.RepositoryList.RepositoryMap.Clear();
-        vm.RepositoryList.Repositories.Clear();
+        vm.RepositoryList.ClearRepositories();
         vm.IsRefreshing = true;
-        vm.AddRepositoriesBatch(new[] { Repo("C:/repos/other"), Repo("C:/repos/keep") });
+        vm.RepositoryList.AddRepositoriesBatch(new[] { Repo("C:/repos/other"), Repo("C:/repos/keep") }, streaming: true);
         vm.CompleteRefresh();
 
         Assert.That(dispatcher.QueuedCount, Is.EqualTo(2),

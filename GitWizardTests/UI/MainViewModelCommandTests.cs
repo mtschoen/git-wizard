@@ -106,7 +106,7 @@ public class MainViewModelCommandTests
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         await using var viewModel = TestViewModels.Create(timeProvider: clock);
         var repository = new GitWizardRepository(fixture.Path) { RefreshTimeSeconds = double.NaN };
-        viewModel.AddRepository(repository);
+        viewModel.RepositoryList.AddRepository(repository, streaming: false);
         var node = viewModel.RepositoryList.Repositories.Single();
         node.Status = RefreshStatus.Success;
         viewModel.DeepRefreshRepository(node);

@@ -39,7 +39,7 @@ public class MainViewModelUpdateHandlerTests
         var repo = Repo("C:/repos/alpha");
 
         // First add the repo directly so the map is populated.
-        vm.AddRepository(repo);
+        vm.RepositoryList.AddRepository(repo, streaming: false);
         Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1), "Precondition.");
 
         // Queue a refresh completed event.
@@ -57,7 +57,7 @@ public class MainViewModelUpdateHandlerTests
         var parent = Repo("C:/repos/parent");
         var sub = Repo("C:/repos/parent/sub");
 
-        vm.AddRepository(parent);
+        vm.RepositoryList.AddRepository(parent, streaming: false);
         vm.OnSubmoduleCreated(parent, sub);
 
         // Submodule is queued, not processed inline.

@@ -11,7 +11,7 @@ namespace GitWizardTests;
 /// separate groups by path case, and the header's reported group count must match the number of
 /// groups actually shown.
 /// </summary>
-// Covers RepositoryListViewModel.cs, RepositoryListViewModel.Groups.cs, RepositoryGroupKeys.cs, RepositorySortOrder.cs, and StatusHeaderViewModel.cs.
+// Covers RepositoryListViewModel.cs, RepositoryListViewModel.Groups.cs, RepositoryListViewModel.Rows.cs, RepositoryListViewModel.CachedRows.cs, RepositoryGroupKeys.cs, RepositorySortOrder.cs, and StatusHeaderViewModel.cs.
 public class MainViewModelWorkingDirectorySortTests
 {
     [SetUp]
@@ -39,7 +39,7 @@ public class MainViewModelWorkingDirectorySortTests
 
         // ActiveSortMode already defaults to WorkingDirectory; no explicit ApplySort call.
         foreach (var path in MixedOrderPaths)
-            viewModel.AddRepository(Repo(path));
+            viewModel.RepositoryList.AddRepository(Repo(path), streaming: false);
 
         var expected = MixedOrderPaths.OrderBy(path => path, PlatformComparer).ToArray();
         var actual = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray();
@@ -51,12 +51,12 @@ public class MainViewModelWorkingDirectorySortTests
     {
         var viewModel = NewViewModel();
         foreach (var path in MixedOrderPaths)
-            viewModel.AddRepository(Repo(path));
+            viewModel.RepositoryList.AddRepository(Repo(path), streaming: false);
 
         // Simulates the final AddRepository call ApplyLiveCreatedAsync makes once a newly
         // created repository's refresh completes.
         const string arriving = @"C:\repos\Beta";
-        viewModel.AddRepository(Repo(arriving));
+        viewModel.RepositoryList.AddRepository(Repo(arriving), streaming: false);
 
         var expected = MixedOrderPaths.Append(arriving).OrderBy(path => path, PlatformComparer).ToArray();
         var actual = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray();
@@ -71,7 +71,7 @@ public class MainViewModelWorkingDirectorySortTests
         foreach (var path in MixedOrderPaths)
             report.Repositories[path] = Repo(path);
 
-        viewModel.PrePopulateFromReport(new GitWizardConfiguration(), MixedOrderPaths, report);
+        viewModel.RepositoryList.PrePopulateFromReport(new GitWizardConfiguration(), MixedOrderPaths, report);
 
         var expected = MixedOrderPaths.OrderBy(path => path, PlatformComparer).ToArray();
         var actual = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray();
@@ -83,7 +83,7 @@ public class MainViewModelWorkingDirectorySortTests
     {
         var viewModel = NewViewModel();
         foreach (var path in MixedOrderPaths)
-            viewModel.AddRepository(Repo(path));
+            viewModel.RepositoryList.AddRepository(Repo(path), streaming: false);
 
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
 
@@ -102,7 +102,7 @@ public class MainViewModelWorkingDirectorySortTests
             viewModel.RepositoryList.ToggleGroupExpand(header);
 
         const string arriving = @"C:\repos\Beta";
-        viewModel.AddRepository(Repo(arriving));
+        viewModel.RepositoryList.AddRepository(Repo(arriving), streaming: false);
 
         var ownerHeader = headers.Single(h => h.Children.Any(c => c.WorkingDirectory == arriving));
         var ownerIndex = viewModel.RepositoryList.Repositories.IndexOf(ownerHeader);
@@ -127,9 +127,9 @@ public class MainViewModelWorkingDirectorySortTests
         // Discovered repositories are cached with a lowercase drive letter; a repository created
         // during a Live watch arrives with the OS-native (here, uppercase) drive letter. Both must
         // land in the same "C:\" group, not split into "c:\" and "C:\" (issue #241 addendum).
-        viewModel.AddRepository(Repo(@"c:\repos\alpha"));
-        viewModel.AddRepository(Repo(@"c:\repos\beta"));
-        viewModel.AddRepository(Repo(@"C:\repos\gamma"));
+        viewModel.RepositoryList.AddRepository(Repo(@"c:\repos\alpha"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo(@"c:\repos\beta"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo(@"C:\repos\gamma"), streaming: false);
 
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
 
@@ -145,12 +145,12 @@ public class MainViewModelWorkingDirectorySortTests
             Assert.Ignore("Drive-letter case ambiguity is a Windows-only concern.");
 
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo(@"c:\repos\alpha"));
+        viewModel.RepositoryList.AddRepository(Repo(@"c:\repos\alpha"), streaming: false);
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
 
         // A later Live-created repository on the same drive, but with the OS-native uppercase
         // drive letter, must join the existing group rather than creating a second one.
-        viewModel.AddRepository(Repo(@"C:\repos\beta"));
+        viewModel.RepositoryList.AddRepository(Repo(@"C:\repos\beta"), streaming: false);
 
         var headers = viewModel.RepositoryList.Repositories.Where(n => n.IsGroupHeader).ToList();
         Assert.That(headers, Has.Count.EqualTo(1));
@@ -171,11 +171,11 @@ public class MainViewModelWorkingDirectorySortTests
         var report = new GitWizardReport();
         foreach (var path in paths)
             report.Repositories[path] = Repo(path);
-        viewModel.PrePopulateFromReport(new GitWizardConfiguration(), paths, report);
+        viewModel.RepositoryList.PrePopulateFromReport(new GitWizardConfiguration(), paths, report);
 
         // Sorts strictly between "C:\repos\r0099" and "C:\repos\r0100" - a genuine mid-list
         // insert, not an append at either end.
-        viewModel.AddRepository(Repo(@"C:\repos\r0099a"));
+        viewModel.RepositoryList.AddRepository(Repo(@"C:\repos\r0099a"), streaming: false);
 
         Assert.That(viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray(),
             Is.EqualTo(paths.Append(@"C:\repos\r0099a").OrderBy(p => p, PlatformComparer)),
@@ -200,12 +200,12 @@ public class MainViewModelWorkingDirectorySortTests
         var report = new GitWizardReport();
         foreach (var path in paths)
             report.Repositories[path] = Repo(path);
-        viewModel.PrePopulateFromReport(new GitWizardConfiguration(), paths, report);
+        viewModel.RepositoryList.PrePopulateFromReport(new GitWizardConfiguration(), paths, report);
 
         var reads = CountingList.Install(viewModel.RepositoryList.Repositories);
 
         // Sorts strictly between "C:\repos\r0499" and "C:\repos\r0500": a genuine mid-list insert.
-        viewModel.AddRepository(Repo(@"C:\repos\r0499a"));
+        viewModel.RepositoryList.AddRepository(Repo(@"C:\repos\r0499a"), streaming: false);
         var searchReads = reads.IndexerReads;
 
         Assert.That(viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray(),
@@ -234,9 +234,9 @@ public class MainViewModelWorkingDirectorySortTests
     public void HeaderGroupCount_MatchesGroupsShown_EvenWhenAGroupIsExpanded()
     {
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo(@"C:\r1"));
-        viewModel.AddRepository(Repo(@"D:\r1"));
-        viewModel.AddRepository(Repo(@"E:\r1"));
+        viewModel.RepositoryList.AddRepository(Repo(@"C:\r1"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo(@"D:\r1"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo(@"E:\r1"), streaming: false);
 
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
         var expectedGroupCount = viewModel.RepositoryList.Repositories.Count(n => n.IsGroupHeader);

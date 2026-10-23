@@ -5,7 +5,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests;
 
 // Refresh tests are split by concern because the combined fixture exceeds 500 lines.
-// Covers MainViewModel.RefreshPrune.cs (UpdateCachedPathsAfterScanAsync).
+// Covers MainViewModel.Refresh.cs (UpdateCachedPathsAfterScanAsync).
 public class MainViewModelCachedPathsTests
 {
     [SetUp]

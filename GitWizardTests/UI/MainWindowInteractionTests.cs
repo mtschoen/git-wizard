@@ -19,7 +19,7 @@ public class MainWindowInteractionTests
         var window = new MainWindow();
         var viewModel = (MainViewModel)window.DataContext!;
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
-        viewModel.AddRepository(new GitWizardRepository("C:/repos/alpha"));
+        viewModel.RepositoryList.AddRepository(new GitWizardRepository("C:/repos/alpha"), streaming: false);
         var header = viewModel.RepositoryList.Repositories[0];
         var repositoryList = window.FindControl<ListBox>("RepositoryList")!;
         repositoryList.DataContext = header;
@@ -35,7 +35,7 @@ public class MainWindowInteractionTests
         var window = new MainWindow();
         var viewModel = (MainViewModel)window.DataContext!;
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
-        viewModel.AddRepository(new GitWizardRepository("C:/repos/alpha"));
+        viewModel.RepositoryList.AddRepository(new GitWizardRepository("C:/repos/alpha"), streaming: false);
         var header = viewModel.RepositoryList.Repositories[0];
         var repositoryList = window.FindControl<ListBox>("RepositoryList")!;
         repositoryList.DataContext = header;

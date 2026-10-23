@@ -10,10 +10,11 @@ public sealed partial class RepositoryListViewModel : INotifyPropertyChanged, ID
 {
     readonly IUiDispatcher _ui;
     readonly StatusHeaderViewModel _statusHeader;
+    readonly ErrorLogViewModel _errorLog;
 
     internal List<RepositoryNodeViewModel> AllRepositories { get; } = new();
     internal ConcurrentDictionary<string, RepositoryNodeViewModel> RepositoryMap { get; } = new();
-    internal Dictionary<string, RepositoryNodeViewModel> PendingGroups { get; } = new();
+    Dictionary<string, RepositoryNodeViewModel> PendingGroups { get; } = new();
 
     FilterType _activeFilter = FilterType.None;
     GroupMode _activeGroupMode = GroupMode.None;
@@ -121,10 +122,12 @@ public sealed partial class RepositoryListViewModel : INotifyPropertyChanged, ID
     /// </summary>
     public Action? AfterRepositoriesSwap { get; set; }
 
-    internal RepositoryListViewModel(IUiDispatcher ui, StatusHeaderViewModel statusHeader)
+    internal RepositoryListViewModel(IUiDispatcher ui, StatusHeaderViewModel statusHeader,
+        ErrorLogViewModel errorLog)
     {
         _ui = ui;
         _statusHeader = statusHeader;
+        _errorLog = errorLog;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -134,7 +137,7 @@ public sealed partial class RepositoryListViewModel : INotifyPropertyChanged, ID
 
     public void Dispose() => _searchDebouncer.Dispose();
 
-    internal void UpdateHeaderWithFilterInfo() =>
+    void UpdateHeaderWithFilterInfo() =>
         _statusHeader.ShowFilterInfo(_activeFilter, _activeGroupMode, AllRepositories.Count, Repositories);
 
     // Sidebar semantics: clicking the active Filter/Group button clears it; Sort always keeps one

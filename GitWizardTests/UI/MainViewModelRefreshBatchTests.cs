@@ -6,7 +6,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests;
 
 // Refresh batch tests are split by concern because the combined fixture exceeds 500 lines.
-// Covers MainViewModel.RefreshBatch.cs, RepositoryListViewModel.cs, RepositoryListViewModel.Groups.cs, and RepositorySortOrder.cs.
+// Covers RepositoryListViewModel.Rows.cs, RepositoryListViewModel.CachedRows.cs, MainViewModel.Commands.cs, RepositoryListViewModel.cs, RepositoryListViewModel.Groups.cs, and RepositorySortOrder.cs.
 public class MainViewModelRefreshBatchTests
 {
     [SetUp]
@@ -41,7 +41,7 @@ public class MainViewModelRefreshBatchTests
         foreach (var path in paths)
             report.Repositories[path] = Repo(path);
 
-        viewModel.PrePopulateFromReport(new GitWizardConfiguration(), paths, report);
+        viewModel.RepositoryList.PrePopulateFromReport(new GitWizardConfiguration(), paths, report);
 
         // Sanity: the batch is still actually sorted.
         var actual = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray();
@@ -73,14 +73,14 @@ public class MainViewModelRefreshBatchTests
         var viewModel = NewViewModel();
         var positionalInserts = new PositionalInsertRecorder(viewModel.RepositoryList.Repositories);
         viewModel.IsRefreshing = true;
-        viewModel.AddRepositoriesBatch(repositories);
+        viewModel.RepositoryList.AddRepositoriesBatch(repositories, streaming: true);
 
         Assert.That(positionalInserts.Count, Is.Zero,
             "A drained batch must append into the display, not call InsertRepositoryNode per row.");
 
         // A second, smaller batch that arrives later must also append with zero positional inserts.
         var secondBatch = Enumerable.Range(0, 20).Select(i => Repo($@"C:\repos\m{i:D4}")).ToList();
-        viewModel.AddRepositoriesBatch(secondBatch);
+        viewModel.RepositoryList.AddRepositoriesBatch(secondBatch, streaming: true);
 
         Assert.That(positionalInserts.Count, Is.Zero,
             "Merging a second batch during refresh must still use arrival-order append without positional inserts.");
@@ -191,7 +191,7 @@ public class MainViewModelRefreshBatchTests
         var stale = Repo(stalePath);
         var fresh = Repo(stalePath);
 
-        viewModel.AddRepositoriesBatch([stale, Repo(@"C:\repos\beta"), fresh]);
+        viewModel.RepositoryList.AddRepositoriesBatch([stale, Repo(@"C:\repos\beta"), fresh], streaming: false);
 
         Assert.That(viewModel.RepositoryList.Repositories.Count(n => n.WorkingDirectory == stalePath), Is.EqualTo(1),
             "A path repeated within one drained batch must produce exactly one display row.");
@@ -217,7 +217,7 @@ public class MainViewModelRefreshBatchTests
         foreach (var path in paths)
             report.Repositories[path] = Repo(path);
 
-        viewModel.PrePopulateFromReport(new GitWizardConfiguration(), paths, report);
+        viewModel.RepositoryList.PrePopulateFromReport(new GitWizardConfiguration(), paths, report);
 
         var header = viewModel.RepositoryList.Repositories.Single(n => n.IsGroupHeader);
         Assert.That(header.Children.Select(n => n.WorkingDirectory),
@@ -237,13 +237,13 @@ public class MainViewModelRefreshBatchTests
 
         // First batch creates the header fresh (PrePopulateFromReport-style, via
         // AddRepositoriesBatch itself since it shares the same MergeGroupBatch helper).
-        viewModel.AddRepositoriesBatch([Repo(@"C:\repos\alpha"), Repo(@"C:\repos\zulu")]);
+        viewModel.RepositoryList.AddRepositoriesBatch([Repo(@"C:\repos\alpha"), Repo(@"C:\repos\zulu")], streaming: false);
         var header = viewModel.RepositoryList.Repositories.Single(n => n.IsGroupHeader);
         Assert.That(header.Children, Has.Count.EqualTo(2));
 
         // A second, later drain on the same drive must merge into that same header rather than
         // creating a duplicate "C:\" group.
-        viewModel.AddRepositoriesBatch([Repo(@"C:\repos\middle"), Repo(@"C:\repos\beta")]);
+        viewModel.RepositoryList.AddRepositoriesBatch([Repo(@"C:\repos\middle"), Repo(@"C:\repos\beta")], streaming: false);
 
         var headers = viewModel.RepositoryList.Repositories.Where(n => n.IsGroupHeader).ToList();
         Assert.That(headers, Has.Count.EqualTo(1));

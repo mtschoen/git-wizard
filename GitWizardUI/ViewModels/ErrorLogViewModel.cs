@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using GitWizardUI.ViewModels.Services;
 
 namespace GitWizardUI.ViewModels;
 
@@ -32,6 +33,9 @@ public sealed class ErrorLogViewModel : INotifyPropertyChanged
             Entries.RemoveAt(Entries.Count - 1);
         }
     }
+
+    internal void PostError(IUiDispatcher dispatcher, string message, string? repositoryPath = null)
+        => dispatcher.Post(() => AddError(message, repositoryPath));
 
     public void Clear() => Entries.Clear();
 

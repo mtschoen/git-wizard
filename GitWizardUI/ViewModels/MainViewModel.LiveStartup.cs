@@ -111,7 +111,7 @@ public partial class MainViewModel
             {
                 if (!membershipSet.Contains(path))
                 {
-                    RemoveRepositoryPathFromUi(path);
+                    RepositoryList.RemoveRepositoryPathFromUi(path);
                 }
             }
 
@@ -129,7 +129,7 @@ public partial class MainViewModel
                 continue;
             }
 
-            _ui.Post(() => AddRepository(repository));
+            _ui.Post(() => RepositoryList.AddRepository(repository, streaming: IsRefreshing));
         }
     }
 

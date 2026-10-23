@@ -5,7 +5,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests;
 
 // Refresh tests are split by concern because the combined fixture exceeds 500 lines.
-// Covers MainViewModel.Refresh.cs (PrePopulateFromReport).
+// Covers RepositoryListViewModel.CachedRows.cs (PrePopulateFromReport).
 public class MainViewModelPrePopulateTests
 {
     [SetUp]
@@ -31,7 +31,7 @@ public class MainViewModelPrePopulateTests
 
         // Pre-populate from the cached report.
         var config = new GitWizardConfiguration { SearchPaths = new SortedSet<string> { "/repos" } };
-        vm.PrePopulateFromReport(config, ["/repos/alpha", "/repos/beta"], report);
+        vm.RepositoryList.PrePopulateFromReport(config, ["/repos/alpha", "/repos/beta"], report);
 
         // Both repos should appear in the UI immediately.
         Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(2),
@@ -53,7 +53,7 @@ public class MainViewModelPrePopulateTests
         // Only path "/repos/alpha" is in the repositoryPaths list.
         var vm = CreateViewModel();
         var config = new GitWizardConfiguration { SearchPaths = new SortedSet<string> { "/repos" } };
-        vm.PrePopulateFromReport(config, ["/repos/alpha"], report);
+        vm.RepositoryList.PrePopulateFromReport(config, ["/repos/alpha"], report);
 
         Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1),
             "Only repos in the path list should be pre-populated.");
@@ -68,7 +68,7 @@ public class MainViewModelPrePopulateTests
         // No cached report exists.
         var vm = CreateViewModel();
         var config = new GitWizardConfiguration { SearchPaths = new SortedSet<string> { "/repos" } };
-        vm.PrePopulateFromReport(config, ["/repos/alpha"], null);
+        vm.RepositoryList.PrePopulateFromReport(config, ["/repos/alpha"], null);
 
         Assert.That(vm.RepositoryList.Repositories, Is.Empty,
             "Pre-population should be a no-op when no cached report exists.");
@@ -82,7 +82,7 @@ public class MainViewModelPrePopulateTests
         using var sandbox = new LocalFilesSandbox();
         var vm = CreateViewModel();
         var config = new GitWizardConfiguration { SearchPaths = new SortedSet<string> { "/repos" } };
-        vm.PrePopulateFromReport(config, null!, null);
+        vm.RepositoryList.PrePopulateFromReport(config, null!, null);
 
         Assert.That(vm.RepositoryList.Repositories, Is.Empty,
             "Pre-population should be a no-op when repositoryPaths is null.");
@@ -105,7 +105,7 @@ public class MainViewModelPrePopulateTests
             SearchPaths = new SortedSet<string> { "C:/repos" }
         };
 
-        viewModel.PrePopulateFromReport(configuration, ["C:/repos/alpha"], report);
+        viewModel.RepositoryList.PrePopulateFromReport(configuration, ["C:/repos/alpha"], report);
 
         Assert.That(viewModel.RepositoryList.Repositories, Is.Empty,
             "Grouped pre-population must not expose repositories excluded by the active filter.");
@@ -125,14 +125,12 @@ public class MainViewModelPrePopulateTests
         {
             SearchPaths = new SortedSet<string> { "/repos" }
         };
-        viewModel.PrePopulateFromReport(configuration, ["/repos/alpha"], report);
+        viewModel.RepositoryList.PrePopulateFromReport(configuration, ["/repos/alpha"], report);
         Assert.That(viewModel.RepositoryList.RepositoryMap, Does.ContainKey("/repos/alpha"));
 
-        viewModel.RepositoryList.Repositories.Clear();
-        viewModel.RepositoryList.AllRepositories.Clear();
-        viewModel.RepositoryList.RepositoryMap.Clear();
-        viewModel.PrePopulateFromReport(configuration, [], report);
-        viewModel.AddRepository(new GitWizardRepository("/repos/alpha"));
+        viewModel.RepositoryList.ClearRepositories();
+        viewModel.RepositoryList.PrePopulateFromReport(configuration, [], report);
+        viewModel.RepositoryList.AddRepository(new GitWizardRepository("/repos/alpha"), streaming: false);
 
         Assert.That(viewModel.RepositoryList.Repositories, Has.Count.EqualTo(1),
             "A path cached in an earlier cycle must not suppress a fresh row.");

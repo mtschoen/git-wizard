@@ -7,7 +7,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests.UI;
 
 // Live watch tests are split by concern because the combined fixture exceeds 500 lines.
-// Covers MainViewModel.Live.cs (ApplyLiveEvent).
+// Covers MainViewModel.Live.cs (ApplyLiveEvent), RepositoryListViewModel.Rows.cs, and RepositoryListViewModel.CachedRows.cs.
 public class MainViewModelLiveEventTests
 {
     [SetUp]
@@ -35,7 +35,7 @@ public class MainViewModelLiveEventTests
         var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh();
         var viewModel = NewViewModel();
-        viewModel.AddRepository(repository);
+        viewModel.RepositoryList.AddRepository(repository, streaming: false);
 
         Assert.That(viewModel.RepositoryList.Repositories.Single().DisplayText, Does.Not.Contain("*"));
 
@@ -54,22 +54,35 @@ public class MainViewModelLiveEventTests
     public async Task ApplyLiveEvent_Changed_UnknownRepoRoot_NoOp()
     {
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("/a"));
+        viewModel.RepositoryList.AddRepository(Repo("/a"), streaming: false);
 
         await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent("/unknown", RepositoryChangeKind.Changed));
         Assert.That(viewModel.RepositoryList.Repositories, Has.Count.EqualTo(1));
     }
 
-    [Test]
-    public async Task ApplyLiveEvent_Created_AddsNewRepositoryNode()
+    [TestCase(false)]
+    [TestCase(true)]
+    public async Task ApplyLiveEvent_Created_AddsNewRepositoryNode(bool streaming)
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        var viewModel = NewViewModel();
+        await using var viewModel = TestViewModels.Create(timeProvider: new ControlledDelayClock());
+        var laterPath = fixture.Path + "-zulu";
+        viewModel.RepositoryList.AddRepository(Repo(laterPath), streaming: false);
+        viewModel.IsRefreshing = streaming;
+        viewModel.IsScanning = true;
+        var inserts = new PositionalInsertRecorder(viewModel.RepositoryList.Repositories);
 
         await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
 
-        Assert.That(viewModel.RepositoryList.Repositories, Has.Count.EqualTo(1));
-        Assert.That(viewModel.RepositoryList.Repositories.Single().WorkingDirectory, Is.EqualTo(fixture.Path));
+        var expectedPaths = streaming
+            ? new[] { laterPath, fixture.Path }
+            : new[] { fixture.Path, laterPath };
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory), Is.EqualTo(expectedPaths));
+            Assert.That(inserts.Count, Is.EqualTo(streaming ? 0 : 1));
+            Assert.That(viewModel.IsScanning, Is.True);
+        });
     }
 
     [Test]
@@ -89,7 +102,7 @@ public class MainViewModelLiveEventTests
     public async Task ApplyLiveEvent_DeletedUncorrelated_RemovesNodeAfterCorrelationWindow()
     {
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("/a"));
+        viewModel.RepositoryList.AddRepository(Repo("/a"), streaming: false);
 
         await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent("/a", RepositoryChangeKind.Deleted));
 
@@ -103,7 +116,7 @@ public class MainViewModelLiveEventTests
     public async Task ApplyLiveEvent_Deleted_UnknownRepoRoot_NoOp()
     {
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("/a"));
+        viewModel.RepositoryList.AddRepository(Repo("/a"), streaming: false);
 
         await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent("/unknown", RepositoryChangeKind.Deleted));
         Assert.That(viewModel.RepositoryList.Repositories, Has.Count.EqualTo(1));
@@ -119,7 +132,7 @@ public class MainViewModelLiveEventTests
         var remoteUrl = refreshed.RemoteUrls.Single();
 
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("/old/path", remoteUrl));
+        viewModel.RepositoryList.AddRepository(Repo("/old/path", remoteUrl), streaming: false);
 
         await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent("/old/path", RepositoryChangeKind.Deleted));
         await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
@@ -137,7 +150,7 @@ public class MainViewModelLiveEventTests
     public async Task ApplyLiveEvent_Deleted_SecondDeleteOverwritesAndCancelsPreviousExpiry()
     {
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("/a"));
+        viewModel.RepositoryList.AddRepository(Repo("/a"), streaming: false);
 
         await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent("/a", RepositoryChangeKind.Deleted));
         await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent("/a", RepositoryChangeKind.Deleted));
@@ -151,8 +164,8 @@ public class MainViewModelLiveEventTests
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         var viewModel = NewViewModel();
-        viewModel.AddRepository(new GitWizardRepository(fixture.Path));
-        viewModel.AddRepository(Repo("/marker"));
+        viewModel.RepositoryList.AddRepository(new GitWizardRepository(fixture.Path), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("/marker"), streaming: false);
 
         await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Deleted));
         await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
@@ -171,7 +184,7 @@ public class MainViewModelLiveEventTests
     {
         var dispatcher = new QueuedUiDispatcher();
         var viewModel = TestViewModels.Create(dispatcher: dispatcher);
-        viewModel.AddRepository(Repo("/a"));
+        viewModel.RepositoryList.AddRepository(Repo("/a"), streaming: false);
 
         await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent("/a", RepositoryChangeKind.Deleted));
         var createdTask = viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent("/a", RepositoryChangeKind.Created));
@@ -193,7 +206,7 @@ public class MainViewModelLiveEventTests
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         var viewModel = NewViewModel();
-        viewModel.AddRepository(new GitWizardRepository(fixture.Path));
+        viewModel.RepositoryList.AddRepository(new GitWizardRepository(fixture.Path), streaming: false);
 
         await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Deleted));
         var createdTask = viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
@@ -210,7 +223,7 @@ public class MainViewModelLiveEventTests
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         var dispatcher = new QueuedUiDispatcher();
         var viewModel = TestViewModels.Create(dispatcher: dispatcher);
-        viewModel.AddRepository(Repo(fixture.Path));
+        viewModel.RepositoryList.AddRepository(Repo(fixture.Path), streaming: false);
 
         await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Deleted));
         dispatcher.Drain();
@@ -258,7 +271,7 @@ public class MainViewModelLiveEventTests
         var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh();
         var viewModel = NewViewModel();
-        viewModel.AddRepository(repository);
+        viewModel.RepositoryList.AddRepository(repository, streaming: false);
 
         fixture.AddUntrackedFile("untracked.txt");
         var event1 = viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Changed));

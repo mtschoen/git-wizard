@@ -319,7 +319,9 @@ public partial class MainViewModel
 
         if (pendingRepositoryBatch != null)
         {
-            AddRepositoriesBatch(pendingRepositoryBatch);
+            // The first repository to surface ends the "Scanning..." gap; rows now stream into the list.
+            IsScanning = false;
+            RepositoryList.AddRepositoriesBatch(pendingRepositoryBatch, streaming: IsRefreshing);
         }
 
         if (stagedCommands == null)
@@ -340,35 +342,37 @@ public partial class MainViewModel
             case RepositoryUICommandType.RepositoryCreated:
                 if (command.Repository != null)
                 {
-                    AddRepository(command.Repository);
+                    IsScanning = false;
+                    RepositoryList.AddRepository(command.Repository, streaming: IsRefreshing);
                 }
 
                 break;
             case RepositoryUICommandType.SubmoduleCreated:
                 if (command.ParentRepository != null && command.Repository != null)
                 {
-                    AddSubmodule(command.ParentRepository, command.Repository);
+                    RepositoryList.AddSubmodule(command.ParentRepository, command.Repository);
                 }
 
                 break;
             case RepositoryUICommandType.WorktreeCreated:
                 if (command.Repository != null)
                 {
-                    AddRepository(command.Repository);
+                    IsScanning = false;
+                    RepositoryList.AddRepository(command.Repository, streaming: IsRefreshing);
                 }
 
                 break;
             case RepositoryUICommandType.UninitializedSubmoduleCreated:
                 if (command.ParentRepository != null && command.SubmodulePath != null)
                 {
-                    AddUninitializedSubmodule(command.ParentRepository, command.SubmodulePath);
+                    RepositoryListViewModel.AddUninitializedSubmodule(command.ParentRepository, command.SubmodulePath);
                 }
 
                 break;
             case RepositoryUICommandType.RefreshCompleted:
                 if (command.Repository != null)
                 {
-                    UpdateCompletedRepository(command.Repository);
+                    RepositoryList.UpdateCompletedRepository(command.Repository, streaming: IsRefreshing);
                 }
 
                 break;

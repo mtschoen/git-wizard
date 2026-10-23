@@ -13,160 +13,6 @@ public partial class MainViewModel
     // prompt) is launched. scripts/update-screenshots.ps1 sets it for unattended headless captures.
     internal static bool NoMftRequested => !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITWIZARD_NO_MFT"));
 
-    internal void AddRepository(GitWizardRepository repository)
-    {
-        // The first repository to surface ends the "Scanning..." gap; rows now stream into the list.
-        IsScanning = false;
-
-        var path = repository.WorkingDirectory;
-        if (string.IsNullOrEmpty(path))
-            return;
-
-        var node = new RepositoryNodeViewModel(repository);
-        RepositoryList.RepositoryMap[path] = node;
-
-        var existingNode = RepositoryList.AllRepositories.FirstOrDefault(candidate => candidate.WorkingDirectory == path);
-        if (existingNode != null)
-        {
-            var existingIndex = RepositoryList.AllRepositories.IndexOf(existingNode);
-            RepositoryList.AllRepositories[existingIndex] = node;
-            ReplaceVisibleRepositoryNode(existingNode, node);
-            return;
-        }
-
-        RepositoryList.AllRepositories.Add(node);
-
-        if (!node.MatchesFilter(RepositoryList.ActiveFilter, GlobalUserEmail))
-            return;
-
-        if (!string.IsNullOrWhiteSpace(RepositoryList.SearchText) &&
-            !node.WorkingDirectory.Contains(RepositoryList.SearchText, StringComparison.OrdinalIgnoreCase))
-            return;
-
-        if (RepositoryList.ActiveGroupMode == GroupMode.None)
-        {
-            if (!RepositoryList.Repositories.Any(candidate => candidate.WorkingDirectory == path))
-            {
-                if (IsRefreshing)
-                    RepositoryList.Repositories.Add(node);
-                else
-                    RepositorySortOrder.InsertRepositoryNode(RepositoryList.Repositories, node, RepositoryList.ActiveSortMode);
-            }
-        }
-        else
-        {
-            if (IsRefreshing)
-            {
-                foreach (var key in RepositoryGroupKeys.GetGroupKeys(node, RepositoryList.ActiveGroupMode))
-                    RepositoryList.MergeGroupBatch(key, new List<RepositoryNodeViewModel> { node }, sort: false);
-            }
-            else
-            {
-                RepositoryList.AddToGroups(node);
-            }
-        }
-    }
-
-    // Bulk equivalent of AddRepository for a drained batch of arrivals; see
-    // MainViewModel.RefreshBatch.cs for why and how (round-2 pr-crew review of PR #241/#243).
-    internal void AddRepositoriesBatch(IReadOnlyList<GitWizardRepository> repositories)
-    {
-        if (repositories.Count == 0)
-            return;
-
-        if (repositories.Count == 1 && !IsRefreshing)
-        {
-            AddRepository(repositories[0]);
-            return;
-        }
-
-        IsScanning = false;
-
-        var newNodesByPath = ResolveBatchAgainstExistingRepositories(repositories);
-        if (newNodesByPath.Count > 0)
-            MergeNewNodesIntoDisplay(newNodesByPath.Values);
-    }
-
-    void ReplaceVisibleRepositoryNode(RepositoryNodeViewModel existingNode, RepositoryNodeViewModel freshNode)
-    {
-        var visibleIndex = RepositoryList.Repositories.IndexOf(existingNode);
-        if (visibleIndex >= 0)
-            RepositoryList.Repositories[visibleIndex] = freshNode;
-
-        foreach (var groupHeader in RepositoryList.Repositories.Where(candidate => candidate.IsGroupHeader)
-                     .Concat(RepositoryList.PendingGroups.Values).Distinct())
-        {
-            var childIndex = groupHeader.Children.IndexOf(existingNode);
-            if (childIndex < 0)
-                continue;
-
-            groupHeader.Children[childIndex] = freshNode;
-            groupHeader.UpdateDisplayText();
-        }
-    }
-
-    void AddSubmodule(GitWizardRepository parent, GitWizardRepository submodule)
-    {
-        var parentPath = parent.WorkingDirectory;
-        if (string.IsNullOrEmpty(parentPath) || !RepositoryList.RepositoryMap.TryGetValue(parentPath, out var parentNode))
-            return;
-
-        var submodulePath = submodule.WorkingDirectory;
-        if (string.IsNullOrEmpty(submodulePath))
-            return;
-
-        var submoduleNode = new RepositoryNodeViewModel(submodule);
-        RepositoryList.RepositoryMap[submodulePath] = submoduleNode;
-        parentNode.Children.Add(submoduleNode);
-    }
-
-    static void AddUninitializedSubmodule(GitWizardRepository parent, string submodulePath)
-    {
-        // Uninitialized submodules are intentionally not shown in the tree view yet; they could be
-        // added as a special node type in the future. Record the skip for verbose diagnostics.
-        GitWizardLog.Log($"Skipping uninitialized submodule {submodulePath} under {parent.WorkingDirectory}",
-            GitWizardLog.LogType.Verbose);
-    }
-
-    internal void UpdateCompletedRepository(GitWizardRepository repository)
-    {
-        var path = repository.WorkingDirectory;
-
-        if (!string.IsNullOrEmpty(repository.RefreshError))
-            LogError(repository.RefreshError, path);
-
-        if (string.IsNullOrEmpty(path) || !RepositoryList.RepositoryMap.TryGetValue(path, out var node))
-            return;
-
-        node.Update();
-
-        // For filtering (no grouping): incrementally add/remove without rebuilding
-        if (RepositoryList.ActiveFilter != FilterType.None && RepositoryList.ActiveGroupMode == GroupMode.None)
-        {
-            var isShown = RepositoryList.Repositories.Contains(node);
-            var shouldShow = node.MatchesFilter(RepositoryList.ActiveFilter, GlobalUserEmail);
-            if (isShown && !shouldShow)
-                RepositoryList.Repositories.Remove(node);
-            else if (!isShown && shouldShow)
-            {
-                if (IsRefreshing)
-                    RepositoryList.Repositories.Add(node);
-                else
-                    RepositorySortOrder.InsertRepositoryNode(RepositoryList.Repositories, node, RepositoryList.ActiveSortMode);
-            }
-
-            RepositoryList.UpdateHeaderWithFilterInfo();
-        }
-        // A repository can appear in multiple remote groups; refresh every aggregate and status summary.
-        if (RepositoryList.ActiveGroupMode != GroupMode.None)
-        {
-            foreach (var header in node.ParentHeaders)
-            {
-                header.UpdateDisplayText();
-            }
-        }
-    }
-
     /// <summary>
     /// Hard refresh: force a fresh discovery scan (rebuild purpose), then refresh. The cached
     /// repository list and report are left in place until the scan's outcome is known - an
@@ -210,11 +56,8 @@ public partial class MainViewModel
         // repeated refresh cycles. The visible collection must be changed on the UI thread.
         await _ui.InvokeAsync(() =>
         {
-            RepositoryList.Repositories.Clear();
-            RepositoryList.PendingGroups.Clear();
-            RepositoryList.AllRepositories.Clear();
-            RepositoryList.RepositoryMap.Clear();
-            PrePopulateFromReport(configuration, cachedPaths, cachedReport);
+            RepositoryList.ClearRepositories();
+            RepositoryList.PrePopulateFromReport(configuration, cachedPaths, cachedReport);
         }).ConfigureAwait(false);
 
         var (deletedPaths, renamedOldPaths, nonRepositoryPaths, freshPaths, publishable) =
@@ -234,8 +77,8 @@ public partial class MainViewModel
             // pre-populated rows be pruned for missing from the fresh scan. An incomplete
             // discovery retains the rows its scope did not cover.
             if (publishable)
-                PruneStalePrePopulatedRepos(freshPaths, renamedOldPaths);
-            RemoveRenamedReposFromUi(renamedOldPaths);
+                RepositoryList.PruneStalePrePopulatedRepos(freshPaths, renamedOldPaths);
+            RepositoryList.RemoveRenamedReposFromUi(renamedOldPaths);
         }).ConfigureAwait(false);
 
         // CompleteRefresh runs one sorted rebuild (ApplyFilterAndGrouping) and swaps in the sorted
@@ -248,6 +91,25 @@ public partial class MainViewModel
         RepositoryList.ApplyFilterAndGrouping(suppressAnchorCapture: true);
         IsScanning = false;
         IsRefreshing = false;
+    }
+
+    // Drop deleted, renamed (old path), and stale non-repo entries from the cached
+    // repository-path list.
+    internal static async Task UpdateCachedPathsAfterScanAsync(HashSet<string> deletedPaths, HashSet<string> renamedOldPaths,
+        HashSet<string> nonRepositoryPaths)
+    {
+        var cachedPaths = await GitWizardApi.GetCachedRepositoryPathsAsync().ConfigureAwait(false);
+        if (cachedPaths == null)
+        {
+            return;
+        }
+
+        var pathsToRemove = deletedPaths.Union(renamedOldPaths).Union(nonRepositoryPaths).ToHashSet();
+        if (pathsToRemove.Count > 0)
+        {
+            var updatedPaths = cachedPaths.Where(p => !pathsToRemove.Contains(p)).ToList();
+            await GitWizardApi.SaveCachedRepositoryPathsAsync(updatedPaths).ConfigureAwait(false);
+        }
     }
 
     // Read the global git user.email once per session for the "My Repositories" filter.
@@ -353,82 +215,5 @@ public partial class MainViewModel
         }).ConfigureAwait(false);
 
         return (deletedPaths, renamedOldPaths, nonRepositoryPaths, freshPaths, publishable);
-    }
-
-    // Pre-populate the UI from the cached report so repos appear immediately on launch.
-    // Existing repos get updated in-place as the refresh completes; new repos discovered
-    // during the scan get added normally through OnRepositoryCreated. (Issue #98.)
-    internal void PrePopulateFromReport(GitWizardConfiguration configuration, string[]? repositoryPaths,
-        GitWizardReport? cachedReport)
-    {
-        // These collections describe only the current refresh cycle. Reset them before
-        // every early return so paths from a prior refresh cannot suppress fresh rows.
-        _prePopulatedNodes = null;
-
-        if (repositoryPaths == null || repositoryPaths.Length == 0 || cachedReport == null || cachedReport.Repositories.Count == 0)
-            return;
-
-        var pathsSet = new HashSet<string>(repositoryPaths);
-
-        // Both the ungrouped display batch and each group's batch are collected here and applied
-        // once at the end (SortBatchForDisplay / MergeGroupBatch) instead of inserting or calling
-        // AddToGroups per row: this loop can process hundreds of cached rows in one synchronous
-        // burst, and a per-row insertion costs an O(n) scan-and-shift of the already-inserted,
-        // growing list on every iteration - quadratic over the whole batch (pr-crew review of PR
-        // #241/#243, rounds 1 and 2). PrePopulateFromReport always runs against empty
-        // Repositories/RepositoryList.PendingGroups (RefreshAsync clears both immediately before calling it), so
-        // MergeGroupBatch's fresh-header path is what actually runs here in practice.
-        List<RepositoryNodeViewModel>? ungroupedBatch = null;
-        Dictionary<string, List<RepositoryNodeViewModel>>? groupedBatches = null;
-
-        foreach (var (path, repo) in cachedReport.Repositories)
-        {
-            if (!pathsSet.Contains(path))
-                continue;
-
-            var node = new RepositoryNodeViewModel(repo);
-            RepositoryList.RepositoryMap[path] = node;
-            RepositoryList.AllRepositories.Add(node);
-            _prePopulatedNodes ??= new HashSet<RepositoryNodeViewModel>();
-            _prePopulatedNodes.Add(node);
-
-            if (!node.MatchesFilter(RepositoryList.ActiveFilter, GlobalUserEmail))
-                continue;
-            if (!string.IsNullOrWhiteSpace(RepositoryList.SearchText) &&
-                !path.Contains(RepositoryList.SearchText, StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            if (RepositoryList.ActiveGroupMode == GroupMode.None)
-            {
-                ungroupedBatch ??= new List<RepositoryNodeViewModel>();
-                ungroupedBatch.Add(node);
-            }
-            else
-            {
-                foreach (var key in RepositoryGroupKeys.GetGroupKeys(node, RepositoryList.ActiveGroupMode))
-                {
-                    groupedBatches ??= new Dictionary<string, List<RepositoryNodeViewModel>>();
-                    if (!groupedBatches.TryGetValue(key, out var bucket))
-                    {
-                        bucket = new List<RepositoryNodeViewModel>();
-                        groupedBatches[key] = bucket;
-                    }
-
-                    bucket.Add(node);
-                }
-            }
-        }
-
-        if (ungroupedBatch != null)
-        {
-            foreach (var node in RepositorySortOrder.SortBatchForDisplay(ungroupedBatch, RepositoryList.ActiveSortMode))
-                RepositoryList.Repositories.Add(node);
-        }
-
-        if (groupedBatches != null)
-        {
-            foreach (var (key, bucket) in groupedBatches)
-                RepositoryList.MergeGroupBatch(key, bucket);
-        }
     }
 }

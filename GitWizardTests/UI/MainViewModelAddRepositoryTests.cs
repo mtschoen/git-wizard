@@ -5,7 +5,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests;
 
 // Refresh tests are split by concern because the combined fixture exceeds 500 lines.
-// Covers MainViewModel.Refresh.cs (AddRepository).
+// Covers RepositoryListViewModel.Rows.cs (AddRepository) and MainViewModel.Commands.cs (DrainUICommands).
 public class MainViewModelAddRepositoryTests
 {
     [SetUp]
@@ -16,16 +16,35 @@ public class MainViewModelAddRepositoryTests
     static GitWizardRepository Repo(string workingDirectory) => new(workingDirectory);
 
 
-    [Test]
-    public void AddRepository_SetsIsScanningToFalse()
+    [TestCase("C:/repos/a", 1, TestName = "DrainedRepositoryCreated_ClearsIsScanning")]
+    [TestCase("", 0, TestName = "DrainedRepositoryCreated_WithEmptyPath_StillClearsIsScanning")]
+    public async Task DrainedRepositoryCreated_EndsScanning(string path, int expectedCount)
     {
-        var vm = CreateViewModel();
-        vm.IsScanning = true;
+        await using var viewModel = TestViewModels.Create(timeProvider: new ControlledDelayClock());
+        viewModel.IsScanning = true;
+        viewModel.OnRepositoryCreated(Repo(path));
+        Assert.That(viewModel.IsScanning, Is.True);
 
-        vm.AddRepository(Repo("C:/repos/alpha"));
+        viewModel.DrainUICommands();
 
-        Assert.That(vm.IsScanning, Is.False,
-            "The first repo surfacing must end the scanning indicator.");
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.IsScanning, Is.False);
+            Assert.That(viewModel.RepositoryList.AllRepositories, Has.Count.EqualTo(expectedCount));
+            Assert.That(viewModel.RepositoryList.Repositories, Has.Count.EqualTo(expectedCount));
+        });
+    }
+
+    [Test]
+    public async Task RepositoryListAddRepository_DoesNotTouchIsScanning()
+    {
+        await using var viewModel = TestViewModels.Create(timeProvider: new ControlledDelayClock());
+        viewModel.IsScanning = true;
+
+        viewModel.RepositoryList.AddRepository(Repo("C:/repos/a"), streaming: false);
+
+        Assert.That(viewModel.IsScanning, Is.True);
+        Assert.That(viewModel.RepositoryList.Repositories.Single().WorkingDirectory, Is.EqualTo("C:/repos/a"));
     }
 
     [Test]
@@ -33,8 +52,8 @@ public class MainViewModelAddRepositoryTests
     {
         var vm = CreateViewModel();
 
-        vm.AddRepository(Repo("C:/repos/alpha"));
-        vm.AddRepository(Repo("C:/repos/beta"));
+        vm.RepositoryList.AddRepository(Repo("C:/repos/alpha"), streaming: false);
+        vm.RepositoryList.AddRepository(Repo("C:/repos/beta"), streaming: false);
 
         Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(2));
         Assert.That(vm.RepositoryList.Repositories[0].WorkingDirectory, Is.EqualTo("C:/repos/alpha"));
@@ -46,7 +65,7 @@ public class MainViewModelAddRepositoryTests
     {
         var vm = CreateViewModel();
 
-        vm.AddRepository(Repo(""));
+        vm.RepositoryList.AddRepository(Repo(""), streaming: false);
 
         Assert.That(vm.RepositoryList.Repositories, Is.Empty,
             "A repository with an empty working directory must not appear in the list.");
@@ -59,7 +78,7 @@ public class MainViewModelAddRepositoryTests
 
         // GitWizardRepository(string) sets WorkingDirectory = the string argument;
         // a null path should be handled just like empty.
-        vm.AddRepository(Repo(null!));
+        vm.RepositoryList.AddRepository(Repo(null!), streaming: false);
 
         Assert.That(vm.RepositoryList.Repositories, Is.Empty);
     }
@@ -71,7 +90,7 @@ public class MainViewModelAddRepositoryTests
 
         // PendingChanges filter requires HasPendingChanges = true; a plain repo does not match.
         vm.RepositoryList.ToggleFilter(FilterType.PendingChanges);
-        vm.AddRepository(Repo("C:/repos/clean"));
+        vm.RepositoryList.AddRepository(Repo("C:/repos/clean"), streaming: false);
 
         Assert.That(vm.RepositoryList.Repositories, Is.Empty,
             "A repo that doesn't match the active filter must not appear.");
@@ -83,7 +102,7 @@ public class MainViewModelAddRepositoryTests
         var vm = CreateViewModel();
         vm.RepositoryList.SetSearchText("widget");
 
-        vm.AddRepository(Repo("C:/repos/alpha"));
+        vm.RepositoryList.AddRepository(Repo("C:/repos/alpha"), streaming: false);
 
         Assert.That(vm.RepositoryList.Repositories, Is.Empty,
             "A repo whose path doesn't contain the search text must be excluded.");
@@ -95,7 +114,7 @@ public class MainViewModelAddRepositoryTests
         var vm = CreateViewModel();
         vm.RepositoryList.SetSearchText("alpha");
 
-        vm.AddRepository(Repo("C:/repos/alpha"));
+        vm.RepositoryList.AddRepository(Repo("C:/repos/alpha"), streaming: false);
 
         Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1));
     }
@@ -106,7 +125,7 @@ public class MainViewModelAddRepositoryTests
         var vm = CreateViewModel();
         vm.RepositoryList.SetSearchText("ALPHA");
 
-        vm.AddRepository(Repo("C:/repos/alpha"));
+        vm.RepositoryList.AddRepository(Repo("C:/repos/alpha"), streaming: false);
 
         Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1),
             "Search text comparison must be case-insensitive.");
@@ -118,7 +137,7 @@ public class MainViewModelAddRepositoryTests
         var vm = CreateViewModel();
         vm.RepositoryList.ToggleGroupMode(GroupMode.Drive);
 
-        vm.AddRepository(Repo("C:/repos/alpha"));
+        vm.RepositoryList.AddRepository(Repo("C:/repos/alpha"), streaming: false);
 
         // With Drive grouping, the repo goes into a group header, not directly into Repositories as a plain node.
         // The group header itself should be in Repositories (or in pending groups if minGroupSize not met).
@@ -138,8 +157,8 @@ public class MainViewModelAddRepositoryTests
         var vm = CreateViewModel();
         vm.RepositoryList.ToggleGroupMode(GroupMode.Drive);
 
-        vm.AddRepository(Repo("C:/repos/alpha"));
-        vm.AddRepository(Repo("C:/repos/beta"));
+        vm.RepositoryList.AddRepository(Repo("C:/repos/alpha"), streaming: false);
+        vm.RepositoryList.AddRepository(Repo("C:/repos/beta"), streaming: false);
 
         Assert.Multiple(() =>
         {
@@ -147,19 +166,6 @@ public class MainViewModelAddRepositoryTests
                 "Both repos share the same drive group, so only one header should exist.");
             Assert.That(vm.RepositoryList.Repositories[0].Children, Has.Count.EqualTo(2));
         });
-    }
-
-    [Test]
-    public void AddRepository_StillSetsIsScanningFalse_EvenWhenRepoIsSkipped()
-    {
-        var vm = CreateViewModel();
-        vm.IsScanning = true;
-
-        // Empty path causes early return, but IsScanning is set BEFORE the path check.
-        vm.AddRepository(Repo(""));
-
-        Assert.That(vm.IsScanning, Is.False,
-            "IsScanning must flip even when the repo itself is skipped.");
     }
 
     [Test]
@@ -171,8 +177,8 @@ public class MainViewModelAddRepositoryTests
         vm.RepositoryList.SetSearchText("alpha");
         // No filter active (FilterType.None), so MatchesFilter always returns true.
 
-        vm.AddRepository(Repo("C:/repos/alpha"));
-        vm.AddRepository(Repo("C:/repos/beta"));
+        vm.RepositoryList.AddRepository(Repo("C:/repos/alpha"), streaming: false);
+        vm.RepositoryList.AddRepository(Repo("C:/repos/beta"), streaming: false);
 
         Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1),
             "Only the repo matching the search text should appear.");

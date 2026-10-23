@@ -73,12 +73,12 @@ public class RepositoryNodeViewModelSizeTests
         var viewModel = TestViewModels.Create();
         var repository = new GitWizardRepository("/repositories/shared");
         repository.RemoteUrls.AddRange(["https://example.com/first", "https://example.com/second"]);
-        viewModel.AddRepository(repository);
+        viewModel.RepositoryList.AddRepository(repository, streaming: false);
         foreach (var remote in repository.RemoteUrls)
         {
             var sibling = new GitWizardRepository("/repositories/" + remote.Split('/').Last());
             sibling.RemoteUrls.Add(remote);
-            viewModel.AddRepository(sibling);
+            viewModel.RepositoryList.AddRepository(sibling, streaming: false);
         }
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.RemoteUrl);
         var headers = viewModel.RepositoryList.Repositories.Where(node => node.IsGroupHeader).ToArray();
@@ -92,7 +92,7 @@ public class RepositoryNodeViewModelSizeTests
             };
 
         repository.SizeOnDisk = 1572864L;
-        viewModel.UpdateCompletedRepository(repository);
+        viewModel.RepositoryList.UpdateCompletedRepository(repository, streaming: false);
 
         Assert.That(notifiedHeaders, Is.EquivalentTo(headers));
         Assert.That(headers.Select(header => header.SizeText), Is.All.EqualTo("1.5 MB"));
@@ -228,7 +228,7 @@ public class RepositoryNodeViewModelSizeTests
         {
             var repository = new GitWizardRepository($"C:/repositories/repository_{index:D4}");
             repositories[index] = repository;
-            viewModel.AddRepository(repository);
+            viewModel.RepositoryList.AddRepository(repository, streaming: false);
         }
 
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
@@ -239,7 +239,7 @@ public class RepositoryNodeViewModelSizeTests
         for (var index = 0; index < repositoryCount; index++)
         {
             repositories[index].SizeOnDisk = 1048576L;
-            viewModel.UpdateCompletedRepository(repositories[index]);
+            viewModel.RepositoryList.UpdateCompletedRepository(repositories[index], streaming: false);
         }
         var allocatedAfter = GC.GetAllocatedBytesForCurrentThread();
 
@@ -253,7 +253,7 @@ public class RepositoryNodeViewModelSizeTests
     {
         var viewModel = TestViewModels.Create();
         var repository = new GitWizardRepository("C:/repositories/repo1");
-        viewModel.AddRepository(repository);
+        viewModel.RepositoryList.AddRepository(repository, streaming: false);
 
         var weakGroupHeader = CreateAndDiscardGroupHeader(viewModel);
 

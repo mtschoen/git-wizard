@@ -11,7 +11,7 @@ namespace GitWizardTests;
 /// the resulting <see cref="RepositoryListViewModel.Repositories"/> collection.
 /// </summary>
 // Grouping tests exercise shared group-publication and hierarchical view-model scenarios across display filters.
-// Covers RepositoryListViewModel.cs, RepositoryListViewModel.Groups.cs, RepositoryGroupKeys.cs, RepositorySortOrder.cs, and StatusHeaderViewModel.cs.
+// Covers RepositoryListViewModel.cs, RepositoryListViewModel.Groups.cs, RepositoryListViewModel.Rows.cs, RepositoryGroupKeys.cs, RepositorySortOrder.cs, and StatusHeaderViewModel.cs.
 public class MainViewModelGroupingTests
 {
     [SetUp]
@@ -34,9 +34,9 @@ public class MainViewModelGroupingTests
     public void GroupByRemoteUrl_GroupsDuplicateRemotesAcrossUrlForms(string remote1, string remote2)
     {
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("/a/clone1", remote1));
-        viewModel.AddRepository(Repo("/b/clone2", remote2));
-        viewModel.AddRepository(Repo("/c/solo", "https://github.com/user/other"));
+        viewModel.RepositoryList.AddRepository(Repo("/a/clone1", remote1), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("/b/clone2", remote2), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("/c/solo", "https://github.com/user/other"), streaming: false);
 
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.RemoteUrl);
 
@@ -53,8 +53,8 @@ public class MainViewModelGroupingTests
     public void GroupByRemoteUrl_DropsSingletonGroups()
     {
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("/a/r1", "https://github.com/u/one"));
-        viewModel.AddRepository(Repo("/b/r2", "https://github.com/u/two"));
+        viewModel.RepositoryList.AddRepository(Repo("/a/r1", "https://github.com/u/one"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("/b/r2", "https://github.com/u/two"), streaming: false);
 
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.RemoteUrl);
 
@@ -66,8 +66,8 @@ public class MainViewModelGroupingTests
     public void GroupByRemoteUrl_NoRemote_GroupsAsSeparateLabel()
     {
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("/a"));
-        viewModel.AddRepository(Repo("/b"));
+        viewModel.RepositoryList.AddRepository(Repo("/a"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("/b"), streaming: false);
 
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.RemoteUrl);
 
@@ -80,9 +80,9 @@ public class MainViewModelGroupingTests
     public void GroupByDrive_GroupsRepositoriesByDriveRoot()
     {
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("C:\\repos\\alpha"));
-        viewModel.AddRepository(Repo("C:\\repos\\beta"));
-        viewModel.AddRepository(Repo("D:\\projects\\gamma"));
+        viewModel.RepositoryList.AddRepository(Repo("C:\\repos\\alpha"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("C:\\repos\\beta"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("D:\\projects\\gamma"), streaming: false);
 
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
 
@@ -105,7 +105,7 @@ public class MainViewModelGroupingTests
     public void GroupByDrive_SingleDrive_ShowsSingleGroup()
     {
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("C:\\repos\\one"));
+        viewModel.RepositoryList.AddRepository(Repo("C:\\repos\\one"), streaming: false);
 
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
 
@@ -118,10 +118,10 @@ public class MainViewModelGroupingTests
     public void GroupByDrive_SortedByGroupSizeDescending()
     {
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("D:\\r1"));
-        viewModel.AddRepository(Repo("C:\\r1"));
-        viewModel.AddRepository(Repo("C:\\r2"));
-        viewModel.AddRepository(Repo("C:\\r3"));
+        viewModel.RepositoryList.AddRepository(Repo("D:\\r1"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("C:\\r1"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("C:\\r2"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("C:\\r3"), streaming: false);
 
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
 
@@ -139,8 +139,8 @@ public class MainViewModelGroupingTests
     public void GroupHeader_DisplayText_IncludesCountAndGroupKey()
     {
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("/a/clone1", "https://github.com/u/x"));
-        viewModel.AddRepository(Repo("/b/clone2", "https://github.com/u/x"));
+        viewModel.RepositoryList.AddRepository(Repo("/a/clone1", "https://github.com/u/x"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("/b/clone2", "https://github.com/u/x"), streaming: false);
 
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.RemoteUrl);
 
@@ -156,8 +156,8 @@ public class MainViewModelGroupingTests
     public void UpdateHeaderWithFilterInfo_NoFilterNoGroup_ShowsRepoCount()
     {
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("/a"));
-        viewModel.AddRepository(Repo("/b"));
+        viewModel.RepositoryList.AddRepository(Repo("/a"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("/b"), streaming: false);
 
         viewModel.RepositoryList.SetSearchText("");
 
@@ -168,8 +168,8 @@ public class MainViewModelGroupingTests
     public void UpdateHeaderWithFilterInfo_WithGroup_ShowsGroupCountInHeader()
     {
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("C:\\r1"));
-        viewModel.AddRepository(Repo("D:\\r2"));
+        viewModel.RepositoryList.AddRepository(Repo("C:\\r1"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("D:\\r2"), streaming: false);
 
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
 
@@ -180,8 +180,8 @@ public class MainViewModelGroupingTests
     public void UpdateHeaderWithFilterInfo_WithFilter_ShowsFilteredCount()
     {
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("/a"));
-        viewModel.AddRepository(Repo("/b"));
+        viewModel.RepositoryList.AddRepository(Repo("/a"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("/b"), streaming: false);
 
         viewModel.RepositoryList.ToggleFilter(FilterType.PendingChanges);
 
@@ -192,9 +192,9 @@ public class MainViewModelGroupingTests
     public void SortByRemoteUrl_OrdersByNormalizedRemoteWithNoRemoteLast()
     {
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("/z", "https://github.com/u/zebra"));
-        viewModel.AddRepository(Repo("/a", "https://github.com/u/apple"));
-        viewModel.AddRepository(Repo("/n")); // no remote -> sorts to the end
+        viewModel.RepositoryList.AddRepository(Repo("/z", "https://github.com/u/zebra"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("/a", "https://github.com/u/apple"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("/n"), streaming: false); // no remote -> sorts to the end
 
         viewModel.RepositoryList.SetSortMode(SortMode.RemoteUrl);
 
@@ -210,8 +210,8 @@ public class MainViewModelGroupingTests
         var large = Repo("/large");
         small.SizeOnDisk = 100;
         large.SizeOnDisk = 10000;
-        viewModel.AddRepository(small);
-        viewModel.AddRepository(large);
+        viewModel.RepositoryList.AddRepository(small, streaming: false);
+        viewModel.RepositoryList.AddRepository(large, streaming: false);
 
         viewModel.RepositoryList.SetSortMode(SortMode.SizeOnDisk);
 
@@ -227,8 +227,8 @@ public class MainViewModelGroupingTests
         var recent = Repo("/recent");
         old.LastCommitDate = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
         recent.LastCommitDate = new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero);
-        viewModel.AddRepository(old);
-        viewModel.AddRepository(recent);
+        viewModel.RepositoryList.AddRepository(old, streaming: false);
+        viewModel.RepositoryList.AddRepository(recent, streaming: false);
 
         viewModel.RepositoryList.SetSortMode(SortMode.RecentlyUsed);
 
@@ -240,8 +240,8 @@ public class MainViewModelGroupingTests
     public void SortByWorkingDirectory_DefaultSort()
     {
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("/z"));
-        viewModel.AddRepository(Repo("/a"));
+        viewModel.RepositoryList.AddRepository(Repo("/z"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("/a"), streaming: false);
 
         viewModel.RepositoryList.SetSortMode(SortMode.WorkingDirectory);
 
@@ -253,8 +253,8 @@ public class MainViewModelGroupingTests
     public void SwitchGroupMode_FromDriveToRemote_RebuildsGroups()
     {
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("C:\\a", "https://github.com/u/x"));
-        viewModel.AddRepository(Repo("D:\\b", "https://github.com/u/x"));
+        viewModel.RepositoryList.AddRepository(Repo("C:\\a", "https://github.com/u/x"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("D:\\b", "https://github.com/u/x"), streaming: false);
 
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
         var driveHeaders = viewModel.RepositoryList.Repositories.Where(n => n.IsGroupHeader).ToList();
@@ -275,8 +275,8 @@ public class MainViewModelGroupingTests
     public void SearchText_FiltersByWorkingDirectorySubstring()
     {
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("/projects/alpha-service"));
-        viewModel.AddRepository(Repo("/projects/beta-tool"));
+        viewModel.RepositoryList.AddRepository(Repo("/projects/alpha-service"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("/projects/beta-tool"), streaming: false);
 
         viewModel.RepositoryList.SetSearchText("ALPHA");
 
@@ -288,8 +288,8 @@ public class MainViewModelGroupingTests
     public void SearchText_EmptyString_ShowsAll()
     {
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("/alpha"));
-        viewModel.AddRepository(Repo("/beta"));
+        viewModel.RepositoryList.AddRepository(Repo("/alpha"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("/beta"), streaming: false);
 
         viewModel.RepositoryList.SetSearchText("");
 
@@ -300,8 +300,8 @@ public class MainViewModelGroupingTests
     public void SearchText_NoMatch_ShowsEmpty()
     {
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("/alpha"));
-        viewModel.AddRepository(Repo("/beta"));
+        viewModel.RepositoryList.AddRepository(Repo("/alpha"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("/beta"), streaming: false);
 
         viewModel.RepositoryList.SetSearchText("NONEXISTENT");
 
@@ -312,9 +312,9 @@ public class MainViewModelGroupingTests
     public void SearchText_PartialMatch_FiltersCorrectly()
     {
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("/projects/alpha-service"));
-        viewModel.AddRepository(Repo("/projects/beta-tool"));
-        viewModel.AddRepository(Repo("/projects/alpha-ui"));
+        viewModel.RepositoryList.AddRepository(Repo("/projects/alpha-service"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("/projects/beta-tool"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("/projects/alpha-ui"), streaming: false);
 
         viewModel.RepositoryList.SetSearchText("alpha");
 
@@ -325,9 +325,9 @@ public class MainViewModelGroupingTests
     public void SearchText_CombinedWithGrouping_FiltersGroupedRepos()
     {
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("C:\\alpha\\r1"));
-        viewModel.AddRepository(Repo("C:\\beta\\r2"));
-        viewModel.AddRepository(Repo("C:\\alpha\\r3"));
+        viewModel.RepositoryList.AddRepository(Repo("C:\\alpha\\r1"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("C:\\beta\\r2"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("C:\\alpha\\r3"), streaming: false);
 
         viewModel.RepositoryList.SetSearchText("alpha");
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
@@ -351,13 +351,13 @@ public class MainViewModelGroupingTests
         var viewModel = NewViewModel();
         if (mode == GroupMode.RemoteUrl)
         {
-            viewModel.AddRepository(Repo("/a/clone1", "https://github.com/u/x"));
-            viewModel.AddRepository(Repo("/b/clone2", "https://github.com/u/x"));
+            viewModel.RepositoryList.AddRepository(Repo("/a/clone1", "https://github.com/u/x"), streaming: false);
+            viewModel.RepositoryList.AddRepository(Repo("/b/clone2", "https://github.com/u/x"), streaming: false);
         }
         else
         {
-            viewModel.AddRepository(Repo("C:\\repos\\alpha"));
-            viewModel.AddRepository(Repo("C:\\repos\\beta"));
+            viewModel.RepositoryList.AddRepository(Repo("C:\\repos\\alpha"), streaming: false);
+            viewModel.RepositoryList.AddRepository(Repo("C:\\repos\\beta"), streaming: false);
         }
         viewModel.RepositoryList.ToggleGroupMode(mode);
 
@@ -420,7 +420,7 @@ public class MainViewModelGroupingTests
     {
         var vm = NewViewModel();
         vm.RepositoryList.ToggleGroupMode(GroupMode.Drive);
-        vm.AddRepository(new GitWizardRepository("C:/repos/alpha"));
+        vm.RepositoryList.AddRepository(new GitWizardRepository("C:/repos/alpha"), streaming: false);
 
         var header = vm.RepositoryList.Repositories[0];
         RepositoryNodeViewModel? scrolledTo = null;
@@ -436,12 +436,12 @@ public class MainViewModelGroupingTests
     {
         var viewModel = NewViewModel();
         var first = Repo("/a/clone1", "https://github.com/u/x");
-        viewModel.AddRepository(first);
-        viewModel.AddRepository(Repo("/b/clone2", "https://github.com/u/x"));
+        viewModel.RepositoryList.AddRepository(first, streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo("/b/clone2", "https://github.com/u/x"), streaming: false);
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.RemoteUrl);
         var header = viewModel.RepositoryList.Repositories.Single(n => n.IsGroupHeader);
 
-        Assert.DoesNotThrow(() => viewModel.UpdateCompletedRepository(first));
+        Assert.DoesNotThrow(() => viewModel.RepositoryList.UpdateCompletedRepository(first, streaming: false));
         Assert.That(viewModel.RepositoryList.Repositories, Does.Contain(header));
     }
 
@@ -452,13 +452,13 @@ public class MainViewModelGroupingTests
         var viewModel = NewViewModel();
         if (mode == GroupMode.RemoteUrl)
         {
-            viewModel.AddRepository(Repo("/a/clone1", "https://github.com/u/x"));
-            viewModel.AddRepository(Repo("/b/clone2", "https://github.com/u/x"));
+            viewModel.RepositoryList.AddRepository(Repo("/a/clone1", "https://github.com/u/x"), streaming: false);
+            viewModel.RepositoryList.AddRepository(Repo("/b/clone2", "https://github.com/u/x"), streaming: false);
         }
         else
         {
-            viewModel.AddRepository(Repo("C:\\repos\\alpha"));
-            viewModel.AddRepository(Repo("C:\\repos\\beta"));
+            viewModel.RepositoryList.AddRepository(Repo("C:\\repos\\alpha"), streaming: false);
+            viewModel.RepositoryList.AddRepository(Repo("C:\\repos\\beta"), streaming: false);
         }
         viewModel.RepositoryList.ToggleGroupMode(mode);
         var header = viewModel.RepositoryList.Repositories.Single(n => n.IsGroupHeader);
@@ -480,7 +480,7 @@ public class MainViewModelGroupingTests
     public void ToggleFilter_AllFilterTypes_DoNotThrow()
     {
         var viewModel = NewViewModel();
-        viewModel.AddRepository(Repo("/a"));
+        viewModel.RepositoryList.AddRepository(Repo("/a"), streaming: false);
 
         foreach (var filter in Enum.GetValues<FilterType>())
         {
@@ -503,14 +503,14 @@ public class MainViewModelGroupingTests
         var repo1 = new GitWizardRepository(missing1.Path);
         var repo2 = new GitWizardRepository(missing2.Path);
 
-        vm.AddRepository(repo1);
+        vm.RepositoryList.AddRepository(repo1, streaming: false);
         Assert.That(vm.RepositoryList.Repositories, Is.Not.Empty);
 
         var header = vm.RepositoryList.Repositories[0];
         Assert.That(header.IsGroupHeader, Is.True);
         Assert.That(header.Children, Has.Count.EqualTo(1));
 
-        vm.AddRepository(repo2);
+        vm.RepositoryList.AddRepository(repo2, streaming: false);
         Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1));
         Assert.That(header.Children, Has.Count.EqualTo(2));
     }
@@ -529,10 +529,10 @@ public class MainViewModelGroupingTests
         var repo2 = new GitWizardRepository(missing2.Path);
         repo2.RemoteUrls.Add("https://github.com/mtschoen/git-wizard.git");
 
-        vm.AddRepository(repo1);
+        vm.RepositoryList.AddRepository(repo1, streaming: false);
         Assert.That(vm.RepositoryList.Repositories, Is.Empty);
 
-        vm.AddRepository(repo2);
+        vm.RepositoryList.AddRepository(repo2, streaming: false);
         Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1));
         Assert.That(vm.RepositoryList.Repositories[0].IsGroupHeader, Is.True);
         Assert.That(vm.RepositoryList.Repositories[0].Children, Has.Count.EqualTo(2));

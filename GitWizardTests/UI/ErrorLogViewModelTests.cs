@@ -1,3 +1,4 @@
+using GitWizardTests.TestSupport;
 using GitWizardUI.ViewModels;
 
 namespace GitWizardTests;
@@ -98,5 +99,28 @@ public class ErrorLogViewModelTests
 
         Assert.That(log.Entries, Is.Empty);
         Assert.That(log.Count, Is.EqualTo(0));
+    }
+
+    [TestCase(null)]
+    [TestCase("C:/repos/alpha")]
+    public void PostError_PublishesOnlyWhenDispatcherRuns(string? repositoryPath)
+    {
+        var dispatcher = new QueuedUiDispatcher();
+        var log = new ErrorLogViewModel();
+        var raisedProperties = new List<string?>();
+        log.PropertyChanged += (_, arguments) => raisedProperties.Add(arguments.PropertyName);
+
+        log.PostError(dispatcher, "refresh failed", repositoryPath);
+
+        Assert.That(log.Entries, Is.Empty);
+        Assert.That(raisedProperties, Is.Empty);
+        dispatcher.Drain();
+        Assert.Multiple(() =>
+        {
+            Assert.That(log.Count, Is.EqualTo(1));
+            Assert.That(log.Entries.Single().Message, Is.EqualTo("refresh failed"));
+            Assert.That(log.Entries.Single().RepositoryPath, Is.EqualTo(repositoryPath));
+            Assert.That(raisedProperties, Does.Contain(nameof(ErrorLogViewModel.Count)));
+        });
     }
 }

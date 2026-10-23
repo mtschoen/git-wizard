@@ -63,4 +63,5 @@ exclude:
 
 ci:
   failBelow: 100
+  failOnMissingTools: true
   format: json

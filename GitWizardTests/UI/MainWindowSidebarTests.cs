@@ -14,7 +14,7 @@ namespace GitWizardTests.UI;
 /// shared Click handlers route it to the matching view model action. Also covers the busy-flag
 /// re-entry guards behind the Refresh and Live buttons.
 /// </summary>
-// Covers MainWindow.axaml, MainWindow.axaml.cs, RepositoryListViewModel.cs, and StatusHeaderViewModel.cs.
+// Covers MainWindow.axaml, MainWindow.axaml.cs, RefreshCoordinator.cs, RepositoryListViewModel.cs, and StatusHeaderViewModel.cs.
 public class MainWindowSidebarTests
 {
     static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -115,7 +115,7 @@ public class MainWindowSidebarTests
         Dispatcher.UIThread.RunJobs();
         var headerText = window.GetLogicalDescendants().OfType<TextBlock>()
             .Single(block => block.Text == "GitWizard");
-        viewModel.IsRefreshing = true;
+        viewModel.Refresh.IsRefreshing = true;
         viewModel.StatusHeader.ShowRefreshMessage("Refreshing...");
         Dispatcher.UIThread.RunJobs();
         Assert.That(headerText.Text, Is.EqualTo("Refreshing..."));
@@ -124,7 +124,7 @@ public class MainWindowSidebarTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(viewModel.IsRefreshing, Is.True);
+            Assert.That(viewModel.Refresh.IsRefreshing, Is.True);
             Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Refreshing..."),
                 "A refresh already in progress must not be re-entered from the button.");
             Assert.That(headerText.Text, Is.EqualTo("Refreshing..."));
@@ -139,7 +139,7 @@ public class MainWindowSidebarTests
     {
         var window = new MainWindow();
         var viewModel = (MainViewModel)window.DataContext!;
-        viewModel.IsRefreshing = true;
+        viewModel.Refresh.IsRefreshing = true;
         var button = window.FindControl<Button>("LiveButton")!;
 
         Assert.That(button.IsEnabled, Is.False, "CanToggleLive must disable the button mid-refresh.");

@@ -5,7 +5,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests;
 
 // Refresh tests are split by concern because the combined fixture exceeds 500 lines.
-// Covers MainViewModel.UpdateHandler.cs.
+// Covers RefreshCoordinator.UiDrain.cs.
 public class MainViewModelUpdateHandlerTests
 {
     [SetUp]
@@ -23,7 +23,7 @@ public class MainViewModelUpdateHandlerTests
         var repo = Repo("C:/repos/alpha");
 
         // OnRepositoryCreated enqueues a RepositoryCreated command.
-        vm.OnRepositoryCreated(repo);
+        vm.Refresh.OnRepositoryCreated(repo);
 
         // The batching window drains the queue asynchronously; verify the command was queued by
         // checking it didn't add inline. (AddRepository is called by the scheduled drain, not inline.)
@@ -43,7 +43,7 @@ public class MainViewModelUpdateHandlerTests
         Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1), "Precondition.");
 
         // Queue a refresh completed event.
-        vm.OnRepositoryRefreshCompleted(repo);
+        vm.Refresh.OnRepositoryRefreshCompleted(repo);
 
         // The command is queued, not processed inline.
         Assert.That(vm.RepositoryList.Repositories[0].Status, Is.EqualTo(RefreshStatus.Refreshing),
@@ -58,7 +58,7 @@ public class MainViewModelUpdateHandlerTests
         var sub = Repo("C:/repos/parent/sub");
 
         vm.RepositoryList.AddRepository(parent, streaming: false);
-        vm.OnSubmoduleCreated(parent, sub);
+        vm.Refresh.OnSubmoduleCreated(parent, sub);
 
         // Submodule is queued, not processed inline.
         var parentNode = vm.RepositoryList.Repositories[0];
@@ -72,7 +72,7 @@ public class MainViewModelUpdateHandlerTests
         var vm = CreateViewModel();
         var worktree = Repo("C:/repos/worktree");
 
-        vm.OnWorktreeCreated(worktree);
+        vm.Refresh.OnWorktreeCreated(worktree);
 
         Assert.That(vm.RepositoryList.Repositories, Is.Empty,
             "OnWorktreeCreated queues the worktree asynchronously.");

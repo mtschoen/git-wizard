@@ -24,7 +24,7 @@ public partial class MainViewModel
             return;
         }
 
-        if (IsRefreshing)
+        if (Refresh.IsRefreshing)
         {
             return;
         }
@@ -129,7 +129,7 @@ public partial class MainViewModel
                 continue;
             }
 
-            _ui.Post(() => RepositoryList.AddRepository(repository, streaming: IsRefreshing));
+            _ui.Post(() => RepositoryList.AddRepository(repository, streaming: Refresh.IsRefreshing));
         }
     }
 

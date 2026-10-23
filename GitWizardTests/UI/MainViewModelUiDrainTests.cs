@@ -8,6 +8,7 @@ namespace GitWizardTests;
 // The UI command queue drains event-driven: the first enqueue of a burst starts one batching
 // window on the injected TimeProvider, the window's expiry posts exactly one drain to the UI
 // dispatcher, and DisposeAsync stops the window so nothing is scheduled afterwards.
+// Covers RefreshCoordinator.UiDrain.cs.
 public class MainViewModelUiDrainTests
 {
     static MainViewModel CreateViewModel(RecordingUiDispatcher dispatcher, ControlledDelayClock clock) =>
@@ -37,7 +38,7 @@ public class MainViewModelUiDrainTests
         try
         {
             for (var index = 0; index < 20; index++)
-                vm.OnRepositoryCreated(Repo($"C:/repos/repository-{index:00}"));
+                vm.Refresh.OnRepositoryCreated(Repo($"C:/repos/repository-{index:00}"));
 
             Assert.That(clock.CreatedTimerCount, Is.EqualTo(1), "One batching window covers the whole burst.");
             Assert.That(clock.Timer!.Period, Is.EqualTo(Timeout.InfiniteTimeSpan), "The window is one-shot.");
@@ -64,11 +65,11 @@ public class MainViewModelUiDrainTests
         var vm = CreateViewModel(dispatcher, clock);
         try
         {
-            vm.OnRepositoryCreated(Repo("C:/repos/alpha"));
+            vm.Refresh.OnRepositoryCreated(Repo("C:/repos/alpha"));
             clock.Timer!.Fire();
             dispatcher.RunAll();
 
-            vm.OnRepositoryCreated(Repo("C:/repos/beta"));
+            vm.Refresh.OnRepositoryCreated(Repo("C:/repos/beta"));
 
             Assert.That(clock.CreatedTimerCount, Is.EqualTo(2));
             clock.Timer.Fire();
@@ -89,20 +90,20 @@ public class MainViewModelUiDrainTests
         var vm = CreateViewModel(dispatcher, clock);
         try
         {
-            vm.StartProgress("Scanning", 4);
+            vm.Refresh.StartProgress("Scanning", 4);
             dispatcher.RunAll();
-            vm.OnRepositoryCreated(Repo("C:/repos/alpha"));
-            vm.UpdateProgress(1);
-            vm.UpdateProgress(2);
+            vm.Refresh.OnRepositoryCreated(Repo("C:/repos/alpha"));
+            vm.Refresh.UpdateProgress(1);
+            vm.Refresh.UpdateProgress(2);
 
             Assert.That(clock.CreatedTimerCount, Is.EqualTo(1));
             clock.Timer!.Fire();
             Assert.That(dispatcher.QueuedCount, Is.EqualTo(1));
             dispatcher.RunAll();
 
-            Assert.That(vm.ProgressText, Is.EqualTo("Scanning 2 / 4"));
-            Assert.That(vm.ProgressValue, Is.EqualTo(0.5));
-            Assert.That(vm.IsProgressVisible, Is.True);
+            Assert.That(vm.Refresh.ProgressText, Is.EqualTo("Scanning 2 / 4"));
+            Assert.That(vm.Refresh.ProgressValue, Is.EqualTo(0.5));
+            Assert.That(vm.Refresh.IsProgressVisible, Is.True);
         }
         finally
         {
@@ -116,7 +117,7 @@ public class MainViewModelUiDrainTests
         var dispatcher = new RecordingUiDispatcher();
         var clock = new ControlledDelayClock();
         var vm = CreateViewModel(dispatcher, clock);
-        vm.OnRepositoryCreated(Repo("C:/repos/alpha"));
+        vm.Refresh.OnRepositoryCreated(Repo("C:/repos/alpha"));
         var window = clock.Timer!;
 
         await vm.DisposeAsync();
@@ -126,7 +127,7 @@ public class MainViewModelUiDrainTests
         dispatcher.RunAll();
         Assert.That(vm.RepositoryList.Repositories, Is.Empty, "A drain that was already posted must not run after dispose.");
 
-        vm.OnRepositoryCreated(Repo("C:/repos/beta"));
+        vm.Refresh.OnRepositoryCreated(Repo("C:/repos/beta"));
         Assert.That(clock.CreatedTimerCount, Is.EqualTo(1), "No window starts after dispose.");
     }
 
@@ -136,7 +137,7 @@ public class MainViewModelUiDrainTests
         var dispatcher = new RecordingUiDispatcher();
         var clock = new ControlledDelayClock();
         var vm = CreateViewModel(dispatcher, clock);
-        vm.OnRepositoryCreated(Repo("C:/repos/alpha"));
+        vm.Refresh.OnRepositoryCreated(Repo("C:/repos/alpha"));
         clock.Timer!.Fire();
         Assert.That(dispatcher.QueuedCount, Is.EqualTo(1), "Precondition: a drain is posted.");
 
@@ -154,10 +155,10 @@ public class MainViewModelUiDrainTests
         var dispatcher = new RecordingUiDispatcher();
         var clock = new ControlledDelayClock();
         var vm = CreateViewModel(dispatcher, clock);
-        vm.OnRepositoryCreated(Repo("C:/repos/alpha"));
+        vm.Refresh.OnRepositoryCreated(Repo("C:/repos/alpha"));
 
         await vm.DisposeAsync();
-        vm.DrainUICommands();
+        vm.Refresh.DrainUICommands();
 
         Assert.That(vm.RepositoryList.Repositories, Is.Empty, "A pending command must not survive disposal.");
     }
@@ -175,15 +176,15 @@ public class MainViewModelUiDrainTests
         var disposal = vm.DisposeAsync().AsTask();
         await dispatcher.InvokeEntered;
 
-        Assert.DoesNotThrow(() => vm.OnRepositoryCreated(Repo("C:/repos/late")));
+        Assert.DoesNotThrow(() => vm.Refresh.OnRepositoryCreated(Repo("C:/repos/late")));
         Assert.That(clock.CreatedTimerCount, Is.EqualTo(0), "No window starts once disposal began.");
 
         dispatcher.ReleaseInvokeAsync();
         await disposal;
-        vm.DrainUICommands();
+        vm.Refresh.DrainUICommands();
 
         Assert.That(vm.RepositoryList.Repositories, Is.Empty, "A late command must not be applied.");
-        Assert.That(await vm.WaitForUICommandsToDrainAsync(), Is.False, "The queue holds nothing to wait for.");
+        Assert.That(await vm.Refresh.WaitForUICommandsToDrainAsync(), Is.False, "The queue holds nothing to wait for.");
     }
 
     // The refresh's wait on the queue ends on disposal instead of polling a queue no drain empties.
@@ -194,8 +195,8 @@ public class MainViewModelUiDrainTests
         var dispatcher = new RecordingUiDispatcher();
         var clock = new ControlledDelayClock();
         var vm = CreateViewModel(dispatcher, clock);
-        vm.OnRepositoryCreated(Repo("C:/repos/alpha"));
-        var wait = vm.WaitForUICommandsToDrainAsync();
+        vm.Refresh.OnRepositoryCreated(Repo("C:/repos/alpha"));
+        var wait = vm.Refresh.WaitForUICommandsToDrainAsync();
         Assert.That(wait.IsCompleted, Is.False, "Precondition: the wait is parked on the pending command.");
 
         await vm.DisposeAsync();
@@ -211,11 +212,11 @@ public class MainViewModelUiDrainTests
         var vm = CreateViewModel(dispatcher, clock);
         try
         {
-            vm.OnRepositoryCreated(Repo("C:/repos/alpha"));
-            var wait = vm.WaitForUICommandsToDrainAsync();
+            vm.Refresh.OnRepositoryCreated(Repo("C:/repos/alpha"));
+            var wait = vm.Refresh.WaitForUICommandsToDrainAsync();
             Assert.That(wait.IsCompleted, Is.False);
 
-            vm.DrainUICommands();
+            vm.Refresh.DrainUICommands();
             clock.Timer!.Fire();
 
             Assert.That(await wait, Is.True);

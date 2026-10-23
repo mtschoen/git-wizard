@@ -4,7 +4,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests;
 
 // Progress notification tests exercise header text updates and progress bar visibility.
-// Covers MainViewModel.UpdateHandler.cs and StatusHeaderViewModel.cs.
+// Covers RefreshCoordinator.UiDrain.cs and StatusHeaderViewModel.cs.
 public class MainViewModelProgressNotificationTests
 {
     static MainViewModel CreateViewModel() => TestViewModels.Create();
@@ -14,13 +14,13 @@ public class MainViewModelProgressNotificationTests
     {
         var dispatcher = new QueuedUiDispatcher();
         await using var viewModel = TestViewModels.Create(dispatcher: dispatcher);
-        viewModel.SendUpdateMessage("first");
-        viewModel.SendUpdateMessage("Scanning...");
+        viewModel.Refresh.SendUpdateMessage("first");
+        viewModel.Refresh.SendUpdateMessage("Scanning...");
         Assert.That(dispatcher.QueuedCount, Is.EqualTo(1));
         Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("GitWizard"));
         dispatcher.Drain();
         Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Scanning..."));
-        viewModel.SendUpdateMessage("second burst");
+        viewModel.Refresh.SendUpdateMessage("second burst");
         Assert.That(dispatcher.QueuedCount, Is.EqualTo(1));
         dispatcher.Drain();
         Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("second burst"));
@@ -30,9 +30,9 @@ public class MainViewModelProgressNotificationTests
     public void SendUpdateMessage_Null_LeavesHeaderTextUnchanged()
     {
         var vm = CreateViewModel();
-        vm.SendUpdateMessage("original");
+        vm.Refresh.SendUpdateMessage("original");
 
-        vm.SendUpdateMessage(null);
+        vm.Refresh.SendUpdateMessage(null);
 
         Assert.That(vm.StatusHeader.HeaderText, Is.EqualTo("original"));
     }
@@ -41,12 +41,12 @@ public class MainViewModelProgressNotificationTests
     public void StartProgress_MakesProgressVisible()
     {
         var vm = CreateViewModel();
-        vm.IsScanning = true;
+        vm.Refresh.IsScanning = true;
 
-        vm.StartProgress("scanning", 10);
+        vm.Refresh.StartProgress("scanning", 10);
 
-        Assert.That(vm.IsProgressVisible, Is.True);
-        Assert.That(vm.ProgressText, Does.Contain("scanning"));
-        Assert.That(vm.IsScanning, Is.False, "StartProgress must disable the scanning indicator.");
+        Assert.That(vm.Refresh.IsProgressVisible, Is.True);
+        Assert.That(vm.Refresh.ProgressText, Does.Contain("scanning"));
+        Assert.That(vm.Refresh.IsScanning, Is.False, "StartProgress must disable the scanning indicator.");
     }
 }

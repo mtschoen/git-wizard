@@ -164,7 +164,7 @@ public sealed partial class RepositoryListViewModel
 
     // Backs AddRepositoriesBatch above: the bulk equivalent of calling
     // AddRepository once per repository, for a batch of new-repository arrivals drained together
-    // (see DrainUICommands in MainViewModel.Commands.cs, which calls AddRepositoriesBatch for all
+    // (see DrainUICommands in RefreshCoordinator.UiDrain.cs, which calls AddRepositoriesBatch for all
     // RepositoryCreated/WorktreeCreated commands in a drained slice instead of routing each one
     // through AddRepository individually). AddRepository's own per-row
     // InsertRepositoryNode/AddToGroups path is fine for one arrival at a time - an isolated

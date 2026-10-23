@@ -1,13 +1,116 @@
+using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using GitWizard;
+using GitWizardUI.ViewModels.Services;
 
 namespace GitWizardUI.ViewModels;
 
-public partial class MainViewModel
+public sealed partial class RefreshCoordinator : IUpdateHandler, INotifyPropertyChanged
 {
+    readonly IUiDispatcher _ui;
+    readonly TimeProvider _timeProvider;
+    readonly RepositoryListViewModel _repositoryList;
+    readonly StatusHeaderViewModel _statusHeader;
+    readonly PreparedDiscoveryIndexStore _preparedDiscoveryIndex;
+    readonly ErrorLogViewModel _errorLog;
+    readonly Stopwatch _stopwatch = new();
+
+    double _progressValue;
+    bool _isProgressVisible;
+    string _progressText = string.Empty;
+    bool _isRefreshing;
+    bool _isScanning;
+
+    internal RefreshCoordinator(IUiDispatcher ui, TimeProvider timeProvider,
+        RepositoryListViewModel repositoryList, StatusHeaderViewModel statusHeader,
+        PreparedDiscoveryIndexStore preparedDiscoveryIndex, ErrorLogViewModel errorLog)
+    {
+        _ui = ui;
+        _timeProvider = timeProvider;
+        _repositoryList = repositoryList;
+        _statusHeader = statusHeader;
+        _preparedDiscoveryIndex = preparedDiscoveryIndex;
+        _errorLog = errorLog;
+    }
+
+    public double ProgressValue
+    {
+        get => _progressValue;
+        private set
+        {
+            if (Math.Abs(_progressValue - value) > 0.001)
+            {
+                _progressValue = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public bool IsProgressVisible
+    {
+        get => _isProgressVisible;
+        private set
+        {
+            if (_isProgressVisible != value)
+            {
+                _isProgressVisible = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string ProgressText
+    {
+        get => _progressText;
+        private set
+        {
+            if (_progressText != value)
+            {
+                _progressText = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public bool IsRefreshing
+    {
+        get => _isRefreshing;
+        internal set
+        {
+            if (_isRefreshing != value)
+            {
+                _isRefreshing = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(CanRefresh));
+            }
+        }
+    }
+
+    public bool CanRefresh => !IsRefreshing;
+
+    /// <summary>
+    /// True from the moment a refresh starts until the first repository surfaces (or the
+    /// determinate progress bar takes over). Drives an indeterminate "Scanning..." indicator that
+    /// fills the otherwise-empty list during the initial discovery/cache-read gap, which can run
+    /// 15-20s on a cold start.
+    /// </summary>
+    public bool IsScanning
+    {
+        get => _isScanning;
+        internal set
+        {
+            if (_isScanning != value)
+            {
+                _isScanning = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     // Test seam: lets a test drive refresh discovery through a coordinator backed by fake
     // dependencies instead of the real platform index. Null in production.
-    internal RepositoryDiscoveryCoordinator? RefreshDiscoveryCoordinator { get; set; }
+    internal RepositoryDiscoveryCoordinator? DiscoveryCoordinator { get; set; }
 
     // GITWIZARD_NO_MFT=1 walks the filesystem instead of reading the MFT, so no elevated broker (UAC
     // prompt) is launched. scripts/update-screenshots.ps1 sets it for unattended headless captures.
@@ -24,19 +127,19 @@ public partial class MainViewModel
         if (IsRefreshing)
             return;
 
-        await RefreshAsync(background: false, rebuild: true).ConfigureAwait(false);
+        await RefreshAsync(rebuild: true).ConfigureAwait(false);
     }
 
-    public async Task RefreshAsync(bool background = false, bool fetchRemotes = false, bool rebuild = false)
+    public async Task RefreshAsync(bool fetchRemotes = false, bool rebuild = false)
     {
         if (IsRefreshing)
             return;
 
         IsRefreshing = true;
         IsScanning = true;
-        StatusHeader.ShowRefreshMessage(fetchRemotes ? "Fetching remotes and refreshing..." : "Refreshing...");
+        _statusHeader.ShowRefreshMessage(fetchRemotes ? "Fetching remotes and refreshing..." : "Refreshing...");
 
-        await EnsureGlobalUserEmailAsync();
+        await MainViewModel.EnsureGlobalUserEmailAsync();
 
         // Read cached repo paths and config first (lightweight file I/O).
         // Pre-populate UI from cached report so repos appear immediately while the
@@ -56,8 +159,8 @@ public partial class MainViewModel
         // repeated refresh cycles. The visible collection must be changed on the UI thread.
         await _ui.InvokeAsync(() =>
         {
-            RepositoryList.ClearRepositories();
-            RepositoryList.PrePopulateFromReport(configuration, cachedPaths, cachedReport);
+            _repositoryList.ClearRepositories();
+            _repositoryList.PrePopulateFromReport(configuration, cachedPaths, cachedReport);
         }).ConfigureAwait(false);
 
         var (deletedPaths, renamedOldPaths, nonRepositoryPaths, freshPaths, publishable) =
@@ -77,8 +180,8 @@ public partial class MainViewModel
             // pre-populated rows be pruned for missing from the fresh scan. An incomplete
             // discovery retains the rows its scope did not cover.
             if (publishable)
-                RepositoryList.PruneStalePrePopulatedRepos(freshPaths, renamedOldPaths);
-            RepositoryList.RemoveRenamedReposFromUi(renamedOldPaths);
+                _repositoryList.PruneStalePrePopulatedRepos(freshPaths, renamedOldPaths);
+            _repositoryList.RemoveRenamedReposFromUi(renamedOldPaths);
         }).ConfigureAwait(false);
 
         // CompleteRefresh runs one sorted rebuild (ApplyFilterAndGrouping) and swaps in the sorted
@@ -88,7 +191,7 @@ public partial class MainViewModel
 
     internal void CompleteRefresh()
     {
-        RepositoryList.ApplyFilterAndGrouping(suppressAnchorCapture: true);
+        _repositoryList.ApplyFilterAndGrouping(suppressAnchorCapture: true);
         IsScanning = false;
         IsRefreshing = false;
     }
@@ -109,33 +212,6 @@ public partial class MainViewModel
         {
             var updatedPaths = cachedPaths.Where(p => !pathsToRemove.Contains(p)).ToList();
             await GitWizardApi.SaveCachedRepositoryPathsAsync(updatedPaths).ConfigureAwait(false);
-        }
-    }
-
-    // Read the global git user.email once per session for the "My Repositories" filter.
-    static async Task EnsureGlobalUserEmailAsync()
-    {
-        if (GlobalUserEmail != null)
-            return;
-
-        try
-        {
-            var psi = new ProcessStartInfo
-            {
-                FileName = "git",
-                Arguments = "config --global user.email",
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            using var process = Process.Start(psi);
-            if (process != null)
-                GlobalUserEmail = (await process.StandardOutput.ReadToEndAsync()).Trim();
-        }
-        catch (Exception exception)
-        {
-            // Could not read global git user.email; the email filter just will not match.
-            GitWizardLog.Log($"Could not read global git user.email: {exception.Message}", GitWizardLog.LogType.Verbose);
         }
     }
 
@@ -162,11 +238,11 @@ public partial class MainViewModel
                     NoMft = NoMftRequested,
                     RetainDiscoveryIndex = true,
                     DiscoveryPurpose = rebuild ? DiscoveryPurpose.Rebuild : DiscoveryPurpose.Ordinary,
-                    DiscoveryCoordinator = RefreshDiscoveryCoordinator
+                    DiscoveryCoordinator = DiscoveryCoordinator
                 }).ConfigureAwait(false);
             _stopwatch.Stop();
 
-            await PreparedDiscoveryIndex.SetAsync(report.DetachDiscoveryIndex()).ConfigureAwait(false);
+            await _preparedDiscoveryIndex.SetAsync(report.DetachDiscoveryIndex()).ConfigureAwait(false);
 
             publishable = report.DiscoveryInventory is not { CanPublishFullInventory: false };
 
@@ -204,9 +280,9 @@ public partial class MainViewModel
             if (!publishable)
             {
                 refreshMsg += " - discovery incomplete; previous entries preserved";
-                LogError("Discovery was incomplete; the previous repository list and report were preserved.");
+                _errorLog.PostError(_ui, "Discovery was incomplete; the previous repository list and report were preserved.");
             }
-            StatusHeader.LastRefreshMessage = refreshMsg;
+            _statusHeader.LastRefreshMessage = refreshMsg;
 
             // Only a publishable discovery may replace the cached list; an unusable or partial
             // outcome leaves the coordinator's reconciled list (and the prior entries) intact.
@@ -216,4 +292,9 @@ public partial class MainViewModel
 
         return (deletedPaths, renamedOldPaths, nonRepositoryPaths, freshPaths, publishable);
     }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }

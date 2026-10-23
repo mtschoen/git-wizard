@@ -130,7 +130,7 @@ public partial class MainViewModel
             _ui.Post(() => _inFlightLiveRefreshes.Remove(repoRoot));
         }
 
-        _ui.Post(() => RepositoryList.UpdateCompletedRepository(repository, streaming: IsRefreshing));
+        _ui.Post(() => RepositoryList.UpdateCompletedRepository(repository, streaming: Refresh.IsRefreshing));
     }
 
     async Task ApplyLiveCreatedAsync(string repoRoot, long sequenceNumber)
@@ -167,7 +167,7 @@ public partial class MainViewModel
                 RepositoryList.RemoveRepositoryPathFromUi(renamedFrom);
             }
 
-            RepositoryList.AddRepository(repository, streaming: IsRefreshing);
+            RepositoryList.AddRepository(repository, streaming: Refresh.IsRefreshing);
         });
     }
 

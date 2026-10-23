@@ -32,20 +32,33 @@ public class MainViewModelLiveCapabilityTests
     public void CanToggleLive_FalseWhileRefreshing_TrueWhileLive()
     {
         var viewModel = NewViewModel();
-
-        viewModel.IsRefreshing = true;
+        viewModel.LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
+        var changes = new List<string?>();
+        viewModel.PropertyChanged += (_, arguments) => changes.Add(arguments.PropertyName);
+        viewModel.Refresh.IsRefreshing = true;
+        viewModel.Refresh.IsRefreshing = true;
         Assert.That(viewModel.CanToggleLive, Is.False);
-
-        viewModel.IsRefreshing = false;
+        Assert.That(changes, Is.EqualTo(new[]
+        {
+            nameof(MainViewModel.CanToggleLive), nameof(MainViewModel.LiveTooltip)
+        }));
+        changes.Clear();
+        viewModel.Refresh.IsRefreshing = false;
+        Assert.That(viewModel.CanToggleLive, Is.True);
+        Assert.That(changes, Is.EqualTo(new[]
+        {
+            nameof(MainViewModel.CanToggleLive), nameof(MainViewModel.LiveTooltip)
+        }));
         viewModel.IsLive = true;
-        Assert.That(viewModel.CanToggleLive, Is.True, "Stopping must stay available even if IsRefreshing is somehow true.");
+        viewModel.Refresh.IsRefreshing = true;
+        Assert.That(viewModel.CanToggleLive, Is.True, "Stopping remains available during refresh.");
     }
 
     [Test]
     public async Task ToggleLiveAsync_WhileRefreshing_IsNoOpAndDoesNotChangeHeader()
     {
         var viewModel = NewViewModel();
-        viewModel.IsRefreshing = true;
+        viewModel.Refresh.IsRefreshing = true;
         viewModel.StatusHeader.ShowRefreshMessage("Refreshing repositories...");
 
         await viewModel.ToggleLiveAsync();

@@ -68,8 +68,8 @@ public class MainViewModelLiveEventTests
         await using var viewModel = TestViewModels.Create(timeProvider: new ControlledDelayClock());
         var laterPath = fixture.Path + "-zulu";
         viewModel.RepositoryList.AddRepository(Repo(laterPath), streaming: false);
-        viewModel.IsRefreshing = streaming;
-        viewModel.IsScanning = true;
+        viewModel.Refresh.IsRefreshing = streaming;
+        viewModel.Refresh.IsScanning = true;
         var inserts = new PositionalInsertRecorder(viewModel.RepositoryList.Repositories);
 
         await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
@@ -81,7 +81,7 @@ public class MainViewModelLiveEventTests
         {
             Assert.That(viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory), Is.EqualTo(expectedPaths));
             Assert.That(inserts.Count, Is.EqualTo(streaming ? 0 : 1));
-            Assert.That(viewModel.IsScanning, Is.True);
+            Assert.That(viewModel.Refresh.IsScanning, Is.True);
         });
     }
 

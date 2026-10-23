@@ -5,7 +5,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests;
 
 // Refresh tests are split by concern because the combined fixture exceeds 500 lines.
-// Covers MainViewModel.Refresh.cs (UpdateCachedPathsAfterScanAsync).
+// Covers RefreshCoordinator.cs (UpdateCachedPathsAfterScanAsync).
 public class MainViewModelCachedPathsTests
 {
     [SetUp]
@@ -23,7 +23,7 @@ public class MainViewModelCachedPathsTests
         await GitWizardApi.SaveCachedRepositoryPathsAsync([validPath, stalePath]);
 
         // Call UpdateCachedPathsAfterScan with the stale path in NonRepositoryPaths.
-        await MainViewModel.UpdateCachedPathsAfterScanAsync(
+        await RefreshCoordinator.UpdateCachedPathsAfterScanAsync(
             deletedPaths: [],
             renamedOldPaths: [],
             nonRepositoryPaths: new HashSet<string> { stalePath });
@@ -45,7 +45,7 @@ public class MainViewModelCachedPathsTests
 
         await GitWizardApi.SaveCachedRepositoryPathsAsync([validPath, deletedPath]);
 
-        await MainViewModel.UpdateCachedPathsAfterScanAsync(
+        await RefreshCoordinator.UpdateCachedPathsAfterScanAsync(
             deletedPaths: new HashSet<string> { deletedPath },
             renamedOldPaths: [],
             nonRepositoryPaths: []);
@@ -68,7 +68,7 @@ public class MainViewModelCachedPathsTests
 
         await GitWizardApi.SaveCachedRepositoryPathsAsync([healthyPath, deletedPath, stalePath, renamedPath]);
 
-        await MainViewModel.UpdateCachedPathsAfterScanAsync(
+        await RefreshCoordinator.UpdateCachedPathsAfterScanAsync(
             deletedPaths: new HashSet<string> { deletedPath },
             renamedOldPaths: new HashSet<string> { renamedPath },
             nonRepositoryPaths: new HashSet<string> { stalePath });
@@ -87,7 +87,7 @@ public class MainViewModelCachedPathsTests
         var path = "/valid/repo";
         await GitWizardApi.SaveCachedRepositoryPathsAsync([path]);
 
-        await MainViewModel.UpdateCachedPathsAfterScanAsync([], [], []);
+        await RefreshCoordinator.UpdateCachedPathsAfterScanAsync([], [], []);
 
         var cachedPaths = await GitWizardApi.GetCachedRepositoryPathsAsync();
         Assert.That(cachedPaths, Is.Not.Null);
@@ -101,7 +101,7 @@ public class MainViewModelCachedPathsTests
     {
         using var sandbox = new LocalFilesSandbox();
         // No repositories.txt exists; the method should not throw.
-        await MainViewModel.UpdateCachedPathsAfterScanAsync(
+        await RefreshCoordinator.UpdateCachedPathsAfterScanAsync(
             deletedPaths: ["/some/deleted"],
             renamedOldPaths: [],
             nonRepositoryPaths: []);

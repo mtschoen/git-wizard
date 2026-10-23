@@ -6,7 +6,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests;
 
 // Refresh batch tests are split by concern because the combined fixture exceeds 500 lines.
-// Covers RepositoryListViewModel.Rows.cs, RepositoryListViewModel.CachedRows.cs, MainViewModel.Commands.cs, RepositoryListViewModel.cs, RepositoryListViewModel.Groups.cs, and RepositorySortOrder.cs.
+// Covers RepositoryListViewModel.Rows.cs, RepositoryListViewModel.CachedRows.cs, RefreshCoordinator.UiDrain.cs, RepositoryListViewModel.cs, RepositoryListViewModel.Groups.cs, and RepositorySortOrder.cs.
 public class MainViewModelRefreshBatchTests
 {
     [SetUp]
@@ -56,7 +56,7 @@ public class MainViewModelRefreshBatchTests
 
     // pr-crew review of PR #241/#243 (round 2): the binary search above still leaves the
     // ObservableCollection's own O(n) shift per InsertRepositoryNode call, so N drained arrivals
-    // through AddRepositoriesBatch (as MainViewModel.Commands.cs's UI-command-queue drain now
+    // through AddRepositoriesBatch (as RefreshCoordinator.UiDrain.cs's UI-command-queue drain now
     // calls, instead of one AddRepository call per command) must merge the batch once instead of
     // inserting each row.
     // Round-5 pr-crew review of PR #241/#243: during a refresh, each drained batch appends in
@@ -72,7 +72,7 @@ public class MainViewModelRefreshBatchTests
 
         var viewModel = NewViewModel();
         var positionalInserts = new PositionalInsertRecorder(viewModel.RepositoryList.Repositories);
-        viewModel.IsRefreshing = true;
+        viewModel.Refresh.IsRefreshing = true;
         viewModel.RepositoryList.AddRepositoriesBatch(repositories, streaming: true);
 
         Assert.That(positionalInserts.Count, Is.Zero,
@@ -85,7 +85,7 @@ public class MainViewModelRefreshBatchTests
         Assert.That(positionalInserts.Count, Is.Zero,
             "Merging a second batch during refresh must still use arrival-order append without positional inserts.");
 
-        viewModel.CompleteRefresh();
+        viewModel.Refresh.CompleteRefresh();
 
         var afterComplete = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray();
         Assert.That(afterComplete, Is.EqualTo(
@@ -108,21 +108,21 @@ public class MainViewModelRefreshBatchTests
 
         var viewModel = NewViewModel();
         var positionalInserts = new PositionalInsertRecorder(viewModel.RepositoryList.Repositories);
-        viewModel.IsRefreshing = true;
+        viewModel.Refresh.IsRefreshing = true;
         foreach (var repository in repositories)
         {
-            viewModel.OnRepositoryCreated(repository);
-            viewModel.OnRepositoryRefreshCompleted(repository);
+            viewModel.Refresh.OnRepositoryCreated(repository);
+            viewModel.Refresh.OnRepositoryRefreshCompleted(repository);
         }
 
-        viewModel.DrainUICommands();
+        viewModel.Refresh.DrainUICommands();
 
         Assert.That(positionalInserts.Count, Is.Zero,
             "A drain with interleaved create/complete commands must append all creates with zero positional inserts.");
         Assert.That(viewModel.RepositoryList.RepositoryMap, Has.Count.EqualTo(count),
             "Every drained create must have produced exactly one map entry.");
 
-        viewModel.CompleteRefresh();
+        viewModel.Refresh.CompleteRefresh();
 
         var actual = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray();
         Assert.That(actual, Is.EqualTo(repositories.Select(r => r.WorkingDirectory).OrderBy(p => p, PlatformComparer)),
@@ -136,7 +136,7 @@ public class MainViewModelRefreshBatchTests
     {
         var viewModel = NewViewModel();
         var positionalInserts = new PositionalInsertRecorder(viewModel.RepositoryList.Repositories);
-        viewModel.IsRefreshing = true;
+        viewModel.Refresh.IsRefreshing = true;
         var resetCount = 0;
         var addCount = 0;
         viewModel.RepositoryList.Repositories.CollectionChanged += (_, args) =>
@@ -161,12 +161,12 @@ public class MainViewModelRefreshBatchTests
 
             foreach (var repo in batchRepos)
             {
-                viewModel.OnRepositoryCreated(repo);
-                viewModel.OnRepositoryRefreshCompleted(repo);
+                viewModel.Refresh.OnRepositoryCreated(repo);
+                viewModel.Refresh.OnRepositoryRefreshCompleted(repo);
             }
 
             allExpected.AddRange(batchRepos.Select(r => r.WorkingDirectory!));
-            viewModel.DrainUICommands();
+            viewModel.Refresh.DrainUICommands();
         }
 
         Assert.That(positionalInserts.Count, Is.Zero,
@@ -176,7 +176,7 @@ public class MainViewModelRefreshBatchTests
         Assert.That(addCount, Is.EqualTo(batches * itemsPerBatch),
             "Every repository must be added exactly once across all drains without rewriting accumulated rows.");
 
-        viewModel.CompleteRefresh();
+        viewModel.Refresh.CompleteRefresh();
 
         var actual = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray();
         Assert.That(actual, Is.EqualTo(allExpected.OrderBy(p => p, PlatformComparer)),
@@ -248,7 +248,7 @@ public class MainViewModelRefreshBatchTests
         var headers = viewModel.RepositoryList.Repositories.Where(n => n.IsGroupHeader).ToList();
         Assert.That(headers, Has.Count.EqualTo(1));
 
-        viewModel.CompleteRefresh();
+        viewModel.Refresh.CompleteRefresh();
 
         Assert.That(headers[0].Children.Select(n => n.WorkingDirectory),
             Is.EqualTo(new[] { @"C:\repos\alpha", @"C:\repos\beta", @"C:\repos\middle", @"C:\repos\zulu" }
@@ -267,7 +267,7 @@ public class MainViewModelRefreshBatchTests
         var viewModel = NewViewModel();
         var positionalInserts = new PositionalInsertRecorder(viewModel.RepositoryList.Repositories);
         var drainedCollection = viewModel.RepositoryList.Repositories;
-        viewModel.IsRefreshing = true;
+        viewModel.Refresh.IsRefreshing = true;
 
         // Mixed drives and mixed case: C:\, c:\, D:\, d:\, E:\, e:\
         var drives = new[] { @"C:\repos\", @"c:\repos\", @"D:\repos\", @"d:\repos\", @"E:\repos\", @"e:\repos\" };
@@ -292,10 +292,10 @@ public class MainViewModelRefreshBatchTests
             var chunk = reposToFeed.Skip(i).Take(batchSize);
             foreach (var repo in chunk)
             {
-                viewModel.OnRepositoryCreated(repo);
-                viewModel.OnRepositoryRefreshCompleted(repo);
+                viewModel.Refresh.OnRepositoryCreated(repo);
+                viewModel.Refresh.OnRepositoryRefreshCompleted(repo);
             }
-            viewModel.DrainUICommands();
+            viewModel.Refresh.DrainUICommands();
             Assert.That(positionalInserts.Count, Is.Zero,
                 "During a refresh, every drain must append rows in arrival order with zero positional inserts.");
         }
@@ -308,7 +308,7 @@ public class MainViewModelRefreshBatchTests
         drainedCollection.CollectionChanged += (_, _) => drainedMutationsDuringCompletion++;
         var completion = new CollectionReplacementRecorder(viewModel);
 
-        viewModel.CompleteRefresh();
+        viewModel.Refresh.CompleteRefresh();
 
         Assert.That(positionalInserts.Count, Is.Zero,
             "Rebuilding at completion must replace the collection in a single step with zero positional inserts.");

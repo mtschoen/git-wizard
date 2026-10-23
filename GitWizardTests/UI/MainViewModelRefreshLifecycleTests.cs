@@ -5,7 +5,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests;
 
 // Refresh tests are split by concern because the combined fixture exceeds 500 lines.
-// Covers MainViewModel.Refresh.cs (RefreshAsync, HardRefreshAsync) and StatusHeaderViewModel.cs.
+// Covers RefreshCoordinator.cs (RefreshAsync, HardRefreshAsync) and StatusHeaderViewModel.cs.
 public class MainViewModelRefreshLifecycleTests
 {
     [SetUp]
@@ -18,12 +18,12 @@ public class MainViewModelRefreshLifecycleTests
     public async Task HardRefreshAsync_ReturnsImmediately_WhenAlreadyRefreshing()
     {
         var vm = CreateViewModel();
-        vm.IsRefreshing = true;
+        vm.Refresh.IsRefreshing = true;
 
         // HardRefreshAsync must return without side effects.
-        await vm.HardRefreshAsync();
+        await vm.Refresh.HardRefreshAsync();
 
-        Assert.That(vm.IsRefreshing, Is.True,
+        Assert.That(vm.Refresh.IsRefreshing, Is.True,
             "HardRefreshAsync must be a no-op when already refreshing.");
     }
 
@@ -53,14 +53,14 @@ public class MainViewModelRefreshLifecycleTests
         });
 
         var vm = CreateViewModel();
-        vm.RefreshDiscoveryCoordinator = coordinator;
+        vm.Refresh.DiscoveryCoordinator = coordinator;
 
-        await vm.HardRefreshAsync();
+        await vm.Refresh.HardRefreshAsync();
 
         var cached = await GitWizardApi.GetCachedRepositoryPathsAsync();
         Assert.Multiple(() =>
         {
-            Assert.That(vm.IsRefreshing, Is.False);
+            Assert.That(vm.Refresh.IsRefreshing, Is.False);
             Assert.That(cached, Is.Not.Null, "An unusable rebuild must preserve the cached list.");
             Assert.That(cached, Does.Contain(cachedRepo).IgnoreCase);
             Assert.That(vm.StatusHeader.HeaderText, Does.Contain("discovery incomplete").IgnoreCase,
@@ -72,12 +72,13 @@ public class MainViewModelRefreshLifecycleTests
     public async Task RefreshAsync_ReturnsImmediately_WhenAlreadyRefreshing()
     {
         var vm = CreateViewModel();
-        vm.IsRefreshing = true;
+        vm.Refresh.IsRefreshing = true;
 
         // Should return immediately, not start a second refresh.
-        await vm.RefreshAsync();
+        Func<bool, bool, Task> refresh = vm.Refresh.RefreshAsync;
+        await refresh(false, false);
 
-        Assert.That(vm.IsRefreshing, Is.True,
+        Assert.That(vm.Refresh.IsRefreshing, Is.True,
             "RefreshAsync must be a no-op when already refreshing.");
     }
 }

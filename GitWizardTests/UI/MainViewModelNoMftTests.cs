@@ -6,6 +6,7 @@ namespace GitWizardTests;
 /// <c>GITWIZARD_NO_MFT</c> keeps unattended headless captures on the filesystem walk, so no
 /// elevated broker (UAC prompt) is launched.
 /// </summary>
+// Covers RefreshCoordinator.cs (NoMftRequested).
 [NonParallelizable]
 public class MainViewModelNoMftTests
 {
@@ -22,16 +23,16 @@ public class MainViewModelNoMftTests
     public void NoMftRequested_IsFalseWhenVariableIsUnsetOrEmpty()
     {
         Environment.SetEnvironmentVariable(VariableName, null);
-        Assert.That(MainViewModel.NoMftRequested, Is.False);
+        Assert.That(RefreshCoordinator.NoMftRequested, Is.False);
 
         Environment.SetEnvironmentVariable(VariableName, string.Empty);
-        Assert.That(MainViewModel.NoMftRequested, Is.False);
+        Assert.That(RefreshCoordinator.NoMftRequested, Is.False);
     }
 
     [Test]
     public void NoMftRequested_IsTrueWhenVariableIsSet()
     {
         Environment.SetEnvironmentVariable(VariableName, "1");
-        Assert.That(MainViewModel.NoMftRequested, Is.True);
+        Assert.That(RefreshCoordinator.NoMftRequested, Is.True);
     }
 }

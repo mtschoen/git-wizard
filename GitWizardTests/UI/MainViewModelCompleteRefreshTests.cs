@@ -5,7 +5,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests;
 
 // Refresh tests are split by concern because the combined fixture exceeds 500 lines.
-// Covers MainViewModel.Refresh.cs (CompleteRefresh), RepositoryListViewModel.cs (ApplyFilterAndGrouping), and RepositoryListViewModel.Rows.cs.
+// Covers RefreshCoordinator.cs (CompleteRefresh), RepositoryListViewModel.cs (ApplyFilterAndGrouping), and RepositoryListViewModel.Rows.cs.
 public class MainViewModelCompleteRefreshTests
 {
     [SetUp]
@@ -48,7 +48,7 @@ public class MainViewModelCompleteRefreshTests
         // (unsorted) while the refresh runs. "other" arrives first here, so it sits at the top of
         // the unsorted streaming list - a different row than the pre-refresh anchor.
         vm.RepositoryList.ClearRepositories();
-        vm.IsRefreshing = true;
+        vm.Refresh.IsRefreshing = true;
         vm.RepositoryList.AddRepositoriesBatch(new[] { Repo("C:/repos/other"), Repo("C:/repos/keep") }, streaming: true);
 
         Assert.That(vm.RepositoryList.Repositories[0].WorkingDirectory, Is.EqualTo("C:/repos/other"),
@@ -56,7 +56,7 @@ public class MainViewModelCompleteRefreshTests
 
         // The final sorted rebuild must restore the anchor captured at refresh start, not one
         // recaptured from the unsorted streaming list at swap time.
-        vm.CompleteRefresh();
+        vm.Refresh.CompleteRefresh();
 
         Assert.That(restoredAnchor, Is.EqualTo("C:/repos/keep"),
             "The final rebuild must restore the pre-refresh anchor, not recapture it from the streaming list.");
@@ -91,9 +91,9 @@ public class MainViewModelCompleteRefreshTests
         // The refresh itself proceeds: clear, stream arrivals, then complete - queuing its own
         // (suppressed) swap behind the rebuild's already-queued one.
         vm.RepositoryList.ClearRepositories();
-        vm.IsRefreshing = true;
+        vm.Refresh.IsRefreshing = true;
         vm.RepositoryList.AddRepositoriesBatch(new[] { Repo("C:/repos/other"), Repo("C:/repos/keep") }, streaming: true);
-        vm.CompleteRefresh();
+        vm.Refresh.CompleteRefresh();
 
         Assert.That(dispatcher.QueuedCount, Is.EqualTo(2),
             "Pre-condition: both swaps are queued and neither has run yet.");

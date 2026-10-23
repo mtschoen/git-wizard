@@ -4,7 +4,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests;
 
 // Core MainViewModel tests exercise construction, default property state, and swapped collection notification.
-// Covers MainViewModel.cs, RepositoryListViewModel.cs, and StatusHeaderViewModel.cs.
+// Covers MainViewModel.cs, RefreshCoordinator.cs, RepositoryListViewModel.cs, and StatusHeaderViewModel.cs.
 public class MainViewModelTests
 {
     static MainViewModel CreateViewModel() => TestViewModels.Create();
@@ -27,7 +27,7 @@ public class MainViewModelTests
     {
         var vm = TestViewModels.Create();
 
-        Assert.That(vm.IsScanning, Is.False);
+        Assert.That(vm.Refresh.IsScanning, Is.False);
     }
 
     [Test]
@@ -58,12 +58,24 @@ public class MainViewModelTests
     [Test]
     public void CanRefresh_IsFalse_WhileRefreshing()
     {
-        var vm = CreateViewModel();
-        Assert.That(vm.CanRefresh, Is.True);
-
-        vm.IsRefreshing = true;
-
-        Assert.That(vm.CanRefresh, Is.False);
+        var viewModel = CreateViewModel();
+        var changes = new List<string?>();
+        viewModel.Refresh.PropertyChanged += (_, arguments) => changes.Add(arguments.PropertyName);
+        Assert.That(viewModel.Refresh.CanRefresh, Is.True);
+        viewModel.Refresh.IsRefreshing = true;
+        viewModel.Refresh.IsRefreshing = true;
+        Assert.That(viewModel.Refresh.CanRefresh, Is.False);
+        Assert.That(changes, Is.EqualTo(new[]
+        {
+            nameof(RefreshCoordinator.IsRefreshing), nameof(RefreshCoordinator.CanRefresh)
+        }));
+        changes.Clear();
+        viewModel.Refresh.IsRefreshing = false;
+        Assert.That(viewModel.Refresh.CanRefresh, Is.True);
+        Assert.That(changes, Is.EqualTo(new[]
+        {
+            nameof(RefreshCoordinator.IsRefreshing), nameof(RefreshCoordinator.CanRefresh)
+        }));
     }
 
     [Test]

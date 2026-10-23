@@ -5,7 +5,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests;
 
 // Refresh tests are split by concern because the combined fixture exceeds 500 lines.
-// Covers RepositoryListViewModel.Rows.cs (AddRepository) and MainViewModel.Commands.cs (DrainUICommands).
+// Covers RepositoryListViewModel.Rows.cs (AddRepository) and RefreshCoordinator.UiDrain.cs (DrainUICommands).
 public class MainViewModelAddRepositoryTests
 {
     [SetUp]
@@ -21,15 +21,15 @@ public class MainViewModelAddRepositoryTests
     public async Task DrainedRepositoryCreated_EndsScanning(string path, int expectedCount)
     {
         await using var viewModel = TestViewModels.Create(timeProvider: new ControlledDelayClock());
-        viewModel.IsScanning = true;
-        viewModel.OnRepositoryCreated(Repo(path));
-        Assert.That(viewModel.IsScanning, Is.True);
+        viewModel.Refresh.IsScanning = true;
+        viewModel.Refresh.OnRepositoryCreated(Repo(path));
+        Assert.That(viewModel.Refresh.IsScanning, Is.True);
 
-        viewModel.DrainUICommands();
+        viewModel.Refresh.DrainUICommands();
 
         Assert.Multiple(() =>
         {
-            Assert.That(viewModel.IsScanning, Is.False);
+            Assert.That(viewModel.Refresh.IsScanning, Is.False);
             Assert.That(viewModel.RepositoryList.AllRepositories, Has.Count.EqualTo(expectedCount));
             Assert.That(viewModel.RepositoryList.Repositories, Has.Count.EqualTo(expectedCount));
         });
@@ -39,11 +39,11 @@ public class MainViewModelAddRepositoryTests
     public async Task RepositoryListAddRepository_DoesNotTouchIsScanning()
     {
         await using var viewModel = TestViewModels.Create(timeProvider: new ControlledDelayClock());
-        viewModel.IsScanning = true;
+        viewModel.Refresh.IsScanning = true;
 
         viewModel.RepositoryList.AddRepository(Repo("C:/repos/a"), streaming: false);
 
-        Assert.That(viewModel.IsScanning, Is.True);
+        Assert.That(viewModel.Refresh.IsScanning, Is.True);
         Assert.That(viewModel.RepositoryList.Repositories.Single().WorkingDirectory, Is.EqualTo("C:/repos/a"));
     }
 

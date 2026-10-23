@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -8,88 +7,20 @@ using GitWizardUI.ViewModels.Services;
 
 namespace GitWizardUI.ViewModels;
 
-public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAsyncDisposable
+public partial class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
 {
     readonly IUiDispatcher _ui;
     readonly IUserDialogs _dialogs;
     readonly IClipboardService _clipboard;
-    readonly ConcurrentQueue<RepositoryUICommand> _uiCommands = new();
-    readonly object _uiDrainLock = new();
-    ITimer? _uiDrainWindow;
-    int _uiDrainScheduled;
-    volatile bool _uiDrainDisposed;
-    readonly CancellationTokenSource _uiDrainShutdown = new();
-    readonly Stopwatch _stopwatch = new();
-
-    double _progressValue;
-    bool _isProgressVisible;
-    string _progressText = string.Empty;
-    bool _isRefreshing;
     bool _isLive;
     bool _isLiveStarting;
-    bool _isScanning;
     public static string? GlobalUserEmail { get; private set; }
 
     public StatusHeaderViewModel StatusHeader { get; } = new();
 
     public RepositoryListViewModel RepositoryList { get; }
 
-    public double ProgressValue
-    {
-        get => _progressValue;
-        set
-        {
-            if (Math.Abs(_progressValue - value) > 0.001)
-            {
-                _progressValue = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    public bool IsProgressVisible
-    {
-        get => _isProgressVisible;
-        set
-        {
-            if (_isProgressVisible != value)
-            {
-                _isProgressVisible = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    public string ProgressText
-    {
-        get => _progressText;
-        set
-        {
-            if (_progressText != value)
-            {
-                _progressText = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    public bool IsRefreshing
-    {
-        get => _isRefreshing;
-        set
-        {
-            if (_isRefreshing != value)
-            {
-                _isRefreshing = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(CanRefresh));
-                OnPropertyChanged(nameof(CanToggleLive));
-                OnPropertyChanged(nameof(LiveTooltip));
-            }
-        }
-    }
-
-    public bool CanRefresh => !IsRefreshing;
+    public RefreshCoordinator Refresh { get; }
 
     /// <summary>
     /// True while a <see cref="GitWizardUI.Services.LiveWatchController"/> session is running (elevated USN-journal
@@ -138,26 +69,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
     /// rebuild. Stopping is always allowed.
     /// On Linux, Live mode requires kernel 5.9+ and supported filesystems via fanotify.
     /// </summary>
-    public bool CanToggleLive => IsLive || IsLiveStarting || (!IsRefreshing && IsLiveSupported);
-
-    /// <summary>
-    /// True from the moment a refresh starts until the first repository surfaces (or the
-    /// determinate progress bar takes over). Drives an indeterminate "Scanning..." indicator that
-    /// fills the otherwise-empty list during the initial discovery/cache-read gap, which can run
-    /// 15-20s on a cold start.
-    /// </summary>
-    public bool IsScanning
-    {
-        get => _isScanning;
-        set
-        {
-            if (_isScanning != value)
-            {
-                _isScanning = value;
-                OnPropertyChanged();
-            }
-        }
-    }
+    public bool CanToggleLive => IsLive || IsLiveStarting || (!Refresh.IsRefreshing && IsLiveSupported);
 
     /// <summary>
     /// In-memory error log fed by refresh/scan/command catch sites (see <see cref="LogError"/>);
@@ -168,18 +80,22 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
     /// <summary>Button label reflecting the current error count, e.g. "Errors" or "Errors (3)".</summary>
     public string ErrorsButtonLabel => ErrorLog.Count > 0 ? $"Errors ({ErrorLog.Count})" : "Errors";
 
-    /// <summary>Starts a foreground refresh; a no-op while a refresh is already running.</summary>
-    public Task RefreshFromButtonAsync() => RefreshAsync(background: false);
-
-    /// <summary>Fetches every remote, then runs a foreground refresh.</summary>
-    public Task FetchAndRefreshAsync() => RefreshAsync(background: false, fetchRemotes: true);
-
     public MainViewModel(IUiDispatcher ui, IUserDialogs dialogs, IClipboardService clipboard,
         TimeProvider? timeProvider = null)
     {
         _ui = ui;
-        RepositoryList = new RepositoryListViewModel(ui, StatusHeader, ErrorLog);
         _timeProvider = timeProvider ?? TimeProvider.System;
+        RepositoryList = new RepositoryListViewModel(ui, StatusHeader, ErrorLog);
+        Refresh = new RefreshCoordinator(ui, _timeProvider, RepositoryList, StatusHeader,
+            PreparedDiscoveryIndex, ErrorLog);
+        Refresh.PropertyChanged += (_, arguments) =>
+        {
+            if (arguments.PropertyName == nameof(RefreshCoordinator.IsRefreshing))
+            {
+                OnPropertyChanged(nameof(CanToggleLive));
+                OnPropertyChanged(nameof(LiveTooltip));
+            }
+        };
         _dialogs = dialogs;
         _clipboard = clipboard;
         ErrorLog.PropertyChanged += (_, args) =>
@@ -189,6 +105,33 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
                 OnPropertyChanged(nameof(ErrorsButtonLabel));
             }
         };
+    }
+
+    // Read the global git user.email once per session for the "My Repositories" filter.
+    internal static async Task EnsureGlobalUserEmailAsync()
+    {
+        if (GlobalUserEmail != null)
+            return;
+
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "git",
+                Arguments = "config --global user.email",
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using var process = Process.Start(psi);
+            if (process != null)
+                GlobalUserEmail = (await process.StandardOutput.ReadToEndAsync()).Trim();
+        }
+        catch (Exception exception)
+        {
+            // Could not read global git user.email; the email filter just will not match.
+            GitWizardLog.Log($"Could not read global git user.email: {exception.Message}", GitWizardLog.LogType.Verbose);
+        }
     }
 
     /// <summary>
@@ -223,7 +166,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
 
     public async ValueTask DisposeAsync()
     {
-        StopUIDrain();
+        Refresh.StopUIDrain();
         if (_liveController != null)
         {
             await _liveController.StopAsync().ConfigureAwait(false);

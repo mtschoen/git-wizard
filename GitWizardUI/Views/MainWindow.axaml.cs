@@ -58,7 +58,7 @@ public partial class MainWindow : Window, IAsyncDisposable
     }
 
     void Window_Loaded(object? sender, RoutedEventArgs e)
-        => _ = _viewModel.RefreshFromButtonAsync().RunAndLogFaults("Refreshing repositories");
+        => _ = _viewModel.Refresh.RefreshAsync().RunAndLogFaults("Refreshing repositories");
 
     public Task ShowSettingsDialogAsync()
         => new SettingsWindow(DataContext as MainViewModel).ShowDialog(this);
@@ -139,9 +139,9 @@ public partial class MainWindow : Window, IAsyncDisposable
         CaptureScrollAnchor();
 
         if (hardRefresh)
-            _ = _viewModel.HardRefreshAsync().RunAndLogFaults("Hard-refreshing repositories");
+            _ = _viewModel.Refresh.HardRefreshAsync().RunAndLogFaults("Hard-refreshing repositories");
         else
-            _ = _viewModel.RefreshFromButtonAsync().RunAndLogFaults("Refreshing repositories");
+            _ = _viewModel.Refresh.RefreshAsync().RunAndLogFaults("Refreshing repositories");
     }
 
     RepositoryNodeViewModel? _lastTappedGroup;
@@ -314,7 +314,8 @@ public partial class MainWindow : Window, IAsyncDisposable
     void FetchAndRefreshButton_Click(object? sender, RoutedEventArgs e)
     {
         CaptureScrollAnchor();
-        _ = _viewModel.FetchAndRefreshAsync().RunAndLogFaults("Fetching remotes and refreshing repositories");
+        _ = _viewModel.Refresh.RefreshAsync(fetchRemotes: true)
+            .RunAndLogFaults("Fetching remotes and refreshing repositories");
     }
 
     void LiveButton_Click(object? sender, RoutedEventArgs e)

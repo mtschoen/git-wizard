@@ -25,10 +25,10 @@ public class MainWindowLiveTests
             Assert.That(button.IsEnabled, Is.True);
         });
 
-        viewModel.IsRefreshing = true;
+        viewModel.Refresh.IsRefreshing = true;
         Assert.That(button.IsEnabled, Is.False);
 
-        viewModel.IsRefreshing = false;
+        viewModel.Refresh.IsRefreshing = false;
         viewModel.IsLiveStarting = true;
         Assert.Multiple(() =>
         {

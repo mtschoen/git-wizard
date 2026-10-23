@@ -128,7 +128,7 @@ public partial class MainViewModel
         Task.Run(() =>
         {
             var stopwatch = Stopwatch.StartNew();
-            node.Repository.Refresh(this, fetchRemotes: true, deepRefresh: true);
+            node.Repository.Refresh(Refresh, fetchRemotes: true, deepRefresh: true);
             stopwatch.Stop();
             node.Repository.RefreshTimeSeconds = Math.Round(stopwatch.Elapsed.TotalSeconds, 1);
         });
@@ -285,98 +285,4 @@ public partial class MainViewModel
                 $"Could not delete: {failedList}\n\nThese branches may not be fully merged or are protected.");
         }
     }
-
-    // Drains the UI command queue in one pass. Every RepositoryCreated/WorktreeCreated command in
-    // the drained slice is collected into a single batch and applied with one AddRepositoriesBatch
-    // call; every other command is staged and processed afterwards, in arrival order. A refresh
-    // worker enqueues RepositoryCreated, refreshes, then enqueues RefreshCompleted, so with
-    // parallel workers the queue alternates create/complete after the initial burst. Flushing the
-    // pending batch at each interleaved completion (the earlier drain) sent each resulting one-row
-    // batch back through AddRepository's per-row insertion, which shifts up to the whole displayed
-    // list on every call: O(n^2) element movement across n interleaved arrivals (issue #245,
-    // round-3 pr-crew review of PR #241/#243). Coalescing across the whole slice ensures each drain
-    // merges its creates in a single sorted pass rather than repeated flushes. Processing the
-    // staged commands after the batch is safe for ordering: a repository's create command is always
-    // enqueued before its own completion, so its row exists by the time the completion is applied.
-    // Internal so tests can drive the real queue/drain interaction synchronously.
-    internal void DrainUICommands()
-    {
-        List<GitWizardRepository>? pendingRepositoryBatch = null;
-        List<RepositoryUICommand>? stagedCommands = null;
-
-        while (_uiCommands.TryDequeue(out var command))
-        {
-            if (command is { Type: RepositoryUICommandType.RepositoryCreated or RepositoryUICommandType.WorktreeCreated, Repository: not null })
-            {
-                pendingRepositoryBatch ??= new List<GitWizardRepository>();
-                pendingRepositoryBatch.Add(command.Repository);
-                continue;
-            }
-
-            stagedCommands ??= new List<RepositoryUICommand>();
-            stagedCommands.Add(command);
-        }
-
-        if (pendingRepositoryBatch != null)
-        {
-            // The first repository to surface ends the "Scanning..." gap; rows now stream into the list.
-            IsScanning = false;
-            RepositoryList.AddRepositoriesBatch(pendingRepositoryBatch, streaming: IsRefreshing);
-        }
-
-        if (stagedCommands == null)
-        {
-            return;
-        }
-
-        foreach (var command in stagedCommands)
-        {
-            ProcessUICommand(command);
-        }
-    }
-
-    void ProcessUICommand(RepositoryUICommand command)
-    {
-        switch (command.Type)
-        {
-            case RepositoryUICommandType.RepositoryCreated:
-                if (command.Repository != null)
-                {
-                    IsScanning = false;
-                    RepositoryList.AddRepository(command.Repository, streaming: IsRefreshing);
-                }
-
-                break;
-            case RepositoryUICommandType.SubmoduleCreated:
-                if (command.ParentRepository != null && command.Repository != null)
-                {
-                    RepositoryList.AddSubmodule(command.ParentRepository, command.Repository);
-                }
-
-                break;
-            case RepositoryUICommandType.WorktreeCreated:
-                if (command.Repository != null)
-                {
-                    IsScanning = false;
-                    RepositoryList.AddRepository(command.Repository, streaming: IsRefreshing);
-                }
-
-                break;
-            case RepositoryUICommandType.UninitializedSubmoduleCreated:
-                if (command.ParentRepository != null && command.SubmodulePath != null)
-                {
-                    RepositoryListViewModel.AddUninitializedSubmodule(command.ParentRepository, command.SubmodulePath);
-                }
-
-                break;
-            case RepositoryUICommandType.RefreshCompleted:
-                if (command.Repository != null)
-                {
-                    RepositoryList.UpdateCompletedRepository(command.Repository, streaming: IsRefreshing);
-                }
-
-                break;
-        }
-    }
-
 }

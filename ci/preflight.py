@@ -4,11 +4,12 @@ import argparse
 import json
 import os
 import platform
-import shutil
 import subprocess
 import sys
 import uuid
 from pathlib import Path
+
+from bash_resolution import resolve_bash
 
 GATES = (
     "native",
@@ -127,7 +128,7 @@ def run(arguments):
             )
             continue
         print(f"RUN {gate}", flush=True)
-        bash = shutil.which("bash", path=environment.get("PATH")) or "bash"
+        bash = resolve_bash(search_path=environment.get("PATH", ""))
         result = subprocess.run(
             [bash, "ci/gates.sh", gate], cwd=ROOT, env=environment, check=False
         )

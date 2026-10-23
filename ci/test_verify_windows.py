@@ -9,9 +9,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from bash_resolution import resolve_bash
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "verify-windows.sh"
-BASH = shutil.which("bash")
+try:
+    BASH = resolve_bash()
+except FileNotFoundError:
+    BASH = None
 PWSH = shutil.which("pwsh")
 
 

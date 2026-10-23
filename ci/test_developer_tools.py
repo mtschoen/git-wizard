@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from bash_resolution import resolve_bash
 from developer_tools import script_paths, validate_inventory
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -43,7 +44,7 @@ class DeveloperToolsTests(unittest.TestCase):
             self.assertEqual({"scripts/nested/tool.py"}, script_paths(root))
 
     def test_shell_and_python_syntax(self):
-        bash = shutil.which("bash") or "bash"
+        bash = resolve_bash()
         with tempfile.TemporaryDirectory() as cache:
             for relative in sorted(script_paths(ROOT)):
                 path = ROOT / relative

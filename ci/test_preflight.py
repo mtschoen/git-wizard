@@ -2,7 +2,6 @@
 
 import io
 import os
-import shutil
 import subprocess
 import tempfile
 import unittest
@@ -11,11 +10,16 @@ from pathlib import Path
 from unittest.mock import patch
 
 import preflight
+from bash_resolution import resolve_bash
 
 ROOT = Path(__file__).resolve().parents[1]
-BASH = shutil.which("bash") or "bash"
+try:
+    BASH = resolve_bash()
+except FileNotFoundError:
+    BASH = None
 
 
+@unittest.skipUnless(BASH, "bash is required")
 class PreflightTests(unittest.TestCase):
     def setUp(self):
         scratch = ROOT / "artifacts"
@@ -89,6 +93,49 @@ class PreflightTests(unittest.TestCase):
     def test_unsupported_platform_is_refused(self):
         with patch.object(preflight.platform, "system", return_value="Darwin"):
             self.assertEqual(2, preflight.run(["--all"]))
+
+    def test_gate_uses_environment_path_and_never_falls_back_to_bare_bash(self):
+        for available in (True, False):
+            with self.subTest(available=available):
+                commands = []
+
+                def resolve(*, search_path, available=available):
+                    return resolve_bash(
+                        search_path=search_path,
+                        is_windows=True,
+                        is_executable=lambda candidate: available,
+                    )
+
+                def execute(command, commands=commands, **arguments):
+                    commands.append(command)
+                    return subprocess.CompletedProcess(command, 0)
+
+                with (
+                    patch.dict(os.environ, {"PATH": "configured-bin"}),
+                    patch.object(preflight.platform, "system", return_value="Windows"),
+                    patch.object(preflight, "git", return_value="a" * 40),
+                    patch.object(preflight, "resolve_bash", side_effect=resolve),
+                    patch.object(preflight.subprocess, "run", side_effect=execute),
+                ):
+                    if available:
+                        self.assertEqual(0, preflight.run(["--only", "format"]))
+                    else:
+                        with self.assertRaisesRegex(
+                            FileNotFoundError, "configured-bin"
+                        ):
+                            preflight.run(["--only", "format"])
+                self.assertEqual(
+                    [
+                        [
+                            os.path.abspath("configured-bin/bash.exe"),
+                            "ci/gates.sh",
+                            "format",
+                        ]
+                    ]
+                    if available
+                    else [],
+                    commands,
+                )
 
     def test_failed_or_dirty_runs_never_stamp(self):
         for failure, dirty in ((True, False), (False, True)):
@@ -401,9 +448,7 @@ class PreflightTests(unittest.TestCase):
                 status, output = self.run_scanner(environment, "prepare")
                 self.assertEqual(expected_exit, status, output)
                 if expected_exit == 1:
-                    self.assertIn(
-                        "packageManager is missing or not pnpm@x.y.z", output
-                    )
+                    self.assertIn("packageManager is missing or not pnpm@x.y.z", output)
                 self.assertTrue((clone / "dist/cli.js").exists())
                 status, output = self.run_scanner(environment)
                 self.assertNotEqual(0, status, output)

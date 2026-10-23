@@ -61,7 +61,7 @@ public partial class MainWindow : Window, IAsyncDisposable
         => _ = _viewModel.Refresh.RefreshAsync().RunAndLogFaults("Refreshing repositories");
 
     public Task ShowSettingsDialogAsync()
-        => new SettingsWindow(DataContext as MainViewModel).ShowDialog(this);
+        => new SettingsWindow((DataContext as MainViewModel)?.LiveWatch).ShowDialog(this);
 
     void SettingsMenuItem_Click(object? sender, RoutedEventArgs e)
         => _ = ShowSettingsDialogAsync();
@@ -319,7 +319,7 @@ public partial class MainWindow : Window, IAsyncDisposable
     }
 
     void LiveButton_Click(object? sender, RoutedEventArgs e)
-        => _ = _viewModel.ToggleLiveAsync().RunAndLogFaults("Toggling Live watch");
+        => _ = _viewModel.LiveWatch.ToggleLiveAsync().RunAndLogFaults("Toggling Live watch");
 
     void ForkButton_Click(object? sender, RoutedEventArgs e)
     {

@@ -12,11 +12,11 @@ public partial class SettingsWindow : Window
 
     public SettingsWindow() : this(null) { }
 
-    public SettingsWindow(MainViewModel? mainViewModel)
+    public SettingsWindow(LiveWatchViewModel? liveWatch)
     {
         InitializeComponent();
         Icon = IconLoader.Load();
-        _viewModel = new SettingsViewModel(new AvaloniaFolderPicker(), mainViewModel, new AvaloniaUiDispatcher());
+        _viewModel = new SettingsViewModel(new AvaloniaFolderPicker(), liveWatch, new AvaloniaUiDispatcher());
         DataContext = _viewModel;
     }
 

@@ -6,7 +6,7 @@ namespace GitWizardTests.TestSupport;
 /// <summary>
 /// Builds the <see cref="WatchStartupResult"/> a <see cref="RepositoryDiscoveryCoordinator"/>
 /// watch preparation would have produced around a test-owned source, so MainViewModel Live
-/// tests can drive the production startup seam (<c>MainViewModel.LivePrepareWatchAsync</c>)
+/// tests can drive the production startup seam (<c>LiveWatchViewModel.PrepareWatchAsync</c>)
 /// without a real elevated broker. The source is armed first - mirroring the coordinator's
 /// arm-before-reconcile order - and disposed when the arm fails, as the coordinator's own
 /// cleanup does. The inventory claims the request's retained roots, the effective membership

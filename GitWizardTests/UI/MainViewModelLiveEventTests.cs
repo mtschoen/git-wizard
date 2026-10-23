@@ -7,7 +7,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests.UI;
 
 // Live watch tests are split by concern because the combined fixture exceeds 500 lines.
-// Covers MainViewModel.Live.cs (ApplyLiveEvent), RepositoryListViewModel.Rows.cs, and RepositoryListViewModel.CachedRows.cs.
+// Covers LiveWatchViewModel.cs (ApplyLiveEventAsync), RepositoryListViewModel.Rows.cs, and RepositoryListViewModel.CachedRows.cs.
 public class MainViewModelLiveEventTests
 {
     [SetUp]
@@ -40,7 +40,7 @@ public class MainViewModelLiveEventTests
         Assert.That(viewModel.RepositoryList.Repositories.Single().DisplayText, Does.Not.Contain("*"));
 
         fixture.AddUntrackedFile("untracked.txt");
-        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Changed));
+        await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Changed));
 
         var node = viewModel.RepositoryList.Repositories.Single();
         Assert.Multiple(() =>
@@ -56,7 +56,7 @@ public class MainViewModelLiveEventTests
         var viewModel = NewViewModel();
         viewModel.RepositoryList.AddRepository(Repo("/a"), streaming: false);
 
-        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent("/unknown", RepositoryChangeKind.Changed));
+        await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent("/unknown", RepositoryChangeKind.Changed));
         Assert.That(viewModel.RepositoryList.Repositories, Has.Count.EqualTo(1));
     }
 
@@ -72,7 +72,7 @@ public class MainViewModelLiveEventTests
         viewModel.Refresh.IsScanning = true;
         var inserts = new PositionalInsertRecorder(viewModel.RepositoryList.Repositories);
 
-        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
+        await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
 
         var expectedPaths = streaming
             ? new[] { laterPath, fixture.Path }
@@ -92,7 +92,7 @@ public class MainViewModelLiveEventTests
         using var missing = new TempDirectory("gw-vanished-", create: false);
         var vanished = missing.Path;
 
-        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(vanished, RepositoryChangeKind.Created));
+        await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent(vanished, RepositoryChangeKind.Created));
 
 
         Assert.That(viewModel.RepositoryList.Repositories, Is.Empty);
@@ -104,7 +104,7 @@ public class MainViewModelLiveEventTests
         var viewModel = NewViewModel();
         viewModel.RepositoryList.AddRepository(Repo("/a"), streaming: false);
 
-        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent("/a", RepositoryChangeKind.Deleted));
+        await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent("/a", RepositoryChangeKind.Deleted));
 
         // Buffered, not removed immediately - a matching Created could still turn this into a rename.
         Assert.That(viewModel.RepositoryList.Repositories, Has.Count.EqualTo(1));
@@ -118,7 +118,7 @@ public class MainViewModelLiveEventTests
         var viewModel = NewViewModel();
         viewModel.RepositoryList.AddRepository(Repo("/a"), streaming: false);
 
-        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent("/unknown", RepositoryChangeKind.Deleted));
+        await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent("/unknown", RepositoryChangeKind.Deleted));
         Assert.That(viewModel.RepositoryList.Repositories, Has.Count.EqualTo(1));
     }
 
@@ -134,8 +134,8 @@ public class MainViewModelLiveEventTests
         var viewModel = NewViewModel();
         viewModel.RepositoryList.AddRepository(Repo("/old/path", remoteUrl), streaming: false);
 
-        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent("/old/path", RepositoryChangeKind.Deleted));
-        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
+        await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent("/old/path", RepositoryChangeKind.Deleted));
+        await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
 
         var paths = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToList();
         Assert.Multiple(() =>
@@ -152,8 +152,8 @@ public class MainViewModelLiveEventTests
         var viewModel = NewViewModel();
         viewModel.RepositoryList.AddRepository(Repo("/a"), streaming: false);
 
-        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent("/a", RepositoryChangeKind.Deleted));
-        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent("/a", RepositoryChangeKind.Deleted));
+        await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent("/a", RepositoryChangeKind.Deleted));
+        await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent("/a", RepositoryChangeKind.Deleted));
 
         Assert.That(viewModel.RepositoryList.Repositories, Has.Count.EqualTo(1));
         await WaitUntilAsync(() => viewModel.RepositoryList.Repositories.Count == 0);
@@ -167,9 +167,9 @@ public class MainViewModelLiveEventTests
         viewModel.RepositoryList.AddRepository(new GitWizardRepository(fixture.Path), streaming: false);
         viewModel.RepositoryList.AddRepository(Repo("/marker"), streaming: false);
 
-        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Deleted));
-        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
-        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent("/marker", RepositoryChangeKind.Deleted));
+        await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Deleted));
+        await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
+        await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent("/marker", RepositoryChangeKind.Deleted));
 
         // When the marker repository's correlation window expires and it is removed,
         // the earlier correlation window for the recreated repository has also elapsed.
@@ -186,9 +186,9 @@ public class MainViewModelLiveEventTests
         var viewModel = TestViewModels.Create(dispatcher: dispatcher);
         viewModel.RepositoryList.AddRepository(Repo("/a"), streaming: false);
 
-        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent("/a", RepositoryChangeKind.Deleted));
-        var createdTask = viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent("/a", RepositoryChangeKind.Created));
-        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent("/a", RepositoryChangeKind.Deleted));
+        await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent("/a", RepositoryChangeKind.Deleted));
+        var createdTask = viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent("/a", RepositoryChangeKind.Created));
+        await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent("/a", RepositoryChangeKind.Deleted));
         await createdTask;
 
         dispatcher.Drain();
@@ -208,9 +208,9 @@ public class MainViewModelLiveEventTests
         var viewModel = NewViewModel();
         viewModel.RepositoryList.AddRepository(new GitWizardRepository(fixture.Path), streaming: false);
 
-        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Deleted));
-        var createdTask = viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
-        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Deleted));
+        await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Deleted));
+        var createdTask = viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
+        await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Deleted));
         await createdTask;
 
         await WaitUntilAsync(() => viewModel.RepositoryList.Repositories.Count == 0);
@@ -225,12 +225,12 @@ public class MainViewModelLiveEventTests
         var viewModel = TestViewModels.Create(dispatcher: dispatcher);
         viewModel.RepositoryList.AddRepository(Repo(fixture.Path), streaming: false);
 
-        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Deleted));
+        await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Deleted));
         dispatcher.Drain();
-        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
+        await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
         // Hold the final UI application, the same boundary reached by a slow refresh.
         var applyCreated = dispatcher.TakeNext();
-        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Deleted));
+        await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Deleted));
         dispatcher.Drain();
         await WaitUntilAsync(() =>
         {
@@ -241,7 +241,7 @@ public class MainViewModelLiveEventTests
         applyCreated();
         Assert.That(viewModel.RepositoryList.Repositories, Is.Empty);
 
-        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
+        await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
         dispatcher.Drain();
         Assert.That(viewModel.RepositoryList.Repositories.Single().WorkingDirectory, Is.EqualTo(fixture.Path),
             "A later genuine recreation must still be accepted.");
@@ -254,9 +254,9 @@ public class MainViewModelLiveEventTests
         var dispatcher = new QueuedUiDispatcher();
         var viewModel = TestViewModels.Create(dispatcher: dispatcher);
 
-        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
+        await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
         var applyOlderCreation = dispatcher.TakeNext();
-        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
+        await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
 
         applyOlderCreation();
         Assert.That(viewModel.RepositoryList.Repositories, Is.Empty);
@@ -274,8 +274,8 @@ public class MainViewModelLiveEventTests
         viewModel.RepositoryList.AddRepository(repository, streaming: false);
 
         fixture.AddUntrackedFile("untracked.txt");
-        var event1 = viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Changed));
-        var event2 = viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Changed));
+        var event1 = viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Changed));
+        var event2 = viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Changed));
         await Task.WhenAll(event1, event2);
 
         var node = viewModel.RepositoryList.Repositories.Single();
@@ -287,7 +287,7 @@ public class MainViewModelLiveEventTests
     {
         var viewModel = NewViewModel();
 
-        await viewModel.ApplyLiveEventAsync(new RepositoryChangeEvent("/a", RepositoryChangeKind.Renamed, "/b"));
+        await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent("/a", RepositoryChangeKind.Renamed, "/b"));
         Assert.That(viewModel.RepositoryList.Repositories, Is.Empty);
     }
 }

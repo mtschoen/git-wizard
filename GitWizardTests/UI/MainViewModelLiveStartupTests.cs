@@ -8,7 +8,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests.UI;
 
 // Live watch tests are split by concern because the combined fixture exceeds 500 lines.
-// Covers MainViewModel.LiveStartup.cs, RepositoryListViewModel.Rows.cs, RepositoryListViewModel.CachedRows.cs, and StatusHeaderViewModel.cs.
+// Covers LiveWatchViewModel.Startup.cs, RepositoryListViewModel.Rows.cs, RepositoryListViewModel.CachedRows.cs, and StatusHeaderViewModel.cs.
 public class MainViewModelLiveStartupTests
 {
     [SetUp]
@@ -36,19 +36,19 @@ public class MainViewModelLiveStartupTests
             TaskCreationOptions.RunContinuationsAsynchronously);
         var dispatcher = new QueuedUiDispatcher();
         var viewModel = TestViewModels.Create(dispatcher: dispatcher);
-        viewModel.LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
-        viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
+        viewModel.LiveWatch.CapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
+        viewModel.LiveWatch.PrepareWatchAsync = (request, _, _, cancellationToken) =>
         {
             var source = new DiagnosticVolumeChangeSource();
             sourceReady.TrySetResult(source);
             return FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
         };
-        viewModel.LiveIsElevated = () => false;
+        viewModel.LiveWatch.IsElevated = () => false;
         Task? running = null;
         GitWizardUI.Services.LiveWatchController controller;
         try
         {
-            running = viewModel.ToggleLiveAsync();
+            running = viewModel.LiveWatch.ToggleLiveAsync();
             var source = await sourceReady.Task.WaitAsync(TimeSpan.FromSeconds(5));
             await source.Started.WaitAsync(TimeSpan.FromSeconds(5));
             dispatcher.Drain();
@@ -58,7 +58,7 @@ public class MainViewModelLiveStartupTests
             Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Live watch active"), "Warnings must be posted to the UI.");
             dispatcher.Drain();
             Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Live scan error on X: watch failed"));
-            Assert.That(viewModel.IsLive, Is.True);
+            Assert.That(viewModel.LiveWatch.IsLive, Is.True);
             source.FailDrive("X", "watch failed again");
             dispatcher.Drain();
             Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Live scan error on X: watch failed again"));
@@ -108,10 +108,10 @@ public class MainViewModelLiveStartupTests
 
         // The production default runs the discovery coordinator's watch preparation (an
         // elevated broker session), so it is asserted, not invoked.
-        var prepare = viewModel.LivePrepareWatchAsync;
+        var prepare = viewModel.LiveWatch.PrepareWatchAsync;
 
         Assert.That(prepare, Is.Not.Null);
-        Assert.That(viewModel.LivePrepareWatchAsync, Is.SameAs(prepare));
+        Assert.That(viewModel.LiveWatch.PrepareWatchAsync, Is.SameAs(prepare));
     }
 
     [Test]
@@ -124,25 +124,25 @@ public class MainViewModelLiveStartupTests
             ArmGate = armGate.Task,
             KeepWatching = true
         };
-        viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
+        viewModel.LiveWatch.PrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
-        viewModel.LiveIsElevated = () => false;
+        viewModel.LiveWatch.IsElevated = () => false;
 
-        var startTask = viewModel.ToggleLiveAsync();
+        var startTask = viewModel.LiveWatch.ToggleLiveAsync();
         await source.ArmStarted;
 
         Assert.Multiple(() =>
         {
-            Assert.That(viewModel.IsLiveStarting, Is.True);
-            Assert.That(viewModel.IsLive, Is.False);
-            Assert.That(viewModel.LiveButtonText, Is.EqualTo("Starting Live..."));
+            Assert.That(viewModel.LiveWatch.IsLiveStarting, Is.True);
+            Assert.That(viewModel.LiveWatch.IsLive, Is.False);
+            Assert.That(viewModel.LiveWatch.LiveButtonText, Is.EqualTo("Starting Live..."));
             Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Starting Live watch..."));
         });
 
-        await viewModel.ToggleLiveAsync();
+        await viewModel.LiveWatch.ToggleLiveAsync();
         await startTask;
 
-        Assert.That(viewModel.IsLiveStarting, Is.False);
+        Assert.That(viewModel.LiveWatch.IsLiveStarting, Is.False);
     }
 
     [Test]
@@ -150,19 +150,19 @@ public class MainViewModelLiveStartupTests
     {
         var viewModel = NewViewModel();
         var source = new ScriptedVolumeChangeSource { KeepWatching = true, ReplayDeathToLateSubscribers = true };
-        viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
+        viewModel.LiveWatch.PrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
-        viewModel.LiveIsElevated = () => false;
+        viewModel.LiveWatch.IsElevated = () => false;
 
-        var startTask = viewModel.ToggleLiveAsync();
-        await WaitUntilAsync(() => viewModel.IsLive);
+        var startTask = viewModel.LiveWatch.ToggleLiveAsync();
+        await WaitUntilAsync(() => viewModel.LiveWatch.IsLive);
 
-        await viewModel.ToggleLiveAsync();
+        await viewModel.LiveWatch.ToggleLiveAsync();
         await startTask;
 
         Assert.Multiple(() =>
         {
-            Assert.That(viewModel.IsLive, Is.False);
+            Assert.That(viewModel.LiveWatch.IsLive, Is.False);
             Assert.That(source.DisposeCount, Is.EqualTo(1));
         });
     }
@@ -171,15 +171,15 @@ public class MainViewModelLiveStartupTests
     public async Task ToggleLiveAsync_SourceFactoryThrowsInvalidOperationException_EndsNotLiveWithStatus()
     {
         var viewModel = NewViewModel();
-        viewModel.LivePrepareWatchAsync = (_, _, _, _) =>
+        viewModel.LiveWatch.PrepareWatchAsync = (_, _, _, _) =>
             Task.FromException<WatchStartupResult>(new InvalidOperationException("declined UAC prompt"));
-        viewModel.LiveIsElevated = () => false;
+        viewModel.LiveWatch.IsElevated = () => false;
 
-        await viewModel.ToggleLiveAsync();
+        await viewModel.LiveWatch.ToggleLiveAsync();
 
         Assert.Multiple(() =>
         {
-            Assert.That(viewModel.IsLive, Is.False);
+            Assert.That(viewModel.LiveWatch.IsLive, Is.False);
             Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain("declined UAC prompt"));
         });
     }
@@ -189,15 +189,15 @@ public class MainViewModelLiveStartupTests
     {
         var viewModel = NewViewModel();
         var source = new ScriptedVolumeChangeSource { KeepWatching = true, ReplayDeathToLateSubscribers = true };
-        viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
+        viewModel.LiveWatch.PrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
-        viewModel.LiveIsElevated = () => false;
+        viewModel.LiveWatch.IsElevated = () => false;
 
-        var startTask = viewModel.ToggleLiveAsync();
+        var startTask = viewModel.LiveWatch.ToggleLiveAsync();
         await WaitUntilAsync(() => source.IsArmed);
 
         source.KillSource("driver hiccup");
-        await WaitUntilAsync(() => !viewModel.IsLive);
+        await WaitUntilAsync(() => !viewModel.LiveWatch.IsLive);
         await startTask;
 
         Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain("driver hiccup"));
@@ -213,14 +213,14 @@ public class MainViewModelLiveStartupTests
 
         var viewModel = NewViewModel();
         viewModel.RepositoryList.AddRepository(Repo(@"C:\tracked"), streaming: false);
-        viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
+        viewModel.LiveWatch.PrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
-        viewModel.LiveIsElevated = () => false;
+        viewModel.LiveWatch.IsElevated = () => false;
 
-        var startTask = viewModel.ToggleLiveAsync();
+        var startTask = viewModel.LiveWatch.ToggleLiveAsync();
         await WaitUntilAsync(() => viewModel.StatusHeader.HeaderText.Contains("drive not ready"));
 
-        await viewModel.ToggleLiveAsync();
+        await viewModel.LiveWatch.ToggleLiveAsync();
         await startTask;
 
         Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain("Live scan error on D: drive not ready"));
@@ -234,11 +234,11 @@ public class MainViewModelLiveStartupTests
         // IsLive is false, so this hits the "start" branch, not "stop" - covered instead by
         // StopLiveAsync's own null-controller guard exercised through the kill/stop tests above.
         // Exercise the guard directly: force IsLive true without a controller assigned.
-        viewModel.IsLive = true;
+        viewModel.LiveWatch.IsLive = true;
 
-        await viewModel.ToggleLiveAsync();
+        await viewModel.LiveWatch.ToggleLiveAsync();
 
-        Assert.That(viewModel.IsLive, Is.False);
+        Assert.That(viewModel.LiveWatch.IsLive, Is.False);
     }
 
     [Test]
@@ -250,15 +250,15 @@ public class MainViewModelLiveStartupTests
             KeepWatching = true
         };
         var viewModel = NewViewModel();
-        viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
+        viewModel.LiveWatch.PrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
-        viewModel.LiveIsElevated = () => false;
+        viewModel.LiveWatch.IsElevated = () => false;
 
-        var startTask = viewModel.ToggleLiveAsync();
+        var startTask = viewModel.LiveWatch.ToggleLiveAsync();
         await WaitUntilAsync(() => source.IsArmed);
 
         source.KillSource("driver hiccup");
-        await WaitUntilAsync(() => !viewModel.IsLive);
+        await WaitUntilAsync(() => !viewModel.LiveWatch.IsLive);
         await startTask;
 
         Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain("scan errors: D: drive not ready"));
@@ -275,14 +275,14 @@ public class MainViewModelLiveStartupTests
 
         var source = new ScriptedVolumeChangeSource { KeepWatching = true, ReplayDeathToLateSubscribers = true };
         var viewModel = NewViewModel();
-        viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
+        viewModel.LiveWatch.PrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
-        viewModel.LiveIsElevated = () => false;
+        viewModel.LiveWatch.IsElevated = () => false;
 
-        var startTask = viewModel.ToggleLiveAsync();
+        var startTask = viewModel.LiveWatch.ToggleLiveAsync();
         await WaitUntilAsync(() => source.IsArmed);
 
-        await viewModel.ToggleLiveAsync();
+        await viewModel.LiveWatch.ToggleLiveAsync();
         await startTask;
     }
 
@@ -309,11 +309,11 @@ public class MainViewModelLiveStartupTests
             });
         var viewModel = NewViewModel();
         viewModel.RepositoryList.AddRepository(Repo(oldPath, remoteUrl), streaming: false);
-        viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
+        viewModel.LiveWatch.PrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(new ScriptedVolumeChangeSource(new[] { batch }), request, cancellationToken);
-        viewModel.LiveIsElevated = () => false;
+        viewModel.LiveWatch.IsElevated = () => false;
 
-        await viewModel.ToggleLiveAsync();
+        await viewModel.LiveWatch.ToggleLiveAsync();
 
         // The Created application awaits a real Refresh on a thread pool thread, and an
         // uncorrelated Deleted only expires after the rename-correlation window, so poll for the
@@ -339,12 +339,12 @@ public class MainViewModelLiveStartupTests
         var source = new ScriptedVolumeChangeSource { KeepWatching = true, ReplayDeathToLateSubscribers = true };
         var viewModel = NewViewModel();
         viewModel.RepositoryList.AddRepository(Repo("/stale"), streaming: false);
-        viewModel.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
+        viewModel.LiveWatch.PrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken,
                 inventoryPaths: [repositoryPath]);
-        viewModel.LiveIsElevated = () => false;
+        viewModel.LiveWatch.IsElevated = () => false;
 
-        var startTask = viewModel.ToggleLiveAsync();
+        var startTask = viewModel.LiveWatch.ToggleLiveAsync();
 
         // The coordinator's startup inventory claims only the fixture repository: the stale
         // row leaves and the repository created while Live was closed enters, before any
@@ -355,7 +355,7 @@ public class MainViewModelLiveStartupTests
             return paths.Count == 1 && paths[0] == repositoryPath;
         });
 
-        await viewModel.ToggleLiveAsync();
+        await viewModel.LiveWatch.ToggleLiveAsync();
         await startTask;
     }
 
@@ -364,18 +364,18 @@ public class MainViewModelLiveStartupTests
     {
         var viewModel = NewViewModel();
         viewModel.RepositoryList.AddRepository(Repo("/keep-me"), streaming: false);
-        viewModel.LivePrepareWatchAsync = (request, _, _, _) =>
+        viewModel.LiveWatch.PrepareWatchAsync = (request, _, _, _) =>
             Task.FromResult(FakeLiveStartup.Unusable(request, "X", "broker declined"));
-        viewModel.LiveIsElevated = () => false;
+        viewModel.LiveWatch.IsElevated = () => false;
 
-        var startTask = viewModel.ToggleLiveAsync();
+        var startTask = viewModel.LiveWatch.ToggleLiveAsync();
         await WaitUntilAsync(() => viewModel.StatusHeader.HeaderText.Contains("could not start"));
         await startTask;
 
         Assert.Multiple(() =>
         {
-            Assert.That(viewModel.IsLive, Is.False);
-            Assert.That(viewModel.IsLiveStarting, Is.False);
+            Assert.That(viewModel.LiveWatch.IsLive, Is.False);
+            Assert.That(viewModel.LiveWatch.IsLiveStarting, Is.False);
             Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain("Live watch could not start: broker declined"));
             Assert.That(viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory),
                 Is.EqualTo(new[] { "/keep-me" }), "An unusable startup must not touch prior rows.");

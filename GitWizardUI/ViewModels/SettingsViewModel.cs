@@ -87,14 +87,14 @@ public partial class SettingsViewModel : INotifyPropertyChanged
     }
 
 
-    public SettingsViewModel(IFolderPicker folderPicker, MainViewModel? mainViewModel, IUiDispatcher dispatcher)
+    public SettingsViewModel(IFolderPicker folderPicker, LiveWatchViewModel? liveWatch, IUiDispatcher dispatcher)
     {
         _folderPicker = folderPicker;
-        _mainViewModel = mainViewModel;
+        _liveWatch = liveWatch;
         _journalDispatcher = dispatcher;
         _configuration = GitWizardConfiguration.GetGlobalConfiguration();
 
-        JournalWarnings = mainViewModel?.JournalWarnings ?? new();
+        JournalWarnings = liveWatch?.JournalWarnings ?? new();
 
         foreach (var path in _configuration.SearchPaths)
         {

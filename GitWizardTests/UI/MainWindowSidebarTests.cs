@@ -148,8 +148,8 @@ public class MainWindowSidebarTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(viewModel.IsLive, Is.False);
-            Assert.That(viewModel.IsLiveStarting, Is.False);
+            Assert.That(viewModel.LiveWatch.IsLive, Is.False);
+            Assert.That(viewModel.LiveWatch.IsLiveStarting, Is.False);
             Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("GitWizard"),
                 "Even a programmatic click must not re-enter ToggleLiveAsync mid-refresh.");
         });

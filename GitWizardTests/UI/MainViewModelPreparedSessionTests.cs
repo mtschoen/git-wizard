@@ -9,7 +9,7 @@ using MFTLibTestExtensions;
 
 namespace GitWizardTests.UI;
 
-// Covers PreparedDiscoveryIndexStore.cs, MainViewModel.cs, MainViewModel.IndexCache.cs, and MainViewModel.LiveStartup.cs.
+// Covers PreparedDiscoveryIndexStore.cs, MainViewModel.cs, MainViewModel.IndexCache.cs, and LiveWatchViewModel.Startup.cs.
 [TestFixture]
 public class MainViewModelPreparedSessionTests
 {
@@ -141,7 +141,7 @@ public class MainViewModelPreparedSessionTests
         await using var viewModel = NewViewModel();
         await viewModel.PreparedDiscoveryIndex.SetAsync(fixture.Owner);
         var opens = 0;
-        viewModel.LivePrepareWatchAsync = async (request, prepared, _, cancellationToken) =>
+        viewModel.LiveWatch.PrepareWatchAsync = async (request, prepared, _, cancellationToken) =>
         {
             var source = new IndexVolumeChangeSource((_, _, _) =>
             {
@@ -152,14 +152,14 @@ public class MainViewModelPreparedSessionTests
                     watchVolumes: ["X"])
                 .ConfigureAwait(false);
         };
-        viewModel.LiveIsElevated = () => respawn;
-        viewModel.LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
+        viewModel.LiveWatch.IsElevated = () => respawn;
+        viewModel.LiveWatch.CapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
         viewModel.RepositoryList.AddRepository(new GitWizardRepository(@"X:\repo"), streaming: false);
         try
         {
-            var starting = viewModel.ToggleLiveAsync();
+            var starting = viewModel.LiveWatch.ToggleLiveAsync();
             await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
-            await WaitUntilAsync(() => viewModel.IsLive);
+            await WaitUntilAsync(() => viewModel.LiveWatch.IsLive);
             Assert.That(opens, Is.Zero);
             Assert.That(viewModel.PreparedDiscoveryIndex.Current, Is.Null);
             if (respawn)
@@ -169,18 +169,18 @@ public class MainViewModelPreparedSessionTests
             }
             else
             {
-                await viewModel.ToggleLiveAsync();
+                await viewModel.LiveWatch.ToggleLiveAsync();
                 await starting.WaitAsync(TestTimeouts.HangGuard);
                 Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
-                await viewModel.ToggleLiveAsync();
+                await viewModel.LiveWatch.ToggleLiveAsync();
             }
-            Assert.That(viewModel.IsLive, Is.False);
+            Assert.That(viewModel.LiveWatch.IsLive, Is.False);
             Assert.That(opens, Is.EqualTo(1));
             Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
         }
         finally
         {
-            viewModel.LivePrepareWatchAsync = FailIfPrepareWatchIsRequested;
+            viewModel.LiveWatch.PrepareWatchAsync = FailIfPrepareWatchIsRequested;
         }
     }
 

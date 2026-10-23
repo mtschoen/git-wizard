@@ -128,7 +128,7 @@ public sealed partial class RepositoryListViewModel
     /// (<see cref="RepositoryMap"/>, <see cref="AllRepositories"/>, <see cref="Repositories"/>, and any
     /// group header holding it). No-op if the path isn't currently tracked. The internal
     /// entry point Live mode's per-event deletion/rename handling in
-    /// <c>MainViewModel.Live.cs</c> calls; the batch-refresh rename cleanup above reaches the
+    /// <c>LiveWatchViewModel.cs</c> calls; the batch-refresh rename cleanup above reaches the
     /// same code directly.
     /// </summary>
     internal void RemoveRepositoryPathFromUi(string path)

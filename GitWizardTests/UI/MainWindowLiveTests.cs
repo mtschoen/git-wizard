@@ -29,7 +29,7 @@ public class MainWindowLiveTests
         Assert.That(button.IsEnabled, Is.False);
 
         viewModel.Refresh.IsRefreshing = false;
-        viewModel.IsLiveStarting = true;
+        viewModel.LiveWatch.IsLiveStarting = true;
         Assert.Multiple(() =>
         {
             Assert.That(button.Content, Is.EqualTo("Starting Live..."));
@@ -38,8 +38,8 @@ public class MainWindowLiveTests
             Assert.That(button.IsEnabled, Is.True);
         });
 
-        viewModel.IsLiveStarting = false;
-        viewModel.IsLive = true;
+        viewModel.LiveWatch.IsLiveStarting = false;
+        viewModel.LiveWatch.IsLive = true;
         Assert.Multiple(() =>
         {
             Assert.That(button.Content, Is.EqualTo("Live"));
@@ -58,7 +58,7 @@ public class MainWindowLiveTests
 
         Assert.That(button, Is.Not.Null);
 
-        viewModel.LiveCapabilityProbe = () => new GitWizard.Watch.Linux.FanotifyCapabilityResult(
+        viewModel.LiveWatch.CapabilityProbe = () => new GitWizard.Watch.Linux.FanotifyCapabilityResult(
             GitWizard.Watch.Linux.FanotifyCapabilityStatus.UnsupportedKernel, 0);
 
         Assert.Multiple(() =>
@@ -80,10 +80,10 @@ public class MainWindowLiveTests
         Assert.That(panel, Is.Not.Null);
         Assert.That(panel!.IsVisible, Is.False);
 
-        viewModel.IsLiveScanProgressVisible = true;
-        viewModel.LiveScanProgressText = "Scanning D: (2 of 5), 1.2M of 2.4M records";
-        viewModel.LiveScanProgressValue = 0.3;
-        viewModel.IsLiveScanProgressIndeterminate = false;
+        viewModel.LiveWatch.IsLiveScanProgressVisible = true;
+        viewModel.LiveWatch.LiveScanProgressText = "Scanning D: (2 of 5), 1.2M of 2.4M records";
+        viewModel.LiveWatch.LiveScanProgressValue = 0.3;
+        viewModel.LiveWatch.IsLiveScanProgressIndeterminate = false;
 
         Assert.Multiple(() =>
         {
@@ -93,7 +93,7 @@ public class MainWindowLiveTests
             Assert.That(text!.Text, Is.EqualTo("Scanning D: (2 of 5), 1.2M of 2.4M records"));
         });
 
-        viewModel.IsLiveScanProgressVisible = false;
+        viewModel.LiveWatch.IsLiveScanProgressVisible = false;
         Assert.That(panel.IsVisible, Is.False);
     }
 
@@ -103,10 +103,10 @@ public class MainWindowLiveTests
         await using var window = new MainWindow();
         var model = (MainViewModel)window.DataContext!;
         foreach (var volume in new[] { "C", "D", "E", "F", "G" })
-            model.LiveVolumes.Add(new LiveVolumeStatusViewModel(
+            model.LiveWatch.LiveVolumes.Add(new LiveVolumeStatusViewModel(
                 VolumeWatchStatus.CaughtUp(volume, VolumeBlockOrigin.Warm)));
-        model.IsLive = true;
-        model.LiveReadinessText = "Ready (journal): C, D, E, F, G";
+        model.LiveWatch.IsLive = true;
+        model.LiveWatch.LiveReadinessText = "Ready (journal): C, D, E, F, G";
         // Rebind the seeded fixture; event-driven tooltip notifications are covered in Task 1.
         window.DataContext = null;
         window.DataContext = model;
@@ -114,7 +114,7 @@ public class MainWindowLiveTests
         Assert.That(window.FindControl<ItemsControl>("LiveVolumeList"), Is.Null);
         Assert.That(text.TextWrapping, Is.EqualTo(TextWrapping.NoWrap));
         Assert.That(text.TextTrimming, Is.EqualTo(TextTrimming.CharacterEllipsis));
-        Assert.That(ToolTip.GetTip(text), Is.EqualTo(model.LiveReadinessTooltip));
+        Assert.That(ToolTip.GetTip(text), Is.EqualTo(model.LiveWatch.LiveReadinessTooltip));
 
         foreach (var width in new[] { 1925d, 1100d, 1076d })
         {
@@ -124,15 +124,15 @@ public class MainWindowLiveTests
             toolbar.Arrange(new Rect(0, 0, width - 240, toolbar.DesiredSize.Height));
             var height = text.Bounds.Height;
             Assert.That(height, Is.GreaterThan(0));
-            model.LiveReadinessText = "Catching up: C, D, E, F, G; excluded: H";
+            model.LiveWatch.LiveReadinessText = "Catching up: C, D, E, F, G; excluded: H";
             toolbar.Measure(new Size(width - 240, double.PositiveInfinity));
             toolbar.Arrange(new Rect(0, 0, width - 240, toolbar.DesiredSize.Height));
             Assert.That(text.Bounds.Height, Is.EqualTo(height));
-            model.LiveReadinessText = "No caught-up volumes (journal); excluded: C, D, E, F, G";
+            model.LiveWatch.LiveReadinessText = "No caught-up volumes (journal); excluded: C, D, E, F, G";
             toolbar.Measure(new Size(width - 240, double.PositiveInfinity));
             toolbar.Arrange(new Rect(0, 0, width - 240, toolbar.DesiredSize.Height));
             Assert.That(text.Bounds.Height, Is.EqualTo(height));
-            model.LiveReadinessText = "Ready (journal): C, D, E, F, G";
+            model.LiveWatch.LiveReadinessText = "Ready (journal): C, D, E, F, G";
         }
     }
 }

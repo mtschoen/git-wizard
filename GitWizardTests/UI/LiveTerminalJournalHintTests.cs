@@ -13,7 +13,7 @@ namespace GitWizardTests.UI;
 // to clear JournalWarnings and build the header from scan errors only, so the checkpoint-loss
 // explanation vanished at exactly the moment it mattered.
 [TestFixture]
-// Covers MainViewModel.LiveStartup.cs, MainViewModel.Journals.cs, and StatusHeaderViewModel.cs.
+// Covers LiveWatchViewModel.Startup.cs, LiveWatchViewModel.Journals.cs, and StatusHeaderViewModel.cs.
 public class LiveTerminalJournalHintTests
 {
     LocalFilesSandbox? _sandbox;
@@ -29,10 +29,10 @@ public class LiveTerminalJournalHintTests
         _sandbox = new LocalFilesSandbox();
         _source = new DiagnosticVolumeChangeSource();
         _main = TestViewModels.Create(dispatcher: _dispatcher);
-        _main.LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
-        _main.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
+        _main.LiveWatch.CapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
+        _main.LiveWatch.PrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(_source, request, cancellationToken);
-        _main.LiveIsElevated = () => false;
+        _main.LiveWatch.IsElevated = () => false;
     }
 
     [TearDown]
@@ -48,7 +48,7 @@ public class LiveTerminalJournalHintTests
 
     async Task StartLiveAsync()
     {
-        _running = _main.ToggleLiveAsync();
+        _running = _main.LiveWatch.ToggleLiveAsync();
         await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
         _dispatcher.Drain();
     }
@@ -60,7 +60,7 @@ public class LiveTerminalJournalHintTests
         var loss = FakeJournalSettingsSource.TrimmedLoss('C', 32L * 1024 * 1024, 136L * 1024 * 1024);
         _source.ArmWarnings.Add(new JournalWarning { DriveLetter = "C", VolumeSerial = 12345, Loss = loss });
         await StartLiveAsync();
-        Assert.That(_main.JournalWarnings, Has.Count.EqualTo(1),
+        Assert.That(_main.LiveWatch.JournalWarnings, Has.Count.EqualTo(1),
             "The arm-time hint must surface before the watch reports death.");
 
         // With no usable drive the real source reports death as soon as the watch starts.
@@ -68,9 +68,9 @@ public class LiveTerminalJournalHintTests
         await _running.WaitAsync(TimeSpan.FromSeconds(5));
         _dispatcher.Drain();
 
-        Assert.That(_main.IsLive, Is.False);
+        Assert.That(_main.LiveWatch.IsLive, Is.False);
         Assert.That(_main.StatusHeader.HeaderText, Does.Contain("Live watch stopped"));
-        var warning = _main.JournalWarnings.Single();
+        var warning = _main.LiveWatch.JournalWarnings.Single();
         Assert.That(warning.Warning.Message, Does.Contain("Hint on C:").And.Contain("at least 136 MB"));
     }
 
@@ -78,7 +78,7 @@ public class LiveTerminalJournalHintTests
     public async Task SoleDriveLiveWatchLossKeepsHintVisibleAfterWatchDies()
     {
         await StartLiveAsync();
-        Assert.That(_main.JournalWarnings, Is.Empty);
+        Assert.That(_main.LiveWatch.JournalWarnings, Is.Empty);
         var loss = FakeJournalSettingsSource.TrimmedLoss('C', 32L * 1024 * 1024, 136L * 1024 * 1024,
             detectedDuring: JournalCheckpointLossDetection.LiveWatch);
 
@@ -88,9 +88,9 @@ public class LiveTerminalJournalHintTests
         await _running.WaitAsync(TimeSpan.FromSeconds(5));
         _dispatcher.Drain();
 
-        Assert.That(_main.IsLive, Is.False);
+        Assert.That(_main.LiveWatch.IsLive, Is.False);
         Assert.That(_main.StatusHeader.HeaderText, Does.Contain("Live watch stopped"));
-        var warning = _main.JournalWarnings.Single();
+        var warning = _main.LiveWatch.JournalWarnings.Single();
         Assert.That(warning.Warning.Message, Does.Contain("Hint on C:")
             .And.Contain("Live updates for this drive stopped"));
     }
@@ -99,7 +99,7 @@ public class LiveTerminalJournalHintTests
     public async Task LiveWatchLossOnOneDriveShowsHintWhileLiveContinues()
     {
         await StartLiveAsync();
-        Assert.That(_main.JournalWarnings, Is.Empty);
+        Assert.That(_main.LiveWatch.JournalWarnings, Is.Empty);
         var loss = FakeJournalSettingsSource.TrimmedLoss('D', 32L * 1024 * 1024, 136L * 1024 * 1024,
             detectedDuring: JournalCheckpointLossDetection.LiveWatch);
 
@@ -107,9 +107,9 @@ public class LiveTerminalJournalHintTests
         _source.FailDrive("D", "watch reached a position the journal no longer holds");
         _dispatcher.Drain();
 
-        Assert.That(_main.IsLive, Is.True);
+        Assert.That(_main.LiveWatch.IsLive, Is.True);
         Assert.That(_running.IsCompleted, Is.False);
-        var warning = _main.JournalWarnings.Single();
+        var warning = _main.LiveWatch.JournalWarnings.Single();
         Assert.That(warning.Warning.Message, Does.Contain("Hint on D:")
             .And.Contain("The drive is being rescanned to catch up"));
         Assert.That(_main.StatusHeader.HeaderText, Does.Contain("journal hints"));

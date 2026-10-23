@@ -29,7 +29,7 @@ public class JournalSettingsWindowTests
                 VolumeSerial = 123,
                 Loss = FakeJournalSettingsSource.TrimmedLoss('C', 32, 128, 8)
             });
-            main.JournalWarnings.Add(warning);
+            main.LiveWatch.JournalWarnings.Add(warning);
             var list = window.FindControl<ItemsControl>("JournalWarningList");
             Assert.That(list, Is.Not.Null);
             main.StatusHeader.ShowRefreshMessage("Refreshing repositories...");
@@ -50,17 +50,17 @@ public class JournalSettingsWindowTests
         source.CheckpointLosses.Clear();
         source.CheckpointLosses.Add(FakeJournalSettingsSource.RecreatedLoss('C', 64L * 1024 * 1024));
         var main = TestViewModels.Create(dispatcher: new AvaloniaUiDispatcher());
-        main.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
+        main.LiveWatch.PrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
-        main.LiveIsElevated = () => false;
-        main.LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
-        var running = main.ToggleLiveAsync();
+        main.LiveWatch.IsElevated = () => false;
+        main.LiveWatch.CapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
+        var running = main.LiveWatch.ToggleLiveAsync();
         SettingsWindow? window = null;
         try
         {
             await source.Started.WaitAsync(TimeSpan.FromSeconds(5));
             Dispatcher.UIThread.RunJobs();
-            window = new SettingsWindow(main);
+            window = new SettingsWindow(main.LiveWatch);
             window.Show();
             Dispatcher.UIThread.RunJobs();
             var buttons = window.GetVisualDescendants().OfType<Button>()
@@ -68,7 +68,7 @@ public class JournalSettingsWindowTests
             Assert.That(buttons, Has.Length.EqualTo(1));
             Assert.That(buttons[0].IsVisible, Is.True);
             Assert.That(buttons[0].IsEnabled, Is.False);
-            Assert.That(main.JournalWarnings[0].GrowUnavailableReason, Does.Contain("journal was recreated"));
+            Assert.That(main.LiveWatch.JournalWarnings[0].GrowUnavailableReason, Does.Contain("journal was recreated"));
         }
         finally
         {
@@ -86,24 +86,24 @@ public class JournalSettingsWindowTests
         using var sandbox = new LocalFilesSandbox();
         var source = new FakeJournalSettingsSource();
         var main = TestViewModels.Create(dispatcher: new AvaloniaUiDispatcher());
-        main.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
+        main.LiveWatch.PrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
-        main.LiveIsElevated = () => false;
-        main.LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
-        var running = main.ToggleLiveAsync();
+        main.LiveWatch.IsElevated = () => false;
+        main.LiveWatch.CapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
+        var running = main.LiveWatch.ToggleLiveAsync();
         SettingsWindow? window = null;
         try
         {
             await source.Started.WaitAsync(TimeSpan.FromSeconds(5));
             Dispatcher.UIThread.RunJobs();
-            window = new SettingsWindow(main);
+            window = new SettingsWindow(main.LiveWatch);
             window.Show();
             Dispatcher.UIThread.RunJobs();
             var buttons = window.GetVisualDescendants().OfType<Button>()
                 .Where(button => Equals(button.Content, "Enlarge")).ToArray();
             Assert.That(buttons, Has.Length.EqualTo(2));
             Assert.That(buttons.All(button => button.IsEnabled), Is.True);
-            var warning = main.JournalWarnings[0];
+            var warning = main.LiveWatch.JournalWarnings[0];
             var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var offThreadUpdates = 0;
             warning.PropertyChanged += (_, _) =>

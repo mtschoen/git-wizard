@@ -12,7 +12,7 @@ internal static class WatchSubscriptionProbe
         ?? throw new InvalidOperationException("The controller has not created its service.");
 
     public static LiveWatchController Controller(MainViewModel viewModel) =>
-        viewModel._liveController
+        viewModel.LiveWatch.Controller
         ?? throw new InvalidOperationException("The view model has not created its controller.");
 
     public static int ScanErrorsSubscribers(RepositoryWatchService publisher) =>

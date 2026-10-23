@@ -67,7 +67,7 @@ public class IndexCacheStatusWindowTests
             var inspectionText = panelModel.Text;
             var row = new LiveVolumeStatusViewModel(
                 VolumeWatchStatus.CatchingUp("X", VolumeBlockOrigin.Cold));
-            mainModel.LiveVolumes.Add(row);
+            mainModel.LiveWatch.LiveVolumes.Add(row);
             Dispatcher.UIThread.RunJobs();
             Assert.That(list!.ItemsSource, Is.SameAs(panelModel.LiveVolumes));
             Assert.That(panelModel.LiveVolumes.Single().DisplayText, Is.EqualTo("X: catching up (cold)"));
@@ -78,7 +78,7 @@ public class IndexCacheStatusWindowTests
             Assert.That(panelModel.Snapshot, Is.Null);
             Assert.That(list.GetVisualDescendants().OfType<TextBlock>().Select(control => control.Text),
                 Does.Contain("X: excluded (cold): watch died"));
-            mainModel.LiveVolumes.Clear();
+            mainModel.LiveWatch.LiveVolumes.Clear();
             Dispatcher.UIThread.RunJobs();
             Assert.That(panelModel.LiveVolumes, Is.Empty);
         }
@@ -97,8 +97,8 @@ public class IndexCacheStatusWindowTests
             var session = Guid.NewGuid();
             var first = new VolumeWatchTransition(session, "X", 1, "Faulted", "read error", DateTimeOffset.UtcNow);
             var second = new VolumeWatchTransition(session, "X", 2, "Recovering", null, DateTimeOffset.UtcNow);
-            mainModel.LiveWatchEvents.Add(first);
-            mainModel.LiveWatchEvents.Add(second);
+            mainModel.LiveWatch.LiveWatchEvents.Add(first);
+            mainModel.LiveWatch.LiveWatchEvents.Add(second);
 
             window.Show();
             var eventList = window.FindControl<ItemsControl>("IndexCacheWatchEventList");
@@ -111,7 +111,7 @@ public class IndexCacheStatusWindowTests
             Assert.That(texts, Does.Contain("Recovering"));
             Assert.That(panelModel.Snapshot, Is.Null);
 
-            mainModel.LiveWatchEvents.RemoveAt(0);
+            mainModel.LiveWatch.LiveWatchEvents.RemoveAt(0);
             Dispatcher.UIThread.RunJobs();
             texts = eventList.GetVisualDescendants().OfType<TextBlock>().Select(control => control.Text).ToList();
             Assert.That(texts, Does.Not.Contain("Faulted"));

@@ -10,7 +10,7 @@ using MFTLibTestExtensions;
 
 namespace GitWizardTests.UI;
 
-// Covers MainViewModel.Journals.cs, SettingsViewModel.Journals.cs, and StatusHeaderViewModel.cs.
+// Covers LiveWatchViewModel.Journals.cs, SettingsViewModel.Journals.cs, and StatusHeaderViewModel.cs.
 public class JournalSettingsIntegrationTests
 {
     LocalFilesSandbox? _sandbox;
@@ -19,7 +19,7 @@ public class JournalSettingsIntegrationTests
     MainViewModel _main = null!;
     Task _running = null!;
     SettingsViewModel _settings = null!;
-    string HintText => string.Join(" ", _main.JournalWarnings
+    string HintText => string.Join(" ", _main.LiveWatch.JournalWarnings
         .Select(warning => warning.Warning.Message));
 
     [SetUp]
@@ -29,14 +29,14 @@ public class JournalSettingsIntegrationTests
         _sandbox = new LocalFilesSandbox();
         _source = new FakeJournalSettingsSource();
         _main = TestViewModels.Create(dispatcher: _dispatcher);
-        _main.LiveCapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
-        _main.LivePrepareWatchAsync = (request, _, _, cancellationToken) =>
+        _main.LiveWatch.CapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
+        _main.LiveWatch.PrepareWatchAsync = (request, _, _, cancellationToken) =>
             FakeLiveStartup.FromSourceArmedAsync(_source, request, cancellationToken);
-        _main.LiveIsElevated = () => false;
-        _running = _main.ToggleLiveAsync();
+        _main.LiveWatch.IsElevated = () => false;
+        _running = _main.LiveWatch.ToggleLiveAsync();
         await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
         _dispatcher.Drain();
-        _settings = TestViewModels.CreateSettings(mainViewModel: _main, dispatcher: _dispatcher);
+        _settings = TestViewModels.CreateSettings(liveWatch: _main.LiveWatch, dispatcher: _dispatcher);
     }
 
     [TearDown]
@@ -54,7 +54,7 @@ public class JournalSettingsIntegrationTests
     [Test]
     public void LiveShowsEachDriveHintWithSuggestedSize()
     {
-        Assert.That(_main.JournalWarnings.Select(warning => warning.DriveLetter), Is.EqualTo(new[] { "C", "D" }));
+        Assert.That(_main.LiveWatch.JournalWarnings.Select(warning => warning.DriveLetter), Is.EqualTo(new[] { "C", "D" }));
         Assert.That(HintText, Does.Contain("Hint on C:").And.Contain("Hint on D:"));
         Assert.That(HintText, Does.Contain("32 MB").And.Contain("64 MB")
             .And.Contain("130 MB").And.Contain("200 MB")
@@ -99,13 +99,13 @@ public class JournalSettingsIntegrationTests
     public async Task RestartRefreshesEachDriveAndKeepsSettingsCollectionCurrent()
     {
         var oldWarning = _settings.JournalWarnings[0];
-        await _main.ToggleLiveAsync();
+        await _main.LiveWatch.ToggleLiveAsync();
         await _running;
         await _source.DisposeAsync();
         _source = new FakeJournalSettingsSource();
         _source.CheckpointLosses.Clear();
         _source.CheckpointLosses.Add(FakeJournalSettingsSource.TrimmedLoss('D', 16L * 1024 * 1024, 48L * 1024 * 1024));
-        _running = _main.ToggleLiveAsync();
+        _running = _main.LiveWatch.ToggleLiveAsync();
         await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
         _dispatcher.Drain();
         Assert.That(_settings.JournalWarnings, Has.Count.EqualTo(1));
@@ -119,12 +119,12 @@ public class JournalSettingsIntegrationTests
     [Test]
     public async Task RestartWithNoWarningsClearsPriorWarningStatus()
     {
-        await _main.ToggleLiveAsync();
+        await _main.LiveWatch.ToggleLiveAsync();
         await _running;
         await _source.DisposeAsync();
         _source = new FakeJournalSettingsSource();
         _source.CheckpointLosses.Clear();
-        _running = _main.ToggleLiveAsync();
+        _running = _main.LiveWatch.ToggleLiveAsync();
         await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
         _dispatcher.Drain();
         Assert.That(_main.StatusHeader.HeaderText, Is.EqualTo("Live watch active"));
@@ -184,13 +184,13 @@ public class JournalSettingsIntegrationTests
     public async Task IgnoredPreferenceFollowsSerialAfterDriveLetterChanges()
     {
         await _settings.IgnoreJournalWarningAsync(_settings.JournalWarnings[0]);
-        await _main.ToggleLiveAsync();
+        await _main.LiveWatch.ToggleLiveAsync();
         await _running;
         await _source.DisposeAsync();
         _source = new FakeJournalSettingsSource();
         _source.VolumeSerials['C'] = 999;
         _source.VolumeSerials['D'] = 'C';
-        _running = _main.ToggleLiveAsync();
+        _running = _main.LiveWatch.ToggleLiveAsync();
         await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
         _dispatcher.Drain();
         Assert.That(_settings.JournalWarnings, Has.Count.EqualTo(1));
@@ -215,7 +215,7 @@ public class JournalSettingsIntegrationTests
     public async Task SettingsOpenedBeforeStopCannotReportSuccessfulEnlarge()
     {
         var warning = _settings.JournalWarnings[0];
-        await _main.ToggleLiveAsync();
+        await _main.LiveWatch.ToggleLiveAsync();
         await _running;
         await _settings.EnlargeJournalAsync(warning);
         Assert.That(warning.StatusMessage, Does.StartWith("Failed: Start Live"));
@@ -256,13 +256,13 @@ public class JournalSettingsIntegrationTests
     [Test]
     public async Task RecreatedCauseShowsHintWithNoGrowAction()
     {
-        await _main.ToggleLiveAsync();
+        await _main.LiveWatch.ToggleLiveAsync();
         await _running;
         await _source.DisposeAsync();
         _source = new FakeJournalSettingsSource();
         _source.CheckpointLosses.Clear();
         _source.CheckpointLosses.Add(FakeJournalSettingsSource.RecreatedLoss('C', 64L * 1024 * 1024));
-        _running = _main.ToggleLiveAsync();
+        _running = _main.LiveWatch.ToggleLiveAsync();
         await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
         _dispatcher.Drain();
         Assert.That(_settings.JournalWarnings, Has.Count.EqualTo(1));
@@ -276,13 +276,13 @@ public class JournalSettingsIntegrationTests
     [Test]
     public async Task EnlargeRecreatedCauseReportsNoSizeWouldHaveHelped()
     {
-        await _main.ToggleLiveAsync();
+        await _main.LiveWatch.ToggleLiveAsync();
         await _running;
         await _source.DisposeAsync();
         _source = new FakeJournalSettingsSource();
         _source.CheckpointLosses.Clear();
         _source.CheckpointLosses.Add(FakeJournalSettingsSource.RecreatedLoss('C', 64L * 1024 * 1024));
-        _running = _main.ToggleLiveAsync();
+        _running = _main.LiveWatch.ToggleLiveAsync();
         await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
         _dispatcher.Drain();
         var warning = _settings.JournalWarnings[0];
@@ -295,13 +295,13 @@ public class JournalSettingsIntegrationTests
     [TestCase(false)]
     public async Task EnlargeWithoutValidTargetReportsReason(bool missingSize)
     {
-        await _main.ToggleLiveAsync();
+        await _main.LiveWatch.ToggleLiveAsync();
         await _running;
         await _source.DisposeAsync();
         _source = new FakeJournalSettingsSource();
         _source.CheckpointLosses.Clear();
         _source.CheckpointLosses.Add(SyntheticNotifications.CreateJournalCheckpointLoss('C', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.DriveOpening, new UsnJournalSettings { MaximumSize = 32L * 1024 * 1024, AllocationDelta = missingSize ? 8 * 1024 * 1024 : 0 }) with { BytesBehind = 32L * 1024 * 1024, SizeThatWouldHaveRetained = missingSize ? null : 64L * 1024 * 1024 });
-        _running = _main.ToggleLiveAsync();
+        _running = _main.LiveWatch.ToggleLiveAsync();
         await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
         _dispatcher.Drain();
         var warning = _settings.JournalWarnings[0];
@@ -314,28 +314,28 @@ public class JournalSettingsIntegrationTests
     [Test]
     public async Task NoCheckpointLossShowsNoHint()
     {
-        await _main.ToggleLiveAsync();
+        await _main.LiveWatch.ToggleLiveAsync();
         await _running;
         await _source.DisposeAsync();
         _source = new FakeJournalSettingsSource();
         _source.CheckpointLosses.Clear();
-        _running = _main.ToggleLiveAsync();
+        _running = _main.LiveWatch.ToggleLiveAsync();
         await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
         _dispatcher.Drain();
-        Assert.That(_main.JournalWarnings, Is.Empty);
+        Assert.That(_main.LiveWatch.JournalWarnings, Is.Empty);
         Assert.That(_main.StatusHeader.HeaderText, Is.EqualTo("Live watch active"));
     }
 
     [Test]
     public async Task SuggestedSizeAtOrBelowCurrentMaximumOffersNoGrowAction()
     {
-        await _main.ToggleLiveAsync();
+        await _main.LiveWatch.ToggleLiveAsync();
         await _running;
         await _source.DisposeAsync();
         _source = new FakeJournalSettingsSource();
         _source.CheckpointLosses.Clear();
         _source.CheckpointLosses.Add(FakeJournalSettingsSource.TrimmedLoss('C', 128L * 1024 * 1024, 128L * 1024 * 1024));
-        _running = _main.ToggleLiveAsync();
+        _running = _main.LiveWatch.ToggleLiveAsync();
         await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
         _dispatcher.Drain();
         Assert.That(_settings.JournalWarnings, Has.Count.EqualTo(1));

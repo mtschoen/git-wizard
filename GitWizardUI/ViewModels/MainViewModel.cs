@@ -12,8 +12,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     readonly IUiDispatcher _ui;
     readonly IUserDialogs _dialogs;
     readonly IClipboardService _clipboard;
-    bool _isLive;
-    bool _isLiveStarting;
+    readonly TimeProvider _timeProvider;
     public static string? GlobalUserEmail { get; private set; }
 
     public StatusHeaderViewModel StatusHeader { get; } = new();
@@ -22,54 +21,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
 
     public RefreshCoordinator Refresh { get; }
 
-    /// <summary>
-    /// True while a <see cref="GitWizardUI.Services.LiveWatchController"/> session is running (elevated USN-journal
-    /// watch on Windows), auto-updating the repository list as tracked/search-root repos
-    /// change on disk. Toggled via <see cref="ToggleLiveAsync"/>.
-    /// </summary>
-    public bool IsLive
-    {
-        get => _isLive;
-        internal set
-        {
-            if (_isLive != value)
-            {
-                _isLive = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(CanToggleLive));
-                OnPropertyChanged(nameof(LiveButtonText));
-                OnPropertyChanged(nameof(LiveTooltip));
-            }
-        }
-    }
-
-    /// <summary>True while the broker is arming and building its per-volume path indexes.</summary>
-    public bool IsLiveStarting
-    {
-        get => _isLiveStarting;
-        internal set
-        {
-            if (_isLiveStarting != value)
-            {
-                _isLiveStarting = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(CanToggleLive));
-                OnPropertyChanged(nameof(LiveButtonText));
-                OnPropertyChanged(nameof(LiveTooltip));
-            }
-        }
-    }
-
-    public string LiveButtonText => IsLiveStarting ? "Starting Live..." : "Live";
-
-    /// <summary>
-    /// Live mode may not be started mid-refresh: a full scan rebuilds
-    /// <see cref="RepositoryListViewModel.RepositoryMap"/>/<see cref="RepositoryListViewModel.AllRepositories"/>
-    /// from scratch, which would race a live event's incremental add/update/remove against that
-    /// rebuild. Stopping is always allowed.
-    /// On Linux, Live mode requires kernel 5.9+ and supported filesystems via fanotify.
-    /// </summary>
-    public bool CanToggleLive => IsLive || IsLiveStarting || (!Refresh.IsRefreshing && IsLiveSupported);
+    public LiveWatchViewModel LiveWatch { get; }
 
     /// <summary>
     /// In-memory error log fed by refresh/scan/command catch sites (see <see cref="LogError"/>);
@@ -83,19 +35,14 @@ public partial class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     public MainViewModel(IUiDispatcher ui, IUserDialogs dialogs, IClipboardService clipboard,
         TimeProvider? timeProvider = null)
     {
+        var clock = timeProvider ?? TimeProvider.System;
         _ui = ui;
-        _timeProvider = timeProvider ?? TimeProvider.System;
+        _timeProvider = clock;
         RepositoryList = new RepositoryListViewModel(ui, StatusHeader, ErrorLog);
-        Refresh = new RefreshCoordinator(ui, _timeProvider, RepositoryList, StatusHeader,
+        Refresh = new RefreshCoordinator(ui, clock, RepositoryList, StatusHeader,
             PreparedDiscoveryIndex, ErrorLog);
-        Refresh.PropertyChanged += (_, arguments) =>
-        {
-            if (arguments.PropertyName == nameof(RefreshCoordinator.IsRefreshing))
-            {
-                OnPropertyChanged(nameof(CanToggleLive));
-                OnPropertyChanged(nameof(LiveTooltip));
-            }
-        };
+        LiveWatch = new LiveWatchViewModel(ui, clock, RepositoryList, Refresh,
+            StatusHeader, PreparedDiscoveryIndex, ErrorLog);
         _dialogs = dialogs;
         _clipboard = clipboard;
         ErrorLog.PropertyChanged += (_, args) =>
@@ -167,19 +114,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         Refresh.StopUIDrain();
-        if (_liveController != null)
-        {
-            await _liveController.StopAsync().ConfigureAwait(false);
-            _liveController = null;
-        }
-
-        await _ui.InvokeAsync(() =>
-        {
-            ClearLiveReadiness();
-            _liveWatchHistory?.Dispose();
-            _liveWatchHistory = null;
-        }).ConfigureAwait(false);
-
+        await LiveWatch.DisposeAsync().ConfigureAwait(false);
         await PreparedDiscoveryIndex.DisposeAsync().ConfigureAwait(false);
         RepositoryList.Dispose();
         GC.SuppressFinalize(this);

@@ -51,7 +51,7 @@ Fixtures exercising `MainViewModel` and its extracted helpers live together unde
 | `RefreshCoordinator.cs`<br>`RepositoryListViewModel.cs` | `MainViewModelCompleteRefreshTests`<br>`MainViewModelRefreshLifecycleTests` | Refresh orchestration, final sorted collection publication, and anchor preservation. |
 | `RepositoryListViewModel.Rows.cs`<br>`RepositoryListViewModel.CachedRows.cs` | `MainViewModelCachedNodeReplacementTests`<br>`MainViewModelRefreshPruneTests` | Cached node replacement and stale/renamed UI path pruning. |
 | `RefreshCoordinator.cs` | `MainViewModelCachedPathsTests` | Persisted cached-path cleanup after scans. |
-| `MainViewModel.Live.cs`<br>`MainViewModel.LiveStartup.cs`<br>`MainViewModel.LiveProgress.cs`<br>`MainViewModel.LiveReadiness.cs` | `MainViewModelLiveEventTests`<br>`MainViewModelLiveCapabilityTests`<br>`MainViewModelLiveStartupTests`<br>`MainViewModelLiveProgressTests`<br>`MainViewModelLiveReadinessTests` | Live event dispatch, toggle capabilities, startup arming, progress display, readiness tooltips. |
+| `LiveWatchViewModel.cs`<br>`LiveWatchViewModel.Startup.cs`<br>`LiveWatchViewModel.Readiness.cs`<br>`LiveWatchViewModel.Journals.cs` | `LiveWatchViewModelCompositionTests`<br>`MainViewModelLiveEventTests`<br>`MainViewModelLiveCapabilityTests`<br>`MainViewModelLiveStartupTests`<br>`MainViewModelLiveProgressTests`<br>`MainViewModelLiveReadinessTests` | Live owner notifications, streaming/final sorting, shared cache collections, event dispatch, toggle capabilities, startup arming, progress display, readiness tooltips, and journal warnings. |
 
 ## Verification Procedures
 

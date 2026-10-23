@@ -7,7 +7,7 @@ using MFTLib.Index;
 
 namespace GitWizardUI.ViewModels;
 
-public partial class MainViewModel
+public sealed partial class LiveWatchViewModel
 {
     public ObservableCollection<JournalWarningViewModel> JournalWarnings { get; } = new();
     int _journalGrowInProgress;
@@ -31,7 +31,7 @@ public partial class MainViewModel
 
     async Task<JournalResizeResult> GrowJournalCoreAsync(JournalWarning warning)
     {
-        var controller = _liveController;
+        var controller = Controller;
         if (controller?.Source is not IUsnJournalGrower grower)
         {
             throw new InvalidOperationException("Start Live watching before enlarging a journal.");
@@ -62,7 +62,7 @@ public partial class MainViewModel
             CancellationToken.None).ConfigureAwait(false);
         await _ui.InvokeAsync(() =>
         {
-            if (!ReferenceEquals(controller, _liveController))
+            if (!ReferenceEquals(controller, Controller))
             {
                 return;
             }
@@ -124,12 +124,12 @@ public partial class MainViewModel
             messages.Add("Live watch active (journal hints)");
         }
 
-        if (_liveController is { } controller)
+        if (Controller is { } controller)
         {
             messages.AddRange(controller.ScanErrors.Select(error => $"Live scan error on {error.Key}: {error.Value}"));
         }
 
-        StatusHeader.ShowLiveMessage(messages.Count == 0 ? "Live watch active" : string.Join(" ", messages));
+        _statusHeader.ShowLiveMessage(messages.Count == 0 ? "Live watch active" : string.Join(" ", messages));
     }
 }
 

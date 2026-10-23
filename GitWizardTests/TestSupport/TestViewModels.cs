@@ -12,7 +12,7 @@ internal static class TestViewModels
             clipboard ?? new StubClipboardService(), timeProvider);
 
     public static SettingsViewModel CreateSettings(IFolderPicker? folderPicker = null,
-        MainViewModel? mainViewModel = null, IUiDispatcher? dispatcher = null) =>
-        new(folderPicker ?? new StubFolderPicker(), mainViewModel,
+        LiveWatchViewModel? liveWatch = null, IUiDispatcher? dispatcher = null) =>
+        new(folderPicker ?? new StubFolderPicker(), liveWatch,
             dispatcher ?? new StubUiDispatcher());
 }

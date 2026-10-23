@@ -6,7 +6,7 @@ namespace GitWizardUI.ViewModels;
 
 public partial class SettingsViewModel
 {
-    readonly MainViewModel? _mainViewModel;
+    readonly LiveWatchViewModel? _liveWatch;
     readonly IUiDispatcher _journalDispatcher;
     int _journalOperationInProgress;
 
@@ -22,12 +22,12 @@ public partial class SettingsViewModel
         try
         {
             await _journalDispatcher.InvokeAsync(() => warning.StatusMessage = "Enlarging...").ConfigureAwait(false);
-            if (_mainViewModel is null)
+            if (_liveWatch is null)
             {
                 throw new InvalidOperationException("Start Live watching before enlarging a journal.");
             }
 
-            var result = await _mainViewModel.EnlargeJournalAsync(warning.Warning).ConfigureAwait(false);
+            var result = await _liveWatch.EnlargeJournalAsync(warning.Warning).ConfigureAwait(false);
             await _journalDispatcher.InvokeAsync(() =>
                 warning.StatusMessage = $"Before: {result.Before.MaximumSize:N0} bytes. After: {result.After.MaximumSize:N0} bytes.").ConfigureAwait(false);
         }
@@ -54,13 +54,13 @@ public partial class SettingsViewModel
             await _configuration.IgnoreJournalWarningAsync(warning.Warning.VolumeSerial).ConfigureAwait(false);
             await _journalDispatcher.InvokeAsync(() =>
             {
-                if (_mainViewModel is null)
+                if (_liveWatch is null)
                 {
                     JournalWarnings.Remove(warning);
                 }
                 else
                 {
-                    _mainViewModel.RemoveJournalWarning(warning);
+                    _liveWatch.RemoveJournalWarning(warning);
                 }
             }).ConfigureAwait(false);
         }

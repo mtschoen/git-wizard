@@ -8,7 +8,7 @@ namespace GitWizardUI.ViewModels;
 // watch preparation (arm first, then reconcile membership against the watched session),
 // applies the reconciled inventory to the visible repositories, and surfaces terminal
 // startup outcomes instead of starting the pump.
-public partial class MainViewModel
+public sealed partial class LiveWatchViewModel
 {
     public async Task ToggleLiveAsync()
     {
@@ -20,28 +20,28 @@ public partial class MainViewModel
 
         if (!IsLiveSupported)
         {
-            StatusHeader.ShowLiveMessage($"Live watch unavailable: {LiveTooltip}");
+            _statusHeader.ShowLiveMessage($"Live watch unavailable: {LiveTooltip}");
             return;
         }
 
-        if (Refresh.IsRefreshing)
+        if (_refresh.IsRefreshing)
         {
             return;
         }
 
         _reportedLiveScanErrors.Clear();
-        var trackedRoots = RepositoryList.AllRepositories.Select(node => node.WorkingDirectory)
+        var trackedRoots = _repositoryList.AllRepositories.Select(node => node.WorkingDirectory)
             .Where(path => !string.IsNullOrEmpty(path)).ToList();
         var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync().ConfigureAwait(false);
         var controller = CreateConfiguredLiveController(configuration, trackedRoots);
         var detachHandlers = AttachLiveControllerHandlers(controller);
-        _liveController = controller;
+        Controller = controller;
 
         await _ui.InvokeAsync(() =>
         {
             IsLiveStarting = true;
             ClearLiveScanProgress();
-            StatusHeader.ShowLiveMessage("Starting Live watch...");
+            _statusHeader.ShowLiveMessage("Starting Live watch...");
         }).ConfigureAwait(false);
 
         try
@@ -75,9 +75,9 @@ public partial class MainViewModel
                 // watch ended, including the sole-drive case where the terminal header is all
                 // the UI shows. A user-initiated stop still clears them (StopLiveAsync).
                 SurfaceNewLiveScanWarnings(controller);
-                StatusHeader.ShowLiveMessage($"Live watch stopped: {reason}{FormatLiveScanErrorSuffix(controller)}");
+                _statusHeader.ShowLiveMessage($"Live watch stopped: {reason}{FormatLiveScanErrorSuffix(controller)}");
             }),
-            LiveIsElevated);
+            IsElevated);
 
     // The prepared discovery owner is always transferred to watch preparation, which decides
     // per platform whether to adopt or dispose it. Withholding it here on a platform check
@@ -88,9 +88,9 @@ public partial class MainViewModel
         IProgress<WatchStartupProgress>? progress,
         CancellationToken cancellationToken)
     {
-        var prepared = PreparedDiscoveryIndex.Take();
+        var prepared = _preparedDiscoveryIndex.Take();
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Watch, false, false, trackedRoots);
-        return LivePrepareWatchAsync(request, prepared, progress, cancellationToken);
+        return PrepareWatchAsync(request, prepared, progress, cancellationToken);
     }
 
     // Applies the coordinator's reconciled startup inventory to the visible membership before
@@ -100,18 +100,18 @@ public partial class MainViewModel
     internal async Task ApplyLiveStartupInventoryAsync(DiscoveryInventory inventory)
     {
         var membership = RepositoryDiscoveryCoordinator.ReconcilePaths(
-            RepositoryList.AllRepositories.Select(node => node.WorkingDirectory).ToArray(), inventory);
+            _repositoryList.AllRepositories.Select(node => node.WorkingDirectory).ToArray(), inventory);
         var membershipSet = new HashSet<string>(membership, StringComparer.OrdinalIgnoreCase);
 
         List<string> addedPaths = [];
         await _ui.InvokeAsync(() =>
         {
-            var current = RepositoryList.AllRepositories.Select(node => node.WorkingDirectory).ToArray();
+            var current = _repositoryList.AllRepositories.Select(node => node.WorkingDirectory).ToArray();
             foreach (var path in current)
             {
                 if (!membershipSet.Contains(path))
                 {
-                    RepositoryList.RemoveRepositoryPathFromUi(path);
+                    _repositoryList.RemoveRepositoryPathFromUi(path);
                 }
             }
 
@@ -129,7 +129,7 @@ public partial class MainViewModel
                 continue;
             }
 
-            _ui.Post(() => RepositoryList.AddRepository(repository, streaming: Refresh.IsRefreshing));
+            _ui.Post(() => _repositoryList.AddRepository(repository, streaming: _refresh.IsRefreshing));
         }
     }
 
@@ -137,7 +137,7 @@ public partial class MainViewModel
     {
         void PostIfActive(Action action) => _ui.Post(() =>
         {
-            if (ReferenceEquals(_liveController, controller) && (IsLive || IsLiveStarting))
+            if (ReferenceEquals(Controller, controller) && (IsLive || IsLiveStarting))
             {
                 action();
             }
@@ -148,7 +148,7 @@ public partial class MainViewModel
             IsLiveStarting = false;
             IsLive = true;
             ClearLiveScanProgress();
-            StatusHeader.ShowLiveMessage("Live watch active");
+            _statusHeader.ShowLiveMessage("Live watch active");
             _reportedLiveScanErrors.Clear();
             SurfaceNewLiveScanErrors(controller);
             SurfaceNewLiveScanWarnings(controller);
@@ -171,14 +171,14 @@ public partial class MainViewModel
             {
                 foreach (var (root, message) in inventory.Errors)
                 {
-                    LogError($"Live discovery error on {root}: {message}");
+                    _errorLog.PostError(_ui, $"Live discovery error on {root}: {message}");
                 }
 
-                StatusHeader.ShowLiveMessage($"Live watch could not start: {inventory.Errors.Values.FirstOrDefault() ?? "discovery unusable"}");
+                _statusHeader.ShowLiveMessage($"Live watch could not start: {inventory.Errors.Values.FirstOrDefault() ?? "discovery unusable"}");
             }
             else
             {
-                StatusHeader.ShowLiveMessage("No tracked repositories found; nothing to watch.");
+                _statusHeader.ShowLiveMessage("No tracked repositories found; nothing to watch.");
             }
         });
 
@@ -223,16 +223,16 @@ public partial class MainViewModel
                 ClearLiveScanProgress();
                 ClearLiveReadiness();
                 JournalWarnings.Clear();
-                StatusHeader.ShowLiveMessage($"Live watch could not start: {exception.Message}");
+                _statusHeader.ShowLiveMessage($"Live watch could not start: {exception.Message}");
             }).ConfigureAwait(false);
         }
     }
 
     async Task StopLiveAsync()
     {
-        if (_liveController != null)
+        if (Controller != null)
         {
-            await _liveController.StopAsync().ConfigureAwait(false);
+            await Controller.StopAsync().ConfigureAwait(false);
         }
 
         await _ui.InvokeAsync(() =>
@@ -246,8 +246,8 @@ public partial class MainViewModel
     }
 
     LiveWatchController RequireLiveController() =>
-        _liveController ?? throw new InvalidOperationException(
-            "_liveController must be assigned before a Live event/stop callback can run.");
+        Controller ?? throw new InvalidOperationException(
+            "Controller must be assigned before a Live event/stop callback can run.");
 
     void SurfaceNewLiveScanErrors(LiveWatchController controller)
     {
@@ -258,7 +258,7 @@ public partial class MainViewModel
                 continue;
             }
 
-            StatusHeader.ShowLiveMessage($"Live scan error on {drive}: {message}");
+            _statusHeader.ShowLiveMessage($"Live scan error on {drive}: {message}");
         }
         if (JournalWarnings.Count > 0)
         {

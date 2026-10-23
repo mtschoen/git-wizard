@@ -85,31 +85,31 @@
        <StackPanel Orientation="Horizontal" Spacing="5">
         <Button x:Name="RefreshButton" Content="Refresh" Click="RefreshButton_Click" ToolTip.Tip="Click to refresh known repositories. Shift+click to clear the cache and rediscover all repositories." />
         <Button x:Name="FetchAndRefreshButton" Content="Fetch &amp; Refresh" Click="FetchAndRefreshButton_Click" ToolTip.Tip="Fetch all remotes before refreshing status (slower but accurate)" />
-        <Button x:Name="LiveButton" Content="{Binding LiveButtonText}" Click="LiveButton_Click"
-                Classes.live="{Binding IsLive}" Classes.liveStarting="{Binding IsLiveStarting}"
-                IsEnabled="{Binding CanToggleLive}"
-                ToolTip.Tip="{Binding LiveTooltip}" />
+        <Button x:Name="LiveButton" Content="{Binding LiveWatch.LiveButtonText}" Click="LiveButton_Click"
+                Classes.live="{Binding LiveWatch.IsLive}" Classes.liveStarting="{Binding LiveWatch.IsLiveStarting}"
+                IsEnabled="{Binding LiveWatch.CanToggleLive}"
+                ToolTip.Tip="{Binding LiveWatch.LiveTooltip}" />
         <StackPanel x:Name="LiveScanProgressPanel" Orientation="Horizontal" Spacing="6"
-                    VerticalAlignment="Center" IsVisible="{Binding IsLiveScanProgressVisible}">
+                    VerticalAlignment="Center" IsVisible="{Binding LiveWatch.IsLiveScanProgressVisible}">
           <ProgressBar x:Name="LiveScanProgressBar" Width="140" Height="8" Minimum="0" Maximum="1"
                        VerticalAlignment="Center"
-                       Value="{Binding LiveScanProgressValue}"
-                       IsIndeterminate="{Binding IsLiveScanProgressIndeterminate}" />
-          <TextBlock x:Name="LiveScanProgressText" Text="{Binding LiveScanProgressText}"
+                       Value="{Binding LiveWatch.LiveScanProgressValue}"
+                       IsIndeterminate="{Binding LiveWatch.IsLiveScanProgressIndeterminate}" />
+          <TextBlock x:Name="LiveScanProgressText" Text="{Binding LiveWatch.LiveScanProgressText}"
                      VerticalAlignment="Center" FontSize="12" Foreground="Gray" />
         </StackPanel>
        </StackPanel>
        <!-- Reserve one line so readiness changes do not move the toolbar. -->
-       <TextBlock x:Name="LiveReadinessText" Text="{Binding LiveReadinessText}"
+       <TextBlock x:Name="LiveReadinessText" Text="{Binding LiveWatch.LiveReadinessText}"
                   MinHeight="18" VerticalAlignment="Center"
                   FontSize="12" Foreground="Gray"
                   TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
-                  ToolTip.Tip="{Binding LiveReadinessTooltip}" />
+                  ToolTip.Tip="{Binding LiveWatch.LiveReadinessTooltip}" />
       </StackPanel>
 
       <StackPanel Grid.Row="1" Margin="10,0,0,0">
         <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding StatusHeader.HeaderText}" />
-        <ItemsControl x:Name="JournalWarningList" ItemsSource="{Binding JournalWarnings}">
+        <ItemsControl x:Name="JournalWarningList" ItemsSource="{Binding LiveWatch.JournalWarnings}">
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:JournalWarningViewModel">
               <TextBlock Text="{Binding Warning.Message}" TextWrapping="Wrap" Foreground="Orange" />

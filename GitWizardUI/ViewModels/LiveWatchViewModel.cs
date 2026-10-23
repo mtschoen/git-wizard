@@ -1,13 +1,16 @@
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using GitWizard;
 using GitWizard.Watch;
 using GitWizard.Watch.Linux;
 using GitWizardUI.Services;
+using GitWizardUI.ViewModels.Services;
 
 namespace GitWizardUI.ViewModels;
 
-public partial class MainViewModel
+public sealed partial class LiveWatchViewModel : INotifyPropertyChanged, IAsyncDisposable
 {
     // A Deleted(root) is held here, not removed immediately, so a Created event that follows
     // within RenameCorrelationWindowMilliseconds and matches its remote URL can be resolved as a
@@ -16,13 +19,94 @@ public partial class MainViewModel
     // window mainly bridges the rarer case where they land in different debounce flushes.
     const int RenameCorrelationWindowMilliseconds = 300;
 
+    readonly IUiDispatcher _ui;
+    readonly RepositoryListViewModel _repositoryList;
+    readonly RefreshCoordinator _refresh;
+    readonly StatusHeaderViewModel _statusHeader;
+    readonly PreparedDiscoveryIndexStore _preparedDiscoveryIndex;
+    readonly ErrorLogViewModel _errorLog;
     readonly Dictionary<string, (GitWizardRepository Repository, CancellationTokenSource ExpireCts, long SequenceNumber)> _pendingDeletedRepos = new();
     readonly Dictionary<string, long> _pendingCreateSequenceNumbers = new();
     readonly ScanErrorChangeFilter _reportedLiveScanErrors = new();
     readonly HashSet<string> _inFlightLiveRefreshes = new(StringComparer.OrdinalIgnoreCase);
     long _liveEventSequenceNumber;
+    bool _isLive;
+    bool _isLiveStarting;
 
-    internal LiveWatchController? _liveController;
+    internal LiveWatchViewModel(IUiDispatcher ui, TimeProvider timeProvider,
+        RepositoryListViewModel repositoryList, RefreshCoordinator refresh,
+        StatusHeaderViewModel statusHeader, PreparedDiscoveryIndexStore preparedDiscoveryIndex,
+        ErrorLogViewModel errorLog)
+    {
+        _ui = ui;
+        _timeProvider = timeProvider;
+        _repositoryList = repositoryList;
+        _refresh = refresh;
+        _statusHeader = statusHeader;
+        _preparedDiscoveryIndex = preparedDiscoveryIndex;
+        _errorLog = errorLog;
+        _refresh.PropertyChanged += OnRefreshPropertyChanged;
+    }
+
+    void OnRefreshPropertyChanged(object? sender, PropertyChangedEventArgs arguments)
+    {
+        if (arguments.PropertyName == nameof(RefreshCoordinator.IsRefreshing))
+        {
+            OnPropertyChanged(nameof(CanToggleLive));
+            OnPropertyChanged(nameof(LiveTooltip));
+        }
+    }
+
+    /// <summary>
+    /// True while a <see cref="GitWizardUI.Services.LiveWatchController"/> session is running (elevated USN-journal
+    /// watch on Windows), auto-updating the repository list as tracked/search-root repos
+    /// change on disk. Toggled via <see cref="ToggleLiveAsync"/>.
+    /// </summary>
+    public bool IsLive
+    {
+        get => _isLive;
+        internal set
+        {
+            if (_isLive != value)
+            {
+                _isLive = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(CanToggleLive));
+                OnPropertyChanged(nameof(LiveButtonText));
+                OnPropertyChanged(nameof(LiveTooltip));
+            }
+        }
+    }
+
+    /// <summary>True while the broker is arming and building its per-volume path indexes.</summary>
+    public bool IsLiveStarting
+    {
+        get => _isLiveStarting;
+        internal set
+        {
+            if (_isLiveStarting != value)
+            {
+                _isLiveStarting = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(CanToggleLive));
+                OnPropertyChanged(nameof(LiveButtonText));
+                OnPropertyChanged(nameof(LiveTooltip));
+            }
+        }
+    }
+
+    public string LiveButtonText => IsLiveStarting ? "Starting Live..." : "Live";
+
+    /// <summary>
+    /// Live mode may not be started mid-refresh: a full scan rebuilds
+    /// <see cref="RepositoryListViewModel.RepositoryMap"/>/<see cref="RepositoryListViewModel.AllRepositories"/>
+    /// from scratch, which would race a live event's incremental add/update/remove against that
+    /// rebuild. Stopping is always allowed.
+    /// On Linux, Live mode requires kernel 5.9+ and supported filesystems via fanotify.
+    /// </summary>
+    public bool CanToggleLive => IsLive || IsLiveStarting || (!_refresh.IsRefreshing && IsLiveSupported);
+
+    internal LiveWatchController? Controller { get; private set; }
 
     // Swappable dependency for testability: the real coordinator arms an elevated broker
     // session (a live UAC prompt), which an automated test can never drive. Tests substitute
@@ -30,18 +114,18 @@ public partial class MainViewModel
     // ToggleLiveAsync end-to-end.
     Func<DiscoveryRequest, MftIndexSession?, IProgress<WatchStartupProgress>?, CancellationToken, Task<WatchStartupResult>>? _livePrepareWatchAsync;
 
-    internal Func<DiscoveryRequest, MftIndexSession?, IProgress<WatchStartupProgress>?, CancellationToken, Task<WatchStartupResult>> LivePrepareWatchAsync
+    internal Func<DiscoveryRequest, MftIndexSession?, IProgress<WatchStartupProgress>?, CancellationToken, Task<WatchStartupResult>> PrepareWatchAsync
     {
         get => _livePrepareWatchAsync ??= static (request, prepared, progress, cancellationToken) =>
             new RepositoryDiscoveryCoordinator().PrepareWatchAsync(request, prepared, progress, cancellationToken);
         set => _livePrepareWatchAsync = value;
     }
 
-    internal Func<bool> LiveIsElevated { get; set; } = VolumeChangeSourceFactory.IsElevated;
+    internal Func<bool> IsElevated { get; set; } = VolumeChangeSourceFactory.IsElevated;
 
     Func<FanotifyCapabilityResult>? _liveCapabilityProbe;
 
-    internal Func<FanotifyCapabilityResult> LiveCapabilityProbe
+    internal Func<FanotifyCapabilityResult> CapabilityProbe
     {
         get => _liveCapabilityProbe ??= DefaultLiveCapabilityProbe;
         set
@@ -54,7 +138,7 @@ public partial class MainViewModel
 
     public bool IsLiveSupported =>
         RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || _liveCapabilityProbe != null
-            ? LiveCapabilityProbe().IsSupported
+            ? CapabilityProbe().IsSupported
             : RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
 
     public string LiveTooltip
@@ -63,7 +147,7 @@ public partial class MainViewModel
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || _liveCapabilityProbe != null)
             {
-                return LiveCapabilityProbe().Status switch
+                return CapabilityProbe().Status switch
                 {
                     FanotifyCapabilityStatus.UnsupportedKernel => "Live mode requires Linux kernel 5.9 or newer (unsupported kernel).",
                     FanotifyCapabilityStatus.UnsupportedFileSystem => "Live mode is unsupported on this filesystem (fanotify marks not supported).",
@@ -77,22 +161,20 @@ public partial class MainViewModel
         }
     }
 
-    internal void ApplyLiveEvent(RepositoryChangeEvent ev) => _ = ApplyLiveEventAsync(ev);
-
-    internal async Task ApplyLiveEventAsync(RepositoryChangeEvent ev)
+    internal async Task ApplyLiveEventAsync(RepositoryChangeEvent changeEvent)
     {
         var sequenceNumber = Interlocked.Increment(ref _liveEventSequenceNumber);
-        if (ev.Kind == RepositoryChangeKind.Changed)
+        if (changeEvent.Kind == RepositoryChangeKind.Changed)
         {
-            await ApplyLiveChangedAsync(ev.RepoRoot).ConfigureAwait(false);
+            await ApplyLiveChangedAsync(changeEvent.RepoRoot).ConfigureAwait(false);
         }
-        else if (ev.Kind == RepositoryChangeKind.Created)
+        else if (changeEvent.Kind == RepositoryChangeKind.Created)
         {
-            await ApplyLiveCreatedAsync(ev.RepoRoot, sequenceNumber).ConfigureAwait(false);
+            await ApplyLiveCreatedAsync(changeEvent.RepoRoot, sequenceNumber).ConfigureAwait(false);
         }
-        else if (ev.Kind == RepositoryChangeKind.Deleted)
+        else if (changeEvent.Kind == RepositoryChangeKind.Deleted)
         {
-            ApplyLiveDeleted(ev.RepoRoot, sequenceNumber);
+            ApplyLiveDeleted(changeEvent.RepoRoot, sequenceNumber);
         }
     }
 
@@ -106,7 +188,7 @@ public partial class MainViewModel
                 return;
             }
 
-            if (RepositoryList.RepositoryMap.TryGetValue(repoRoot, out var node))
+            if (_repositoryList.RepositoryMap.TryGetValue(repoRoot, out var node))
             {
                 repository = node.Repository;
             }
@@ -130,7 +212,7 @@ public partial class MainViewModel
             _ui.Post(() => _inFlightLiveRefreshes.Remove(repoRoot));
         }
 
-        _ui.Post(() => RepositoryList.UpdateCompletedRepository(repository, streaming: Refresh.IsRefreshing));
+        _ui.Post(() => _repositoryList.UpdateCompletedRepository(repository, streaming: _refresh.IsRefreshing));
     }
 
     async Task ApplyLiveCreatedAsync(string repoRoot, long sequenceNumber)
@@ -164,10 +246,10 @@ public partial class MainViewModel
             var renamedFrom = TryCorrelateRename(repoRoot, repository);
             if (renamedFrom != null)
             {
-                RepositoryList.RemoveRepositoryPathFromUi(renamedFrom);
+                _repositoryList.RemoveRepositoryPathFromUi(renamedFrom);
             }
 
-            RepositoryList.AddRepository(repository, streaming: Refresh.IsRefreshing);
+            _repositoryList.AddRepository(repository, streaming: _refresh.IsRefreshing);
         });
     }
 
@@ -180,7 +262,7 @@ public partial class MainViewModel
                 _pendingCreateSequenceNumbers.Remove(repoRoot);
             }
 
-            if (!RepositoryList.RepositoryMap.TryGetValue(repoRoot, out var node))
+            if (!_repositoryList.RepositoryMap.TryGetValue(repoRoot, out var node))
             {
                 return;
             }
@@ -227,10 +309,33 @@ public partial class MainViewModel
         {
             if (_pendingDeletedRepos.Remove(repoRoot))
             {
-                RepositoryList.RemoveRepositoryPathFromUi(repoRoot);
+                _repositoryList.RemoveRepositoryPathFromUi(repoRoot);
             }
         });
     }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (Controller != null)
+        {
+            await Controller.StopAsync().ConfigureAwait(false);
+            Controller = null;
+        }
+
+        await _ui.InvokeAsync(() =>
+        {
+            ClearLiveReadiness();
+            _liveWatchHistory?.Dispose();
+            _liveWatchHistory = null;
+        }).ConfigureAwait(false);
+
+        _refresh.PropertyChanged -= OnRefreshPropertyChanged;
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
     static FanotifyCapabilityResult DefaultLiveCapabilityProbe() =>
         RuntimeInformation.IsOSPlatform(OSPlatform.Linux)

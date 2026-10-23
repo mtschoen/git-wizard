@@ -119,7 +119,7 @@ public partial class MainViewModel
         }
 
         var messages = new List<string>();
-        if (JournalWarnings.Any())
+        if (JournalWarnings.Count > 0)
         {
             messages.Add("Live watch active (journal hints)");
         }

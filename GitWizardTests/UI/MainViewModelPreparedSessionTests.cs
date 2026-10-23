@@ -9,7 +9,7 @@ using MFTLibTestExtensions;
 
 namespace GitWizardTests.UI;
 
-// Covers PreparedDiscoveryIndexStore.cs, MainViewModel.cs, MainViewModel.Grouping.cs, and MainViewModel.LiveStartup.cs.
+// Covers PreparedDiscoveryIndexStore.cs, MainViewModel.cs, MainViewModel.IndexCache.cs, and MainViewModel.LiveStartup.cs.
 [TestFixture]
 public class MainViewModelPreparedSessionTests
 {

@@ -30,7 +30,7 @@ public partial class MainViewModel
         }
 
         _reportedLiveScanErrors.Clear();
-        var trackedRoots = _allRepositories.Select(node => node.WorkingDirectory)
+        var trackedRoots = RepositoryList.AllRepositories.Select(node => node.WorkingDirectory)
             .Where(path => !string.IsNullOrEmpty(path)).ToList();
         var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync().ConfigureAwait(false);
         var controller = CreateConfiguredLiveController(configuration, trackedRoots);
@@ -100,13 +100,13 @@ public partial class MainViewModel
     internal async Task ApplyLiveStartupInventoryAsync(DiscoveryInventory inventory)
     {
         var membership = RepositoryDiscoveryCoordinator.ReconcilePaths(
-            _allRepositories.Select(node => node.WorkingDirectory).ToArray(), inventory);
+            RepositoryList.AllRepositories.Select(node => node.WorkingDirectory).ToArray(), inventory);
         var membershipSet = new HashSet<string>(membership, StringComparer.OrdinalIgnoreCase);
 
         List<string> addedPaths = [];
         await _ui.InvokeAsync(() =>
         {
-            var current = _allRepositories.Select(node => node.WorkingDirectory).ToArray();
+            var current = RepositoryList.AllRepositories.Select(node => node.WorkingDirectory).ToArray();
             foreach (var path in current)
             {
                 if (!membershipSet.Contains(path))

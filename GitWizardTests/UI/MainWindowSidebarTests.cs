@@ -14,7 +14,7 @@ namespace GitWizardTests.UI;
 /// shared Click handlers route it to the matching view model action. Also covers the busy-flag
 /// re-entry guards behind the Refresh and Live buttons.
 /// </summary>
-// Covers MainWindow.axaml, MainWindow.axaml.cs, and StatusHeaderViewModel.cs.
+// Covers MainWindow.axaml, MainWindow.axaml.cs, RepositoryListViewModel.cs, and StatusHeaderViewModel.cs.
 public class MainWindowSidebarTests
 {
     static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -46,11 +46,11 @@ public class MainWindowSidebarTests
             Assert.That(button!.Tag, Is.EqualTo(filter), $"{name} must carry its FilterType in Tag");
 
             Click(button);
-            Assert.That(viewModel.ActiveFilter, Is.EqualTo(filter), $"{name} click must activate its filter");
+            Assert.That(viewModel.RepositoryList.ActiveFilter, Is.EqualTo(filter), $"{name} click must activate its filter");
             Assert.That(button.Classes.Contains("active"), Is.True, $"{name} must show the active highlight");
 
             Click(button);
-            Assert.That(viewModel.ActiveFilter, Is.EqualTo(FilterType.None), $"{name} re-click must clear the filter");
+            Assert.That(viewModel.RepositoryList.ActiveFilter, Is.EqualTo(FilterType.None), $"{name} re-click must clear the filter");
             Assert.That(button.Classes.Contains("active"), Is.False, $"{name} must drop the active highlight");
         }
     }
@@ -73,10 +73,10 @@ public class MainWindowSidebarTests
             Assert.That(button!.Tag, Is.EqualTo(mode), $"{name} must carry its GroupMode in Tag");
 
             Click(button);
-            Assert.That(viewModel.ActiveGroupMode, Is.EqualTo(mode), $"{name} click must activate its group mode");
+            Assert.That(viewModel.RepositoryList.ActiveGroupMode, Is.EqualTo(mode), $"{name} click must activate its group mode");
 
             Click(button);
-            Assert.That(viewModel.ActiveGroupMode, Is.EqualTo(GroupMode.None), $"{name} re-click must clear the grouping");
+            Assert.That(viewModel.RepositoryList.ActiveGroupMode, Is.EqualTo(GroupMode.None), $"{name} re-click must clear the grouping");
         }
     }
 
@@ -100,10 +100,10 @@ public class MainWindowSidebarTests
             Assert.That(button!.Tag, Is.EqualTo(mode), $"{name} must carry its SortMode in Tag");
 
             Click(button);
-            Assert.That(viewModel.ActiveSortMode, Is.EqualTo(mode), $"{name} click must activate its sort mode");
+            Assert.That(viewModel.RepositoryList.ActiveSortMode, Is.EqualTo(mode), $"{name} click must activate its sort mode");
 
             Click(button);
-            Assert.That(viewModel.ActiveSortMode, Is.EqualTo(mode), $"{name} re-click must keep the sort mode");
+            Assert.That(viewModel.RepositoryList.ActiveSortMode, Is.EqualTo(mode), $"{name} re-click must keep the sort mode");
         }
     }
 

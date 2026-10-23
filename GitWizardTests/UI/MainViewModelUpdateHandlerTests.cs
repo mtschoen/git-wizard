@@ -28,7 +28,7 @@ public class MainViewModelUpdateHandlerTests
         // The batching window drains the queue asynchronously; verify the command was queued by
         // checking it didn't add inline. (AddRepository is called by the scheduled drain, not inline.)
         // This is an integration-boundary test: the IUpdateHandler interface is correctly wired.
-        Assert.That(vm.Repositories, Is.Empty,
+        Assert.That(vm.RepositoryList.Repositories, Is.Empty,
             "OnRepositoryCreated queues the repo asynchronously; it should not add inline.");
     }
 
@@ -40,13 +40,13 @@ public class MainViewModelUpdateHandlerTests
 
         // First add the repo directly so the map is populated.
         vm.AddRepository(repo);
-        Assert.That(vm.Repositories, Has.Count.EqualTo(1), "Precondition.");
+        Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1), "Precondition.");
 
         // Queue a refresh completed event.
         vm.OnRepositoryRefreshCompleted(repo);
 
         // The command is queued, not processed inline.
-        Assert.That(vm.Repositories[0].Status, Is.EqualTo(RefreshStatus.Refreshing),
+        Assert.That(vm.RepositoryList.Repositories[0].Status, Is.EqualTo(RefreshStatus.Refreshing),
             "OnRepositoryRefreshCompleted queues the command; it does not update inline.");
     }
 
@@ -61,7 +61,7 @@ public class MainViewModelUpdateHandlerTests
         vm.OnSubmoduleCreated(parent, sub);
 
         // Submodule is queued, not processed inline.
-        var parentNode = vm.Repositories[0];
+        var parentNode = vm.RepositoryList.Repositories[0];
         Assert.That(parentNode.Children, Is.Empty,
             "OnSubmoduleCreated queues the submodule asynchronously.");
     }
@@ -74,7 +74,7 @@ public class MainViewModelUpdateHandlerTests
 
         vm.OnWorktreeCreated(worktree);
 
-        Assert.That(vm.Repositories, Is.Empty,
+        Assert.That(vm.RepositoryList.Repositories, Is.Empty,
             "OnWorktreeCreated queues the worktree asynchronously.");
     }
 }

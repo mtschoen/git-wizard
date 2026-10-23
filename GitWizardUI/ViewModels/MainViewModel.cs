@@ -13,7 +13,6 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
     readonly IUiDispatcher _ui;
     readonly IUserDialogs _dialogs;
     readonly IClipboardService _clipboard;
-    internal readonly ConcurrentDictionary<string, RepositoryNodeViewModel> _repositoryMap = new();
     readonly ConcurrentQueue<RepositoryUICommand> _uiCommands = new();
     readonly object _uiDrainLock = new();
     ITimer? _uiDrainWindow;
@@ -22,8 +21,6 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
     readonly CancellationTokenSource _uiDrainShutdown = new();
     HashSet<RepositoryNodeViewModel>? _prePopulatedNodes;
     readonly Stopwatch _stopwatch = new();
-    internal readonly List<RepositoryNodeViewModel> _allRepositories = new();
-    readonly Dictionary<string, RepositoryNodeViewModel> _pendingGroups = new();
 
     double _progressValue;
     bool _isProgressVisible;
@@ -32,58 +29,11 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
     bool _isLive;
     bool _isLiveStarting;
     bool _isScanning;
-    FilterType _activeFilter = FilterType.None;
-    GroupMode _activeGroupMode = GroupMode.None;
-    SortMode _activeSortMode = SortMode.WorkingDirectory;
-    const int SearchDebounceMilliseconds = 200;
-    readonly SearchDebouncer _searchDebouncer = new();
-    string _searchText = string.Empty;
-    public string SearchText
-    {
-        get => _searchText;
-        set
-        {
-            if (_searchText != value)
-            {
-                _searchText = value;
-                OnPropertyChanged();
-                DebounceSearch();
-            }
-        }
-    }
     public static string? GlobalUserEmail { get; private set; }
 
-    ObservableCollection<RepositoryNodeViewModel> _repositories = new();
-
-    public ObservableCollection<RepositoryNodeViewModel> Repositories
-    {
-        get => _repositories;
-        private set
-        {
-            if (_repositories != value)
-            {
-                _repositories = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    RepositoryNodeViewModel? _selectedRepository;
-
-    public RepositoryNodeViewModel? SelectedRepository
-    {
-        get => _selectedRepository;
-        set
-        {
-            if (_selectedRepository != value)
-            {
-                _selectedRepository = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
     public StatusHeaderViewModel StatusHeader { get; } = new();
+
+    public RepositoryListViewModel RepositoryList { get; }
 
     public double ProgressValue
     {
@@ -183,9 +133,10 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
     public string LiveButtonText => IsLiveStarting ? "Starting Live..." : "Live";
 
     /// <summary>
-    /// Live mode may not be started mid-refresh: a full scan rebuilds <c>_repositoryMap</c>/
-    /// <c>_allRepositories</c> from scratch, which would race a live event's incremental
-    /// add/update/remove against that rebuild. Stopping is always allowed.
+    /// Live mode may not be started mid-refresh: a full scan rebuilds
+    /// <see cref="RepositoryListViewModel.RepositoryMap"/>/<see cref="RepositoryListViewModel.AllRepositories"/>
+    /// from scratch, which would race a live event's incremental add/update/remove against that
+    /// rebuild. Stopping is always allowed.
     /// On Linux, Live mode requires kernel 5.9+ and supported filesystems via fanotify.
     /// </summary>
     public bool CanToggleLive => IsLive || IsLiveStarting || (!IsRefreshing && IsLiveSupported);
@@ -209,62 +160,6 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
         }
     }
 
-    public FilterType ActiveFilter
-    {
-        get => _activeFilter;
-        private set
-        {
-            if (_activeFilter != value)
-            {
-                _activeFilter = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    public GroupMode ActiveGroupMode
-    {
-        get => _activeGroupMode;
-        private set
-        {
-            if (_activeGroupMode != value)
-            {
-                _activeGroupMode = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    public SortMode ActiveSortMode
-    {
-        get => _activeSortMode;
-        private set
-        {
-            if (_activeSortMode != value)
-            {
-                _activeSortMode = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    public Action<RepositoryNodeViewModel>? ScrollToRequest { get; set; }
-
-    /// <summary>
-    /// Optional view hook invoked (on the UI thread) immediately before the <see cref="Repositories"/>
-    /// collection is swapped, so a desktop shell can snapshot the user's scroll anchor and selection
-    /// before a refresh rebuilds the list.
-    /// </summary>
-    public Action? BeforeRepositoriesSwap { get; set; }
-
-    /// <summary>
-    /// Optional view hook invoked (on the UI thread) immediately after the <see cref="Repositories"/>
-    /// collection is swapped, so a desktop shell can restore the user's scroll position after a
-    /// refresh rebuilds the list. Avalonia's ListBox resets scroll to the top when its ItemsSource
-    /// is replaced (AvaloniaUI/Avalonia#5651) and has no built-in scroll-offset preservation.
-    /// </summary>
-    public Action? AfterRepositoriesSwap { get; set; }
-
     /// <summary>
     /// In-memory error log fed by refresh/scan/command catch sites (see <see cref="LogError"/>);
     /// surfaced in the UI by the Errors window/button.
@@ -284,6 +179,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
         TimeProvider? timeProvider = null)
     {
         _ui = ui;
+        RepositoryList = new RepositoryListViewModel(ui, StatusHeader);
         _timeProvider = timeProvider ?? TimeProvider.System;
         _dialogs = dialogs;
         _clipboard = clipboard;
@@ -343,7 +239,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
         }).ConfigureAwait(false);
 
         await PreparedDiscoveryIndex.DisposeAsync().ConfigureAwait(false);
-        _searchDebouncer.Dispose();
+        RepositoryList.Dispose();
         GC.SuppressFinalize(this);
     }
 

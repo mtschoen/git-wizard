@@ -5,7 +5,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests;
 
 // Refresh tests are split by concern because the combined fixture exceeds 500 lines.
-// Covers MainViewModel.Refresh.cs (CompleteRefresh).
+// Covers MainViewModel.Refresh.cs (CompleteRefresh) and RepositoryListViewModel.cs (ApplyFilterAndGrouping).
 public class MainViewModelCompleteRefreshTests
 {
     [SetUp]
@@ -34,9 +34,9 @@ public class MainViewModelCompleteRefreshTests
         string? capturedAnchor = null;
         string? restoredAnchor = null;
         void CaptureAnchor() =>
-            capturedAnchor = vm.Repositories.Count > 0 ? vm.Repositories[0].WorkingDirectory : null;
-        vm.BeforeRepositoriesSwap = CaptureAnchor;
-        vm.AfterRepositoriesSwap = () => restoredAnchor = capturedAnchor;
+            capturedAnchor = vm.RepositoryList.Repositories.Count > 0 ? vm.RepositoryList.Repositories[0].WorkingDirectory : null;
+        vm.RepositoryList.BeforeRepositoriesSwap = CaptureAnchor;
+        vm.RepositoryList.AfterRepositoriesSwap = () => restoredAnchor = capturedAnchor;
 
         // Refresh start: the window captures the anchor explicitly, before RefreshAsync clears
         // the list (mirrors MainWindow.RefreshButton_Click calling CaptureScrollAnchor() up front).
@@ -47,13 +47,13 @@ public class MainViewModelCompleteRefreshTests
         // RefreshAsync clears the backing collections, then streams arrivals in arrival order
         // (unsorted) while the refresh runs. "other" arrives first here, so it sits at the top of
         // the unsorted streaming list - a different row than the pre-refresh anchor.
-        vm._allRepositories.Clear();
-        vm._repositoryMap.Clear();
-        vm.Repositories.Clear();
+        vm.RepositoryList.AllRepositories.Clear();
+        vm.RepositoryList.RepositoryMap.Clear();
+        vm.RepositoryList.Repositories.Clear();
         vm.IsRefreshing = true;
         vm.AddRepositoriesBatch(new[] { Repo("C:/repos/other"), Repo("C:/repos/keep") });
 
-        Assert.That(vm.Repositories[0].WorkingDirectory, Is.EqualTo("C:/repos/other"),
+        Assert.That(vm.RepositoryList.Repositories[0].WorkingDirectory, Is.EqualTo("C:/repos/other"),
             "Pre-condition: the unsorted streaming list's top differs from the pre-refresh anchor.");
 
         // The final sorted rebuild must restore the anchor captured at refresh start, not one
@@ -83,18 +83,18 @@ public class MainViewModelCompleteRefreshTests
         vm.AddRepository(Repo("C:/repos/keep"));
 
         var beforeSwapInvocationCount = 0;
-        vm.BeforeRepositoriesSwap = () => beforeSwapInvocationCount++;
+        vm.RepositoryList.BeforeRepositoriesSwap = () => beforeSwapInvocationCount++;
 
         // A concurrent filter/search rebuild: off the UI thread, so its swap is only queued, not
         // yet executed. Called directly (rather than through SetSearchText's debounce) so the
         // ordering is driven explicitly instead of waiting out a timer.
-        vm.ApplyFilterAndGrouping();
+        vm.RepositoryList.ApplyFilterAndGrouping();
 
         // The refresh itself proceeds: clear, stream arrivals, then complete - queuing its own
         // (suppressed) swap behind the rebuild's already-queued one.
-        vm._allRepositories.Clear();
-        vm._repositoryMap.Clear();
-        vm.Repositories.Clear();
+        vm.RepositoryList.AllRepositories.Clear();
+        vm.RepositoryList.RepositoryMap.Clear();
+        vm.RepositoryList.Repositories.Clear();
         vm.IsRefreshing = true;
         vm.AddRepositoriesBatch(new[] { Repo("C:/repos/other"), Repo("C:/repos/keep") });
         vm.CompleteRefresh();

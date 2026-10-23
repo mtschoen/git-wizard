@@ -20,4 +20,22 @@ public partial class MainViewModel
             new ReadOnlyObservableCollection<LiveVolumeStatusViewModel>(LiveVolumes),
             new ReadOnlyObservableCollection<VolumeWatchTransition>(LiveWatchEvents));
     }
+
+    public async Task ClearCacheAsync()
+    {
+        await PreparedDiscoveryIndex.SetAsync(null).ConfigureAwait(false);
+        GitWizardApi.ClearCache();
+        await _dialogs.ShowAlertAsync("Cache Cleared", "Repository cache has been cleared");
+    }
+
+    public async Task DeleteAllLocalFilesAsync()
+    {
+        await PreparedDiscoveryIndex.SetAsync(null).ConfigureAwait(false);
+        if (!GitWizardApi.TryDeleteAllLocalFiles(out var refusal))
+        {
+            await _dialogs.ShowAlertAsync("Files Not Deleted", refusal);
+            return;
+        }
+        await _dialogs.ShowAlertAsync("Files Deleted", "All local files have been deleted");
+    }
 }

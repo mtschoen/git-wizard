@@ -14,7 +14,7 @@ public partial class MainViewModel
 
         if (node.IsGroupHeader)
         {
-            ToggleGroupExpand(node);
+            RepositoryList.ToggleGroupExpand(node);
             return;
         }
 

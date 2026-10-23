@@ -5,7 +5,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests;
 
 // Grouping interaction tests exercise filter toggling, mode selection, search debounce, and thread-swapped grouping.
-// Covers MainViewModel.Grouping.cs.
+// Covers RepositoryListViewModel.cs and SearchDebouncer.cs.
 public class MainViewModelGroupingInteractionTests
 {
     // Regression: the Repositories collection swap invokes view hooks that touch the visual tree
@@ -24,10 +24,10 @@ public class MainViewModelGroupingInteractionTests
         // can assert it ran on that thread without capturing a variable the using scope disposes.
         var uiThreadId = dispatcher.UiThreadId;
         bool? swapRanOnUiThread = null;
-        vm.AfterRepositoriesSwap = () => swapRanOnUiThread = Environment.CurrentManagedThreadId == uiThreadId;
+        vm.RepositoryList.AfterRepositoriesSwap = () => swapRanOnUiThread = Environment.CurrentManagedThreadId == uiThreadId;
 
         // Trigger the swap from a thread-pool thread, mirroring RefreshAsync's continuation.
-        await Task.Run(() => vm.SetSearchText("anything"));
+        await Task.Run(() => vm.RepositoryList.SetSearchText("anything"));
 
         // The pump is a single-threaded FIFO queue, so this no-op runs strictly after the queued
         // swap; awaiting it guarantees the swap has executed before we assert.
@@ -51,16 +51,16 @@ public class MainViewModelGroupingInteractionTests
         // still increments a single shared counter.
         var swapCount = new StrongBox<int>(0);
         var swapCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        vm.AfterRepositoriesSwap = () =>
+        vm.RepositoryList.AfterRepositoriesSwap = () =>
         {
             Interlocked.Increment(ref swapCount.Value);
             swapCompleted.TrySetResult();
         };
 
         // Three distinct values, each fires the setter - but they arrive within the debounce window.
-        vm.SearchText = "a";
-        vm.SearchText = "ab";
-        vm.SearchText = "abc";
+        vm.RepositoryList.SearchText = "a";
+        vm.RepositoryList.SearchText = "ab";
+        vm.RepositoryList.SearchText = "abc";
 
         // Deferred, not immediate: the synchronous sets must not have run a filter pass yet.
         Assert.That(Volatile.Read(ref swapCount.Value), Is.EqualTo(0),
@@ -74,7 +74,7 @@ public class MainViewModelGroupingInteractionTests
         {
             Assert.That(swapCount.Value, Is.EqualTo(1),
                 "Rapid keystrokes must coalesce into a single filter/grouping pass.");
-            Assert.That(vm.SearchText, Is.EqualTo("abc"));
+            Assert.That(vm.RepositoryList.SearchText, Is.EqualTo("abc"));
         });
     }
 
@@ -88,14 +88,14 @@ public class MainViewModelGroupingInteractionTests
     {
         var vm = TestViewModels.Create();
 
-        vm.ToggleFilter(FilterType.Stale);
-        Assert.That(vm.ActiveFilter, Is.EqualTo(FilterType.Stale));
+        vm.RepositoryList.ToggleFilter(FilterType.Stale);
+        Assert.That(vm.RepositoryList.ActiveFilter, Is.EqualTo(FilterType.Stale));
 
-        vm.ToggleFilter(FilterType.Stale);
-        Assert.That(vm.ActiveFilter, Is.EqualTo(FilterType.None), "Re-clicking the active filter must clear it.");
+        vm.RepositoryList.ToggleFilter(FilterType.Stale);
+        Assert.That(vm.RepositoryList.ActiveFilter, Is.EqualTo(FilterType.None), "Re-clicking the active filter must clear it.");
 
-        vm.ToggleFilter(FilterType.PendingChanges);
-        Assert.That(vm.ActiveFilter, Is.EqualTo(FilterType.PendingChanges), "Clicking a different filter must switch to it.");
+        vm.RepositoryList.ToggleFilter(FilterType.PendingChanges);
+        Assert.That(vm.RepositoryList.ActiveFilter, Is.EqualTo(FilterType.PendingChanges), "Clicking a different filter must switch to it.");
     }
 
     [Test]
@@ -104,11 +104,13 @@ public class MainViewModelGroupingInteractionTests
         var vm = TestViewModels.Create();
 
         var raised = false;
-        vm.PropertyChanged += (_, e) => raised |= e.PropertyName == nameof(MainViewModel.ActiveFilter);
-
-        vm.ToggleFilter(FilterType.Stale);
-
-        Assert.That(raised, Is.True, "The `.active` highlight binds to ActiveFilter, so its change must notify.");
+        vm.RepositoryList.PropertyChanged += (sender, arguments) =>
+        {
+            Assert.That(sender, Is.SameAs(vm.RepositoryList));
+            raised |= arguments.PropertyName == nameof(RepositoryListViewModel.ActiveFilter);
+        };
+        vm.RepositoryList.ToggleFilter(FilterType.Stale);
+        Assert.That(raised, Is.True, "The active filter binding must receive the component notification.");
     }
 
     [Test]
@@ -116,11 +118,11 @@ public class MainViewModelGroupingInteractionTests
     {
         var vm = TestViewModels.Create();
 
-        vm.ToggleGroupMode(GroupMode.Drive);
-        Assert.That(vm.ActiveGroupMode, Is.EqualTo(GroupMode.Drive));
+        vm.RepositoryList.ToggleGroupMode(GroupMode.Drive);
+        Assert.That(vm.RepositoryList.ActiveGroupMode, Is.EqualTo(GroupMode.Drive));
 
-        vm.ToggleGroupMode(GroupMode.Drive);
-        Assert.That(vm.ActiveGroupMode, Is.EqualTo(GroupMode.None), "Re-clicking the active group must clear it.");
+        vm.RepositoryList.ToggleGroupMode(GroupMode.Drive);
+        Assert.That(vm.RepositoryList.ActiveGroupMode, Is.EqualTo(GroupMode.None), "Re-clicking the active group must clear it.");
     }
 
     // Sort, unlike Filter/Group, has no "off" state - one mode is always active - so a repeat click
@@ -130,10 +132,10 @@ public class MainViewModelGroupingInteractionTests
     {
         var vm = TestViewModels.Create();
 
-        vm.SetSortMode(SortMode.RecentlyUsed);
-        Assert.That(vm.ActiveSortMode, Is.EqualTo(SortMode.RecentlyUsed));
+        vm.RepositoryList.SetSortMode(SortMode.RecentlyUsed);
+        Assert.That(vm.RepositoryList.ActiveSortMode, Is.EqualTo(SortMode.RecentlyUsed));
 
-        vm.SetSortMode(SortMode.RecentlyUsed);
-        Assert.That(vm.ActiveSortMode, Is.EqualTo(SortMode.RecentlyUsed), "Re-clicking the active sort must keep it selected.");
+        vm.RepositoryList.SetSortMode(SortMode.RecentlyUsed);
+        Assert.That(vm.RepositoryList.ActiveSortMode, Is.EqualTo(SortMode.RecentlyUsed), "Re-clicking the active sort must keep it selected.");
     }
 }

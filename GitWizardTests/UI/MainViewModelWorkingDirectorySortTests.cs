@@ -11,7 +11,7 @@ namespace GitWizardTests;
 /// separate groups by path case, and the header's reported group count must match the number of
 /// groups actually shown.
 /// </summary>
-// Covers MainViewModel.Grouping.cs, RepositoryGroupKeys.cs, RepositorySortOrder.cs, and StatusHeaderViewModel.cs.
+// Covers RepositoryListViewModel.cs, RepositoryListViewModel.Groups.cs, RepositoryGroupKeys.cs, RepositorySortOrder.cs, and StatusHeaderViewModel.cs.
 public class MainViewModelWorkingDirectorySortTests
 {
     [SetUp]
@@ -42,7 +42,7 @@ public class MainViewModelWorkingDirectorySortTests
             viewModel.AddRepository(Repo(path));
 
         var expected = MixedOrderPaths.OrderBy(path => path, PlatformComparer).ToArray();
-        var actual = viewModel.Repositories.Select(node => node.WorkingDirectory).ToArray();
+        var actual = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray();
         Assert.That(actual, Is.EqualTo(expected));
     }
 
@@ -59,7 +59,7 @@ public class MainViewModelWorkingDirectorySortTests
         viewModel.AddRepository(Repo(arriving));
 
         var expected = MixedOrderPaths.Append(arriving).OrderBy(path => path, PlatformComparer).ToArray();
-        var actual = viewModel.Repositories.Select(node => node.WorkingDirectory).ToArray();
+        var actual = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray();
         Assert.That(actual, Is.EqualTo(expected));
     }
 
@@ -74,7 +74,7 @@ public class MainViewModelWorkingDirectorySortTests
         viewModel.PrePopulateFromReport(new GitWizardConfiguration(), MixedOrderPaths, report);
 
         var expected = MixedOrderPaths.OrderBy(path => path, PlatformComparer).ToArray();
-        var actual = viewModel.Repositories.Select(node => node.WorkingDirectory).ToArray();
+        var actual = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray();
         Assert.That(actual, Is.EqualTo(expected));
     }
 
@@ -85,9 +85,9 @@ public class MainViewModelWorkingDirectorySortTests
         foreach (var path in MixedOrderPaths)
             viewModel.AddRepository(Repo(path));
 
-        viewModel.ToggleGroupMode(GroupMode.Drive);
+        viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
 
-        foreach (var header in viewModel.Repositories.Where(n => n.IsGroupHeader))
+        foreach (var header in viewModel.RepositoryList.Repositories.Where(n => n.IsGroupHeader))
         {
             var children = header.Children.Select(n => n.WorkingDirectory).ToArray();
             Assert.That(children, Is.EqualTo(children.OrderBy(path => path, PlatformComparer)),
@@ -97,16 +97,16 @@ public class MainViewModelWorkingDirectorySortTests
         // Expand every header so a mid-alphabet arrival's insertion position is observable in
         // the flat displayed list (issue #241's evidence describes exactly this: sort must hold
         // for both ungrouped and grouped views, including as new rows arrive).
-        var headers = viewModel.Repositories.Where(n => n.IsGroupHeader).ToList();
+        var headers = viewModel.RepositoryList.Repositories.Where(n => n.IsGroupHeader).ToList();
         foreach (var header in headers)
-            viewModel.ToggleGroupExpand(header);
+            viewModel.RepositoryList.ToggleGroupExpand(header);
 
         const string arriving = @"C:\repos\Beta";
         viewModel.AddRepository(Repo(arriving));
 
         var ownerHeader = headers.Single(h => h.Children.Any(c => c.WorkingDirectory == arriving));
-        var ownerIndex = viewModel.Repositories.IndexOf(ownerHeader);
-        var flatChildren = viewModel.Repositories
+        var ownerIndex = viewModel.RepositoryList.Repositories.IndexOf(ownerHeader);
+        var flatChildren = viewModel.RepositoryList.Repositories
             .Skip(ownerIndex + 1)
             .TakeWhile(n => !n.IsGroupHeader)
             .Select(n => n.WorkingDirectory)
@@ -131,9 +131,9 @@ public class MainViewModelWorkingDirectorySortTests
         viewModel.AddRepository(Repo(@"c:\repos\beta"));
         viewModel.AddRepository(Repo(@"C:\repos\gamma"));
 
-        viewModel.ToggleGroupMode(GroupMode.Drive);
+        viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
 
-        var headers = viewModel.Repositories.Where(n => n.IsGroupHeader).ToList();
+        var headers = viewModel.RepositoryList.Repositories.Where(n => n.IsGroupHeader).ToList();
         Assert.That(headers, Has.Count.EqualTo(1));
         Assert.That(headers[0].Children, Has.Count.EqualTo(3));
     }
@@ -146,13 +146,13 @@ public class MainViewModelWorkingDirectorySortTests
 
         var viewModel = NewViewModel();
         viewModel.AddRepository(Repo(@"c:\repos\alpha"));
-        viewModel.ToggleGroupMode(GroupMode.Drive);
+        viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
 
         // A later Live-created repository on the same drive, but with the OS-native uppercase
         // drive letter, must join the existing group rather than creating a second one.
         viewModel.AddRepository(Repo(@"C:\repos\beta"));
 
-        var headers = viewModel.Repositories.Where(n => n.IsGroupHeader).ToList();
+        var headers = viewModel.RepositoryList.Repositories.Where(n => n.IsGroupHeader).ToList();
         Assert.That(headers, Has.Count.EqualTo(1));
         Assert.That(headers[0].Children, Has.Count.EqualTo(2));
     }
@@ -166,7 +166,7 @@ public class MainViewModelWorkingDirectorySortTests
     {
         const int existingCount = 200;
         var viewModel = NewViewModel();
-        var positionalInserts = new PositionalInsertRecorder(viewModel.Repositories);
+        var positionalInserts = new PositionalInsertRecorder(viewModel.RepositoryList.Repositories);
         var paths = Enumerable.Range(0, existingCount).Select(i => $@"C:\repos\r{i:D4}").ToArray();
         var report = new GitWizardReport();
         foreach (var path in paths)
@@ -177,7 +177,7 @@ public class MainViewModelWorkingDirectorySortTests
         // insert, not an append at either end.
         viewModel.AddRepository(Repo(@"C:\repos\r0099a"));
 
-        Assert.That(viewModel.Repositories.Select(node => node.WorkingDirectory).ToArray(),
+        Assert.That(viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray(),
             Is.EqualTo(paths.Append(@"C:\repos\r0099a").OrderBy(p => p, PlatformComparer)),
             "A single isolated arrival must land at its sorted position.");
 
@@ -202,13 +202,13 @@ public class MainViewModelWorkingDirectorySortTests
             report.Repositories[path] = Repo(path);
         viewModel.PrePopulateFromReport(new GitWizardConfiguration(), paths, report);
 
-        var reads = CountingList.Install(viewModel.Repositories);
+        var reads = CountingList.Install(viewModel.RepositoryList.Repositories);
 
         // Sorts strictly between "C:\repos\r0499" and "C:\repos\r0500": a genuine mid-list insert.
         viewModel.AddRepository(Repo(@"C:\repos\r0499a"));
         var searchReads = reads.IndexerReads;
 
-        Assert.That(viewModel.Repositories.Select(node => node.WorkingDirectory).ToArray(),
+        Assert.That(viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray(),
             Is.EqualTo(paths.Append(@"C:\repos\r0499a").OrderBy(p => p, PlatformComparer)));
 
         // Binary search over 1000 rows needs at most ceil(log2(1001)) = 10 reads; a linear scan
@@ -238,14 +238,14 @@ public class MainViewModelWorkingDirectorySortTests
         viewModel.AddRepository(Repo(@"D:\r1"));
         viewModel.AddRepository(Repo(@"E:\r1"));
 
-        viewModel.ToggleGroupMode(GroupMode.Drive);
-        var expectedGroupCount = viewModel.Repositories.Count(n => n.IsGroupHeader);
+        viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
+        var expectedGroupCount = viewModel.RepositoryList.Repositories.Count(n => n.IsGroupHeader);
 
         // Expanding a group used to inflate Repositories.Count with the header's own children
         // (they are inserted as flat rows for display), which UpdateHeaderWithFilterInfo then
         // mistook for the group count (issue #241 addendum: "953 repositories in 2 groups" while
         // six groups were listed).
-        viewModel.ToggleGroupExpand(viewModel.Repositories.First(n => n.IsGroupHeader));
+        viewModel.RepositoryList.ToggleGroupExpand(viewModel.RepositoryList.Repositories.First(n => n.IsGroupHeader));
 
         Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain($"in {expectedGroupCount} groups"));
     }

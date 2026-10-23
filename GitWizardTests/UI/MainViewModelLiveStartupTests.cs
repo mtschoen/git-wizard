@@ -320,13 +320,13 @@ public class MainViewModelLiveStartupTests
         // settled end state instead of asserting intermediate counts.
         await WaitUntilAsync(() =>
         {
-            var paths = viewModel.Repositories.Select(node => node.WorkingDirectory).ToList();
+            var paths = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToList();
             return paths.Count == 1 && paths[0] == fixture.Path;
         });
         Assert.Multiple(() =>
         {
-            Assert.That(viewModel.Repositories.Single().WorkingDirectory, Is.EqualTo(fixture.Path));
-            Assert.That(viewModel.Repositories.Select(node => node.WorkingDirectory),
+            Assert.That(viewModel.RepositoryList.Repositories.Single().WorkingDirectory, Is.EqualTo(fixture.Path));
+            Assert.That(viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory),
                 Does.Not.Contain(oldPath));
         });
     }
@@ -351,7 +351,7 @@ public class MainViewModelLiveStartupTests
         // watch event is applied.
         await WaitUntilAsync(() =>
         {
-            var paths = viewModel.Repositories.Select(node => node.WorkingDirectory).ToList();
+            var paths = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToList();
             return paths.Count == 1 && paths[0] == repositoryPath;
         });
 
@@ -377,7 +377,7 @@ public class MainViewModelLiveStartupTests
             Assert.That(viewModel.IsLive, Is.False);
             Assert.That(viewModel.IsLiveStarting, Is.False);
             Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain("Live watch could not start: broker declined"));
-            Assert.That(viewModel.Repositories.Select(node => node.WorkingDirectory),
+            Assert.That(viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory),
                 Is.EqualTo(new[] { "/keep-me" }), "An unusable startup must not touch prior rows.");
         });
     }

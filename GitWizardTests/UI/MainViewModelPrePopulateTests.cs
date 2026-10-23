@@ -34,10 +34,10 @@ public class MainViewModelPrePopulateTests
         vm.PrePopulateFromReport(config, ["/repos/alpha", "/repos/beta"], report);
 
         // Both repos should appear in the UI immediately.
-        Assert.That(vm.Repositories, Has.Count.EqualTo(2),
+        Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(2),
             "Pre-population should add cached repos to Repositories.");
-        Assert.That(vm._allRepositories.Count, Is.EqualTo(2),
-            "Pre-population should add cached repos to _allRepositories.");
+        Assert.That(vm.RepositoryList.AllRepositories.Count, Is.EqualTo(2),
+            "Pre-population should add cached repos to AllRepositories.");
 
     }
 
@@ -55,9 +55,9 @@ public class MainViewModelPrePopulateTests
         var config = new GitWizardConfiguration { SearchPaths = new SortedSet<string> { "/repos" } };
         vm.PrePopulateFromReport(config, ["/repos/alpha"], report);
 
-        Assert.That(vm.Repositories, Has.Count.EqualTo(1),
+        Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1),
             "Only repos in the path list should be pre-populated.");
-        Assert.That(vm.Repositories[0].WorkingDirectory, Is.EqualTo("/repos/alpha"));
+        Assert.That(vm.RepositoryList.Repositories[0].WorkingDirectory, Is.EqualTo("/repos/alpha"));
 
     }
 
@@ -70,9 +70,9 @@ public class MainViewModelPrePopulateTests
         var config = new GitWizardConfiguration { SearchPaths = new SortedSet<string> { "/repos" } };
         vm.PrePopulateFromReport(config, ["/repos/alpha"], null);
 
-        Assert.That(vm.Repositories, Is.Empty,
+        Assert.That(vm.RepositoryList.Repositories, Is.Empty,
             "Pre-population should be a no-op when no cached report exists.");
-        Assert.That(vm._allRepositories, Is.Empty);
+        Assert.That(vm.RepositoryList.AllRepositories, Is.Empty);
 
     }
 
@@ -84,7 +84,7 @@ public class MainViewModelPrePopulateTests
         var config = new GitWizardConfiguration { SearchPaths = new SortedSet<string> { "/repos" } };
         vm.PrePopulateFromReport(config, null!, null);
 
-        Assert.That(vm.Repositories, Is.Empty,
+        Assert.That(vm.RepositoryList.Repositories, Is.Empty,
             "Pre-population should be a no-op when repositoryPaths is null.");
 
     }
@@ -98,8 +98,8 @@ public class MainViewModelPrePopulateTests
         report.Save(Path.Combine(GitWizardApi.GetLocalFilesPath(), "report.json"));
 
         var viewModel = CreateViewModel();
-        viewModel.ToggleFilter(FilterType.PendingChanges);
-        viewModel.ToggleGroupMode(GroupMode.Drive);
+        viewModel.RepositoryList.ToggleFilter(FilterType.PendingChanges);
+        viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
         var configuration = new GitWizardConfiguration
         {
             SearchPaths = new SortedSet<string> { "C:/repos" }
@@ -107,7 +107,7 @@ public class MainViewModelPrePopulateTests
 
         viewModel.PrePopulateFromReport(configuration, ["C:/repos/alpha"], report);
 
-        Assert.That(viewModel.Repositories, Is.Empty,
+        Assert.That(viewModel.RepositoryList.Repositories, Is.Empty,
             "Grouped pre-population must not expose repositories excluded by the active filter.");
 
     }
@@ -126,15 +126,15 @@ public class MainViewModelPrePopulateTests
             SearchPaths = new SortedSet<string> { "/repos" }
         };
         viewModel.PrePopulateFromReport(configuration, ["/repos/alpha"], report);
-        Assert.That(viewModel._repositoryMap, Does.ContainKey("/repos/alpha"));
+        Assert.That(viewModel.RepositoryList.RepositoryMap, Does.ContainKey("/repos/alpha"));
 
-        viewModel.Repositories.Clear();
-        viewModel._allRepositories.Clear();
-        viewModel._repositoryMap.Clear();
+        viewModel.RepositoryList.Repositories.Clear();
+        viewModel.RepositoryList.AllRepositories.Clear();
+        viewModel.RepositoryList.RepositoryMap.Clear();
         viewModel.PrePopulateFromReport(configuration, [], report);
         viewModel.AddRepository(new GitWizardRepository("/repos/alpha"));
 
-        Assert.That(viewModel.Repositories, Has.Count.EqualTo(1),
+        Assert.That(viewModel.RepositoryList.Repositories, Has.Count.EqualTo(1),
             "A path cached in an earlier cycle must not suppress a fresh row.");
 
     }

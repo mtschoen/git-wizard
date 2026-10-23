@@ -106,7 +106,7 @@ public partial class MainViewModel
                 return;
             }
 
-            if (_repositoryMap.TryGetValue(repoRoot, out var node))
+            if (RepositoryList.RepositoryMap.TryGetValue(repoRoot, out var node))
             {
                 repository = node.Repository;
             }
@@ -180,7 +180,7 @@ public partial class MainViewModel
                 _pendingCreateSequenceNumbers.Remove(repoRoot);
             }
 
-            if (!_repositoryMap.TryGetValue(repoRoot, out var node))
+            if (!RepositoryList.RepositoryMap.TryGetValue(repoRoot, out var node))
             {
                 return;
             }

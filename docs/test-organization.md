@@ -34,11 +34,12 @@ Fixtures exercising `MainViewModel` and its extracted helpers live together unde
 
 | Production Source | Fixture Name(s) | Concern |
 | --- | --- | --- |
-| `MainViewModel.cs` | `MainViewModelTests`<br>`MainViewModelNoMftTests` | Construction, default property states, injected services, error button labeling, and refresh selection. |
+| `MainViewModel.cs`<br>`RepositoryListViewModel.cs` | `MainViewModelTests`<br>`MainViewModelNoMftTests` | Construction, default property states, injected services, error button labeling, and refresh selection. |
 | `PreparedDiscoveryIndexStore.cs` | `MainViewModelPreparedSessionTests` | Prepared discovery index session retention, single-owner replacement disposal, and active cache status capture. |
 | `StatusHeaderViewModel.cs` | `StatusHeaderViewModelTests` | Status header text, refresh baseline retention, filter/group suffix formatting, and empty-repositories messaging. |
 | `MainViewModel.Commands.cs` | `MainViewModelCommandTests`<br>`MainViewModelClipboardTests` | Command execution, repository selection, clipboard copying. |
-| `MainViewModel.Grouping.cs`<br>`RepositoryGroupKeys.cs` | `MainViewModelGroupingTests`<br>`MainViewModelGroupingInteractionTests` | Grouping hierarchies, publication, expansion, filter swapping, search debounce. |
+| `RepositoryListViewModel.cs`<br>`RepositoryListViewModel.Groups.cs`<br>`SearchDebouncer.cs`<br>`RepositoryGroupKeys.cs` | `MainViewModelGroupingTests`<br>`MainViewModelGroupingInteractionTests` | Grouping hierarchies, publication, expansion, filter swapping, search debounce. |
+| `MainWindow.axaml`<br>`RepositoryListViewModel.cs` | `MainWindowRepositoryListBindingTests` | ItemsSource replacement and direct active-filter notification. |
 | `RepositorySortOrder.cs` | `MainViewModelWorkingDirectorySortTests` | Platform-aware path sorting, drive grouping ordering, sorted insertion. |
 | `MainViewModel.RefreshBatch.cs` | `MainViewModelRefreshBatchTests` | Bulk batch merges, drain deduplication, and batch sort reduction. |
 | `MainViewModel.UiDrain.cs` | `MainViewModelUiDrainTests` | Background-to-UI message drain throttling and batching. |

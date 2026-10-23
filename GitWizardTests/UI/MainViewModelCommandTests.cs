@@ -107,7 +107,7 @@ public class MainViewModelCommandTests
         await using var viewModel = TestViewModels.Create(timeProvider: clock);
         var repository = new GitWizardRepository(fixture.Path) { RefreshTimeSeconds = double.NaN };
         viewModel.AddRepository(repository);
-        var node = viewModel.Repositories.Single();
+        var node = viewModel.RepositoryList.Repositories.Single();
         node.Status = RefreshStatus.Success;
         viewModel.DeepRefreshRepository(node);
         try

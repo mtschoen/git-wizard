@@ -6,7 +6,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests;
 
 // Refresh batch tests are split by concern because the combined fixture exceeds 500 lines.
-// Covers MainViewModel.RefreshBatch.cs, MainViewModel.Grouping.cs, and RepositorySortOrder.cs.
+// Covers MainViewModel.RefreshBatch.cs, RepositoryListViewModel.cs, RepositoryListViewModel.Groups.cs, and RepositorySortOrder.cs.
 public class MainViewModelRefreshBatchTests
 {
     [SetUp]
@@ -36,7 +36,7 @@ public class MainViewModelRefreshBatchTests
             .ToArray();
 
         var viewModel = NewViewModel();
-        var positionalInserts = new PositionalInsertRecorder(viewModel.Repositories);
+        var positionalInserts = new PositionalInsertRecorder(viewModel.RepositoryList.Repositories);
         var report = new GitWizardReport();
         foreach (var path in paths)
             report.Repositories[path] = Repo(path);
@@ -44,7 +44,7 @@ public class MainViewModelRefreshBatchTests
         viewModel.PrePopulateFromReport(new GitWizardConfiguration(), paths, report);
 
         // Sanity: the batch is still actually sorted.
-        var actual = viewModel.Repositories.Select(node => node.WorkingDirectory).ToArray();
+        var actual = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray();
         Assert.That(actual, Is.EqualTo(paths.OrderBy(p => p, PlatformComparer)));
 
         // A positional insert shifts the ObservableCollection's own elements: a
@@ -71,7 +71,7 @@ public class MainViewModelRefreshBatchTests
             .ToList();
 
         var viewModel = NewViewModel();
-        var positionalInserts = new PositionalInsertRecorder(viewModel.Repositories);
+        var positionalInserts = new PositionalInsertRecorder(viewModel.RepositoryList.Repositories);
         viewModel.IsRefreshing = true;
         viewModel.AddRepositoriesBatch(repositories);
 
@@ -87,7 +87,7 @@ public class MainViewModelRefreshBatchTests
 
         viewModel.CompleteRefresh();
 
-        var afterComplete = viewModel.Repositories.Select(node => node.WorkingDirectory).ToArray();
+        var afterComplete = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray();
         Assert.That(afterComplete, Is.EqualTo(
             repositories.Concat(secondBatch).Select(r => r.WorkingDirectory).OrderBy(p => p, PlatformComparer)),
             "After refresh completes, the entire collection is sorted once.");
@@ -107,7 +107,7 @@ public class MainViewModelRefreshBatchTests
             .ToList();
 
         var viewModel = NewViewModel();
-        var positionalInserts = new PositionalInsertRecorder(viewModel.Repositories);
+        var positionalInserts = new PositionalInsertRecorder(viewModel.RepositoryList.Repositories);
         viewModel.IsRefreshing = true;
         foreach (var repository in repositories)
         {
@@ -119,12 +119,12 @@ public class MainViewModelRefreshBatchTests
 
         Assert.That(positionalInserts.Count, Is.Zero,
             "A drain with interleaved create/complete commands must append all creates with zero positional inserts.");
-        Assert.That(viewModel._repositoryMap, Has.Count.EqualTo(count),
+        Assert.That(viewModel.RepositoryList.RepositoryMap, Has.Count.EqualTo(count),
             "Every drained create must have produced exactly one map entry.");
 
         viewModel.CompleteRefresh();
 
-        var actual = viewModel.Repositories.Select(node => node.WorkingDirectory).ToArray();
+        var actual = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray();
         Assert.That(actual, Is.EqualTo(repositories.Select(r => r.WorkingDirectory).OrderBy(p => p, PlatformComparer)),
             "Interleaved completions must not change the final sorted order after completion.");
     }
@@ -135,11 +135,11 @@ public class MainViewModelRefreshBatchTests
     public void WorkingDirectory_MultipleSuccessiveDrains_DoesNotResetOrRewriteAccumulatedRows()
     {
         var viewModel = NewViewModel();
-        var positionalInserts = new PositionalInsertRecorder(viewModel.Repositories);
+        var positionalInserts = new PositionalInsertRecorder(viewModel.RepositoryList.Repositories);
         viewModel.IsRefreshing = true;
         var resetCount = 0;
         var addCount = 0;
-        viewModel.Repositories.CollectionChanged += (_, args) =>
+        viewModel.RepositoryList.Repositories.CollectionChanged += (_, args) =>
         {
             if (args.Action == NotifyCollectionChangedAction.Reset)
                 resetCount++;
@@ -178,7 +178,7 @@ public class MainViewModelRefreshBatchTests
 
         viewModel.CompleteRefresh();
 
-        var actual = viewModel.Repositories.Select(node => node.WorkingDirectory).ToArray();
+        var actual = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray();
         Assert.That(actual, Is.EqualTo(allExpected.OrderBy(p => p, PlatformComparer)),
             "All items across multiple drains must end up in sorted order after refresh completes.");
     }
@@ -193,11 +193,11 @@ public class MainViewModelRefreshBatchTests
 
         viewModel.AddRepositoriesBatch([stale, Repo(@"C:\repos\beta"), fresh]);
 
-        Assert.That(viewModel.Repositories.Count(n => n.WorkingDirectory == stalePath), Is.EqualTo(1),
+        Assert.That(viewModel.RepositoryList.Repositories.Count(n => n.WorkingDirectory == stalePath), Is.EqualTo(1),
             "A path repeated within one drained batch must produce exactly one display row.");
-        Assert.That(viewModel._repositoryMap[stalePath].Repository, Is.SameAs(fresh),
+        Assert.That(viewModel.RepositoryList.RepositoryMap[stalePath].Repository, Is.SameAs(fresh),
             "The later occurrence within the batch must win.");
-        Assert.That(viewModel._allRepositories, Has.Count.EqualTo(2));
+        Assert.That(viewModel.RepositoryList.AllRepositories, Has.Count.EqualTo(2));
     }
 
     [Test]
@@ -209,17 +209,17 @@ public class MainViewModelRefreshBatchTests
             .ToArray();
 
         var viewModel = NewViewModel();
-        viewModel.ToggleGroupMode(GroupMode.Drive);
+        viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
 
         // ToggleGroupMode replaced Repositories, so observe the collection that is displayed now.
-        var publication = new GroupPublicationRecorder(viewModel.Repositories);
+        var publication = new GroupPublicationRecorder(viewModel.RepositoryList.Repositories);
         var report = new GitWizardReport();
         foreach (var path in paths)
             report.Repositories[path] = Repo(path);
 
         viewModel.PrePopulateFromReport(new GitWizardConfiguration(), paths, report);
 
-        var header = viewModel.Repositories.Single(n => n.IsGroupHeader);
+        var header = viewModel.RepositoryList.Repositories.Single(n => n.IsGroupHeader);
         Assert.That(header.Children.Select(n => n.WorkingDirectory),
             Is.EqualTo(paths.OrderBy(p => p, PlatformComparer)));
         Assert.That(publication.PublishedHeaderChildCounts, Is.EqualTo(new[] { count }),
@@ -233,19 +233,19 @@ public class MainViewModelRefreshBatchTests
     public void AddRepositoriesBatch_GroupedDrain_MergesIntoAlreadyExistingHeader()
     {
         var viewModel = NewViewModel();
-        viewModel.ToggleGroupMode(GroupMode.Drive);
+        viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
 
         // First batch creates the header fresh (PrePopulateFromReport-style, via
         // AddRepositoriesBatch itself since it shares the same MergeGroupBatch helper).
         viewModel.AddRepositoriesBatch([Repo(@"C:\repos\alpha"), Repo(@"C:\repos\zulu")]);
-        var header = viewModel.Repositories.Single(n => n.IsGroupHeader);
+        var header = viewModel.RepositoryList.Repositories.Single(n => n.IsGroupHeader);
         Assert.That(header.Children, Has.Count.EqualTo(2));
 
         // A second, later drain on the same drive must merge into that same header rather than
         // creating a duplicate "C:\" group.
         viewModel.AddRepositoriesBatch([Repo(@"C:\repos\middle"), Repo(@"C:\repos\beta")]);
 
-        var headers = viewModel.Repositories.Where(n => n.IsGroupHeader).ToList();
+        var headers = viewModel.RepositoryList.Repositories.Where(n => n.IsGroupHeader).ToList();
         Assert.That(headers, Has.Count.EqualTo(1));
 
         viewModel.CompleteRefresh();
@@ -265,8 +265,8 @@ public class MainViewModelRefreshBatchTests
     public void WorkingDirectory_RefreshCommandQueue_ZeroPositionalInsertsAndSortsAtEnd(bool randomOrder)
     {
         var viewModel = NewViewModel();
-        var positionalInserts = new PositionalInsertRecorder(viewModel.Repositories);
-        var drainedCollection = viewModel.Repositories;
+        var positionalInserts = new PositionalInsertRecorder(viewModel.RepositoryList.Repositories);
+        var drainedCollection = viewModel.RepositoryList.Repositories;
         viewModel.IsRefreshing = true;
 
         // Mixed drives and mixed case: C:\, c:\, D:\, d:\, E:\, e:\
@@ -301,8 +301,8 @@ public class MainViewModelRefreshBatchTests
         }
 
         // Selection preservation: select one of the nodes before completion
-        var repoToSelect = viewModel.Repositories[15];
-        viewModel.SelectedRepository = repoToSelect;
+        var repoToSelect = viewModel.RepositoryList.Repositories[15];
+        viewModel.RepositoryList.SelectedRepository = repoToSelect;
 
         var drainedMutationsDuringCompletion = 0;
         drainedCollection.CollectionChanged += (_, _) => drainedMutationsDuringCompletion++;
@@ -318,13 +318,13 @@ public class MainViewModelRefreshBatchTests
             "The published collection must not be mutated incrementally after it replaces the drained one.");
         Assert.That(drainedMutationsDuringCompletion, Is.Zero,
             "Completion must not mutate the drained collection in place.");
-        Assert.That(viewModel.Repositories, Is.Not.SameAs(drainedCollection));
+        Assert.That(viewModel.RepositoryList.Repositories, Is.Not.SameAs(drainedCollection));
 
-        var actual = viewModel.Repositories.Select(node => node.WorkingDirectory).ToArray();
+        var actual = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray();
         Assert.That(actual, Is.EqualTo(allExpected.OrderBy(p => p, PlatformComparer)),
             "After completion, the displayed collection must be correctly sorted, including mixed-case drive letters.");
 
-        Assert.That(viewModel.SelectedRepository?.WorkingDirectory, Is.EqualTo(repoToSelect.WorkingDirectory),
+        Assert.That(viewModel.RepositoryList.SelectedRepository?.WorkingDirectory, Is.EqualTo(repoToSelect.WorkingDirectory),
             "Selection must be preserved across the end-of-refresh sorted rebuild.");
     }
 }

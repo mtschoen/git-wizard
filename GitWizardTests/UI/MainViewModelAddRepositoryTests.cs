@@ -36,9 +36,9 @@ public class MainViewModelAddRepositoryTests
         vm.AddRepository(Repo("C:/repos/alpha"));
         vm.AddRepository(Repo("C:/repos/beta"));
 
-        Assert.That(vm.Repositories, Has.Count.EqualTo(2));
-        Assert.That(vm.Repositories[0].WorkingDirectory, Is.EqualTo("C:/repos/alpha"));
-        Assert.That(vm.Repositories[1].WorkingDirectory, Is.EqualTo("C:/repos/beta"));
+        Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(2));
+        Assert.That(vm.RepositoryList.Repositories[0].WorkingDirectory, Is.EqualTo("C:/repos/alpha"));
+        Assert.That(vm.RepositoryList.Repositories[1].WorkingDirectory, Is.EqualTo("C:/repos/beta"));
     }
 
     [Test]
@@ -48,7 +48,7 @@ public class MainViewModelAddRepositoryTests
 
         vm.AddRepository(Repo(""));
 
-        Assert.That(vm.Repositories, Is.Empty,
+        Assert.That(vm.RepositoryList.Repositories, Is.Empty,
             "A repository with an empty working directory must not appear in the list.");
     }
 
@@ -61,7 +61,7 @@ public class MainViewModelAddRepositoryTests
         // a null path should be handled just like empty.
         vm.AddRepository(Repo(null!));
 
-        Assert.That(vm.Repositories, Is.Empty);
+        Assert.That(vm.RepositoryList.Repositories, Is.Empty);
     }
 
     [Test]
@@ -70,10 +70,10 @@ public class MainViewModelAddRepositoryTests
         var vm = CreateViewModel();
 
         // PendingChanges filter requires HasPendingChanges = true; a plain repo does not match.
-        vm.ToggleFilter(FilterType.PendingChanges);
+        vm.RepositoryList.ToggleFilter(FilterType.PendingChanges);
         vm.AddRepository(Repo("C:/repos/clean"));
 
-        Assert.That(vm.Repositories, Is.Empty,
+        Assert.That(vm.RepositoryList.Repositories, Is.Empty,
             "A repo that doesn't match the active filter must not appear.");
     }
 
@@ -81,11 +81,11 @@ public class MainViewModelAddRepositoryTests
     public void AddRepository_RespectsSearchText_ExcludesNonMatchingRepo()
     {
         var vm = CreateViewModel();
-        vm.SetSearchText("widget");
+        vm.RepositoryList.SetSearchText("widget");
 
         vm.AddRepository(Repo("C:/repos/alpha"));
 
-        Assert.That(vm.Repositories, Is.Empty,
+        Assert.That(vm.RepositoryList.Repositories, Is.Empty,
             "A repo whose path doesn't contain the search text must be excluded.");
     }
 
@@ -93,22 +93,22 @@ public class MainViewModelAddRepositoryTests
     public void AddRepository_RespectsSearchText_IncludesMatchingRepo()
     {
         var vm = CreateViewModel();
-        vm.SetSearchText("alpha");
+        vm.RepositoryList.SetSearchText("alpha");
 
         vm.AddRepository(Repo("C:/repos/alpha"));
 
-        Assert.That(vm.Repositories, Has.Count.EqualTo(1));
+        Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1));
     }
 
     [Test]
     public void AddRepository_SearchTextIsCaseInsensitive()
     {
         var vm = CreateViewModel();
-        vm.SetSearchText("ALPHA");
+        vm.RepositoryList.SetSearchText("ALPHA");
 
         vm.AddRepository(Repo("C:/repos/alpha"));
 
-        Assert.That(vm.Repositories, Has.Count.EqualTo(1),
+        Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1),
             "Search text comparison must be case-insensitive.");
     }
 
@@ -116,7 +116,7 @@ public class MainViewModelAddRepositoryTests
     public void AddRepository_UsesGroupingWhenGroupModeActive()
     {
         var vm = CreateViewModel();
-        vm.ToggleGroupMode(GroupMode.Drive);
+        vm.RepositoryList.ToggleGroupMode(GroupMode.Drive);
 
         vm.AddRepository(Repo("C:/repos/alpha"));
 
@@ -125,10 +125,10 @@ public class MainViewModelAddRepositoryTests
         // For Drive mode, minGroupSize=1, so the header appears immediately.
         Assert.Multiple(() =>
         {
-            Assert.That(vm.Repositories, Has.Count.EqualTo(1));
-            Assert.That(vm.Repositories[0].IsGroupHeader, Is.True,
+            Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1));
+            Assert.That(vm.RepositoryList.Repositories[0].IsGroupHeader, Is.True,
                 "With Drive grouping active, a group header must be added rather than the raw repo.");
-            Assert.That(vm.Repositories[0].Children, Has.Count.EqualTo(1));
+            Assert.That(vm.RepositoryList.Repositories[0].Children, Has.Count.EqualTo(1));
         });
     }
 
@@ -136,16 +136,16 @@ public class MainViewModelAddRepositoryTests
     public void AddRepository_GroupMode_MultipleReposInSameGroup()
     {
         var vm = CreateViewModel();
-        vm.ToggleGroupMode(GroupMode.Drive);
+        vm.RepositoryList.ToggleGroupMode(GroupMode.Drive);
 
         vm.AddRepository(Repo("C:/repos/alpha"));
         vm.AddRepository(Repo("C:/repos/beta"));
 
         Assert.Multiple(() =>
         {
-            Assert.That(vm.Repositories, Has.Count.EqualTo(1),
+            Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1),
                 "Both repos share the same drive group, so only one header should exist.");
-            Assert.That(vm.Repositories[0].Children, Has.Count.EqualTo(2));
+            Assert.That(vm.RepositoryList.Repositories[0].Children, Has.Count.EqualTo(2));
         });
     }
 
@@ -168,14 +168,14 @@ public class MainViewModelAddRepositoryTests
         var vm = CreateViewModel();
 
         // Set search text to "alpha" (only "alpha" paths pass the search).
-        vm.SetSearchText("alpha");
+        vm.RepositoryList.SetSearchText("alpha");
         // No filter active (FilterType.None), so MatchesFilter always returns true.
 
         vm.AddRepository(Repo("C:/repos/alpha"));
         vm.AddRepository(Repo("C:/repos/beta"));
 
-        Assert.That(vm.Repositories, Has.Count.EqualTo(1),
+        Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1),
             "Only the repo matching the search text should appear.");
-        Assert.That(vm.Repositories[0].WorkingDirectory, Is.EqualTo("C:/repos/alpha"));
+        Assert.That(vm.RepositoryList.Repositories[0].WorkingDirectory, Is.EqualTo("C:/repos/alpha"));
     }
 }

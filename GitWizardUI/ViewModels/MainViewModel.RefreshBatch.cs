@@ -14,7 +14,7 @@ public partial class MainViewModel
     // once per row for a whole drained batch means shifting up to the whole displayed list on
     // every row: O(n) per row for O(n*k) total data movement across a k-row batch (round-2
     // pr-crew review of PR #241/#243). These two passes instead resolve every repository against
-    // _allRepositories/_repositoryMap exactly as AddRepository does (last write wins for a path
+    // RepositoryList.AllRepositories/RepositoryList.RepositoryMap exactly as AddRepository does (last write wins for a path
     // repeated within this one batch - ResolveBatchAgainstExistingRepositories), then merge the
     // surviving new rows into the display in one shot per affected collection
     // (MergeNewNodesIntoDisplay -> MergeBatchIntoDisplay / MergeGroupBatch).
@@ -37,13 +37,13 @@ public partial class MainViewModel
             }
 
             var node = new RepositoryNodeViewModel(repository);
-            _repositoryMap[path] = node;
+            RepositoryList.RepositoryMap[path] = node;
 
-            var existingNode = _allRepositories.FirstOrDefault(candidate => candidate.WorkingDirectory == path);
+            var existingNode = RepositoryList.AllRepositories.FirstOrDefault(candidate => candidate.WorkingDirectory == path);
             if (existingNode != null)
             {
-                var existingIndex = _allRepositories.IndexOf(existingNode);
-                _allRepositories[existingIndex] = node;
+                var existingIndex = RepositoryList.AllRepositories.IndexOf(existingNode);
+                RepositoryList.AllRepositories[existingIndex] = node;
 
                 if (newNodesByPath.ContainsKey(path))
                 {
@@ -57,7 +57,7 @@ public partial class MainViewModel
                 continue;
             }
 
-            _allRepositories.Add(node);
+            RepositoryList.AllRepositories.Add(node);
             newNodesByPath[path] = node;
         }
 
@@ -73,25 +73,25 @@ public partial class MainViewModel
 
         foreach (var node in newNodes)
         {
-            if (!node.MatchesFilter(_activeFilter, GlobalUserEmail))
+            if (!node.MatchesFilter(RepositoryList.ActiveFilter, GlobalUserEmail))
             {
                 continue;
             }
 
-            if (!string.IsNullOrWhiteSpace(_searchText) &&
-                !node.WorkingDirectory.Contains(_searchText, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrWhiteSpace(RepositoryList.SearchText) &&
+                !node.WorkingDirectory.Contains(RepositoryList.SearchText, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            if (_activeGroupMode == GroupMode.None)
+            if (RepositoryList.ActiveGroupMode == GroupMode.None)
             {
                 ungroupedBatch ??= new List<RepositoryNodeViewModel>();
                 ungroupedBatch.Add(node);
             }
             else
             {
-                foreach (var key in RepositoryGroupKeys.GetGroupKeys(node, _activeGroupMode))
+                foreach (var key in RepositoryGroupKeys.GetGroupKeys(node, RepositoryList.ActiveGroupMode))
                 {
                     groupedBatches ??= new Dictionary<string, List<RepositoryNodeViewModel>>();
                     if (!groupedBatches.TryGetValue(key, out var bucket))
@@ -111,12 +111,12 @@ public partial class MainViewModel
             {
                 foreach (var node in ungroupedBatch)
                 {
-                    Repositories.Add(node);
+                    RepositoryList.Repositories.Add(node);
                 }
             }
             else
             {
-                RepositorySortOrder.MergeBatchIntoDisplay(Repositories, ungroupedBatch, _activeSortMode);
+                RepositorySortOrder.MergeBatchIntoDisplay(RepositoryList.Repositories, ungroupedBatch, RepositoryList.ActiveSortMode);
             }
         }
 
@@ -124,7 +124,7 @@ public partial class MainViewModel
         {
             foreach (var (key, bucket) in groupedBatches)
             {
-                MergeGroupBatch(key, bucket, sort: !IsRefreshing);
+                RepositoryList.MergeGroupBatch(key, bucket, sort: !IsRefreshing);
             }
         }
     }

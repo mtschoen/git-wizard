@@ -26,23 +26,23 @@ public class MainViewModelCachedNodeReplacementTests
         var config = new GitWizardConfiguration { SearchPaths = new SortedSet<string> { "/repos" } };
         vm.PrePopulateFromReport(config, ["/repos/alpha"], report);
 
-        Assert.That(vm.Repositories, Has.Count.EqualTo(1), "Pre-condition: one repo pre-populated.");
+        Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1), "Pre-condition: one repo pre-populated.");
 
         // Simulate OnRepositoryCreated firing during the refresh - same path.
         var freshRepo = new GitWizardRepository("/repos/alpha");
         vm.AddRepository(freshRepo);
 
         // Should NOT have added a duplicate to Repositories.
-        Assert.That(vm.Repositories, Has.Count.EqualTo(1),
+        Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1),
             "AddRepository must not duplicate repos that were pre-populated.");
 
-        // The node in _allRepositories (which ApplyFilterAndGrouping uses to rebuild
+        // The node in AllRepositories (which ApplyFilterAndGrouping uses to rebuild
         // Repositories) must be the fresh scan node, not the stale cached node.
         // If it were stale the user would see old branch / status data after the
         // grouping pass rebuilds the visible collection.
-        var freshNode = vm._repositoryMap["/repos/alpha"];
-        Assert.That(vm._allRepositories[0], Is.SameAs(freshNode),
-            "_allRepositories must hold the fresh scan node so ApplyFilterAndGrouping " +
+        var freshNode = vm.RepositoryList.RepositoryMap["/repos/alpha"];
+        Assert.That(vm.RepositoryList.AllRepositories[0], Is.SameAs(freshNode),
+            "AllRepositories must hold the fresh scan node so ApplyFilterAndGrouping " +
             "rebuilds Repositories with updated data.");
 
     }
@@ -59,33 +59,33 @@ public class MainViewModelCachedNodeReplacementTests
         var config = new GitWizardConfiguration { SearchPaths = new SortedSet<string> { "/repos" } };
         vm.PrePopulateFromReport(config, ["/repos/alpha"], report);
 
-        var cachedNode = vm._allRepositories[0];
-        Assert.That(vm._repositoryMap, Does.ContainKey("/repos/alpha"),
+        var cachedNode = vm.RepositoryList.AllRepositories[0];
+        Assert.That(vm.RepositoryList.RepositoryMap, Does.ContainKey("/repos/alpha"),
             "Pre-condition: repo is pre-populated.");
 
         // Simulate a fresh scan result for the same path.
         var freshRepo = new GitWizardRepository("/repos/alpha");
         vm.AddRepository(freshRepo);
 
-        // _allRepositories must contain the fresh node (not the cached one).
-        Assert.That(vm._allRepositories, Has.Count.EqualTo(1),
-            "_allRepositories must not grow on refresh.");
-        Assert.That(vm._allRepositories[0], Is.Not.SameAs(cachedNode),
-            "_allRepositories must hold the fresh scan node, not the stale cached node.");
-        Assert.That(vm._allRepositories[0].Repository, Is.SameAs(freshRepo),
-            "_allRepositories[0].Repository must be the fresh GitWizardRepository.");
+        // AllRepositories must contain the fresh node (not the cached one).
+        Assert.That(vm.RepositoryList.AllRepositories, Has.Count.EqualTo(1),
+            "AllRepositories must not grow on refresh.");
+        Assert.That(vm.RepositoryList.AllRepositories[0], Is.Not.SameAs(cachedNode),
+            "AllRepositories must hold the fresh scan node, not the stale cached node.");
+        Assert.That(vm.RepositoryList.AllRepositories[0].Repository, Is.SameAs(freshRepo),
+            "AllRepositories[0].Repository must be the fresh GitWizardRepository.");
 
         // Every collection must point to the fresh node immediately, before the
         // end-of-refresh ApplyFilterAndGrouping rebuild.
-        var freshNode = vm._repositoryMap["/repos/alpha"];
+        var freshNode = vm.RepositoryList.RepositoryMap["/repos/alpha"];
         Assert.That(freshNode.Repository, Is.SameAs(freshRepo),
-            "_repositoryMap must hold the fresh scan node.");
-        Assert.That(vm.Repositories[0], Is.SameAs(freshNode),
+            "RepositoryMap must hold the fresh scan node.");
+        Assert.That(vm.RepositoryList.Repositories[0], Is.SameAs(freshNode),
             "The visible row must be replaced as soon as the fresh scan node arrives.");
 
         vm.UpdateCompletedRepository(freshRepo);
 
-        Assert.That(vm.Repositories[0].Status, Is.EqualTo(RefreshStatus.Success),
+        Assert.That(vm.RepositoryList.Repositories[0].Status, Is.EqualTo(RefreshStatus.Success),
             "Completion updates must reach the visible fresh row.");
 
     }
@@ -99,20 +99,20 @@ public class MainViewModelCachedNodeReplacementTests
         report.Save(Path.Combine(GitWizardApi.GetLocalFilesPath(), "report.json"));
 
         var viewModel = CreateViewModel();
-        viewModel.ToggleGroupMode(GroupMode.Drive);
+        viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
         var configuration = new GitWizardConfiguration
         {
             SearchPaths = new SortedSet<string> { "C:/repos" }
         };
         viewModel.PrePopulateFromReport(configuration, ["C:/repos/alpha"], report);
 
-        var groupHeader = viewModel.Repositories.Single(candidate => candidate.IsGroupHeader);
+        var groupHeader = viewModel.RepositoryList.Repositories.Single(candidate => candidate.IsGroupHeader);
         var cachedNode = groupHeader.Children.Single();
         var freshRepository = new GitWizardRepository("C:/repos/alpha");
 
         viewModel.AddRepository(freshRepository);
 
-        var freshNode = viewModel._repositoryMap["C:/repos/alpha"];
+        var freshNode = viewModel.RepositoryList.RepositoryMap["C:/repos/alpha"];
         Assert.That(groupHeader.Children, Has.Count.EqualTo(1));
         Assert.That(groupHeader.Children[0], Is.SameAs(freshNode));
         Assert.That(groupHeader.Children[0], Is.Not.SameAs(cachedNode));
@@ -139,24 +139,24 @@ public class MainViewModelCachedNodeReplacementTests
         vm.AddRepository(freshAlpha1);
         vm.AddRepository(freshBeta1);
 
-        Assert.That(vm._allRepositories, Has.Count.EqualTo(2),
+        Assert.That(vm.RepositoryList.AllRepositories, Has.Count.EqualTo(2),
             "Pre-condition: two repos after first refresh cycle.");
 
         // Second "refresh" cycle (simulates consecutive refresh).
-        // RefreshAsync clears _allRepositories / _repositoryMap before pre-populating
+        // RefreshAsync clears AllRepositories / RepositoryMap before pre-populating
         // so only nodes from the fresh scan survive.
-        vm.Repositories.Clear();
-        vm._allRepositories.Clear();
-        vm._repositoryMap.Clear();
+        vm.RepositoryList.Repositories.Clear();
+        vm.RepositoryList.AllRepositories.Clear();
+        vm.RepositoryList.RepositoryMap.Clear();
         vm.PrePopulateFromReport(config, ["/repos/alpha", "/repos/beta"], report);
         var freshAlpha2 = new GitWizardRepository("/repos/alpha");
         var freshBeta2 = new GitWizardRepository("/repos/beta");
         vm.AddRepository(freshAlpha2);
         vm.AddRepository(freshBeta2);
 
-        Assert.That(vm._allRepositories, Has.Count.EqualTo(2),
-            "Two consecutive refreshes must not duplicate rows in _allRepositories.");
-        Assert.That(vm.Repositories, Has.Count.EqualTo(2),
+        Assert.That(vm.RepositoryList.AllRepositories, Has.Count.EqualTo(2),
+            "Two consecutive refreshes must not duplicate rows in AllRepositories.");
+        Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(2),
             "Two consecutive refreshes must not duplicate rows in the visible collection.");
 
     }

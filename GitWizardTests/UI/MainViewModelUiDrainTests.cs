@@ -42,13 +42,13 @@ public class MainViewModelUiDrainTests
             Assert.That(clock.CreatedTimerCount, Is.EqualTo(1), "One batching window covers the whole burst.");
             Assert.That(clock.Timer!.Period, Is.EqualTo(Timeout.InfiniteTimeSpan), "The window is one-shot.");
             Assert.That(dispatcher.QueuedCount, Is.EqualTo(0), "Nothing is posted before the window expires.");
-            Assert.That(vm.Repositories, Is.Empty);
+            Assert.That(vm.RepositoryList.Repositories, Is.Empty);
 
             clock.Timer.Fire();
 
             Assert.That(dispatcher.QueuedCount, Is.EqualTo(1), "Window expiry posts exactly one drain.");
             dispatcher.RunAll();
-            Assert.That(vm.Repositories, Has.Count.EqualTo(20));
+            Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(20));
         }
         finally
         {
@@ -73,7 +73,7 @@ public class MainViewModelUiDrainTests
             Assert.That(clock.CreatedTimerCount, Is.EqualTo(2));
             clock.Timer.Fire();
             dispatcher.RunAll();
-            Assert.That(vm.Repositories, Has.Count.EqualTo(2));
+            Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(2));
         }
         finally
         {
@@ -124,7 +124,7 @@ public class MainViewModelUiDrainTests
         Assert.That(window.IsDisposed, Is.True, "Dispose must stop the pending window.");
         window.Fire();
         dispatcher.RunAll();
-        Assert.That(vm.Repositories, Is.Empty, "A drain that was already posted must not run after dispose.");
+        Assert.That(vm.RepositoryList.Repositories, Is.Empty, "A drain that was already posted must not run after dispose.");
 
         vm.OnRepositoryCreated(Repo("C:/repos/beta"));
         Assert.That(clock.CreatedTimerCount, Is.EqualTo(1), "No window starts after dispose.");
@@ -143,7 +143,7 @@ public class MainViewModelUiDrainTests
         await vm.DisposeAsync();
         dispatcher.RunAll();
 
-        Assert.That(vm.Repositories, Is.Empty);
+        Assert.That(vm.RepositoryList.Repositories, Is.Empty);
     }
 
     // Producer timing 1: the command is enqueued before disposal begins and is still pending.
@@ -159,7 +159,7 @@ public class MainViewModelUiDrainTests
         await vm.DisposeAsync();
         vm.DrainUICommands();
 
-        Assert.That(vm.Repositories, Is.Empty, "A pending command must not survive disposal.");
+        Assert.That(vm.RepositoryList.Repositories, Is.Empty, "A pending command must not survive disposal.");
     }
 
     // Producer timing 2: disposal has begun (the drain is stopped) but DisposeAsync is still
@@ -182,7 +182,7 @@ public class MainViewModelUiDrainTests
         await disposal;
         vm.DrainUICommands();
 
-        Assert.That(vm.Repositories, Is.Empty, "A late command must not be applied.");
+        Assert.That(vm.RepositoryList.Repositories, Is.Empty, "A late command must not be applied.");
         Assert.That(await vm.WaitForUICommandsToDrainAsync(), Is.False, "The queue holds nothing to wait for.");
     }
 

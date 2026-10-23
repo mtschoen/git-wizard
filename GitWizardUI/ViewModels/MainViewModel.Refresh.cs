@@ -23,46 +23,46 @@ public partial class MainViewModel
             return;
 
         var node = new RepositoryNodeViewModel(repository);
-        _repositoryMap[path] = node;
+        RepositoryList.RepositoryMap[path] = node;
 
-        var existingNode = _allRepositories.FirstOrDefault(candidate => candidate.WorkingDirectory == path);
+        var existingNode = RepositoryList.AllRepositories.FirstOrDefault(candidate => candidate.WorkingDirectory == path);
         if (existingNode != null)
         {
-            var existingIndex = _allRepositories.IndexOf(existingNode);
-            _allRepositories[existingIndex] = node;
+            var existingIndex = RepositoryList.AllRepositories.IndexOf(existingNode);
+            RepositoryList.AllRepositories[existingIndex] = node;
             ReplaceVisibleRepositoryNode(existingNode, node);
             return;
         }
 
-        _allRepositories.Add(node);
+        RepositoryList.AllRepositories.Add(node);
 
-        if (!node.MatchesFilter(_activeFilter, GlobalUserEmail))
+        if (!node.MatchesFilter(RepositoryList.ActiveFilter, GlobalUserEmail))
             return;
 
-        if (!string.IsNullOrWhiteSpace(_searchText) &&
-            !node.WorkingDirectory.Contains(_searchText, StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrWhiteSpace(RepositoryList.SearchText) &&
+            !node.WorkingDirectory.Contains(RepositoryList.SearchText, StringComparison.OrdinalIgnoreCase))
             return;
 
-        if (_activeGroupMode == GroupMode.None)
+        if (RepositoryList.ActiveGroupMode == GroupMode.None)
         {
-            if (!Repositories.Any(candidate => candidate.WorkingDirectory == path))
+            if (!RepositoryList.Repositories.Any(candidate => candidate.WorkingDirectory == path))
             {
                 if (IsRefreshing)
-                    Repositories.Add(node);
+                    RepositoryList.Repositories.Add(node);
                 else
-                    RepositorySortOrder.InsertRepositoryNode(Repositories, node, _activeSortMode);
+                    RepositorySortOrder.InsertRepositoryNode(RepositoryList.Repositories, node, RepositoryList.ActiveSortMode);
             }
         }
         else
         {
             if (IsRefreshing)
             {
-                foreach (var key in RepositoryGroupKeys.GetGroupKeys(node, _activeGroupMode))
-                    MergeGroupBatch(key, new List<RepositoryNodeViewModel> { node }, sort: false);
+                foreach (var key in RepositoryGroupKeys.GetGroupKeys(node, RepositoryList.ActiveGroupMode))
+                    RepositoryList.MergeGroupBatch(key, new List<RepositoryNodeViewModel> { node }, sort: false);
             }
             else
             {
-                AddToGroups(node);
+                RepositoryList.AddToGroups(node);
             }
         }
     }
@@ -89,12 +89,12 @@ public partial class MainViewModel
 
     void ReplaceVisibleRepositoryNode(RepositoryNodeViewModel existingNode, RepositoryNodeViewModel freshNode)
     {
-        var visibleIndex = Repositories.IndexOf(existingNode);
+        var visibleIndex = RepositoryList.Repositories.IndexOf(existingNode);
         if (visibleIndex >= 0)
-            Repositories[visibleIndex] = freshNode;
+            RepositoryList.Repositories[visibleIndex] = freshNode;
 
-        foreach (var groupHeader in Repositories.Where(candidate => candidate.IsGroupHeader)
-                     .Concat(_pendingGroups.Values).Distinct())
+        foreach (var groupHeader in RepositoryList.Repositories.Where(candidate => candidate.IsGroupHeader)
+                     .Concat(RepositoryList.PendingGroups.Values).Distinct())
         {
             var childIndex = groupHeader.Children.IndexOf(existingNode);
             if (childIndex < 0)
@@ -108,7 +108,7 @@ public partial class MainViewModel
     void AddSubmodule(GitWizardRepository parent, GitWizardRepository submodule)
     {
         var parentPath = parent.WorkingDirectory;
-        if (string.IsNullOrEmpty(parentPath) || !_repositoryMap.TryGetValue(parentPath, out var parentNode))
+        if (string.IsNullOrEmpty(parentPath) || !RepositoryList.RepositoryMap.TryGetValue(parentPath, out var parentNode))
             return;
 
         var submodulePath = submodule.WorkingDirectory;
@@ -116,7 +116,7 @@ public partial class MainViewModel
             return;
 
         var submoduleNode = new RepositoryNodeViewModel(submodule);
-        _repositoryMap[submodulePath] = submoduleNode;
+        RepositoryList.RepositoryMap[submodulePath] = submoduleNode;
         parentNode.Children.Add(submoduleNode);
     }
 
@@ -135,30 +135,30 @@ public partial class MainViewModel
         if (!string.IsNullOrEmpty(repository.RefreshError))
             LogError(repository.RefreshError, path);
 
-        if (string.IsNullOrEmpty(path) || !_repositoryMap.TryGetValue(path, out var node))
+        if (string.IsNullOrEmpty(path) || !RepositoryList.RepositoryMap.TryGetValue(path, out var node))
             return;
 
         node.Update();
 
         // For filtering (no grouping): incrementally add/remove without rebuilding
-        if (_activeFilter != FilterType.None && _activeGroupMode == GroupMode.None)
+        if (RepositoryList.ActiveFilter != FilterType.None && RepositoryList.ActiveGroupMode == GroupMode.None)
         {
-            var isShown = Repositories.Contains(node);
-            var shouldShow = node.MatchesFilter(_activeFilter, GlobalUserEmail);
+            var isShown = RepositoryList.Repositories.Contains(node);
+            var shouldShow = node.MatchesFilter(RepositoryList.ActiveFilter, GlobalUserEmail);
             if (isShown && !shouldShow)
-                Repositories.Remove(node);
+                RepositoryList.Repositories.Remove(node);
             else if (!isShown && shouldShow)
             {
                 if (IsRefreshing)
-                    Repositories.Add(node);
+                    RepositoryList.Repositories.Add(node);
                 else
-                    RepositorySortOrder.InsertRepositoryNode(Repositories, node, _activeSortMode);
+                    RepositorySortOrder.InsertRepositoryNode(RepositoryList.Repositories, node, RepositoryList.ActiveSortMode);
             }
 
-            UpdateHeaderWithFilterInfo();
+            RepositoryList.UpdateHeaderWithFilterInfo();
         }
         // A repository can appear in multiple remote groups; refresh every aggregate and status summary.
-        if (_activeGroupMode != GroupMode.None)
+        if (RepositoryList.ActiveGroupMode != GroupMode.None)
         {
             foreach (var header in node.ParentHeaders)
             {
@@ -210,10 +210,10 @@ public partial class MainViewModel
         // repeated refresh cycles. The visible collection must be changed on the UI thread.
         await _ui.InvokeAsync(() =>
         {
-            Repositories.Clear();
-            _pendingGroups.Clear();
-            _allRepositories.Clear();
-            _repositoryMap.Clear();
+            RepositoryList.Repositories.Clear();
+            RepositoryList.PendingGroups.Clear();
+            RepositoryList.AllRepositories.Clear();
+            RepositoryList.RepositoryMap.Clear();
             PrePopulateFromReport(configuration, cachedPaths, cachedReport);
         }).ConfigureAwait(false);
 
@@ -245,12 +245,7 @@ public partial class MainViewModel
 
     internal void CompleteRefresh()
     {
-        // The anchor for this refresh was already captured once, at refresh start, before
-        // Repositories was cleared; this final rebuild's own swap must not recapture it from the
-        // just-streamed, still-unsorted list. suppressAnchorCapture is a parameter captured by this
-        // one call's SwapInRepositories closure, so an unrelated ApplyFilterAndGrouping call (e.g.
-        // a filter/search rebuild) can never consume or be affected by it.
-        ApplyFilterAndGrouping(suppressAnchorCapture: true);
+        RepositoryList.ApplyFilterAndGrouping(suppressAnchorCapture: true);
         IsScanning = false;
         IsRefreshing = false;
     }
@@ -381,7 +376,7 @@ public partial class MainViewModel
         // burst, and a per-row insertion costs an O(n) scan-and-shift of the already-inserted,
         // growing list on every iteration - quadratic over the whole batch (pr-crew review of PR
         // #241/#243, rounds 1 and 2). PrePopulateFromReport always runs against empty
-        // Repositories/_pendingGroups (RefreshAsync clears both immediately before calling it), so
+        // Repositories/RepositoryList.PendingGroups (RefreshAsync clears both immediately before calling it), so
         // MergeGroupBatch's fresh-header path is what actually runs here in practice.
         List<RepositoryNodeViewModel>? ungroupedBatch = null;
         Dictionary<string, List<RepositoryNodeViewModel>>? groupedBatches = null;
@@ -392,25 +387,25 @@ public partial class MainViewModel
                 continue;
 
             var node = new RepositoryNodeViewModel(repo);
-            _repositoryMap[path] = node;
-            _allRepositories.Add(node);
+            RepositoryList.RepositoryMap[path] = node;
+            RepositoryList.AllRepositories.Add(node);
             _prePopulatedNodes ??= new HashSet<RepositoryNodeViewModel>();
             _prePopulatedNodes.Add(node);
 
-            if (!node.MatchesFilter(_activeFilter, GlobalUserEmail))
+            if (!node.MatchesFilter(RepositoryList.ActiveFilter, GlobalUserEmail))
                 continue;
-            if (!string.IsNullOrWhiteSpace(_searchText) &&
-                !path.Contains(_searchText, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrWhiteSpace(RepositoryList.SearchText) &&
+                !path.Contains(RepositoryList.SearchText, StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            if (_activeGroupMode == GroupMode.None)
+            if (RepositoryList.ActiveGroupMode == GroupMode.None)
             {
                 ungroupedBatch ??= new List<RepositoryNodeViewModel>();
                 ungroupedBatch.Add(node);
             }
             else
             {
-                foreach (var key in RepositoryGroupKeys.GetGroupKeys(node, _activeGroupMode))
+                foreach (var key in RepositoryGroupKeys.GetGroupKeys(node, RepositoryList.ActiveGroupMode))
                 {
                     groupedBatches ??= new Dictionary<string, List<RepositoryNodeViewModel>>();
                     if (!groupedBatches.TryGetValue(key, out var bucket))
@@ -426,14 +421,14 @@ public partial class MainViewModel
 
         if (ungroupedBatch != null)
         {
-            foreach (var node in RepositorySortOrder.SortBatchForDisplay(ungroupedBatch, _activeSortMode))
-                Repositories.Add(node);
+            foreach (var node in RepositorySortOrder.SortBatchForDisplay(ungroupedBatch, RepositoryList.ActiveSortMode))
+                RepositoryList.Repositories.Add(node);
         }
 
         if (groupedBatches != null)
         {
             foreach (var (key, bucket) in groupedBatches)
-                MergeGroupBatch(key, bucket);
+                RepositoryList.MergeGroupBatch(key, bucket);
         }
     }
 }

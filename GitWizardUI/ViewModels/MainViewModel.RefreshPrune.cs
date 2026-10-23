@@ -5,9 +5,9 @@ namespace GitWizardUI.ViewModels;
 public partial class MainViewModel
 {
     // After a full refresh, prune repos that were pre-populated but no longer exist
-    // in the fresh report (deleted, renamed, or stale non-repo paths).  _allRepositories
+    // in the fresh report (deleted, renamed, or stale non-repo paths).  RepositoryList.AllRepositories
     // is cleared at the start of RefreshAsync, so this method only handles cleanup
-    // from Repositories and _repositoryMap for nodes whose paths are absent from the
+    // from Repositories and RepositoryList.RepositoryMap for nodes whose paths are absent from the
     // fresh scan results (deleted) or that moved (renamed).
     internal void PruneStalePrePopulatedRepos(HashSet<string> freshPaths, HashSet<string> renamedOldPaths)
     {
@@ -65,7 +65,7 @@ public partial class MainViewModel
 
     /// <summary>
     /// Removes a single repository, by working-directory path, from every UI collection
-    /// (<c>_repositoryMap</c>, <c>_allRepositories</c>, <see cref="Repositories"/>, and any
+    /// (<see cref="RepositoryListViewModel.RepositoryMap"/>, <see cref="RepositoryListViewModel.AllRepositories"/>, <see cref="RepositoryListViewModel.Repositories"/>, and any
     /// group header holding it). No-op if the path isn't currently tracked. The internal
     /// entry point Live mode's per-event deletion/rename handling in
     /// <c>MainViewModel.Live.cs</c> calls; the batch-refresh rename cleanup above reaches the
@@ -73,17 +73,17 @@ public partial class MainViewModel
     /// </summary>
     internal void RemoveRepositoryPathFromUi(string path)
     {
-        _repositoryMap.TryRemove(path, out _);
-        _allRepositories.RemoveAll(candidate => candidate.WorkingDirectory == path);
+        RepositoryList.RepositoryMap.TryRemove(path, out _);
+        RepositoryList.AllRepositories.RemoveAll(candidate => candidate.WorkingDirectory == path);
 
-        var groupHeaders = Repositories.Where(candidate => candidate.IsGroupHeader)
-            .Concat(_pendingGroups.Values).Distinct().ToList();
+        var groupHeaders = RepositoryList.Repositories.Where(candidate => candidate.IsGroupHeader)
+            .Concat(RepositoryList.PendingGroups.Values).Distinct().ToList();
 
-        for (var index = Repositories.Count - 1; index >= 0; index--)
+        for (var index = RepositoryList.Repositories.Count - 1; index >= 0; index--)
         {
-            if (Repositories[index].WorkingDirectory == path)
+            if (RepositoryList.Repositories[index].WorkingDirectory == path)
             {
-                Repositories.RemoveAt(index);
+                RepositoryList.Repositories.RemoveAt(index);
             }
         }
 

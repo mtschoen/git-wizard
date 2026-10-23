@@ -24,7 +24,7 @@ public class MainViewModelUpdateCompletedRepositoryTests
         vm.AddRepository(repo);
 
         // After AddRepository, the node starts as Refreshing. Simulate completion.
-        var node = vm.Repositories[0];
+        var node = vm.RepositoryList.Repositories[0];
         Assert.That(node.Status, Is.EqualTo(RefreshStatus.Refreshing),
             "Precondition: newly added node starts as Refreshing.");
 
@@ -44,7 +44,7 @@ public class MainViewModelUpdateCompletedRepositoryTests
         // This should not throw or alter the list.
         vm.UpdateCompletedRepository(Repo("C:/repos/unknown"));
 
-        Assert.That(vm.Repositories, Has.Count.EqualTo(1));
+        Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1));
     }
 
     [Test]
@@ -55,7 +55,7 @@ public class MainViewModelUpdateCompletedRepositoryTests
         // Should not throw.
         vm.UpdateCompletedRepository(Repo(""));
 
-        Assert.That(vm.Repositories, Is.Empty);
+        Assert.That(vm.RepositoryList.Repositories, Is.Empty);
     }
 
     [Test]
@@ -70,9 +70,9 @@ public class MainViewModelUpdateCompletedRepositoryTests
         repo.Refresh();
 
         // At this point repo.HasPendingChanges should be true. Add it with filter on.
-        vm.ToggleFilter(FilterType.PendingChanges);
+        vm.RepositoryList.ToggleFilter(FilterType.PendingChanges);
         vm.AddRepository(repo);
-        Assert.That(vm.Repositories, Has.Count.EqualTo(1), "Precondition: dirty repo passes filter.");
+        Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1), "Precondition: dirty repo passes filter.");
 
         // Now simulate: the pending file is resolved and a refresh clears the flag.
         // Delete the untracked file and refresh again.
@@ -81,7 +81,7 @@ public class MainViewModelUpdateCompletedRepositoryTests
 
         vm.UpdateCompletedRepository(repo);
 
-        Assert.That(vm.Repositories, Is.Empty,
+        Assert.That(vm.RepositoryList.Repositories, Is.Empty,
             "After update, a repo that no longer matches the active filter must be removed.");
     }
 
@@ -94,9 +94,9 @@ public class MainViewModelUpdateCompletedRepositoryTests
         repo.Refresh();
 
         // Filter is PendingChanges; the repo is clean, so it's excluded on add.
-        vm.ToggleFilter(FilterType.PendingChanges);
+        vm.RepositoryList.ToggleFilter(FilterType.PendingChanges);
         vm.AddRepository(repo);
-        Assert.That(vm.Repositories, Is.Empty, "Precondition: clean repo fails the filter.");
+        Assert.That(vm.RepositoryList.Repositories, Is.Empty, "Precondition: clean repo fails the filter.");
 
         // Dirty it up, refresh, then update.
         fixture.AddUntrackedFile("dirty.txt");
@@ -104,7 +104,7 @@ public class MainViewModelUpdateCompletedRepositoryTests
 
         vm.UpdateCompletedRepository(repo);
 
-        Assert.That(vm.Repositories, Has.Count.EqualTo(1),
+        Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1),
             "After update, a repo that now matches the active filter must be added.");
     }
 
@@ -112,13 +112,13 @@ public class MainViewModelUpdateCompletedRepositoryTests
     public void UpdateCompletedRepository_UpdatesGroupHeaders()
     {
         var vm = CreateViewModel();
-        vm.ToggleGroupMode(GroupMode.Drive);
+        vm.RepositoryList.ToggleGroupMode(GroupMode.Drive);
 
         var repo = Repo("C:/repos/alpha");
         vm.AddRepository(repo);
 
         // The group header's display text includes child status counts.
-        var header = vm.Repositories[0];
+        var header = vm.RepositoryList.Repositories[0];
         Assert.That(header.IsGroupHeader, Is.True, "Precondition.");
 
         // Set an error on the repo, then update.

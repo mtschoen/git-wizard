@@ -18,9 +18,9 @@ public class MainWindowInteractionTests
     {
         var window = new MainWindow();
         var viewModel = (MainViewModel)window.DataContext!;
-        viewModel.ToggleGroupMode(GroupMode.Drive);
+        viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
         viewModel.AddRepository(new GitWizardRepository("C:/repos/alpha"));
-        var header = viewModel.Repositories[0];
+        var header = viewModel.RepositoryList.Repositories[0];
         var repositoryList = window.FindControl<ListBox>("RepositoryList")!;
         repositoryList.DataContext = header;
         RaiseTaps(repositoryList, Gestures.TappedEvent);
@@ -34,9 +34,9 @@ public class MainWindowInteractionTests
     {
         var window = new MainWindow();
         var viewModel = (MainViewModel)window.DataContext!;
-        viewModel.ToggleGroupMode(GroupMode.Drive);
+        viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
         viewModel.AddRepository(new GitWizardRepository("C:/repos/alpha"));
-        var header = viewModel.Repositories[0];
+        var header = viewModel.RepositoryList.Repositories[0];
         var repositoryList = window.FindControl<ListBox>("RepositoryList")!;
         repositoryList.DataContext = header;
 

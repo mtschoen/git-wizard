@@ -4,7 +4,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests;
 
 // Core MainViewModel tests exercise construction, default property state, and swapped collection notification.
-// Covers MainViewModel.cs and StatusHeaderViewModel.cs.
+// Covers MainViewModel.cs, RepositoryListViewModel.cs, and StatusHeaderViewModel.cs.
 public class MainViewModelTests
 {
     static MainViewModel CreateViewModel() => TestViewModels.Create();
@@ -70,7 +70,7 @@ public class MainViewModelTests
     public void Repositories_StartEmpty()
     {
         var vm = CreateViewModel();
-        Assert.That(vm.Repositories, Is.Empty);
+        Assert.That(vm.RepositoryList.Repositories, Is.Empty);
     }
 
     [Test]
@@ -78,9 +78,9 @@ public class MainViewModelTests
     {
         var vm = CreateViewModel();
         var invoked = false;
-        vm.AfterRepositoriesSwap = () => invoked = true;
+        vm.RepositoryList.AfterRepositoriesSwap = () => invoked = true;
 
-        vm.AfterRepositoriesSwap!();
+        vm.RepositoryList.AfterRepositoriesSwap!();
 
         Assert.That(invoked, Is.True);
     }

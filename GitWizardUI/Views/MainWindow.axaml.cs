@@ -25,11 +25,11 @@ public partial class MainWindow : Window, IAsyncDisposable
             DefenderButton.IsVisible = false;
 
         // Scroll a specific repo into view when the view model asks (e.g. after grouping).
-        _viewModel.ScrollToRequest = node => RepositoryList.ScrollIntoView(node);
+        _viewModel.RepositoryList.ScrollToRequest = node => RepositoryList.ScrollIntoView(node);
 
         // Restore the list's scroll position and selection after a refresh rebuilds the collection.
-        _viewModel.BeforeRepositoriesSwap = CaptureScrollAnchor;
-        _viewModel.AfterRepositoriesSwap = RestoreScrollAndSelectionAnchor;
+        _viewModel.RepositoryList.BeforeRepositoriesSwap = CaptureScrollAnchor;
+        _viewModel.RepositoryList.AfterRepositoriesSwap = RestoreScrollAndSelectionAnchor;
 
         // Button.Click drops KeyModifiers in Avalonia (AvaloniaUI/Avalonia#8900), so
         // capture the Shift state from a tunneling PointerPressed before Click is raised.
@@ -108,19 +108,19 @@ public partial class MainWindow : Window, IAsyncDisposable
     void FilterButton_Click(object? sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is FilterType filter)
-            _viewModel.ToggleFilter(filter);
+            _viewModel.RepositoryList.ToggleFilter(filter);
     }
 
     void GroupButton_Click(object? sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is GroupMode mode)
-            _viewModel.ToggleGroupMode(mode);
+            _viewModel.RepositoryList.ToggleGroupMode(mode);
     }
 
     void SortButton_Click(object? sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is SortMode mode)
-            _viewModel.SetSortMode(mode);
+            _viewModel.RepositoryList.SetSortMode(mode);
     }
 
     bool _refreshShiftHeld;
@@ -165,7 +165,7 @@ public partial class MainWindow : Window, IAsyncDisposable
             if (isSecondTap)
                 return;
 
-            _viewModel.ToggleGroupExpand(node);
+            _viewModel.RepositoryList.ToggleGroupExpand(node);
         }
     }
 
@@ -193,7 +193,7 @@ public partial class MainWindow : Window, IAsyncDisposable
         _anchorPath = null;
         _anchorAbove = 0;
         _selectedPath = (RepositoryList.SelectedItem as RepositoryNodeViewModel)?.WorkingDirectory
-            ?? _viewModel.SelectedRepository?.WorkingDirectory;
+            ?? _viewModel.RepositoryList.SelectedRepository?.WorkingDirectory;
 
         var count = RepositoryList.ItemCount;
         for (var i = 0; i < count; i++)

@@ -80,8 +80,8 @@ public class RepositoryNodeViewModelSizeTests
             sibling.RemoteUrls.Add(remote);
             viewModel.AddRepository(sibling);
         }
-        viewModel.ToggleGroupMode(GroupMode.RemoteUrl);
-        var headers = viewModel.Repositories.Where(node => node.IsGroupHeader).ToArray();
+        viewModel.RepositoryList.ToggleGroupMode(GroupMode.RemoteUrl);
+        var headers = viewModel.RepositoryList.Repositories.Where(node => node.IsGroupHeader).ToArray();
         Assert.That(headers, Has.Length.EqualTo(2));
         var notifiedHeaders = new HashSet<RepositoryNodeViewModel>();
         foreach (var header in headers)
@@ -231,8 +231,8 @@ public class RepositoryNodeViewModelSizeTests
             viewModel.AddRepository(repository);
         }
 
-        viewModel.ToggleGroupMode(GroupMode.Drive);
-        var header = viewModel.Repositories.Single(node => node.IsGroupHeader);
+        viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
+        var header = viewModel.RepositoryList.Repositories.Single(node => node.IsGroupHeader);
         Assert.That(header.SizeText, Is.EqualTo(string.Empty));
 
         var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
@@ -267,11 +267,11 @@ public class RepositoryNodeViewModelSizeTests
     [MethodImpl(MethodImplOptions.NoInlining)]
     static WeakReference CreateAndDiscardGroupHeader(MainViewModel viewModel)
     {
-        viewModel.ToggleGroupMode(GroupMode.Drive);
-        var header = viewModel.Repositories.First(node => node.IsGroupHeader);
+        viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
+        var header = viewModel.RepositoryList.Repositories.First(node => node.IsGroupHeader);
         var weakReference = new WeakReference(header);
 
-        viewModel.ToggleGroupMode(GroupMode.None);
+        viewModel.RepositoryList.ToggleGroupMode(GroupMode.None);
 
         return weakReference;
     }

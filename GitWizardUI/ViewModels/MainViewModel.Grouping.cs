@@ -87,14 +87,14 @@ public partial class MainViewModel
 
     public async Task ClearCacheAsync()
     {
-        await SetPreparedDiscoveryIndexAsync(null).ConfigureAwait(false);
+        await PreparedDiscoveryIndex.SetAsync(null).ConfigureAwait(false);
         GitWizardApi.ClearCache();
         await _dialogs.ShowAlertAsync("Cache Cleared", "Repository cache has been cleared");
     }
 
     public async Task DeleteAllLocalFilesAsync()
     {
-        await SetPreparedDiscoveryIndexAsync(null).ConfigureAwait(false);
+        await PreparedDiscoveryIndex.SetAsync(null).ConfigureAwait(false);
         if (!GitWizardApi.TryDeleteAllLocalFiles(out var refusal))
         {
             await _dialogs.ShowAlertAsync("Files Not Deleted", refusal);
@@ -416,25 +416,7 @@ public partial class MainViewModel
         }
     }
 
-    void UpdateHeaderWithFilterInfo()
-    {
-        if (_activeFilter == FilterType.None && _activeGroupMode == GroupMode.None)
-        {
-            HeaderText = _lastRefreshMessage ?? $"{_allRepositories.Count} repositories";
-        }
-        else if (_activeGroupMode != GroupMode.None)
-        {
-            // Repositories can also hold an expanded group header's children as flat rows
-            // (ToggleGroupExpand / AddToGroups insert them there for display), so the group
-            // count must count headers specifically, not every row (issue #241 addendum: the
-            // header read "953 repositories in 2 groups" while six groups were listed).
-            var groupCount = Repositories.Count(r => r.IsGroupHeader);
-            HeaderText = $"{_allRepositories.Count} repositories in {groupCount} groups";
-        }
-        else
-        {
-            HeaderText = $"Showing {Repositories.Count} of {_allRepositories.Count} repositories";
-        }
-    }
+    void UpdateHeaderWithFilterInfo() =>
+        StatusHeader.ShowFilterInfo(_activeFilter, _activeGroupMode, _allRepositories.Count, Repositories);
 
 }

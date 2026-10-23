@@ -5,7 +5,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests;
 
 // Refresh tests are split by concern because the combined fixture exceeds 500 lines.
-// Covers MainViewModel.Refresh.cs (RefreshAsync, HardRefreshAsync).
+// Covers MainViewModel.Refresh.cs (RefreshAsync, HardRefreshAsync) and StatusHeaderViewModel.cs.
 public class MainViewModelRefreshLifecycleTests
 {
     [SetUp]
@@ -63,7 +63,7 @@ public class MainViewModelRefreshLifecycleTests
             Assert.That(vm.IsRefreshing, Is.False);
             Assert.That(cached, Is.Not.Null, "An unusable rebuild must preserve the cached list.");
             Assert.That(cached, Does.Contain(cachedRepo).IgnoreCase);
-            Assert.That(vm.HeaderText, Does.Contain("discovery incomplete").IgnoreCase,
+            Assert.That(vm.StatusHeader.HeaderText, Does.Contain("discovery incomplete").IgnoreCase,
                 "The incomplete outcome must be visible, not silently swallowed.");
         });
     }

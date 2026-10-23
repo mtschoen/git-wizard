@@ -188,7 +188,7 @@ public partial class MainViewModel
 
         IsRefreshing = true;
         IsScanning = true;
-        HeaderText = fetchRemotes ? "Fetching remotes and refreshing..." : "Refreshing...";
+        StatusHeader.ShowRefreshMessage(fetchRemotes ? "Fetching remotes and refreshing..." : "Refreshing...");
 
         await EnsureGlobalUserEmailAsync();
 
@@ -309,7 +309,7 @@ public partial class MainViewModel
                 }).ConfigureAwait(false);
             _stopwatch.Stop();
 
-            await SetPreparedDiscoveryIndexAsync(report.DetachDiscoveryIndex()).ConfigureAwait(false);
+            await PreparedDiscoveryIndex.SetAsync(report.DetachDiscoveryIndex()).ConfigureAwait(false);
 
             publishable = report.DiscoveryInventory is not { CanPublishFullInventory: false };
 
@@ -349,7 +349,7 @@ public partial class MainViewModel
                 refreshMsg += " - discovery incomplete; previous entries preserved";
                 LogError("Discovery was incomplete; the previous repository list and report were preserved.");
             }
-            _lastRefreshMessage = refreshMsg;
+            StatusHeader.LastRefreshMessage = refreshMsg;
 
             // Only a publishable discovery may replace the cached list; an unusable or partial
             // outcome leaves the coordinator's reconciled list (and the prior entries) intact.

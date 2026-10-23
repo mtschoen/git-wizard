@@ -14,29 +14,10 @@ public partial class MainViewModel
     {
         var inspection = new MftIndexCacheInspection();
         return new IndexCacheViewModel(_ui,
-            () => inspection.Capture(GitWizardApi.GetLocalFilesPath(), CaptureActiveCacheSessions()),
+            () => inspection.Capture(GitWizardApi.GetLocalFilesPath(),
+                PreparedDiscoveryIndex.CaptureActiveCacheSessions(_liveController?.Source as IndexVolumeChangeSource)),
             () => MftIndexCacheMaintenance.Clear(GitWizardApi.GetLocalFilesPath()),
             new ReadOnlyObservableCollection<LiveVolumeStatusViewModel>(LiveVolumes),
             new ReadOnlyObservableCollection<VolumeWatchTransition>(LiveWatchEvents));
-    }
-
-    internal IReadOnlyList<MftActiveCacheSession> CaptureActiveCacheSessions()
-    {
-        var source = _liveController?.Source as IndexVolumeChangeSource;
-        lock (_preparedIndexLock)
-        {
-            var sessions = new List<MftActiveCacheSession>();
-            if (source?.CaptureCacheStatus() is { } live)
-            {
-                sessions.Add(live);
-            }
-
-            if (_preparedDiscoveryIndex?.CaptureCacheStatus() is { } prepared)
-            {
-                sessions.Add(prepared);
-            }
-
-            return sessions.AsReadOnly();
-        }
     }
 }

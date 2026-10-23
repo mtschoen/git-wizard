@@ -1,6 +1,8 @@
 using Avalonia.Controls;
 using Avalonia.Headless.NUnit;
 using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
+using Avalonia.Threading;
 using GitWizardUI.ViewModels;
 using GitWizardUI.Views;
 
@@ -12,6 +14,7 @@ namespace GitWizardTests.UI;
 /// shared Click handlers route it to the matching view model action. Also covers the busy-flag
 /// re-entry guards behind the Refresh and Live buttons.
 /// </summary>
+// Covers MainWindow.axaml, MainWindow.axaml.cs, and StatusHeaderViewModel.cs.
 public class MainWindowSidebarTests
 {
     static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -105,21 +108,30 @@ public class MainWindowSidebarTests
     }
 
     [AvaloniaTest]
-    public void RefreshButton_WhileRefreshing_DoesNotReenter()
+    public async Task RefreshButton_WhileRefreshing_DoesNotReenter()
     {
-        var window = new MainWindow();
+        await using var window = new MainWindow();
         var viewModel = (MainViewModel)window.DataContext!;
+        Dispatcher.UIThread.RunJobs();
+        var headerText = window.GetLogicalDescendants().OfType<TextBlock>()
+            .Single(block => block.Text == "GitWizard");
         viewModel.IsRefreshing = true;
-        viewModel.HeaderText = "Refreshing...";
+        viewModel.StatusHeader.ShowRefreshMessage("Refreshing...");
+        Dispatcher.UIThread.RunJobs();
+        Assert.That(headerText.Text, Is.EqualTo("Refreshing..."));
 
         Click(window.FindControl<Button>("RefreshButton")!);
 
         Assert.Multiple(() =>
         {
             Assert.That(viewModel.IsRefreshing, Is.True);
-            Assert.That(viewModel.HeaderText, Is.EqualTo("Refreshing..."),
+            Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Refreshing..."),
                 "A refresh already in progress must not be re-entered from the button.");
+            Assert.That(headerText.Text, Is.EqualTo("Refreshing..."));
         });
+        viewModel.StatusHeader.ShowLiveMessage("Live watch active");
+        Dispatcher.UIThread.RunJobs();
+        Assert.That(headerText.Text, Is.EqualTo("Live watch active"));
     }
 
     [AvaloniaTest]
@@ -138,7 +150,7 @@ public class MainWindowSidebarTests
         {
             Assert.That(viewModel.IsLive, Is.False);
             Assert.That(viewModel.IsLiveStarting, Is.False);
-            Assert.That(viewModel.HeaderText, Is.EqualTo("GitWizard"),
+            Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("GitWizard"),
                 "Even a programmatic click must not re-enter ToggleLiveAsync mid-refresh.");
         });
     }

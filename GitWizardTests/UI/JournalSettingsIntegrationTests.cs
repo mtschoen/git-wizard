@@ -10,6 +10,7 @@ using MFTLibTestExtensions;
 
 namespace GitWizardTests.UI;
 
+// Covers MainViewModel.Journals.cs, SettingsViewModel.Journals.cs, and StatusHeaderViewModel.cs.
 public class JournalSettingsIntegrationTests
 {
     LocalFilesSandbox? _sandbox;
@@ -126,7 +127,7 @@ public class JournalSettingsIntegrationTests
         _running = _main.ToggleLiveAsync();
         await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
         _dispatcher.Drain();
-        Assert.That(_main.HeaderText, Is.EqualTo("Live watch active"));
+        Assert.That(_main.StatusHeader.HeaderText, Is.EqualTo("Live watch active"));
         Assert.That(_settings.JournalWarnings, Is.Empty);
     }
 
@@ -322,7 +323,7 @@ public class JournalSettingsIntegrationTests
         await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
         _dispatcher.Drain();
         Assert.That(_main.JournalWarnings, Is.Empty);
-        Assert.That(_main.HeaderText, Is.EqualTo("Live watch active"));
+        Assert.That(_main.StatusHeader.HeaderText, Is.EqualTo("Live watch active"));
     }
 
     [Test]

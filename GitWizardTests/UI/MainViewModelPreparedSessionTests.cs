@@ -9,6 +9,7 @@ using MFTLibTestExtensions;
 
 namespace GitWizardTests.UI;
 
+// Covers PreparedDiscoveryIndexStore.cs, MainViewModel.cs, MainViewModel.Grouping.cs, and MainViewModel.LiveStartup.cs.
 [TestFixture]
 public class MainViewModelPreparedSessionTests
 {
@@ -25,10 +26,14 @@ public class MainViewModelPreparedSessionTests
         await using var second = new IndexOwnerFixture();
         await second.StartAsync();
         await using var viewModel = NewViewModel();
-        await viewModel.SetPreparedDiscoveryIndexAsync(first.Owner);
-        await viewModel.SetPreparedDiscoveryIndexAsync(second.Owner);
+        await viewModel.PreparedDiscoveryIndex.SetAsync(first.Owner);
+        await viewModel.PreparedDiscoveryIndex.SetAsync(first.Owner);
+        Assert.That(viewModel.PreparedDiscoveryIndex.Current, Is.SameAs(first.Owner));
+        Assert.That(first.ConnectionDisposals, Is.Zero);
+        Assert.That(first.Owner.IsDisposed, Is.False);
+        await viewModel.PreparedDiscoveryIndex.SetAsync(second.Owner);
         Assert.That(first.ConnectionDisposals, Is.EqualTo(1));
-        Assert.That(viewModel.PreparedDiscoveryIndex, Is.SameAs(second.Owner));
+        Assert.That(viewModel.PreparedDiscoveryIndex.Current, Is.SameAs(second.Owner));
         Assert.That(second.Owner.IsDisposed, Is.False);
     }
 
@@ -53,9 +58,9 @@ public class MainViewModelPreparedSessionTests
         MftIndexSession? owner;
         try
         {
-            await viewModel.SetPreparedDiscoveryIndexAsync(fixture.Owner);
-            owner = viewModel.TakePreparedDiscoveryIndex();
-            Assert.That(viewModel.TakePreparedDiscoveryIndex(), Is.Null);
+            await viewModel.PreparedDiscoveryIndex.SetAsync(fixture.Owner);
+            owner = viewModel.PreparedDiscoveryIndex.Take();
+            Assert.That(viewModel.PreparedDiscoveryIndex.Take(), Is.Null);
         }
         finally
         {
@@ -81,24 +86,27 @@ public class MainViewModelPreparedSessionTests
         await using var fixture = new IndexOwnerFixture();
         await fixture.StartAsync();
         await using var viewModel = NewViewModel();
-        await viewModel.SetPreparedDiscoveryIndexAsync(fixture.Owner);
-        Assert.That(viewModel.PreparedDiscoveryIndex!.Drives, Is.EqualTo(new[] { "X" }));
-        Assert.That(viewModel.PreparedDiscoveryIndex.Index, Is.SameAs(fixture.Owner.Index));
+        await viewModel.PreparedDiscoveryIndex.SetAsync(fixture.Owner);
+        Assert.That(viewModel.PreparedDiscoveryIndex.Current!.Drives, Is.EqualTo(new[] { "X" }));
+        Assert.That(viewModel.PreparedDiscoveryIndex.Current.Index, Is.SameAs(fixture.Owner.Index));
     }
 
     [Test]
     public Task SetPreparedDiscoveryIndexAsync_WhenNull_DisposesExistingIndex() =>
-        AssertReleaseAsync(viewModel => viewModel.SetPreparedDiscoveryIndexAsync(null));
+        AssertReleaseAsync(viewModel => viewModel.PreparedDiscoveryIndex.SetAsync(null));
 
     static async Task AssertReleaseAsync(Func<MainViewModel, Task> release)
     {
         await using var fixture = new IndexOwnerFixture();
         await fixture.StartAsync();
         await using var viewModel = NewViewModel();
-        await viewModel.SetPreparedDiscoveryIndexAsync(fixture.Owner);
+        await viewModel.PreparedDiscoveryIndex.SetAsync(fixture.Owner);
         await release(viewModel);
-        Assert.That(viewModel.PreparedDiscoveryIndex, Is.Null);
+        Assert.That(viewModel.PreparedDiscoveryIndex.Current, Is.Null);
         Assert.That(fixture.Owner.IsDisposed, Is.True);
+        Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
+        await viewModel.PreparedDiscoveryIndex.DisposeAsync();
+        Assert.That(viewModel.PreparedDiscoveryIndex.Current, Is.Null);
         Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
     }
 
@@ -131,7 +139,7 @@ public class MainViewModelPreparedSessionTests
         await using var fixture = new IndexOwnerFixture();
         await fixture.StartAsync(scripted);
         await using var viewModel = NewViewModel();
-        await viewModel.SetPreparedDiscoveryIndexAsync(fixture.Owner);
+        await viewModel.PreparedDiscoveryIndex.SetAsync(fixture.Owner);
         var opens = 0;
         viewModel.LivePrepareWatchAsync = async (request, prepared, _, cancellationToken) =>
         {
@@ -153,7 +161,7 @@ public class MainViewModelPreparedSessionTests
             await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
             await WaitUntilAsync(() => viewModel.IsLive);
             Assert.That(opens, Is.Zero);
-            Assert.That(viewModel.PreparedDiscoveryIndex, Is.Null);
+            Assert.That(viewModel.PreparedDiscoveryIndex.Current, Is.Null);
             if (respawn)
             {
                 scripted.WatchFor('X').LoseChannel(new IOException("source died"));

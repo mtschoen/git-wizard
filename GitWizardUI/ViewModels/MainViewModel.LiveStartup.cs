@@ -20,7 +20,7 @@ public partial class MainViewModel
 
         if (!IsLiveSupported)
         {
-            HeaderText = $"Live watch unavailable: {LiveTooltip}";
+            StatusHeader.ShowLiveMessage($"Live watch unavailable: {LiveTooltip}");
             return;
         }
 
@@ -41,7 +41,7 @@ public partial class MainViewModel
         {
             IsLiveStarting = true;
             ClearLiveScanProgress();
-            HeaderText = "Starting Live watch...";
+            StatusHeader.ShowLiveMessage("Starting Live watch...");
         }).ConfigureAwait(false);
 
         try
@@ -75,7 +75,7 @@ public partial class MainViewModel
                 // watch ended, including the sole-drive case where the terminal header is all
                 // the UI shows. A user-initiated stop still clears them (StopLiveAsync).
                 SurfaceNewLiveScanWarnings(controller);
-                HeaderText = $"Live watch stopped: {reason}{FormatLiveScanErrorSuffix(controller)}";
+                StatusHeader.ShowLiveMessage($"Live watch stopped: {reason}{FormatLiveScanErrorSuffix(controller)}");
             }),
             LiveIsElevated);
 
@@ -88,7 +88,7 @@ public partial class MainViewModel
         IProgress<WatchStartupProgress>? progress,
         CancellationToken cancellationToken)
     {
-        var prepared = TakePreparedDiscoveryIndex();
+        var prepared = PreparedDiscoveryIndex.Take();
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Watch, false, false, trackedRoots);
         return LivePrepareWatchAsync(request, prepared, progress, cancellationToken);
     }
@@ -148,7 +148,7 @@ public partial class MainViewModel
             IsLiveStarting = false;
             IsLive = true;
             ClearLiveScanProgress();
-            HeaderText = "Live watch active";
+            StatusHeader.ShowLiveMessage("Live watch active");
             _reportedLiveScanErrors.Clear();
             SurfaceNewLiveScanErrors(controller);
             SurfaceNewLiveScanWarnings(controller);
@@ -174,11 +174,11 @@ public partial class MainViewModel
                     LogError($"Live discovery error on {root}: {message}");
                 }
 
-                HeaderText = $"Live watch could not start: {inventory.Errors.Values.FirstOrDefault() ?? "discovery unusable"}";
+                StatusHeader.ShowLiveMessage($"Live watch could not start: {inventory.Errors.Values.FirstOrDefault() ?? "discovery unusable"}");
             }
             else
             {
-                HeaderText = "No tracked repositories found; nothing to watch.";
+                StatusHeader.ShowLiveMessage("No tracked repositories found; nothing to watch.");
             }
         });
 
@@ -223,7 +223,7 @@ public partial class MainViewModel
                 ClearLiveScanProgress();
                 ClearLiveReadiness();
                 JournalWarnings.Clear();
-                HeaderText = $"Live watch could not start: {exception.Message}";
+                StatusHeader.ShowLiveMessage($"Live watch could not start: {exception.Message}");
             }).ConfigureAwait(false);
         }
     }
@@ -258,7 +258,7 @@ public partial class MainViewModel
                 continue;
             }
 
-            HeaderText = $"Live scan error on {drive}: {message}";
+            StatusHeader.ShowLiveMessage($"Live scan error on {drive}: {message}");
         }
         if (JournalWarnings.Count > 0)
         {

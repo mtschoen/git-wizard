@@ -12,6 +12,7 @@ using GitWizardUI.Views;
 
 namespace GitWizardTests.UI;
 
+// Covers MainWindow.axaml, SettingsWindow.axaml, and StatusHeaderViewModel.cs.
 public class JournalSettingsWindowTests
 {
     [AvaloniaTest]
@@ -31,7 +32,7 @@ public class JournalSettingsWindowTests
             main.JournalWarnings.Add(warning);
             var list = window.FindControl<ItemsControl>("JournalWarningList");
             Assert.That(list, Is.Not.Null);
-            main.HeaderText = "Refreshing repositories...";
+            main.StatusHeader.ShowRefreshMessage("Refreshing repositories...");
             Dispatcher.UIThread.RunJobs();
             Assert.That(list.ItemsSource, Does.Contain(warning));
         }

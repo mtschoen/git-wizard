@@ -13,6 +13,7 @@ namespace GitWizardTests.UI;
 // to clear JournalWarnings and build the header from scan errors only, so the checkpoint-loss
 // explanation vanished at exactly the moment it mattered.
 [TestFixture]
+// Covers MainViewModel.LiveStartup.cs, MainViewModel.Journals.cs, and StatusHeaderViewModel.cs.
 public class LiveTerminalJournalHintTests
 {
     LocalFilesSandbox? _sandbox;
@@ -68,7 +69,7 @@ public class LiveTerminalJournalHintTests
         _dispatcher.Drain();
 
         Assert.That(_main.IsLive, Is.False);
-        Assert.That(_main.HeaderText, Does.Contain("Live watch stopped"));
+        Assert.That(_main.StatusHeader.HeaderText, Does.Contain("Live watch stopped"));
         var warning = _main.JournalWarnings.Single();
         Assert.That(warning.Warning.Message, Does.Contain("Hint on C:").And.Contain("at least 136 MB"));
     }
@@ -88,7 +89,7 @@ public class LiveTerminalJournalHintTests
         _dispatcher.Drain();
 
         Assert.That(_main.IsLive, Is.False);
-        Assert.That(_main.HeaderText, Does.Contain("Live watch stopped"));
+        Assert.That(_main.StatusHeader.HeaderText, Does.Contain("Live watch stopped"));
         var warning = _main.JournalWarnings.Single();
         Assert.That(warning.Warning.Message, Does.Contain("Hint on C:")
             .And.Contain("Live updates for this drive stopped"));
@@ -111,6 +112,6 @@ public class LiveTerminalJournalHintTests
         var warning = _main.JournalWarnings.Single();
         Assert.That(warning.Warning.Message, Does.Contain("Hint on D:")
             .And.Contain("The drive is being rescanned to catch up"));
-        Assert.That(_main.HeaderText, Does.Contain("journal hints"));
+        Assert.That(_main.StatusHeader.HeaderText, Does.Contain("journal hints"));
     }
 }

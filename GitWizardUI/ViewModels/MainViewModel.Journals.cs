@@ -129,7 +129,7 @@ public partial class MainViewModel
             messages.AddRange(controller.ScanErrors.Select(error => $"Live scan error on {error.Key}: {error.Value}"));
         }
 
-        HeaderText = messages.Count == 0 ? "Live watch active" : string.Join(" ", messages);
+        StatusHeader.ShowLiveMessage(messages.Count == 0 ? "Live watch active" : string.Join(" ", messages));
     }
 }
 

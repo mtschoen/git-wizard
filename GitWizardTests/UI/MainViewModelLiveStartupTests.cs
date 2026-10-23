@@ -8,7 +8,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests.UI;
 
 // Live watch tests are split by concern because the combined fixture exceeds 500 lines.
-// Covers MainViewModel.LiveStartup.cs.
+// Covers MainViewModel.LiveStartup.cs and StatusHeaderViewModel.cs.
 public class MainViewModelLiveStartupTests
 {
     [SetUp]
@@ -55,13 +55,13 @@ public class MainViewModelLiveStartupTests
             controller = WatchSubscriptionProbe.Controller(viewModel);
             Assert.That(WatchSubscriptionProbe.ScanErrorsSubscribers(controller), Is.EqualTo(1));
             source.FailDrive("X", "watch failed");
-            Assert.That(viewModel.HeaderText, Is.EqualTo("Live watch active"), "Warnings must be posted to the UI.");
+            Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Live watch active"), "Warnings must be posted to the UI.");
             dispatcher.Drain();
-            Assert.That(viewModel.HeaderText, Is.EqualTo("Live scan error on X: watch failed"));
+            Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Live scan error on X: watch failed"));
             Assert.That(viewModel.IsLive, Is.True);
             source.FailDrive("X", "watch failed again");
             dispatcher.Drain();
-            Assert.That(viewModel.HeaderText, Is.EqualTo("Live scan error on X: watch failed again"));
+            Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Live scan error on X: watch failed again"));
         }
         finally
         {
@@ -136,7 +136,7 @@ public class MainViewModelLiveStartupTests
             Assert.That(viewModel.IsLiveStarting, Is.True);
             Assert.That(viewModel.IsLive, Is.False);
             Assert.That(viewModel.LiveButtonText, Is.EqualTo("Starting Live..."));
-            Assert.That(viewModel.HeaderText, Is.EqualTo("Starting Live watch..."));
+            Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Starting Live watch..."));
         });
 
         await viewModel.ToggleLiveAsync();
@@ -180,7 +180,7 @@ public class MainViewModelLiveStartupTests
         Assert.Multiple(() =>
         {
             Assert.That(viewModel.IsLive, Is.False);
-            Assert.That(viewModel.HeaderText, Does.Contain("declined UAC prompt"));
+            Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain("declined UAC prompt"));
         });
     }
 
@@ -200,7 +200,7 @@ public class MainViewModelLiveStartupTests
         await WaitUntilAsync(() => !viewModel.IsLive);
         await startTask;
 
-        Assert.That(viewModel.HeaderText, Does.Contain("driver hiccup"));
+        Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain("driver hiccup"));
     }
 
     [Test]
@@ -218,12 +218,12 @@ public class MainViewModelLiveStartupTests
         viewModel.LiveIsElevated = () => false;
 
         var startTask = viewModel.ToggleLiveAsync();
-        await WaitUntilAsync(() => viewModel.HeaderText.Contains("drive not ready"));
+        await WaitUntilAsync(() => viewModel.StatusHeader.HeaderText.Contains("drive not ready"));
 
         await viewModel.ToggleLiveAsync();
         await startTask;
 
-        Assert.That(viewModel.HeaderText, Does.Contain("Live scan error on D: drive not ready"));
+        Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain("Live scan error on D: drive not ready"));
     }
 
     [Test]
@@ -261,7 +261,7 @@ public class MainViewModelLiveStartupTests
         await WaitUntilAsync(() => !viewModel.IsLive);
         await startTask;
 
-        Assert.That(viewModel.HeaderText, Does.Contain("scan errors: D: drive not ready"));
+        Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain("scan errors: D: drive not ready"));
     }
 
     [Test]
@@ -369,14 +369,14 @@ public class MainViewModelLiveStartupTests
         viewModel.LiveIsElevated = () => false;
 
         var startTask = viewModel.ToggleLiveAsync();
-        await WaitUntilAsync(() => viewModel.HeaderText.Contains("could not start"));
+        await WaitUntilAsync(() => viewModel.StatusHeader.HeaderText.Contains("could not start"));
         await startTask;
 
         Assert.Multiple(() =>
         {
             Assert.That(viewModel.IsLive, Is.False);
             Assert.That(viewModel.IsLiveStarting, Is.False);
-            Assert.That(viewModel.HeaderText, Does.Contain("Live watch could not start: broker declined"));
+            Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain("Live watch could not start: broker declined"));
             Assert.That(viewModel.Repositories.Select(node => node.WorkingDirectory),
                 Is.EqualTo(new[] { "/keep-me" }), "An unusable startup must not touch prior rows.");
         });

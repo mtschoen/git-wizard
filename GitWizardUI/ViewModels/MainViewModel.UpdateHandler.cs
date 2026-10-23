@@ -19,7 +19,7 @@ public partial class MainViewModel
     // recursive walk posts per directory) or refresh can fire thousands of these;
     // posting each one floods the dispatcher and starves UI input ("Not Responding").
     // Instead we keep only the latest message and allow at most one post in flight -
-    // many updates batch into a single HeaderText write, event-driven (no polling).
+    // many updates batch into a single StatusHeader.HeaderText write, event-driven (no polling).
     string? _latestStatusMessage;
     int _statusUpdateScheduled;
 
@@ -39,7 +39,7 @@ public partial class MainViewModel
             _ui.Post(() =>
             {
                 Interlocked.Exchange(ref _statusUpdateScheduled, 0);
-                HeaderText = _latestStatusMessage;
+                StatusHeader.ShowRefreshMessage(_latestStatusMessage);
             });
         }
     }

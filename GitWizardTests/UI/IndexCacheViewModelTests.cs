@@ -7,6 +7,7 @@ using MFTLibTestExtensions;
 
 namespace GitWizardTests.UI;
 
+// Covers IndexCacheViewModel.cs, MainViewModel.IndexCache.cs, and PreparedDiscoveryIndexStore.cs.
 public class IndexCacheViewModelTests
 {
     [Test]
@@ -131,16 +132,38 @@ public class IndexCacheViewModelTests
         var session = new MftIndexSession(index, null, ["X"], drives,
             new Dictionary<string, string>(), files.BlockDirectory);
         await using var main = TestViewModels.Create();
-        await main.SetPreparedDiscoveryIndexAsync(session);
-        Assert.That(main.CaptureActiveCacheSessions().Single().Drives.Single().Drive.IndexStatus!.Block?.CacheLocation,
+        await main.PreparedDiscoveryIndex.SetAsync(session);
+        Assert.That(main.PreparedDiscoveryIndex.CaptureActiveCacheSessions(liveSource: null).Single().Drives.Single().Drive.IndexStatus!.Block?.CacheLocation,
             Is.EqualTo(CacheLocation.OwnedCanonical));
         var source = new IndexVolumeChangeSource(
-            (_, _, _) => throw new AssertionException("Inspection must not open"), main.TakePreparedDiscoveryIndex());
-        Assert.That(main.PreparedDiscoveryIndex, Is.Null);
+            (_, _, _) => throw new AssertionException("Inspection must not open"), main.PreparedDiscoveryIndex.Take());
+        Assert.That(main.PreparedDiscoveryIndex.Current, Is.Null);
         Assert.That(source.CaptureCacheStatus()!.Drives.Single().VolumeSerial, Is.EqualTo(1));
+        Assert.That(main.PreparedDiscoveryIndex.CaptureActiveCacheSessions(source)
+            .Single().Drives.Single().VolumeSerial, Is.EqualTo(1));
+
+        using var secondFiles = new PackedIndexFixture();
+        var secondDrives = new[] { new IndexedDrive('Y', secondFiles.TreePath, 2, ProducerKind.Enumeration) };
+        var secondIndex = await FileIndex.OpenAsync(new FileIndexOptions
+        {
+            Drives = secondDrives,
+            CacheDirectory = secondFiles.BlockDirectory
+        }, CancellationToken.None);
+        var secondSession = new MftIndexSession(secondIndex, null, ["Y"], secondDrives,
+            new Dictionary<string, string>(), secondFiles.BlockDirectory);
+        await main.PreparedDiscoveryIndex.SetAsync(secondSession);
+        var captures = main.PreparedDiscoveryIndex.CaptureActiveCacheSessions(source);
+        Assert.That(captures.Select(capture => capture.Drives.Single().VolumeSerial),
+            Is.EqualTo(new uint?[] { 1, 2 }));
+        Assert.That(main.PreparedDiscoveryIndex.Current, Is.SameAs(secondSession));
+        Assert.That(secondSession.IsDisposed, Is.False);
+        await main.PreparedDiscoveryIndex.SetAsync(null);
+        Assert.That(secondSession.IsDisposed, Is.True);
+        Assert.That(main.PreparedDiscoveryIndex.CaptureActiveCacheSessions(source), Has.Count.EqualTo(1));
         await source.DisposeAsync();
         Assert.That(source.CaptureCacheStatus(), Is.Null);
-        Assert.That(main.CaptureActiveCacheSessions(), Is.Empty);
+        Assert.That(main.PreparedDiscoveryIndex.CaptureActiveCacheSessions(source), Is.Empty);
+        Assert.That(main.PreparedDiscoveryIndex.CaptureActiveCacheSessions(liveSource: null), Is.Empty);
     }
 
     static MftIndexCacheMaintenanceResult NoClear() => new([], [], []);

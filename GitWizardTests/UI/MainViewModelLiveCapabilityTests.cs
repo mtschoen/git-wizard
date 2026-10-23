@@ -6,7 +6,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests.UI;
 
 // Live watch tests are split by concern because the combined fixture exceeds 500 lines.
-// Covers MainViewModel.Live.cs (CanToggleLive and header state).
+// Covers MainViewModel.Live.cs and StatusHeaderViewModel.cs (CanToggleLive and header state).
 public class MainViewModelLiveCapabilityTests
 {
     [SetUp]
@@ -46,7 +46,7 @@ public class MainViewModelLiveCapabilityTests
     {
         var viewModel = NewViewModel();
         viewModel.IsRefreshing = true;
-        viewModel.HeaderText = "Refreshing repositories...";
+        viewModel.StatusHeader.ShowRefreshMessage("Refreshing repositories...");
 
         await viewModel.ToggleLiveAsync();
 
@@ -54,7 +54,7 @@ public class MainViewModelLiveCapabilityTests
         {
             Assert.That(viewModel.IsLive, Is.False);
             Assert.That(viewModel.IsLiveStarting, Is.False);
-            Assert.That(viewModel.HeaderText, Is.EqualTo("Refreshing repositories..."));
+            Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Refreshing repositories..."));
         });
     }
 
@@ -74,8 +74,8 @@ public class MainViewModelLiveCapabilityTests
         Assert.Multiple(() =>
         {
             Assert.That(viewModel.IsLive, Is.False);
-            Assert.That(viewModel.HeaderText, Does.Contain("Live watch unavailable"));
-            Assert.That(viewModel.HeaderText, Does.Contain("kernel 5.9"));
+            Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain("Live watch unavailable"));
+            Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain("kernel 5.9"));
         });
     }
 
@@ -95,8 +95,8 @@ public class MainViewModelLiveCapabilityTests
         Assert.Multiple(() =>
         {
             Assert.That(viewModel.IsLive, Is.False);
-            Assert.That(viewModel.HeaderText, Does.Contain("Live watch unavailable"));
-            Assert.That(viewModel.HeaderText, Does.Contain("unsupported on this filesystem"));
+            Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain("Live watch unavailable"));
+            Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain("unsupported on this filesystem"));
         });
     }
 

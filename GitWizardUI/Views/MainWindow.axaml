@@ -108,7 +108,7 @@
       </StackPanel>
 
       <StackPanel Grid.Row="1" Margin="10,0,0,0">
-        <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding HeaderText}" />
+        <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding StatusHeader.HeaderText}" />
         <ItemsControl x:Name="JournalWarningList" ItemsSource="{Binding JournalWarnings}">
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:JournalWarningViewModel">

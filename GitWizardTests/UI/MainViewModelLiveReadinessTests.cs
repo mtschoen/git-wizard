@@ -8,7 +8,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests.UI;
 
 // Live watch tests are split by concern because the combined fixture exceeds 500 lines.
-// Covers MainViewModel.LiveReadiness.cs.
+// Covers MainViewModel.LiveReadiness.cs and StatusHeaderViewModel.cs.
 public class MainViewModelLiveReadinessTests
 {
     [SetUp]
@@ -71,7 +71,7 @@ public class MainViewModelLiveReadinessTests
             dispatcher.Drain();
             Assert.That(viewModel.LiveVolumes.Single().DisplayText, Is.EqualTo("X: caught up (cold)"));
             Assert.That(viewModel.LiveReadinessText, Is.EqualTo("Ready (journal): X"));
-            Assert.That(viewModel.HeaderText, Is.EqualTo("Live watch active"));
+            Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Live watch active"));
             Assert.That(viewModel.LiveReadinessTooltip, Is.EqualTo("X: caught up (cold)"));
             Assert.That(cacheModel.LiveVolumes.Single().DisplayText, Is.EqualTo("X: caught up (cold)"));
             Assert.That(tooltipNotifications.Value, Is.GreaterThan(notificationsAfterCatchingUp));

@@ -25,7 +25,6 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
     internal readonly List<RepositoryNodeViewModel> _allRepositories = new();
     readonly Dictionary<string, RepositoryNodeViewModel> _pendingGroups = new();
 
-    string _headerText = "GitWizard";
     double _progressValue;
     bool _isProgressVisible;
     string _progressText = string.Empty;
@@ -36,7 +35,6 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
     FilterType _activeFilter = FilterType.None;
     GroupMode _activeGroupMode = GroupMode.None;
     SortMode _activeSortMode = SortMode.WorkingDirectory;
-    string? _lastRefreshMessage;
     const int SearchDebounceMilliseconds = 200;
     readonly SearchDebouncer _searchDebouncer = new();
     string _searchText = string.Empty;
@@ -85,18 +83,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
         }
     }
 
-    public string HeaderText
-    {
-        get => _headerText;
-        set
-        {
-            if (_headerText != value)
-            {
-                _headerText = value;
-                OnPropertyChanged();
-            }
-        }
-    }
+    public StatusHeaderViewModel StatusHeader { get; } = new();
 
     public double ProgressValue
     {
@@ -337,44 +324,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
         }
     }
 
-    readonly Lock _preparedIndexLock = new();
-    MftIndexSession? _preparedDiscoveryIndex;
-
-    internal MftIndexSession? PreparedDiscoveryIndex
-    {
-        get
-        {
-            lock (_preparedIndexLock)
-            {
-                return _preparedDiscoveryIndex;
-            }
-        }
-    }
-
-    internal MftIndexSession? TakePreparedDiscoveryIndex()
-    {
-        lock (_preparedIndexLock)
-        {
-            var session = _preparedDiscoveryIndex;
-            _preparedDiscoveryIndex = null;
-            return session;
-        }
-    }
-
-    internal async Task SetPreparedDiscoveryIndexAsync(MftIndexSession? nextIndex)
-    {
-        MftIndexSession? oldIndex;
-        lock (_preparedIndexLock)
-        {
-            oldIndex = _preparedDiscoveryIndex;
-            _preparedDiscoveryIndex = nextIndex;
-        }
-
-        if (oldIndex != null && !ReferenceEquals(oldIndex, nextIndex))
-        {
-            await oldIndex.DisposeAsync().ConfigureAwait(false);
-        }
-    }
+    internal PreparedDiscoveryIndexStore PreparedDiscoveryIndex { get; } = new();
 
     public async ValueTask DisposeAsync()
     {
@@ -392,7 +342,7 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
             _liveWatchHistory = null;
         }).ConfigureAwait(false);
 
-        await SetPreparedDiscoveryIndexAsync(null).ConfigureAwait(false);
+        await PreparedDiscoveryIndex.DisposeAsync().ConfigureAwait(false);
         _searchDebouncer.Dispose();
         GC.SuppressFinalize(this);
     }
@@ -404,4 +354,3 @@ public partial class MainViewModel : INotifyPropertyChanged, IUpdateHandler, IAs
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }
-

@@ -63,6 +63,7 @@ non-NTFS roots and `--no-mft`) use the enumeration producer, which applies the s
 - **Collection swap pattern** - `ApplyFilterAndGrouping()` builds a new `ObservableCollection` off-screen and swaps it in one shot to avoid per-item layout updates with 700+ repos.
 - **UI command queue** - Background refresh threads enqueue `RepositoryUICommand` structs; the first enqueue of a burst starts one 250 ms batching window on the injected `TimeProvider`, and its expiry posts one drain to the UI dispatcher that applies the whole batch and the latest progress; `DisposeAsync` stops the window.
 - **RefreshStatus enum** - Per-repo status (Refreshing/Success/Timeout/Error) drives the status icon in column 0. `MarkRefreshFailed()` on `GitWizardRepository` handles timeout/error paths.
+- **Header and prepared-session composition** - `MainViewModel` exposes `StatusHeader` (`StatusHeaderViewModel`, which owns `HeaderText`, the refresh-summary baseline, and filter/group suffix recomposition) and `_preparedDiscoveryIndex` (`PreparedDiscoveryIndexStore`, which owns the single prepared `MftIndexSession` between discovery and Live watch startup, disposing any prior owner on replacement).
 
 ## Discovery coordinator
 
@@ -111,7 +112,7 @@ GitWizard stores config and cache in `~/.GitWizard/` (overridable by `GITWIZARD_
 ## Verification sources
 
 - Discovery policy/publication: `GitWizard/Discovery/`, `GitWizard/GitWizardApi.Discovery.cs`, `git-wizard/Program.Report.cs`, `git-wizard/Program.Discovery.cs`, `GitWizardUI/ViewModels/MainViewModel.Refresh.cs`.
-- Cache/session ownership: `GitWizard/MftIndexSession*.cs`, `MftDiscoveryResult.cs`, `GitWizardReport.cs`, `MftIndexCachePolicy.cs`, `MftIndexCacheInspection.cs`, `MftIndexCacheMaintenance.cs`, `GitWizardUI/ViewModels/IndexCacheViewModel.cs`.
+- Cache/session ownership: `GitWizard/MftIndexSession*.cs`, `MftDiscoveryResult.cs`, `GitWizardReport.cs`, `MftIndexCachePolicy.cs`, `MftIndexCacheInspection.cs`, `MftIndexCacheMaintenance.cs`, `GitWizardUI/ViewModels/IndexCacheViewModel.cs`, `GitWizardUI/ViewModels/PreparedDiscoveryIndexStore.cs`.
 - Desktop admission/Defender: `GitWizardUI/Program.cs`, `GitWizardUI/DesktopInstance.cs`, `git-wizard/Program.cs`, `GitWizard/WindowsDefender.cs`.
-- UI queue, filter and scroll: `GitWizardUI/ViewModels/MainViewModel*.cs`, `GitWizardUI/Views/MainWindow*.cs`, `GitWizardUI/Views/MainWindow.axaml`, `GitWizardUI/Converters/StringToThicknessConverter.cs`.
+- UI queue, filter and scroll: `GitWizardUI/ViewModels/MainViewModel*.cs`, `GitWizardUI/ViewModels/StatusHeaderViewModel.cs`, `GitWizardUI/Views/MainWindow*.cs`, `GitWizardUI/Views/MainWindow.axaml`, `GitWizardUI/Converters/StringToThicknessConverter.cs`.
 - Upstream configuration and its nested diagnostic scope: `GitWizard/GitWizardRepository.UpstreamDiagnostics.cs`, `GitWizard/BranchInventoryReport.cs`, `GitWizardTests/RefreshConcurrencyGateTests.cs`.

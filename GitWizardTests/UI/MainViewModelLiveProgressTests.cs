@@ -7,7 +7,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests.UI;
 
 // Live watch tests are split by concern because the combined fixture exceeds 500 lines.
-// Covers MainViewModel.LiveProgress.cs.
+// Covers MainViewModel.LiveProgress.cs and StatusHeaderViewModel.cs.
 public class MainViewModelLiveProgressTests
 {
     [SetUp]
@@ -95,7 +95,7 @@ public class MainViewModelLiveProgressTests
             Assert.That(viewModel.IsLiveStarting, Is.False);
             Assert.That(viewModel.IsLiveScanProgressVisible, Is.False);
             Assert.That(viewModel.LiveScanProgressText, Is.Empty);
-            Assert.That(viewModel.HeaderText, Does.Contain("Live watch could not start: scan blew up"));
+            Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain("Live watch could not start: scan blew up"));
         });
     }
 }

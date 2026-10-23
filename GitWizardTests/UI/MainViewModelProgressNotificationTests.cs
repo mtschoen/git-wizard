@@ -4,19 +4,26 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests;
 
 // Progress notification tests exercise header text updates and progress bar visibility.
-// Covers MainViewModel.UpdateHandler.cs.
+// Covers MainViewModel.UpdateHandler.cs and StatusHeaderViewModel.cs.
 public class MainViewModelProgressNotificationTests
 {
     static MainViewModel CreateViewModel() => TestViewModels.Create();
 
     [Test]
-    public void SendUpdateMessage_UpdatesHeaderText()
+    public async Task SendUpdateMessage_UpdatesHeaderText()
     {
-        var vm = CreateViewModel();
-
-        vm.SendUpdateMessage("Scanning...");
-
-        Assert.That(vm.HeaderText, Is.EqualTo("Scanning..."));
+        var dispatcher = new QueuedUiDispatcher();
+        await using var viewModel = TestViewModels.Create(dispatcher: dispatcher);
+        viewModel.SendUpdateMessage("first");
+        viewModel.SendUpdateMessage("Scanning...");
+        Assert.That(dispatcher.QueuedCount, Is.EqualTo(1));
+        Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("GitWizard"));
+        dispatcher.Drain();
+        Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Scanning..."));
+        viewModel.SendUpdateMessage("second burst");
+        Assert.That(dispatcher.QueuedCount, Is.EqualTo(1));
+        dispatcher.Drain();
+        Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("second burst"));
     }
 
     [Test]
@@ -27,7 +34,7 @@ public class MainViewModelProgressNotificationTests
 
         vm.SendUpdateMessage(null);
 
-        Assert.That(vm.HeaderText, Is.EqualTo("original"));
+        Assert.That(vm.StatusHeader.HeaderText, Is.EqualTo("original"));
     }
 
     [Test]

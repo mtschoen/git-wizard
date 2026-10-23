@@ -11,7 +11,7 @@ namespace GitWizardTests;
 /// separate groups by path case, and the header's reported group count must match the number of
 /// groups actually shown.
 /// </summary>
-// Covers MainViewModel.Grouping.cs, RepositoryGroupKeys.cs, and RepositorySortOrder.cs.
+// Covers MainViewModel.Grouping.cs, RepositoryGroupKeys.cs, RepositorySortOrder.cs, and StatusHeaderViewModel.cs.
 public class MainViewModelWorkingDirectorySortTests
 {
     [SetUp]
@@ -247,7 +247,7 @@ public class MainViewModelWorkingDirectorySortTests
         // six groups were listed).
         viewModel.ToggleGroupExpand(viewModel.Repositories.First(n => n.IsGroupHeader));
 
-        Assert.That(viewModel.HeaderText, Does.Contain($"in {expectedGroupCount} groups"));
+        Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain($"in {expectedGroupCount} groups"));
     }
 
 

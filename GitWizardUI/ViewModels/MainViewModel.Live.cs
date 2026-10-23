@@ -158,7 +158,7 @@ public partial class MainViewModel
             if (_pendingDeletedRepos.TryGetValue(repoRoot, out var pending) && pending.SequenceNumber < sequenceNumber)
             {
                 _pendingDeletedRepos.Remove(repoRoot);
-                _ = CancelAndDisposeAsync(pending.ExpireCts);
+                _ = CancellationTokenSourceDisposal.CancelAndDisposeAsync(pending.ExpireCts);
             }
 
             var renamedFrom = TryCorrelateRename(repoRoot, repository);
@@ -187,7 +187,7 @@ public partial class MainViewModel
 
             if (_pendingDeletedRepos.TryGetValue(repoRoot, out var existing))
             {
-                _ = CancelAndDisposeAsync(existing.ExpireCts);
+                _ = CancellationTokenSourceDisposal.CancelAndDisposeAsync(existing.ExpireCts);
             }
 
             var expireCts = new CancellationTokenSource();
@@ -205,12 +205,12 @@ public partial class MainViewModel
         var healthyRepos = new Dictionary<string, GitWizardRepository> { [repoRoot] = repository };
         foreach (var (oldPath, pending) in _pendingDeletedRepos)
         {
-            if (FindRenamedRepo(pending.Repository, oldPath, healthyRepos) != repoRoot)
+            if (RepositoryGroupKeys.FindRenamedRepo(pending.Repository, oldPath, healthyRepos) != repoRoot)
             {
                 continue;
             }
 
-            _ = CancelAndDisposeAsync(pending.ExpireCts);
+            _ = CancellationTokenSourceDisposal.CancelAndDisposeAsync(pending.ExpireCts);
             _pendingDeletedRepos.Remove(oldPath);
             return oldPath;
         }

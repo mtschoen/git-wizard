@@ -50,14 +50,14 @@ public partial class MainViewModel
                 if (IsRefreshing)
                     Repositories.Add(node);
                 else
-                    InsertRepositoryNode(Repositories, node);
+                    RepositorySortOrder.InsertRepositoryNode(Repositories, node, _activeSortMode);
             }
         }
         else
         {
             if (IsRefreshing)
             {
-                foreach (var key in GetGroupKeys(node, _activeGroupMode))
+                foreach (var key in RepositoryGroupKeys.GetGroupKeys(node, _activeGroupMode))
                     MergeGroupBatch(key, new List<RepositoryNodeViewModel> { node }, sort: false);
             }
             else
@@ -152,7 +152,7 @@ public partial class MainViewModel
                 if (IsRefreshing)
                     Repositories.Add(node);
                 else
-                    InsertRepositoryNode(Repositories, node);
+                    RepositorySortOrder.InsertRepositoryNode(Repositories, node, _activeSortMode);
             }
 
             UpdateHeaderWithFilterInfo();
@@ -329,7 +329,7 @@ public partial class MainViewModel
 
             foreach (var (path, repo) in erroredRepos)
             {
-                var newHealthyPath = FindRenamedRepo(repo, path, healthyRepos);
+                var newHealthyPath = RepositoryGroupKeys.FindRenamedRepo(repo, path, healthyRepos);
                 if (newHealthyPath != null && newHealthyPath != path)
                 {
                     renamedOldPaths.Add(path);
@@ -410,7 +410,7 @@ public partial class MainViewModel
             }
             else
             {
-                foreach (var key in GetGroupKeys(node, _activeGroupMode))
+                foreach (var key in RepositoryGroupKeys.GetGroupKeys(node, _activeGroupMode))
                 {
                     groupedBatches ??= new Dictionary<string, List<RepositoryNodeViewModel>>();
                     if (!groupedBatches.TryGetValue(key, out var bucket))
@@ -426,7 +426,7 @@ public partial class MainViewModel
 
         if (ungroupedBatch != null)
         {
-            foreach (var node in SortBatchForDisplay(ungroupedBatch))
+            foreach (var node in RepositorySortOrder.SortBatchForDisplay(ungroupedBatch, _activeSortMode))
                 Repositories.Add(node);
         }
 

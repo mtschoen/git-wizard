@@ -286,43 +286,6 @@ public partial class MainViewModel
         }
     }
 
-    internal void ToggleGroupExpand(RepositoryNodeViewModel? node)
-    {
-        if (node?.IsGroupHeader != true)
-        {
-            return;
-        }
-
-        var index = Repositories.IndexOf(node);
-        if (index < 0)
-        {
-            return;
-        }
-
-        if (node.IsExpanded)
-        {
-            // Collapse: remove children after the header
-            node.IsExpanded = false;
-            while (index + 1 < Repositories.Count && !Repositories[index + 1].IsGroupHeader)
-            {
-                Repositories.RemoveAt(index + 1);
-            }
-        }
-        else
-        {
-            // Expand: insert children after the header
-            node.IsExpanded = true;
-            var insertIndex = index + 1;
-            foreach (var child in node.Children)
-            {
-                Repositories.Insert(insertIndex++, child);
-            }
-        }
-
-        node.UpdateDisplayText();
-        ScrollToRequest?.Invoke(node);
-    }
-
     // Drains the UI command queue in one pass. Every RepositoryCreated/WorktreeCreated command in
     // the drained slice is collected into a single batch and applied with one AddRepositoriesBatch
     // call; every other command is staged and processed afterwards, in arrival order. A refresh

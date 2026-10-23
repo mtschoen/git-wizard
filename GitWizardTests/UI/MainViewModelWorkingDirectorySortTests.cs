@@ -11,6 +11,7 @@ namespace GitWizardTests;
 /// separate groups by path case, and the header's reported group count must match the number of
 /// groups actually shown.
 /// </summary>
+// Covers MainViewModel.Grouping.cs, RepositoryGroupKeys.cs, and RepositorySortOrder.cs.
 public class MainViewModelWorkingDirectorySortTests
 {
     [SetUp]

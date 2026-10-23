@@ -30,18 +30,18 @@ This document describes the directory layout, naming conventions, and verificati
 
 ## MainViewModel Fixture Mapping
 
-Fixtures exercising `MainViewModel` live together under `GitWizardTests/UI/` and correspond to the following production partials:
+Fixtures exercising `MainViewModel` and its extracted helpers live together under `GitWizardTests/UI/` and correspond to the following production sources:
 
-| Production Source Partial | Fixture Name(s) | Concern |
+| Production Source | Fixture Name(s) | Concern |
 | --- | --- | --- |
 | `MainViewModel.cs` | `MainViewModelTests`<br>`MainViewModelNoMftTests`<br>`MainViewModelPreparedSessionTests` | Construction, default property states, injected services, error button labeling, refresh selection, and owner transfer. |
 | `MainViewModel.Commands.cs` | `MainViewModelCommandTests`<br>`MainViewModelClipboardTests` | Command execution, repository selection, clipboard copying. |
-| `MainViewModel.Grouping.cs`<br>`MainViewModel.GroupKeys.cs` | `MainViewModelGroupingTests`<br>`MainViewModelGroupingInteractionTests` | Grouping hierarchies, publication, filter swapping, search debounce. |
-| `MainViewModel.Sorting.cs` | `MainViewModelWorkingDirectorySortTests` | Path sorting, drive grouping ordering, natural string collation. |
+| `MainViewModel.Grouping.cs`<br>`RepositoryGroupKeys.cs` | `MainViewModelGroupingTests`<br>`MainViewModelGroupingInteractionTests` | Grouping hierarchies, publication, expansion, filter swapping, search debounce. |
+| `RepositorySortOrder.cs` | `MainViewModelWorkingDirectorySortTests` | Platform-aware path sorting, drive grouping ordering, sorted insertion. |
 | `MainViewModel.RefreshBatch.cs` | `MainViewModelRefreshBatchTests` | Bulk batch merges, drain deduplication, and batch sort reduction. |
 | `MainViewModel.UiDrain.cs` | `MainViewModelUiDrainTests` | Background-to-UI message drain throttling and batching. |
 | `MainViewModel.UpdateHandler.cs` | `MainViewModelUpdateHandlerTests`<br>`MainViewModelProgressNotificationTests` | Queued scan callbacks and progress status notifications. |
-| `MainViewModel.Cancellation.cs` | `MainViewModelCancellationTests` | Cooperative scan cancellation and disposal sequencing. |
+| `CancellationTokenSourceDisposal.cs` | `CancellationTokenSourceDisposalTests` | Cooperative cancellation callback completion and disposal sequencing. |
 | `MainViewModel.IndexCache.cs` | `MainViewModelIndexCacheTests` | Index cache integration, cache hit indicators, and session status. |
 | `MainViewModel.Refresh.cs` | `MainViewModelAddRepositoryTests`<br>`MainViewModelUpdateCompletedRepositoryTests`<br>`MainViewModelPrePopulateTests`<br>`MainViewModelCompleteRefreshTests`<br>`MainViewModelRefreshLifecycleTests` | Adding scanned repositories, report pre-population, completion updates, full refresh lifecycle. |
 | `MainViewModel.RefreshPrune.cs` | `MainViewModelCachedPathsTests`<br>`MainViewModelCachedNodeReplacementTests`<br>`MainViewModelRefreshPruneTests` | Cached path updates, node replacement, and stale path pruning. |

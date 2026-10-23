@@ -3,8 +3,8 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests;
 
 // Cancellation tests exercise cooperative cancellation callback completion and disposal order.
-// Covers MainViewModel.Cancellation.cs.
-public class MainViewModelCancellationTests
+// Covers CancellationTokenSourceDisposal.cs.
+public class CancellationTokenSourceDisposalTests
 {
     [Test]
     public async Task CancelAndDisposeAsync_DisposesOnlyAfterCancellationCallbacksComplete()
@@ -20,7 +20,7 @@ public class MainViewModelCancellationTests
         });
 #pragma warning restore MA0045
 
-        var cleanupTask = MainViewModel.CancelAndDisposeAsync(source);
+        var cleanupTask = CancellationTokenSourceDisposal.CancelAndDisposeAsync(source);
         await callbackStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
 
         Assert.Multiple(() =>

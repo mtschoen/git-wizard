@@ -42,7 +42,7 @@ public partial class MainViewModel
             _cts = next;
             if (previous != null)
             {
-                _ = CancelAndDisposeAsync(previous);
+                _ = CancellationTokenSourceDisposal.CancelAndDisposeAsync(previous);
             }
             return next.Token;
         }
@@ -53,7 +53,7 @@ public partial class MainViewModel
             _cts = null;
             if (cts != null)
             {
-                _ = CancelAndDisposeAsync(cts);
+                _ = CancellationTokenSourceDisposal.CancelAndDisposeAsync(cts);
             }
         }
     }
@@ -128,7 +128,7 @@ public partial class MainViewModel
         if (!string.IsNullOrWhiteSpace(_searchText))
             filtered = filtered.Where(r => r.WorkingDirectory.Contains(_searchText, StringComparison.OrdinalIgnoreCase)).ToList();
 
-        var sorted = ApplySort(filtered);
+        var sorted = RepositorySortOrder.ApplySort(filtered, _activeSortMode);
 
         // Build off-screen and swap in one shot to avoid per-item layout updates
         var newCollection = new ObservableCollection<RepositoryNodeViewModel>();
@@ -140,7 +140,7 @@ public partial class MainViewModel
         }
         else
         {
-            var groups = GroupRepositories(sorted, _activeGroupMode);
+            var groups = RepositoryGroupKeys.GroupRepositories(sorted, _activeGroupMode);
 
             // For remote URL grouping, only show groups with multiple copies (the duplicates you want to clean up)
             var minGroupSize = _activeGroupMode == GroupMode.RemoteUrl ? 2 : 1;
@@ -152,7 +152,7 @@ public partial class MainViewModel
                     continue;
 
                 var header = RepositoryNodeViewModel.CreateGroupHeader(group.Key);
-                foreach (var repo in ApplySort(group.Value))
+                foreach (var repo in RepositorySortOrder.ApplySort(group.Value, _activeSortMode))
                     header.Children.Add(repo);
 
                 // Update display text now that children are added (so count is correct)
@@ -192,34 +192,48 @@ public partial class MainViewModel
             _ui.Post(SwapInRepositories);
     }
 
-    List<RepositoryNodeViewModel> ApplySort(List<RepositoryNodeViewModel> repos)
-    {
-        return _activeSortMode switch
-        {
-            SortMode.WorkingDirectory => repos
-                .OrderBy(r => r.WorkingDirectory, WorkingDirectoryComparer)
-                .ToList(),
-            SortMode.RecentlyUsed => repos
-                .OrderByDescending(r => r.Repository.LastCommitDate ?? DateTimeOffset.MinValue)
-                .ToList(),
-            SortMode.RemoteUrl => repos
-                .OrderBy(r => r.Repository.RemoteUrls.Count > 0
-                    ? NormalizeRemoteUrl(r.Repository.RemoteUrls[0])
-                    : "\uffff") // sort no-remote to end
-                .ToList(),
-            SortMode.SizeOnDisk => repos
-                .OrderByDescending(r => r.Repository.SizeOnDisk)
-                .ToList(),
-            _ => repos,
-        };
-    }
+    // Group-key and rename helpers live in RepositoryGroupKeys.cs.
 
-    // GroupRepositories/GetGroupKeys/NormalizeDriveGroupKey/NormalizeRemoteUrl/FindRenamedRepo
-    // live in MainViewModel.GroupKeys.cs.
+    internal void ToggleGroupExpand(RepositoryNodeViewModel? node)
+    {
+        if (node?.IsGroupHeader != true)
+        {
+            return;
+        }
+
+        var index = Repositories.IndexOf(node);
+        if (index < 0)
+        {
+            return;
+        }
+
+        if (node.IsExpanded)
+        {
+            // Collapse: remove children after the header
+            node.IsExpanded = false;
+            while (index + 1 < Repositories.Count && !Repositories[index + 1].IsGroupHeader)
+            {
+                Repositories.RemoveAt(index + 1);
+            }
+        }
+        else
+        {
+            // Expand: insert children after the header
+            node.IsExpanded = true;
+            var insertIndex = index + 1;
+            foreach (var child in node.Children)
+            {
+                Repositories.Insert(insertIndex++, child);
+            }
+        }
+
+        node.UpdateDisplayText();
+        ScrollToRequest?.Invoke(node);
+    }
 
     void AddToGroups(RepositoryNodeViewModel node)
     {
-        var keys = GetGroupKeys(node, _activeGroupMode);
+        var keys = RepositoryGroupKeys.GetGroupKeys(node, _activeGroupMode);
         var minGroupSize = _activeGroupMode == GroupMode.RemoteUrl ? 2 : 1;
 
         foreach (var key in keys)
@@ -242,7 +256,7 @@ public partial class MainViewModel
 
             if (header != null)
             {
-                var childIndex = InsertRepositoryNode(header.Children, node);
+                var childIndex = RepositorySortOrder.InsertRepositoryNode(header.Children, node, _activeSortMode);
                 header.UpdateDisplayText();
 
                 // If expanded, insert the node at the matching position in the flat list
@@ -295,6 +309,111 @@ public partial class MainViewModel
         }
 
         UpdateHeaderWithFilterInfo();
+    }
+
+    // Merges one group key's whole batch of new children into its header in one shot, instead of
+    // AddToGroups's per-node calls (round-2 pr-crew review of PR #241/#243: see
+    // MergeBatchIntoDisplay for why a per-row insert is O(n) per call). Creates the header fresh
+    // when none exists yet (the common case for PrePopulateFromReport, which always starts with
+    // empty groups/pending state) or bulk-merges into an existing/pending one (the case
+    // AddRepositoriesBatch can hit, merging against a header a prior prepopulation or drain
+    // already created).
+    void MergeGroupBatch(string key, List<RepositoryNodeViewModel> bucket, bool sort = true)
+    {
+        var minGroupSize = _activeGroupMode == GroupMode.RemoteUrl ? 2 : 1;
+
+        RepositoryNodeViewModel? header = null;
+        foreach (var candidate in Repositories)
+        {
+            if (candidate.IsGroupHeader && candidate.GroupKey == key)
+            {
+                header = candidate;
+                break;
+            }
+        }
+
+        var wasPending = false;
+        if (header == null && _pendingGroups.TryGetValue(key, out var pendingHeader))
+        {
+            header = pendingHeader;
+            wasPending = true;
+        }
+
+        if (header != null)
+        {
+            if (sort)
+            {
+                RepositorySortOrder.MergeBatchIntoDisplay(header.Children, bucket, _activeSortMode);
+            }
+            else
+            {
+                foreach (var node in bucket)
+                {
+                    header.Children.Add(node);
+                }
+            }
+
+            header.UpdateDisplayText();
+            RefreshExpandedFlatChildren(header);
+
+            if (wasPending && header.Children.Count >= minGroupSize)
+            {
+                _pendingGroups.Remove(key);
+                Repositories.Add(header);
+            }
+
+            return;
+        }
+
+        header = RepositoryNodeViewModel.CreateGroupHeader(key);
+        var nodesToAdd = sort ? RepositorySortOrder.SortBatchForDisplay(bucket, _activeSortMode) : bucket;
+        foreach (var node in nodesToAdd)
+        {
+            header.Children.Add(node);
+        }
+
+        header.UpdateDisplayText();
+
+        if (header.Children.Count >= minGroupSize)
+        {
+            Repositories.Add(header);
+        }
+        else
+        {
+            _pendingGroups[key] = header;
+        }
+    }
+
+    // Rebuilds an expanded header's flat display rows from its own (just-merged) Children,
+    // instead of computing per-row insertion points for a whole batch: cheaper than repeated
+    // positional inserts, and always exactly consistent with Children's order. A header expanded
+    // while a batch merge runs is rare (the common case is a scan streaming into collapsed
+    // headers), so a full rebuild of just this header's own flat block is an acceptable cost
+    // here - unlike the per-row arrival path, this is not called once per row.
+    void RefreshExpandedFlatChildren(RepositoryNodeViewModel header)
+    {
+        if (!header.IsExpanded)
+        {
+            return;
+        }
+
+        var headerIndex = Repositories.IndexOf(header);
+        if (headerIndex < 0)
+        {
+            return;
+        }
+
+        var removeFrom = headerIndex + 1;
+        while (removeFrom < Repositories.Count && !Repositories[removeFrom].IsGroupHeader)
+        {
+            Repositories.RemoveAt(removeFrom);
+        }
+
+        var insertAt = removeFrom;
+        foreach (var child in header.Children)
+        {
+            Repositories.Insert(insertAt++, child);
+        }
     }
 
     void UpdateHeaderWithFilterInfo()

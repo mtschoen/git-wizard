@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 
 namespace GitWizardUI.ViewModels;
 
-public partial class MainViewModel
+internal static class RepositorySortOrder
 {
     // Working Directory sort must order by path explicitly. Discovered repository paths are
     // cached lowercase while paths created during a Live watch arrive with OS-native
@@ -13,7 +13,29 @@ public partial class MainViewModel
         ? StringComparer.OrdinalIgnoreCase
         : StringComparer.Ordinal;
 
-    int CompareWorkingDirectory(string a, string b) => WorkingDirectoryComparer.Compare(a, b);
+    static int CompareWorkingDirectory(string a, string b) => WorkingDirectoryComparer.Compare(a, b);
+
+    internal static List<RepositoryNodeViewModel> ApplySort(List<RepositoryNodeViewModel> repositories, SortMode mode)
+    {
+        return mode switch
+        {
+            SortMode.WorkingDirectory => repositories
+                .OrderBy(r => r.WorkingDirectory, WorkingDirectoryComparer)
+                .ToList(),
+            SortMode.RecentlyUsed => repositories
+                .OrderByDescending(r => r.Repository.LastCommitDate ?? DateTimeOffset.MinValue)
+                .ToList(),
+            SortMode.RemoteUrl => repositories
+                .OrderBy(r => r.Repository.RemoteUrls.Count > 0
+                    ? RepositoryGroupKeys.NormalizeRemoteUrl(r.Repository.RemoteUrls[0])
+                    : "\uffff") // sort no-remote to end
+                .ToList(),
+            SortMode.SizeOnDisk => repositories
+                .OrderByDescending(r => r.Repository.SizeOnDisk)
+                .ToList(),
+            _ => repositories,
+        };
+    }
 
     // Inserts node at its sorted position when SortMode.WorkingDirectory is active (so a single
     // Live arrival lands in path order without a full rebuild); otherwise appends, matching
@@ -26,9 +48,9 @@ public partial class MainViewModel
     // isolated Live-watch event outside a refresh). During a refresh, arrivals are appended in
     // arrival order (O(1) per row with zero positional inserts) and the entire collection is sorted
     // once when the refresh completes (CompleteRefresh / ApplyFilterAndGrouping).
-    int InsertRepositoryNode(ObservableCollection<RepositoryNodeViewModel> nodes, RepositoryNodeViewModel node)
+    internal static int InsertRepositoryNode(ObservableCollection<RepositoryNodeViewModel> nodes, RepositoryNodeViewModel node, SortMode mode)
     {
-        var index = _activeSortMode == SortMode.WorkingDirectory
+        var index = mode == SortMode.WorkingDirectory
             ? FindSortedInsertionIndex(nodes, node.WorkingDirectory)
             : nodes.Count;
 
@@ -40,7 +62,7 @@ public partial class MainViewModel
     // sorts strictly after workingDirectory. Equal-key entries (arrival order between repositories
     // that briefly share a display path) end up before the new node, matching the linear scan this
     // replaced. startIndex bounds the search from below when merging a pre-sorted batch.
-    int FindSortedInsertionIndex(ObservableCollection<RepositoryNodeViewModel> nodes, string workingDirectory, int startIndex = 0)
+    internal static int FindSortedInsertionIndex(ObservableCollection<RepositoryNodeViewModel> nodes, string workingDirectory, int startIndex = 0)
     {
         var low = Math.Clamp(startIndex, 0, nodes.Count);
         var high = nodes.Count;
@@ -65,8 +87,8 @@ public partial class MainViewModel
     // the batch; every other mode's between-rebuild contract is arrival order, matching
     // InsertRepositoryNode's own append fallback. OrderBy is a stable sort, so arrival order is
     // preserved among any equal-path entries, same as the per-row path.
-    List<RepositoryNodeViewModel> SortBatchForDisplay(List<RepositoryNodeViewModel> batch) =>
-        _activeSortMode == SortMode.WorkingDirectory
+    internal static List<RepositoryNodeViewModel> SortBatchForDisplay(List<RepositoryNodeViewModel> batch, SortMode mode) =>
+        mode == SortMode.WorkingDirectory
             ? batch.OrderBy(node => node.WorkingDirectory, Comparer<string>.Create(CompareWorkingDirectory)).ToList()
             : batch;
 
@@ -74,7 +96,7 @@ public partial class MainViewModel
     // a refresh when merging pre-sorted batches (e.g. grouped pre-population or test callers).
     // During an active refresh, drains append rows in arrival order without positional inserts,
     // deferring sorting to the single end-of-refresh collection rebuild.
-    void MergeBatchIntoDisplay(ObservableCollection<RepositoryNodeViewModel> nodes, List<RepositoryNodeViewModel> batch)
+    internal static void MergeBatchIntoDisplay(ObservableCollection<RepositoryNodeViewModel> nodes, List<RepositoryNodeViewModel> batch, SortMode mode)
     {
         if (batch.Count == 0)
         {
@@ -83,7 +105,7 @@ public partial class MainViewModel
 
         if (nodes.Count == 0)
         {
-            foreach (var node in SortBatchForDisplay(batch))
+            foreach (var node in SortBatchForDisplay(batch, mode))
             {
                 nodes.Add(node);
             }
@@ -91,7 +113,7 @@ public partial class MainViewModel
             return;
         }
 
-        if (_activeSortMode != SortMode.WorkingDirectory)
+        if (mode != SortMode.WorkingDirectory)
         {
             foreach (var node in batch)
             {
@@ -101,7 +123,7 @@ public partial class MainViewModel
             return;
         }
 
-        var sortedBatch = SortBatchForDisplay(batch);
+        var sortedBatch = SortBatchForDisplay(batch, mode);
         var searchStart = 0;
         foreach (var node in sortedBatch)
         {

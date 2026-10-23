@@ -11,6 +11,7 @@ namespace GitWizardTests;
 /// the resulting <see cref="MainViewModel.Repositories"/> collection.
 /// </summary>
 // Grouping tests exercise shared group-publication and hierarchical view-model scenarios across display filters.
+// Covers MainViewModel.Grouping.cs, RepositoryGroupKeys.cs, and RepositorySortOrder.cs.
 public class MainViewModelGroupingTests
 {
     [SetUp]
@@ -540,42 +541,42 @@ public class MainViewModelGroupingTests
     [Test]
     public void NormalizeRemoteUrl_StripsDotGitSuffix()
     {
-        Assert.That(MainViewModel.NormalizeRemoteUrl("https://github.com/user/repo.git"),
+        Assert.That(RepositoryGroupKeys.NormalizeRemoteUrl("https://github.com/user/repo.git"),
             Is.EqualTo("github.com/user/repo"));
     }
 
     [Test]
     public void NormalizeRemoteUrl_NormalizesSshFormat()
     {
-        Assert.That(MainViewModel.NormalizeRemoteUrl("git@github.com:user/repo"),
+        Assert.That(RepositoryGroupKeys.NormalizeRemoteUrl("git@github.com:user/repo"),
             Is.EqualTo("github.com/user/repo"));
     }
 
     [Test]
     public void NormalizeRemoteUrl_StripsHttps()
     {
-        Assert.That(MainViewModel.NormalizeRemoteUrl("https://github.com/user/repo"),
+        Assert.That(RepositoryGroupKeys.NormalizeRemoteUrl("https://github.com/user/repo"),
             Is.EqualTo("github.com/user/repo"));
     }
 
     [Test]
     public void NormalizeRemoteUrl_StripsHttp()
     {
-        Assert.That(MainViewModel.NormalizeRemoteUrl("http://github.com/user/repo"),
+        Assert.That(RepositoryGroupKeys.NormalizeRemoteUrl("http://github.com/user/repo"),
             Is.EqualTo("github.com/user/repo"));
     }
 
     [Test]
     public void NormalizeRemoteUrl_LowerCases()
     {
-        Assert.That(MainViewModel.NormalizeRemoteUrl("HTTPS://GitHub.COM/User/Repo"),
+        Assert.That(RepositoryGroupKeys.NormalizeRemoteUrl("HTTPS://GitHub.COM/User/Repo"),
             Is.EqualTo("github.com/user/repo"));
     }
 
     [Test]
     public void NormalizeRemoteUrl_TrimsWhitespace()
     {
-        Assert.That(MainViewModel.NormalizeRemoteUrl("  https://github.com/user/repo  "),
+        Assert.That(RepositoryGroupKeys.NormalizeRemoteUrl("  https://github.com/user/repo  "),
             Is.EqualTo("github.com/user/repo"));
     }
 }

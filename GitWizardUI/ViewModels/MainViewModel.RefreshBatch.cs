@@ -91,7 +91,7 @@ public partial class MainViewModel
             }
             else
             {
-                foreach (var key in GetGroupKeys(node, _activeGroupMode))
+                foreach (var key in RepositoryGroupKeys.GetGroupKeys(node, _activeGroupMode))
                 {
                     groupedBatches ??= new Dictionary<string, List<RepositoryNodeViewModel>>();
                     if (!groupedBatches.TryGetValue(key, out var bucket))
@@ -116,7 +116,7 @@ public partial class MainViewModel
             }
             else
             {
-                MergeBatchIntoDisplay(Repositories, ungroupedBatch);
+                RepositorySortOrder.MergeBatchIntoDisplay(Repositories, ungroupedBatch, _activeSortMode);
             }
         }
 

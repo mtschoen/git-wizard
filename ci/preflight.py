@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import platform
+import shutil
 import subprocess
 import sys
 import uuid
@@ -126,8 +127,9 @@ def run(arguments):
             )
             continue
         print(f"RUN {gate}", flush=True)
+        bash = shutil.which("bash", path=environment.get("PATH")) or "bash"
         result = subprocess.run(
-            ["bash", "ci/gates.sh", gate], cwd=ROOT, env=environment, check=False
+            [bash, "ci/gates.sh", gate], cwd=ROOT, env=environment, check=False
         )
         print(
             f"{'PASS' if result.returncode == 0 else 'FAIL'} {gate} (exit {result.returncode})",

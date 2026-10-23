@@ -43,11 +43,12 @@ class DeveloperToolsTests(unittest.TestCase):
             self.assertEqual({"scripts/nested/tool.py"}, script_paths(root))
 
     def test_shell_and_python_syntax(self):
+        bash = shutil.which("bash") or "bash"
         with tempfile.TemporaryDirectory() as cache:
             for relative in sorted(script_paths(ROOT)):
                 path = ROOT / relative
                 if path.suffix.lower() == ".sh":
-                    command = ["bash", "-n", str(path)]
+                    command = [bash, "-n", str(path)]
                 elif path.suffix.lower() == ".py":
                     command = [
                         sys.executable,
@@ -155,6 +156,7 @@ class DeveloperToolsTests(unittest.TestCase):
                 ]
                 self.assertEqual(1, len(uploads))
                 self.assertIn("if-no-files-found: error", uploads[0])
+                self.assertNotIn("always()", uploads[0])
                 self.assertNotIn("continue-on-error: true", uploads[0])
                 self.assertNotIn("dotnet run --project GitWizardUI.Screenshot", source)
 

@@ -250,7 +250,7 @@ jobs:
         run: pwsh -NoProfile -NonInteractive -File scripts/update-screenshots.ps1 -OutputPath artifacts/GitWizardUI-ci.png -TimeoutSeconds 180
 
       - name: Upload screenshot
-        if: always() && steps.changed-files.outputs.pin_only != 'true'
+        if: steps.changed-files.outputs.pin_only != 'true'
         uses: ChristopherHX/gitea-upload-artifact@81f940d004763f986ba3582c007fd842dd5cb0d7
         with:
           name: GitWizardUI-screenshot

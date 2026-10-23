@@ -2,6 +2,7 @@
 
 import io
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -12,6 +13,7 @@ from unittest.mock import patch
 import preflight
 
 ROOT = Path(__file__).resolve().parents[1]
+BASH = shutil.which("bash") or "bash"
 
 
 class PreflightTests(unittest.TestCase):
@@ -39,7 +41,7 @@ class PreflightTests(unittest.TestCase):
 
     def test_invalid_selection_fails(self):
         result = subprocess.run(
-            ["bash", "tools/ci-preflight.sh", "--only", "unknown"],
+            [BASH, "tools/ci-preflight.sh", "--only", "unknown"],
             cwd=ROOT,
             capture_output=True,
             text=True,
@@ -63,7 +65,7 @@ class PreflightTests(unittest.TestCase):
             )
             result = subprocess.run(
                 [
-                    "bash",
+                    BASH,
                     "tools/ci-preflight.sh",
                     "--only",
                     "format",
@@ -136,6 +138,7 @@ class PreflightTests(unittest.TestCase):
 
                 def execute(command, stamp=stamp, executed=executed, **_arguments):
                     self.assertFalse(stamp.exists())
+                    self.assertEqual(BASH, command[0])
                     executed.append(command[-1])
                     return subprocess.CompletedProcess(command, 0)
 
@@ -185,7 +188,7 @@ class PreflightTests(unittest.TestCase):
         for hits in ("1", "0"):
             environment["COVERAGE_HITS"] = hits
             result = subprocess.run(
-                ["bash", "ci/gates.sh", "test"],
+                [BASH, "ci/gates.sh", "test"],
                 cwd=ROOT,
                 env=environment,
                 capture_output=True,
@@ -194,7 +197,7 @@ class PreflightTests(unittest.TestCase):
             )
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
             result = subprocess.run(
-                ["bash", "ci/gates.sh", "coverage"],
+                [BASH, "ci/gates.sh", "coverage"],
                 cwd=ROOT,
                 env=environment,
                 capture_output=True,
@@ -320,7 +323,7 @@ class PreflightTests(unittest.TestCase):
                     }
                 )
                 result = subprocess.run(
-                    ["bash", "ci/aislop-gate.sh", "prepare"],
+                    [BASH, "ci/aislop-gate.sh", "prepare"],
                     cwd=ROOT,
                     env=environment,
                     capture_output=True,
@@ -347,7 +350,7 @@ class PreflightTests(unittest.TestCase):
         output = self.directory / "scanner-output.log"
         with output.open("w") as stream:
             result = subprocess.run(
-                ["bash", "ci/aislop-gate.sh", *arguments],
+                [BASH, "ci/aislop-gate.sh", *arguments],
                 cwd=ROOT,
                 env=environment,
                 stdout=stream,

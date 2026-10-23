@@ -462,7 +462,7 @@ public class LiveWatchControllerTests
     public async Task Start_TempCreatedEvent_DroppedByDefault()
     {
         var source = new ScriptedVolumeChangeSource(
-            new[] { Batch(@"C:\Users\gitea-runner\AppData\Local\Temp\pytest-1\repo\.git", VolumeEntryKind.Created) });
+            new[] { Batch(@"C:\Users\example\AppData\Local\Temp\pytest-1\repo\.git", VolumeEntryKind.Created) });
 
         var events = new List<RepositoryChangeEvent>();
         var controller = NewController(
@@ -483,7 +483,7 @@ public class LiveWatchControllerTests
     public async Task Start_TempCreatedEvent_ForwardedWhenIncluded()
     {
         var source = new ScriptedVolumeChangeSource(
-            new[] { Batch(@"C:\Users\gitea-runner\AppData\Local\Temp\pytest-1\repo\.git", VolumeEntryKind.Created) });
+            new[] { Batch(@"C:\Users\example\AppData\Local\Temp\pytest-1\repo\.git", VolumeEntryKind.Created) });
 
         var events = new List<RepositoryChangeEvent>();
         var controller = NewController(
@@ -500,14 +500,14 @@ public class LiveWatchControllerTests
 
         Assert.That(events, Is.EqualTo(new[]
         {
-            new RepositoryChangeEvent(@"C:\Users\gitea-runner\AppData\Local\Temp\pytest-1\repo", RepositoryChangeKind.Created),
+            new RepositoryChangeEvent(@"C:\Users\example\AppData\Local\Temp\pytest-1\repo", RepositoryChangeKind.Created),
         }));
     }
 
     [Test]
     public async Task Start_IgnoredPathCreatedEvent_DroppedEvenWhenIncludeTempDirectoriesTrue()
     {
-        const string ignoredTempSubtree = @"C:\Users\gitea-runner\AppData\Local\Temp\ci-runner";
+        const string ignoredTempSubtree = @"C:\Users\example\AppData\Local\Temp\ci-runner";
         var source = new ScriptedVolumeChangeSource(
             new[] { Batch(Path.Combine(ignoredTempSubtree, "repo", ".git"), VolumeEntryKind.Created) });
 

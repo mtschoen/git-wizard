@@ -117,10 +117,10 @@ public class RepositoryNodeViewModelTests
     [Test]
     public void CreateGroupHeader_CreatesGroupNode()
     {
-        var node = RepositoryNodeViewModel.CreateGroupHeader("/home/repos");
+        var node = RepositoryNodeViewModel.CreateGroupHeader("/srv/repos");
 
         Assert.That(node.IsGroupHeader, Is.True);
-        Assert.That(node.GroupKey, Is.EqualTo("/home/repos"));
+        Assert.That(node.GroupKey, Is.EqualTo("/srv/repos"));
         Assert.That(node.IsNotGroupHeader, Is.False);
         Assert.That(node.GroupHeaderFontWeight, Is.EqualTo("Bold"));
     }

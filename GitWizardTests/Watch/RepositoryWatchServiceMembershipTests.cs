@@ -24,7 +24,7 @@ public class RepositoryWatchServiceMembershipTests
             new ScriptedVolumeChangeSource(
                 new[] { new VolumeChangeBatch("C", new[]
                 {
-                    new VolumeChangeEntry(@"C:\Users\gitea-runner\AppData\Local\Temp\pytest-1\repo\.git", VolumeEntryKind.Created)
+                    new VolumeChangeEntry(@"C:\Users\example\AppData\Local\Temp\pytest-1\repo\.git", VolumeEntryKind.Created)
                     }) }),
             trackedRoots: Array.Empty<string>(),
             searchRoots: new[] { @"C:\" },
@@ -42,7 +42,7 @@ public class RepositoryWatchServiceMembershipTests
             new ScriptedVolumeChangeSource(
                 new[] { new VolumeChangeBatch("C", new[]
                 {
-                    new VolumeChangeEntry(@"C:\Users\gitea-runner\AppData\Local\Temp\pytest-1\repo\.git", VolumeEntryKind.Created)
+                    new VolumeChangeEntry(@"C:\Users\example\AppData\Local\Temp\pytest-1\repo\.git", VolumeEntryKind.Created)
                     }) }),
             trackedRoots: Array.Empty<string>(),
             searchRoots: new[] { @"C:\" },
@@ -53,14 +53,14 @@ public class RepositoryWatchServiceMembershipTests
 
         Assert.That(events, Is.EqualTo(new[]
         {
-                new RepositoryChangeEvent(@"C:\Users\gitea-runner\AppData\Local\Temp\pytest-1\repo", RepositoryChangeKind.Created),
+                new RepositoryChangeEvent(@"C:\Users\example\AppData\Local\Temp\pytest-1\repo", RepositoryChangeKind.Created),
             }));
     }
 
     [Test]
     public async Task TrackedTempDirectory_ExcludedByDefault_OnModificationAndGitRecreation()
     {
-        const string trackedTempRepo = @"C:\Users\gitea-runner\AppData\Local\Temp\pytest-1\repo";
+        const string trackedTempRepo = @"C:\Users\example\AppData\Local\Temp\pytest-1\repo";
         var svc = new RepositoryWatchService(
             new ScriptedVolumeChangeSource(
                 new[]
@@ -83,7 +83,7 @@ public class RepositoryWatchServiceMembershipTests
     [Test]
     public async Task IgnoredPath_ExcludedEvenWhenIncludeTempDirectoriesTrue()
     {
-        const string ignoredTempSubtree = @"C:\Users\gitea-runner\AppData\Local\Temp\ci-runner";
+        const string ignoredTempSubtree = @"C:\Users\example\AppData\Local\Temp\ci-runner";
         var svc = new RepositoryWatchService(
             new ScriptedVolumeChangeSource(
                 new[]

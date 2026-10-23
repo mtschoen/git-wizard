@@ -17,7 +17,7 @@ public class RepositoryChangeFilterAdmissionTests
     {
         var filter = new RepositoryChangeFilter([], [@"C:\"]);
 
-        var result = filter.Classify([Created(@"C:\Users\gitea-runner\AppData\Local\Temp\pytest-12602\repo\.git")]);
+        var result = filter.Classify([Created(@"C:\Users\example\AppData\Local\Temp\pytest-12602\repo\.git")]);
 
         Assert.That(result.Created, Is.Empty);
     }
@@ -27,9 +27,9 @@ public class RepositoryChangeFilterAdmissionTests
     {
         var filter = new RepositoryChangeFilter([], [@"C:\"], includeTempDirectories: true);
 
-        var result = filter.Classify([Created(@"C:\Users\gitea-runner\AppData\Local\Temp\pytest-12602\repo\.git")]);
+        var result = filter.Classify([Created(@"C:\Users\example\AppData\Local\Temp\pytest-12602\repo\.git")]);
 
-        Assert.That(result.Created, Is.EquivalentTo(new[] { @"C:\Users\gitea-runner\AppData\Local\Temp\pytest-12602\repo" }));
+        Assert.That(result.Created, Is.EquivalentTo(new[] { @"C:\Users\example\AppData\Local\Temp\pytest-12602\repo" }));
     }
 
     [Test]
@@ -72,7 +72,7 @@ public class RepositoryChangeFilterAdmissionTests
     [Test]
     public void Classify_ModifiedEntryUnderTrackedTempRoot_IsIgnoredByDefault()
     {
-        const string trackedTempRepo = @"C:\Users\gitea-runner\AppData\Local\Temp\pytest-12602\repo";
+        const string trackedTempRepo = @"C:\Users\example\AppData\Local\Temp\pytest-12602\repo";
         var filter = new RepositoryChangeFilter([trackedTempRepo], [@"C:\"]);
 
         var result = filter.Classify([Modified(Path.Combine(trackedTempRepo, "index.lock"))]);
@@ -83,7 +83,7 @@ public class RepositoryChangeFilterAdmissionTests
     [Test]
     public void Classify_GitRecreatedUnderTrackedTempRoot_IsIgnoredByDefault()
     {
-        const string trackedTempRepo = @"C:\Users\gitea-runner\AppData\Local\Temp\pytest-12602\repo";
+        const string trackedTempRepo = @"C:\Users\example\AppData\Local\Temp\pytest-12602\repo";
         var filter = new RepositoryChangeFilter([trackedTempRepo], [@"C:\"]);
 
         var result = filter.Classify([Created(Path.Combine(trackedTempRepo, ".git"))]);
@@ -95,7 +95,7 @@ public class RepositoryChangeFilterAdmissionTests
     [Test]
     public void Classify_TrackedTempRoot_DeletedIsIgnoredByDefault()
     {
-        const string trackedTempRepo = @"C:\Users\gitea-runner\AppData\Local\Temp\pytest-12602\repo";
+        const string trackedTempRepo = @"C:\Users\example\AppData\Local\Temp\pytest-12602\repo";
         var filter = new RepositoryChangeFilter([trackedTempRepo], [@"C:\"]);
 
         var result = filter.Classify([Deleted(trackedTempRepo)]);
@@ -106,7 +106,7 @@ public class RepositoryChangeFilterAdmissionTests
     [Test]
     public void Classify_TrackedTempRoot_EmitsChangedWhenIncludeTempDirectoriesTrue()
     {
-        const string trackedTempRepo = @"C:\Users\gitea-runner\AppData\Local\Temp\pytest-12602\repo";
+        const string trackedTempRepo = @"C:\Users\example\AppData\Local\Temp\pytest-12602\repo";
         var filter = new RepositoryChangeFilter([trackedTempRepo], [@"C:\"], includeTempDirectories: true);
 
         var result = filter.Classify([Modified(Path.Combine(trackedTempRepo, "index.lock"))]);
@@ -117,7 +117,7 @@ public class RepositoryChangeFilterAdmissionTests
     [Test]
     public void Classify_GitRecreatedUnderTrackedTempRoot_EmitsChangedWhenIncludeTempDirectoriesTrue()
     {
-        const string trackedTempRepo = @"C:\Users\gitea-runner\AppData\Local\Temp\pytest-12602\repo";
+        const string trackedTempRepo = @"C:\Users\example\AppData\Local\Temp\pytest-12602\repo";
         var filter = new RepositoryChangeFilter([trackedTempRepo], [@"C:\"], includeTempDirectories: true);
 
         var result = filter.Classify([Created(Path.Combine(trackedTempRepo, ".git"))]);
@@ -128,8 +128,8 @@ public class RepositoryChangeFilterAdmissionTests
     [Test]
     public void Classify_TrackedTempRoot_EmitsChangedWhenSearchRootInsideTemp()
     {
-        const string tempRoot = @"C:\Users\gitea-runner\AppData\Local\Temp\pytest-12602";
-        const string trackedTempRepo = @"C:\Users\gitea-runner\AppData\Local\Temp\pytest-12602\repo";
+        const string tempRoot = @"C:\Users\example\AppData\Local\Temp\pytest-12602";
+        const string trackedTempRepo = @"C:\Users\example\AppData\Local\Temp\pytest-12602\repo";
         var filter = new RepositoryChangeFilter([trackedTempRepo], [tempRoot]);
 
         var result = filter.Classify([Modified(Path.Combine(trackedTempRepo, "index.lock"))]);
@@ -141,8 +141,8 @@ public class RepositoryChangeFilterAdmissionTests
     public void Classify_GitCreatedUnderIgnoredPath_IsIgnoredEvenWhenTempIncluded()
     {
         const string searchRoot = @"C:\";
-        const string ignoredPath = @"C:\Users\gitea-runner\AppData\Local\Temp\ci-runner";
-        const string repoGit = @"C:\Users\gitea-runner\AppData\Local\Temp\ci-runner\repo\.git";
+        const string ignoredPath = @"C:\Users\example\AppData\Local\Temp\ci-runner";
+        const string repoGit = @"C:\Users\example\AppData\Local\Temp\ci-runner\repo\.git";
         var filter = new RepositoryChangeFilter([], [searchRoot], [ignoredPath], includeTempDirectories: true);
 
         var result = filter.Classify([Created(repoGit)]);

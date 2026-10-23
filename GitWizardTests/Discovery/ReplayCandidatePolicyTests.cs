@@ -50,7 +50,7 @@ public class ReplayCandidatePolicyTests
         // A drive-root scope is not itself temp, so candidates under a profile temp subtree are excluded.
         var scope = Scope([@"X:\"]);
         Assert.That(CandidateAdmissionPolicy.AdmitsInventoryCandidate(
-            scope, @"X:\Users\alice\AppData\Local\Temp\repo"), Is.False);
+            scope, @"X:\Users\example\AppData\Local\Temp\repo"), Is.False);
     }
 
     [Test]
@@ -58,16 +58,16 @@ public class ReplayCandidatePolicyTests
     {
         var scope = Scope([@"X:\"], includeTempDirectories: true);
         Assert.That(CandidateAdmissionPolicy.AdmitsInventoryCandidate(
-            scope, @"X:\Users\alice\AppData\Local\Temp\repo"), Is.True);
+            scope, @"X:\Users\example\AppData\Local\Temp\repo"), Is.True);
     }
 
     [Test]
     public void CandidateUnderSearchRootInsideTemp_IsAllowed()
     {
         // A search root configured inside a temp directory opts that subtree back in.
-        var scope = Scope([@"X:\Users\alice\AppData\Local\Temp\scratch"]);
+        var scope = Scope([@"X:\Users\example\AppData\Local\Temp\scratch"]);
         Assert.That(CandidateAdmissionPolicy.AdmitsInventoryCandidate(
-            scope, @"X:\Users\alice\AppData\Local\Temp\scratch\repo"), Is.True);
+            scope, @"X:\Users\example\AppData\Local\Temp\scratch\repo"), Is.True);
     }
 
     [Test]

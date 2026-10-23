@@ -10,8 +10,8 @@ public class PathPrettyPrintConverterTests
     [Test]
     public void Convert_StringPath_ReturnsPrettyPrintedPath()
     {
-        var result = _converter.Convert("C:\\Users\\test", typeof(string), null, CultureInfo.InvariantCulture);
-        Assert.That(result, Is.EqualTo("C:\\Users\\test"));
+        var result = _converter.Convert("C:\\Users\\example", typeof(string), null, CultureInfo.InvariantCulture);
+        Assert.That(result, Is.EqualTo("C:\\Users\\example"));
     }
 
     [Test]

@@ -9,7 +9,7 @@ public class TempDirectoriesTests
     public void IsTempPath_UnderOtherProfilesWindowsTemp_IsTrue()
     {
         Assert.That(TempDirectories.IsTempPath(
-            @"C:\Users\gitea-runner\AppData\Local\Temp\pytest-of-gitea-runner\pytest-12602\repo"), Is.True);
+            @"C:\Users\example\AppData\Local\Temp\pytest-of-example\pytest-12602\repo"), Is.True);
     }
 
     [Test]
@@ -21,14 +21,14 @@ public class TempDirectoriesTests
     [Test]
     public void IsTempPath_WindowsTempPatternIsCaseInsensitive()
     {
-        Assert.That(TempDirectories.IsTempPath(@"c:\uSeRs\X\APPDATA\LOCAL\TEMP\repo"), Is.True);
+        Assert.That(TempDirectories.IsTempPath(@"c:\uSeRs\eXaMpLe\APPDATA\LOCAL\TEMP\repo"), Is.True);
     }
 
     [Test]
     public void IsTempPath_UserProfileOutsideTemp_IsFalse()
     {
-        Assert.That(TempDirectories.IsTempPath(@"C:\Users\gitea-runner\AppData\Local\Programs\repo"), Is.False);
-        Assert.That(TempDirectories.IsTempPath(@"C:\Users\gitea-runner\repos\repo"), Is.False);
+        Assert.That(TempDirectories.IsTempPath(@"C:\Users\example\AppData\Local\Programs\repo"), Is.False);
+        Assert.That(TempDirectories.IsTempPath(@"C:\Users\example\repos\repo"), Is.False);
     }
 
     [Test]
@@ -56,7 +56,7 @@ public class TempDirectoriesTests
     public void IsTempPath_PosixPathOutsideTmp_IsFalse()
     {
         Assert.That(TempDirectories.IsTempPath("/var/tmp/repo-a"), Is.False);
-        Assert.That(TempDirectories.IsTempPath("/home/user/repos/repo-a"), Is.False);
+        Assert.That(TempDirectories.IsTempPath("/home/example/repos/repo-a"), Is.False);
     }
 
     [Test]

@@ -9,7 +9,7 @@ using MFTLibTestExtensions;
 
 namespace GitWizardTests.UI;
 
-// Covers PreparedDiscoveryIndexStore.cs, MainViewModel.cs, MainViewModel.IndexCache.cs, and LiveWatchViewModel.Startup.cs.
+// Covers PreparedDiscoveryIndexStore.cs, MainViewModel.cs, IndexCacheViewModel.cs, and LiveWatchViewModel.Startup.cs.
 [TestFixture]
 public class MainViewModelPreparedSessionTests
 {
@@ -39,11 +39,11 @@ public class MainViewModelPreparedSessionTests
 
     [Test]
     public Task ClearCacheAsync_DisposesPreparedDiscoveryIndex() =>
-        AssertReleaseAsync(viewModel => viewModel.ClearCacheAsync());
+        AssertReleaseAsync(viewModel => viewModel.IndexCache.ClearCacheAsync());
 
     [Test]
     public Task DeleteAllLocalFilesAsync_DisposesPreparedDiscoveryIndex() =>
-        AssertReleaseAsync(viewModel => viewModel.DeleteAllLocalFilesAsync());
+        AssertReleaseAsync(viewModel => viewModel.IndexCache.DeleteAllLocalFilesAsync());
 
     [Test]
     public Task DisposeAsync_DisposesPreparedDiscoveryIndex() =>

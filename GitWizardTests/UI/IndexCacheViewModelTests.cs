@@ -7,7 +7,7 @@ using MFTLibTestExtensions;
 
 namespace GitWizardTests.UI;
 
-// Covers IndexCacheViewModel.cs, MainViewModel.IndexCache.cs, and PreparedDiscoveryIndexStore.cs.
+// Covers IndexCacheViewModel.cs, MainViewModel.cs, and PreparedDiscoveryIndexStore.cs.
 public class IndexCacheViewModelTests
 {
     [Test]
@@ -20,7 +20,7 @@ public class IndexCacheViewModelTests
             () => throw new IOException("inspection failed"),
             () => snapshot
         ]);
-        var model = new IndexCacheViewModel(new StubUiDispatcher(), () => attempts.Dequeue()(), NoClear);
+        var model = new IndexCacheViewModel(new StubUiDispatcher(), new StubUserDialogs(), new PreparedDiscoveryIndexStore(), () => attempts.Dequeue()(), NoClear);
         await model.RefreshAsync();
         Assert.That(model.Text, Does.Contain("inspection failed"));
         Assert.That(model.Snapshot, Is.Null);
@@ -38,7 +38,7 @@ public class IndexCacheViewModelTests
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var snapshot = new MftIndexCacheInspection(new FrozenCacheClock(), true,
             MftIndexCacheInspection.InspectDirectory).Capture(files.DirectoryPath);
-        var model = new IndexCacheViewModel(new StubUiDispatcher(), () =>
+        var model = new IndexCacheViewModel(new StubUiDispatcher(), new StubUserDialogs(), new PreparedDiscoveryIndexStore(), () =>
         {
             entered.TrySetResult();
             if (!release.Task.Wait(TimeSpan.FromSeconds(5)))
@@ -68,7 +68,7 @@ public class IndexCacheViewModelTests
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var clears = 0;
         var inspections = 0;
-        var model = new IndexCacheViewModel(new StubUiDispatcher(),
+        var model = new IndexCacheViewModel(new StubUiDispatcher(), new StubUserDialogs(), new PreparedDiscoveryIndexStore(),
             () =>
             {
                 Interlocked.Increment(ref inspections);
@@ -112,7 +112,7 @@ public class IndexCacheViewModelTests
             FrozenCacheClock.Now.UtcDateTime.AddMinutes(-5)), availability, null, null, null);
         var snapshot = new MftIndexCacheInspection(new FrozenCacheClock(), true,
             _ => new[] { row }).Capture(files.DirectoryPath);
-        var model = new IndexCacheViewModel(new StubUiDispatcher(), () => snapshot, NoClear);
+        var model = new IndexCacheViewModel(new StubUiDispatcher(), new StubUserDialogs(), new PreparedDiscoveryIndexStore(), () => snapshot, NoClear);
         await model.RefreshAsync();
         Assert.That(model.Snapshot!.Inventory.Single().Availability, Is.EqualTo(availability));
         Assert.That(model.Text, Does.Contain("age: 5m"));

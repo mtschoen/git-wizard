@@ -11,7 +11,7 @@ namespace GitWizardTests;
 /// the resulting <see cref="RepositoryListViewModel.Repositories"/> collection.
 /// </summary>
 // Grouping tests exercise shared group-publication and hierarchical view-model scenarios across display filters.
-// Covers RepositoryListViewModel.cs, RepositoryListViewModel.Groups.cs, RepositoryListViewModel.Rows.cs, RepositoryGroupKeys.cs, RepositorySortOrder.cs, and StatusHeaderViewModel.cs.
+// Covers RepositoryListViewModel.cs, RepositoryListViewModel.Groups.cs, RepositoryListViewModel.Rows.cs, RepositoryGroupKeys.cs, RepositorySortOrder.cs, RepositoryCommandsViewModel.cs, and StatusHeaderViewModel.cs.
 public class MainViewModelGroupingTests
 {
     [SetUp]
@@ -463,7 +463,7 @@ public class MainViewModelGroupingTests
         viewModel.RepositoryList.ToggleGroupMode(mode);
         var header = viewModel.RepositoryList.Repositories.Single(n => n.IsGroupHeader);
 
-        viewModel.OpenInExplorer(header);
+        viewModel.Commands.OpenInExplorer(header);
 
         Assert.That(header.IsExpanded, Is.True);
     }

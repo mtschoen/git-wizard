@@ -81,10 +81,10 @@ public partial class MainWindow : Window, IAsyncDisposable
     }
 
     void ClearCacheMenuItem_Click(object? sender, RoutedEventArgs e)
-        => _ = _viewModel.ClearCacheAsync().RunAndLogFaults("Clearing the repository cache");
+        => _ = _viewModel.IndexCache.ClearCacheAsync().RunAndLogFaults("Clearing the repository cache");
 
     void DeleteAllLocalFilesMenuItem_Click(object? sender, RoutedEventArgs e)
-        => _ = _viewModel.DeleteAllLocalFilesAsync().RunAndLogFaults("Deleting all local files");
+        => _ = _viewModel.IndexCache.DeleteAllLocalFilesAsync().RunAndLogFaults("Deleting all local files");
 
     void IndexCacheStatus_Click(object? sender, RoutedEventArgs arguments)
     {
@@ -172,7 +172,7 @@ public partial class MainWindow : Window, IAsyncDisposable
     void RepositoryList_DoubleTapped(object? sender, TappedEventArgs e)
     {
         if ((e.Source as Control)?.DataContext is RepositoryNodeViewModel { IsGroupHeader: false } node)
-            _viewModel.OpenInExplorer(node);
+            _viewModel.Commands.OpenInExplorer(node);
     }
 
     // Scroll anchoring across a refresh. RefreshAsync clears the Repositories collection at the
@@ -324,43 +324,43 @@ public partial class MainWindow : Window, IAsyncDisposable
     void ForkButton_Click(object? sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is RepositoryNodeViewModel node)
-            _ = _viewModel.OpenInForkAsync(node).RunAndLogFaults("Opening the repository in Fork");
+            _ = _viewModel.Commands.OpenInForkAsync(node).RunAndLogFaults("Opening the repository in Fork");
     }
 
     void DeepRefreshButton_Click(object? sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is RepositoryNodeViewModel node)
-            _viewModel.DeepRefreshRepository(node);
+            _viewModel.Commands.DeepRefreshRepository(node);
     }
 
     void CheckoutMatchingBranchButton_Click(object? sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is RepositoryNodeViewModel node)
-            _viewModel.CheckoutMatchingBranch(node);
+            _viewModel.Commands.CheckoutMatchingBranch(node);
     }
 
     void CleanDownstreamButton_Click(object? sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is RepositoryNodeViewModel node)
-            _ = _viewModel.CleanDownstreamBranchesAsync(node).RunAndLogFaults("Cleaning downstream branches");
+            _ = _viewModel.Commands.CleanDownstreamBranchesAsync(node).RunAndLogFaults("Cleaning downstream branches");
     }
 
     void OnOpenInExplorerClick(object? sender, RoutedEventArgs e)
     {
         if ((sender as MenuItem)?.Tag is RepositoryNodeViewModel node)
-            _viewModel.OpenInExplorer(node);
+            _viewModel.Commands.OpenInExplorer(node);
     }
 
     void OnOpenInForkClick(object? sender, RoutedEventArgs e)
     {
         if ((sender as MenuItem)?.Tag is RepositoryNodeViewModel node)
-            _ = _viewModel.OpenInForkAsync(node).RunAndLogFaults("Opening the repository in Fork");
+            _ = _viewModel.Commands.OpenInForkAsync(node).RunAndLogFaults("Opening the repository in Fork");
     }
 
     void OnCopyToClipboardClick(object? sender, RoutedEventArgs e)
     {
         if ((sender as MenuItem)?.Tag is RepositoryNodeViewModel node)
-            _ = _viewModel.CopyToClipboardAsync(node).RunAndLogFaults("Copying the working directory to the clipboard");
+            _ = _viewModel.Commands.CopyToClipboardAsync(node).RunAndLogFaults("Copying the working directory to the clipboard");
     }
 
     // ContextMenu.PlacementTarget is always null in Avalonia 11 (AvaloniaUI/Avalonia#16344), so the

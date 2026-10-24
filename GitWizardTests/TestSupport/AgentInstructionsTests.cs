@@ -9,18 +9,7 @@ using NUnit.Framework.Interfaces;
 [NonParallelizable]
 public class AgentInstructionsTests
 {
-    static string RepositoryRoot
-    {
-        get
-        {
-            var directory = new DirectoryInfo(AppContext.BaseDirectory);
-            while (directory != null && !File.Exists(Path.Combine(directory.FullName, "git-wizard.slnx")))
-                directory = directory.Parent;
-            return directory?.FullName ?? throw new DirectoryNotFoundException("Cannot locate git-wizard.slnx.");
-        }
-    }
-
-    static string Read(string path) => File.ReadAllText(Path.Combine(RepositoryRoot, path));
+    static string Read(string path) => File.ReadAllText(Path.Combine(SourceTree.RepositoryRoot, path));
 
     [Test]
     public void Instructions_StayWithinDocumentAndBlockBudgets()
@@ -40,7 +29,7 @@ public class AgentInstructionsTests
         var links = Regex.Matches(Read("AGENTS.md"), @"\]\((docs/[^)#]+\.md)(?:#[^)]*)?\)");
         Assert.That(links, Is.Not.Empty);
         foreach (Match link in links)
-            Assert.That(File.Exists(Path.Combine(RepositoryRoot, link.Groups[1].Value)), Is.True, link.Value);
+            Assert.That(File.Exists(Path.Combine(SourceTree.RepositoryRoot, link.Groups[1].Value)), Is.True, link.Value);
     }
 
     [TestCase("")]

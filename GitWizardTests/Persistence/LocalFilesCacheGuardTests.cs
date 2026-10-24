@@ -129,7 +129,7 @@ public class LocalFilesCacheGuardTests
         await File.WriteAllTextAsync(sentinel, "retained");
         var dialogs = new StubUserDialogs();
         await using var viewModel = TestViewModels.Create(dialogs: dialogs);
-        await viewModel.DeleteAllLocalFilesAsync();
+        await viewModel.IndexCache.DeleteAllLocalFilesAsync();
         Assert.That(dialogs.AlertCalls, Has.Count.EqualTo(1));
         Assert.That(dialogs.AlertCalls.Single().Title, Is.EqualTo("Files Not Deleted"));
         Assert.That(dialogs.AlertCalls.Single().Message, Does.Contain("mft-index"));
@@ -142,7 +142,7 @@ public class LocalFilesCacheGuardTests
         await File.WriteAllTextAsync(Path.Combine(GitWizardApi.GetLocalFilesPath(), "sentinel.txt"), "ordinary file");
         var dialogs = new StubUserDialogs();
         await using var viewModel = TestViewModels.Create(dialogs: dialogs);
-        await viewModel.DeleteAllLocalFilesAsync();
+        await viewModel.IndexCache.DeleteAllLocalFilesAsync();
         Assert.That(dialogs.AlertCalls.Single().Title, Is.EqualTo("Files Deleted"));
         Assert.That(Directory.Exists(GitWizardApi.GetLocalFilesPath()), Is.False);
     }

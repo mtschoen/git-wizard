@@ -6,8 +6,9 @@ using LibGit2Sharp;
 namespace GitWizardTests;
 
 /// <summary>
-/// Covers the repository-action methods in <c>MainViewModel.Commands</c>: clipboard actions,
-/// OpenInExplorer, DeepRefreshRepository, CheckoutMatchingBranch, OpenInFork, and CleanDownstreamBranches.
+/// Covers the repository-action methods in <c>RepositoryCommandsViewModel.cs</c> and cache actions
+/// in <c>IndexCacheViewModel.cs</c>: clipboard actions, OpenInExplorer, DeepRefreshRepository,
+/// CheckoutMatchingBranch, OpenInFork, CleanDownstreamBranches, and ClearCacheAsync.
 /// </summary>
 public class MainViewModelCommandTests
 {
@@ -24,7 +25,7 @@ public class MainViewModelCommandTests
         var clipboard = new StubClipboardService();
         var vm = TestViewModels.Create(clipboard: clipboard, timeProvider: clock);
         var node = Node("C:/projects/widget");
-        var copy = vm.CopyToClipboardAsync(node);
+        var copy = vm.Commands.CopyToClipboardAsync(node);
         try
         {
             Assert.That(clock.Timer, Is.Not.Null);
@@ -49,7 +50,7 @@ public class MainViewModelCommandTests
         var vm = TestViewModels.Create(clipboard: clipboard);
         var node = Node("");
 
-        await vm.CopyToClipboardAsync(node);
+        await vm.Commands.CopyToClipboardAsync(node);
 
         Assert.Multiple(() =>
         {
@@ -64,7 +65,7 @@ public class MainViewModelCommandTests
         var dialogs = new StubUserDialogs();
         var vm = TestViewModels.Create(dialogs: dialogs);
 
-        vm.OpenInExplorer(null);
+        vm.Commands.OpenInExplorer(null);
 
         Assert.That(dialogs.AlertCalls, Is.Empty);
     }
@@ -76,7 +77,7 @@ public class MainViewModelCommandTests
         var vm = TestViewModels.Create(dialogs: dialogs);
         var node = Node("");
 
-        vm.OpenInExplorer(node);
+        vm.Commands.OpenInExplorer(node);
 
         Assert.That(dialogs.AlertCalls, Is.Empty);
     }
@@ -85,7 +86,7 @@ public class MainViewModelCommandTests
     public void DeepRefreshRepository_NullNode_DoesNothing()
     {
         var vm = TestViewModels.Create();
-        vm.DeepRefreshRepository(null);
+        vm.Commands.DeepRefreshRepository(null);
     }
 
     [Test]
@@ -94,7 +95,7 @@ public class MainViewModelCommandTests
         var vm = TestViewModels.Create();
         var header = RepositoryNodeViewModel.CreateGroupHeader("C:\\");
 
-        vm.DeepRefreshRepository(header);
+        vm.Commands.DeepRefreshRepository(header);
 
         Assert.That(header.Status, Is.EqualTo(RefreshStatus.Success));
     }
@@ -109,7 +110,7 @@ public class MainViewModelCommandTests
         viewModel.RepositoryList.AddRepository(repository, streaming: false);
         var node = viewModel.RepositoryList.Repositories.Single();
         node.Status = RefreshStatus.Success;
-        viewModel.DeepRefreshRepository(node);
+        viewModel.Commands.DeepRefreshRepository(node);
         try
         {
             Assert.That(node.Status, Is.EqualTo(RefreshStatus.Refreshing));
@@ -125,7 +126,7 @@ public class MainViewModelCommandTests
     public void CheckoutMatchingBranch_NullNode_DoesNothing()
     {
         var vm = TestViewModels.Create();
-        vm.CheckoutMatchingBranch(null);
+        vm.Commands.CheckoutMatchingBranch(null);
     }
 
     [Test]
@@ -134,7 +135,7 @@ public class MainViewModelCommandTests
         var vm = TestViewModels.Create();
         var header = RepositoryNodeViewModel.CreateGroupHeader("C:\\");
 
-        vm.CheckoutMatchingBranch(header);
+        vm.Commands.CheckoutMatchingBranch(header);
 
         Assert.That(header.IsGroupHeader, Is.True);
     }
@@ -145,7 +146,7 @@ public class MainViewModelCommandTests
         var vm = TestViewModels.Create();
         var node = Node("C:/repos/alpha");
 
-        vm.CheckoutMatchingBranch(node);
+        vm.Commands.CheckoutMatchingBranch(node);
 
         Assert.That(node.Status, Is.EqualTo(RefreshStatus.Refreshing));
     }
@@ -156,7 +157,7 @@ public class MainViewModelCommandTests
         var dialogs = new StubUserDialogs();
         var vm = TestViewModels.Create(dialogs: dialogs);
 
-        await vm.CleanDownstreamBranchesAsync(null);
+        await vm.Commands.CleanDownstreamBranchesAsync(null);
 
         Assert.That(dialogs.AlertCalls, Is.Empty);
     }
@@ -168,7 +169,7 @@ public class MainViewModelCommandTests
         var vm = TestViewModels.Create(dialogs: dialogs);
         var header = RepositoryNodeViewModel.CreateGroupHeader("C:\\");
 
-        await vm.CleanDownstreamBranchesAsync(header);
+        await vm.Commands.CleanDownstreamBranchesAsync(header);
 
         Assert.That(dialogs.AlertCalls, Is.Empty);
     }
@@ -186,7 +187,7 @@ public class MainViewModelCommandTests
         var dialogs = new StubUserDialogs();
         var viewModel = TestViewModels.Create(dialogs: dialogs);
 
-        await viewModel.CleanDownstreamBranchesAsync(node);
+        await viewModel.Commands.CleanDownstreamBranchesAsync(node);
 
         using var library = new Repository(fixture.Path);
         Assert.Multiple(() =>
@@ -208,7 +209,7 @@ public class MainViewModelCommandTests
         var dialogs = new StubUserDialogs();
         var viewModel = TestViewModels.Create(dialogs: dialogs);
 
-        await viewModel.CleanDownstreamBranchesAsync(node);
+        await viewModel.Commands.CleanDownstreamBranchesAsync(node);
 
         Assert.That(dialogs.AlertCalls, Is.Empty,
             "With no merged downstream branches there's nothing to confirm or delete.");
@@ -220,7 +221,7 @@ public class MainViewModelCommandTests
         var dialogs = new StubUserDialogs();
         var viewModel = TestViewModels.Create(dialogs: dialogs);
 
-        await viewModel.OpenInForkAsync(Node("/no/such/directory/xyz"));
+        await viewModel.Commands.OpenInForkAsync(Node("/no/such/directory/xyz"));
 
         Assert.That(dialogs.AlertCalls.Any(a => a.Message.Contains("Invalid repository path")), Is.True,
             "A working directory that doesn't exist must surface the invalid-path alert.");
@@ -232,7 +233,7 @@ public class MainViewModelCommandTests
         var dialogs = new StubUserDialogs();
         var viewModel = TestViewModels.Create(dialogs: dialogs);
 
-        await viewModel.OpenInForkAsync(null);
+        await viewModel.Commands.OpenInForkAsync(null);
 
         Assert.That(dialogs.AlertCalls, Is.Empty);
     }
@@ -243,7 +244,7 @@ public class MainViewModelCommandTests
         var dialogs = new StubUserDialogs();
         var vm = TestViewModels.Create(dialogs: dialogs);
 
-        await vm.OpenInForkAsync(Node(""));
+        await vm.Commands.OpenInForkAsync(Node(""));
 
         Assert.That(dialogs.AlertCalls, Is.Empty);
     }
@@ -254,7 +255,7 @@ public class MainViewModelCommandTests
         var dialogs = new StubUserDialogs();
         var vm = TestViewModels.Create(dialogs: dialogs);
 
-        await vm.OpenInForkAsync(RepositoryNodeViewModel.CreateGroupHeader("C:\\"));
+        await vm.Commands.OpenInForkAsync(RepositoryNodeViewModel.CreateGroupHeader("C:\\"));
 
         Assert.That(dialogs.AlertCalls, Is.Empty);
     }
@@ -274,7 +275,7 @@ public class MainViewModelCommandTests
             var vm = TestViewModels.Create(dialogs: dialogs);
             using var directory = new TempDirectory();
             var workingDirectory = directory.Path;
-            await vm.OpenInForkAsync(Node(workingDirectory));
+            await vm.Commands.OpenInForkAsync(Node(workingDirectory));
 
             Assert.That(dialogs.AlertCalls.Any(a => a.Message.Contains(expected, StringComparison.Ordinal)),
                 Is.True);
@@ -289,7 +290,12 @@ public class MainViewModelCommandTests
     public async Task ClearCacheAsync_CompletesWithoutError()
     {
         using var sandbox = new LocalFilesSandbox();
-        var viewModel = TestViewModels.Create();
-        Assert.DoesNotThrowAsync(async () => await viewModel.ClearCacheAsync());
+        var dialogs = new StubUserDialogs();
+        await using var viewModel = TestViewModels.Create(dialogs: dialogs);
+        await viewModel.IndexCache.ClearCacheAsync();
+        Assert.That(dialogs.AlertCalls, Is.EqualTo(new[]
+        {
+            new StubUserDialogs.AlertCall("Cache Cleared", "Repository cache has been cleared")
+        }));
     }
 }

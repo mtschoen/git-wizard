@@ -30,14 +30,14 @@ This document describes the directory layout, naming conventions, and verificati
 
 ## MainViewModel Fixture Mapping
 
-Fixtures exercising `MainViewModel` and its extracted helpers live together under `GitWizardTests/UI/` and correspond to the following production sources:
+Fixtures exercising `MainViewModel` and its composed view models live under `GitWizardTests/UI/` (with local-file guard integration in `GitWizardTests/Persistence/LocalFilesCacheGuardTests.cs`) and correspond to the following production sources:
 
 | Production Source | Fixture Name(s) | Concern |
 | --- | --- | --- |
-| `MainViewModel.cs`<br>`RefreshCoordinator.cs`<br>`RepositoryListViewModel.cs` | `MainViewModelTests`<br>`MainViewModelNoMftTests` | Construction, default property states, injected services, error button labeling, and refresh selection. |
+| `MainViewModel.cs`<br>`RefreshCoordinator.cs`<br>`RepositoryListViewModel.cs` | `MainViewModelCompositionTests`<br>`MainViewModelTests`<br>`MainViewModelNoMftTests` | Shell field/partial/line-budget/XAML-binding guards, construction, default property states, injected services, error button labeling, and refresh selection. |
 | `PreparedDiscoveryIndexStore.cs` | `MainViewModelPreparedSessionTests` | Prepared discovery index session retention, single-owner replacement disposal, and active cache status capture. |
 | `StatusHeaderViewModel.cs` | `StatusHeaderViewModelTests` | Status header text, refresh baseline retention, filter/group suffix formatting, and empty-repositories messaging. |
-| `MainViewModel.Commands.cs` | `MainViewModelCommandTests`<br>`MainViewModelClipboardTests` | Command execution, repository selection, clipboard copying. |
+| `RepositoryCommandsViewModel.cs` | `MainViewModelCommandTests`<br>`MainViewModelClipboardTests` | Repository row commands (Explorer, Fork, checkout, downstream branch cleanup, deep refresh), alert fault handling, and clipboard copying. |
 | `RepositoryListViewModel.cs`<br>`RepositoryListViewModel.Groups.cs`<br>`SearchDebouncer.cs`<br>`RepositoryGroupKeys.cs` | `MainViewModelGroupingTests`<br>`MainViewModelGroupingInteractionTests` | Grouping hierarchies, publication, expansion, filter swapping, search debounce. |
 | `MainWindow.axaml`<br>`RepositoryListViewModel.cs` | `MainWindowRepositoryListBindingTests` | ItemsSource replacement and direct active-filter notification. |
 | `MainWindow.axaml`<br>`RefreshCoordinator.cs`<br>`RefreshCoordinator.UiDrain.cs` | `MainWindowRefreshBindingTests` | Scanning visibility and determinate refresh progress bindings. |
@@ -46,7 +46,7 @@ Fixtures exercising `MainViewModel` and its extracted helpers live together unde
 | `RefreshCoordinator.UiDrain.cs` | `MainViewModelUiDrainTests` | Background-to-UI message drain throttling and batching. |
 | `RefreshCoordinator.UiDrain.cs` | `MainViewModelUpdateHandlerTests`<br>`MainViewModelProgressNotificationTests` | Queued scan callbacks and progress status notifications. |
 | `CancellationTokenSourceDisposal.cs` | `CancellationTokenSourceDisposalTests` | Cooperative cancellation callback completion and disposal sequencing. |
-| `MainViewModel.IndexCache.cs` | `MainViewModelIndexCacheTests` | Index cache integration, cache hit indicators, and session status. |
+| `IndexCacheViewModel.cs` | `IndexCacheViewModelTests`<br>`IndexCacheStatusWindowTests`<br>`MainViewModelIndexCacheTests`<br>`LocalFilesCacheGuardTests` | Index cache inspection and block clearing, `ClearCacheAsync`, `DeleteAllLocalFilesAsync`, cache hit indicators, and session status. |
 | `RepositoryListViewModel.Rows.cs`<br>`RepositoryListViewModel.CachedRows.cs`<br>`RefreshCoordinator.UiDrain.cs` | `MainViewModelAddRepositoryTests`<br>`MainViewModelUpdateCompletedRepositoryTests`<br>`MainViewModelPrePopulateTests` | Row materialization, completion updates, cached pre-population, and scanning ownership at queue drain. |
 | `RefreshCoordinator.cs`<br>`RepositoryListViewModel.cs` | `MainViewModelCompleteRefreshTests`<br>`MainViewModelRefreshLifecycleTests` | Refresh orchestration, final sorted collection publication, and anchor preservation. |
 | `RepositoryListViewModel.Rows.cs`<br>`RepositoryListViewModel.CachedRows.cs` | `MainViewModelCachedNodeReplacementTests`<br>`MainViewModelRefreshPruneTests` | Cached node replacement and stale/renamed UI path pruning. |

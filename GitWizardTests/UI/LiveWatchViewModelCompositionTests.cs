@@ -6,7 +6,7 @@ using GitWizardUI.ViewModels;
 
 namespace GitWizardTests.UI;
 
-// Covers LiveWatchViewModel.cs, RefreshCoordinator.cs, and MainViewModel.IndexCache.cs.
+// Covers LiveWatchViewModel.cs, RefreshCoordinator.cs, and MainViewModel.cs.
 public class LiveWatchViewModelCompositionTests
 {
     [Test]

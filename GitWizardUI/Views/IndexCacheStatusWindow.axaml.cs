@@ -11,7 +11,7 @@ public partial class IndexCacheStatusWindow : Window
     readonly IndexCacheViewModel _viewModel;
 
     public IndexCacheStatusWindow() : this(new IndexCacheViewModel(
-        new AvaloniaUiDispatcher(),
+        new AvaloniaUiDispatcher(), new AvaloniaUserDialogs(), new PreparedDiscoveryIndexStore(),
         () => new MftIndexCacheInspection().Capture(GitWizardApi.GetLocalFilesPath()),
         () => MftIndexCacheMaintenance.Clear(GitWizardApi.GetLocalFilesPath())))
     { }

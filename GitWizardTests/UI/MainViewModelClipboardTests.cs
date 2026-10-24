@@ -6,7 +6,7 @@ using GitWizardUI.ViewModels.Services;
 namespace GitWizardTests;
 
 // Clipboard tests exercise row copy commands, delay restoration, and failure paths.
-// Covers MainViewModel.Commands.cs.
+// Covers RepositoryCommandsViewModel.cs.
 public class MainViewModelClipboardTests
 {
     static RepositoryNodeViewModel RepoNode(string workingDirectory)
@@ -25,7 +25,7 @@ public class MainViewModelClipboardTests
 
         // The stub clipboard and dispatcher complete synchronously, so the write and the indicator
         // post have already run before the returned (still-pending) task is dropped.
-        _ = vm.CopyToClipboardAsync(RepoNode("C:/projects/widget"));
+        _ = vm.Commands.CopyToClipboardAsync(RepoNode("C:/projects/widget"));
 
         Assert.That(clipboard.Writes, Does.Contain("C:/projects/widget"));
     }
@@ -38,7 +38,7 @@ public class MainViewModelClipboardTests
         var vm = TestViewModels.Create();
         var node = RepoNode("C:/projects/widget");
 
-        _ = vm.CopyToClipboardAsync(node);
+        _ = vm.Commands.CopyToClipboardAsync(node);
 
         // The stub clipboard completes synchronously and the stub dispatcher posts inline, so the
         // indicator is already lit when the copy task yields on its reset delay.
@@ -51,7 +51,7 @@ public class MainViewModelClipboardTests
         var clock = new ControlledDelayClock();
         var vm = TestViewModels.Create(timeProvider: clock);
         var node = RepoNode("C:/projects/widget");
-        var copy = vm.CopyToClipboardAsync(node);
+        var copy = vm.Commands.CopyToClipboardAsync(node);
         try
         {
             Assert.That(clock.Timer, Is.Not.Null, "The indicator must use the injected clock.");
@@ -77,21 +77,21 @@ public class MainViewModelClipboardTests
         var clipboard = new StubClipboardService();
         var vm = TestViewModels.Create(clipboard: clipboard);
 
-        await vm.CopyToClipboardAsync(null);
-        await vm.CopyToClipboardAsync(RepositoryNodeViewModel.CreateGroupHeader("C:"));
+        await vm.Commands.CopyToClipboardAsync(null);
+        await vm.Commands.CopyToClipboardAsync(RepositoryNodeViewModel.CreateGroupHeader("C:"));
 
         Assert.That(clipboard.Writes, Is.Empty, "A null node and a group header (no working directory) must not copy.");
     }
 
-    // A clipboard failure must propagate to the caller (a code-behind fire-and-forget drop leaves
-    // it unobserved) and must not light a false "copied" indicator.
+    // A clipboard failure must propagate to the caller (the real code-behind observes faults through
+    // RunAndLogFaults) and must not light a false "copied" indicator.
     [Test]
     public void CopyToClipboardAsync_FailsWithoutLightingIndicatorWhenClipboardThrows()
     {
         var vm = TestViewModels.Create(clipboard: new ThrowingClipboardService());
         var node = RepoNode("C:/projects/widget");
 
-        Assert.ThrowsAsync<InvalidOperationException>(() => vm.CopyToClipboardAsync(node));
+        Assert.ThrowsAsync<InvalidOperationException>(() => vm.Commands.CopyToClipboardAsync(node));
         Assert.That(node.JustCopied, Is.False, "A failed clipboard write must not light the copied indicator.");
     }
 
@@ -102,7 +102,7 @@ public class MainViewModelClipboardTests
         var vm = TestViewModels.Create(clipboard: clipboard);
         var node = new RepositoryNodeViewModel(new GitWizardRepository(""));
 
-        await vm.CopyToClipboardAsync(node);
+        await vm.Commands.CopyToClipboardAsync(node);
 
         Assert.That(clipboard.Writes, Is.Empty);
     }

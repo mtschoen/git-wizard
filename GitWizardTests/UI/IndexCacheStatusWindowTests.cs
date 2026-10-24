@@ -25,7 +25,7 @@ public class IndexCacheStatusWindowTests
             MFTLib.Index.CachedBlockAvailability.InUse, null, null, null);
         var snapshot = new MftIndexCacheInspection(new FrozenCacheClock(), true,
             _ => new[] { row }).Capture(files.DirectoryPath);
-        var model = new IndexCacheViewModel(new AvaloniaUiDispatcher(), () => snapshot, NoClear);
+        var model = new IndexCacheViewModel(new AvaloniaUiDispatcher(), new StubUserDialogs(), new PreparedDiscoveryIndexStore(), () => snapshot, NoClear);
         var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var offThread = false;
         model.PropertyChanged += (_, arguments) =>

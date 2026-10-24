@@ -9,6 +9,8 @@ namespace GitWizardUI.ViewModels;
 public sealed class IndexCacheViewModel : INotifyPropertyChanged
 {
     readonly IUiDispatcher _dispatcher;
+    readonly IUserDialogs _dialogs;
+    readonly PreparedDiscoveryIndexStore _preparedDiscoveryIndex;
     readonly Func<MftIndexCacheSnapshot> _inspect;
     readonly Func<MftIndexCacheMaintenanceResult> _clear;
     int _operation;
@@ -21,18 +23,25 @@ public sealed class IndexCacheViewModel : INotifyPropertyChanged
 
     public IndexCacheViewModel(
         IUiDispatcher dispatcher,
+        IUserDialogs dialogs,
+        PreparedDiscoveryIndexStore preparedDiscoveryIndex,
         Func<MftIndexCacheSnapshot> inspect,
         Func<MftIndexCacheMaintenanceResult> clear,
-        ReadOnlyObservableCollection<LiveVolumeStatusViewModel>? liveVolumes = null,
-        ReadOnlyObservableCollection<VolumeWatchTransition>? liveWatchEvents = null)
+        LiveWatchViewModel? liveWatch = null)
     {
         _dispatcher = dispatcher;
+        _dialogs = dialogs;
+        _preparedDiscoveryIndex = preparedDiscoveryIndex;
         _inspect = inspect;
         _clear = clear;
-        LiveVolumes = liveVolumes ?? new ReadOnlyObservableCollection<LiveVolumeStatusViewModel>(
-            new ObservableCollection<LiveVolumeStatusViewModel>());
-        LiveWatchEvents = liveWatchEvents ?? new ReadOnlyObservableCollection<VolumeWatchTransition>(
-            new ObservableCollection<VolumeWatchTransition>());
+        LiveVolumes = liveWatch != null
+            ? new ReadOnlyObservableCollection<LiveVolumeStatusViewModel>(liveWatch.LiveVolumes)
+            : new ReadOnlyObservableCollection<LiveVolumeStatusViewModel>(
+                new ObservableCollection<LiveVolumeStatusViewModel>());
+        LiveWatchEvents = liveWatch != null
+            ? new ReadOnlyObservableCollection<VolumeWatchTransition>(liveWatch.LiveWatchEvents)
+            : new ReadOnlyObservableCollection<VolumeWatchTransition>(
+                new ObservableCollection<VolumeWatchTransition>());
     }
 
     public Task RefreshAsync() => RunExclusiveAsync(async () =>
@@ -49,6 +58,24 @@ public sealed class IndexCacheViewModel : INotifyPropertyChanged
         var text = $"Index cache clear {outcome}.{Environment.NewLine}{result.ToClearText()}";
         await Publish(null, text).ConfigureAwait(false);
     }, "Index cache clear failed");
+
+    public async Task ClearCacheAsync()
+    {
+        await _preparedDiscoveryIndex.SetAsync(null).ConfigureAwait(false);
+        GitWizardApi.ClearCache();
+        await _dialogs.ShowAlertAsync("Cache Cleared", "Repository cache has been cleared");
+    }
+
+    public async Task DeleteAllLocalFilesAsync()
+    {
+        await _preparedDiscoveryIndex.SetAsync(null).ConfigureAwait(false);
+        if (!GitWizardApi.TryDeleteAllLocalFiles(out var refusal))
+        {
+            await _dialogs.ShowAlertAsync("Files Not Deleted", refusal);
+            return;
+        }
+        await _dialogs.ShowAlertAsync("Files Deleted", "All local files have been deleted");
+    }
 
     async Task RunExclusiveAsync(Func<Task> operation, string failureHeading)
     {

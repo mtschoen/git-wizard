@@ -1,6 +1,7 @@
 """Process-level contracts for the preflight CLI, without invoking toolchains."""
 
 import io
+import json
 import os
 import subprocess
 import tempfile
@@ -17,6 +18,17 @@ try:
     BASH = resolve_bash()
 except FileNotFoundError:
     BASH = None
+
+
+def passing_report():
+    return {"score": 100, "summary": {"files": 10}}
+
+
+def write_scanner_cli(clone, report, exit_code=None):
+    script = f"console.log(JSON.stringify({json.dumps(report)}));\n"
+    if exit_code is not None:
+        script += f"process.exit({exit_code});\n"
+    (clone / "dist/cli.js").write_text(script)
 
 
 @unittest.skipUnless(BASH, "bash is required")
@@ -412,9 +424,7 @@ class PreflightTests(unittest.TestCase):
         (clone / ".git").mkdir(parents=True)
         (clone / "dist").mkdir()
         (clone / "package.json").write_text('{"packageManager": "pnpm@12.14.0"}\n')
-        (clone / "dist/cli.js").write_text(
-            "console.log(JSON.stringify({score:100,summary:{files:10}}));\n"
-        )
+        write_scanner_cli(clone, passing_report())
         (clone / ".git/build-receipt").write_text(commit + "\n")
         executables = self.directory / "executables"
         executables.mkdir()
@@ -454,6 +464,43 @@ class PreflightTests(unittest.TestCase):
                 self.assertNotEqual(0, status, output)
                 self.assertIn("Run: bash ci/aislop-gate.sh prepare", output)
 
+    def test_aislop_reaps_heartbeat_child_before_exit(self):
+        clone, environment = self.scanner_environment()
+        process_file = self.directory / "heartbeat-process"
+        environment["HEARTBEAT_PROCESS_FILE"] = process_file.as_posix()
+        sleeper = self.directory / "executables/sleep"
+        sleeper.write_text(
+            '#!/usr/bin/env bash\n'
+            'echo "$$" > "$HEARTBEAT_PROCESS_FILE"\n'
+            'exec >/dev/null 2>&1\n'
+            'exec node -e "setInterval(() => {}, 2147483647)"\n'
+        )
+        # The scanner finishes only after the heartbeat has started its child.
+        scanner = clone / "dist/cli.js"
+        scanner.write_text(
+            'const fs = require("fs");\n'
+            'function finish() {\n'
+            '  if (!fs.existsSync(process.env.HEARTBEAT_PROCESS_FILE)) {\n'
+            '    setImmediate(finish); return;\n'
+            '  }\n'
+            f'  console.log(JSON.stringify({json.dumps(passing_report())}));\n'
+            '}\nfinish();\n'
+        )
+        status, output = self.run_scanner(environment)
+        self.assertEqual(0, status, output)
+        # A surviving child is killed here so a red regression run stays owned.
+        result = subprocess.run(
+            [
+                BASH, "-c",
+                'if kill -0 "$1" 2>/dev/null; then kill "$1"; exit 1; fi',
+                "heartbeat-check", process_file.read_text().strip(),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(0, result.returncode, "heartbeat child survived gate exit")
+
     def test_aislop_accepts_relative_results_directory(self):
         clone, environment = self.scanner_environment()
         environment["CI_RESULTS_DIRECTORY"] = (
@@ -461,9 +508,27 @@ class PreflightTests(unittest.TestCase):
         )
         for scanner_exit in (0, 1):
             with self.subTest(scanner_exit=scanner_exit):
-                (clone / "dist/cli.js").write_text(
-                    'console.log(JSON.stringify({score:100,summary:{files:10},diagnostics:[{severity:"warning",rule:"example",filePath:"sample.cs",line:1,message:"fixture diagnostic"}]}));\n'
-                    f"process.exit({scanner_exit});\n"
+                report = passing_report()
+                report["diagnostics"] = [
+                    {
+                        "severity": "warning",
+                        "rule": "example",
+                        "filePath": "sample.cs",
+                        "line": 1,
+                        "message": "fixture diagnostic",
+                    }
+                ]
+                write_scanner_cli(clone, report, scanner_exit)
+                scanner = clone / "dist/cli.js"
+                scanner.write_text(
+                    'const assert = require("node:assert/strict");\n'
+                    'for (const [name, value] of Object.entries({\n'
+                    '  MSBUILDDISABLENODEREUSE: "1",\n'
+                    '  DOTNET_CLI_USE_MSBUILD_SERVER: "0",\n'
+                    '  MSBUILDUSESERVER: "0",\n'
+                    '  UseSharedCompilation: "false"\n'
+                    '})) assert.equal(process.env[name], value, name);\n'
+                    + scanner.read_text()
                 )
                 status, output = self.run_scanner(environment)
                 self.assertEqual(scanner_exit, status, output)
@@ -471,6 +536,53 @@ class PreflightTests(unittest.TestCase):
                 if scanner_exit:
                     self.assertIn("fixture diagnostic", output)
                 self.assertNotIn("MODULE_NOT_FOUND", output)
+
+    def test_aislop_prints_analyzer_execution_summary(self):
+        clone, environment = self.scanner_environment()
+        projects = [
+            "GitWizard/GitWizard.csproj",
+            "GitWizardTests/GitWizardTests.csproj",
+            "GitWizardUI.Screenshot/GitWizardUI.Screenshot.csproj",
+            "GitWizardUI/GitWizardUI.csproj",
+            "git-wizard/git-wizard.csproj",
+        ]
+        report = passing_report()
+        report["engines"] = {
+            "lint": {
+                "issues": 0,
+                "skipped": False,
+                "elapsed": 103033,
+                "executions": [
+                    {
+                        "tool": tool,
+                        "status": "ran",
+                        "targets": [target],
+                        "analyzedProjects": projects,
+                        "excludedProjects": [],
+                        "elapsed": elapsed,
+                    }
+                    for tool, target, elapsed in (
+                        ("roslynator", "GitWizard/GitWizard.csproj", 64738),
+                        ("jb inspectcode", "git-wizard.slnx", 102703),
+                    )
+                ],
+            }
+        }
+        report["diagnostics"] = [
+            {"engine": "lint", "severity": "warning", "rule": "x", "filePath": "a.cs"}
+        ]
+        for scanner_exit in (0, 1):
+            with self.subTest(scanner_exit=scanner_exit):
+                write_scanner_cli(clone, report, scanner_exit)
+                status, output = self.run_scanner(environment)
+                self.assertEqual(scanner_exit, status, output)
+                self.assertIn("aislop analyzer roslynator: ran, 64.7s", output)
+                self.assertIn("aislop analyzer jb inspectcode: ran, 102.7s", output)
+                self.assertIn("5 analyzed projects", output)
+                for project in projects:
+                    self.assertIn(f"aislop analyzer jb inspectcode analyzed: {project}", output)
+                    self.assertIn(f"aislop analyzer roslynator analyzed: {project}", output)
+                self.assertIn("aislop findings by engine/severity: lint/warning=1", output)
 
 
 if __name__ == "__main__":

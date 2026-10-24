@@ -45,16 +45,39 @@ if [[ ! -f "$directory/dist/cli.js" || ! -f "$receipt" ]] ||
 fi
 export REPORT=${REPORT:-${CI_RESULTS_DIRECTORY:-$PWD/artifacts}/aislop-report.json}
 mkdir -p "$(dirname "$REPORT")"
+# Child builds must not leave servers holding the runner's output pipes open.
+export MSBUILDDISABLENODEREUSE=1
+export DOTNET_CLI_USE_MSBUILD_SERVER=0
+export MSBUILDUSESERVER=0
+export UseSharedCompilation=false
 node "$directory/dist/cli.js" ci . --json > "$REPORT" &
 aislop_pid=$!
-( while kill -0 "$aislop_pid" 2>/dev/null; do
-    echo "aislop scan in progress ($(date -u +%H:%M:%S))"
-    sleep 60
-done ) &
+(
+    sleeper_pid=
+    stop_sleeper() {
+        if [[ -n "$sleeper_pid" ]]; then
+            if kill "$sleeper_pid" 2>/dev/null; then :; fi
+            if wait "$sleeper_pid" 2>/dev/null; then :; fi
+        fi
+    }
+    trap 'stop_sleeper; exit 0' TERM
+    while kill -0 "$aislop_pid" 2>/dev/null; do
+        echo "aislop scan in progress ($(date -u +%H:%M:%S))"
+        sleep 60 &
+        sleeper_pid=$!
+        # Waiting asynchronously lets TERM reap the timer before this shell exits.
+        if wait "$sleeper_pid"; then sleeper_pid=; else exit 0; fi
+    done
+) &
 heartbeat_pid=$!
-trap 'kill "$heartbeat_pid" 2>/dev/null || true' EXIT
+stop_heartbeat() {
+    if kill "$heartbeat_pid" 2>/dev/null; then :; fi
+    if wait "$heartbeat_pid" 2>/dev/null; then :; fi
+}
+trap stop_heartbeat EXIT
 failure=0
 wait "$aislop_pid" || failure=1
+node ci/aislop-report-summary.js
 node -e "const r=JSON.parse(require('fs').readFileSync(process.env.REPORT,'utf8')); const f=r.summary?.files??0; console.log('aislop score',r.score,'over',f,'files'); if(f<10){console.error('C# engine did not run');process.exit(1);}"
 if [[ "$failure" != 0 ]]; then
     node -e "const r=JSON.parse(require('fs').readFileSync(process.env.REPORT,'utf8')); for(const f of(r.diagnostics??[])) console.log([f.severity,f.rule,f.filePath+':'+(f.line??0),f.message].join(' | '));"

@@ -9,7 +9,7 @@ public class TempDirectoriesTests
     public void IsTempPath_UnderOtherProfilesWindowsTemp_IsTrue()
     {
         Assert.That(TempDirectories.IsTempPath(
-            @"C:\Users\example\AppData\Local\Temp\pytest-of-example\pytest-12602\repo"), Is.True);
+            @"C:\Users\someone\AppData\Local\Temp\pytest-of-someone\pytest-12602\repo"), Is.True);
     }
 
     [Test]
@@ -27,8 +27,8 @@ public class TempDirectoriesTests
     [Test]
     public void IsTempPath_UserProfileOutsideTemp_IsFalse()
     {
-        Assert.That(TempDirectories.IsTempPath(@"C:\Users\example\AppData\Local\Programs\repo"), Is.False);
-        Assert.That(TempDirectories.IsTempPath(@"C:\Users\example\repos\repo"), Is.False);
+        Assert.That(TempDirectories.IsTempPath(@"C:\Users\someone\AppData\Local\Programs\repo"), Is.False);
+        Assert.That(TempDirectories.IsTempPath(@"C:\Users\someone\repos\repo"), Is.False);
     }
 
     [Test]

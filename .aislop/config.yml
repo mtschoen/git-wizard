@@ -26,14 +26,17 @@ engines:
   architecture: false
   security: true
 
-# projectEvaluation is disabled because CI (ci.yml) already carries the C#
-# compiler, analyzer (TreatWarningsAsErrors), format, and JetBrains InspectCode
-# gates. Disabling projectEvaluation in aislop prevents redundant solution-level
-# evaluation; the scan step drops to seconds and the job to a few minutes, which is
-# then dominated by building the aislop fork from source rather than by analysis.
+# projectEvaluation is ON (issue 381): with it false, the pinned fork gates both
+# build-backed C# passes (jb inspectcode, roslynator) on this flag and the lint
+# engine reported a skipped C# pass as "done, 0 issues", so the gate's zero was
+# unproven. With it true, aislop runs jb inspectcode (WARNING floor, bundled
+# settings that suppress only InconsistentNaming) on git-wizard.slnx and
+# roslynator on every restored project, and aislop itself reports a skipped or
+# incomplete C# pass instead of a clean zero. ci.yml keeps its own
+# compiler/analyzer/format/InspectCode gates.
 lint:
   csharp:
-    projectEvaluation: false
+    projectEvaluation: true
 
 quality:
   maxFunctionLoc: 80

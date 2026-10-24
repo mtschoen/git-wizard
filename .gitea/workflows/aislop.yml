@@ -9,12 +9,19 @@ name: aislop
 # and run the built CLI. Gitea is the canonical source - the pin is bumped by
 # pushes that land there first - and github.com/mtschoen/aislop is a mirror
 # that can lag behind, so a freshly bumped sha may not exist on GitHub yet.
-# Project-backed C# checks (compiler, Roslyn analyzers including the SDK CA rules
-# and AsyncFixer under TreatWarningsAsErrors, dotnet format, and JetBrains
-# InspectCode) run directly in ci.yml during normal build and
-# verification, keeping this quality gate lightweight and fast. The pin is bumped
-# by the aislop fork's sync-consumers workflow via PR; a manual bump = edit
-# .aislop/fork-commit.
+# The pin is bumped by the aislop fork's sync-consumers workflow via PR; a
+# manual bump = edit .aislop/fork-commit.
+#
+# lint.csharp.projectEvaluation is on (issue 381): the scan runs jb inspectcode
+# on git-wizard.slnx and roslynator on the restored projects, and aislop
+# itself checks that they covered the solution. That needs a prepared Windows
+# workspace, matching the MFTLib/file-wizard gate shape: the MFTLib submodule
+# (Directory.Build.targets bridges its built assemblies into every project),
+# VS MSBuild for the native library (jb's own build pass compiles the solution
+# in Debug and CopyMFTLibNativeWindows errors without the Debug native dll),
+# the runner-provisioned jb and roslynator tools, and a solution restore for
+# roslynator's per-project restore evidence. ci.yml keeps its own compiler,
+# analyzer, format and InspectCode gates.
 on:
   pull_request:
   push:
@@ -31,11 +38,15 @@ concurrency:
 
 jobs:
   quality-gate:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-        # No submodules: external/MFTLib is excluded from the scan, and since the
-        # project-backed C# tools moved to ci.yml nothing in this job builds it.
+        with:
+          # MFTLib is a scan input now: jb/roslynator load the solution, whose
+          # projects reference the submodule's built assemblies through
+          # Directory.Build.targets HintPaths.
+          submodules: recursive
       - name: Read aislop fork pin
         # Pinned by commit, not a published version - the registry publish
         # route is retired. The pin is bumped by the aislop fork's
@@ -46,36 +57,52 @@ jobs:
         # write would let a crafted file with embedded newlines inject
         # arbitrary env vars into later steps.
         run: bash ci/aislop-gate.sh pin
-      - name: Detect toolchain baked into the runner image
-        id: baked
-        if: runner.os != 'Windows'
-        shell: bash
-        run: bash ci/baked-toolchain.sh node
-      - uses: actions/setup-node@v4
-        if: steps.baked.outputs.node != 'true'
+      # The runner host provisions the .NET 10 SDK and Node LTS on PATH
+      # (workflow provisioning policy; setup actions are Linux-container only,
+      # and ci.yml relies on the same host SDK). Node must satisfy tsdown's
+      # build floor (^22.18 || >=24.11): pnpm install builds the fork through
+      # its "prepare": "tsdown" lifecycle script.
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
         with:
-          # 22, not 20: the `npm install` below builds the fork via its
-          # "prepare": "tsdown" script, and tsdown >= 0.22 requires node
-          # ^22.18 || >=24.11 at build time (it calls Promise.withResolvers,
-          # added in node 22). The pin below still predates that tsdown bump,
-          # so 20 happens to work today - but bumping AISLOP_FORK_COMMIT past
-          # aislop's upstream-0.14.1 merge on node 20 fails with
-          # "Promise.withResolvers is not a function". aislop's own CI matrix
-          # is 22/24. The built CLI still targets node18, so this is aislop's
-          # build floor, not its runtime floor.
-          node-version: 22
-      - name: Restore the built aislop fork
-        id: aislop-cache
+          msbuild-architecture: x64
+      - name: Select runner-provisioned jb, verify roslynator
+        shell: pwsh
+        # jb comes through the fleet tool-store resolver (same as ci.yml's
+        # InspectCode gate); roslynator ships in the shared dotnet tools
+        # directory already on PATH (fleet manifest pins). Fail fast here
+        # rather than after a ten-minute workspace build.
+        run: |
+          if (-not $env:SCHOEN_LAB_TOOL_STORE_ROOT) { throw "Runner tool store is not configured" }
+          $resolver = Join-Path $env:SCHOEN_LAB_TOOL_STORE_ROOT "resolver/use-tool.ps1"
+          & pwsh -NoProfile -File $resolver jb --add-to-path
+          if ($LASTEXITCODE -ne 0) { throw "jb is not provisioned; run runner-converge" }
+          if (-not (Get-Command roslynator -ErrorAction SilentlyContinue)) { throw "roslynator is not provisioned; run runner-converge" }
+      - name: Build MFTLib (native Release + Debug, managed Release)
+        shell: bash
+        # ci/gates.sh native builds native Release plus both managed assemblies.
+        # jb inspectcode's own build pass compiles the solution in Debug, and
+        # Directory.Build.targets' CopyMFTLibNativeWindows errors without the
+        # matching native library (file-wizard precedent), so the Debug native
+        # build is a scan input too. The managed Debug reference needs no
+        # build: the HintPath bridge falls back to Release.
+        run: |
+          bash ci/gates.sh native
+          pwsh -NoProfile -File ci/windows-gates.ps1 native -Configuration Debug
+      - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
-          # Keyed on the pinned sha, which is immutable, so a hit is always the
-          # build for exactly this pin and the clone + install below is skipped.
-          # The node major is in the key because the build runs under it.
-          # receipt1 excludes older caches without a successful-build receipt.
-          path: ${{ runner.temp }}/aislop
-          key: aislop-fork-${{ env.AISLOP_FORK_COMMIT }}-node22-receipt1
+          path: ~\.nuget\packages
+          key: windows-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            windows-nuget-
+      - name: Restore (full solution)
+        shell: bash
+        # roslynator cannot load .slnx on .NET 10 and analyzes the restored
+        # projects instead, so restore evidence (obj/project.assets.json) must
+        # exist before the scan.
+        run: bash ci/gates.sh restore
       - name: Build C#-capable aislop (pinned fork commit)
-        if: steps.aislop-cache.outputs.cache-hit != 'true'
         # Cloned outside the workspace so aislop does not scan the fork's own source.
         # From Gitea (canonical, always current), not the github.com mirror (can lag
         # behind by many commits, so a freshly bumped pin can be absent there).
@@ -83,11 +110,15 @@ jobs:
         # npm chokes on it on some npm versions, so install via pnpm through npx -y
         # (hermetic - no corepack or preinstalled pnpm needed). The pnpm version is read
         # from the checkout's own packageManager field, so a pin bump that changes the
-        # fork's pnpm needs no edit here.
+        # fork's pnpm needs no edit here. No actions/cache for the built fork: on the
+        # host-mode Windows runner each job gets a private workspace path and pnpm's
+        # absolute dependency links would point into the producing job's deleted
+        # directory (MFTLib's gate documents the same failure and repairs links
+        # instead); a cold clone + install is about a minute with a warm store.
         run: bash ci/aislop-gate.sh prepare
       - name: aislop quality gate
-        # Sanity-fail if the C# engine did not actually analyze the .cs tree (avoid a
-        # silent Python-only pass): require a healthy file count alongside the score gate.
+        # Sanity-fail if the C# engine did not actually analyze the .cs tree: require
+        # a healthy file count alongside the score gate.
         #
         # The scan runs backgrounded with a foreground heartbeat because its stdout is
         # redirected to $REPORT: with no log output, Gitea's zombie-task reaper

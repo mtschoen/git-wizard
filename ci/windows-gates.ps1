@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][ValidateSet('native', 'inspect')][string]$Gate)
+param([Parameter(Mandatory)][ValidateSet('native', 'inspect')][string]$Gate, [ValidateSet('Release', 'Debug')][string]$Configuration = 'Release')
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
 if ($Gate -eq 'native') {
@@ -8,7 +8,10 @@ if ($Gate -eq 'native') {
         $msbuild = & $vswhere -latest -requires Microsoft.Component.MSBuild -find 'MSBuild/**/Bin/amd64/MSBuild.exe' | Select-Object -First 1
     }
     if (-not $msbuild) { throw 'Visual Studio amd64 MSBuild is required' }
-    & $msbuild external/MFTLib/MFTLibNative/MFTLibNative.vcxproj -t:Build -p:Configuration=Release -p:Platform=x64 -nologo -v:minimal
+    # Debug is a documented input too: jb inspectcode's own build pass compiles the
+    # solution in Debug, so the aislop quality gate needs x64/Debug/MFTLibNative.dll
+    # for CopyMFTLibNativeWindows (Directory.Build.targets).
+    & $msbuild external/MFTLib/MFTLibNative/MFTLibNative.vcxproj -t:Build "-p:Configuration=$Configuration" -p:Platform=x64 -nologo -v:minimal
     exit $LASTEXITCODE
 }
 $directory = $env:CI_RESULTS_DIRECTORY

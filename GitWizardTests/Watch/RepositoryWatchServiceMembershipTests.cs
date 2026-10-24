@@ -20,14 +20,15 @@ public class RepositoryWatchServiceMembershipTests
     [Test]
     public async Task DotGitCreatedUnderTempDirectory_ExcludedByDefault()
     {
+        var repositoryPath = Path.Combine(TempDirectory.SystemTempPath, "gw-membership", "repo");
         var svc = new RepositoryWatchService(
             new ScriptedVolumeChangeSource(
-                new[] { new VolumeChangeBatch("C", new[]
+                new[] { new VolumeChangeBatch(WatchPath.Parse(repositoryPath).Volume!, new[]
                 {
-                    new VolumeChangeEntry(@"C:\Users\example\AppData\Local\Temp\pytest-1\repo\.git", VolumeEntryKind.Created)
+                    new VolumeChangeEntry(Path.Combine(repositoryPath, ".git"), VolumeEntryKind.Created)
                     }) }),
             trackedRoots: Array.Empty<string>(),
-            searchRoots: new[] { @"C:\" },
+            searchRoots: new[] { Path.GetPathRoot(repositoryPath)! },
             debounce: TimeSpan.FromMilliseconds(10));
 
         var events = await DrainAsync(svc);
@@ -38,14 +39,15 @@ public class RepositoryWatchServiceMembershipTests
     [Test]
     public async Task DotGitCreatedUnderTempDirectory_EmittedWhenIncludeTempDirectories()
     {
+        var repositoryPath = Path.Combine(TempDirectory.SystemTempPath, "gw-membership", "repo");
         var svc = new RepositoryWatchService(
             new ScriptedVolumeChangeSource(
-                new[] { new VolumeChangeBatch("C", new[]
+                new[] { new VolumeChangeBatch(WatchPath.Parse(repositoryPath).Volume!, new[]
                 {
-                    new VolumeChangeEntry(@"C:\Users\example\AppData\Local\Temp\pytest-1\repo\.git", VolumeEntryKind.Created)
+                    new VolumeChangeEntry(Path.Combine(repositoryPath, ".git"), VolumeEntryKind.Created)
                     }) }),
             trackedRoots: Array.Empty<string>(),
-            searchRoots: new[] { @"C:\" },
+            searchRoots: new[] { Path.GetPathRoot(repositoryPath)! },
             debounce: TimeSpan.FromMilliseconds(10),
             includeTempDirectories: true);
 
@@ -53,26 +55,26 @@ public class RepositoryWatchServiceMembershipTests
 
         Assert.That(events, Is.EqualTo(new[]
         {
-                new RepositoryChangeEvent(@"C:\Users\example\AppData\Local\Temp\pytest-1\repo", RepositoryChangeKind.Created),
+                new RepositoryChangeEvent(repositoryPath, RepositoryChangeKind.Created),
             }));
     }
 
     [Test]
     public async Task TrackedTempDirectory_ExcludedByDefault_OnModificationAndGitRecreation()
     {
-        const string trackedTempRepo = @"C:\Users\example\AppData\Local\Temp\pytest-1\repo";
+        var trackedTempRepo = Path.Combine(TempDirectory.SystemTempPath, "gw-membership", "repo");
         var svc = new RepositoryWatchService(
             new ScriptedVolumeChangeSource(
                 new[]
                 {
-                    new VolumeChangeBatch("C", new[]
+                    new VolumeChangeBatch(WatchPath.Parse(trackedTempRepo).Volume!, new[]
                         {
                             new VolumeChangeEntry(Path.Combine(trackedTempRepo, "file.txt"), VolumeEntryKind.Modified),
                             new VolumeChangeEntry(Path.Combine(trackedTempRepo, ".git"), VolumeEntryKind.Created),
                         })
                 }),
             trackedRoots: new[] { trackedTempRepo },
-            searchRoots: new[] { @"C:\" },
+            searchRoots: new[] { Path.GetPathRoot(trackedTempRepo)! },
             debounce: TimeSpan.FromMilliseconds(10));
 
         var events = await DrainAsync(svc);
@@ -83,18 +85,18 @@ public class RepositoryWatchServiceMembershipTests
     [Test]
     public async Task IgnoredPath_ExcludedEvenWhenIncludeTempDirectoriesTrue()
     {
-        const string ignoredTempSubtree = @"C:\Users\example\AppData\Local\Temp\ci-runner";
+        var ignoredTempSubtree = Path.Combine(TempDirectory.SystemTempPath, "gw-membership", "ignored");
         var svc = new RepositoryWatchService(
             new ScriptedVolumeChangeSource(
                 new[]
                 {
-                    new VolumeChangeBatch("C", new[]
+                    new VolumeChangeBatch(WatchPath.Parse(ignoredTempSubtree).Volume!, new[]
                         {
                             new VolumeChangeEntry(Path.Combine(ignoredTempSubtree, "repo", ".git"), VolumeEntryKind.Created),
                         })
                 }),
             trackedRoots: Array.Empty<string>(),
-            searchRoots: new[] { @"C:\" },
+            searchRoots: new[] { Path.GetPathRoot(ignoredTempSubtree)! },
             debounce: TimeSpan.FromMilliseconds(10),
             includeTempDirectories: true,
             ignoredPaths: new[] { ignoredTempSubtree });

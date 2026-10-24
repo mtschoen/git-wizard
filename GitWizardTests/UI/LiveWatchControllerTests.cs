@@ -80,9 +80,6 @@ public class LiveWatchControllerTests
             onEvent,
             onStopped,
             isElevated);
-    static VolumeChangeBatch Batch(string path, VolumeEntryKind kind) =>
-        new("C", new[] { new VolumeChangeEntry(path, kind) });
-
     [Test]
     public async Task Start_ForwardsEventsInOrder()
     {
@@ -461,14 +458,16 @@ public class LiveWatchControllerTests
     [Test]
     public async Task Start_TempCreatedEvent_DroppedByDefault()
     {
+        var repositoryPath = Path.Combine(TempDirectory.SystemTempPath, "gw-controller", "repo");
         var source = new ScriptedVolumeChangeSource(
-            new[] { Batch(@"C:\Users\example\AppData\Local\Temp\pytest-1\repo\.git", VolumeEntryKind.Created) });
+            new[] { new VolumeChangeBatch(WatchPath.Parse(repositoryPath).Volume!,
+                [new VolumeChangeEntry(Path.Combine(repositoryPath, ".git"), VolumeEntryKind.Created)]) });
 
         var events = new List<RepositoryChangeEvent>();
         var controller = NewController(
             () => source,
             trackedRoots: Array.Empty<string>(),
-            searchRoots: new[] { @"C:\" },
+            searchRoots: new[] { Path.GetPathRoot(repositoryPath)! },
             onEvent: events.Add,
             onStopped: _ => { },
             isElevated: () => false);
@@ -482,14 +481,16 @@ public class LiveWatchControllerTests
     [Test]
     public async Task Start_TempCreatedEvent_ForwardedWhenIncluded()
     {
+        var repositoryPath = Path.Combine(TempDirectory.SystemTempPath, "gw-controller", "repo");
         var source = new ScriptedVolumeChangeSource(
-            new[] { Batch(@"C:\Users\example\AppData\Local\Temp\pytest-1\repo\.git", VolumeEntryKind.Created) });
+            new[] { new VolumeChangeBatch(WatchPath.Parse(repositoryPath).Volume!,
+                [new VolumeChangeEntry(Path.Combine(repositoryPath, ".git"), VolumeEntryKind.Created)]) });
 
         var events = new List<RepositoryChangeEvent>();
         var controller = NewController(
             () => source,
             trackedRoots: Array.Empty<string>(),
-            searchRoots: new[] { @"C:\" },
+            searchRoots: new[] { Path.GetPathRoot(repositoryPath)! },
             onEvent: events.Add,
             onStopped: _ => { },
             isElevated: () => false,
@@ -500,22 +501,23 @@ public class LiveWatchControllerTests
 
         Assert.That(events, Is.EqualTo(new[]
         {
-            new RepositoryChangeEvent(@"C:\Users\example\AppData\Local\Temp\pytest-1\repo", RepositoryChangeKind.Created),
+            new RepositoryChangeEvent(repositoryPath, RepositoryChangeKind.Created),
         }));
     }
 
     [Test]
     public async Task Start_IgnoredPathCreatedEvent_DroppedEvenWhenIncludeTempDirectoriesTrue()
     {
-        const string ignoredTempSubtree = @"C:\Users\example\AppData\Local\Temp\ci-runner";
+        var ignoredTempSubtree = Path.Combine(TempDirectory.SystemTempPath, "gw-controller", "ignored");
         var source = new ScriptedVolumeChangeSource(
-            new[] { Batch(Path.Combine(ignoredTempSubtree, "repo", ".git"), VolumeEntryKind.Created) });
+            new[] { new VolumeChangeBatch(WatchPath.Parse(ignoredTempSubtree).Volume!,
+                [new VolumeChangeEntry(Path.Combine(ignoredTempSubtree, "repo", ".git"), VolumeEntryKind.Created)]) });
 
         var events = new List<RepositoryChangeEvent>();
         var controller = NewController(
             () => source,
             trackedRoots: Array.Empty<string>(),
-            searchRoots: new[] { @"C:\" },
+            searchRoots: new[] { Path.GetPathRoot(ignoredTempSubtree)! },
             onEvent: events.Add,
             onStopped: _ => { },
             isElevated: () => false,

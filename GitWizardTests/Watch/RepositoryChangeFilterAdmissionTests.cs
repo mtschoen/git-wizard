@@ -72,8 +72,8 @@ public class RepositoryChangeFilterAdmissionTests
     [Test]
     public void Classify_ModifiedEntryUnderTrackedTempRoot_IsIgnoredByDefault()
     {
-        const string trackedTempRepo = @"C:\Users\example\AppData\Local\Temp\pytest-12602\repo";
-        var filter = new RepositoryChangeFilter([trackedTempRepo], [@"C:\"]);
+        var trackedTempRepo = Path.Combine(TempDirectory.SystemTempPath, "gw-filter", "repo");
+        var filter = new RepositoryChangeFilter([trackedTempRepo], [Path.GetPathRoot(trackedTempRepo)!]);
 
         var result = filter.Classify([Modified(Path.Combine(trackedTempRepo, "index.lock"))]);
 
@@ -83,8 +83,8 @@ public class RepositoryChangeFilterAdmissionTests
     [Test]
     public void Classify_GitRecreatedUnderTrackedTempRoot_IsIgnoredByDefault()
     {
-        const string trackedTempRepo = @"C:\Users\example\AppData\Local\Temp\pytest-12602\repo";
-        var filter = new RepositoryChangeFilter([trackedTempRepo], [@"C:\"]);
+        var trackedTempRepo = Path.Combine(TempDirectory.SystemTempPath, "gw-filter", "repo");
+        var filter = new RepositoryChangeFilter([trackedTempRepo], [Path.GetPathRoot(trackedTempRepo)!]);
 
         var result = filter.Classify([Created(Path.Combine(trackedTempRepo, ".git"))]);
 
@@ -95,8 +95,8 @@ public class RepositoryChangeFilterAdmissionTests
     [Test]
     public void Classify_TrackedTempRoot_DeletedIsIgnoredByDefault()
     {
-        const string trackedTempRepo = @"C:\Users\example\AppData\Local\Temp\pytest-12602\repo";
-        var filter = new RepositoryChangeFilter([trackedTempRepo], [@"C:\"]);
+        var trackedTempRepo = Path.Combine(TempDirectory.SystemTempPath, "gw-filter", "repo");
+        var filter = new RepositoryChangeFilter([trackedTempRepo], [Path.GetPathRoot(trackedTempRepo)!]);
 
         var result = filter.Classify([Deleted(trackedTempRepo)]);
 
@@ -106,8 +106,8 @@ public class RepositoryChangeFilterAdmissionTests
     [Test]
     public void Classify_TrackedTempRoot_EmitsChangedWhenIncludeTempDirectoriesTrue()
     {
-        const string trackedTempRepo = @"C:\Users\example\AppData\Local\Temp\pytest-12602\repo";
-        var filter = new RepositoryChangeFilter([trackedTempRepo], [@"C:\"], includeTempDirectories: true);
+        var trackedTempRepo = Path.Combine(TempDirectory.SystemTempPath, "gw-filter", "repo");
+        var filter = new RepositoryChangeFilter([trackedTempRepo], [Path.GetPathRoot(trackedTempRepo)!], includeTempDirectories: true);
 
         var result = filter.Classify([Modified(Path.Combine(trackedTempRepo, "index.lock"))]);
 
@@ -117,8 +117,8 @@ public class RepositoryChangeFilterAdmissionTests
     [Test]
     public void Classify_GitRecreatedUnderTrackedTempRoot_EmitsChangedWhenIncludeTempDirectoriesTrue()
     {
-        const string trackedTempRepo = @"C:\Users\example\AppData\Local\Temp\pytest-12602\repo";
-        var filter = new RepositoryChangeFilter([trackedTempRepo], [@"C:\"], includeTempDirectories: true);
+        var trackedTempRepo = Path.Combine(TempDirectory.SystemTempPath, "gw-filter", "repo");
+        var filter = new RepositoryChangeFilter([trackedTempRepo], [Path.GetPathRoot(trackedTempRepo)!], includeTempDirectories: true);
 
         var result = filter.Classify([Created(Path.Combine(trackedTempRepo, ".git"))]);
 
@@ -128,8 +128,8 @@ public class RepositoryChangeFilterAdmissionTests
     [Test]
     public void Classify_TrackedTempRoot_EmitsChangedWhenSearchRootInsideTemp()
     {
-        const string tempRoot = @"C:\Users\example\AppData\Local\Temp\pytest-12602";
-        const string trackedTempRepo = @"C:\Users\example\AppData\Local\Temp\pytest-12602\repo";
+        var tempRoot = Path.Combine(TempDirectory.SystemTempPath, "gw-filter");
+        var trackedTempRepo = Path.Combine(tempRoot, "repo");
         var filter = new RepositoryChangeFilter([trackedTempRepo], [tempRoot]);
 
         var result = filter.Classify([Modified(Path.Combine(trackedTempRepo, "index.lock"))]);
@@ -140,9 +140,9 @@ public class RepositoryChangeFilterAdmissionTests
     [Test]
     public void Classify_GitCreatedUnderIgnoredPath_IsIgnoredEvenWhenTempIncluded()
     {
-        const string searchRoot = @"C:\";
-        const string ignoredPath = @"C:\Users\example\AppData\Local\Temp\ci-runner";
-        const string repoGit = @"C:\Users\example\AppData\Local\Temp\ci-runner\repo\.git";
+        var ignoredPath = Path.Combine(TempDirectory.SystemTempPath, "gw-filter", "ignored");
+        var searchRoot = Path.GetPathRoot(ignoredPath)!;
+        var repoGit = Path.Combine(ignoredPath, "repo", ".git");
         var filter = new RepositoryChangeFilter([], [searchRoot], [ignoredPath], includeTempDirectories: true);
 
         var result = filter.Classify([Created(repoGit)]);

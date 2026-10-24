@@ -24,14 +24,14 @@ public class StashMergeDetectorTests
         var stashes = Inventory(scenario);
 
         Assert.That(stashes, Has.Count.EqualTo(1));
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(stashes[0].MergedBy, Is.EqualTo(MergedBy.Content));
             Assert.That(stashes[0].IsMerged, Is.True);
             Assert.That(stashes[0].Index, Is.Zero);
             Assert.That(stashes[0].Message, Does.Contain("edit base"));
             Assert.That(stashes[0].Sha, Is.EqualTo(scenario.Sha("stash@{0}")));
-        });
+        }
     }
 
     [Test]

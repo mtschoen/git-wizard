@@ -110,6 +110,12 @@ internal sealed class GitScenarioRepo : IDisposable
         return repository.Stashes.Select(stash => stash.WorkTree.Sha).ToList();
     }
 
+    public List<string> StashMessages()
+    {
+        using var repository = new Repository(Path);
+        return repository.Stashes.Select(stash => stash.Message).ToList();
+    }
+
     public void Dispose()
     {
         foreach (var directory in _directories)

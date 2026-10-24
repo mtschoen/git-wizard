@@ -61,6 +61,7 @@ public static partial class Program
             case CommandKind.Sweep:
             case CommandKind.Tags:
             case CommandKind.Branches:
+            case CommandKind.Prune:
             case CommandKind.ScanOnly:
             case CommandKind.Merge:
             case CommandKind.Watch:

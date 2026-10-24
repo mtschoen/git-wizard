@@ -22,7 +22,7 @@ public class PruneCliTests
     {
         var result = CliParser.Parse(["prune"]);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.Command, Is.EqualTo(CommandKind.Prune));
             Assert.That(result.PruneBranches, Is.True);
@@ -30,7 +30,7 @@ public class PruneCliTests
             Assert.That(result.PruneApply, Is.False);
             Assert.That(result.PruneBaseBranch, Is.Null);
             Assert.That(result.HasParseError, Is.False);
-        });
+        }
     }
 
     [Test]
@@ -38,7 +38,7 @@ public class PruneCliTests
     {
         var result = CliParser.Parse(["prune", "--branches", "--apply", "--base", "develop", "-p", "/repo", "-f", "re", "--print-minified", "-v"]);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.Command, Is.EqualTo(CommandKind.Prune));
             Assert.That(result.PruneBranches, Is.True);
@@ -49,7 +49,7 @@ public class PruneCliTests
             Assert.That(result.FilterPattern, Is.EqualTo("re"));
             Assert.That(result.Minified, Is.True);
             Assert.That(GitWizardLog.VerboseMode, Is.True);
-        });
+        }
     }
 
     [Test]
@@ -57,11 +57,11 @@ public class PruneCliTests
     {
         var result = CliParser.Parse(["prune", "--stashes"]);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.PruneBranches, Is.False);
             Assert.That(result.PruneStashes, Is.True);
-        });
+        }
     }
 
     [Test]
@@ -104,13 +104,13 @@ public class PruneCliTests
         var result = await RunCliAsync("prune", "--paths", scenario.Path);
 
         var report = JsonSerializer.Deserialize<PruneReport>(result.StandardOutput)!;
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.ExitCode, Is.Zero, result.StandardError);
             Assert.That(report.Applied, Is.False);
             Assert.That(report.Candidates.Single(c => c.Name == "feature").Action, Is.EqualTo(PruneCandidate.WouldDelete));
             Assert.That(scenario.HasBranch("feature"), Is.True);
-        });
+        }
     }
 
     [Test]
@@ -122,13 +122,13 @@ public class PruneCliTests
         var result = await RunCliAsync("prune", "--apply", "--paths", scenario.Path);
 
         var report = JsonSerializer.Deserialize<PruneReport>(result.StandardOutput)!;
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.ExitCode, Is.Zero, result.StandardError);
             Assert.That(report.Candidates.Single(c => c.Name == "feature").Action, Is.EqualTo(PruneCandidate.Deleted));
             Assert.That(scenario.HasBranch("feature"), Is.False);
-            Assert.That(result.StandardError, Does.Contain($"branch feature {sha}"));
-        });
+            Assert.That(result.StandardError, Does.Contain($"branch 'feature' {sha}"));
+        }
     }
 
     [Test]
@@ -142,10 +142,10 @@ public class PruneCliTests
         var result = await RunCliAsync("branches", "--local-only", "--paths", scenario.Path);
 
         var report = JsonSerializer.Deserialize<BranchInventoryReport>(result.StandardOutput)!;
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.ExitCode, Is.Zero, result.StandardError);
             Assert.That(report.Repositories.Single().Branches.Select(b => b.Name), Is.EqualTo(new[] { "local-work" }));
-        });
+        }
     }
 }

@@ -40,7 +40,7 @@ public class PrunerTests
 
         var report = Pruner.Run([scenario.Path], new PruneOptions(), hints);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(report.Applied, Is.False);
             Assert.That(report.SchemaVersion, Is.EqualTo("1.0"));
@@ -52,7 +52,7 @@ public class PrunerTests
             Assert.That(scenario.HasBranch("feature"), Is.True);
             Assert.That(scenario.StashShas(), Is.EqualTo(stashesBefore));
             Assert.That(hints.ToString(), Is.Empty);
-        });
+        }
     }
 
     [Test]
@@ -71,12 +71,12 @@ public class PrunerTests
 
         var report = Pruner.Run([scenario.Path], new PruneOptions(Stashes: false, Apply: true), hints);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(report.Applied, Is.True);
             Assert.That(Find(report, "merged").Action, Is.EqualTo(PruneCandidate.Deleted));
             Assert.That(scenario.HasBranch("merged"), Is.False);
-            Assert.That(hints.ToString(), Does.Contain($"branch merged {mergedSha}"));
+            Assert.That(hints.ToString(), Does.Contain($"branch 'merged' {mergedSha}"));
             Assert.That(Find(report, "checked-out").SkipReason, Is.EqualTo(PruneSkipReasons.CheckedOut));
             Assert.That(Find(report, "in-worktree").SkipReason, Is.EqualTo(PruneSkipReasons.CheckedOutInWorktree));
             Assert.That(Find(report, "unmerged").SkipReason, Is.EqualTo(PruneSkipReasons.NotMerged));
@@ -84,7 +84,7 @@ public class PrunerTests
             Assert.That(Find(report, "main").SkipReason, Is.EqualTo(PruneSkipReasons.BaseBranch));
             Assert.That(scenario.HasBranch("checked-out") && scenario.HasBranch("in-worktree") && scenario.HasBranch("unmerged"), Is.True);
             Assert.That(report.Candidates.Any(c => c.Kind == PruneCandidate.StashKind), Is.False);
-        });
+        }
     }
 
     [Test]
@@ -100,16 +100,44 @@ public class PrunerTests
 
         var report = Pruner.Run([scenario.Path], new PruneOptions(Branches: false, Apply: true), hints);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(report.Candidates.Select(c => c.Action), Is.EqualTo(new[]
             {
                 PruneCandidate.Deleted, PruneCandidate.Skipped, PruneCandidate.Deleted
             }));
             Assert.That(scenario.StashShas(), Is.EqualTo(new[] { stashes[1] }));
-            Assert.That(hints.ToString(), Does.Contain($"stash store -m \"").And.Contain(stashes[0]).And.Contain(stashes[2]));
+            Assert.That(hints.ToString(), Does.Contain("stash store -m 'On main: stash ").And.Contain(stashes[0]).And.Contain(stashes[2]));
             Assert.That(report.Candidates.Any(c => c.Kind == PruneCandidate.BranchKind), Is.False);
-        });
+        }
+    }
+
+    [Test]
+    [Platform(Exclude = "Win")]
+    public void Apply_RestoreHint_IsShellSafeForHostileStashMessage()
+    {
+        using var scenario = GitScenarioRepo.Create();
+        var marker = Path.Combine(scenario.Path, "pwned");
+        const string fileName = "landed.txt";
+        var message = $"wip $(touch '{marker}') `touch '{marker}'` it's \"quoted\"";
+        scenario.Write(fileName, "landed");
+        scenario.Git("stash", "push", "-q", "-u", "-m", message);
+        scenario.Commit(fileName, "landed", "land it");
+        var stashSha = scenario.StashShas().Single();
+        var storedMessage = scenario.StashMessages().Single();
+        using var hints = new StringWriter();
+
+        Pruner.Run([scenario.Path], new PruneOptions(Branches: false, Apply: true), hints);
+        var restore = hints.ToString().Split("restore with: ")[1].Trim();
+        TempRepoFixture.RunProcess("/bin/sh", scenario.Path, "-c", restore);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(File.Exists(marker), Is.False);
+            Assert.That(scenario.StashShas(), Is.EqualTo(new[] { stashSha }));
+            Assert.That(storedMessage, Does.Contain(message));
+            Assert.That(scenario.StashMessages().Single(), Is.EqualTo(storedMessage));
+        }
     }
 
     [Test]
@@ -133,10 +161,10 @@ public class PrunerTests
 
         var report = Pruner.Run([directory.Path], new PruneOptions(), hints);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(report.Candidates, Is.Empty);
             Assert.That(report.Errors, Is.Empty);
-        });
+        }
     }
 }

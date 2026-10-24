@@ -36,12 +36,12 @@ public class GitWizardRepositoryMergedByTests
 
         var feature = Branch(Refreshed(scenario), "feature");
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(feature.MergedBy, Is.EqualTo(MergedBy.Ancestor));
             Assert.That(feature.IsMerged, Is.True);
             Assert.That(feature.MergedInto, Is.EqualTo("main"));
-        });
+        }
     }
 
     [Test]
@@ -58,11 +58,11 @@ public class GitWizardRepositoryMergedByTests
 
         var feature = Branch(Refreshed(scenario), "feature");
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(feature.MergedBy, Is.EqualTo(MergedBy.Content));
             Assert.That(feature.IsMerged, Is.True);
-        });
+        }
     }
 
     [Test]
@@ -79,14 +79,14 @@ public class GitWizardRepositoryMergedByTests
         var feature = Branch(Refreshed(scenario), "feature");
 
         using var library = new Repository(scenario.Path);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(MergeDetector.Detect(library, library.Branches["feature"].Tip, library.Branches["main"].Tip),
                 Is.EqualTo(MergedBy.Squash), "precondition: only the squash tier proves this merge");
             Assert.That(feature.MergedBy, Is.Null);
             Assert.That(feature.IsMerged, Is.False);
             Assert.That(feature.MergedInto, Is.Null);
-        });
+        }
     }
 
     [Test]
@@ -104,12 +104,12 @@ public class GitWizardRepositoryMergedByTests
         var repository = Refreshed(scenario);
         var feature = Branch(repository, "feature");
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(feature.MergedBy, Is.EqualTo(MergedBy.Ancestor));
             Assert.That(feature.MergedInto, Is.EqualTo("origin/main"));
             Assert.That(Branch(repository, "main").MergedBy, Is.Null, "The base's local counterpart is never merged work.");
-        });
+        }
     }
 
     [Test]
@@ -124,11 +124,11 @@ public class GitWizardRepositoryMergedByTests
 
         var repository = Refreshed(scenario);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repository.StashCount, Is.EqualTo(2));
             Assert.That(repository.MergedStashCount, Is.EqualTo(1));
-        });
+        }
     }
 
     [Test]
@@ -144,11 +144,11 @@ public class GitWizardRepositoryMergedByTests
         var repository = Refreshed(scenario);
         var worktree = repository.Worktrees!.Values.Single()!;
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repository.StashCount, Is.EqualTo(1));
             Assert.That(worktree.StashCount, Is.Zero);
-        });
+        }
     }
 
     [Test]
@@ -179,12 +179,12 @@ public class GitWizardRepositoryMergedByTests
 
         var repository = Refreshed(scenario);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repository.LocalOnlyBranchCount, Is.EqualTo(2), "old-local and new-local; pushed and merged-local are excluded");
             Assert.That(repository.OldestLocalOnlyBranchDate, Is.EqualTo(new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.Zero)));
             Assert.That(Branch(repository, "merged-local").MergedBy, Is.EqualTo(MergedBy.Content));
-        });
+        }
     }
 
     [Test]
@@ -197,11 +197,11 @@ public class GitWizardRepositoryMergedByTests
 
         var repository = Refreshed(scenario, computeLocalCommitCount: false);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repository.LocalOnlyBranchCount, Is.Zero);
             Assert.That(repository.OldestLocalOnlyBranchDate, Is.Null);
-        });
+        }
     }
 
     [Test]
@@ -211,7 +211,7 @@ public class GitWizardRepositoryMergedByTests
 
         var repository = JsonSerializer.Deserialize<GitWizardRepository>(json)!;
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repository.StashCount, Is.Zero);
             Assert.That(repository.MergedStashCount, Is.Zero);
@@ -219,7 +219,7 @@ public class GitWizardRepositoryMergedByTests
             Assert.That(repository.OldestLocalOnlyBranchDate, Is.Null);
             Assert.That(repository.Branches!.Single().IsMerged, Is.True);
             Assert.That(repository.Branches!.Single().MergedBy, Is.Null);
-        });
+        }
     }
 
     [Test]
@@ -237,13 +237,13 @@ public class GitWizardRepositoryMergedByTests
 
         var copy = JsonSerializer.Deserialize<GitWizardRepository>(JsonSerializer.Serialize(original))!;
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(copy.StashCount, Is.EqualTo(3));
             Assert.That(copy.MergedStashCount, Is.EqualTo(1));
             Assert.That(copy.LocalOnlyBranchCount, Is.EqualTo(2));
             Assert.That(copy.OldestLocalOnlyBranchDate, Is.EqualTo(date));
             Assert.That(copy.Branches!.Single().MergedBy, Is.EqualTo(MergedBy.Content));
-        });
+        }
     }
 }

@@ -27,14 +27,14 @@ public class BranchInventoryLocalOnlyTests
 
         var repository = report.Repositories.Single();
         var feature = repository.Branches.Single();
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(report.SchemaVersion, Is.EqualTo("1.1"));
             Assert.That(repository.DefaultBranch, Is.EqualTo("origin/main"));
             Assert.That(feature.Name, Is.EqualTo("feature"));
             Assert.That(feature.MergedBy, Is.EqualTo(MergedBy.Squash));
             Assert.That(feature.IsMerged, Is.True);
-        });
+        }
     }
 
     [Test]
@@ -54,12 +54,12 @@ public class BranchInventoryLocalOnlyTests
         var report = BranchInventoryReport.Scan([scenario.Path, worktreePath], localOnly: true);
 
         var repository = report.Repositories.Single();
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repository.Path, Is.EqualTo(scenario.Path));
             Assert.That(repository.Branches.Select(b => b.Name), Is.EqualTo(new[] { "local-work" }));
             Assert.That(repository.Stashes, Has.Count.EqualTo(1));
-        });
+        }
     }
 
     [Test]
@@ -72,13 +72,13 @@ public class BranchInventoryLocalOnlyTests
         var localOnly = BranchInventoryReport.Scan([scenario.Path], localOnly: true).Repositories.Single();
 
         var main = localOnly.Branches.Single();
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(localOnly.DefaultBranch, Is.EqualTo("origin/main"));
             Assert.That(main.Name, Is.EqualTo("main"));
             Assert.That(main.UniqueCommitCount, Is.EqualTo(1));
             Assert.That(main.IsMerged, Is.False);
-        });
+        }
     }
 
     [Test]
@@ -102,14 +102,14 @@ public class BranchInventoryLocalOnlyTests
         var full = BranchInventoryReport.Scan([scenario.Path]).Repositories.Single().Branches;
         var localOnly = BranchInventoryReport.Scan([scenario.Path], localOnly: true).Repositories.Single().Branches;
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(full.Select(b => b.Name), Is.EquivalentTo(new[] { "local-work", "pushed-work", "squashed" }));
             Assert.That(full.Single(b => b.Name == "pushed-work").UniqueCommitCount, Is.Zero);
             Assert.That(full.Single(b => b.Name == "squashed").UniqueCommitCount, Is.EqualTo(1));
             Assert.That(localOnly.Select(b => b.Name), Is.EqualTo(new[] { "local-work" }));
             Assert.That(localOnly.Single().MergedBy, Is.Null);
-        });
+        }
     }
 
     [Test]
@@ -125,12 +125,12 @@ public class BranchInventoryLocalOnlyTests
         var full = BranchInventoryReport.Scan([scenario.Path]).Repositories.Single().Stashes;
         var localOnly = BranchInventoryReport.Scan([scenario.Path], localOnly: true).Repositories.Single();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(full.Select(s => s.IsMerged), Is.EqualTo(new[] { false, true }));
             Assert.That(localOnly.Branches, Is.Empty);
             Assert.That(localOnly.Stashes.Single().Message, Does.Contain("unlanded"));
-        });
+        }
     }
 
     [Test]

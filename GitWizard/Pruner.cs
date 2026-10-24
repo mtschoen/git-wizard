@@ -205,9 +205,14 @@ public static class Pruner
             return PruneSkipReasons.DeleteFailed;
         }
 
-        context.RestoreHints.WriteLine($"Deleted branch {candidate.Name}; restore with: git -C \"{context.Path}\" branch {candidate.Name} {candidate.Sha}");
+        context.RestoreHints.WriteLine($"Deleted branch {candidate.Name}; restore with: git -C {ShellQuote(context.Path)} branch {ShellQuote(candidate.Name)} {candidate.Sha}");
         return null;
     }
+
+    // Restore hints are meant to be pasted into a POSIX shell; branch names, paths and stash
+    // messages may contain $, backticks or quotes, so each is single-quoted.
+    internal static string ShellQuote(string? value) =>
+        "'" + (value ?? string.Empty).Replace("'", "'\\''", StringComparison.Ordinal) + "'";
 
     static string? DropStash(RepositoryContext context, PruneCandidate candidate, int stashIndex)
     {
@@ -224,8 +229,7 @@ public static class Pruner
             return PruneSkipReasons.DeleteFailed;
         }
 
-        var message = candidate.Message?.Replace("\"", "\\\"", StringComparison.Ordinal);
-        context.RestoreHints.WriteLine($"Dropped {reference}; restore with: git -C \"{context.Path}\" stash store -m \"{message}\" {candidate.Sha}");
+        context.RestoreHints.WriteLine($"Dropped {reference}; restore with: git -C {ShellQuote(context.Path)} stash store -m {ShellQuote(candidate.Message)} {candidate.Sha}");
         return null;
     }
 

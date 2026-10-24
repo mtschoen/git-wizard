@@ -230,12 +230,12 @@ public class RepositoryNodeViewModelTests
         };
         var node = new RepositoryNodeViewModel(repo);
         node.UpdateDisplayText();
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(node.PruneBadgeText, Is.EqualTo(expected));
             Assert.That(node.HasPruneBadge, Is.True);
             Assert.That(node.DisplayText, Does.Not.Contain("merged"), "The merged count moved from the label to the badge.");
-        });
+        }
     }
 
     [Test]

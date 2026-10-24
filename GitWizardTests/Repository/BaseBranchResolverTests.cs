@@ -70,11 +70,11 @@ public class BaseBranchResolverTests
 
         using var repository = new Repository(scenario.Path);
         var baseBranch = BaseBranchResolver.Resolve(repository);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(BaseBranchResolver.IsBaseOrCounterpart(repository.Branches["main"], baseBranch), Is.True);
             Assert.That(BaseBranchResolver.IsBaseOrCounterpart(repository.Branches["feature"], baseBranch), Is.False);
             Assert.That(BaseBranchResolver.IsBaseOrCounterpart(repository.Branches["feature"], null), Is.False);
-        });
+        }
     }
 }

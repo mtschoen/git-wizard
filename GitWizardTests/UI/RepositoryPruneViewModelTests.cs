@@ -29,11 +29,11 @@ public class RepositoryPruneViewModelTests
     [Test]
     public void StashesFilter_MatchesRepositoriesWithAnyStash()
     {
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(Node(new GitWizardRepository("/a") { StashCount = 1 }).MatchesFilter(FilterType.Stashes), Is.True);
             Assert.That(Node(new GitWizardRepository("/b")).MatchesFilter(FilterType.Stashes), Is.False);
-        });
+        }
     }
 
     [Test]
@@ -64,11 +64,11 @@ public class RepositoryPruneViewModelTests
         repository.Refresh();
         var node = Node(repository);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repository.LocalOnlyCommits, Is.True, "precondition: merged-local's commit is on no remote");
             Assert.That(node.MatchesFilter(FilterType.LocalOnlyCommits), Is.False);
-        });
+        }
 
         scenario.NewBranch("unmerged-local");
         scenario.Commit("unmerged.txt", "unmerged", "unmerged work");
@@ -114,7 +114,7 @@ public class RepositoryPruneViewModelTests
         var single = new GitWizardRepository("/single") { StashCount = 1 };
         var clean = Node(new GitWizardRepository("/clean"));
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(Node(busy).PruneBadgeText, Is.EqualTo("3 merged · 2 stashes · 1 local-only"));
             Assert.That(Node(busy).PruneBadgeTooltip, Does.Contain("1 already on the base, safe to drop"));
@@ -122,7 +122,7 @@ public class RepositoryPruneViewModelTests
             Assert.That(clean.PruneBadgeText, Is.Empty);
             Assert.That(clean.HasPruneBadge, Is.False);
             Assert.That(RepositoryNodeViewModel.CreateGroupHeader("C:\\").HasPruneBadge, Is.False);
-        });
+        }
     }
 
     [Test]
@@ -177,10 +177,10 @@ public class RepositoryPruneViewModelTests
         var dialogs = new StubUserDialogs { NextConfirmResult = true };
         await using var viewModel = TestViewModels.Create(dialogs: dialogs);
 
-        await viewModel.CleanDownstreamBranchesAsync(node);
+        await viewModel.Commands.CleanDownstreamBranchesAsync(node);
 
         var confirm = dialogs.ConfirmCalls.Single().Message;
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(confirm, Does.Contain("branch squashed (squash)"));
             Assert.That(confirm, Does.Contain("branch ancestor (ancestor)"));
@@ -193,7 +193,7 @@ public class RepositoryPruneViewModelTests
             Assert.That(scenario.StashShas(), Is.Empty);
             Assert.That(dialogs.AlertCalls.Single().Message, Does.StartWith("Deleted 3 item(s)"));
             Assert.That(node.Repository.StashCount, Is.Zero, "The repository is refreshed after cleaning.");
-        });
+        }
     }
 
     [Test]
@@ -204,16 +204,16 @@ public class RepositoryPruneViewModelTests
         var dialogs = new StubUserDialogs { NextConfirmResult = false };
         await using var viewModel = TestViewModels.Create(dialogs: dialogs);
 
-        await viewModel.CleanDownstreamBranchesAsync(node);
+        await viewModel.Commands.CleanDownstreamBranchesAsync(node);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(dialogs.ConfirmCalls, Has.Count.EqualTo(1));
             Assert.That(dialogs.AlertCalls, Is.Empty);
             Assert.That(scenario.HasBranch("squashed"), Is.True);
             Assert.That(scenario.HasBranch("ancestor"), Is.True);
             Assert.That(scenario.StashShas(), Has.Count.EqualTo(1));
-        });
+        }
     }
 
     [Test]
@@ -222,13 +222,13 @@ public class RepositoryPruneViewModelTests
         var dialogs = new StubUserDialogs();
         var viewModel = TestViewModels.Create(dialogs: dialogs);
 
-        await viewModel.CleanDownstreamBranchesAsync(Node(new GitWizardRepository("/no/such/directory/xyz")));
+        await viewModel.Commands.CleanDownstreamBranchesAsync(Node(new GitWizardRepository("/no/such/directory/xyz")));
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(dialogs.ConfirmCalls, Is.Empty);
             Assert.That(dialogs.AlertCalls.Single().Message, Is.EqualTo("Invalid repository path"));
-        });
+        }
     }
 
     [Test]
@@ -239,13 +239,13 @@ public class RepositoryPruneViewModelTests
 
         var report = Pruner.Run([scenario.Path], new PruneOptions(Apply: true, OnlyShas: new HashSet<string> { ancestorSha }), TextWriter.Null);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(report.Candidates.Single(c => c.Name == "ancestor").Action, Is.EqualTo(PruneCandidate.Deleted));
             Assert.That(report.Candidates.Single(c => c.Name == "squashed").SkipReason, Is.EqualTo(PruneSkipReasons.NotConfirmed));
             Assert.That(report.Candidates.Single(c => c.Kind == PruneCandidate.StashKind).SkipReason, Is.EqualTo(PruneSkipReasons.NotConfirmed));
             Assert.That(scenario.HasBranch("squashed"), Is.True);
             Assert.That(scenario.StashShas(), Has.Count.EqualTo(1));
-        });
+        }
     }
 }

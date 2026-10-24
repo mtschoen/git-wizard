@@ -214,12 +214,12 @@ public class MainViewModelCommandTests
 
         await viewModel.Commands.CleanDownstreamBranchesAsync(node);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(dialogs.ConfirmCalls, Is.Empty,
                 "With no merged downstream branches there's nothing to confirm or delete.");
             Assert.That(dialogs.AlertCalls.Single().Title, Is.EqualTo("Nothing to Clean"));
-        });
+        }
     }
 
     [Test]

@@ -5,9 +5,6 @@
 [Rr]elease/
 artifacts/
 
-# Release zips
-Releases/*.zip
-
 # IDE / tooling
 .vs/
 .vscode/

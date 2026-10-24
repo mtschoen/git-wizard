@@ -47,7 +47,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         RepositoryList = new RepositoryListViewModel(ui, StatusHeader, ErrorLog);
         Refresh = new RefreshCoordinator(ui, clock, RepositoryList, StatusHeader,
             PreparedDiscoveryIndex, ErrorLog);
-        LiveWatch = new LiveWatchViewModel(ui, clock, RepositoryList, Refresh,
+        LiveWatch = new LiveWatchViewModel(new UiEnvironment(ui, clock), RepositoryList, Refresh,
             StatusHeader, PreparedDiscoveryIndex, ErrorLog);
         Commands = new RepositoryCommandsViewModel(ui, dialogs, clipboard,
             RepositoryList, Refresh, ErrorLog)

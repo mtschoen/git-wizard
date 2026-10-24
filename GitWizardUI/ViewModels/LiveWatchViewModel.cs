@@ -33,13 +33,13 @@ public sealed partial class LiveWatchViewModel : INotifyPropertyChanged, IAsyncD
     bool _isLive;
     bool _isLiveStarting;
 
-    internal LiveWatchViewModel(IUiDispatcher ui, TimeProvider timeProvider,
+    internal LiveWatchViewModel(UiEnvironment environment,
         RepositoryListViewModel repositoryList, RefreshCoordinator refresh,
         StatusHeaderViewModel statusHeader, PreparedDiscoveryIndexStore preparedDiscoveryIndex,
         ErrorLogViewModel errorLog)
     {
-        _ui = ui;
-        _timeProvider = timeProvider;
+        _ui = environment.Dispatcher;
+        _timeProvider = environment.TimeProvider;
         _repositoryList = repositoryList;
         _refresh = refresh;
         _statusHeader = statusHeader;

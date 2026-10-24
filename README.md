@@ -19,6 +19,8 @@ Scan, organize, and manage all the git repositories on your machine. Find duplic
 
 ## Getting Started
 
+The [GitWizardUI 0.4.0 build](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/releases/tag/v0.4.0) is available as a release asset.
+
 Download the latest release from the [Releases](https://github.com/mtschoen/git-wizard/releases) page, or build from source. GitWizard depends on [MFTLib](https://github.com/mtschoen/MFTLib), pulled in as a git submodule and built from source until it ships on NuGet - see [building and testing](docs/testing.md#build) for the shared native and managed recipe:
 
 ```bash

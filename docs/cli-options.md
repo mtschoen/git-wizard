@@ -1,7 +1,7 @@
 # CLI options
 
-Run `git-wizard --help`, `git-wizard tags --help` or
-`git-wizard branches --help` for command-specific usage. This is the canonical
+Run `git-wizard --help`, `git-wizard tags --help`, `git-wizard branches --help`
+or `git-wizard prune --help` for command-specific usage. This is the canonical
 flag list. `AgentInstructionsTests` checks it against parser source and help.
 
 ## Root command
@@ -39,7 +39,7 @@ flag list. `AgentInstructionsTests` checks it against parser source and help.
 
 ## Inventory subcommands
 
-`tags` and `branches` share paths, filter, save-path, config-path, print-minified,
+`tags`, `branches` and `prune` share paths, filter, save-path, config-path, print-minified,
 no-mft, verbose, silent and help from the table above.
 
 | Flag | Command | Meaning |
@@ -47,6 +47,11 @@ no-mft, verbose, silent and help from the table above.
 | `--match` | tags | Tag glob (`-m`), default `*`. |
 | `--not-merged` | branches | Keep branches not merged into the supplied branch (default repository branch if omitted). |
 | `--not` | branches | Alias of not-merged. |
+| `--local-only` | branches | Keep unmerged branches with commits on no remote-tracking ref, and unmerged stashes. |
+| `--branches` | prune | Consider local branches (neither flag means branches and stashes). |
+| `--stashes` | prune | Consider stashes (neither flag means branches and stashes). |
+| `--apply` | prune | Delete eligible branches and stashes; without it prune is a dry run. |
+| `--base` | prune | Base branch to compare against (default: origin's default branch, then local main/master/develop). |
 
 Implementation: `git-wizard/CliParser.cs`, `CliParser.Subcommands.cs` and
 `RunConfiguration.cs`. Elevated child dispatch is internal and is not a user option.

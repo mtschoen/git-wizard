@@ -26,6 +26,8 @@ static class RepositorySortOrder
                     ? RepositoryGroupKeys.NormalizeRemoteUrl(r.Repository.RemoteUrls[0])
                     : "\uffff")], // sort no-remote to end
             SortMode.SizeOnDisk => [.. repositories.OrderByDescending(r => r.Repository.SizeOnDisk)],
+            SortMode.Prunable => [.. repositories.OrderByDescending(r => r.PrunableCount)],
+            SortMode.StaleBranches => [.. repositories.OrderBy(r => r.Repository.OldestLocalOnlyBranchDate ?? DateTimeOffset.MaxValue)], // no local-only branch sorts last
             _ => repositories,
         };
     }

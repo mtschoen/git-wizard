@@ -45,7 +45,7 @@ static partial class CliParser
             normalized[index++] = resolved;
             expectsValue = resolved is "--paths" or "-p" or "--save-path"
                 or "--config-path" or "--filter" or "-f" or "--match" or "-m"
-                or "--not" or "--not-merged";
+                or "--not" or "--not-merged" or "--base";
         }
         return normalized;
     }
@@ -63,25 +63,15 @@ static partial class CliParser
         var versionOption = app.VersionOption("--version", version);
 
         var rootOptions = SetupOptions(app);
-        var tagsCommand = SetupTagsCommand(app);
-        var branchesCommand = SetupBranchesCommand(app);
+        SubcommandHandle[] subcommands = [SetupTagsCommand(app), SetupBranchesCommand(app), SetupPruneCommand(app)];
         RunConfiguration? parsed = null;
 
         try
         {
             var parseResult = app.Parse(NormalizeConsumerAliases(args));
-            if (parseResult.SelectedCommand == app)
-            {
-                parsed = ExecuteHandler(rootOptions);
-            }
-            else if (parseResult.SelectedCommand == tagsCommand.Application)
-            {
-                parsed = tagsCommand.Build();
-            }
-            else if (parseResult.SelectedCommand == branchesCommand.Application)
-            {
-                parsed = branchesCommand.Build();
-            }
+            parsed = parseResult.SelectedCommand == app
+                ? ExecuteHandler(rootOptions)
+                : subcommands.FirstOrDefault(subcommand => subcommand.Application == parseResult.SelectedCommand)?.Build();
         }
         catch (CommandParsingException ex)
         {
@@ -97,7 +87,7 @@ static partial class CliParser
         // McMaster prints the help/version text itself and skips OnExecute, but that leaves
         // no signal in the returned result - without this, the caller can't tell "--help" or
         // "--version" apart from "no args at all" and falls through to a full run.
-        if (helpOption.HasValue() || versionOption.HasValue() || tagsCommand.HelpOption.HasValue() || branchesCommand.HelpOption.HasValue())
+        if (helpOption.HasValue() || versionOption.HasValue() || subcommands.Any(subcommand => subcommand.HelpOption.HasValue()))
         {
             return new RunConfiguration { Command = CommandKind.HelpPrinted };
         }

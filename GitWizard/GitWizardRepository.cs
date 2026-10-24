@@ -43,6 +43,28 @@ public partial class GitWizardRepository
     public string? DefaultBranch { get; private set; }
     public List<BranchInfo>? Branches { get; set; }
 
+    /// <summary>Number of stashes. Always 0 on a linked worktree, whose stashes belong to the main checkout's row.</summary>
+    public int StashCount { get; set; }
+
+    /// <summary>Stashes whose every change is already on the base branch (content tier), so safe to drop.</summary>
+    public int MergedStashCount { get; set; }
+
+    /// <summary>
+    /// Local branches with commits on no remote-tracking ref that are not merged into the base.
+    /// 0 when the refresh skipped local-commit counting.
+    /// </summary>
+    public int LocalOnlyBranchCount { get; set; }
+
+    /// <summary>Tip author date of the oldest branch counted in <see cref="LocalOnlyBranchCount"/>; null when there is none.</summary>
+    public DateTimeOffset? OldestLocalOnlyBranchDate { get; set; }
+
+    /// <summary>
+    /// Tips of local branches that have commits on no remote-tracking ref, collected by
+    /// <see cref="RefreshLocalOnlyCommits"/> for the branch phase. Null when that phase was
+    /// skipped. A field, so it is never serialized.
+    /// </summary>
+    HashSet<string>? _localOnlyTipShas;
+
     /// <summary>Commits on the current branch's upstream not reachable from the current branch - i.e. how far behind the remote this checkout is. 0 when there is no upstream. See <see cref="BranchInfo.BehindDefault"/> for the unrelated local-default comparison.</summary>
     public int BehindRemoteCount { get; internal set; }
 
@@ -213,6 +235,7 @@ public partial class GitWizardRepository
         Step(() => RefreshHeadInfo(repository));
         Step(() => RefreshPendingChangesStatus(repository, deepRefresh));
         Step(() => RefreshRemoteUrls(repository));
+        _localOnlyTipShas = null;
         if (computeLocalCommitCount)
         {
             Step(() => RefreshLocalOnlyCommits(repository));
@@ -311,6 +334,8 @@ public partial class GitWizardRepository
                 .Select(branch => branch.Tip)
                 .Where(tip => tip != null)
                 .ToList();
+            var localTipShas = localTips.Select(tip => tip.Sha).ToHashSet(StringComparer.Ordinal);
+            _localOnlyTipShas = new HashSet<string>(StringComparer.Ordinal);
 
             if (localTips.Count == 0)
             {
@@ -329,24 +354,66 @@ public partial class GitWizardRepository
                 filter.ExcludeReachableFrom = remoteTips;
             }
 
-            LocalCommitCount = repository.Commits.QueryBy(filter).Count();
+            // A branch has unpushed commits exactly when its tip is one of them (a tip
+            // reachable from a remote ref makes its whole history reachable too), so the walk
+            // that counts commits also identifies local-only branches at no extra cost.
+            foreach (var commit in repository.Commits.QueryBy(filter))
+            {
+                LocalCommitCount++;
+                if (localTipShas.Contains(commit.Sha))
+                {
+                    _localOnlyTipShas.Add(commit.Sha);
+                }
+            }
+
             LocalOnlyCommits = LocalCommitCount > 0;
         }
         catch (Exception exception)
         {
+            _localOnlyTipShas = null;
             GitWizardLog.LogException(exception, $"Exception counting local-only commits for {WorkingDirectory}");
         }
     }
 
     internal void RefreshBranchDivergence(Repository repository, bool allBranches)
     {
+        Branch? baseBranch = null;
         try
         {
-            CollectBranches(repository, allBranches);
+            baseBranch = BaseBranchResolver.Resolve(repository);
+            CollectBranches(repository, allBranches, baseBranch);
         }
         catch (Exception exception)
         {
             GitWizardLog.LogException(exception, $"Exception collecting branches for {WorkingDirectory}");
+        }
+
+        RefreshStashes(repository, baseBranch?.Tip);
+    }
+
+    /// <summary>
+    /// Count stashes and those whose changes are all on <paramref name="baseTip"/> (content tier
+    /// only). Skipped on a linked worktree: <c>refs/stash</c> is shared with the main checkout,
+    /// whose row already counts it.
+    /// </summary>
+    internal void RefreshStashes(Repository repository, Commit? baseTip)
+    {
+        StashCount = 0;
+        MergedStashCount = 0;
+        if (IsWorktree)
+        {
+            return;
+        }
+
+        try
+        {
+            var stashes = StashMergeDetector.Inventory(repository, baseTip);
+            StashCount = stashes.Count;
+            MergedStashCount = stashes.Count(stash => stash.IsMerged);
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception, $"Exception inventorying stashes for {WorkingDirectory}");
         }
     }
 

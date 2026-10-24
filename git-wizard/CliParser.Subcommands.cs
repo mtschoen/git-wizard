@@ -50,14 +50,39 @@ static partial class CliParser
         branchesApp.Description = "Scan all clones for local branches and report upstream divergence and unique commit counts.";
         var notMergedOption = branchesApp.Option("--not-merged <BRANCH>", "Filter to branches not merged into <BRANCH> (defaults to the repo's default branch)", CommandOptionType.SingleValue);
         var notOption = branchesApp.Option("--not <BRANCH>", "Alias for --not-merged <BRANCH>", CommandOptionType.SingleValue);
+        var localOnlyOption = branchesApp.Option("--local-only", "Keep only unmerged branches whose commits are on no remote-tracking ref, and unmerged stashes", CommandOptionType.NoValue);
         var inventoryOptions = AddInventoryOptions(branchesApp);
 
         return new SubcommandHandle(branchesApp, inventoryOptions.Help, () =>
             BuildInventoryConfiguration(inventoryOptions, CommandKind.Branches) with
             {
                 NotMergedBranch = notMergedOption.Value() ?? notOption.Value(),
-                NotMergedOnly = notMergedOption.HasValue() || notOption.HasValue()
+                NotMergedOnly = notMergedOption.HasValue() || notOption.HasValue(),
+                LocalOnly = localOnlyOption.HasValue()
             });
+    }
+
+    static SubcommandHandle SetupPruneCommand(CommandLineApplication app)
+    {
+        var pruneApp = app.Command("prune", _ => { });
+        pruneApp.Description = "List (dry run) or, with --apply, delete local branches and stashes whose changes are already in the base branch.";
+        var branchesOption = pruneApp.Option("--branches", "Consider local branches (default: branches and stashes)", CommandOptionType.NoValue);
+        var stashesOption = pruneApp.Option("--stashes", "Consider stashes (default: branches and stashes)", CommandOptionType.NoValue);
+        var applyOption = pruneApp.Option("--apply", "Delete eligible branches and stashes; without it nothing is deleted", CommandOptionType.NoValue);
+        var baseOption = pruneApp.Option("--base <BRANCH>", "Base branch to compare against (defaults to origin's default branch)", CommandOptionType.SingleValue);
+        var inventoryOptions = AddInventoryOptions(pruneApp);
+
+        return new SubcommandHandle(pruneApp, inventoryOptions.Help, () =>
+        {
+            var neither = !branchesOption.HasValue() && !stashesOption.HasValue();
+            return BuildInventoryConfiguration(inventoryOptions, CommandKind.Prune) with
+            {
+                PruneBranches = neither || branchesOption.HasValue(),
+                PruneStashes = neither || stashesOption.HasValue(),
+                PruneApply = applyOption.HasValue(),
+                PruneBaseBranch = baseOption.Value()
+            };
+        });
     }
 
     static InventoryOptions AddInventoryOptions(CommandLineApplication subcommand) => new(

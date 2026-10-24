@@ -37,6 +37,7 @@ public class MainWindowSidebarTests
             ("FilterDownstreamBranches", FilterType.DownstreamBranches),
             ("FilterBehindRemote", FilterType.BehindRemote),
             ("FilterPublishReady", FilterType.PublishReady),
+            ("FilterStashes", FilterType.Stashes),
         };
 
         foreach (var (name, filter) in cases)
@@ -97,6 +98,8 @@ public class MainWindowSidebarTests
             ("SortByRecentlyUsed", SortMode.RecentlyUsed),
             ("SortByRemoteUrl", SortMode.RemoteUrl),
             ("SortBySizeOnDisk", SortMode.SizeOnDisk),
+            ("SortByPrunable", SortMode.Prunable),
+            ("SortByStaleBranches", SortMode.StaleBranches),
         };
 
         foreach (var (name, mode) in cases)

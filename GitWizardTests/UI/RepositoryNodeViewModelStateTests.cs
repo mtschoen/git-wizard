@@ -127,7 +127,7 @@ public class RepositoryNodeViewModelStateTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(node.MatchesFilter(FilterType.DownstreamBranches), Is.True);
-            Assert.That(node.DisplayText, Does.Contain("branch"),
+            Assert.That(node.PruneBadgeText, Does.Contain("1 merged"),
                 "A repo with a merged downstream branch must show the merged-branch count.");
         }
     }

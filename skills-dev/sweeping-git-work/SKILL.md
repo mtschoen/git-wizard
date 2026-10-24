@@ -36,6 +36,8 @@ Use git-wizard's stable JSON sweep instead of rebuilding ad-hoc `find`, `status`
 
 4. Report a table with host, repository path, dirty tracked files, unpushed branches as `name (N commits)`, stash count, and error. Omit clean repositories, but explicitly say when a host is clean. Treat any `Error` as an incomplete audit.
 
+For a branch-level view, `git-wizard branches --local-only` lists only unmerged branches with commits on no remote-tracking ref plus unmerged stashes; merges are detected by ancestry, patch-id (rebase), squash and content. `git-wizard prune` lists branches and stashes already in the default branch as a dry run; deleting with `prune --apply` is a separate action that needs explicit approval and prints a restore command per deletion to stderr.
+
 The branch comparison uses local remote-tracking refs and performs no network fetch. State that freshness limitation. Never run `git fetch` across the fleet without explicit approval.
 
 ## Reap affected repositories

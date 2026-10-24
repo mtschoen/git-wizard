@@ -110,6 +110,9 @@ public static partial class Program
                 case CommandKind.Branches:
                     configuration ??= await GetConfigurationAsync(runConfiguration).ConfigureAwait(false);
                     return await RunBranchesAsync(runConfiguration, configuration, coordinator, stdout, stderr, cancellationToken).ConfigureAwait(false);
+                case CommandKind.Prune:
+                    configuration ??= await GetConfigurationAsync(runConfiguration).ConfigureAwait(false);
+                    return await RunPruneAsync(runConfiguration, configuration, coordinator, stdout, stderr, cancellationToken).ConfigureAwait(false);
                 case CommandKind.Merge:
                     configuration = await PrepareInteractiveRunAsync(runConfiguration, configuration).ConfigureAwait(false);
                     RunMerge(runConfiguration, configuration, stderr);

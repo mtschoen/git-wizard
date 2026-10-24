@@ -52,9 +52,34 @@ public static partial class Program
                 (paths, _) => Task.FromResult(BranchInventoryReport.Scan(
                     paths,
                     baseBranchName: runConfiguration.NotMergedBranch,
-                    notMergedOnly: runConfiguration.NotMergedOnly))),
+                    notMergedOnly: runConfiguration.NotMergedOnly,
+                    localOnly: runConfiguration.LocalOnly))),
             new CommandEnvironment(coordinator, stdout, stderr),
             cancellationToken);
+
+    static Task<int> RunPruneAsync(
+        RunConfiguration runConfiguration,
+        GitWizardConfiguration configuration,
+        RepositoryDiscoveryCoordinator? coordinator = null,
+        TextWriter? stdout = null,
+        TextWriter? stderr = null,
+        CancellationToken cancellationToken = default)
+    {
+        var restoreHints = stderr ?? Console.Error;
+        var options = new PruneOptions(
+            Branches: runConfiguration.PruneBranches,
+            Stashes: runConfiguration.PruneStashes,
+            Apply: runConfiguration.PruneApply,
+            BaseBranchName: runConfiguration.PruneBaseBranch);
+        return RunInventoryCommandAsync(
+            runConfiguration,
+            configuration,
+            new InventoryCommand<PruneReport>(
+                IncludeLinkedClones: true,
+                (paths, _) => Task.FromResult(Pruner.Run(paths, options, restoreHints))),
+            new CommandEnvironment(coordinator, stdout, stderr),
+            cancellationToken);
+    }
 
     static async Task<int> RunScanOnlyAsync(
         RunConfiguration runConfiguration,

@@ -7,6 +7,7 @@ public sealed class StubUserDialogs : IUserDialogs
     public record AlertCall(string Title, string Message);
 
     public List<AlertCall> AlertCalls { get; } = [];
+    public List<AlertCall> ConfirmCalls { get; } = [];
     public bool NextConfirmResult { get; set; }
 
     public Task ShowAlertAsync(string title, string message, string okLabel = "OK")
@@ -17,6 +18,7 @@ public sealed class StubUserDialogs : IUserDialogs
 
     public Task<bool> ConfirmAsync(string title, string message, string acceptLabel = "Yes", string cancelLabel = "No")
     {
+        ConfirmCalls.Add(new AlertCall(title, message));
         return Task.FromResult(NextConfirmResult);
     }
 }

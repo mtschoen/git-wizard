@@ -187,8 +187,8 @@ public class MainViewModelCommandTests
         repository.Refresh();
         var node = new RepositoryNodeViewModel(repository);
 
-        var dialogs = new StubUserDialogs();
-        var viewModel = TestViewModels.Create(dialogs: dialogs);
+        var dialogs = new StubUserDialogs { NextConfirmResult = true };
+        await using var viewModel = TestViewModels.Create(dialogs: dialogs);
 
         await viewModel.Commands.CleanDownstreamBranchesAsync(node);
 
@@ -214,8 +214,12 @@ public class MainViewModelCommandTests
 
         await viewModel.Commands.CleanDownstreamBranchesAsync(node);
 
-        Assert.That(dialogs.AlertCalls, Is.Empty,
-            "With no merged downstream branches there's nothing to confirm or delete.");
+        Assert.Multiple(() =>
+        {
+            Assert.That(dialogs.ConfirmCalls, Is.Empty,
+                "With no merged downstream branches there's nothing to confirm or delete.");
+            Assert.That(dialogs.AlertCalls.Single().Title, Is.EqualTo("Nothing to Clean"));
+        });
     }
 
     [Test]

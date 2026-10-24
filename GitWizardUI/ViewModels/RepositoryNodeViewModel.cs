@@ -270,11 +270,7 @@ public sealed partial class RepositoryNodeViewModel : INotifyPropertyChanged
             label += $" ({MatchingBranchName})";
         }
 
-        var mergedCount = Repository.Branches?.Count(b => b.IsMerged) ?? 0;
-        if (mergedCount > 0)
-        {
-            label += $" [{mergedCount} branch{(mergedCount > 1 ? "es" : "")}]";
-        }
+        NotifyPruneBadgeChanged();
 
         if (Repository.HasSubmoduleIssues)
         {
@@ -307,11 +303,12 @@ public sealed partial class RepositoryNodeViewModel : INotifyPropertyChanged
             FilterType.SubmoduleConfigIssue => HasSubmoduleConfigIssues(),
             FilterType.DetachedHead => HasDetachedHeadRecursive(),
             FilterType.MyRepositories => IsMyRepository(userEmail),
-            FilterType.LocalOnlyCommits => Repository.LocalOnlyCommits,
+            FilterType.LocalOnlyCommits => Repository.LocalOnlyBranchCount > 0,
             FilterType.Stale => Repository.DaysSinceLastCommit > 30,
             FilterType.DownstreamBranches => HasDownstreamBranches(),
             FilterType.BehindRemote => Repository.BehindRemoteCount > 0,
             FilterType.PublishReady => Repository.IsPublishReady,
+            FilterType.Stashes => Repository.StashCount > 0,
             _ => true
         };
     }
@@ -363,10 +360,7 @@ public sealed partial class RepositoryNodeViewModel : INotifyPropertyChanged
         return Repository.Submodules.Values.Any(v => v == null) || Children.Any(c => c.HasSubmoduleConfigIssues());
     }
 
-    bool HasDownstreamBranches()
-    {
-        return Repository.Branches?.Any(b => b.IsMerged) == true;
-    }
+    bool HasDownstreamBranches() => MergedBranchCount > 0;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -397,7 +391,9 @@ public enum SortMode
     WorkingDirectory = 0,
     RecentlyUsed = 1,
     RemoteUrl = 2,
-    SizeOnDisk = 3
+    SizeOnDisk = 3,
+    Prunable = 4,
+    StaleBranches = 5
 }
 
 public enum FilterType
@@ -413,5 +409,6 @@ public enum FilterType
     Stale = 8,
     DownstreamBranches = 9,
     BehindRemote = 10,
-    PublishReady = 11
+    PublishReady = 11,
+    Stashes = 12
 }

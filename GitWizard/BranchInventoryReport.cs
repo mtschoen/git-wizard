@@ -9,20 +9,26 @@ namespace GitWizard;
 [Serializable]
 public sealed class BranchInventoryReport
 {
-    public const string CurrentSchemaVersion = "1.0";
+    public const string CurrentSchemaVersion = "1.1";
+
+    /// <summary>Repositories scanned concurrently by branch inventory and prune (matches refresh).</summary>
+    internal static int ScanParallelism => Math.Max(1, Environment.ProcessorCount / 2);
 
     public string SchemaVersion { get; set; } = CurrentSchemaVersion;
     public string? BaseBranch { get; set; }
     public List<RepositoryBranchItem> Repositories { get; set; } = [];
 
     /// <summary>
-    /// Inspect each repository for local branches, comparing against the specified base branch
-    /// or each repository's default branch.
+    /// Inspect each repository for local branches and stashes, comparing against the specified
+    /// base branch or each repository's default branch (see <see cref="BaseBranchResolver"/>).
+    /// <paramref name="localOnly"/> keeps only unmerged branches with commits on no remote-tracking
+    /// ref, and only unmerged stashes.
     /// </summary>
     public static BranchInventoryReport Scan(
         IEnumerable<string> repositoryPaths,
         string? baseBranchName = null,
-        bool notMergedOnly = false)
+        bool notMergedOnly = false,
+        bool localOnly = false)
     {
         ArgumentNullException.ThrowIfNull(repositoryPaths);
 
@@ -31,20 +37,29 @@ public sealed class BranchInventoryReport
             BaseBranch = baseBranchName
         };
 
-        var sortedPaths = new SortedSet<string>(repositoryPaths, StringComparer.Ordinal);
-        foreach (var path in sortedPaths)
-        {
-            var item = ScanRepository(path, baseBranchName, notMergedOnly);
-            if (item != null)
-            {
-                report.Repositories.Add(item);
-            }
-        }
+        var filter = new ScanFilter(notMergedOnly, localOnly);
+        report.Repositories.AddRange(SharedGitDirectories.OnePathPerCommonDirectory(repositoryPaths)
+            .AsParallel()
+            .AsOrdered()
+            .WithDegreeOfParallelism(ScanParallelism)
+            .Select(path => ScanRepository(path, baseBranchName, filter))
+            .OfType<RepositoryBranchItem>());
 
         return report;
     }
 
-    static RepositoryBranchItem? ScanRepository(string path, string? baseBranchName, bool notMergedOnly)
+    /// <summary>
+    /// Which branches and stashes a scan keeps.
+    /// </summary>
+    readonly record struct ScanFilter(bool NotMergedOnly, bool LocalOnly)
+    {
+        public bool Keeps(BranchInventoryInfo branch) =>
+            !((NotMergedOnly || LocalOnly) && branch.IsMerged) && !(LocalOnly && branch.UniqueCommitCount == 0);
+
+        public bool Keeps(StashInventoryInfo stash) => !(LocalOnly && stash.IsMerged);
+    }
+
+    static RepositoryBranchItem? ScanRepository(string path, string? baseBranchName, ScanFilter filter)
     {
         var item = new RepositoryBranchItem { Path = path };
 
@@ -57,7 +72,7 @@ public sealed class BranchInventoryReport
 
             using var repository = new Repository(path);
 
-            var baseBranch = ResolveBaseBranch(repository, baseBranchName);
+            var baseBranch = BaseBranchResolver.Resolve(repository, baseBranchName);
             item.DefaultBranch = baseBranch?.FriendlyName;
 
             var localBranches = repository.Branches
@@ -76,20 +91,27 @@ public sealed class BranchInventoryReport
 
             foreach (var branch in localBranches)
             {
-                // Skip the base branch itself
-                if (baseBranch != null && string.Equals(branch.FriendlyName, baseBranch.FriendlyName, StringComparison.Ordinal))
+                var branchInfo = CreateBranchInfo(repository, branch, baseBranch, remoteTips);
+                // A local main behind or equal to origin/main is just stale, but unpushed commits on it are real work.
+                if (BaseBranchResolver.IsBaseOrCounterpart(branch, baseBranch) && branchInfo.UniqueCommitCount == 0)
                 {
                     continue;
                 }
 
-                var branchInfo = CreateBranchInfo(repository, branch, baseBranch, remoteTips, notMergedOnly);
-                if (branchInfo != null)
+                if (filter.Keeps(branchInfo))
                 {
                     item.Branches.Add(branchInfo);
                 }
             }
 
-            return item.Branches.Count == 0 ? null : item;
+            item.Stashes.AddRange(StashMergeDetector.Inventory(repository, baseBranch?.Tip).Where(filter.Keeps));
+
+            if (item.Branches.Count == 0 && item.Stashes.Count == 0)
+            {
+                return null;
+            }
+
+            return item;
         }
         catch (Exception exception)
         {
@@ -98,28 +120,22 @@ public sealed class BranchInventoryReport
         }
     }
 
-    static BranchInventoryInfo? CreateBranchInfo(
+    static BranchInventoryInfo CreateBranchInfo(
         Repository repository,
         Branch branch,
         Branch? baseBranch,
-        List<Commit> remoteTips,
-        bool notMergedOnly)
+        List<Commit> remoteTips)
     {
         var aheadBase = 0;
         var behindBase = 0;
-        var isMerged = false;
+        string? mergedBy = null;
 
-        if (baseBranch?.Tip != null && branch.Tip != null)
+        if (baseBranch?.Tip is { } baseTip && branch.Tip is { } branchTip)
         {
-            var divergence = repository.ObjectDatabase.CalculateHistoryDivergence(branch.Tip, baseBranch.Tip);
+            var divergence = repository.ObjectDatabase.CalculateHistoryDivergence(branchTip, baseTip);
             aheadBase = divergence.AheadBy ?? 0;
             behindBase = divergence.BehindBy ?? 0;
-            isMerged = aheadBase == 0;
-        }
-
-        if (notMergedOnly && isMerged)
-        {
-            return null;
+            mergedBy = MergeDetector.Detect(repository, branchTip, baseTip);
         }
 
         var remoteName = branch.RemoteName;
@@ -144,7 +160,8 @@ public sealed class BranchInventoryReport
         return new BranchInventoryInfo
         {
             Name = branch.FriendlyName,
-            IsMerged = isMerged,
+            IsMerged = mergedBy != null,
+            MergedBy = mergedBy,
             AheadOfBase = aheadBase,
             BehindBase = behindBase,
             HasUpstream = hasUpstream,
@@ -154,36 +171,6 @@ public sealed class BranchInventoryReport
             UniqueCommitCount = uniqueCommitCount,
             LastCommitDate = branch.Tip?.Author.When
         };
-    }
-
-    static Branch? ResolveBaseBranch(Repository repository, string? baseBranchName)
-    {
-        if (!string.IsNullOrEmpty(baseBranchName))
-        {
-            var branch = repository.Branches[baseBranchName];
-            if (branch != null)
-            {
-                return branch;
-            }
-
-            // Check if there is an origin/<baseBranchName> remote branch
-            var remoteBranch = repository.Branches[$"origin/{baseBranchName}"] ?? repository.Branches.FirstOrDefault(b => b.IsRemote && b.FriendlyName.EndsWith($"/{baseBranchName}", StringComparison.OrdinalIgnoreCase));
-            if (remoteBranch != null)
-            {
-                return remoteBranch;
-            }
-        }
-
-        foreach (var name in new[] { "main", "master", "develop" })
-        {
-            var candidate = repository.Branches[name];
-            if (candidate is { IsRemote: false })
-            {
-                return candidate;
-            }
-        }
-
-        return repository.Head.Reference is SymbolicReference ? repository.Head : null;
     }
 
     static int ComputeUniqueCommitCount(
@@ -234,6 +221,7 @@ public sealed class RepositoryBranchItem
     public string Path { get; set; } = string.Empty;
     public string? DefaultBranch { get; set; }
     public List<BranchInventoryInfo> Branches { get; set; } = [];
+    public List<StashInventoryInfo> Stashes { get; set; } = [];
     [UsedImplicitly]
     public string? Error { get; set; }
 }
@@ -246,6 +234,8 @@ public sealed class BranchInventoryInfo
 {
     public string Name { get; set; } = string.Empty;
     public bool IsMerged { get; set; }
+    /// <summary>The <see cref="GitWizard.MergedBy"/> tier that proved the merge, or null when unmerged.</summary>
+    public string? MergedBy { get; set; }
     public int AheadOfBase { get; set; }
     public int BehindBase { get; set; }
     public bool HasUpstream { get; set; }

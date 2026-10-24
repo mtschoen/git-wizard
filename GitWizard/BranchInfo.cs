@@ -17,10 +17,18 @@ public class BranchInfo
     [UsedImplicitly]
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>True when fully merged into the default branch (AheadOfDefault == 0).</summary>
+    /// <summary>True when <see cref="MergedBy"/> is set: the branch's work is already on the base branch.</summary>
     public bool IsMerged { get; init; }
 
-    /// <summary>The default branch name when merged (safe to delete), else null.</summary>
+    /// <summary>
+    /// The <see cref="GitWizard.MergedBy"/> tier that proved the branch merged into the base
+    /// branch, or null. Refresh runs only the cheap tiers (ancestor, content); reports cached
+    /// before this field existed load it as null.
+    /// </summary>
+    [UsedImplicitly]
+    public string? MergedBy { get; set; }
+
+    /// <summary>The base branch name when merged (safe to delete), else null.</summary>
     [UsedImplicitly]
     public string? MergedInto { get; set; }
 

@@ -73,7 +73,7 @@ Run evidence is not tracked in the repository: coverage verdicts live in the inf
 Workflows live in `.gitea/workflows/`; YAML is the source of truth for jobs and
 steps. Preserve job names and required checks. `ci/checkout.py pin-only` is the
 single early-exit implementation for Linux and Windows. Only a successful diff
-containing exactly `.aislop/fork-commit` skips expensive steps. Probe failures
+containing exactly `.aislop/fork-commit` or `TEST-REPORT.md` skips expensive steps. Probe failures
 run the job in full. Never use workflow-level path filtering on required checks.
 `ci/checkout.py clean` supplies both destructive Windows clean/status checks.
 
@@ -90,6 +90,42 @@ test recipes. Release, preview and screenshot builds also use
 - **Branch protection:** require `CI / Build + Test (Linux, cross-platform projects) (pull_request)`, `CI / Build + Test (Windows, full solution) (pull_request)` and `aislop / quality-gate (pull_request)`, one approval, and restricted force-pushes. Configure only after the checks first run successfully. Protection is an operator setting, not a workflow declaration.
 - **Deliberate non-goals:** no binary signing, no MAUI, and no macOS CI runner.
 - **Artifact-upload cert gap:** TLS verification stays enabled. `ci.yml` tolerates coverage-artifact upload failure (`continue-on-error: true`); the coverage gate reads Cobertura directly. Upload success is not implied by a passing gate. The runner CA investigation remains in `PLAN.md` under Infrastructure.
+
+### Generated test summary
+
+`CI / report-guard` runs on every pull request and rejects any PR diff touching
+`TEST-REPORT.md`, including additions and deletions. The report is generated on main
+by CI, never edited in a PR or written by local coverage scripts.
+
+The `CI` workflow also runs nightly at 03:23 UTC. After successful `test-linux` and
+`test-windows` jobs, `publish-report` runs only on main pushes and scheduled main
+runs. The shared early-exit check in `ci/checkout.py pin-only` suppresses test jobs
+and publication for report-only pushes, preventing a bot publication loop without
+workflow-level path filters. Nightly runs collect fresh results even when main has
+not changed.
+
+The publisher downloads the current run's `test-results-windows`, `test-results-linux`
+and `coverage-cobertura` artifacts with the pinned `ChristopherHX/gitea-download-artifact`
+action, paired with the upload pin, requires usable evidence from both platforms (failing
+loudly when an artifact is missing), and runs `scripts/generate-test-report.ps1`. The
+summary stays below 4096 UTF-8 bytes: per-project TRX Counters totals, passed, failed and
+skipped counts, managed Cobertura line and branch coverage, source commit and workflow
+run id as plain text (no host links), and the run's creation timestamp. Skipped counts
+come from the per-result NotExecuted outcomes, because the producer leaves the Counters
+notExecuted attribute at zero. Full TRX and coverage output remain CI artifacts. Identical
+inputs produce identical bytes.
+
+Publication reuses `CI_GITEA_TOKEN` (whose `ci-bot` identity holds repository write access,
+with no push whitelist restricting `main`) and commits as `claude-code` with
+`chore: regenerate TEST-REPORT.md from <run id>`. An identical file is not committed.
+A run whose source is no longer main's tip does not publish; a concurrent main update
+makes the ordinary non-force push fail safely. The first report is created by CI after
+this workflow reaches main.
+
+Run the offline fixtures with `pwsh -NoProfile -File scripts/generate-test-report.ps1`
+or `pwsh -NoProfile -File ci/script-tests/generate-test-report.tests.ps1`. To generate a
+local sample, supply `-WindowsTrx`, `-LinuxTrx`, `-LinuxCobertura`, `-Commit`, `-RunId`,
+`-GeneratedAt`, and an ignored `-OutputPath`. Do not generate the root report locally.
 
 ### Release credential provisioning
 

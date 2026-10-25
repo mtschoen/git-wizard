@@ -1,9 +1,11 @@
-"""Shared pin-only detection and destructive CI checkout verification."""
+"""Shared pin/report-only detection and destructive CI checkout verification."""
 
 import argparse
 import os
 import subprocess
 from pathlib import Path
+
+EARLY_EXIT_PATHS = frozenset({".aislop/fork-commit", "TEST-REPORT.md"})
 
 
 def git(*arguments):
@@ -28,9 +30,8 @@ def pin_only():
         return False
     changed = git("diff", "--name-only", *comparison)
     print(changed.stdout)
-    return changed.returncode == 0 and changed.stdout.splitlines() == [
-        ".aislop/fork-commit"
-    ]
+    lines = changed.stdout.splitlines()
+    return changed.returncode == 0 and len(lines) == 1 and lines[0] in EARLY_EXIT_PATHS
 
 
 def clean_tree():

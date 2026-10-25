@@ -161,6 +161,8 @@ retain rationale. Pin `.aislop/fork-commit` deliberately, never a moving branch.
 Keep run evidence outside the repository. Coverage verdicts belong in
 `pr-crew/coverage` and the CI summary; attended evidence belongs on its issue.
 
+`TEST-REPORT.md` is generated on main by CI; pull requests never touch it; details in [CI and release reference](docs/ci-and-release.md).
+
 ## Architecture rules
 
 [Architecture](docs/architecture.md) and [watch/recovery](docs/watch-and-recovery.md)

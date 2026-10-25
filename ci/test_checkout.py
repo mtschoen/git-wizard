@@ -50,11 +50,26 @@ class CheckoutTests(unittest.TestCase):
         self.assertNotIn("-c Debug", screenshot)
         release = (root / ".gitea/workflows/release.yml").read_text(encoding="utf-8")
         self.assertEqual(2, release.count("-getProperty:Version"))
+        self.assertNotIn(
+            "TEST-REPORT", (root / ".gitignore").read_text(encoding="utf-8")
+        )
+        report = root / "TEST-REPORT.md"
+        if report.is_file():
+            text = report.read_text(encoding="utf-8")
+            self.assertTrue(
+                text.startswith(
+                    "# Test report: generated on main by CI; must not be edited in a pull request"
+                )
+            )
+            self.assertRegex(text, r"(?m)^Source commit: [0-9a-f]{40}\r?$")
+            self.assertRegex(text, r"(?m)^Workflow run: \d+\r?$")
 
     def test_pin_only_requires_a_successful_exact_single_file_diff(self):
         for changed, status, expected in (
             (".aislop/fork-commit\n", 0, True),
+            ("TEST-REPORT.md\n", 0, True),
             (".aislop/fork-commit\nREADME.md\n", 0, False),
+            ("TEST-REPORT.md\nREADME.md\n", 0, False),
             ("", 0, False),
             (".aislop/fork-commit\n", 1, False),
         ):
@@ -105,7 +120,7 @@ class CheckoutTests(unittest.TestCase):
                 "git",
                 side_effect=[
                     subprocess.CompletedProcess([], 0, ""),
-                    subprocess.CompletedProcess([], 0, ".aislop/fork-commit\n"),
+                    subprocess.CompletedProcess([], 0, "TEST-REPORT.md\n"),
                 ],
             ):
                 self.assertTrue(checkout.pin_only())

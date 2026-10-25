@@ -81,5 +81,8 @@ node ci/aislop-report-summary.js
 node -e "const r=JSON.parse(require('fs').readFileSync(process.env.REPORT,'utf8')); const f=r.summary?.files??0; console.log('aislop score',r.score,'over',f,'files'); if(f<10){console.error('C# engine did not run');process.exit(1);}"
 if [[ "$failure" != 0 ]]; then
     node -e "const r=JSON.parse(require('fs').readFileSync(process.env.REPORT,'utf8')); for(const f of(r.diagnostics??[])) console.log([f.severity,f.rule,f.filePath+':'+(f.line??0),f.message].join(' | '));"
+    # A perfect score can still exit 1 for a missing tool or engine failure; say which.
+    fail_below=$(sed -n 's/^[[:space:]]*failBelow:[[:space:]]*\([0-9][0-9]*\).*/\1/p' .aislop/config.yml | head -n 1)
+    node ci/aislop-report-summary.js --exit-reason "${fail_below:-100}"
 fi
 exit "$failure"

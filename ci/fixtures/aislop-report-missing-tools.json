@@ -1,0 +1,15 @@
+{
+  "score": 100,
+  "summary": { "files": 415 },
+  "diagnostics": [],
+  "engines": {
+    "format": { "issues": 0, "elapsed": 1500, "missingTools": ["clang-format"] },
+    "ai-slop": {
+      "issues": 0,
+      "elapsed": 200,
+      "failed": true,
+      "failures": [{ "tool": "git ls-files", "target": ".", "reason": "exit 128" }]
+    },
+    "lint": { "issues": 0, "elapsed": 900 }
+  }
+}

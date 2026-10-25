@@ -10,12 +10,12 @@ public sealed partial class RefreshCoordinator
     // dispatcher, which empties the command queue and applies the latest progress. Arrivals inside
     // the window ride the pending drain, preserving the coalescing described on DrainUICommands.
     // MainViewModel.DisposeAsync stops the window and turns a drain that was already posted into a no-op.
-    internal static readonly TimeSpan UiDrainBatchingWindow = TimeSpan.FromMilliseconds(250);
+    static readonly TimeSpan UiDrainBatchingWindow = TimeSpan.FromMilliseconds(250);
 
-    internal static readonly TimeSpan UiDrainPollInterval = TimeSpan.FromMilliseconds(150);
+    static readonly TimeSpan UiDrainPollInterval = TimeSpan.FromMilliseconds(150);
 
     readonly ConcurrentQueue<RepositoryUICommand> _uiCommands = new();
-    readonly object _uiDrainLock = new();
+    readonly Lock _uiDrainLock = new();
     ITimer? _uiDrainWindow;
     int _uiDrainScheduled;
     volatile bool _uiDrainDisposed;
@@ -317,6 +317,8 @@ public sealed partial class RefreshCoordinator
                 }
 
                 break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(command), command.Type, "Unknown repository UI command type.");
         }
     }
 

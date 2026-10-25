@@ -48,11 +48,7 @@ public class MainViewModelRefreshPruneTests
 
         var viewModel = CreateViewModel();
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
-        var configuration = new GitWizardConfiguration
-        {
-            SearchPaths = ["C:/repos"]
-        };
-        viewModel.RepositoryList.PrePopulateFromReport(configuration, ["C:/repos/alpha"], report);
+        viewModel.RepositoryList.PrePopulateFromReport(["C:/repos/alpha"], report);
         viewModel.RepositoryList.AddRepository(new GitWizardRepository("C:/repos/alpha"), streaming: false);
         var groupHeader = viewModel.RepositoryList.Repositories.Single(candidate => candidate.IsGroupHeader);
 
@@ -77,11 +73,7 @@ public class MainViewModelRefreshPruneTests
         report.Save(Path.Combine(GitWizardApi.GetLocalFilesPath(), "report.json"));
 
         var viewModel = CreateViewModel();
-        var configuration = new GitWizardConfiguration
-        {
-            SearchPaths = ["/repos"]
-        };
-        viewModel.RepositoryList.PrePopulateFromReport(configuration, ["/repos/old-alpha"], report);
+        viewModel.RepositoryList.PrePopulateFromReport(["/repos/old-alpha"], report);
         viewModel.RepositoryList.AddRepository(new GitWizardRepository("/repos/alpha"), streaming: false);
 
         viewModel.RepositoryList.PruneStalePrePopulatedRepos(
@@ -113,11 +105,10 @@ public class MainViewModelRefreshPruneTests
         report.Save(Path.Combine(GitWizardApi.GetLocalFilesPath(), "report.json"));
 
         var vm = CreateViewModel();
-        var config = new GitWizardConfiguration { SearchPaths = ["/repos"] };
 
         // Simulate RefreshAsync: clear backing collections, pre-populate from cache.
         vm.RepositoryList.ClearRepositories();
-        vm.RepositoryList.PrePopulateFromReport(config, ["/repos/alpha", "/repos/beta"], report);
+        vm.RepositoryList.PrePopulateFromReport(["/repos/alpha", "/repos/beta"], report);
         Assert.That(vm.RepositoryList.AllRepositories, Has.Count.EqualTo(2),
             "Pre-condition: two repos pre-populated.");
 

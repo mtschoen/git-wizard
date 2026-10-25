@@ -23,8 +23,7 @@ public class MainViewModelCachedNodeReplacementTests
         report.Save(Path.Combine(GitWizardApi.GetLocalFilesPath(), "report.json"));
 
         var vm = CreateViewModel();
-        var config = new GitWizardConfiguration { SearchPaths = ["/repos"] };
-        vm.RepositoryList.PrePopulateFromReport(config, ["/repos/alpha"], report);
+        vm.RepositoryList.PrePopulateFromReport(["/repos/alpha"], report);
 
         Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1), "Pre-condition: one repo pre-populated.");
 
@@ -56,8 +55,7 @@ public class MainViewModelCachedNodeReplacementTests
         report.Save(Path.Combine(GitWizardApi.GetLocalFilesPath(), "report.json"));
 
         var vm = CreateViewModel();
-        var config = new GitWizardConfiguration { SearchPaths = ["/repos"] };
-        vm.RepositoryList.PrePopulateFromReport(config, ["/repos/alpha"], report);
+        vm.RepositoryList.PrePopulateFromReport(["/repos/alpha"], report);
 
         var cachedNode = vm.RepositoryList.AllRepositories[0];
         Assert.That(vm.RepositoryList.RepositoryMap, Does.ContainKey("/repos/alpha"),
@@ -103,11 +101,7 @@ public class MainViewModelCachedNodeReplacementTests
 
         var viewModel = CreateViewModel();
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
-        var configuration = new GitWizardConfiguration
-        {
-            SearchPaths = ["C:/repos"]
-        };
-        viewModel.RepositoryList.PrePopulateFromReport(configuration, ["C:/repos/alpha"], report);
+        viewModel.RepositoryList.PrePopulateFromReport(["C:/repos/alpha"], report);
 
         var groupHeader = viewModel.RepositoryList.Repositories.Single(candidate => candidate.IsGroupHeader);
         var cachedNode = groupHeader.Children.Single();
@@ -133,10 +127,9 @@ public class MainViewModelCachedNodeReplacementTests
         GitWizardApi.SaveCachedRepositoryPaths(["/repos/alpha", "/repos/beta"]);
 
         var vm = CreateViewModel();
-        var config = new GitWizardConfiguration { SearchPaths = ["/repos"] };
 
         // First "refresh" cycle.
-        vm.RepositoryList.PrePopulateFromReport(config, ["/repos/alpha", "/repos/beta"], report);
+        vm.RepositoryList.PrePopulateFromReport(["/repos/alpha", "/repos/beta"], report);
         var freshAlpha1 = new GitWizardRepository("/repos/alpha");
         var freshBeta1 = new GitWizardRepository("/repos/beta");
         vm.RepositoryList.AddRepository(freshAlpha1, streaming: false);
@@ -149,7 +142,7 @@ public class MainViewModelCachedNodeReplacementTests
         // RefreshAsync clears AllRepositories / RepositoryMap before pre-populating
         // so only nodes from the fresh scan survive.
         vm.RepositoryList.ClearRepositories();
-        vm.RepositoryList.PrePopulateFromReport(config, ["/repos/alpha", "/repos/beta"], report);
+        vm.RepositoryList.PrePopulateFromReport(["/repos/alpha", "/repos/beta"], report);
         var freshAlpha2 = new GitWizardRepository("/repos/alpha");
         var freshBeta2 = new GitWizardRepository("/repos/beta");
         vm.RepositoryList.AddRepository(freshAlpha2, streaming: false);

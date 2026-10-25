@@ -7,12 +7,7 @@ namespace GitWizardUI.ViewModels;
 public sealed partial class LiveWatchViewModel
 {
     readonly TimeProvider _timeProvider;
-    string _liveReadinessText = string.Empty;
     LiveWatchHistoryViewModel? _liveWatchHistory;
-    bool _isLiveScanProgressVisible;
-    string _liveScanProgressText = string.Empty;
-    double _liveScanProgressValue;
-    bool _isLiveScanProgressIndeterminate;
 
     LiveWatchHistoryViewModel LiveWatchHistory
     {
@@ -47,69 +42,77 @@ public sealed partial class LiveWatchViewModel
 
     public string LiveReadinessText
     {
-        get => _liveReadinessText;
+        get;
         internal set
         {
-            if (_liveReadinessText == value)
+            if (field == value)
             {
                 return;
             }
 
-            _liveReadinessText = value;
+            field = value;
             OnPropertyChanged();
         }
-    }
+    } = string.Empty;
 
     /// <summary>True while a Live start/restart is cold-scanning and a sample has arrived.</summary>
     public bool IsLiveScanProgressVisible
     {
-        get => _isLiveScanProgressVisible;
+        get;
         internal set
         {
-            if (_isLiveScanProgressVisible != value)
+            if (field == value)
             {
-                _isLiveScanProgressVisible = value;
-                OnPropertyChanged();
+                return;
             }
+
+            field = value;
+            OnPropertyChanged();
         }
     }
 
     public string LiveScanProgressText
     {
-        get => _liveScanProgressText;
+        get;
         internal set
         {
-            if (_liveScanProgressText != value)
+            if (field == value)
             {
-                _liveScanProgressText = value;
-                OnPropertyChanged();
+                return;
             }
+
+            field = value;
+            OnPropertyChanged();
         }
-    }
+    } = string.Empty;
 
     public double LiveScanProgressValue
     {
-        get => _liveScanProgressValue;
+        get;
         internal set
         {
-            if (Math.Abs(_liveScanProgressValue - value) > 0.001)
+            if (!(Math.Abs(field - value) > 0.001))
             {
-                _liveScanProgressValue = value;
-                OnPropertyChanged();
+                return;
             }
+
+            field = value;
+            OnPropertyChanged();
         }
     }
 
     public bool IsLiveScanProgressIndeterminate
     {
-        get => _isLiveScanProgressIndeterminate;
+        get;
         internal set
         {
-            if (_isLiveScanProgressIndeterminate != value)
+            if (field == value)
             {
-                _isLiveScanProgressIndeterminate = value;
-                OnPropertyChanged();
+                return;
             }
+
+            field = value;
+            OnPropertyChanged();
         }
     }
 
@@ -225,7 +228,7 @@ public sealed partial class LiveWatchViewModel
         OnPropertyChanged(nameof(LiveReadinessTooltip));
     }
 
-    internal static string FormatRecordCount(uint count) => count switch
+    static string FormatRecordCount(uint count) => count switch
     {
         < 1_000u => count.ToString(CultureInfo.InvariantCulture),
         < 1_000_000u => string.Create(CultureInfo.InvariantCulture, $"{count / 1_000.0:F1}k"),

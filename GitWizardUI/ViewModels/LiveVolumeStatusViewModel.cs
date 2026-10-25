@@ -3,11 +3,9 @@ using GitWizard.Watch;
 
 namespace GitWizardUI.ViewModels;
 
-public sealed class LiveVolumeStatusViewModel : INotifyPropertyChanged
+public sealed class LiveVolumeStatusViewModel(VolumeWatchStatus status) : INotifyPropertyChanged
 {
-    VolumeWatchStatus _status;
-
-    public LiveVolumeStatusViewModel(VolumeWatchStatus status) => _status = status;
+    VolumeWatchStatus _status = status;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

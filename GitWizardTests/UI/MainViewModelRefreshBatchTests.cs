@@ -43,7 +43,7 @@ public class MainViewModelRefreshBatchTests
             report.Repositories[path] = Repo(path);
         }
 
-        viewModel.RepositoryList.PrePopulateFromReport(new GitWizardConfiguration(), paths, report);
+        viewModel.RepositoryList.PrePopulateFromReport(paths, report);
 
         // Sanity: the batch is still actually sorted.
         var actual = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray();
@@ -237,7 +237,7 @@ public class MainViewModelRefreshBatchTests
             report.Repositories[path] = Repo(path);
         }
 
-        viewModel.RepositoryList.PrePopulateFromReport(new GitWizardConfiguration(), paths, report);
+        viewModel.RepositoryList.PrePopulateFromReport(paths, report);
 
         var header = viewModel.RepositoryList.Repositories.Single(n => n.IsGroupHeader);
         using (Assert.EnterMultipleScope())

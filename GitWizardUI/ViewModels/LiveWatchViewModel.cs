@@ -32,8 +32,6 @@ public sealed partial class LiveWatchViewModel : INotifyPropertyChanged, IAsyncD
     readonly HashSet<string> _inFlightLiveRefreshes = new(StringComparer.OrdinalIgnoreCase);
     long _liveEventSequenceNumber;
     long _liveRunSequenceNumber;
-    bool _isLive;
-    bool _isLiveStarting;
 
     internal LiveWatchViewModel(UiEnvironment environment,
         RepositoryListViewModel repositoryList, RefreshCoordinator refresh,
@@ -52,11 +50,13 @@ public sealed partial class LiveWatchViewModel : INotifyPropertyChanged, IAsyncD
 
     void OnRefreshPropertyChanged(object? sender, PropertyChangedEventArgs arguments)
     {
-        if (arguments.PropertyName == nameof(RefreshCoordinator.IsRefreshing))
+        if (arguments.PropertyName != nameof(RefreshCoordinator.IsRefreshing))
         {
-            OnPropertyChanged(nameof(CanToggleLive));
-            OnPropertyChanged(nameof(LiveTooltip));
+            return;
         }
+
+        OnPropertyChanged(nameof(CanToggleLive));
+        OnPropertyChanged(nameof(LiveTooltip));
     }
 
     /// <summary>
@@ -66,35 +66,39 @@ public sealed partial class LiveWatchViewModel : INotifyPropertyChanged, IAsyncD
     /// </summary>
     public bool IsLive
     {
-        get => _isLive;
+        get;
         internal set
         {
-            if (_isLive != value)
+            if (field == value)
             {
-                _isLive = value;
-                _liveRunSequenceNumber++;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(CanToggleLive));
-                OnPropertyChanged(nameof(LiveButtonText));
-                OnPropertyChanged(nameof(LiveTooltip));
+                return;
             }
+
+            field = value;
+            _liveRunSequenceNumber++;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CanToggleLive));
+            OnPropertyChanged(nameof(LiveButtonText));
+            OnPropertyChanged(nameof(LiveTooltip));
         }
     }
 
     /// <summary>True while the broker is arming and building its per-volume path indexes.</summary>
     public bool IsLiveStarting
     {
-        get => _isLiveStarting;
+        get;
         internal set
         {
-            if (_isLiveStarting != value)
+            if (field == value)
             {
-                _isLiveStarting = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(CanToggleLive));
-                OnPropertyChanged(nameof(LiveButtonText));
-                OnPropertyChanged(nameof(LiveTooltip));
+                return;
             }
+
+            field = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CanToggleLive));
+            OnPropertyChanged(nameof(LiveButtonText));
+            OnPropertyChanged(nameof(LiveTooltip));
         }
     }
 
@@ -115,13 +119,12 @@ public sealed partial class LiveWatchViewModel : INotifyPropertyChanged, IAsyncD
     // session (a live UAC prompt), which an automated test can never drive. Tests substitute
     // a prepared WatchStartupResult around a fake IVolumeChangeSource to exercise
     // ToggleLiveAsync end-to-end.
-    Func<DiscoveryRequest, MftIndexSession?, IProgress<WatchStartupProgress>?, CancellationToken, Task<WatchStartupResult>>? _livePrepareWatchAsync;
 
     internal Func<DiscoveryRequest, MftIndexSession?, IProgress<WatchStartupProgress>?, CancellationToken, Task<WatchStartupResult>> PrepareWatchAsync
     {
-        get => _livePrepareWatchAsync ??= static (request, prepared, progress, cancellationToken) =>
+        get => field ??= static (request, prepared, progress, cancellationToken) =>
             new RepositoryDiscoveryCoordinator().PrepareWatchAsync(request, prepared, progress, cancellationToken);
-        set => _livePrepareWatchAsync = value;
+        set;
     }
 
     internal Func<bool> IsElevated { get; set; } = VolumeChangeSourceFactory.IsElevated;
@@ -139,7 +142,7 @@ public sealed partial class LiveWatchViewModel : INotifyPropertyChanged, IAsyncD
         }
     }
 
-    public bool IsLiveSupported =>
+    bool IsLiveSupported =>
         RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || _liveCapabilityProbe != null
             ? CapabilityProbe().IsSupported
             : RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
@@ -167,17 +170,21 @@ public sealed partial class LiveWatchViewModel : INotifyPropertyChanged, IAsyncD
     internal async Task ApplyLiveEventAsync(RepositoryChangeEvent changeEvent)
     {
         var sequenceNumber = Interlocked.Increment(ref _liveEventSequenceNumber);
-        if (changeEvent.Kind == RepositoryChangeKind.Changed)
+        switch (changeEvent.Kind)
         {
-            await ApplyLiveChangedAsync(changeEvent.RepoRoot).ConfigureAwait(false);
-        }
-        else if (changeEvent.Kind == RepositoryChangeKind.Created)
-        {
-            await ApplyLiveCreatedAsync(changeEvent.RepoRoot, sequenceNumber).ConfigureAwait(false);
-        }
-        else if (changeEvent.Kind == RepositoryChangeKind.Deleted)
-        {
-            ApplyLiveDeleted(changeEvent.RepoRoot, sequenceNumber);
+            case RepositoryChangeKind.Changed:
+                await ApplyLiveChangedAsync(changeEvent.RepoRoot).ConfigureAwait(false);
+                break;
+            case RepositoryChangeKind.Created:
+                await ApplyLiveCreatedAsync(changeEvent.RepoRoot, sequenceNumber).ConfigureAwait(false);
+                break;
+            case RepositoryChangeKind.Deleted:
+                ApplyLiveDeleted(changeEvent.RepoRoot, sequenceNumber);
+                break;
+            case RepositoryChangeKind.Renamed:
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(changeEvent), changeEvent.Kind, "Unknown repository change kind.");
         }
     }
 

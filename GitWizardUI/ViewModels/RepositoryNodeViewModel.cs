@@ -5,11 +5,9 @@ using GitWizard;
 
 namespace GitWizardUI.ViewModels;
 
-public partial class RepositoryNodeViewModel : INotifyPropertyChanged
+public sealed partial class RepositoryNodeViewModel : INotifyPropertyChanged
 {
-    bool _isExpanded;
     RefreshStatus _status = RefreshStatus.Refreshing;
-    string _displayText = string.Empty;
     string? _cachedSizeText;
 
     public GitWizardRepository Repository { get; }
@@ -23,7 +21,7 @@ public partial class RepositoryNodeViewModel : INotifyPropertyChanged
     /// <summary>
     /// The group key label (e.g. remote URL or drive letter), without the expand indicator.
     /// </summary>
-    public string GroupKey { get; init; } = string.Empty;
+    public string GroupKey { get; private init; } = string.Empty;
 
     public bool IsNotGroupHeader => !IsGroupHeader;
     public string GroupHeaderFontWeight => IsGroupHeader ? "Bold" : "Normal";
@@ -40,14 +38,16 @@ public partial class RepositoryNodeViewModel : INotifyPropertyChanged
 
     public bool IsExpanded
     {
-        get => _isExpanded;
+        get;
         set
         {
-            if (_isExpanded != value)
+            if (field == value)
             {
-                _isExpanded = value;
-                OnPropertyChanged();
+                return;
             }
+
+            field = value;
+            OnPropertyChanged();
         }
     }
 
@@ -56,16 +56,18 @@ public partial class RepositoryNodeViewModel : INotifyPropertyChanged
         get => _status;
         set
         {
-            if (_status != value)
+            if (_status == value)
             {
-                _status = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(StatusIcon));
-                OnPropertyChanged(nameof(StatusColorHex));
-                OnPropertyChanged(nameof(StatusTooltip));
-                OnPropertyChanged(nameof(IsStatusVisible));
-                NotifyParentHeaders();
+                return;
             }
+
+            _status = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(StatusIcon));
+            OnPropertyChanged(nameof(StatusColorHex));
+            OnPropertyChanged(nameof(StatusTooltip));
+            OnPropertyChanged(nameof(IsStatusVisible));
+            NotifyParentHeaders();
         }
     }
 
@@ -113,18 +115,18 @@ public partial class RepositoryNodeViewModel : INotifyPropertyChanged
 
     public string DisplayText
     {
-        get => _displayText;
+        get;
         set
         {
-            if (_displayText != value)
+            if (field == value)
             {
-                _displayText = value;
-                OnPropertyChanged();
+                return;
             }
-        }
-    }
 
-    bool _justCopied;
+            field = value;
+            OnPropertyChanged();
+        }
+    } = string.Empty;
 
     /// <summary>
     /// Transient flag set true immediately after this row's working directory is copied to the
@@ -134,14 +136,16 @@ public partial class RepositoryNodeViewModel : INotifyPropertyChanged
     /// </summary>
     public bool JustCopied
     {
-        get => _justCopied;
+        get;
         set
         {
-            if (_justCopied != value)
+            if (field == value)
             {
-                _justCopied = value;
-                OnPropertyChanged();
+                return;
             }
+
+            field = value;
+            OnPropertyChanged();
         }
     }
 
@@ -324,22 +328,12 @@ public partial class RepositoryNodeViewModel : INotifyPropertyChanged
 
     bool HasPendingChangesRecursive()
     {
-        if (Repository.HasPendingChanges)
-        {
-            return true;
-        }
-
-        return Children.Any(c => c.HasPendingChangesRecursive());
+        return Repository.HasPendingChanges || Children.Any(c => c.HasPendingChangesRecursive());
     }
 
     bool HasDetachedHeadRecursive()
     {
-        if (Repository.IsDetachedHead)
-        {
-            return true;
-        }
-
-        return Children.Any(c => c.HasDetachedHeadRecursive());
+        return Repository.IsDetachedHead || Children.Any(c => c.HasDetachedHeadRecursive());
     }
 
     bool HasSubmoduleCheckoutIssues()
@@ -354,12 +348,7 @@ public partial class RepositoryNodeViewModel : INotifyPropertyChanged
 
     bool HasUninitializedSubmodules()
     {
-        if (Repository.Submodules?.Values.Any(v => v == null) == true)
-        {
-            return true;
-        }
-
-        return Children.Any(c => c.HasUninitializedSubmodules());
+        return Repository.Submodules?.Values.Any(v => v == null) == true || Children.Any(c => c.HasUninitializedSubmodules());
     }
 
     bool HasSubmoduleConfigIssues()
@@ -371,12 +360,7 @@ public partial class RepositoryNodeViewModel : INotifyPropertyChanged
             return false;
         }
 
-        if (Repository.Submodules.Values.Any(v => v == null))
-        {
-            return true;
-        }
-
-        return Children.Any(c => c.HasSubmoduleConfigIssues());
+        return Repository.Submodules.Values.Any(v => v == null) || Children.Any(c => c.HasSubmoduleConfigIssues());
     }
 
     bool HasDownstreamBranches()
@@ -386,7 +370,7 @@ public partial class RepositoryNodeViewModel : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }

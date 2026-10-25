@@ -27,42 +27,44 @@ public sealed partial class RepositoryListViewModel : INotifyPropertyChanged, ID
         get => _searchText;
         set
         {
-            if (_searchText != value)
+            if (_searchText == value)
             {
-                _searchText = value;
-                OnPropertyChanged();
-                DebounceSearch();
+                return;
             }
+
+            _searchText = value;
+            OnPropertyChanged();
+            DebounceSearch();
         }
     }
-
-    ObservableCollection<RepositoryNodeViewModel> _repositories = new();
 
     public ObservableCollection<RepositoryNodeViewModel> Repositories
     {
-        get => _repositories;
+        get;
         private set
         {
-            if (_repositories != value)
+            if (field == value)
             {
-                _repositories = value;
-                OnPropertyChanged();
+                return;
             }
-        }
-    }
 
-    RepositoryNodeViewModel? _selectedRepository;
+            field = value;
+            OnPropertyChanged();
+        }
+    } = new();
 
     public RepositoryNodeViewModel? SelectedRepository
     {
-        get => _selectedRepository;
+        get;
         set
         {
-            if (_selectedRepository != value)
+            if (field == value)
             {
-                _selectedRepository = value;
-                OnPropertyChanged();
+                return;
             }
+
+            field = value;
+            OnPropertyChanged();
         }
     }
 
@@ -71,11 +73,13 @@ public sealed partial class RepositoryListViewModel : INotifyPropertyChanged, ID
         get => _activeFilter;
         private set
         {
-            if (_activeFilter != value)
+            if (_activeFilter == value)
             {
-                _activeFilter = value;
-                OnPropertyChanged();
+                return;
             }
+
+            _activeFilter = value;
+            OnPropertyChanged();
         }
     }
 
@@ -84,11 +88,13 @@ public sealed partial class RepositoryListViewModel : INotifyPropertyChanged, ID
         get => _activeGroupMode;
         private set
         {
-            if (_activeGroupMode != value)
+            if (_activeGroupMode == value)
             {
-                _activeGroupMode = value;
-                OnPropertyChanged();
+                return;
             }
+
+            _activeGroupMode = value;
+            OnPropertyChanged();
         }
     }
 
@@ -97,11 +103,13 @@ public sealed partial class RepositoryListViewModel : INotifyPropertyChanged, ID
         get => _activeSortMode;
         private set
         {
-            if (_activeSortMode != value)
+            if (_activeSortMode == value)
             {
-                _activeSortMode = value;
-                OnPropertyChanged();
+                return;
             }
+
+            _activeSortMode = value;
+            OnPropertyChanged();
         }
     }
 

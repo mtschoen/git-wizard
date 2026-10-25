@@ -4,21 +4,21 @@ namespace GitWizardUI;
 
 static class DesktopInstance
 {
-    internal const string AlreadyRunningMessage = "git-wizard is already running";
-    internal const int AlreadyRunningExitCode = 1;
+    const string AlreadyRunningMessage = "git-wizard is already running";
+    const int AlreadyRunningExitCode = 1;
 
     internal static string CreateName()
     {
-        if (OperatingSystem.IsWindows())
+        if (!OperatingSystem.IsWindows())
         {
-            using var identity = WindowsIdentity.GetCurrent();
-            var user = identity.User
-                ?? throw new InvalidOperationException("Cannot identify the desktop user.");
-            return $"GitWizardUI.Desktop.{user.Value}";
+            // Unix user-scoped namespaces isolate this fixed name by OS user identity.
+            return "GitWizardUI.Desktop.User";
         }
 
-        // Unix user-scoped namespaces isolate this fixed name by OS user identity.
-        return "GitWizardUI.Desktop.User";
+        using var identity = WindowsIdentity.GetCurrent();
+        var user = identity.User
+            ?? throw new InvalidOperationException("Cannot identify the desktop user.");
+        return $"GitWizardUI.Desktop.{user.Value}";
     }
 
     internal static Mutex CreateMutex(string name) => new(false, name,
@@ -40,13 +40,13 @@ static class DesktopInstance
                 ownsMutex = true;
             }
 
-            if (!ownsMutex)
+            if (ownsMutex)
             {
-                showNotice(AlreadyRunningMessage);
-                return AlreadyRunningExitCode;
+                return startDesktop();
             }
 
-            return startDesktop();
+            showNotice(AlreadyRunningMessage);
+            return AlreadyRunningExitCode;
         }
         finally
         {

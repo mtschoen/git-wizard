@@ -49,15 +49,7 @@ public sealed partial class RepositoryListViewModel
         foreach (var key in keys)
         {
             // Find existing group header
-            RepositoryNodeViewModel? header = null;
-            foreach (var candidate in Repositories)
-            {
-                if (candidate.IsGroupHeader && candidate.GroupKey == key)
-                {
-                    header = candidate;
-                    break;
-                }
-            }
+            var header = Repositories.FirstOrDefault(candidate => candidate.IsGroupHeader && candidate.GroupKey == key);
 
             if (header == null)
             {
@@ -70,13 +62,15 @@ public sealed partial class RepositoryListViewModel
                 header.UpdateDisplayText();
 
                 // If expanded, insert the node at the matching position in the flat list
-                if (header.IsExpanded)
+                if (!header.IsExpanded)
                 {
-                    var headerIndex = Repositories.IndexOf(header);
-                    if (headerIndex >= 0)
-                    {
-                        Repositories.Insert(headerIndex + 1 + childIndex, node);
-                    }
+                    continue;
+                }
+
+                var headerIndex = Repositories.IndexOf(header);
+                if (headerIndex >= 0)
+                {
+                    Repositories.Insert(headerIndex + 1 + childIndex, node);
                 }
             }
             else
@@ -106,12 +100,14 @@ public sealed partial class RepositoryListViewModel
             var promoted = new List<string>();
             foreach (var kvp in PendingGroups)
             {
-                if (kvp.Value.Children.Count >= minGroupSize)
+                if (kvp.Value.Children.Count < minGroupSize)
                 {
-                    kvp.Value.UpdateDisplayText();
-                    Repositories.Add(kvp.Value);
-                    promoted.Add(kvp.Key);
+                    continue;
                 }
+
+                kvp.Value.UpdateDisplayText();
+                Repositories.Add(kvp.Value);
+                promoted.Add(kvp.Key);
             }
 
             foreach (var key in promoted)
@@ -134,15 +130,7 @@ public sealed partial class RepositoryListViewModel
     {
         var minGroupSize = _activeGroupMode == GroupMode.RemoteUrl ? 2 : 1;
 
-        RepositoryNodeViewModel? header = null;
-        foreach (var candidate in Repositories)
-        {
-            if (candidate.IsGroupHeader && candidate.GroupKey == key)
-            {
-                header = candidate;
-                break;
-            }
-        }
+        var header = Repositories.FirstOrDefault(candidate => candidate.IsGroupHeader && candidate.GroupKey == key);
 
         var wasPending = false;
         if (header == null && PendingGroups.TryGetValue(key, out var pendingHeader))
@@ -168,12 +156,13 @@ public sealed partial class RepositoryListViewModel
             header.UpdateDisplayText();
             RefreshExpandedFlatChildren(header);
 
-            if (wasPending && header.Children.Count >= minGroupSize)
+            if (!wasPending || header.Children.Count < minGroupSize)
             {
-                PendingGroups.Remove(key);
-                Repositories.Add(header);
+                return;
             }
 
+            PendingGroups.Remove(key);
+            Repositories.Add(header);
             return;
         }
 

@@ -36,14 +36,14 @@ public partial class SettingsWindow : Window
         }
     }
 
-    async void AddSearchPath_Click(object? sender, RoutedEventArgs e)
-        => await _viewModel.AddSearchPathAsync();
+    void AddSearchPath_Click(object? sender, RoutedEventArgs e)
+        => _ = _viewModel.AddSearchPathAsync().RunAndLogFaults("Adding a search path");
 
     void RemoveSearchPath_Click(object? sender, RoutedEventArgs e)
         => _viewModel.RemoveSelectedSearchPath();
 
-    async void AddIgnoredPath_Click(object? sender, RoutedEventArgs e)
-        => await _viewModel.AddIgnoredPathAsync();
+    void AddIgnoredPath_Click(object? sender, RoutedEventArgs e)
+        => _ = _viewModel.AddIgnoredPathAsync().RunAndLogFaults("Adding an ignored path");
 
     void RemoveIgnoredPath_Click(object? sender, RoutedEventArgs e)
         => _viewModel.RemoveSelectedIgnoredPath();

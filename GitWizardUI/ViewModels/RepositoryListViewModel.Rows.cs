@@ -39,16 +39,18 @@ public sealed partial class RepositoryListViewModel
 
         if (ActiveGroupMode == GroupMode.None)
         {
-            if (!Repositories.Any(candidate => candidate.WorkingDirectory == path))
+            if (Repositories.Any(candidate => candidate.WorkingDirectory == path))
             {
-                if (streaming)
-                {
-                    Repositories.Add(node);
-                }
-                else
-                {
-                    RepositorySortOrder.InsertRepositoryNode(Repositories, node, ActiveSortMode);
-                }
+                return;
+            }
+
+            if (streaming)
+            {
+                Repositories.Add(node);
+            }
+            else
+            {
+                RepositorySortOrder.InsertRepositoryNode(Repositories, node, ActiveSortMode);
             }
         }
         else
@@ -72,15 +74,13 @@ public sealed partial class RepositoryListViewModel
     // (round-2 pr-crew review of PR #241/#243).
     internal void AddRepositoriesBatch(IReadOnlyList<GitWizardRepository> repositories, bool streaming)
     {
-        if (repositories.Count == 0)
+        switch (repositories.Count)
         {
-            return;
-        }
-
-        if (repositories.Count == 1 && !streaming)
-        {
-            AddRepository(repositories[0], streaming: false);
-            return;
+            case 0:
+                return;
+            case 1 when !streaming:
+                AddRepository(repositories[0], streaming: false);
+                return;
         }
 
         var newNodesByPath = ResolveBatchAgainstExistingRepositories(repositories);
@@ -168,31 +168,35 @@ public sealed partial class RepositoryListViewModel
         {
             var isShown = Repositories.Contains(node);
             var shouldShow = node.MatchesFilter(ActiveFilter, MainViewModel.GlobalUserEmail);
-            if (isShown && !shouldShow)
+            switch (isShown, shouldShow)
             {
-                Repositories.Remove(node);
-            }
-            else if (!isShown && shouldShow)
-            {
-                if (streaming)
-                {
-                    Repositories.Add(node);
-                }
-                else
-                {
-                    RepositorySortOrder.InsertRepositoryNode(Repositories, node, ActiveSortMode);
-                }
+                case (true, false):
+                    Repositories.Remove(node);
+                    break;
+                case (false, true):
+                    if (streaming)
+                    {
+                        Repositories.Add(node);
+                    }
+                    else
+                    {
+                        RepositorySortOrder.InsertRepositoryNode(Repositories, node, ActiveSortMode);
+                    }
+
+                    break;
             }
 
             UpdateHeaderWithFilterInfo();
         }
         // A repository can appear in multiple remote groups; refresh every aggregate and status summary.
-        if (ActiveGroupMode != GroupMode.None)
+        if (ActiveGroupMode == GroupMode.None)
         {
-            foreach (var header in node.ParentHeaders)
-            {
-                header.UpdateDisplayText();
-            }
+            return;
+        }
+
+        foreach (var header in node.ParentHeaders)
+        {
+            header.UpdateDisplayText();
         }
     }
 
@@ -312,12 +316,14 @@ public sealed partial class RepositoryListViewModel
             }
         }
 
-        if (groupedBatches != null)
+        if (groupedBatches == null)
         {
-            foreach (var (key, bucket) in groupedBatches)
-            {
-                MergeGroupBatch(key, bucket, sort: !streaming);
-            }
+            return;
+        }
+
+        foreach (var (key, bucket) in groupedBatches)
+        {
+            MergeGroupBatch(key, bucket, sort: !streaming);
         }
     }
 }

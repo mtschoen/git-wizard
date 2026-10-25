@@ -17,12 +17,6 @@ public sealed partial class RefreshCoordinator : IUpdateHandler, INotifyProperty
     readonly ErrorLogViewModel _errorLog;
     readonly Stopwatch _stopwatch = new();
 
-    double _progressValue;
-    bool _isProgressVisible;
-    string _progressText = string.Empty;
-    bool _isRefreshing;
-    bool _isScanning;
-
     internal RefreshCoordinator(IUiDispatcher ui, TimeProvider timeProvider,
         RepositoryListViewModel repositoryList, StatusHeaderViewModel statusHeader,
         PreparedDiscoveryIndexStore preparedDiscoveryIndex, ErrorLogViewModel errorLog)
@@ -37,54 +31,62 @@ public sealed partial class RefreshCoordinator : IUpdateHandler, INotifyProperty
 
     public double ProgressValue
     {
-        get => _progressValue;
+        get;
         private set
         {
-            if (Math.Abs(_progressValue - value) > 0.001)
+            if (!(Math.Abs(field - value) > 0.001))
             {
-                _progressValue = value;
-                OnPropertyChanged();
+                return;
             }
+
+            field = value;
+            OnPropertyChanged();
         }
     }
 
     public bool IsProgressVisible
     {
-        get => _isProgressVisible;
+        get;
         private set
         {
-            if (_isProgressVisible != value)
+            if (field == value)
             {
-                _isProgressVisible = value;
-                OnPropertyChanged();
+                return;
             }
+
+            field = value;
+            OnPropertyChanged();
         }
     }
 
     public string ProgressText
     {
-        get => _progressText;
+        get;
         private set
         {
-            if (_progressText != value)
+            if (field == value)
             {
-                _progressText = value;
-                OnPropertyChanged();
+                return;
             }
+
+            field = value;
+            OnPropertyChanged();
         }
-    }
+    } = string.Empty;
 
     public bool IsRefreshing
     {
-        get => _isRefreshing;
+        get;
         internal set
         {
-            if (_isRefreshing != value)
+            if (field == value)
             {
-                _isRefreshing = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(CanRefresh));
+                return;
             }
+
+            field = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CanRefresh));
         }
     }
 
@@ -98,14 +100,16 @@ public sealed partial class RefreshCoordinator : IUpdateHandler, INotifyProperty
     /// </summary>
     public bool IsScanning
     {
-        get => _isScanning;
+        get;
         internal set
         {
-            if (_isScanning != value)
+            if (field == value)
             {
-                _isScanning = value;
-                OnPropertyChanged();
+                return;
             }
+
+            field = value;
+            OnPropertyChanged();
         }
     }
 
@@ -165,7 +169,7 @@ public sealed partial class RefreshCoordinator : IUpdateHandler, INotifyProperty
         await _ui.InvokeAsync(() =>
         {
             _repositoryList.ClearRepositories();
-            _repositoryList.PrePopulateFromReport(configuration, cachedPaths, cachedReport);
+            _repositoryList.PrePopulateFromReport(cachedPaths, cachedReport);
         }).ConfigureAwait(false);
 
         var (deletedPaths, renamedOldPaths, nonRepositoryPaths, freshPaths, publishable) =
@@ -273,11 +277,13 @@ public sealed partial class RefreshCoordinator : IUpdateHandler, INotifyProperty
             foreach (var (path, repo) in erroredRepos)
             {
                 var newHealthyPath = RepositoryGroupKeys.FindRenamedRepo(repo, path, healthyRepos);
-                if (newHealthyPath != null && newHealthyPath != path)
+                if (newHealthyPath == null || newHealthyPath == path)
                 {
-                    renamedOldPaths.Add(path);
-                    GitWizardLog.Log($"Repository renamed: {path} -> {newHealthyPath}");
+                    continue;
                 }
+
+                renamedOldPaths.Add(path);
+                GitWizardLog.Log($"Repository renamed: {path} -> {newHealthyPath}");
             }
 
             var refreshMsg = $"Refresh completed in {(float)_stopwatch.ElapsedMilliseconds / 1000:F2} seconds";

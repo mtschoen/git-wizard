@@ -11,7 +11,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
 {
     readonly IUiDispatcher _ui;
     readonly IUserDialogs _dialogs;
-    IndexCacheViewModel? _indexCache;
 
     public static string? GlobalUserEmail { get; private set; }
 
@@ -27,7 +26,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
 
     public RepositoryCommandsViewModel Commands { get; }
 
-    public IndexCacheViewModel IndexCache => _indexCache ??= CreateIndexCache();
+    public IndexCacheViewModel IndexCache => field ??= CreateIndexCache();
 
     /// <summary>
     /// In-memory error log fed by component catch sites via <see cref="ErrorLogViewModel.PostError"/>

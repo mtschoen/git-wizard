@@ -35,7 +35,7 @@ public partial class MainWindow : Window, IAsyncDisposable
 
         // Button.Click drops KeyModifiers in Avalonia (AvaloniaUI/Avalonia#8900), so
         // capture the Shift state from a tunneling PointerPressed before Click is raised.
-        RefreshButton.AddHandler(InputElement.PointerPressedEvent, RefreshButton_PointerPressed,
+        RefreshButton.AddHandler(PointerPressedEvent, RefreshButton_PointerPressed,
             RoutingStrategies.Tunnel);
 
         Closed += MainWindow_Closed;
@@ -62,20 +62,23 @@ public partial class MainWindow : Window, IAsyncDisposable
     void Window_Loaded(object? sender, RoutedEventArgs e)
         => _ = _viewModel.Refresh.RefreshAsync().RunAndLogFaults("Refreshing repositories");
 
-    public Task ShowSettingsDialogAsync()
+    Task ShowSettingsDialogAsync()
         => new SettingsWindow((DataContext as MainViewModel)?.LiveWatch).ShowDialog(this);
 
     void SettingsMenuItem_Click(object? sender, RoutedEventArgs e)
         => _ = ShowSettingsDialogAsync();
 
-    async void CheckWindowsDefenderMenuItem_Click(object? sender, RoutedEventArgs e)
+    void CheckWindowsDefenderMenuItem_Click(object? sender, RoutedEventArgs e)
+        => _ = ConfigureWindowsDefenderAsync().RunAndLogFaults("Configuring Windows Defender");
+
+    async Task ConfigureWindowsDefenderAsync()
     {
         if (!OperatingSystem.IsWindows())
         {
             return;
         }
 
-        var success = await Task.Run(() => WindowsDefender.AddExclusions());
+        var success = await Task.Run(WindowsDefender.AddExclusions);
         var message = success
             ? WindowsDefender.ExclusionsAddedMessage
             : "Failed to add Windows Defender exclusions. You may need to run as administrator.";
@@ -149,14 +152,9 @@ public partial class MainWindow : Window, IAsyncDisposable
         // Snapshot the scroll anchor now, before RefreshAsync clears the list.
         CaptureScrollAnchor();
 
-        if (hardRefresh)
-        {
-            _ = _viewModel.Refresh.HardRefreshAsync().RunAndLogFaults("Hard-refreshing repositories");
-        }
-        else
-        {
-            _ = _viewModel.Refresh.RefreshAsync().RunAndLogFaults("Refreshing repositories");
-        }
+        _ = hardRefresh
+            ? _viewModel.Refresh.HardRefreshAsync().RunAndLogFaults("Hard-refreshing repositories")
+            : _viewModel.Refresh.RefreshAsync().RunAndLogFaults("Refreshing repositories");
     }
 
     RepositoryNodeViewModel? _lastTappedGroup;
@@ -165,25 +163,27 @@ public partial class MainWindow : Window, IAsyncDisposable
 
     void RepositoryList_Tapped(object? sender, TappedEventArgs e)
     {
-        if ((e.Source as Control)?.DataContext is RepositoryNodeViewModel { IsGroupHeader: true } node)
+        if ((e.Source as Control)?.DataContext is not RepositoryNodeViewModel { IsGroupHeader: true } node)
         {
-            var doubleTapTime = ((IInputRoot)this).PlatformSettings?.GetDoubleTapTime(e.Pointer.Type)
-                ?? TimeSpan.FromMilliseconds(500);
-            var isSecondTap = ReferenceEquals(node, _lastTappedGroup)
-                && e.Pointer.Id == _lastGroupTapPointer?.Id
-                && e.Timestamp >= _lastGroupTapTimestamp
-                && e.Timestamp - _lastGroupTapTimestamp <= (ulong)doubleTapTime.TotalMilliseconds;
-
-            _lastTappedGroup = isSecondTap ? null : node;
-            _lastGroupTapPointer = isSecondTap ? null : e.Pointer;
-            _lastGroupTapTimestamp = isSecondTap ? 0 : e.Timestamp;
-            if (isSecondTap)
-            {
-                return;
-            }
-
-            _viewModel.RepositoryList.ToggleGroupExpand(node);
+            return;
         }
+
+        var doubleTapTime = ((IInputRoot)this).PlatformSettings?.GetDoubleTapTime(e.Pointer.Type)
+            ?? TimeSpan.FromMilliseconds(500);
+        var isSecondTap = ReferenceEquals(node, _lastTappedGroup)
+            && e.Pointer.Id == _lastGroupTapPointer?.Id
+            && e.Timestamp >= _lastGroupTapTimestamp
+            && e.Timestamp - _lastGroupTapTimestamp <= (ulong)doubleTapTime.TotalMilliseconds;
+
+        _lastTappedGroup = isSecondTap ? null : node;
+        _lastGroupTapPointer = isSecondTap ? null : e.Pointer;
+        _lastGroupTapTimestamp = isSecondTap ? 0 : e.Timestamp;
+        if (isSecondTap)
+        {
+            return;
+        }
+
+        _viewModel.RepositoryList.ToggleGroupExpand(node);
     }
 
     void RepositoryList_DoubleTapped(object? sender, TappedEventArgs e)
@@ -219,19 +219,21 @@ public partial class MainWindow : Window, IAsyncDisposable
         {
             // The first realized row intersecting the viewport top is the one the user sees at the
             // top; virtualized (off-screen) rows have no container.
-            if (RepositoryList.ContainerFromIndex(i) is { } container && container.IsVisible
-                && container.TranslatePoint(default, RepositoryList) is { } point
-                && point.Y + container.Bounds.Height > 0)
+            if (RepositoryList.ContainerFromIndex(i) is not { IsVisible: true } container
+                || container.TranslatePoint(default, RepositoryList) is not { } point
+                || !(point.Y + container.Bounds.Height > 0))
             {
-                _anchorPath = (container.DataContext as RepositoryNodeViewModel)?.WorkingDirectory;
-                _anchorAbove = Math.Max(0, -point.Y);
-                if (GitWizardLog.VerboseMode)
-                {
-                    GitWizardLog.Log($"[scroll] captured anchor index={i} above={_anchorAbove:F0} path={_anchorPath}");
-                }
-
-                break;
+                continue;
             }
+
+            _anchorPath = (container.DataContext as RepositoryNodeViewModel)?.WorkingDirectory;
+            _anchorAbove = Math.Max(0, -point.Y);
+            if (GitWizardLog.VerboseMode)
+            {
+                GitWizardLog.Log($"[scroll] captured anchor index={i} above={_anchorAbove:F0} path={_anchorPath}");
+            }
+
+            break;
         }
     }
 

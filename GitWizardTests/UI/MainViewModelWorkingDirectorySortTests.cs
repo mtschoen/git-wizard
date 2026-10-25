@@ -77,7 +77,7 @@ public class MainViewModelWorkingDirectorySortTests
             report.Repositories[path] = Repo(path);
         }
 
-        viewModel.RepositoryList.PrePopulateFromReport(new GitWizardConfiguration(), MixedOrderPaths, report);
+        viewModel.RepositoryList.PrePopulateFromReport(MixedOrderPaths, report);
 
         var expected = MixedOrderPaths.OrderBy(path => path, PlatformComparer).ToArray();
         var actual = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray();
@@ -188,7 +188,7 @@ public class MainViewModelWorkingDirectorySortTests
             report.Repositories[path] = Repo(path);
         }
 
-        viewModel.RepositoryList.PrePopulateFromReport(new GitWizardConfiguration(), paths, report);
+        viewModel.RepositoryList.PrePopulateFromReport(paths, report);
 
         // Sorts strictly between "C:\repos\r0099" and "C:\repos\r0100" - a genuine mid-list
         // insert, not an append at either end.
@@ -223,7 +223,7 @@ public class MainViewModelWorkingDirectorySortTests
             report.Repositories[path] = Repo(path);
         }
 
-        viewModel.RepositoryList.PrePopulateFromReport(new GitWizardConfiguration(), paths, report);
+        viewModel.RepositoryList.PrePopulateFromReport(paths, report);
 
         var reads = CountingList.Install(viewModel.RepositoryList.Repositories);
 

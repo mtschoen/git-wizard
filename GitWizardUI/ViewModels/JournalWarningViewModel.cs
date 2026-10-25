@@ -4,9 +4,9 @@ using GitWizard.Watch;
 
 namespace GitWizardUI.ViewModels;
 
-public class JournalWarningViewModel : INotifyPropertyChanged
+public sealed class JournalWarningViewModel(JournalWarning warning) : INotifyPropertyChanged
 {
-    public JournalWarning Warning { get; private set; }
+    public JournalWarning Warning { get; private set; } = warning;
     public bool HasGrowAction => Warning.HasGrowAction;
     public string? GrowUnavailableReason => Warning.GrowUnavailableReason;
 
@@ -20,19 +20,13 @@ public class JournalWarningViewModel : INotifyPropertyChanged
 
     public string DriveLetter => Warning.DriveLetter;
 
-    string _statusMessage = string.Empty;
     public string StatusMessage
     {
-        get => _statusMessage;
-        set { _statusMessage = value; OnPropertyChanged(); }
-    }
-
-    public JournalWarningViewModel(JournalWarning warning)
-    {
-        Warning = warning;
-    }
+        get;
+        set { field = value; OnPropertyChanged(); }
+    } = string.Empty;
 
     public event PropertyChangedEventHandler? PropertyChanged;
-    protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }

@@ -4,20 +4,20 @@ namespace GitWizardUI.ViewModels;
 
 public sealed class StatusHeaderViewModel : INotifyPropertyChanged
 {
-    string _headerText = "GitWizard";
-
     public string HeaderText
     {
-        get => _headerText;
+        get;
         private set
         {
-            if (_headerText != value)
+            if (field == value)
             {
-                _headerText = value;
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HeaderText)));
+                return;
             }
+
+            field = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HeaderText)));
         }
-    }
+    } = "GitWizard";
 
     internal string? LastRefreshMessage { get; set; }
 

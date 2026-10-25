@@ -3,7 +3,7 @@ using System.Runtime.Versioning;
 
 namespace GitWizardUI;
 
-static class StartupNotice
+static partial class StartupNotice
 {
     internal static void Show(string message)
     {
@@ -16,7 +16,6 @@ static class StartupNotice
 
     [SupportedOSPlatform("windows")]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-    [DllImport("user32.dll", EntryPoint = "MessageBoxW", CharSet = CharSet.Unicode,
-        ExactSpelling = true)]
-    static extern int MessageBox(IntPtr owner, string text, string caption, uint type);
+    [LibraryImport("user32.dll", EntryPoint = "MessageBoxW", StringMarshalling = StringMarshalling.Utf16)]
+    private static partial int MessageBox(IntPtr owner, string text, string caption, uint type);
 }

@@ -9,7 +9,7 @@ public sealed partial class RepositoryListViewModel
     // Pre-populate the UI from the cached report so repos appear immediately on launch.
     // Existing repos get updated in-place as the refresh completes; new repos discovered
     // during the scan get added normally through OnRepositoryCreated. (Issue #98.)
-    internal void PrePopulateFromReport(GitWizardConfiguration configuration, string[]? repositoryPaths,
+    internal void PrePopulateFromReport(string[]? repositoryPaths,
         GitWizardReport? cachedReport)
     {
         // These collections describe only the current refresh cycle. Reset them before
@@ -87,12 +87,14 @@ public sealed partial class RepositoryListViewModel
             }
         }
 
-        if (groupedBatches != null)
+        if (groupedBatches == null)
         {
-            foreach (var (key, bucket) in groupedBatches)
-            {
-                MergeGroupBatch(key, bucket);
-            }
+            return;
+        }
+
+        foreach (var (key, bucket) in groupedBatches)
+        {
+            MergeGroupBatch(key, bucket);
         }
     }
 

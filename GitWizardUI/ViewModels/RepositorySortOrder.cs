@@ -62,13 +62,14 @@ static class RepositorySortOrder
     // sorts strictly after workingDirectory. Equal-key entries (arrival order between repositories
     // that briefly share a display path) end up before the new node, matching the linear scan this
     // replaced. startIndex bounds the search from below when merging a pre-sorted batch.
-    internal static int FindSortedInsertionIndex(ObservableCollection<RepositoryNodeViewModel> nodes, string workingDirectory, int startIndex = 0)
+    static int FindSortedInsertionIndex(ObservableCollection<RepositoryNodeViewModel> nodes, string workingDirectory, int startIndex = 0)
     {
         var low = Math.Clamp(startIndex, 0, nodes.Count);
         var high = nodes.Count;
         while (low < high)
         {
-            var mid = low + (high - low) / 2;
+            var middleOffset = (high - low) / 2;
+            var mid = low + middleOffset;
             if (CompareWorkingDirectory(nodes[mid].WorkingDirectory, workingDirectory) <= 0)
             {
                 low = mid + 1;

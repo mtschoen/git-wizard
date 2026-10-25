@@ -28,31 +28,27 @@ static class RepositoryGroupKeys
 
     internal static List<string> GetGroupKeys(RepositoryNodeViewModel repository, GroupMode mode)
     {
-        if (mode == GroupMode.Drive)
+        switch (mode)
         {
-            var path = repository.WorkingDirectory;
-            if (string.IsNullOrEmpty(path))
-            {
+            case GroupMode.Drive:
+                var path = repository.WorkingDirectory;
+                if (string.IsNullOrEmpty(path))
+                {
+                    return new List<string> { "(unknown)" };
+                }
+
+                var root = Path.GetPathRoot(path);
+                return new List<string> { string.IsNullOrEmpty(root) ? "(unknown)" : NormalizeDriveGroupKey(root) };
+            case GroupMode.RemoteUrl:
+                var urls = repository.Repository.RemoteUrls;
+                // Normalize remote URLs for grouping (strip .git suffix, normalize casing).
+                return urls.Count == 0
+                    ? new List<string> { "(no remote)" }
+                    : urls.Select(NormalizeRemoteUrl).Distinct().ToList();
+            case GroupMode.None:
+            default:
                 return new List<string> { "(unknown)" };
-            }
-
-            var root = Path.GetPathRoot(path);
-            return new List<string> { string.IsNullOrEmpty(root) ? "(unknown)" : NormalizeDriveGroupKey(root) };
         }
-
-        if (mode == GroupMode.RemoteUrl)
-        {
-            var urls = repository.Repository.RemoteUrls;
-            if (urls.Count == 0)
-            {
-                return new List<string> { "(no remote)" };
-            }
-
-            // Normalize remote URLs for grouping (strip .git suffix, normalize casing)
-            return urls.Select(NormalizeRemoteUrl).Distinct().ToList();
-        }
-
-        return new List<string> { "(unknown)" };
     }
 
     // Discovered repository paths are cached lowercase (~/.GitWizard/repositories.txt) while
@@ -71,26 +67,29 @@ static class RepositoryGroupKeys
         }
 
         // Normalize SSH URLs (git@github.com:user/repo) to match HTTPS style for grouping
-        if (url.StartsWith("git@", StringComparison.OrdinalIgnoreCase))
+        if (!url.StartsWith("git@", StringComparison.OrdinalIgnoreCase))
         {
-            var colonIndex = url.IndexOf(':');
-            if (colonIndex > 0)
+            if (url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             {
-                var host = url[4..colonIndex];
-                var path = url[(colonIndex + 1)..];
-                url = $"{host}/{path}";
+                url = url[8..];
             }
-        }
-        else if (url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-        {
-            url = url[8..];
-        }
-        else if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
-        {
-            url = url[7..];
+            else if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+            {
+                url = url[7..];
+            }
+
+            return url.ToLowerInvariant();
         }
 
-        return url.ToLowerInvariant();
+        var colonIndex = url.IndexOf(':');
+        if (colonIndex <= 0)
+        {
+            return url.ToLowerInvariant();
+        }
+
+        var host = url[4..colonIndex];
+        var path = url[(colonIndex + 1)..];
+        return $"{host}/{path}".ToLowerInvariant();
     }
 
     internal static string? FindRenamedRepo(GitWizardRepository erroredRepository, string oldPath,

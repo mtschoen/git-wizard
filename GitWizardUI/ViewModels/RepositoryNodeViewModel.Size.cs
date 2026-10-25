@@ -112,6 +112,11 @@ public partial class RepositoryNodeViewModel
             case NotifyCollectionChangedAction.Reset:
                 ResetAllChildrenTracking();
                 break;
+            case NotifyCollectionChangedAction.Move:
+                // Moving a child changes order, not its tracked status, size or parent.
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(eventArguments), eventArguments.Action, "Unknown collection change action.");
         }
 
         if (IsGroupHeader)
@@ -131,13 +136,19 @@ public partial class RepositoryNodeViewModel
         var size = child.MeasuredSize;
         _childStates[child] = new ChildState(status, size);
 
-        if (status == RefreshStatus.Error)
+        switch (status)
         {
-            _errorCount++;
-        }
-        else if (status is RefreshStatus.Timeout or RefreshStatus.SubmoduleIssue)
-        {
-            _warningCount++;
+            case RefreshStatus.Error:
+                _errorCount++;
+                break;
+            case RefreshStatus.Timeout:
+            case RefreshStatus.SubmoduleIssue:
+                _warningCount++;
+                break;
+            case RefreshStatus.Refreshing:
+            case RefreshStatus.Success:
+            default:
+                break;
         }
 
         if (size is { } measuredSize)
@@ -151,25 +162,33 @@ public partial class RepositoryNodeViewModel
 
     void RemoveChildTracking(RepositoryNodeViewModel child)
     {
-        if (_childStates.Remove(child, out var state))
+        if (!_childStates.Remove(child, out var state))
         {
-            if (state.Status == RefreshStatus.Error)
-            {
-                _errorCount--;
-            }
-            else if (state.Status is RefreshStatus.Timeout or RefreshStatus.SubmoduleIssue)
-            {
-                _warningCount--;
-            }
-
-            if (state.MeasuredSize is { } measuredSize)
-            {
-                _totalMeasuredBytes -= measuredSize;
-                _measuredChildCount--;
-            }
-
-            child.RemoveParentHeader(this);
+            return;
         }
+
+        switch (state.Status)
+        {
+            case RefreshStatus.Error:
+                _errorCount--;
+                break;
+            case RefreshStatus.Timeout:
+            case RefreshStatus.SubmoduleIssue:
+                _warningCount--;
+                break;
+            case RefreshStatus.Refreshing:
+            case RefreshStatus.Success:
+            default:
+                break;
+        }
+
+        if (state.MeasuredSize is { } measuredSize)
+        {
+            _totalMeasuredBytes -= measuredSize;
+            _measuredChildCount--;
+        }
+
+        child.RemoveParentHeader(this);
     }
 
     internal void ResetAllChildrenTracking()
@@ -205,22 +224,34 @@ public partial class RepositoryNodeViewModel
             return;
         }
 
-        if (oldState.Status == RefreshStatus.Error)
+        switch (oldState.Status)
         {
-            _errorCount--;
-        }
-        else if (oldState.Status is RefreshStatus.Timeout or RefreshStatus.SubmoduleIssue)
-        {
-            _warningCount--;
+            case RefreshStatus.Error:
+                _errorCount--;
+                break;
+            case RefreshStatus.Timeout:
+            case RefreshStatus.SubmoduleIssue:
+                _warningCount--;
+                break;
+            case RefreshStatus.Refreshing:
+            case RefreshStatus.Success:
+            default:
+                break;
         }
 
-        if (newStatus == RefreshStatus.Error)
+        switch (newStatus)
         {
-            _errorCount++;
-        }
-        else if (newStatus is RefreshStatus.Timeout or RefreshStatus.SubmoduleIssue)
-        {
-            _warningCount++;
+            case RefreshStatus.Error:
+                _errorCount++;
+                break;
+            case RefreshStatus.Timeout:
+            case RefreshStatus.SubmoduleIssue:
+                _warningCount++;
+                break;
+            case RefreshStatus.Refreshing:
+            case RefreshStatus.Success:
+            default:
+                break;
         }
 
         if (oldState.MeasuredSize is { } oldMeasuredSize)

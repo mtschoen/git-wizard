@@ -9,7 +9,7 @@ public readonly record struct DispatcherWatchdogObservation(
 
 public sealed class DispatcherWatchdog
 {
-    public static readonly TimeSpan DefaultWarningThreshold = TimeSpan.FromMilliseconds(500);
+    static readonly TimeSpan DefaultWarningThreshold = TimeSpan.FromMilliseconds(500);
 
     public static DispatcherWatchdog Default { get; } = new(
         TimeProvider.System,

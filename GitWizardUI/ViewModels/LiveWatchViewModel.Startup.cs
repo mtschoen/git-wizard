@@ -99,7 +99,7 @@ public sealed partial class LiveWatchViewModel
     // Live events flow: repositories the inventory claims (including ones created while Live
     // was closed) are added, and paths it no longer claims are removed. A partial inventory
     // only adjusts observed scope - ReconcilePaths retains entries discovery did not observe.
-    internal async Task ApplyLiveStartupInventoryAsync(DiscoveryInventory inventory)
+    async Task ApplyLiveStartupInventoryAsync(DiscoveryInventory inventory)
     {
         var membership = RepositoryDiscoveryCoordinator.ReconcilePaths(
             _repositoryList.AllRepositories.Select(node => node.WorkingDirectory).ToArray(), inventory);
@@ -137,6 +137,29 @@ public sealed partial class LiveWatchViewModel
 
     Action AttachLiveControllerHandlers(LiveWatchController controller)
     {
+        controller.Started += OnStarted;
+        controller.ScanErrorsChanged += OnScanErrorsChanged;
+        controller.ScanWarningsChanged += OnScanWarningsChanged;
+        controller.ScanProgress += OnLiveScanProgress;
+        controller.Ready += OnReady;
+        controller.VolumeReadinessChanged += OnVolumeReadinessChanged;
+        controller.StartupProgress += OnStartupProgress;
+        controller.InventoryReady += OnInventoryReady;
+        controller.StartupUnavailable += OnStartupUnavailable;
+
+        return () =>
+        {
+            controller.Started -= OnStarted;
+            controller.ScanErrorsChanged -= OnScanErrorsChanged;
+            controller.ScanWarningsChanged -= OnScanWarningsChanged;
+            controller.ScanProgress -= OnLiveScanProgress;
+            controller.Ready -= OnReady;
+            controller.VolumeReadinessChanged -= OnVolumeReadinessChanged;
+            controller.StartupProgress -= OnStartupProgress;
+            controller.InventoryReady -= OnInventoryReady;
+            controller.StartupUnavailable -= OnStartupUnavailable;
+        };
+
         void PostIfActive(Action action) => _ui.Post(() =>
         {
             if (ReferenceEquals(Controller, controller) && (IsLive || IsLiveStarting))
@@ -144,7 +167,6 @@ public sealed partial class LiveWatchViewModel
                 action();
             }
         });
-
         void OnStarted() => PostIfActive(() =>
         {
             IsLiveStarting = false;
@@ -183,29 +205,6 @@ public sealed partial class LiveWatchViewModel
                 _statusHeader.ShowLiveMessage("No tracked repositories found; nothing to watch.");
             }
         });
-
-        controller.Started += OnStarted;
-        controller.ScanErrorsChanged += OnScanErrorsChanged;
-        controller.ScanWarningsChanged += OnScanWarningsChanged;
-        controller.ScanProgress += OnLiveScanProgress;
-        controller.Ready += OnReady;
-        controller.VolumeReadinessChanged += OnVolumeReadinessChanged;
-        controller.StartupProgress += OnStartupProgress;
-        controller.InventoryReady += OnInventoryReady;
-        controller.StartupUnavailable += OnStartupUnavailable;
-
-        return () =>
-        {
-            controller.Started -= OnStarted;
-            controller.ScanErrorsChanged -= OnScanErrorsChanged;
-            controller.ScanWarningsChanged -= OnScanWarningsChanged;
-            controller.ScanProgress -= OnLiveScanProgress;
-            controller.Ready -= OnReady;
-            controller.VolumeReadinessChanged -= OnVolumeReadinessChanged;
-            controller.StartupProgress -= OnStartupProgress;
-            controller.InventoryReady -= OnInventoryReady;
-            controller.StartupUnavailable -= OnStartupUnavailable;
-        };
     }
 
     async Task RunLiveControllerAsync(LiveWatchController controller)

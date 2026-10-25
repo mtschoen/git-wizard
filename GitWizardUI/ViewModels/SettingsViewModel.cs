@@ -6,7 +6,7 @@ using GitWizardUI.ViewModels.Services;
 
 namespace GitWizardUI.ViewModels;
 
-public partial class SettingsViewModel : INotifyPropertyChanged
+public sealed partial class SettingsViewModel : INotifyPropertyChanged
 {
     readonly IFolderPicker _folderPicker;
     readonly GitWizardConfiguration _configuration;
@@ -14,40 +14,36 @@ public partial class SettingsViewModel : INotifyPropertyChanged
     public ObservableCollection<string> SearchPaths { get; } = new();
     public ObservableCollection<string> IgnoredPaths { get; } = new();
 
-    string _newSearchPath = string.Empty;
     public string NewSearchPath
     {
-        get => _newSearchPath;
+        get;
         set
         {
-            _newSearchPath = value;
+            field = value;
             OnPropertyChanged();
         }
-    }
+    } = string.Empty;
 
-    string _newIgnoredPath = string.Empty;
     public string NewIgnoredPath
     {
-        get => _newIgnoredPath;
+        get;
         set
         {
-            _newIgnoredPath = value;
+            field = value;
             OnPropertyChanged();
         }
-    }
+    } = string.Empty;
 
-    string? _selectedSearchPath;
     public string? SelectedSearchPath
     {
-        get => _selectedSearchPath;
-        set { _selectedSearchPath = value; OnPropertyChanged(); }
+        get;
+        set { field = value; OnPropertyChanged(); }
     }
 
-    string? _selectedIgnoredPath;
     public string? SelectedIgnoredPath
     {
-        get => _selectedIgnoredPath;
-        set { _selectedIgnoredPath = value; OnPropertyChanged(); }
+        get;
+        set { field = value; OnPropertyChanged(); }
     }
 
     string _forkPath;
@@ -86,7 +82,6 @@ public partial class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
-
     public SettingsViewModel(IFolderPicker folderPicker, LiveWatchViewModel? liveWatch, IUiDispatcher dispatcher)
     {
         _folderPicker = folderPicker;
@@ -116,25 +111,28 @@ public partial class SettingsViewModel : INotifyPropertyChanged
         _includeTempDirectories = _configuration.IncludeTempDirectories == true;
     }
 
-
     public void AddSearchPath()
     {
-        if (!string.IsNullOrWhiteSpace(NewSearchPath) && !SearchPaths.Contains(NewSearchPath))
+        if (string.IsNullOrWhiteSpace(NewSearchPath) || SearchPaths.Contains(NewSearchPath))
         {
-            SearchPaths.Add(NewSearchPath);
-            NewSearchPath = string.Empty;
-            Save();
+            return;
         }
+
+        SearchPaths.Add(NewSearchPath);
+        NewSearchPath = string.Empty;
+        Save();
     }
 
     public void AddIgnoredPath()
     {
-        if (!string.IsNullOrWhiteSpace(NewIgnoredPath) && !IgnoredPaths.Contains(NewIgnoredPath))
+        if (string.IsNullOrWhiteSpace(NewIgnoredPath) || IgnoredPaths.Contains(NewIgnoredPath))
         {
-            IgnoredPaths.Add(NewIgnoredPath);
-            NewIgnoredPath = string.Empty;
-            Save();
+            return;
         }
+
+        IgnoredPaths.Add(NewIgnoredPath);
+        NewIgnoredPath = string.Empty;
+        Save();
     }
 
     public async Task AddSearchPathAsync()
@@ -154,11 +152,13 @@ public partial class SettingsViewModel : INotifyPropertyChanged
 
     public void RemoveSelectedSearchPath()
     {
-        if (SelectedSearchPath is not null)
+        if (SelectedSearchPath is null)
         {
-            SearchPaths.Remove(SelectedSearchPath);
-            Save();
+            return;
         }
+
+        SearchPaths.Remove(SelectedSearchPath);
+        Save();
     }
 
     public async Task AddIgnoredPathAsync()
@@ -178,11 +178,13 @@ public partial class SettingsViewModel : INotifyPropertyChanged
 
     public void RemoveSelectedIgnoredPath()
     {
-        if (SelectedIgnoredPath is not null)
+        if (SelectedIgnoredPath is null)
         {
-            IgnoredPaths.Remove(SelectedIgnoredPath);
-            Save();
+            return;
         }
+
+        IgnoredPaths.Remove(SelectedIgnoredPath);
+        Save();
     }
 
     public Task SaveAsync()
@@ -262,7 +264,7 @@ public partial class SettingsViewModel : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }

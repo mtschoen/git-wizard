@@ -8,9 +8,11 @@ using static GitWizardTests.TestSupport.AsyncCondition;
 namespace GitWizardTests.Watch;
 
 /// <summary>
-/// A drive reads CaughtUp only while MFTLib reads it CaughtUp: a fault that lands while a recovered
-/// drive's reconciliation runs keeps the drive's observation pending, and a fault that lands just
-/// after readiness was published corrects it through the ordinary fault path.
+/// A CaughtUp publication is version tagged and never follows a newer state the source already applied:
+/// a fault that lands while a recovered drive's reconciliation runs keeps the drive's observation
+/// pending, and a fault whose event is still being delivered when readiness is published corrects it
+/// through the ordinary fault path. MFTLib's own state can be newer than the event being delivered,
+/// so the assertions compare versions rather than reading its state at publication time.
 /// </summary>
 [TestFixture]
 public class IndexVolumeChangeSourceCompletionTests
@@ -311,7 +313,8 @@ public class IndexVolumeChangeSourceCompletionTests
                     : null,
                 ReconciliationCapturedForTest = faultDuringFirstReconciliation is null
                     ? null
-                    : drive => scenario.InjectSecondFault(drive, faultDuringFirstReconciliation)
+                    : drive => scenario.InjectSecondFault(drive, faultDuringFirstReconciliation,
+                        awaitSourceApplied: true)
             };
             scenario.Source.ReadinessChanged += snapshot =>
                 scenario.OnReadinessChanged(snapshot, faultOnRecoveredCaughtUp);
@@ -336,8 +339,12 @@ public class IndexVolumeChangeSourceCompletionTests
         }
 
         // Runs inside the source's delivery gate or its readiness publication, so it waits on
-        // MFTLib's own state and never on the source's fault handler.
-        void InjectSecondFault(char drive, string kind)
+        // MFTLib's own state and never on the source's fault handler. Inside the delivery gate the
+        // source holds no state lock, so it can also wait until it has applied the settled state's
+        // event: MFTLib records a state before it delivers the event, and a fault that settles in
+        // the library but is not yet applied is indistinguishable from one that lands after the
+        // arm finished. A readiness publication holds the source's locks, so it cannot wait that way.
+        void InjectSecondFault(char drive, string kind, bool awaitSourceApplied = false)
         {
             if (Interlocked.Exchange(ref _secondFault, 1) != 0)
             {
@@ -359,6 +366,12 @@ public class IndexVolumeChangeSourceCompletionTests
             }
             var settled = kind == "channel" ? WatchState.Faulted : WatchState.Recovering;
             Assert.That(SpinWait.SpinUntil(() => StateOf(drive) == settled, TestTimeouts.HangGuard), Is.True);
+            if (awaitSourceApplied)
+            {
+                var settledVersion = Owner.Index.Drives.First(status => status.Drive == drive).Watch.StateVersion;
+                Assert.That(SpinWait.SpinUntil(() => SourceHasApplied(drive, settledVersion), TestTimeouts.HangGuard),
+                    Is.True, "The source applied the settled state's event.");
+            }
             _secondFaultInjected.TrySetResult();
         }
 
@@ -369,12 +382,22 @@ public class IndexVolumeChangeSourceCompletionTests
                 return;
             }
 
-            var state = StateOf('X');
-            if (state != WatchState.CaughtUp)
+            // MFTLib records a state under its state lock and delivers the event after releasing it, so a
+            // read of Drives at callback time can be newer than the CaughtUp being published; the later
+            // event corrects the publication. The ordering the source owns is version based: it must
+            // never publish a CaughtUp older than a transition it already applied for the drive.
+            var publishedVersion = status.WatchStateVersion;
+            var newerApplied = snapshot.RecentTransitions
+                .Where(transition => transition.Volume == "X" && transition.Version > publishedVersion)
+                .Select(transition => transition.Version)
+                .DefaultIfEmpty()
+                .Max();
+            if (newerApplied != 0)
             {
                 lock (_violations)
                 {
-                    _violations.Add($"CaughtUp published while MFTLib read {state}");
+                    _violations.Add(
+                        $"CaughtUp version {publishedVersion} published after version {newerApplied} was applied");
                 }
             }
             if (Volatile.Read(ref _secondFault) != 0)
@@ -386,6 +409,10 @@ public class IndexVolumeChangeSourceCompletionTests
                 InjectSecondFault('X', faultOnRecoveredCaughtUp);
             }
         }
+
+        bool SourceHasApplied(char drive, long version) =>
+            Source.Readiness.RecentTransitions.Any(transition =>
+                transition.Volume == drive.ToString() && transition.Version >= version);
 
         public void ReleaseHeldRescan() => _heldRescan.TrySetResult();
 

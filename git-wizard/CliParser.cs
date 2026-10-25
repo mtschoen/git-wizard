@@ -310,12 +310,7 @@ static partial class CliParser
 
     static string? GetLastValue(CommandOption opt)
     {
-        if (opt.Values.Count == 0)
-        {
-            return null;
-        }
-
-        return opt.Values[^1];
+        return opt.Values.Count == 0 ? null : opt.Values[^1];
     }
 
     static void ValidateSavePath(ref string? savePath, ref bool hasError)

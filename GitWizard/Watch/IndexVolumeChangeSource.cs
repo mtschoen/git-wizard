@@ -98,7 +98,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
                 .Select(value => DriveKey.TryParse(value, out var drive) ? (DriveKey?)drive : null)
                 .OfType<DriveKey>().Distinct().ToArray();
             var requested = requestedKeys.Select(drive => drive.ToString()).ToArray();
-            if (_owner is null || _owner.IsDisposed || _owner.IsFaulted ||
+            if (_owner?.IsDisposed != false || _owner.IsFaulted ||
                 !requestedKeys.ToHashSet().SetEquals(_owner.Drives
                     .Select(value => DriveKey.TryParse(value, out var drive) ? (DriveKey?)drive : null)
                     .OfType<DriveKey>()))

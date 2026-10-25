@@ -14,7 +14,7 @@ namespace GitWizard;
 /// rejected unless <see cref="IncludeTempDirectories"/> is set or the search root is itself a
 /// temporary directory.
 /// </remarks>
-internal readonly partial record struct CandidateAdmissionPolicy(
+readonly partial record struct CandidateAdmissionPolicy(
     IReadOnlyList<WatchPath> IgnoredRoots,
     bool IncludeTempDirectories,
     bool SkipHiddenDirectories)

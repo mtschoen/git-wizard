@@ -9,12 +9,7 @@ public static partial class WindowsRootClassifier
 {
     public static RootClassification Classify(string root)
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return new RootClassification(root, RootFileSystem.Recursive, null, null);
-        }
-
-        return ClassifyWindows(root);
+        return !OperatingSystem.IsWindows() ? new RootClassification(root, RootFileSystem.Recursive, null, null) : ClassifyWindows(root);
     }
 
     [SupportedOSPlatform("windows")]

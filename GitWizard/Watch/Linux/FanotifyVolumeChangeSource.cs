@@ -276,7 +276,7 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
     async Task PumpEventsAsync(ChannelWriter<VolumeChangeBatch> writer, TaskCompletionSource pumpStarted, CancellationToken cancellationToken)
     {
         var descriptor = _descriptor;
-        if (descriptor is null || descriptor.IsInvalid || descriptor.IsClosed)
+        if (descriptor?.IsInvalid != false || descriptor.IsClosed)
         {
             // The pump never actually began reading; leave pumpStarted incomplete so a consumer
             // racing on it never mistakes a dead descriptor for an active pump.

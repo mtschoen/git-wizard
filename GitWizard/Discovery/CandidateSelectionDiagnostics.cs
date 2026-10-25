@@ -4,7 +4,7 @@ namespace GitWizard;
 /// What a candidate selection observed about itself: how many whole-index scans it started, and how many
 /// indexed candidates it could not turn into a path because their parent chain is longer than the index can name.
 /// </summary>
-internal sealed class CandidateSelectionDiagnostics
+sealed class CandidateSelectionDiagnostics
 {
     int _indexScanCount;
     int _unresolvedPathCount;

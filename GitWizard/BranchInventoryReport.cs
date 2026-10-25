@@ -89,12 +89,7 @@ public sealed class BranchInventoryReport
                 }
             }
 
-            if (item.Branches.Count == 0)
-            {
-                return null;
-            }
-
-            return item;
+            return item.Branches.Count == 0 ? null : item;
         }
         catch (Exception exception)
         {
@@ -188,12 +183,7 @@ public sealed class BranchInventoryReport
             }
         }
 
-        if (repository.Head.Reference is SymbolicReference)
-        {
-            return repository.Head;
-        }
-
-        return null;
+        return repository.Head.Reference is SymbolicReference ? repository.Head : null;
     }
 
     static int ComputeUniqueCommitCount(

@@ -2,7 +2,7 @@ using GitWizard.Watch;
 
 namespace GitWizard;
 
-internal readonly partial record struct CandidateAdmissionPolicy
+readonly partial record struct CandidateAdmissionPolicy
 {
     public static bool AdmitsInventoryCandidate(DiscoveryScope scope, string candidateRoot) =>
         ForScope(scope).AdmitsInventoryCandidate(scope.SearchRoots, scope.RetainedRoots, candidateRoot);

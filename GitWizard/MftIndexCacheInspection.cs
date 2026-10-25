@@ -60,12 +60,9 @@ public sealed class MftIndexCacheInspection
         try { attributes = File.GetAttributes(directory); }
         catch (DirectoryNotFoundException) { return []; }
         catch (FileNotFoundException) { return []; }
-        if ((attributes & FileAttributes.Directory) == 0)
-        {
-            throw new IOException($"Cache path is not a directory: {directory}");
-        }
-
-        return CacheDirectory.InspectCached(directory);
+        return (attributes & FileAttributes.Directory) == 0
+            ? throw new IOException($"Cache path is not a directory: {directory}")
+            : CacheDirectory.InspectCached(directory);
     }
 
     internal static bool SameDirectory(string left, string right) => string.Equals(

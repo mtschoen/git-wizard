@@ -94,7 +94,7 @@ public partial class SettingsViewModel : INotifyPropertyChanged
         _journalDispatcher = dispatcher;
         _configuration = GitWizardConfiguration.GetGlobalConfiguration();
 
-        JournalWarnings = liveWatch?.JournalWarnings ?? new();
+        JournalWarnings = liveWatch?.JournalWarnings ?? new ObservableCollection<JournalWarningViewModel>();
 
         foreach (var path in _configuration.SearchPaths)
         {

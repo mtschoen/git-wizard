@@ -2,7 +2,7 @@ using GitWizard;
 
 namespace GitWizardUI.ViewModels;
 
-internal static class RepositoryGroupKeys
+static class RepositoryGroupKeys
 {
     internal static Dictionary<string, List<RepositoryNodeViewModel>> GroupRepositories(
         List<RepositoryNodeViewModel> repositories, GroupMode mode)

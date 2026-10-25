@@ -10,7 +10,7 @@ namespace GitWizard;
 /// the process's own %TEMP%/%TMP%, and <c>/tmp</c> plus $TMPDIR when set. The check is purely
 /// syntactic, so it gives the same answer on any host and stays cross-platform-testable.
 /// </summary>
-internal static class TempDirectories
+static class TempDirectories
 {
     static readonly string[] TempEnvironmentVariables = ["TEMP", "TMP", "TMPDIR"];
 

@@ -213,16 +213,7 @@ public partial class GitWizardReport : IAsyncDisposable
                 repositoryPaths = discovered;
             }
 
-            ICollection<string> pathsToRefresh;
-            if (report.DiscoveryInventory is { CanPublishFullInventory: false })
-            {
-                pathsToRefresh = [.. report.DiscoveryInventory.Paths];
-            }
-            else
-            {
-                pathsToRefresh = repositoryPaths;
-            }
-
+            var pathsToRefresh = report.DiscoveryInventory is { CanPublishFullInventory: false } ? [.. report.DiscoveryInventory.Paths] : repositoryPaths;
             report.Refresh(pathsToRefresh, updateHandler, options.FetchRemotes, options.DeepRefresh, options.AllBranches, options.ComputeLocalCommitCount);
             report.BranchScope = options.AllBranches ? "all" : "actionable";
 

@@ -213,12 +213,7 @@ public sealed class TagInventoryReport
 
             var output = await readOutputTask.ConfigureAwait(false);
             await readErrorTask.ConfigureAwait(false);
-            if (process.ExitCode != 0)
-            {
-                return new HashSet<string>(StringComparer.Ordinal);
-            }
-
-            return ParseLsRemoteOutput(output);
+            return process.ExitCode != 0 ? new HashSet<string>(StringComparer.Ordinal) : ParseLsRemoteOutput(output);
         }
         catch (Exception exception)
         {

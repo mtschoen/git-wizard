@@ -39,8 +39,8 @@ public sealed class RepositoryDiscoveryDependencies
 
                 return MftIndexSession.OpenWindowsAsync(drives, BrokerLauncher.Launch, cacheMode, null, progress, token);
             },
-            ReadListAsync = token => GitWizardApi.GetCachedRepositoryPathsAsync(token),
-            WriteListAsync = (paths, token) => GitWizardApi.SaveCachedRepositoryPathsAsync(paths, token),
+            ReadListAsync = GitWizardApi.GetCachedRepositoryPathsAsync,
+            WriteListAsync = GitWizardApi.SaveCachedRepositoryPathsAsync,
             CandidateExists = RepositoryCandidateProbe.Exists,
             CreateLinuxSource = () =>
             {

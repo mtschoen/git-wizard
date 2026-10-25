@@ -100,13 +100,13 @@ sealed class FanotifyProbe
     {
         return errorNumber switch
         {
-            FanotifyError.NotPermitted => new(
+            FanotifyError.NotPermitted => new FanotifyCapabilityResult(
                 FanotifyCapabilityStatus.RequiresElevation,
                 errorNumber),
-            FanotifyError.NoSystemCall or FanotifyError.InvalidArgument => new(
+            FanotifyError.NoSystemCall or FanotifyError.InvalidArgument => new FanotifyCapabilityResult(
                 FanotifyCapabilityStatus.UnsupportedKernel,
                 errorNumber),
-            FanotifyError.NoDevice or FanotifyError.OperationNotSupported => new(
+            FanotifyError.NoDevice or FanotifyError.OperationNotSupported => new FanotifyCapabilityResult(
                 FanotifyCapabilityStatus.UnsupportedFileSystem,
                 errorNumber),
             _ => throw new Win32Exception(errorNumber, "fanotify capability probe failed.")

@@ -85,7 +85,7 @@ public static partial class GitWizardApi
                 .Select(ignoredRoot => TranslateToRealRoot(index, WatchPath.Parse(ignoredRoot)))
                 .ToArray()
         };
-        return roots.Select(item =>
+        return roots.ConvertAll(item =>
         {
             var root = WatchPath.Parse(item.Root);
             return new CandidateScope(
@@ -94,7 +94,7 @@ public static partial class GitWizardApi
                 !item.IsExact && IsLogicalDriveRoot(root),
                 policy,
                 root);
-        }).ToList();
+        });
     }
 
     // A scope root is a logical Windows path even when the index was enumerated on another host, so the

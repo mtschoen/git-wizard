@@ -1,6 +1,6 @@
 namespace GitWizardUI.ViewModels;
 
-internal sealed class SearchDebouncer : IDisposable
+sealed class SearchDebouncer : IDisposable
 {
     CancellationTokenSource? _cancellationTokenSource;
 

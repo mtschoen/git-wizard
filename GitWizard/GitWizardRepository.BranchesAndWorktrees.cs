@@ -208,12 +208,7 @@ public partial class GitWizardRepository
             }
         }
 
-        if (repository.Head.Reference is SymbolicReference)
-        {
-            return repository.Head;
-        }
-
-        return null;
+        return repository.Head.Reference is SymbolicReference ? repository.Head : null;
     }
 
     /// <summary>

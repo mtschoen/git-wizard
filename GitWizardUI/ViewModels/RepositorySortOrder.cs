@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 
 namespace GitWizardUI.ViewModels;
 
-internal static class RepositorySortOrder
+static class RepositorySortOrder
 {
     // Working Directory sort must order by path explicitly. Discovered repository paths are
     // cached lowercase while paths created during a Live watch arrive with OS-native

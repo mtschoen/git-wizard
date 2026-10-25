@@ -34,22 +34,16 @@ public static partial class GitWizardApi
     static Task<MftIndexSession> OpenWindowsDiscoveryIndexAsync(
         IReadOnlyList<string> drives, Func<string, bool> brokerLauncher, TimeSpan? connectTimeout = null)
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            throw new PlatformNotSupportedException("MFT discovery requires Windows.");
-        }
-
-        return MftIndexSession.OpenWindowsAsync(drives, brokerLauncher, connectTimeout, CancellationToken.None);
+        return !OperatingSystem.IsWindows()
+            ? throw new PlatformNotSupportedException("MFT discovery requires Windows.")
+            : MftIndexSession.OpenWindowsAsync(drives, brokerLauncher, connectTimeout, CancellationToken.None);
     }
 
     static bool WindowsCandidateExists(string path, RepositoryCandidateKind kind)
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            throw new PlatformNotSupportedException("Windows candidates require Windows filesystem validation.");
-        }
-
-        return RepositoryCandidateProbe.Exists(path, kind);
+        return !OperatingSystem.IsWindows()
+            ? throw new PlatformNotSupportedException("Windows candidates require Windows filesystem validation.")
+            : RepositoryCandidateProbe.Exists(path, kind);
     }
 
     internal static async Task<MftDiscoveryResult> DiscoverRepositoriesWithIndexAsync(

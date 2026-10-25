@@ -2,18 +2,13 @@ using GitWizard.Watch;
 
 namespace GitWizard;
 
-public partial class RepositoryDiscoveryCoordinator
+public partial class RepositoryDiscoveryCoordinator(RepositoryDiscoveryDependencies dependencies)
 {
-    readonly RepositoryDiscoveryDependencies? _dependencies;
+    readonly RepositoryDiscoveryDependencies? _dependencies = dependencies;
 
     public RepositoryDiscoveryCoordinator()
         : this(RepositoryDiscoveryDependencies.CreateDefault())
     {
-    }
-
-    public RepositoryDiscoveryCoordinator(RepositoryDiscoveryDependencies dependencies)
-    {
-        _dependencies = dependencies;
     }
 
     internal static bool Contains(RootObservation observation, string path)

@@ -1,6 +1,6 @@
 namespace GitWizardUI.ViewModels;
 
-internal static class CancellationTokenSourceDisposal
+static class CancellationTokenSourceDisposal
 {
     internal static Task CancelAndDisposeAsync(CancellationTokenSource source)
         => source.CancelAsync().ContinueWith(

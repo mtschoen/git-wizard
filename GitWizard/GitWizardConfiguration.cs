@@ -63,11 +63,8 @@ public class GitWizardConfiguration
     {
         lock (ConfigurationLock)
         {
-            if (_globalConfiguration == null)
-            {
-                _globalConfiguration = GetConfigurationAtPath(GetGlobalConfigurationPath())
+            _globalConfiguration ??= GetConfigurationAtPath(GetGlobalConfigurationPath())
                                      ?? CreateDefaultConfiguration();
-            }
         }
 
         return _globalConfiguration;

@@ -68,11 +68,11 @@ public class FanotifyVolumeChangeSourceLifecycleTests
             batches.Add(batch);
         }
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(batches, Is.Empty);
             Assert.That(diedReason, Does.Contain("poll failed"));
-        });
+        }
     }
 
     [Test]
@@ -97,11 +97,11 @@ public class FanotifyVolumeChangeSourceLifecycleTests
             batches.Add(batch);
         }
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(batches, Is.Empty);
             Assert.That(diedReason, Does.Contain("no bytes"));
-        });
+        }
     }
 
     [Test]
@@ -126,11 +126,11 @@ public class FanotifyVolumeChangeSourceLifecycleTests
             batches.Add(batch);
         }
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(batches, Is.Empty);
             Assert.That(diedReason, Does.Contain("pump faulted"));
-        });
+        }
     }
 
     [Test]
@@ -172,11 +172,11 @@ public class FanotifyVolumeChangeSourceLifecycleTests
             batches.Add(batch);
         }
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(batches, Is.Empty);
             Assert.That(diedReason, Does.Contain("overflow"));
-        });
+        }
     }
 
     [Test]

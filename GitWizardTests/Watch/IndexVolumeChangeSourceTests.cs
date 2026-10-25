@@ -29,9 +29,12 @@ public class IndexVolumeChangeSourceTests
         var settings = await source.GrowUsnJournalAsync('X',
                 new UsnJournalSettings { MaximumSize = 4096, AllocationDelta = 512 }, CancellationToken.None)
             .WaitAsync(TestTimeouts.HangGuard);
-        Assert.That(settings.MaximumSize, Is.EqualTo(4096));
-        Assert.That(settings.AllocationDelta, Is.EqualTo(512));
-        Assert.That(broker.ConnectionCount, Is.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(settings.MaximumSize, Is.EqualTo(4096));
+            Assert.That(settings.AllocationDelta, Is.EqualTo(512));
+            Assert.That(broker.ConnectionCount, Is.EqualTo(1));
+        }
     }
 
 
@@ -57,11 +60,18 @@ public class IndexVolumeChangeSourceTests
         // IndexVolumeChangeSource's drive-letter-root rewrite, so every path here renders
         // MFTLib's real indexed root directory rather than the synthetic "X:\" shape (MFTLib #143).
         var root = index.Root('X').Path;
-        Assert.That(change.Kind, Is.EqualTo(FileChangeKind.Renamed));
-        Assert.That(change.Entry.Path, Is.Not.EqualTo(change.Path));
-        Assert.That(change.Path, Is.EqualTo(Path.Combine(root, "first")));
-        Assert.That(change.Entry.Path, Is.EqualTo(Path.Combine(root, "second")));
-        Assert.That(change.PreviousPath, Is.EqualTo(Path.Combine(root, "repo")));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(change.Kind, Is.EqualTo(FileChangeKind.Renamed));
+            Assert.That(change.Entry.Path, Is.Not.EqualTo(change.Path));
+            Assert.That(change.Path, Is.EqualTo(Path.Combine(root, "first")));
+        }
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(change.Entry.Path, Is.EqualTo(Path.Combine(root, "second")));
+            Assert.That(change.PreviousPath, Is.EqualTo(Path.Combine(root, "repo")));
+        }
     }
 
     [TestCase(null)]
@@ -84,14 +94,20 @@ public class IndexVolumeChangeSourceTests
             var result = await source.ArmAndCatchUpAsync(volumes, CancellationToken.None);
             Assert.That(result.Errors["Z"], Is.EqualTo("scan denied"));
             Assert.That(owner.IsDisposed, Is.False);
-            Assert.That(owner.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single().Parent!.Value.Name, Is.EqualTo("repo"));
-            Assert.That(owner.Index.Drives.Single().Watch.IsSupported, Is.False);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(owner.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single().Parent!.Value.Name, Is.EqualTo("repo"));
+                Assert.That(owner.Index.Drives.Single().Watch.IsSupported, Is.False);
+            }
             await using var reader = source.WatchAsync(CancellationToken.None).GetAsyncEnumerator();
             Assert.That(await reader.MoveNextAsync(), Is.False, "Enumeration ownership does not start a live pump.");
             await source.DisposeAsync();
             await source.DisposeAsync();
-            Assert.That(connection.Disposals, Is.EqualTo(1));
-            Assert.That(owner.IsDisposed, Is.True);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(connection.Disposals, Is.EqualTo(1));
+                Assert.That(owner.IsDisposed, Is.True);
+            }
             Assert.ThrowsAsync<ObjectDisposedException>(() => source.ArmAndCatchUpAsync(["X"], CancellationToken.None));
         }
         finally
@@ -125,8 +141,11 @@ public class IndexVolumeChangeSourceTests
             }, oldOwner))
             {
                 await source.ArmAndCatchUpAsync([requested.ToLowerInvariant() + ":"], CancellationToken.None);
-                Assert.That(opens, Is.EqualTo(1));
-                Assert.That(fresh.IsDisposed, Is.False);
+                using (Assert.EnterMultipleScope())
+                {
+                    Assert.That(opens, Is.EqualTo(1));
+                    Assert.That(fresh.IsDisposed, Is.False);
+                }
                 Assert.ThrowsAsync<InvalidOperationException>(() =>
                     source.ArmAndCatchUpAsync([requested], CancellationToken.None));
             }
@@ -165,9 +184,12 @@ public class IndexVolumeChangeSourceTests
         }, owner);
         await source.DisposeAsync();
         await source.DisposeAsync();
-        Assert.That(owner.IsDisposed, Is.True);
-        Assert.That(connection.Disposals, Is.EqualTo(1));
-        Assert.That(opens, Is.Zero);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(owner.IsDisposed, Is.True);
+            Assert.That(connection.Disposals, Is.EqualTo(1));
+            Assert.That(opens, Is.Zero);
+        }
     }
 
     [Test]
@@ -200,8 +222,9 @@ public class IndexVolumeChangeSourceTests
             new VolumeChangeEntry(@"X:\repo\file.txt", VolumeEntryKind.Created)
         ]));
         Assert.That(await reader.MoveNextAsync(), Is.True);
+
         Assert.That(reader.Current.Entries, Is.EqualTo([
-            new VolumeChangeEntry(@"X:\repo\file.txt", VolumeEntryKind.Deleted),
+                new VolumeChangeEntry(@"X:\repo\file.txt", VolumeEntryKind.Deleted),
             new VolumeChangeEntry(@"X:\repo\renamed.txt", VolumeEntryKind.Created)
         ]));
         Assert.That(await reader.MoveNextAsync(), Is.True);
@@ -209,9 +232,12 @@ public class IndexVolumeChangeSourceTests
             new VolumeChangeEntry(@"X:\repo\renamed.txt", VolumeEntryKind.Deleted)));
         await scripted.WatchFor('Y').PublishBatchAsync([Entry(51, 6, "other.txt", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
         Assert.That(await reader.MoveNextAsync(), Is.True);
-        Assert.That(reader.Current.Volume, Is.EqualTo("Y"));
-        Assert.That(reader.Current.Entries.Single().FullPath, Is.EqualTo(@"Y:\repo\other.txt"));
-        Assert.That(owner.Index.Search(new SearchQuery("other.txt", NameMatchMode.Exact)).Single().Parent!.Value.Name, Is.EqualTo("repo"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(reader.Current.Volume, Is.EqualTo("Y"));
+            Assert.That(reader.Current.Entries.Single().FullPath, Is.EqualTo(@"Y:\repo\other.txt"));
+            Assert.That(owner.Index.Search(new SearchQuery("other.txt", NameMatchMode.Exact)).Single().Parent!.Value.Name, Is.EqualTo("repo"));
+        }
     }
 
     [Test]
@@ -240,15 +266,21 @@ public class IndexVolumeChangeSourceTests
         await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
         await scripted.WatchFor('X').PublishBatchAsync([Entry(50, 6, "ordinary.txt", reason)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
         Assert.That(await pending, Is.True);
-        Assert.That(reader.Current.Volume, Is.EqualTo("X"));
-        // Routed through IndexVolumeChangeSource, which rewrites this back onto its own
-        // configured drive letter (MFTLib #143), so this stays the pre-existing synthetic shape.
-        Assert.That(reader.Current.Entries.Single(), Is.EqualTo(new VolumeChangeEntry(@"X:\repo\ordinary.txt", expected)));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(reader.Current.Volume, Is.EqualTo("X"));
+            // Routed through IndexVolumeChangeSource, which rewrites this back onto its own
+            // configured drive letter (MFTLib #143), so this stays the pre-existing synthetic shape.
+            Assert.That(reader.Current.Entries.Single(), Is.EqualTo(new VolumeChangeEntry(@"X:\repo\ordinary.txt", expected)));
+        }
         var change = await observed.Task.WaitAsync(TestTimeouts.HangGuard);
-        Assert.That(change.Entry.Name, Is.EqualTo("ordinary.txt"));
-        Assert.That(change.Entry.IsDirectory, Is.False);
-        Assert.That(change.Entry.Parent!.Value.Name, Is.EqualTo("repo"));
-        Assert.That(change.Entry.IsDeleted, Is.EqualTo(expected == VolumeEntryKind.Deleted));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(change.Entry.Name, Is.EqualTo("ordinary.txt"));
+            Assert.That(change.Entry.IsDirectory, Is.False);
+            Assert.That(change.Entry.Parent!.Value.Name, Is.EqualTo("repo"));
+            Assert.That(change.Entry.IsDeleted, Is.EqualTo(expected == VolumeEntryKind.Deleted));
+        }
     }
 
     [Test]
@@ -340,9 +372,12 @@ public class IndexVolumeChangeSourceTests
 
         Assert.That(errors, Does.ContainKey("X").WithValue("cache declined"));
         var warning = warnings.Single();
-        Assert.That(warning.DriveLetter, Is.EqualTo("X"));
-        Assert.That(warning.Loss, Is.SameAs(loss));
-        Assert.That(warning.VolumeSerial, Is.EqualTo(12345u));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(warning.DriveLetter, Is.EqualTo("X"));
+            Assert.That(warning.Loss, Is.SameAs(loss));
+            Assert.That(warning.VolumeSerial, Is.EqualTo(12345u));
+        }
     }
 
     [Test]
@@ -365,11 +400,14 @@ public class IndexVolumeChangeSourceTests
         source.ProcessFaultedDrive(status, owner, new GitWizardConfiguration());
 
         var warning = warnings.Single();
-        Assert.That(warning.DriveLetter, Is.EqualTo("X"));
-        Assert.That(warning.Loss, Is.SameAs(liveLoss));
-        Assert.That(warning.WatchState, Is.EqualTo(WatchState.Faulted));
-        Assert.That(warning.IsRecoveryStopped, Is.True);
-        Assert.That(warning.VolumeSerial, Is.EqualTo(12345u));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(warning.DriveLetter, Is.EqualTo("X"));
+            Assert.That(warning.Loss, Is.SameAs(liveLoss));
+            Assert.That(warning.WatchState, Is.EqualTo(WatchState.Faulted));
+            Assert.That(warning.IsRecoveryStopped, Is.True);
+            Assert.That(warning.VolumeSerial, Is.EqualTo(12345u));
+        }
 
         // A fault the journal did not cause reports nothing: the open's standing report and a
         // missing report both stay out of the event.

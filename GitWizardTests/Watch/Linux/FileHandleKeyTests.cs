@@ -13,11 +13,11 @@ public class FileHandleKeyTests
         var first = new FileHandleKey(1, payload);
         var second = new FileHandleKey(2, payload);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(first.Equals(second), Is.False);
             Assert.That(first.Equals((object)second), Is.False);
-        });
+        }
     }
 
     [Test]
@@ -26,11 +26,11 @@ public class FileHandleKeyTests
         var first = new FileHandleKey(7, [1, 2, 3, 4]);
         var second = new FileHandleKey(7, [1, 2, 3, 4]);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(first.Equals(second), Is.True);
             Assert.That(first.GetHashCode(), Is.EqualTo(second.GetHashCode()));
-        });
+        }
     }
 
     [Test]

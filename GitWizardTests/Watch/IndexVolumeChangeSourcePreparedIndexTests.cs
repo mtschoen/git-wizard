@@ -17,8 +17,11 @@ public class IndexVolumeChangeSourcePreparedIndexTests
         await using var source = new IndexVolumeChangeSource((_, _, _) =>
             throw new AssertionException("Prepared index must be reused"), fixture.Owner);
         var result = await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
-        Assert.That(result.Errors, Is.Empty);
-        Assert.That(fixture.Owner.IsDisposed, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Errors, Is.Empty);
+            Assert.That(fixture.Owner.IsDisposed, Is.False);
+        }
     }
 
     [Test]
@@ -51,8 +54,11 @@ public class IndexVolumeChangeSourcePreparedIndexTests
         }, fixture.Owner);
         Assert.ThrowsAsync<InvalidOperationException>(() => source.ArmAndCatchUpAsync(
             disposeFirst ? ["X"] : ["X", "Y"], CancellationToken.None));
-        Assert.That(opens, Is.EqualTo(1));
-        Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(opens, Is.EqualTo(1));
+            Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
+        }
     }
 
     [Test]
@@ -91,14 +97,20 @@ public class IndexVolumeChangeSourcePreparedIndexTests
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await using var reader = source.WatchAsync(timeout.Token).GetAsyncEnumerator();
         Assert.That(await reader.MoveNextAsync(), Is.True);
-        Assert.That(reader.Current.Volume, Is.EqualTo("X"));
-        // Routed through IndexVolumeChangeSource, which rewrites this back onto its own
-        // configured drive letter (MFTLib #143), so this stays the pre-existing synthetic shape.
-        Assert.That(reader.Current.Entries.Single().FullPath, Is.EqualTo(@"X:\code\repo\child"));
-        Assert.That(owner.Index.Search(new SearchQuery("child", NameMatchMode.Exact)).Single().Parent!.Value.Name, Is.EqualTo("repo"));
-        Assert.That(broker.ConnectionCount, Is.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(reader.Current.Volume, Is.EqualTo("X"));
+            // Routed through IndexVolumeChangeSource, which rewrites this back onto its own
+            // configured drive letter (MFTLib #143), so this stays the pre-existing synthetic shape.
+            Assert.That(reader.Current.Entries.Single().FullPath, Is.EqualTo(@"X:\code\repo\child"));
+            Assert.That(owner.Index.Search(new SearchQuery("child", NameMatchMode.Exact)).Single().Parent!.Value.Name, Is.EqualTo("repo"));
+            Assert.That(broker.ConnectionCount, Is.EqualTo(1));
+        }
         var started = await broker.WatchStarted.WaitAsync(timeout.Token);
-        Assert.That(started.Drive, Is.EqualTo("X"));
-        Assert.That(started.Since, Is.EqualTo(new SyntheticJournalCursor(100UL, 1000L)));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(started.Drive, Is.EqualTo("X"));
+            Assert.That(started.Since, Is.EqualTo(new SyntheticJournalCursor(100UL, 1000L)));
+        }
     }
 }

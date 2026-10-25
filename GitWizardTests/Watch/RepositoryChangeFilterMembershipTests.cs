@@ -21,9 +21,12 @@ public class RepositoryChangeFilterMembershipTests
         filter.AddRepositoryRoot(@"C:\repos\new-repo");
 
         var result = filter.Classify([Modified(@"C:\repos\new-repo\index.lock")]);
-        Assert.That(result.Changed, Is.EquivalentTo([@"C:\repos\new-repo"]));
-        Assert.That(result.Created, Is.Empty);
-        Assert.That(result.Deleted, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Changed, Is.EquivalentTo([@"C:\repos\new-repo"]));
+            Assert.That(result.Created, Is.Empty);
+            Assert.That(result.Deleted, Is.Empty);
+        }
     }
 
     [Test]
@@ -46,8 +49,11 @@ public class RepositoryChangeFilterMembershipTests
         filter.AddRepositoryRoot(@"C:\repos\new-repo");
 
         var recreated = filter.Classify([Created(@"C:\repos\NEW-REPO\.git")]);
-        Assert.That(recreated.Created, Is.Empty);
-        Assert.That(recreated.Changed, Is.EquivalentTo([@"C:\repos\New-Repo"]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(recreated.Created, Is.Empty);
+            Assert.That(recreated.Changed, Is.EquivalentTo([@"C:\repos\New-Repo"]));
+        }
     }
 
     [Test]
@@ -97,8 +103,11 @@ public class RepositoryChangeFilterMembershipTests
         Assert.That(afterRemoval.Changed, Is.Empty);
 
         var recreated = filter.Classify([Created(Path.Combine(RepoRoot, ".git"))]);
-        Assert.That(recreated.Created, Is.EquivalentTo([RepoRoot]));
-        Assert.That(recreated.Changed, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(recreated.Created, Is.EquivalentTo([RepoRoot]));
+            Assert.That(recreated.Changed, Is.Empty);
+        }
     }
 
     [Test]

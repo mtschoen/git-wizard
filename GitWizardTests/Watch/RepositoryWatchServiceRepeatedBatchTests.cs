@@ -19,8 +19,11 @@ public class RepositoryWatchServiceRepeatedBatchTests
 
         var events = await DrainAsync(service);
 
-        Assert.That(events.Count(change => change.Kind == RepositoryChangeKind.Created), Is.EqualTo(1));
-        Assert.That(events, Does.Contain(new RepositoryChangeEvent(@"C:\repo\newrepo", RepositoryChangeKind.Created)));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(events.Count(change => change.Kind == RepositoryChangeKind.Created), Is.EqualTo(1));
+            Assert.That(events, Does.Contain(new RepositoryChangeEvent(@"C:\repo\newrepo", RepositoryChangeKind.Created)));
+        }
         Assert.That(events.Any(change => change.Kind == RepositoryChangeKind.Deleted), Is.False);
     }
 

@@ -26,9 +26,12 @@ public class JournalHintBuilderTests
 
         var hint = JournalHintBuilder.BuildHint(loss, WatchState.Recovering, false);
 
-        Assert.That(source.QueryUsnJournalSettings(loss.Drive).MaximumSize,
-            Is.GreaterThan(loss.JournalSettings.MaximumSize));
-        Assert.That(hint, Does.StartWith("Hint on D:"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(source.QueryUsnJournalSettings(loss.Drive).MaximumSize,
+                    Is.GreaterThan(loss.JournalSettings.MaximumSize));
+            Assert.That(hint, Does.StartWith("Hint on D:"));
+        }
         Assert.That(hint, Does.Contain("a journal of at least 256 MB would have avoided this rescan"));
         Assert.That(hint, Does.Contain("it was 32 MB when this was detected"));
         Assert.That(hint, Does.Not.Contain("now"));

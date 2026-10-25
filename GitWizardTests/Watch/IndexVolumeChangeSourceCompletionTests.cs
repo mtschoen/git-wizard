@@ -29,10 +29,13 @@ public class IndexVolumeChangeSourceCompletionTests
         var productionsBefore = scenario.ProductionsAtSecondFault;
         await WaitUntilAsync(() => scenario.Productions > productionsBefore);
 
-        Assert.That(arming.IsCompleted, Is.False, "The arm keeps following the newer recovery.");
-        Assert.That(scenario.StateOf('X'), Is.EqualTo(WatchState.Recovering));
-        Assert.That(scenario.ReadinessOf('X'), Is.EqualTo(VolumeWatchState.CatchingUp));
-        Assert.That(scenario.Violations, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(arming.IsCompleted, Is.False, "The arm keeps following the newer recovery.");
+            Assert.That(scenario.StateOf('X'), Is.EqualTo(WatchState.Recovering));
+            Assert.That(scenario.ReadinessOf('X'), Is.EqualTo(VolumeWatchState.CatchingUp));
+            Assert.That(scenario.Violations, Is.Empty);
+        }
 
         var releaseIssued = new TaskCompletionSource();
         var completedBeforeRelease = arming.ContinueWith(_ => !releaseIssued.Task.IsCompleted,
@@ -40,12 +43,15 @@ public class IndexVolumeChangeSourceCompletionTests
         releaseIssued.SetResult();
         scenario.ReleaseHeldRescan();
         var result = await arming.WaitAsync(TestTimeouts.HangGuard);
-        Assert.That(await completedBeforeRelease.WaitAsync(TestTimeouts.HangGuard), Is.False,
-            "The arm must not complete before the newer recovery finishes.");
-        Assert.That(result.Errors, Is.Empty);
-        Assert.That(scenario.StateOf('X'), Is.EqualTo(WatchState.CaughtUp));
-        Assert.That(scenario.ReadinessOf('X'), Is.EqualTo(VolumeWatchState.CaughtUp));
-        Assert.That(scenario.Violations, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(await completedBeforeRelease.WaitAsync(TestTimeouts.HangGuard), Is.False,
+                    "The arm must not complete before the newer recovery finishes.");
+            Assert.That(result.Errors, Is.Empty);
+            Assert.That(scenario.StateOf('X'), Is.EqualTo(WatchState.CaughtUp));
+            Assert.That(scenario.ReadinessOf('X'), Is.EqualTo(VolumeWatchState.CaughtUp));
+            Assert.That(scenario.Violations, Is.Empty);
+        }
     }
 
     [Test]
@@ -60,14 +66,20 @@ public class IndexVolumeChangeSourceCompletionTests
         var productionsBefore = scenario.ProductionsAtSecondFault;
         await WaitUntilAsync(() => scenario.Productions > productionsBefore);
 
-        Assert.That(scenario.StateOf('X'), Is.EqualTo(WatchState.Recovering));
-        Assert.That(scenario.ReadinessOf('X'), Is.EqualTo(VolumeWatchState.CatchingUp));
-        Assert.That(scenario.Violations, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(scenario.StateOf('X'), Is.EqualTo(WatchState.Recovering));
+            Assert.That(scenario.ReadinessOf('X'), Is.EqualTo(VolumeWatchState.CatchingUp));
+            Assert.That(scenario.Violations, Is.Empty);
+        }
 
         scenario.ReleaseHeldRescan();
         await WaitUntilAsync(() => scenario.ReadinessOf('X') == VolumeWatchState.CaughtUp);
-        Assert.That(scenario.StateOf('X'), Is.EqualTo(WatchState.CaughtUp));
-        Assert.That(scenario.Violations, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(scenario.StateOf('X'), Is.EqualTo(WatchState.CaughtUp));
+            Assert.That(scenario.Violations, Is.Empty);
+        }
     }
 
     [Test]
@@ -81,9 +93,12 @@ public class IndexVolumeChangeSourceCompletionTests
         await scenario.SecondFaultInjected.WaitAsync(TestTimeouts.HangGuard);
         await WaitUntilAsync(() => scenario.ReadinessOf('X') == VolumeWatchState.Excluded);
 
-        Assert.That(scenario.StateOf('X'), Is.EqualTo(WatchState.Faulted));
-        Assert.That(scenario.Violations, Is.Empty);
-        Assert.That(scenario.CaughtUpPublishedAfterSecondFault, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(scenario.StateOf('X'), Is.EqualTo(WatchState.Faulted));
+            Assert.That(scenario.Violations, Is.Empty);
+            Assert.That(scenario.CaughtUpPublishedAfterSecondFault, Is.False);
+        }
     }
 
     [TestCase("drive", VolumeWatchState.CatchingUp)]
@@ -117,10 +132,13 @@ public class IndexVolumeChangeSourceCompletionTests
         source.ApplyWatchState(SyntheticNotifications.CreateWatchStateChange('X', watch with { State = WatchState.CaughtUp, StateVersion = version - 1 }, null));
         source.ApplyWatchState(SyntheticNotifications.CreateWatchStateChange('X', watch with { State = WatchState.CaughtUp, StateVersion = version }, null));
         Assert.That(source.Readiness.TryGet("X", out var status), Is.True);
-        Assert.That(status!.State, Is.EqualTo(VolumeWatchState.CatchingUp));
-        Assert.That(status.WatchStateVersion, Is.EqualTo(version));
-        Assert.That(source.Readiness.RecentTransitions[^1].State, Is.EqualTo("Recovering"));
-        Assert.That(source.Readiness.RecentTransitions.Count(item => item.Version == version), Is.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(status!.State, Is.EqualTo(VolumeWatchState.CatchingUp));
+            Assert.That(status.WatchStateVersion, Is.EqualTo(version));
+            Assert.That(source.Readiness.RecentTransitions[^1].State, Is.EqualTo("Recovering"));
+            Assert.That(source.Readiness.RecentTransitions.Count(item => item.Version == version), Is.EqualTo(1));
+        }
     }
 
     [Test]
@@ -176,9 +194,12 @@ public class IndexVolumeChangeSourceCompletionTests
         await WaitUntilAsync(() => source.Readiness.TryGet("X", out var s) && s.WatchStateVersion == newerVersion &&
             s.State == VolumeWatchState.CaughtUp);
         Assert.That(source.Readiness.TryGet("X", out var updated), Is.True);
-        Assert.That(updated!.State, Is.EqualTo(VolumeWatchState.CaughtUp));
-        Assert.That(updated.WatchStateVersion, Is.EqualTo(newerVersion));
-        Assert.That(source.Readiness.RecentTransitions, Has.Count.EqualTo(countBefore + 1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(updated!.State, Is.EqualTo(VolumeWatchState.CaughtUp));
+            Assert.That(updated.WatchStateVersion, Is.EqualTo(newerVersion));
+            Assert.That(source.Readiness.RecentTransitions, Has.Count.EqualTo(countBefore + 1));
+        }
     }
 
     [Test]
@@ -216,16 +237,22 @@ public class IndexVolumeChangeSourceCompletionTests
 
         // The source still reads CatchingUp at next, not CaughtUp at the older version
         Assert.That(source.Readiness.TryGet("X", out var status), Is.True);
-        Assert.That(status!.State, Is.EqualTo(VolumeWatchState.CatchingUp));
-        Assert.That(status.WatchStateVersion, Is.EqualTo(next));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(status!.State, Is.EqualTo(VolumeWatchState.CatchingUp));
+            Assert.That(status.WatchStateVersion, Is.EqualTo(next));
+        }
 
         // Submit CaughtUp at next + 1 and wait for that exact published version
         source.ApplyWatchState(SyntheticNotifications.CreateWatchStateChange('X', owner.Index.Drives.Single().Watch with { State = WatchState.CaughtUp, StateVersion = next + 1 }, null));
         await WaitUntilAsync(() => source.Readiness.TryGet("X", out var s) && s.WatchStateVersion == next + 1 &&
             s.State == VolumeWatchState.CaughtUp);
         Assert.That(source.Readiness.TryGet("X", out var caughtUp), Is.True);
-        Assert.That(caughtUp!.State, Is.EqualTo(VolumeWatchState.CaughtUp));
-        Assert.That(caughtUp.WatchStateVersion, Is.EqualTo(next + 1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(caughtUp!.State, Is.EqualTo(VolumeWatchState.CaughtUp));
+            Assert.That(caughtUp.WatchStateVersion, Is.EqualTo(next + 1));
+        }
     }
 
     [Test]
@@ -241,10 +268,13 @@ public class IndexVolumeChangeSourceCompletionTests
 
         var previous = snapshot;
         snapshot = snapshot.With(VolumeWatchStatus.CaughtUp("Y", VolumeBlockOrigin.Cold));
-        Assert.That(snapshot.RecentTransitions.Select(item => item.Version),
-            Is.EqualTo(Enumerable.Range(7, 64).Select(value => (long)value)));
-        Assert.That(previous.Volumes, Is.Empty);
-        Assert.That(snapshot.RecentTransitions, Is.EqualTo(previous.RecentTransitions));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(snapshot.RecentTransitions.Select(item => item.Version),
+                    Is.EqualTo(Enumerable.Range(7, 64).Select(value => (long)value)));
+            Assert.That(previous.Volumes, Is.Empty);
+            Assert.That(snapshot.RecentTransitions, Is.EqualTo(previous.RecentTransitions));
+        }
     }
 
     /// <summary>

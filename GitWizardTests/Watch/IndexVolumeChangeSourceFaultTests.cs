@@ -27,21 +27,30 @@ public class IndexVolumeChangeSourceFaultTests
         await WaitUntilAsync(() => harness.Scripted.Watches.Count(watch => watch.Drive == 'X') == 2);
         await WaitUntilAsync(() => harness.ReadinessOf('X') == VolumeWatchState.CaughtUp &&
                                    harness.StatusOf('X').Watch.State == WatchState.CaughtUp);
-        Assert.That(harness.Failures, Is.Empty);
-        Assert.That(harness.Deaths, Is.Empty);
-        Assert.That(harness.States('X'), Does.Contain(VolumeWatchState.CatchingUp),
-            "A recovering drive reads as catching up until its recovered watch catches up.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(harness.Failures, Is.Empty);
+            Assert.That(harness.Deaths, Is.Empty);
+            Assert.That(harness.States('X'), Does.Contain(VolumeWatchState.CatchingUp),
+                "A recovering drive reads as catching up until its recovered watch catches up.");
+        }
 
         Assert.That(await harness.ReadAsync(), Is.True);
-        Assert.That(harness.Current.Volume, Is.EqualTo("X"));
-        Assert.That(harness.Current.Entries, Is.EqualTo([
-            new VolumeChangeEntry(@"X:\repo\.git", VolumeEntryKind.Modified)
-        ]), "The recovered drive's surviving repository is refreshed.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(harness.Current.Volume, Is.EqualTo("X"));
+            Assert.That(harness.Current.Entries, Is.EqualTo([
+                new VolumeChangeEntry(@"X:\repo\.git", VolumeEntryKind.Modified)
+            ]), "The recovered drive's surviving repository is refreshed.");
+        }
 
         await harness.Scripted.WatchFor('X').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(60, 6, "after-recovery", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1003));
         Assert.That(await harness.ReadAsync(), Is.True);
-        Assert.That(harness.Current.Volume, Is.EqualTo("X"));
-        Assert.That(harness.Current.Entries.Single().FullPath, Is.EqualTo(@"X:\repo\after-recovery"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(harness.Current.Volume, Is.EqualTo("X"));
+            Assert.That(harness.Current.Entries.Single().FullPath, Is.EqualTo(@"X:\repo\after-recovery"));
+        }
     }
 
     [Test]
@@ -54,9 +63,12 @@ public class IndexVolumeChangeSourceFaultTests
 
         await WaitUntilAsync(() => harness.StatusOf('X').Watch.State == WatchState.Recovering &&
                                    harness.ReadinessOf('X') == VolumeWatchState.CatchingUp);
-        Assert.That(harness.Deaths, Is.Empty);
-        Assert.That(harness.Failures, Is.Empty);
-        Assert.That(harness.PendingRead.IsCompleted, Is.False, "The reader stays open while the drive recovers.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(harness.Deaths, Is.Empty);
+            Assert.That(harness.Failures, Is.Empty);
+            Assert.That(harness.PendingRead.IsCompleted, Is.False, "The reader stays open while the drive recovers.");
+        }
 
         release.SetResult();
         await WaitUntilAsync(() => harness.ReadinessOf('X') == VolumeWatchState.CaughtUp);
@@ -74,11 +86,14 @@ public class IndexVolumeChangeSourceFaultTests
 
         await WaitUntilAsync(() => harness.Failures.Length == 1 &&
                                    harness.ReadinessOf('X') == VolumeWatchState.Excluded);
-        Assert.That(harness.Failures.Single().Drive, Is.EqualTo("X"));
-        Assert.That(harness.Failures.Single().Message, Does.Contain(message));
-        Assert.That(harness.Deaths, Is.Empty);
-        Assert.That(harness.Scripted.Starts.Count(start => start.Drive == 'X'), Is.EqualTo(1),
-            "A lost channel is not recovered automatically.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(harness.Failures.Single().Drive, Is.EqualTo("X"));
+            Assert.That(harness.Failures.Single().Message, Does.Contain(message));
+            Assert.That(harness.Deaths, Is.Empty);
+            Assert.That(harness.Scripted.Starts.Count(start => start.Drive == 'X'), Is.EqualTo(1),
+                "A lost channel is not recovered automatically.");
+        }
 
         await harness.Scripted.WatchFor('Y').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(50, 6, "survivor", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
         Assert.That(await harness.ReadAsync(), Is.True);
@@ -99,9 +114,12 @@ public class IndexVolumeChangeSourceFaultTests
 
         Assert.That(await harness.ReadAsync(), Is.False);
         await WaitUntilAsync(() => harness.ReadinessOf('X') == VolumeWatchState.Excluded);
-        Assert.That(harness.Failures.Single().Drive, Is.EqualTo("X"));
-        Assert.That(harness.Deaths, Has.Length.EqualTo(1));
-        Assert.That(harness.StatusOf('X').Watch.FailureMessage, Is.Not.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(harness.Failures.Single().Drive, Is.EqualTo("X"));
+            Assert.That(harness.Deaths, Has.Length.EqualTo(1));
+            Assert.That(harness.StatusOf('X').Watch.FailureMessage, Is.Not.Null);
+        }
     }
 
     [Test]
@@ -114,8 +132,11 @@ public class IndexVolumeChangeSourceFaultTests
 
         await WaitUntilAsync(() => harness.Failures.Length == 1 &&
                                    harness.ReadinessOf('X') == VolumeWatchState.Excluded);
-        Assert.That(harness.Failures.Single().Drive, Is.EqualTo("X"));
-        Assert.That(harness.Deaths, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(harness.Failures.Single().Drive, Is.EqualTo("X"));
+            Assert.That(harness.Deaths, Is.Empty);
+        }
     }
 
     [TestCase(true)]
@@ -139,11 +160,18 @@ public class IndexVolumeChangeSourceFaultTests
         {
             await WaitUntilAsync(() => harness.Failures.Length >= 1 &&
                                        harness.ReadinessOf('X') == VolumeWatchState.Excluded);
-            Assert.That(harness.Failures.Select(failure => failure.Drive), Is.All.EqualTo("X"));
-            Assert.That(harness.Failures[0].Message, Does.Contain("cannot be watched"));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(harness.Failures.Select(failure => failure.Drive), Is.All.EqualTo("X"));
+                Assert.That(harness.Failures[0].Message, Does.Contain("cannot be watched"));
+            }
         }
-        Assert.That(harness.StatusOf('X').Watch.IsRecoveryStopped, Is.EqualTo(!recovers));
-        Assert.That(harness.Deaths, Is.Empty);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(harness.StatusOf('X').Watch.IsRecoveryStopped, Is.EqualTo(!recovers));
+            Assert.That(harness.Deaths, Is.Empty);
+        }
     }
 
     [Test]
@@ -155,9 +183,12 @@ public class IndexVolumeChangeSourceFaultTests
 
         Assert.That(await harness.ReadAsync(), Is.True);
         var exception = Assert.ThrowsAsync<InvalidOperationException>(async () => await harness.ReadAsync());
-        Assert.That(exception!.Message, Is.EqualTo("subscriber failed"));
-        Assert.That(harness.Deaths, Is.Empty);
-        Assert.That(harness.Failures, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(exception!.Message, Is.EqualTo("subscriber failed"));
+            Assert.That(harness.Deaths, Is.Empty);
+            Assert.That(harness.Failures, Is.Empty);
+        }
     }
 
     [TestCase(WatchFaultKind.Drive, false, true)]
@@ -192,8 +223,12 @@ public class IndexVolumeChangeSourceFaultTests
         {
             await harness.DisposeAsync().AsTask().WaitAsync(TestTimeouts.HangGuard);
         }
-        Assert.That(harness.Owner.IsDisposed, Is.True);
-        Assert.That(harness.Deaths, Is.Empty);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(harness.Owner.IsDisposed, Is.True);
+            Assert.That(harness.Deaths, Is.Empty);
+        }
     }
 
     [Test]
@@ -221,12 +256,15 @@ public class IndexVolumeChangeSourceFaultTests
             harness.Files.CatchUpLoss = null;
         }
 
-        Assert.That(harness.Owner.Index.Search(new SearchQuery(".git", NameMatchMode.Exact))
-            .Select(entry => entry.Parent!.Value.Name), Is.EqualTo(["repo"]));
-        Assert.That(harness.Scripted.WatchFor('X'), Is.SameAs(originalWatch));
-        Assert.That(harness.ReadinessOf('X'), Is.EqualTo(VolumeWatchState.CaughtUp));
-        Assert.That(harness.Failures, Is.Empty);
-        Assert.That(harness.Deaths, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(harness.Owner.Index.Search(new SearchQuery(".git", NameMatchMode.Exact))
+                    .Select(entry => entry.Parent!.Value.Name), Is.EqualTo(["repo"]));
+            Assert.That(harness.Scripted.WatchFor('X'), Is.SameAs(originalWatch));
+            Assert.That(harness.ReadinessOf('X'), Is.EqualTo(VolumeWatchState.CaughtUp));
+            Assert.That(harness.Failures, Is.Empty);
+            Assert.That(harness.Deaths, Is.Empty);
+        }
 
         await harness.Owner.Index.RescanAsync(['X'], CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
         await WaitUntilAsync(() => harness.ReadinessOf('X') == VolumeWatchState.CaughtUp);
@@ -253,15 +291,21 @@ public class IndexVolumeChangeSourceFaultTests
         var result = await source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None)
             .WaitAsync(TestTimeouts.HangGuard);
 
-        Assert.That(result.Errors["X"], Does.Contain("start refused"));
-        Assert.That(result.Errors.ContainsKey("Y"), Is.False);
-        Assert.That(failures.Any(failure => failure.Drive == "X" && failure.Message.Contains("start refused")), Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Errors["X"], Does.Contain("start refused"));
+            Assert.That(result.Errors.ContainsKey("Y"), Is.False);
+            Assert.That(failures.Any(failure => failure.Drive == "X" && failure.Message.Contains("start refused")), Is.True);
+        }
         Assert.That(source.Readiness.TryGet("X", out var failed), Is.True);
         Assert.That(failed!.State, Is.EqualTo(VolumeWatchState.Excluded));
         Assert.That(source.Readiness.TryGet("Y", out var healthy), Is.True);
-        Assert.That(healthy!.State, Is.EqualTo(VolumeWatchState.CaughtUp));
-        Assert.That(index.Drives.Select(drive => drive.State), Is.All.EqualTo(DriveState.Ready));
-        Assert.That(index.Search(new SearchQuery(".git", NameMatchMode.Exact)).ToArray(), Has.Length.EqualTo(2));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(healthy!.State, Is.EqualTo(VolumeWatchState.CaughtUp));
+            Assert.That(index.Drives.Select(drive => drive.State), Is.All.EqualTo(DriveState.Ready));
+            Assert.That(index.Search(new SearchQuery(".git", NameMatchMode.Exact)).ToArray(), Has.Length.EqualTo(2));
+        }
     }
 
     [Test]
@@ -282,8 +326,11 @@ public class IndexVolumeChangeSourceFaultTests
         await scripted.WatchFor('X').PublishCaughtUpAsync();
 
         var result = await arming.WaitAsync(TestTimeouts.HangGuard);
-        Assert.That(result.Errors, Is.Empty);
-        Assert.That(failures, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Errors, Is.Empty);
+            Assert.That(failures, Is.Empty);
+        }
         Assert.That(source.Readiness.TryGet("X", out var status), Is.True);
         Assert.That(status!.State, Is.EqualTo(VolumeWatchState.CaughtUp));
     }

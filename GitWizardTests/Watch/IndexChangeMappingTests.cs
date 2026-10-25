@@ -63,10 +63,13 @@ public class IndexChangeMappingTests
         var change = SyntheticNotifications.CreateFileChange(FileChangeKind.Deleted, Entry("file.txt", false),
             @"T:\deleted\file.txt", ChangeTime);
 
-        Assert.That(change.Entry.Path, Is.Not.EqualTo(change.Path));
-        Assert.That(IndexChangeMapping.Map(change), Is.EqualTo([
-            new VolumeChangeEntry(@"T:\deleted\file.txt", VolumeEntryKind.Deleted)
-        ]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(change.Entry.Path, Is.Not.EqualTo(change.Path));
+            Assert.That(IndexChangeMapping.Map(change), Is.EqualTo([
+                new VolumeChangeEntry(@"T:\deleted\file.txt", VolumeEntryKind.Deleted)
+            ]));
+        }
     }
 
     [Test]
@@ -75,10 +78,13 @@ public class IndexChangeMappingTests
         var change = SyntheticNotifications.CreateFileChange(FileChangeKind.Modified, Entry("file.txt", false),
             @"T:\modified\file.txt", ChangeTime);
 
-        Assert.That(change.Entry.Path, Is.Not.EqualTo(change.Path));
-        Assert.That(IndexChangeMapping.Map(change), Is.EqualTo([
-            new VolumeChangeEntry(@"T:\modified\file.txt", VolumeEntryKind.Modified)
-        ]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(change.Entry.Path, Is.Not.EqualTo(change.Path));
+            Assert.That(IndexChangeMapping.Map(change), Is.EqualTo([
+                new VolumeChangeEntry(@"T:\modified\file.txt", VolumeEntryKind.Modified)
+            ]));
+        }
     }
 
     [Test]
@@ -94,9 +100,12 @@ public class IndexChangeMappingTests
             new VolumeChangeEntry(@"T:\new\file.txt", VolumeEntryKind.Created)
         ]));
         var result = new RepositoryChangeFilter([@"T:\old", @"T:\new"]).Classify(entries);
-        Assert.That(result.Changed, Is.EquivalentTo([@"T:\old", @"T:\new"]));
-        Assert.That(result.Created, Is.Empty);
-        Assert.That(result.Deleted, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Changed, Is.EquivalentTo([@"T:\old", @"T:\new"]));
+            Assert.That(result.Created, Is.Empty);
+            Assert.That(result.Deleted, Is.Empty);
+        }
 
         var markerChange = SyntheticNotifications.CreateFileChange(FileChangeKind.Renamed, Entry(".git", true),
             @"T:\new\.git", ChangeTime, previousPath: @"T:\old\.git");
@@ -108,10 +117,13 @@ public class IndexChangeMappingTests
         ]));
         var markerFilter = new RepositoryChangeFilter([@"T:\old"], [@"T:\"]);
         var markerResult = markerFilter.Classify(markerEntries);
-        Assert.That(markerResult.Changed, Is.Empty);
-        Assert.That(markerResult.Deleted, Is.EqualTo([@"T:\old"]));
-        Assert.That(markerResult.Created, Is.Empty,
-            "A directory rename no longer yields Created; MovedIn candidate classification is separate.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(markerResult.Changed, Is.Empty);
+            Assert.That(markerResult.Deleted, Is.EqualTo([@"T:\old"]));
+            Assert.That(markerResult.Created, Is.Empty,
+                "A directory rename no longer yields Created; MovedIn candidate classification is separate.");
+        }
 
         var withoutPreviousPath = IndexChangeMapping.Map(markerChange with { PreviousPath = null });
         Assert.That(withoutPreviousPath, Is.EqualTo([
@@ -265,9 +277,12 @@ public class IndexChangeMappingTests
         var entries = _index!.Search(new SearchQuery(name, NameMatchMode.Exact));
         Assert.That(entries, Has.Count.EqualTo(1));
         var entry = entries[0];
-        Assert.That(entry.Name, Is.EqualTo(name));
-        Assert.That(entry.IsDirectory, Is.EqualTo(isDirectory));
-        Assert.That(entry.Parent!.Value.Name, Is.EqualTo("current"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(entry.Name, Is.EqualTo(name));
+            Assert.That(entry.IsDirectory, Is.EqualTo(isDirectory));
+            Assert.That(entry.Parent!.Value.Name, Is.EqualTo("current"));
+        }
         return entry;
     }
 

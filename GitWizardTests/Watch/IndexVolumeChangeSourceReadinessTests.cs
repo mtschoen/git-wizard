@@ -25,35 +25,50 @@ public class IndexVolumeChangeSourceReadinessTests
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         var snapshots = new List<VolumeReadinessSnapshot>();
         source.ReadinessChanged += snapshots.Add;
-        Assert.That(source.Mode, Is.EqualTo(WatchReadinessMode.JournalBacklog));
-        Assert.That(source.Readiness.Volumes, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(source.Mode, Is.EqualTo(WatchReadinessMode.JournalBacklog));
+            Assert.That(source.Readiness.Volumes, Is.Empty);
+        }
 
         var arming = source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
         await Task.WhenAll(scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard),
             scripted.WaitForStartAsync('Y', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard));
         await WaitUntilAsync(() => source.Readiness.Volumes.Count == 2);
-        Assert.That(arming.IsCompleted, Is.False, "The arm must wait for catch-up, not merely for pump start.");
-        Assert.That(source.Readiness.Volumes.Select(v => (v.Volume, v.State, v.Origin)), Is.EquivalentTo([
-            ("X", VolumeWatchState.CatchingUp, VolumeBlockOrigin.Cold),
-            ("Y", VolumeWatchState.CatchingUp, VolumeBlockOrigin.Cold)
-        ]));
-        Assert.That(source.Readiness.IsSettled, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(arming.IsCompleted, Is.False, "The arm must wait for catch-up, not merely for pump start.");
+            Assert.That(source.Readiness.Volumes.Select(v => (v.Volume, v.State, v.Origin)), Is.EquivalentTo([
+                ("X", VolumeWatchState.CatchingUp, VolumeBlockOrigin.Cold),
+                ("Y", VolumeWatchState.CatchingUp, VolumeBlockOrigin.Cold)
+            ]));
+            Assert.That(source.Readiness.IsSettled, Is.False);
+        }
 
         await scripted.WatchFor('X').PublishCaughtUpAsync();
         await WaitUntilAsync(() => source.Readiness.TryGet("X", out var x) && x.State == VolumeWatchState.CaughtUp);
-        Assert.That(arming.IsCompleted, Is.False, "One caught-up drive does not settle a two-drive arm.");
-        Assert.That(source.Readiness.HasCaughtUpVolume, Is.True);
-        Assert.That(source.Readiness.IsSettled, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(arming.IsCompleted, Is.False, "One caught-up drive does not settle a two-drive arm.");
+            Assert.That(source.Readiness.HasCaughtUpVolume, Is.True);
+            Assert.That(source.Readiness.IsSettled, Is.False);
+        }
 
         scripted.WatchFor('Y').LoseChannel(new IOException("Y failed"));
         var result = await arming.WaitAsync(TestTimeouts.HangGuard);
-        Assert.That(result.Errors["Y"], Is.EqualTo("Y failed"));
-        Assert.That(source.Readiness.IsSettled, Is.True);
-        Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo(["X"]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Errors["Y"], Is.EqualTo("Y failed"));
+            Assert.That(source.Readiness.IsSettled, Is.True);
+            Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo(["X"]));
+        }
         var excluded = source.Readiness.ExcludedVolumes.Single();
-        Assert.That((excluded.Volume, excluded.ExclusionReason), Is.EqualTo(("Y", "Y failed")));
-        Assert.That(snapshots[^1], Is.SameAs(source.Readiness));
-        Assert.That(snapshots.Select(s => s.Volumes.Count), Is.All.LessThanOrEqualTo(2));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That((excluded.Volume, excluded.ExclusionReason), Is.EqualTo(("Y", "Y failed")));
+            Assert.That(snapshots[^1], Is.SameAs(source.Readiness));
+            Assert.That(snapshots.Select(s => s.Volumes.Count), Is.All.LessThanOrEqualTo(2));
+        }
     }
 
     [Test]
@@ -74,17 +89,20 @@ public class IndexVolumeChangeSourceReadinessTests
         var result = await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         // The returned retained-loss hint describes the drive after catch-up, not before watching started.
         var warning = result.JournalWarnings.Single();
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(warning.Loss, Is.SameAs(retained));
             Assert.That(warning.WatchState, Is.EqualTo(WatchState.CaughtUp));
             Assert.That(warning.Message, Does.Contain("was rescanned and the watch has caught up"));
-        });
+        }
         // No subscriber was attached during the arm: the settled state must be readable afterwards.
         var snapshot = source.Readiness;
-        Assert.That(snapshot.IsSettled, Is.True);
-        Assert.That(snapshot.Volumes.Single().State, Is.EqualTo(VolumeWatchState.CaughtUp));
-        Assert.That(snapshot.Volumes.Single().Origin, Is.EqualTo(VolumeBlockOrigin.Cold));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(snapshot.IsSettled, Is.True);
+            Assert.That(snapshot.Volumes.Single().State, Is.EqualTo(VolumeWatchState.CaughtUp));
+            Assert.That(snapshot.Volumes.Single().Origin, Is.EqualTo(VolumeBlockOrigin.Cold));
+        }
     }
 
     [Test]
@@ -101,11 +119,14 @@ public class IndexVolumeChangeSourceReadinessTests
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         var status = source.Readiness.Volumes.Single();
-        Assert.That(status.State, Is.EqualTo(VolumeWatchState.Excluded));
-        Assert.That(status.ExclusionReason, Is.EqualTo("cannot scan X"));
-        Assert.That(status.Origin, Is.EqualTo(VolumeBlockOrigin.Unknown));
-        Assert.That(source.Readiness.IsSettled, Is.True);
-        Assert.That(source.Readiness.HasCaughtUpVolume, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(status.State, Is.EqualTo(VolumeWatchState.Excluded));
+            Assert.That(status.ExclusionReason, Is.EqualTo("cannot scan X"));
+            Assert.That(status.Origin, Is.EqualTo(VolumeBlockOrigin.Unknown));
+            Assert.That(source.Readiness.IsSettled, Is.True);
+            Assert.That(source.Readiness.HasCaughtUpVolume, Is.False);
+        }
     }
 
     [Test]
@@ -117,8 +138,11 @@ public class IndexVolumeChangeSourceReadinessTests
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         var status = source.Readiness.Volumes.Single();
-        Assert.That(status.State, Is.EqualTo(VolumeWatchState.Excluded));
-        Assert.That(status.ExclusionReason, Is.EqualTo("Live watch is not supported for this drive's index."));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(status.State, Is.EqualTo(VolumeWatchState.Excluded));
+            Assert.That(status.ExclusionReason, Is.EqualTo("Live watch is not supported for this drive's index."));
+        }
     }
 
     [Test]
@@ -136,8 +160,11 @@ public class IndexVolumeChangeSourceReadinessTests
         var pending = reader.MoveNextAsync().AsTask();
         scripted.WatchFor('Y').LoseChannel(new IOException("Y died later"));
         await WaitUntilAsync(() => source.Readiness.TryGet("Y", out var y) && y.State == VolumeWatchState.Excluded);
-        Assert.That(source.Readiness.TryGet("Y", out var status) ? status.ExclusionReason : null, Is.EqualTo("Y died later"));
-        Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo(["X"]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(source.Readiness.TryGet("Y", out var status) ? status.ExclusionReason : null, Is.EqualTo("Y died later"));
+            Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo(["X"]));
+        }
         await cancellation.CancelAsync();
         try { await pending; } catch (OperationCanceledException) { }
     }
@@ -169,8 +196,11 @@ public class IndexVolumeChangeSourceReadinessTests
             scripted.WatchFor('Y').PublishCaughtUpAsync());
 
         await arming.WaitAsync(TestTimeouts.HangGuard);
-        Assert.That(snapshots[^1].IsSettled, Is.True);
-        Assert.That(snapshots[^1].CaughtUpVolumes, Is.EquivalentTo(["X", "Y"]));
-        Assert.That(snapshots[^1], Is.EqualTo(source.Readiness));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(snapshots[^1].IsSettled, Is.True);
+            Assert.That(snapshots[^1].CaughtUpVolumes, Is.EquivalentTo(["X", "Y"]));
+            Assert.That(snapshots[^1], Is.EqualTo(source.Readiness));
+        }
     }
 }

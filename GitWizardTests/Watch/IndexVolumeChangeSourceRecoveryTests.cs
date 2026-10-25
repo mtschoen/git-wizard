@@ -105,11 +105,14 @@ public class IndexVolumeChangeSourceRecoveryTests
         release.SetResult();
 
         var delivered = await deliveredAtCaughtUp.Task.WaitAsync(TestTimeouts.HangGuard);
-        Assert.That(delivered.Select(batch => batch.Volume), Is.All.EqualTo("X"));
-        Assert.That(delivered.SelectMany(batch => batch.Entries), Is.EquivalentTo([
-            new VolumeChangeEntry(@"X:\oldrepo\.git", VolumeEntryKind.Deleted),
-            new VolumeChangeEntry(@"X:\newrepo\.git", VolumeEntryKind.Created)
-        ]), "The reconciliation is delivered before the drive reads CaughtUp.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(delivered.Select(batch => batch.Volume), Is.All.EqualTo("X"));
+            Assert.That(delivered.SelectMany(batch => batch.Entries), Is.EquivalentTo([
+                new VolumeChangeEntry(@"X:\oldrepo\.git", VolumeEntryKind.Deleted),
+                new VolumeChangeEntry(@"X:\newrepo\.git", VolumeEntryKind.Created)
+            ]), "The reconciliation is delivered before the drive reads CaughtUp.");
+        }
     }
 
     [Test]
@@ -142,7 +145,7 @@ public class IndexVolumeChangeSourceRecoveryTests
 
         Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
         Assert.That(reader.Current.Entries, Is.EqualTo([
-            new VolumeChangeEntry(@"X:\newrepo\.git", VolumeEntryKind.Created)
+                new VolumeChangeEntry(@"X:\newrepo\.git", VolumeEntryKind.Created)
         ]), "The reconciliation read the block before the deletion, so it is delivered first.");
         Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
         Assert.That(reader.Current.Entries, Is.EqualTo([
@@ -202,10 +205,13 @@ public class IndexVolumeChangeSourceRecoveryTests
         releaseIssued.SetResult();
         release.SetResult();
         var result = await arming.WaitAsync(TestTimeouts.HangGuard);
-        Assert.That(await completedBeforeRelease.WaitAsync(TestTimeouts.HangGuard), Is.False,
-            "The arm must not complete before the recovery finishes.");
-        Assert.That(result.Errors, Is.Empty);
-        Assert.That(owner.Index.Drives.Single().Watch.State, Is.EqualTo(WatchState.CaughtUp));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(await completedBeforeRelease.WaitAsync(TestTimeouts.HangGuard), Is.False,
+                    "The arm must not complete before the recovery finishes.");
+            Assert.That(result.Errors, Is.Empty);
+            Assert.That(owner.Index.Drives.Single().Watch.State, Is.EqualTo(WatchState.CaughtUp));
+        }
         Assert.That(source.Readiness.TryGet("X", out var recovered), Is.True);
         Assert.That(recovered!.State, Is.EqualTo(VolumeWatchState.CaughtUp));
     }
@@ -340,7 +346,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
         Assert.That(reader.Current.Entries, Is.EquivalentTo([
             new VolumeChangeEntry(@"X:\supersededrepo\.git", VolumeEntryKind.Deleted),
-            new VolumeChangeEntry(@"X:\newrepo\.git", VolumeEntryKind.Created)
+                new VolumeChangeEntry(@"X:\newrepo\.git", VolumeEntryKind.Created)
         ]));
         await WaitForRecoveredWorkAsync(source, owner.Index);
         Assert.That(source.Readiness.TryGet("X", out var readiness), Is.True);

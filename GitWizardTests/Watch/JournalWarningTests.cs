@@ -27,8 +27,11 @@ public class JournalWarningTests
             Loss = FakeJournalSettingsSource.TrimmedLoss('C', 30L * 1024 * 1024, 60L * 1024 * 1024, allocationDelta)
         };
 
-        Assert.That(warning.HasGrowAction, Is.EqualTo(available));
-        Assert.That(warning.GrowUnavailableReason, available ? Is.Null : Is.EqualTo("The recorded journal settings do not provide a valid growth target."));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(warning.HasGrowAction, Is.EqualTo(available));
+            Assert.That(warning.GrowUnavailableReason, available ? Is.Null : Is.EqualTo("The recorded journal settings do not provide a valid growth target."));
+        }
     }
 
     [Test]
@@ -41,8 +44,11 @@ public class JournalWarningTests
             Loss = FakeJournalSettingsSource.RecreatedLoss('C', 64L * 1024 * 1024)
         };
 
-        Assert.That(warning.HasGrowAction, Is.False);
-        Assert.That(warning.GrowUnavailableReason, Does.Contain("journal was recreated"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(warning.HasGrowAction, Is.False);
+            Assert.That(warning.GrowUnavailableReason, Does.Contain("journal was recreated"));
+        }
     }
 
     [Test]
@@ -55,8 +61,11 @@ public class JournalWarningTests
             Loss = SyntheticNotifications.CreateJournalCheckpointLoss('F', JournalCheckpointLossCause.JournalAdvanced, JournalCheckpointLossDetection.DriveOpening, new UsnJournalSettings { MaximumSize = 8L * 1024 * 1024, AllocationDelta = 64 })
         };
 
-        Assert.That(warning.HasGrowAction, Is.False);
-        Assert.That(warning.GrowUnavailableReason, Is.EqualTo("The journal moved while the index was closed, so no journal size would have kept the saved position."));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(warning.HasGrowAction, Is.False);
+            Assert.That(warning.GrowUnavailableReason, Is.EqualTo("The journal moved while the index was closed, so no journal size would have kept the saved position."));
+        }
     }
 
     [Test]
@@ -69,8 +78,11 @@ public class JournalWarningTests
             Loss = SyntheticNotifications.CreateJournalCheckpointLoss('E', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.DriveOpening, new UsnJournalSettings { MaximumSize = 8L * 1024 * 1024, AllocationDelta = 64 }) with { BytesBehind = 4_000_000, SizeThatWouldHaveRetained = null }
         };
 
-        Assert.That(warning.HasGrowAction, Is.False);
-        Assert.That(warning.GrowUnavailableReason, Does.Contain("too large to represent"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(warning.HasGrowAction, Is.False);
+            Assert.That(warning.GrowUnavailableReason, Does.Contain("too large to represent"));
+        }
     }
 
     [Test]
@@ -83,7 +95,10 @@ public class JournalWarningTests
             Loss = FakeJournalSettingsSource.TrimmedLoss('C', 128L * 1024 * 1024, 128L * 1024 * 1024)
         };
 
-        Assert.That(warning.HasGrowAction, Is.False);
-        Assert.That(warning.GrowUnavailableReason, Does.Contain("already at least as large"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(warning.HasGrowAction, Is.False);
+            Assert.That(warning.GrowUnavailableReason, Does.Contain("already at least as large"));
+        }
     }
 }

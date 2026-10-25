@@ -31,13 +31,19 @@ public class RepositoryWatchServiceDiagnosticsTests
             await source.Started;
             var previous = service.ScanErrors;
             source.FailDrive("X", "watch failed");
-            Assert.That(service.ScanErrors, Does.ContainKey("X").WithValue("watch failed"));
-            Assert.That(updates[^1], Is.SameAs(service.ScanErrors));
-            Assert.That(previous, Is.Empty);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(service.ScanErrors, Does.ContainKey("X").WithValue("watch failed"));
+                Assert.That(updates[^1], Is.SameAs(service.ScanErrors));
+                Assert.That(previous, Is.Empty);
+            }
             var firstFailure = service.ScanErrors;
             source.FailDrive("X", "changed failure");
-            Assert.That(firstFailure["X"], Is.EqualTo("watch failed"));
-            Assert.That(service.ScanErrors["X"], Is.EqualTo("changed failure"));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(firstFailure["X"], Is.EqualTo("watch failed"));
+                Assert.That(service.ScanErrors["X"], Is.EqualTo("changed failure"));
+            }
             Assert.Throws<NotSupportedException>(() =>
                 ((IDictionary<string, string>)service.ScanErrors).Add("Z", "mutation"));
             source.Publish(new VolumeChangeBatch("Y",
@@ -79,17 +85,23 @@ public class RepositoryWatchServiceDiagnosticsTests
         try
         {
             await source.Started;
-            Assert.That(service.ScanWarnings.Single().Loss, Is.SameAs(armLoss));
-            Assert.That(notifications, Is.EqualTo(1));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(service.ScanWarnings.Single().Loss, Is.SameAs(armLoss));
+                Assert.That(notifications, Is.EqualTo(1));
+            }
 
             var liveLoss = FakeJournalSettingsSource.TrimmedLoss('X', 30L * 1024 * 1024, 60L * 1024 * 1024,
                 10L * 1024 * 1024, JournalCheckpointLossDetection.LiveWatch);
             source.RaiseJournalWarning(new JournalWarning { DriveLetter = "x", VolumeSerial = 12345, Loss = liveLoss });
 
-            // The live report is the newer fact about the same drive, so it replaces the
-            // arm-time one instead of sitting beside it, matched case-insensitively.
-            Assert.That(service.ScanWarnings.Single().Loss, Is.SameAs(liveLoss));
-            Assert.That(notifications, Is.EqualTo(2));
+            using (Assert.EnterMultipleScope())
+            {
+                // The live report is the newer fact about the same drive, so it replaces the
+                // arm-time one instead of sitting beside it, matched case-insensitively.
+                Assert.That(service.ScanWarnings.Single().Loss, Is.SameAs(liveLoss));
+                Assert.That(notifications, Is.EqualTo(2));
+            }
         }
         finally
         {
@@ -243,8 +255,11 @@ public class RepositoryWatchServiceDiagnosticsTests
 
         var hasNext = await moveNextTask;
 
-        Assert.That(reason, Is.EqualTo("volume unmounted"));
-        Assert.That(hasNext, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(reason, Is.EqualTo("volume unmounted"));
+            Assert.That(hasNext, Is.False);
+        }
     }
 
     [Test]

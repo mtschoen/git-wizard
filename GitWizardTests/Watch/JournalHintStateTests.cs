@@ -115,9 +115,12 @@ public class JournalHintStateTests
             var loss = CreateLoss(cause, JournalCheckpointLossDetection.DriveOpening);
             var recovering = JournalHintBuilder.BuildHint(loss, WatchState.Recovering, false);
 
-            Assert.That(JournalHintBuilder.BuildHint(loss, null, false), Is.EqualTo(recovering));
-            Assert.That(JournalHintBuilder.BuildHint(loss, WatchState.CaughtUp, true), Is.EqualTo(recovering));
-            Assert.That(recovering, Does.Not.Contain(RescanInProgress));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(JournalHintBuilder.BuildHint(loss, null, false), Is.EqualTo(recovering));
+                Assert.That(JournalHintBuilder.BuildHint(loss, WatchState.CaughtUp, true), Is.EqualTo(recovering));
+                Assert.That(recovering, Does.Not.Contain(RescanInProgress));
+            }
         }
     }
 
@@ -130,8 +133,11 @@ public class JournalHintStateTests
         var stopped = recovering with { IsRecoveryStopped = true };
         var unknown = new JournalWarning { DriveLetter = "D", VolumeSerial = 1, Loss = loss };
 
-        Assert.That(recovering.Message, Does.Contain(RescanInProgress));
-        Assert.That(stopped.Message, Does.Contain(RecoveryStopped));
-        Assert.That(unknown.Message, Does.Contain(StateUnknown));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(recovering.Message, Does.Contain(RescanInProgress));
+            Assert.That(stopped.Message, Does.Contain(RecoveryStopped));
+            Assert.That(unknown.Message, Does.Contain(StateUnknown));
+        }
     }
 }

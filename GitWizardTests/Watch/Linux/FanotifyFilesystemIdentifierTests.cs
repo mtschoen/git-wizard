@@ -79,7 +79,7 @@ public class FanotifyFilesystemIdentifierTests
 
         var entries = await ReadEntriesAsync(source, 2);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(entries.Select(entry => entry.FullPath), Is.EqualTo([
                 Path.Combine("/first/dir", "a.txt"), Path.Combine("/second/dir", "a.txt")
@@ -87,7 +87,7 @@ public class FanotifyFilesystemIdentifierTests
             Assert.That(_native.OpenByHandleRoots, Is.EqualTo([_firstRoot, _secondRoot]));
             Assert.That(_native.OpenByHandleCalls.Select(call => call.MountDescriptor),
                 Does.Not.Contain(FanotifyConstants.CurrentWorkingDirectory));
-        });
+        }
     }
 
     [Test]
@@ -104,14 +104,14 @@ public class FanotifyFilesystemIdentifierTests
 
         var entries = await ReadEntriesAsync(source, 4);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(entries.Select(entry => entry.FullPath), Is.EqualTo([
                 Path.Combine("/first/dir", "a.txt"), Path.Combine("/second/dir", "a.txt"),
                 Path.Combine("/second/dir", "b.txt"), Path.Combine("/first/dir", "b.txt")
             ]));
             Assert.That(_native.OpenByHandleCalls, Has.Count.EqualTo(2), "The third read is served from the cache.");
-        });
+        }
     }
 
     [Test]
@@ -126,11 +126,11 @@ public class FanotifyFilesystemIdentifierTests
 
         var entries = await ReadEntriesAsync(source, 1, timeoutSeconds: 1);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(entries.Select(entry => entry.FullPath), Is.EqualTo([Path.Combine("/first/dir", "kept.txt")]));
             Assert.That(_native.OpenByHandleCalls, Has.Count.EqualTo(1));
-        });
+        }
     }
 
     [Test]
@@ -146,14 +146,14 @@ public class FanotifyFilesystemIdentifierTests
         var openAfterArming = _native.OpenMountDescriptors.ToList();
         var entries = await ReadEntriesAsync(source, 2);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.Errors, Is.Empty);
             Assert.That(openAfterArming, Is.Empty, "arming validates each root and closes its descriptor");
             Assert.That(entries, Has.Count.EqualTo(2));
             Assert.That(_native.OpenedDirectories, Has.Count.GreaterThan(2), "the batch opened its own descriptors");
             Assert.That(_native.OpenMountDescriptors, Is.Empty, "the batch closed every descriptor it opened");
-        });
+        }
     }
 
     [Test]
@@ -179,11 +179,11 @@ public class FanotifyFilesystemIdentifierTests
 
         await source.ArmAndCatchUpAsync([_firstRoot], CancellationToken.None);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(_native.OpenedDirectories, Has.Count.EqualTo(2));
             Assert.That(_native.OpenMountDescriptors, Is.Empty);
-        });
+        }
     }
 
     [TestCase(false)]
@@ -200,13 +200,13 @@ public class FanotifyFilesystemIdentifierTests
         var result = await source.ArmAndCatchUpAsync(
             initializeFails ? new[] { _secondRoot } : Array.Empty<string>(), CancellationToken.None);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(_native.ClosedDescriptors, Does.Contain(7));
             Assert.That(_native.OpenMountDescriptors, Is.Empty);
             Assert.That(result.Errors, Has.Count.EqualTo(initializeFails ? 1 : 0));
             Assert.That(source.Readiness.Volumes.Select(volume => volume.Volume), Does.Not.Contain(_firstRoot));
-        });
+        }
         Assert.ThrowsAsync<InvalidOperationException>(async () =>
         {
             await foreach (var batch in source.WatchAsync(CancellationToken.None))
@@ -230,14 +230,14 @@ public class FanotifyFilesystemIdentifierTests
         _native.ReadQueue.Enqueue(CreateEvents((FirstFilesystem, directory, "after.txt")));
         delivered.AddRange((await ReadEntriesAsync(source, 1)).Select(entry => entry.FullPath));
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(delivered, Is.EqualTo([
                 Path.Combine(_firstRoot, "dir", "before.txt"), Path.Combine(_siblingRoot, "dir", "after.txt")
             ]), "a handle seen before the detach resolves again through the surviving mount, not from the cache");
             Assert.That(_native.OpenByHandleRoots, Is.EqualTo([_firstRoot, _siblingRoot]));
             Assert.That(_native.OpenMountDescriptors, Is.Empty);
-        });
+        }
     }
 
     [Test]
@@ -257,14 +257,14 @@ public class FanotifyFilesystemIdentifierTests
         _native.ReadQueue.Enqueue(CreateEvents((FirstFilesystem, directory, "after.txt")));
         delivered.AddRange((await ReadEntriesAsync(source, 1)).Select(entry => entry.FullPath));
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(delivered, Is.EqualTo([
                 Path.Combine(_firstRoot, "dir", "before.txt"), Path.Combine(_firstRoot, "dir", "after.txt")
             ]));
             Assert.That(_native.OpenByHandleRoots, Has.Count.EqualTo(2), "the remounted filesystem resolves afresh");
             Assert.That(_native.OpenMountDescriptors, Is.Empty);
-        });
+        }
     }
 
     [Test]
@@ -285,14 +285,14 @@ public class FanotifyFilesystemIdentifierTests
 
         delivered.AddRange((await ReadEntriesAsync(source, 1)).Select(entry => entry.FullPath));
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(delivered, Is.EqualTo([
                 Path.Combine("/first/dir", "a.txt"), Path.Combine("/second/dir", "a.txt"),
                 Path.Combine("/second/dir", "b.txt")
             ]));
             Assert.That(_native.OpenMountDescriptors, Is.Empty);
-        });
+        }
     }
 
     public enum StaleRootScenario
@@ -370,11 +370,11 @@ public class FanotifyFilesystemIdentifierTests
             expected.Add(Path.Combine("/later/dir", "c.txt"));
         }
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(delivered, Is.EqualTo(expected));
             Assert.That(_native.OpenMountDescriptors, Is.Empty);
-        });
+        }
     }
 
     void ApplyScenario(StaleRootScenario scenario)
@@ -440,10 +440,10 @@ public class FanotifyFilesystemIdentifierTests
 
         var entries = await ReadEntriesAsync(source, 1, timeoutSeconds: 1);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(entries, Is.Empty);
             Assert.That(_native.OpenMountDescriptors, Is.Empty);
-        });
+        }
     }
 }

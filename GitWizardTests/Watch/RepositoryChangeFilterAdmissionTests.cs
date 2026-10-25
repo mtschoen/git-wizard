@@ -88,8 +88,11 @@ public class RepositoryChangeFilterAdmissionTests
 
         var result = filter.Classify([Created(Path.Combine(trackedTempRepo, ".git"))]);
 
-        Assert.That(result.Changed, Is.Empty);
-        Assert.That(result.Created, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Changed, Is.Empty);
+            Assert.That(result.Created, Is.Empty);
+        }
     }
 
     [Test]

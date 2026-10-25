@@ -57,15 +57,21 @@ public class RepositoryWatchServiceReadinessTests
         source.SetVolume(VolumeWatchStatus.CatchingUp("X", VolumeBlockOrigin.Warm));
         source.SetVolume(VolumeWatchStatus.CatchingUp("Y", VolumeBlockOrigin.Cold));
         source.SetVolume(VolumeWatchStatus.CaughtUp("X", VolumeBlockOrigin.Warm));
-        Assert.That(run.Ready, Is.Empty, "Y is still catching up.");
-        Assert.That(service.Readiness, Is.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(run.Ready, Is.Empty, "Y is still catching up.");
+            Assert.That(service.Readiness, Is.Null);
+        }
 
         source.SetVolume(VolumeWatchStatus.CaughtUp("Y", VolumeBlockOrigin.Cold));
         Assert.That(run.Ready, Has.Count.EqualTo(1));
-        Assert.That(run.Ready[0].Mode, Is.EqualTo(WatchReadinessMode.JournalBacklog));
-        Assert.That(run.Ready[0].CaughtUpVolumes, Is.EquivalentTo(["X", "Y"]));
-        Assert.That(run.Ready[0].ExcludedVolumes, Is.Empty);
-        Assert.That(service.Readiness, Is.SameAs(run.Ready[0]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(run.Ready[0].Mode, Is.EqualTo(WatchReadinessMode.JournalBacklog));
+            Assert.That(run.Ready[0].CaughtUpVolumes, Is.EquivalentTo(["X", "Y"]));
+            Assert.That(run.Ready[0].ExcludedVolumes, Is.Empty);
+            Assert.That(service.Readiness, Is.SameAs(run.Ready[0]));
+        }
 
         // Later recovery or fault changes per-drive state without a second marker.
         source.SetVolume(VolumeWatchStatus.Excluded("Y", VolumeBlockOrigin.Cold, "Y faulted later"));
@@ -85,8 +91,11 @@ public class RepositoryWatchServiceReadinessTests
         Assert.That(run.Ready, Is.Empty);
         source.SetVolume(VolumeWatchStatus.CaughtUp("X", VolumeBlockOrigin.Warm));
         Assert.That(run.Ready, Has.Count.EqualTo(1));
-        Assert.That(run.Ready[0].CaughtUpVolumes, Is.EqualTo(["X"]));
-        Assert.That(run.Ready[0].ExcludedVolumes.Single().ExclusionReason, Is.EqualTo("Drive is Offline."));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(run.Ready[0].CaughtUpVolumes, Is.EqualTo(["X"]));
+            Assert.That(run.Ready[0].ExcludedVolumes.Single().ExclusionReason, Is.EqualTo("Drive is Offline."));
+        }
     }
 
     [Test]
@@ -97,9 +106,12 @@ public class RepositoryWatchServiceReadinessTests
         var service = new RepositoryWatchService(source, [@"X:\repo"], [], TimeSpan.Zero);
         await using var run = Run.Start(service);
         await WaitUntilAsync(() => run.Ready.Count == 1);
-        Assert.That(run.Snapshots[0].Volumes.Single().State, Is.EqualTo(VolumeWatchState.CaughtUp),
-            "The snapshot read at subscribe time must be forwarded.");
-        Assert.That(run.Ready[0].CaughtUpVolumes, Is.EqualTo(["X"]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(run.Snapshots[0].Volumes.Single().State, Is.EqualTo(VolumeWatchState.CaughtUp),
+                    "The snapshot read at subscribe time must be forwarded.");
+            Assert.That(run.Ready[0].CaughtUpVolumes, Is.EqualTo(["X"]));
+        }
     }
 
     [Test]
@@ -125,8 +137,11 @@ public class RepositoryWatchServiceReadinessTests
             }
         });
         await pump;
-        Assert.That(order, Is.EqualTo(["ready", "Changed"]).Or.EqualTo(new[] { "Changed", "ready" }));
-        Assert.That(service.Readiness, Is.Not.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(order, Is.EqualTo(["ready", "Changed"]).Or.EqualTo(new[] { "Changed", "ready" }));
+            Assert.That(service.Readiness, Is.Not.Null);
+        }
         // The fence is set on the pump after the startup flush and before the live loop; the
         // consumer may observe the replayed event first, so the order above is either, but the
         // marker must exist exactly once and only after the flush completed.
@@ -141,8 +156,11 @@ public class RepositoryWatchServiceReadinessTests
         await using var run = Run.Start(service);
         await WaitUntilAsync(() => run.StartedRaised);
         source.SetVolume(VolumeWatchStatus.Excluded("X", VolumeBlockOrigin.Unknown, "cannot scan X"));
-        Assert.That(source.Readiness.IsSettled, Is.True);
-        Assert.That(run.Ready, Is.Empty, "A settled snapshot with no caught-up drive is not ready.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(source.Readiness.IsSettled, Is.True);
+            Assert.That(run.Ready, Is.Empty, "A settled snapshot with no caught-up drive is not ready.");
+        }
         source.KillSource("No requested drives could be watched.");
         await WaitUntilAsync(() => run.Stopped.Count == 1);
         Assert.That(run.Ready, Is.Empty);
@@ -160,8 +178,11 @@ public class RepositoryWatchServiceReadinessTests
         await cancellation.CancelAsync();
         await run.Pump;
         source.SetVolume(VolumeWatchStatus.CaughtUp("X", VolumeBlockOrigin.Warm));
-        Assert.That(run.Ready, Is.Empty);
-        Assert.That(source.ReadinessSubscribers, Is.Zero, "RunAsync must detach on exit.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(run.Ready, Is.Empty);
+            Assert.That(source.ReadinessSubscribers, Is.Zero, "RunAsync must detach on exit.");
+        }
     }
 
     [Test]
@@ -188,8 +209,11 @@ public class RepositoryWatchServiceReadinessTests
         source.Fail(new InvalidOperationException("subscriber failed"));
         await WaitUntilAsync(() => run.Pump.IsCompleted);
         source.SetVolume(VolumeWatchStatus.CaughtUp("X", VolumeBlockOrigin.Warm));
-        Assert.That(run.Ready, Is.Empty);
-        Assert.That(run.Pump.IsFaulted, Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(run.Ready, Is.Empty);
+            Assert.That(run.Pump.IsFaulted, Is.True);
+        }
         Assert.That(run.Pump.Exception!.InnerException, Is.TypeOf<InvalidOperationException>());
     }
 
@@ -208,8 +232,11 @@ public class RepositoryWatchServiceReadinessTests
         using var cancellation = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         await foreach (var _ in service.RunAsync(cancellation.Token)) { }
         Assert.That(readiness, Is.Not.Null);
-        Assert.That(readiness!.Mode, Is.EqualTo(WatchReadinessMode.PumpActive));
-        Assert.That(readiness.CaughtUpVolumes, Is.EqualTo(["C"]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(readiness!.Mode, Is.EqualTo(WatchReadinessMode.PumpActive));
+            Assert.That(readiness.CaughtUpVolumes, Is.EqualTo(["C"]));
+        }
     }
 
     [Test]
@@ -236,9 +263,12 @@ public class RepositoryWatchServiceReadinessTests
         var service = new RepositoryWatchService(source, [@"X:\repo"], [], TimeSpan.Zero);
         var run = Run.Start(service);
         await WaitUntilAsync(() => run.Pump.IsCompleted);
-        Assert.That(run.Ready, Is.Empty);
-        Assert.That(service.Readiness, Is.Null);
-        Assert.That(run.Pump.IsFaulted, Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(run.Ready, Is.Empty);
+            Assert.That(service.Readiness, Is.Null);
+            Assert.That(run.Pump.IsFaulted, Is.True);
+        }
     }
 
     [Test]
@@ -270,8 +300,11 @@ public class RepositoryWatchServiceReadinessTests
         await source.Started.WaitAsync(TestTimeouts.ShortHangGuard);
         source.SignalPumpStarted();
         await WaitUntilAsync(() => run.Pump.IsCompleted);
-        Assert.That(run.Ready, Is.Empty, "The first read already ended the stream; that is source death, not readiness.");
-        Assert.That(run.Pump.IsFaulted, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(run.Ready, Is.Empty, "The first read already ended the stream; that is source death, not readiness.");
+            Assert.That(run.Pump.IsFaulted, Is.False);
+        }
     }
 
     [Test]
@@ -299,8 +332,11 @@ public class RepositoryWatchServiceReadinessTests
         source.SetSnapshot(latestSnapshot);
 
         await WaitUntilAsync(() => run.Ready.Count == 1);
-        Assert.That(run.Ready, Has.Count.EqualTo(1));
-        Assert.That(run.Snapshots[^1].RecentTransitions.Select(t => t.State),
-            Is.EqualTo(["Faulted", "Recovering", "CatchingUp", "CaughtUp"]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(run.Ready, Has.Count.EqualTo(1));
+            Assert.That(run.Snapshots[^1].RecentTransitions.Select(t => t.State),
+                Is.EqualTo(["Faulted", "Recovering", "CatchingUp", "CaughtUp"]));
+        }
     }
 }

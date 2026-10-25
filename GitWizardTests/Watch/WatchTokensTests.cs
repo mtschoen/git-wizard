@@ -68,8 +68,11 @@ public class WatchTokensTests
     [Test]
     public void Humanize_ReplacesHyphensWithSpaces()
     {
-        Assert.That(VolumeWatchState.CatchingUp.Token().Humanize(), Is.EqualTo("catching up"));
-        Assert.That(VolumeWatchState.CaughtUp.Token().Humanize(), Is.EqualTo("caught up"));
-        Assert.That(VolumeBlockOrigin.Warm.Token().Humanize(), Is.EqualTo("warm"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(VolumeWatchState.CatchingUp.Token().Humanize(), Is.EqualTo("catching up"));
+            Assert.That(VolumeWatchState.CaughtUp.Token().Humanize(), Is.EqualTo("caught up"));
+            Assert.That(VolumeBlockOrigin.Warm.Token().Humanize(), Is.EqualTo("warm"));
+        }
     }
 }

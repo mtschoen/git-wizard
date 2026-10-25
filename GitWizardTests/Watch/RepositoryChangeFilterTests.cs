@@ -20,9 +20,12 @@ public class RepositoryChangeFilterTests
 
         var result = filter.Classify([MovedIn(Path.Combine(RepoRoot, "src-renamed"))]);
 
-        Assert.That(result.Changed, Is.EquivalentTo([RepoRoot]));
-        Assert.That(result.MovedInCandidates, Is.Empty);
-        Assert.That(result.Created, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Changed, Is.EquivalentTo([RepoRoot]));
+            Assert.That(result.MovedInCandidates, Is.Empty);
+            Assert.That(result.Created, Is.Empty);
+        }
     }
 
     [Test]
@@ -32,10 +35,13 @@ public class RepositoryChangeFilterTests
 
         var result = filter.Classify([MovedIn(@"C:\repos\repo-renamed")]);
 
-        Assert.That(result.MovedInCandidates, Is.EquivalentTo([@"C:\repos\repo-renamed"]));
-        Assert.That(result.Changed, Is.Empty);
-        Assert.That(result.Created, Is.Empty);
-        Assert.That(result.Deleted, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.MovedInCandidates, Is.EquivalentTo([@"C:\repos\repo-renamed"]));
+            Assert.That(result.Changed, Is.Empty);
+            Assert.That(result.Created, Is.Empty);
+            Assert.That(result.Deleted, Is.Empty);
+        }
     }
 
     [Test]
@@ -65,9 +71,12 @@ public class RepositoryChangeFilterTests
 
         var result = filter.Classify([Modified(Path.Combine(RepoRoot, "index.lock"))]);
 
-        Assert.That(result.Changed, Is.EquivalentTo([RepoRoot]));
-        Assert.That(result.Created, Is.Empty);
-        Assert.That(result.Deleted, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Changed, Is.EquivalentTo([RepoRoot]));
+            Assert.That(result.Created, Is.Empty);
+            Assert.That(result.Deleted, Is.Empty);
+        }
     }
 
     [Test]
@@ -77,9 +86,12 @@ public class RepositoryChangeFilterTests
 
         var result = filter.Classify([Created(Path.Combine(RepoRoot, "test.txt"))]);
 
-        Assert.That(result.Changed, Is.EquivalentTo([RepoRoot]));
-        Assert.That(result.Created, Is.Empty);
-        Assert.That(result.Deleted, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Changed, Is.EquivalentTo([RepoRoot]));
+            Assert.That(result.Created, Is.Empty);
+            Assert.That(result.Deleted, Is.Empty);
+        }
     }
 
     [Test]
@@ -89,9 +101,12 @@ public class RepositoryChangeFilterTests
 
         var result = filter.Classify([Deleted(Path.Combine(RepoRoot, "test.txt"))]);
 
-        Assert.That(result.Changed, Is.EquivalentTo([RepoRoot]));
-        Assert.That(result.Created, Is.Empty);
-        Assert.That(result.Deleted, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Changed, Is.EquivalentTo([RepoRoot]));
+            Assert.That(result.Created, Is.Empty);
+            Assert.That(result.Deleted, Is.Empty);
+        }
     }
 
     [Test]
@@ -103,9 +118,12 @@ public class RepositoryChangeFilterTests
 
         var result = filter.Classify([Created(newRepoGitPath)]);
 
-        Assert.That(result.Created, Is.EquivalentTo([@"C:\repos\new-repo"]));
-        Assert.That(result.Changed, Is.Empty);
-        Assert.That(result.Deleted, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Created, Is.EquivalentTo([@"C:\repos\new-repo"]));
+            Assert.That(result.Changed, Is.Empty);
+            Assert.That(result.Deleted, Is.Empty);
+        }
     }
 
     [Test]
@@ -168,9 +186,12 @@ public class RepositoryChangeFilterTests
 
         var result = filter.Classify([Deleted(Path.Combine(RepoRoot, ".git"))]);
 
-        Assert.That(result.Deleted, Is.EquivalentTo([RepoRoot]));
-        Assert.That(result.Changed, Is.Empty);
-        Assert.That(result.Created, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Deleted, Is.EquivalentTo([RepoRoot]));
+            Assert.That(result.Changed, Is.Empty);
+            Assert.That(result.Created, Is.Empty);
+        }
     }
 
     [Test]
@@ -209,9 +230,12 @@ public class RepositoryChangeFilterTests
                 Deleted(@"C:\repos\gone-repo\.git"),
             ]);
 
-        Assert.That(result.Changed, Is.EquivalentTo([trackedRoot]));
-        Assert.That(result.Created, Is.EquivalentTo([newRoot]));
-        Assert.That(result.Deleted, Is.EquivalentTo([deletedRoot]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Changed, Is.EquivalentTo([trackedRoot]));
+            Assert.That(result.Created, Is.EquivalentTo([newRoot]));
+            Assert.That(result.Deleted, Is.EquivalentTo([deletedRoot]));
+        }
     }
 
     [Test]
@@ -222,9 +246,12 @@ public class RepositoryChangeFilterTests
 
         var result = filter.Classify([MovedIn(@"C:\repos\new-repo\.git")]);
 
-        Assert.That(result.MovedInCandidates, Is.EquivalentTo([@"C:\repos\new-repo"]));
-        Assert.That(result.Created, Is.Empty);
-        Assert.That(result.Changed, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.MovedInCandidates, Is.EquivalentTo([@"C:\repos\new-repo"]));
+            Assert.That(result.Created, Is.Empty);
+            Assert.That(result.Changed, Is.Empty);
+        }
     }
 
     [Test]
@@ -252,9 +279,12 @@ public class RepositoryChangeFilterTests
 
         var result = filter.Classify([MovedIn(Path.Combine(RepoRoot, ".git"))]);
 
-        Assert.That(result.Changed, Is.EquivalentTo([RepoRoot]));
-        Assert.That(result.MovedInCandidates, Is.Empty);
-        Assert.That(result.Created, Is.Empty);
-        Assert.That(result.Deleted, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Changed, Is.EquivalentTo([RepoRoot]));
+            Assert.That(result.MovedInCandidates, Is.Empty);
+            Assert.That(result.Created, Is.Empty);
+            Assert.That(result.Deleted, Is.Empty);
+        }
     }
 }

@@ -23,13 +23,13 @@ public class FanotifyInteropTests
     [Test]
     public void ProbeFlags_MatchLinuxUapiValues()
     {
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(FanotifyConstants.ReportDirectoryFileIdAndName, Is.EqualTo(0x00000c00));
             Assert.That(FanotifyConstants.MarkFilesystem, Is.EqualTo(0x00000100));
             Assert.That(FanotifyConstants.ProbeEventMask, Is.EqualTo(0x400003c2));
             Assert.That(FanotifyConstants.CurrentWorkingDirectory, Is.EqualTo(-100));
-        });
+        }
     }
 
     [Test]
@@ -40,12 +40,12 @@ public class FanotifyInteropTests
 
         Assert.Throws<ArgumentException>(() => probe.Probe(" "));
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(native.InitializeCallCount, Is.Zero);
             Assert.That(native.MarkCalls, Is.Empty);
             Assert.That(native.ClosedDescriptors, Is.Empty);
-        });
+        }
     }
 
     [Test]
@@ -61,13 +61,13 @@ public class FanotifyInteropTests
 
             var exception = Assert.Throws<ArgumentException>(() => probe.Probe(filePath));
 
-            Assert.Multiple(() =>
+            using (Assert.EnterMultipleScope())
             {
                 Assert.That(exception.ParamName, Is.EqualTo("path"));
                 Assert.That(native.InitializeCallCount, Is.Zero);
                 Assert.That(native.MarkCalls, Is.Empty);
                 Assert.That(native.ClosedDescriptors, Is.Empty);
-            });
+            }
         }
         finally
         {
@@ -85,13 +85,13 @@ public class FanotifyInteropTests
 
         var exception = Assert.Throws<ArgumentException>(() => probe.Probe(missingPath));
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(exception.ParamName, Is.EqualTo("path"));
             Assert.That(native.InitializeCallCount, Is.Zero);
             Assert.That(native.MarkCalls, Is.Empty);
             Assert.That(native.ClosedDescriptors, Is.Empty);
-        });
+        }
     }
 
     [Test]
@@ -138,12 +138,12 @@ public class FanotifyInteropTests
 
         var result = probe.Probe(ExistingDirectoryPath);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.Status, Is.EqualTo(FanotifyCapabilityStatus.Available));
             Assert.That(native.MarkCalls, Has.Count.EqualTo(2));
             Assert.That(native.ClosedDescriptors, Is.EqualTo([0]));
-        });
+        }
     }
 
     [TestCase(NotPermitted, FanotifyCapabilityStatus.RequiresElevation, true, true)]
@@ -160,7 +160,7 @@ public class FanotifyInteropTests
 
         var result = probe.Probe(ExistingDirectoryPath);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.Status, Is.EqualTo(expectedStatus));
             Assert.That(result.IsSupported, Is.EqualTo(expectedSupported));
@@ -168,7 +168,7 @@ public class FanotifyInteropTests
             Assert.That(result.ErrorNumber, Is.EqualTo(errorNumber));
             Assert.That(native.MarkCalls, Is.Empty);
             Assert.That(native.ClosedDescriptors, Is.Empty);
-        });
+        }
     }
 
     [TestCase(NotPermitted, FanotifyCapabilityStatus.RequiresElevation, true, true)]
@@ -187,7 +187,7 @@ public class FanotifyInteropTests
 
         var result = probe.Probe(ExistingDirectoryPath);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.Status, Is.EqualTo(expectedStatus));
             Assert.That(result.IsSupported, Is.EqualTo(expectedSupported));
@@ -195,7 +195,7 @@ public class FanotifyInteropTests
             Assert.That(result.ErrorNumber, Is.EqualTo(errorNumber));
             Assert.That(native.MarkCalls, Has.Count.EqualTo(1));
             Assert.That(native.ClosedDescriptors, Is.EqualTo([7]));
-        });
+        }
     }
 
     [Test]
@@ -206,12 +206,12 @@ public class FanotifyInteropTests
 
         var exception = Assert.Throws<Win32Exception>(() => probe.Probe(ExistingDirectoryPath));
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(exception.NativeErrorCode, Is.EqualTo(12));
             Assert.That(native.MarkCalls, Is.Empty);
             Assert.That(native.ClosedDescriptors, Is.Empty);
-        });
+        }
     }
 
     [Test]
@@ -222,12 +222,12 @@ public class FanotifyInteropTests
 
         var exception = Assert.Throws<Win32Exception>(() => probe.Probe(ExistingDirectoryPath));
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(exception.NativeErrorCode, Is.EqualTo(28));
             Assert.That(native.MarkCalls, Has.Count.EqualTo(1));
             Assert.That(native.ClosedDescriptors, Is.EqualTo([9]));
-        });
+        }
     }
 
     [Test]
@@ -241,12 +241,12 @@ public class FanotifyInteropTests
 
         var exception = Assert.Throws<Win32Exception>(() => probe.Probe(ExistingDirectoryPath));
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(exception.NativeErrorCode, Is.EqualTo(5));
             Assert.That(native.MarkCalls, Has.Count.EqualTo(2));
             Assert.That(native.ClosedDescriptors, Is.EqualTo([11]));
-        });
+        }
     }
 
     [Test]

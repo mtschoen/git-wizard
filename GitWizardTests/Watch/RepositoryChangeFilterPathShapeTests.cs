@@ -135,10 +135,13 @@ public class RepositoryChangeFilterPathShapeTests
 
         var result = filter.Classify([Deleted(repoRoot), MovedIn(@"C:\repos\Repo-A")]);
 
-        Assert.That(result.Deleted, Is.EquivalentTo([repoRoot]));
-        Assert.That(result.MovedInCandidates, Is.EquivalentTo([@"C:\repos\Repo-A"]));
-        Assert.That(result.Changed, Is.Empty);
-        Assert.That(result.Created, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Deleted, Is.EquivalentTo([repoRoot]));
+            Assert.That(result.MovedInCandidates, Is.EquivalentTo([@"C:\repos\Repo-A"]));
+            Assert.That(result.Changed, Is.Empty);
+            Assert.That(result.Created, Is.Empty);
+        }
     }
 
     [Test]
@@ -149,8 +152,11 @@ public class RepositoryChangeFilterPathShapeTests
 
         var result = filter.Classify([MovedIn(@"D:\repos\Repo-A")]);
 
-        Assert.That(result.MovedInCandidates, Is.EquivalentTo([@"D:\repos\Repo-A"]));
-        Assert.That(result.Changed, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.MovedInCandidates, Is.EquivalentTo([@"D:\repos\Repo-A"]));
+            Assert.That(result.Changed, Is.Empty);
+        }
     }
 
     [Test]

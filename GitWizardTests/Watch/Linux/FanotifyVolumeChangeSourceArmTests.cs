@@ -49,11 +49,11 @@ public class FanotifyVolumeChangeSourceArmTests
 
         var result = await source.ArmAndCatchUpAsync(Array.Empty<string>(), CancellationToken.None);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.Errors, Is.Empty);
             Assert.That(native.InitializeCallCount, Is.Zero);
-        });
+        }
     }
 
     [Test]
@@ -158,11 +158,11 @@ public class FanotifyVolumeChangeSourceArmTests
         native.InitializeResult = new FanotifyNativeCallResult(102, 0);
         await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(native.ClosedDescriptors, Does.Contain(101));
             Assert.That(native.MarkCalls, Has.Count.EqualTo(2));
-        });
+        }
     }
 
     [Test]
@@ -187,12 +187,18 @@ public class FanotifyVolumeChangeSourceArmTests
         Assert.That(source.Mode, Is.EqualTo(WatchReadinessMode.FilesystemMarks));
 
         var result = await source.ArmAndCatchUpAsync([okPath, brokenPath], CancellationToken.None);
-        Assert.That(source.Readiness.IsSettled, Is.True);
-        Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo([okPath]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(source.Readiness.IsSettled, Is.True);
+            Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo([okPath]));
+        }
         var excluded = source.Readiness.ExcludedVolumes.Single();
-        Assert.That(excluded.Volume, Is.EqualTo(brokenPath));
-        Assert.That(excluded.ExclusionReason, Is.EqualTo(result.Errors[brokenPath]));
-        Assert.That(snapshots, Has.Count.EqualTo(2));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(excluded.Volume, Is.EqualTo(brokenPath));
+            Assert.That(excluded.ExclusionReason, Is.EqualTo(result.Errors[brokenPath]));
+            Assert.That(snapshots, Has.Count.EqualTo(2));
+        }
     }
     [Test]
     public void WatchAsync_BeforeArm_ThrowsInvalidOperationException()
@@ -223,9 +229,12 @@ public class FanotifyVolumeChangeSourceArmTests
             batches.Add(batch);
         }
 
-        Assert.That(batches, Is.Empty);
-        Assert.That(source.PumpStarted.IsCompleted, Is.False,
-            "No usable volumes means PumpEventsAsync never ran; a consumer waiting on PumpStarted must not be told it did.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(batches, Is.Empty);
+            Assert.That(source.PumpStarted.IsCompleted, Is.False,
+                "No usable volumes means PumpEventsAsync never ran; a consumer waiting on PumpStarted must not be told it did.");
+        }
     }
 
 }

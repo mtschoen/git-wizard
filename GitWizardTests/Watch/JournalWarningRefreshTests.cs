@@ -73,14 +73,14 @@ public class JournalWarningRefreshTests
 
         await WaitUntilAsync(() => harness.Warnings.Any(warning => warning.WatchState == WatchState.CaughtUp));
         var warnings = harness.Warnings;
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(warnings[0].Message, Does.Contain(RescanInProgress));
             Assert.That(warnings[^1].Message, Does.Contain(RescanFinished));
             Assert.That(warnings[^1].Message, Does.Not.Contain(RescanInProgress));
             Assert.That(warnings.Select(warning => warning.Loss).Distinct().Count(), Is.EqualTo(1),
                 "a refreshed warning stays the same episode");
-        });
+        }
     }
 
     [Test]
@@ -105,12 +105,12 @@ public class JournalWarningRefreshTests
 
         await WaitUntilAsync(() => harness.Warnings.Any(warning => warning.IsRecoveryStopped));
         var warnings = harness.Warnings;
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(warnings[^1].Message, Does.Contain(RecoveryStopped));
             Assert.That(warnings[^1].Message, Does.Not.Contain(RescanInProgress));
             Assert.That(warnings.Select(warning => warning.Loss).Distinct().Count(), Is.EqualTo(1));
-        });
+        }
     }
 
     [Test]
@@ -123,11 +123,11 @@ public class JournalWarningRefreshTests
         var armResult = await harness.ArmAsync();
 
         var warning = armResult.JournalWarnings.Single();
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(warning.WatchState, Is.EqualTo(WatchState.CaughtUp));
             Assert.That(warning.Message, Does.Contain(RescanFinished));
-        });
+        }
     }
 
     [Test]

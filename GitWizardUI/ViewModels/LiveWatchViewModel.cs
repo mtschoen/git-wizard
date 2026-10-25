@@ -30,6 +30,7 @@ public sealed partial class LiveWatchViewModel : INotifyPropertyChanged, IAsyncD
     readonly ScanErrorChangeFilter _reportedLiveScanErrors = new();
     readonly HashSet<string> _inFlightLiveRefreshes = new(StringComparer.OrdinalIgnoreCase);
     long _liveEventSequenceNumber;
+    long _liveRunSequenceNumber;
     bool _isLive;
     bool _isLiveStarting;
 
@@ -70,6 +71,7 @@ public sealed partial class LiveWatchViewModel : INotifyPropertyChanged, IAsyncD
             if (_isLive != value)
             {
                 _isLive = value;
+                _liveRunSequenceNumber++;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(CanToggleLive));
                 OnPropertyChanged(nameof(LiveButtonText));
@@ -274,7 +276,7 @@ public sealed partial class LiveWatchViewModel : INotifyPropertyChanged, IAsyncD
 
             var expireCts = new CancellationTokenSource();
             _pendingDeletedRepos[repoRoot] = (node.Repository, expireCts, sequenceNumber);
-            _ = ExpirePendingDeleteAsync(repoRoot, expireCts.Token);
+            _ = ExpirePendingDeleteAsync(repoRoot, sequenceNumber, _liveRunSequenceNumber, expireCts.Token);
         });
     }
 
@@ -300,27 +302,41 @@ public sealed partial class LiveWatchViewModel : INotifyPropertyChanged, IAsyncD
         return null;
     }
 
-    async Task ExpirePendingDeleteAsync(string repoRoot, CancellationToken token)
+    async Task ExpirePendingDeleteAsync(string repoRoot, long sequenceNumber, long runSequenceNumber, CancellationToken token)
     {
-        try { await Task.Delay(RenameCorrelationWindowMilliseconds, token).ConfigureAwait(false); }
+        try { await Task.Delay(TimeSpan.FromMilliseconds(RenameCorrelationWindowMilliseconds), _timeProvider, token).ConfigureAwait(false); }
         catch (OperationCanceledException) { return; }
 
         _ui.Post(() =>
         {
-            if (_pendingDeletedRepos.Remove(repoRoot))
+            // Cancellation cannot retract a callback already queued on the dispatcher.
+            // Validate both the Live run and the deletion before consuming any state.
+            if (!IsLive || _liveRunSequenceNumber != runSequenceNumber ||
+                !_pendingDeletedRepos.TryGetValue(repoRoot, out var pending) || pending.SequenceNumber != sequenceNumber)
             {
-                _repositoryList.RemoveRepositoryPathFromUi(repoRoot);
+                return;
             }
+
+            _pendingDeletedRepos.Remove(repoRoot);
+            _ = CancellationTokenSourceDisposal.CancelAndDisposeAsync(pending.ExpireCts);
+            _repositoryList.RemoveRepositoryPathFromUi(repoRoot);
         });
+    }
+
+    void ClearPendingDeletes()
+    {
+        foreach (var pending in _pendingDeletedRepos.Values)
+        {
+            _ = CancellationTokenSourceDisposal.CancelAndDisposeAsync(pending.ExpireCts);
+        }
+
+        _pendingDeletedRepos.Clear();
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (Controller != null)
-        {
-            await Controller.StopAsync().ConfigureAwait(false);
-            Controller = null;
-        }
+        await StopLiveAsync().ConfigureAwait(false);
+        Controller = null;
 
         await _ui.InvokeAsync(() =>
         {

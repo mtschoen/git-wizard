@@ -68,6 +68,7 @@ public sealed partial class LiveWatchViewModel
             {
                 IsLiveStarting = false;
                 IsLive = false;
+                ClearPendingDeletes();
                 ClearLiveScanProgress();
                 ClearLiveReadiness();
                 var controller = RequireLiveController();
@@ -239,6 +240,7 @@ public sealed partial class LiveWatchViewModel
         {
             IsLiveStarting = false;
             IsLive = false;
+            ClearPendingDeletes();
             ClearLiveScanProgress();
             ClearLiveReadiness();
             JournalWarnings.Clear();

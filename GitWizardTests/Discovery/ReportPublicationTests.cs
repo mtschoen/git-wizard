@@ -203,7 +203,7 @@ public class ReportPublicationTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(exitCode, Is.EqualTo(0));
+            Assert.That(exitCode, Is.Zero);
             Assert.That(File.Exists(cachedReportPath), Is.True);
             Assert.That(File.Exists(customSavePath), Is.True);
         });
@@ -217,9 +217,9 @@ public class ReportPublicationTests
         Assert.Multiple(() =>
         {
             Assert.That(cachedDoc.RootElement.GetProperty("SchemaVersion").GetString(), Is.EqualTo("2.1"));
-            Assert.That(cachedDoc.RootElement.GetProperty("Repositories").EnumerateObject().Count(), Is.EqualTo(0));
+            Assert.That(cachedDoc.RootElement.GetProperty("Repositories").EnumerateObject().Count(), Is.Zero);
             Assert.That(customDoc.RootElement.GetProperty("SchemaVersion").GetString(), Is.EqualTo("2.1"));
-            Assert.That(customDoc.RootElement.GetProperty("Repositories").EnumerateObject().Count(), Is.EqualTo(0));
+            Assert.That(customDoc.RootElement.GetProperty("Repositories").EnumerateObject().Count(), Is.Zero);
         });
     }
 

@@ -27,9 +27,12 @@ public class GitWizardRepositoryRefreshTests
         Assert.That(repository.RecentCommits!, Has.Count.EqualTo(expectedCount));
         foreach (var commit in repository.RecentCommits!)
         {
-            Assert.That(commit.Hash, Has.Length.EqualTo(7));
-            Assert.That(commit.Message, Is.Not.Empty);
-            Assert.That(commit.AuthorEmail, Is.Not.Empty);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(commit.Hash, Has.Length.EqualTo(7));
+                Assert.That(commit.Message, Is.Not.Empty);
+                Assert.That(commit.AuthorEmail, Is.Not.Empty);
+            }
         }
     }
 
@@ -57,8 +60,11 @@ public class GitWizardRepositoryRefreshTests
         var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh();
 
-        Assert.That(repository.HasPendingChanges, Is.True);
-        Assert.That(repository.NumberOfPendingChanges, Is.GreaterThan(0));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(repository.HasPendingChanges, Is.True);
+            Assert.That(repository.NumberOfPendingChanges, Is.GreaterThan(0));
+        }
     }
 
     [Test]
@@ -70,8 +76,11 @@ public class GitWizardRepositoryRefreshTests
         var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh();
 
-        Assert.That(repository.HasPendingChanges, Is.True);
-        Assert.That(repository.NumberOfPendingChanges, Is.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(repository.HasPendingChanges, Is.True);
+            Assert.That(repository.NumberOfPendingChanges, Is.EqualTo(1));
+        }
     }
 
     [Test]
@@ -88,8 +97,11 @@ public class GitWizardRepositoryRefreshTests
         var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh();
 
-        Assert.That(repository.HasPendingChanges, Is.True);
-        Assert.That(repository.NumberOfPendingChanges, Is.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(repository.HasPendingChanges, Is.True);
+            Assert.That(repository.NumberOfPendingChanges, Is.EqualTo(1));
+        }
     }
 
     [Test]
@@ -99,11 +111,11 @@ public class GitWizardRepositoryRefreshTests
         var repo = new GitWizardRepository(fixture.Path);
         repo.Refresh();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repo.HasPendingChanges, Is.False);
-            Assert.That(repo.NumberOfPendingChanges, Is.EqualTo(0));
-        });
+            Assert.That(repo.NumberOfPendingChanges, Is.Zero);
+        }
     }
 
     [Test]
@@ -115,11 +127,11 @@ public class GitWizardRepositoryRefreshTests
         var repo = new GitWizardRepository(fixture.Path);
         repo.Refresh();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repo.HasPendingChanges, Is.True);
             Assert.That(repo.NumberOfPendingChanges, Is.GreaterThan(0));
-        });
+        }
     }
 
     [Test]
@@ -136,11 +148,11 @@ public class GitWizardRepositoryRefreshTests
         var repo = new GitWizardRepository(fixture.Path);
         repo.Refresh();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repo.HasPendingChanges, Is.True);
             Assert.That(repo.NumberOfPendingChanges, Is.GreaterThan(0));
-        });
+        }
     }
 
     [Test]
@@ -174,11 +186,11 @@ public class GitWizardRepositoryRefreshTests
         var repo = new GitWizardRepository(fixture.Path);
         repo.Refresh();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repo.HasPendingChanges, Is.True);
             Assert.That(repo.NumberOfPendingChanges, Is.GreaterThanOrEqualTo(5));
-        });
+        }
     }
 
     [Test]
@@ -193,8 +205,11 @@ public class GitWizardRepositoryRefreshTests
         var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh();
 
-        Assert.That(repository.LocalOnlyCommits, Is.True);
-        Assert.That(repository.LocalCommitCount, Is.EqualTo(3));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(repository.LocalOnlyCommits, Is.True);
+            Assert.That(repository.LocalCommitCount, Is.EqualTo(3));
+        }
     }
 
     [Test]
@@ -214,8 +229,11 @@ public class GitWizardRepositoryRefreshTests
         var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh();
 
-        Assert.That(repository.LocalCommitCount, Is.EqualTo(1));
-        Assert.That(repository.LocalOnlyCommits, Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(repository.LocalCommitCount, Is.EqualTo(1));
+            Assert.That(repository.LocalOnlyCommits, Is.True);
+        }
     }
 
     [Test]
@@ -227,11 +245,11 @@ public class GitWizardRepositoryRefreshTests
 
         repo.Refresh();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repo.LocalOnlyCommits, Is.True);
             Assert.That(repo.LocalCommitCount, Is.EqualTo(2));
-        });
+        }
     }
 
     [Test]
@@ -243,11 +261,11 @@ public class GitWizardRepositoryRefreshTests
         var repo = new GitWizardRepository(fixture.Path);
         repo.Refresh();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repo.LocalOnlyCommits, Is.False);
-            Assert.That(repo.LocalCommitCount, Is.EqualTo(0));
-        });
+            Assert.That(repo.LocalCommitCount, Is.Zero);
+        }
     }
 
     [Test]
@@ -260,11 +278,11 @@ public class GitWizardRepositoryRefreshTests
         var repo = new GitWizardRepository(fixture.Path);
         repo.Refresh();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repo.LocalOnlyCommits, Is.True);
             Assert.That(repo.LocalCommitCount, Is.EqualTo(1));
-        });
+        }
     }
 
     [Test]
@@ -277,8 +295,11 @@ public class GitWizardRepositoryRefreshTests
         var repo = new GitWizardRepository(fixture.Path);
         repo.Refresh(computeLocalCommitCount: true);
 
-        Assert.That(repo.LocalCommitCount, Is.EqualTo(3));
-        Assert.That(repo.LocalOnlyCommits, Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(repo.LocalCommitCount, Is.EqualTo(3));
+            Assert.That(repo.LocalOnlyCommits, Is.True);
+        }
     }
 
     [Test]
@@ -290,8 +311,11 @@ public class GitWizardRepositoryRefreshTests
         var repo = new GitWizardRepository(fixture.Path);
         repo.Refresh(computeLocalCommitCount: false);
 
-        Assert.That(repo.LocalCommitCount, Is.EqualTo(0));
-        Assert.That(repo.LocalOnlyCommits, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(repo.LocalCommitCount, Is.Zero);
+            Assert.That(repo.LocalOnlyCommits, Is.False);
+        }
     }
 
     [Test]
@@ -303,8 +327,11 @@ public class GitWizardRepositoryRefreshTests
         var repo = new GitWizardRepository(fixture.Path);
         repo.Refresh(); // default computeLocalCommitCount=true
 
-        Assert.That(repo.LocalCommitCount, Is.EqualTo(2));
-        Assert.That(repo.LocalOnlyCommits, Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(repo.LocalCommitCount, Is.EqualTo(2));
+            Assert.That(repo.LocalOnlyCommits, Is.True);
+        }
     }
 
     [Test]
@@ -319,7 +346,7 @@ public class GitWizardRepositoryRefreshTests
             Assert.That(repository.CurrentBranch, Is.AnyOf("main", "master"));
             Assert.That(repository.DefaultBranch, Is.AnyOf("main", "master"));
             Assert.That(repository.HasPendingChanges, Is.False);
-            Assert.That(repository.NumberOfPendingChanges, Is.EqualTo(0));
+            Assert.That(repository.NumberOfPendingChanges, Is.Zero);
             Assert.That(repository.RemoteUrls, Is.Not.Null.And.Empty);
             Assert.That(repository.AuthorEmails, Is.Not.Null);
             Assert.That(repository.AuthorEmails!, Does.Contain("test@example.com"));
@@ -482,11 +509,11 @@ public class GitWizardRepositoryRefreshTests
         var repo = new GitWizardRepository("/fake/path");
         repo.MarkRefreshFailed("test error");
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repo.RefreshError, Is.EqualTo("test error"));
             Assert.That(repo.IsRefreshing, Is.False);
-        });
+        }
     }
 
     [Test]
@@ -496,12 +523,12 @@ public class GitWizardRepositoryRefreshTests
         var handler = new RecordingUpdateHandler();
         repo.MarkRefreshFailed("test error", handler);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repo.RefreshError, Is.EqualTo("test error"));
             Assert.That(repo.IsRefreshing, Is.False);
-            Assert.That(handler.RefreshCompleted.Length, Is.EqualTo(1));
-        });
+            Assert.That(handler.RefreshCompleted, Has.Length.EqualTo(1));
+        }
     }
 
     [Test]
@@ -523,7 +550,7 @@ public class GitWizardRepositoryRefreshTests
         var handler = new RecordingUpdateHandler();
         repo.Refresh(handler);
 
-        Assert.That(handler.RefreshCompleted.Length, Is.EqualTo(1));
+        Assert.That(handler.RefreshCompleted, Has.Length.EqualTo(1));
         Assert.That(handler.RefreshCompleted.Single(), Is.SameAs(repo));
     }
 
@@ -556,14 +583,14 @@ public class GitWizardRepositoryRefreshTests
     {
         var repo = new GitWizardRepository("/fake");
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.DoesNotThrow(() => repo.RefreshLocalOnlyCommits(null!));
             Assert.DoesNotThrow(() => repo.RefreshAuthorEmails(null!));
             Assert.DoesNotThrow(() => repo.RefreshRecentCommits(null!));
             Assert.DoesNotThrow(() => repo.RefreshPendingChangesStatus(null!, false));
             Assert.DoesNotThrow(() => repo.RefreshBranchDivergence(null!, false));
-        });
+        }
     }
 
     [Test]

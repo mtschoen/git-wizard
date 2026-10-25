@@ -25,8 +25,8 @@ public class MainViewModelUiDrainTests
 
         await vm.DisposeAsync();
 
-        Assert.That(clock.CreatedTimerCount, Is.EqualTo(0));
-        Assert.That(dispatcher.QueuedCount, Is.EqualTo(0));
+        Assert.That(clock.CreatedTimerCount, Is.Zero);
+        Assert.That(dispatcher.QueuedCount, Is.Zero);
     }
 
     [Test]
@@ -44,7 +44,7 @@ public class MainViewModelUiDrainTests
 
             Assert.That(clock.CreatedTimerCount, Is.EqualTo(1), "One batching window covers the whole burst.");
             Assert.That(clock.Timer!.Period, Is.EqualTo(Timeout.InfiniteTimeSpan), "The window is one-shot.");
-            Assert.That(dispatcher.QueuedCount, Is.EqualTo(0), "Nothing is posted before the window expires.");
+            Assert.That(dispatcher.QueuedCount, Is.Zero, "Nothing is posted before the window expires.");
             Assert.That(vm.RepositoryList.Repositories, Is.Empty);
 
             clock.Timer.Fire();
@@ -179,7 +179,7 @@ public class MainViewModelUiDrainTests
         await dispatcher.InvokeEntered;
 
         Assert.DoesNotThrow(() => vm.Refresh.OnRepositoryCreated(Repo("C:/repos/late")));
-        Assert.That(clock.CreatedTimerCount, Is.EqualTo(0), "No window starts once disposal began.");
+        Assert.That(clock.CreatedTimerCount, Is.Zero, "No window starts once disposal began.");
 
         dispatcher.ReleaseInvokeAsync();
         await disposal;

@@ -258,7 +258,7 @@ public class ProgramWatchStartupTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(exitCode, Is.EqualTo(0));
+            Assert.That(exitCode, Is.Zero);
             Assert.That(stdout.ToString(), Does.Contain("No tracked repositories found; nothing to watch."));
         });
     }

@@ -50,8 +50,11 @@ public class GitWizardApiLocalFilesTests
         var actual = loadAsync
             ? await GitWizardApi.GetCachedRepositoryPathsAsync()
             : LoadSync();
-        Assert.That(File.Exists(GitWizardApi.GetCachedRepositoryListPath()), Is.True);
-        Assert.That(actual, Is.EqualTo(["/repo/one", "/repo/two"]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(File.Exists(GitWizardApi.GetCachedRepositoryListPath()), Is.True);
+            Assert.That(actual, Is.EqualTo(["/repo/one", "/repo/two"]));
+        }
     }
 
     [TestCase(null, false)]
@@ -93,8 +96,11 @@ public class GitWizardApiLocalFilesTests
             SaveSync(["/test"]);
         }
 
-        Assert.That(Directory.Exists(localPath), Is.True);
-        Assert.That(File.Exists(GitWizardApi.GetCachedRepositoryListPath()), Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(Directory.Exists(localPath), Is.True);
+            Assert.That(File.Exists(GitWizardApi.GetCachedRepositoryListPath()), Is.True);
+        }
     }
 
     [Test]
@@ -129,7 +135,7 @@ public class GitWizardApiLocalFilesTests
         }
 
         var size = GitWizardApi.GetLocalFilesSize();
-        Assert.That(size, Is.EqualTo(0L));
+        Assert.That(size, Is.Zero);
     }
 
     [Test]
@@ -153,11 +159,11 @@ public class GitWizardApiLocalFilesTests
     {
         var localPath = GitWizardApi.GetLocalFilesPath();
         var logPath = GitWizardApi.GetLogFolderPath();
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(logPath, Does.Contain("Logs"));
             Assert.That(logPath, Does.Contain(localPath));
-        });
+        }
     }
 
     [Test]

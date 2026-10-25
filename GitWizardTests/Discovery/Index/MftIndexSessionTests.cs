@@ -211,7 +211,7 @@ public class MftIndexSessionTests
             broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);
         var scan = broker.Scans.Single();
         Assert.That(scan.RetainedFileNames, Is.EqualTo([".git", "HEAD"]));
-        Assert.That(session.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Count, Is.EqualTo(2));
+        Assert.That(session.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)), Has.Count.EqualTo(2));
         Assert.That(session.Index.Search(new SearchQuery("HEAD", NameMatchMode.Exact)).Single().IsDirectory, Is.False);
         Assert.That(session.Index.Search(new SearchQuery("ordinary.txt", NameMatchMode.Exact)), Is.Empty);
         Assert.That(session.Index.Search(new SearchQuery("repo", NameMatchMode.Exact)).Single().IsDirectory, Is.True);

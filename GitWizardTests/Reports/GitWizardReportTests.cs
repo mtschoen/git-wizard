@@ -33,12 +33,12 @@ public class GitWizardReportTests
         var options = allBranches.HasValue ? new GitWizardReportOptions { AllBranches = allBranches.Value } : null;
         var report = await GitWizardReport.GenerateReportAsync(configuration, new List<string>(), options: options);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(report.BranchScope, Is.EqualTo(expectedScope));
             Assert.That(report.SchemaVersion, Is.EqualTo("2.1"));
             Assert.That(report.Repositories, Is.Empty);
-        });
+        }
     }
 
     [Test]
@@ -56,7 +56,7 @@ public class GitWizardReportTests
     public void DefaultCtor_InitializesCollectionsAndProperties()
     {
         var report = new GitWizardReport();
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(report.SearchPaths, Is.InstanceOf<SortedSet<string>>().And.Empty);
             Assert.That(report.IgnoredPaths, Is.InstanceOf<SortedSet<string>>().And.Empty);
@@ -65,7 +65,7 @@ public class GitWizardReportTests
             Assert.That(report.NonRepositoryPaths, Is.InstanceOf<HashSet<string>>().And.Empty);
             Assert.That(report.BranchScope, Is.Null);
             Assert.That(report.SchemaVersion, Is.EqualTo("2.1"));
-        });
+        }
     }
 
     [Test]
@@ -77,11 +77,11 @@ public class GitWizardReportTests
             IgnoredPaths = { "/ignore1" }
         };
         var report = new GitWizardReport(config);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(report.SearchPaths, Is.EqualTo(["/search1", "/search2"]));
             Assert.That(report.IgnoredPaths, Is.EqualTo(["/ignore1"]));
-        });
+        }
     }
 
     [Test]
@@ -123,12 +123,12 @@ public class GitWizardReportTests
 
         report.Refresh(new SortedSet<string> { fixture.Path }, handler);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(handler.ProgressStarts, Is.Not.Empty);
             Assert.That(handler.ProgressCounts, Is.Not.Empty);
-            Assert.That(handler.RepositoriesCreated.Length, Is.GreaterThan(0));
-        });
+            Assert.That(handler.RepositoriesCreated, Is.Not.Empty);
+        }
     }
 
     [Test]
@@ -204,7 +204,7 @@ public class GitWizardReportTests
         // SortedDictionary can end up missing entries, holding a stale null, or throwing
         // mid-enumeration; assert the dictionary settles into exactly the seeded paths with
         // every value populated.
-        Assert.That(report.Repositories.Count, Is.EqualTo(repositoryPaths.Count));
+        Assert.That(report.Repositories, Has.Count.EqualTo(repositoryPaths.Count));
         Assert.That(report.Repositories.Values, Has.All.Not.Null);
     }
 
@@ -219,8 +219,11 @@ public class GitWizardReportTests
 
         var paths = new SortedSet<string> { tempRepo.Path };
         report.Refresh(paths);
-        Assert.That(report.DeletedPaths.Count, Is.EqualTo(0));
-        Assert.That(report.Repositories.ContainsKey(tempRepo.Path), Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(report.DeletedPaths, Is.Empty);
+            Assert.That(report.Repositories.ContainsKey(tempRepo.Path), Is.True);
+        }
 
         // Delete the repo directory
         tempRepo.DeleteNow();
@@ -229,9 +232,12 @@ public class GitWizardReportTests
         report.Repositories.Clear();
         report.Refresh(paths);
 
-        Assert.That(report.DeletedPaths.Count, Is.EqualTo(1));
-        Assert.That(report.DeletedPaths.Contains(tempRepo.Path), Is.True);
-        Assert.That(report.Repositories.ContainsKey(tempRepo.Path), Is.False);
+        Assert.That(report.DeletedPaths, Has.Count.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(report.DeletedPaths, Does.Contain(tempRepo.Path));
+            Assert.That(report.Repositories.ContainsKey(tempRepo.Path), Is.False);
+        }
     }
 
     [Test]
@@ -248,9 +254,12 @@ public class GitWizardReportTests
         var paths = new SortedSet<string> { validRepo.Path, deletedPath };
         report.Refresh(paths);
 
-        Assert.That(report.DeletedPaths.Count, Is.EqualTo(1));
-        Assert.That(report.DeletedPaths.Contains(deletedPath), Is.True);
-        Assert.That(report.Repositories.ContainsKey(validRepo.Path), Is.True);
+        Assert.That(report.DeletedPaths, Has.Count.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(report.DeletedPaths, Does.Contain(deletedPath));
+            Assert.That(report.Repositories.ContainsKey(validRepo.Path), Is.True);
+        }
     }
 
     [Test]
@@ -265,7 +274,7 @@ public class GitWizardReportTests
         var paths = new SortedSet<string> { validRepo.Path };
         report.Refresh(paths);
 
-        Assert.That(report.DeletedPaths.Count, Is.EqualTo(0));
+        Assert.That(report.DeletedPaths, Is.Empty);
     }
 
     [Test]
@@ -281,12 +290,15 @@ public class GitWizardReportTests
         var paths = new SortedSet<string> { nonRepoPath };
         report.Refresh(paths);
 
-        Assert.That(report.NonRepositoryPaths.Count, Is.EqualTo(1));
-        Assert.That(report.NonRepositoryPaths.Contains(nonRepoPath), Is.True);
-        Assert.That(report.Repositories.ContainsKey(nonRepoPath), Is.False);
+        Assert.That(report.NonRepositoryPaths, Has.Count.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(report.NonRepositoryPaths, Does.Contain(nonRepoPath));
+            Assert.That(report.Repositories.ContainsKey(nonRepoPath), Is.False);
 
-        // A merely-missing directory must NOT be mistaken for a stale non-repo path.
-        Assert.That(report.DeletedPaths, Does.Not.Contain(nonRepoPath));
+            // A merely-missing directory must NOT be mistaken for a stale non-repo path.
+            Assert.That(report.DeletedPaths, Does.Not.Contain(nonRepoPath));
+        }
     }
 
     [Test]
@@ -308,8 +320,11 @@ public class GitWizardReportTests
         var paths = new SortedSet<string> { path };
         report.Refresh(paths);
 
-        Assert.That(report.Repositories.ContainsKey(path), Is.True);
-        Assert.That(report.NonRepositoryPaths, Does.Not.Contain(path));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(report.Repositories.ContainsKey(path), Is.True);
+            Assert.That(report.NonRepositoryPaths, Does.Not.Contain(path));
+        }
     }
 
     [Test]
@@ -407,8 +422,11 @@ public class GitWizardReportTests
         report.Refresh(paths, computeLocalCommitCount: false);
 
         var repo = report.Repositories[fixture.Path];
-        Assert.That(repo.LocalCommitCount, Is.EqualTo(0));
-        Assert.That(repo.LocalOnlyCommits, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(repo.LocalCommitCount, Is.Zero);
+            Assert.That(repo.LocalOnlyCommits, Is.False);
+        }
     }
 
     [Test]
@@ -423,8 +441,11 @@ public class GitWizardReportTests
         var report = await GitWizardReport.GenerateReportAsync(configuration, new List<string> { fixture.Path }, options: options);
 
         var repo = report.Repositories[fixture.Path];
-        Assert.That(repo.LocalCommitCount, Is.EqualTo(0));
-        Assert.That(repo.LocalOnlyCommits, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(repo.LocalCommitCount, Is.Zero);
+            Assert.That(repo.LocalOnlyCommits, Is.False);
+        }
     }
 
     [Test]
@@ -516,9 +537,12 @@ public class GitWizardReportTests
         var paths = new SortedSet<string> { validRepo.Path, nonRepoPath };
         report.Refresh(paths);
 
-        // NonRepositoryPaths tracks the stale entry and Repositories excludes it.
-        Assert.That(report.NonRepositoryPaths, Is.Not.Empty);
-        Assert.That(report.Repositories.ContainsKey(nonRepoPath), Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            // NonRepositoryPaths tracks the stale entry and Repositories excludes it.
+            Assert.That(report.NonRepositoryPaths, Is.Not.Empty);
+            Assert.That(report.Repositories.ContainsKey(nonRepoPath), Is.False);
+        }
 
         // The CLI's implicit pruning contract: GetRepositoryPaths() only yields
         // healthy repo paths, so the stale entry is excluded from the list that
@@ -556,9 +580,12 @@ public class GitWizardReportTests
         report.Repositories.Clear();
         report.Refresh(paths);
 
-        // Deleted path is in DeletedPaths and NOT in Repositories.
-        Assert.That(report.DeletedPaths.Contains(deletedPath), Is.True);
-        Assert.That(report.Repositories.ContainsKey(deletedPath), Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            // Deleted path is in DeletedPaths and NOT in Repositories.
+            Assert.That(report.DeletedPaths, Does.Contain(deletedPath));
+            Assert.That(report.Repositories.ContainsKey(deletedPath), Is.False);
+        }
 
         // GetRepositoryPaths yields only healthy repos (none in this case).
         var savedPaths = report.GetRepositoryPaths().ToList();
@@ -583,9 +610,12 @@ public class GitWizardReportTests
         var paths = new SortedSet<string> { validRepo.Path, nonRepoPath, deletedPath };
         report.Refresh(paths);
 
-        Assert.That(report.Repositories.ContainsKey(validRepo.Path), Is.True);
-        Assert.That(report.NonRepositoryPaths.Contains(nonRepoPath), Is.True);
-        Assert.That(report.DeletedPaths.Contains(deletedPath), Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(report.Repositories.ContainsKey(validRepo.Path), Is.True);
+            Assert.That(report.NonRepositoryPaths, Does.Contain(nonRepoPath));
+            Assert.That(report.DeletedPaths, Does.Contain(deletedPath));
+        }
 
         // GetRepositoryPaths yields only healthy repos.
         var savedPaths = report.GetRepositoryPaths().ToList();

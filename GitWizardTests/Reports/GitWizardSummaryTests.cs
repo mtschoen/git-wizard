@@ -15,8 +15,11 @@ public class GitWizardSummaryTests
 
         var summary = GitWizardSummary.FromReport(report);
 
-        Assert.That(summary.TotalRepositories, Is.EqualTo(1));
-        Assert.That(summary.SchemaVersion, Is.EqualTo("2.1"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(summary.TotalRepositories, Is.EqualTo(1));
+            Assert.That(summary.SchemaVersion, Is.EqualTo("2.1"));
+        }
     }
 
     [Test]
@@ -67,8 +70,11 @@ public class GitWizardSummaryTests
     {
         var summary = GitWizardSummary.FromReport(new GitWizardReport());
 
-        Assert.That(summary.TotalRepositories, Is.EqualTo(0));
-        Assert.That(summary.NeedingAttention, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(summary.TotalRepositories, Is.Zero);
+            Assert.That(summary.NeedingAttention, Is.Empty);
+        }
     }
 
     [Test]
@@ -89,8 +95,11 @@ public class GitWizardSummaryTests
         // A throwaway local repo has no remote, so every commit also counts as unpushed.
         Assert.That(summary.Unpushed, Is.EqualTo(1));
         Assert.That(summary.NeedingAttention, Has.Count.EqualTo(1));
-        Assert.That(summary.NeedingAttention[0].Path, Is.EqualTo(fixture.Path));
-        Assert.That(summary.NeedingAttention[0].Reasons, Does.Contain("dirty"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(summary.NeedingAttention[0].Path, Is.EqualTo(fixture.Path));
+            Assert.That(summary.NeedingAttention[0].Reasons, Does.Contain("dirty"));
+        }
         Assert.That(summary.NeedingAttention[0].Reasons, Does.Contain("unpushed"));
     }
 
@@ -107,7 +116,10 @@ public class GitWizardSummaryTests
 
         var summary = GitWizardSummary.FromReport(report);
 
-        Assert.That(summary.Stale, Is.EqualTo(1));
-        Assert.That(summary.NeedingAttention.Single().Reasons, Does.Contain("stale"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(summary.Stale, Is.EqualTo(1));
+            Assert.That(summary.NeedingAttention.Single().Reasons, Does.Contain("stale"));
+        }
     }
 }

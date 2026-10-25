@@ -134,7 +134,7 @@ public class MainViewModelGroupingTests
 
         if (OperatingSystem.IsWindows())
         {
-            Assert.That(headers[0].Children.Count, Is.GreaterThanOrEqualTo(headers[1].Children.Count));
+            Assert.That(headers[0].Children, Has.Count.GreaterThanOrEqualTo(headers[1].Children.Count));
         }
     }
 
@@ -372,7 +372,7 @@ public class MainViewModelGroupingTests
         Assert.Multiple(() =>
         {
             Assert.That(header.IsExpanded, Is.True);
-            Assert.That(viewModel.RepositoryList.Repositories.Count, Is.EqualTo(collapsedCount + 2),
+            Assert.That(viewModel.RepositoryList.Repositories, Has.Count.EqualTo(collapsedCount + 2),
                 "Expanding inserts the two children after the header.");
             Assert.That(viewModel.RepositoryList.Repositories[1].IsGroupHeader, Is.False);
             Assert.That(viewModel.RepositoryList.Repositories[2].IsGroupHeader, Is.False);
@@ -382,7 +382,7 @@ public class MainViewModelGroupingTests
         Assert.Multiple(() =>
         {
             Assert.That(header.IsExpanded, Is.False);
-            Assert.That(viewModel.RepositoryList.Repositories.Count, Is.EqualTo(collapsedCount),
+            Assert.That(viewModel.RepositoryList.Repositories, Has.Count.EqualTo(collapsedCount),
                 "Collapsing removes the children again.");
         });
     }

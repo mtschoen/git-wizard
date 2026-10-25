@@ -40,14 +40,14 @@ public class MainWindowRepositoryListBindingTests
         var viewModel = (MainViewModel)window.DataContext!;
         var button = window.FindControl<Button>("FilterStale")!;
         Dispatcher.UIThread.RunJobs();
-        Assert.That(button.Classes.Contains("active"), Is.False);
+        Assert.That(button.Classes, Does.Not.Contain("active"));
 
         viewModel.RepositoryList.ToggleFilter(FilterType.Stale);
         Dispatcher.UIThread.RunJobs();
-        Assert.That(button.Classes.Contains("active"), Is.True);
+        Assert.That(button.Classes, Does.Contain("active"));
 
         viewModel.RepositoryList.ToggleFilter(FilterType.Stale);
         Dispatcher.UIThread.RunJobs();
-        Assert.That(button.Classes.Contains("active"), Is.False);
+        Assert.That(button.Classes, Does.Not.Contain("active"));
     }
 }

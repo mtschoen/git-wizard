@@ -166,7 +166,7 @@ public class IndexVolumeChangeSourceCompletionTests
 
         // Deliver older event: should be ignored
         source.ApplyWatchState(SyntheticNotifications.CreateWatchStateChange('X', watch with { State = WatchState.CaughtUp, StateVersion = intermediateVersion - 1 }, null));
-        Assert.That(source.Readiness.RecentTransitions.Count, Is.EqualTo(countBefore));
+        Assert.That(source.Readiness.RecentTransitions, Has.Count.EqualTo(countBefore));
         Assert.That(source.Readiness.TryGet("X", out var status), Is.True);
         Assert.That(status!.WatchStateVersion, Is.EqualTo(intermediateVersion));
 
@@ -178,7 +178,7 @@ public class IndexVolumeChangeSourceCompletionTests
         Assert.That(source.Readiness.TryGet("X", out var updated), Is.True);
         Assert.That(updated!.State, Is.EqualTo(VolumeWatchState.CaughtUp));
         Assert.That(updated.WatchStateVersion, Is.EqualTo(newerVersion));
-        Assert.That(source.Readiness.RecentTransitions.Count, Is.EqualTo(countBefore + 1));
+        Assert.That(source.Readiness.RecentTransitions, Has.Count.EqualTo(countBefore + 1));
     }
 
     [Test]

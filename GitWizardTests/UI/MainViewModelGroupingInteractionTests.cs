@@ -63,7 +63,7 @@ public class MainViewModelGroupingInteractionTests
         vm.RepositoryList.SearchText = "abc";
 
         // Deferred, not immediate: the synchronous sets must not have run a filter pass yet.
-        Assert.That(Volatile.Read(ref swapCount.Value), Is.EqualTo(0),
+        Assert.That(Volatile.Read(ref swapCount.Value), Is.Zero,
             "Filtering must be deferred during the debounce window, not run per keystroke.");
 
         // The callback runs after the deferred collection swap, so its completion is the condition

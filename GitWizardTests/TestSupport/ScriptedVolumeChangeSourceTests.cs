@@ -20,8 +20,11 @@ public class ScriptedVolumeChangeSourceTests
         Assert.That(arming.IsCompleted, Is.False);
         release.SetResult();
         var result = await arming.WaitAsync(TestTimeouts.HangGuard);
-        Assert.That(result.Errors["X"], Is.EqualTo("denied"));
-        Assert.That(source.IsArmed, Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Errors["X"], Is.EqualTo("denied"));
+            Assert.That(source.IsArmed, Is.True);
+        }
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
         var pending = reader.MoveNextAsync().AsTask();
         await source.WatchStarted.WaitAsync(TestTimeouts.HangGuard);

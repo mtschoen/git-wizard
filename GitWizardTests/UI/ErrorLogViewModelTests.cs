@@ -100,7 +100,7 @@ public class ErrorLogViewModelTests
         log.Clear();
 
         Assert.That(log.Entries, Is.Empty);
-        Assert.That(log.Count, Is.EqualTo(0));
+        Assert.That(log.Count, Is.Zero);
     }
 
     [TestCase(null)]

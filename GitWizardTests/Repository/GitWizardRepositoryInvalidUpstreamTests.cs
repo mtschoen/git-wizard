@@ -121,19 +121,19 @@ public class GitWizardRepositoryInvalidUpstreamTests
         repo.Refresh(allBranches: true);
 
         var branch = repo.Branches?.FirstOrDefault(b => b.Name == "url-remote");
-        Assert.Multiple(() =>
+        Assert.That(branch, Is.Not.Null,
+            "A branch with a URL-valued remote must stay in the branch list.");
+        using (Assert.EnterMultipleScope())
         {
-            Assert.That(branch, Is.Not.Null,
-                "A branch with a URL-valued remote must stay in the branch list.");
             Assert.That(branch!.HasUpstream, Is.False,
                 "A URL-valued remote names no configured remote, so the branch is untracked.");
             Assert.That(branch.AheadOfDefault, Is.EqualTo(1),
                 "Default-branch divergence is independent of upstream resolution.");
             Assert.That(DiagnosticsFor("url-remote"), Is.EqualTo(1),
                 "Exactly one diagnostic names the branch and its offending config value.");
-            Assert.That(ExceptionRecordsFor("url-remote"), Is.EqualTo(0),
+            Assert.That(ExceptionRecordsFor("url-remote"), Is.Zero,
                 "The misconfigured upstream must not surface as an exception record.");
-        });
+        }
         Assert.That(
             _loggedMessages.Any(m => m.Contains("https://example.invalid/owner/repo.git", StringComparison.Ordinal)),
             Is.True, "The diagnostic names the offending config value.");
@@ -159,17 +159,17 @@ public class GitWizardRepositoryInvalidUpstreamTests
         repo.Refresh(allBranches: true);
 
         var branch = repo.Branches?.FirstOrDefault(b => b.Name == "large-remote");
-        Assert.Multiple(() =>
+        Assert.That(branch, Is.Not.Null,
+            "A branch whose effective remote value is larger than a pipe buffer must stay in the branch list.");
+        using (Assert.EnterMultipleScope())
         {
-            Assert.That(branch, Is.Not.Null,
-                "A branch whose effective remote value is larger than a pipe buffer must stay in the branch list.");
             Assert.That(branch!.HasUpstream, Is.False,
                 "The oversized value names no configured remote, so the branch is untracked.");
             Assert.That(DiagnosticsFor("large-remote"), Is.EqualTo(1),
                 "Exactly one diagnostic names the branch and its offending config value.");
-            Assert.That(ExceptionRecordsFor("large-remote"), Is.EqualTo(0),
+            Assert.That(ExceptionRecordsFor("large-remote"), Is.Zero,
                 "An oversized remote value must not time out and surface as an exception record.");
-        });
+        }
         Assert.That(
             _loggedMessages.Any(m => m.Contains(largeRemoteValue, StringComparison.Ordinal)),
             Is.True, "The diagnostic names the offending value in full.");
@@ -186,16 +186,16 @@ public class GitWizardRepositoryInvalidUpstreamTests
         repo.Refresh(allBranches: true);
 
         var branch = repo.Branches?.FirstOrDefault(b => b.Name == "stale-remote");
-        Assert.Multiple(() =>
+        Assert.That(branch, Is.Not.Null);
+        using (Assert.EnterMultipleScope())
         {
-            Assert.That(branch, Is.Not.Null);
             Assert.That(branch!.HasUpstream, Is.False,
                 "A remote name that is not configured means no upstream.");
             Assert.That(branch.AheadOfDefault, Is.EqualTo(1));
             Assert.That(DiagnosticsFor("stale-remote"), Is.EqualTo(1),
                 "A stale remote name gets the same single diagnostic as a URL value.");
-            Assert.That(ExceptionRecordsFor("stale-remote"), Is.EqualTo(0));
-        });
+            Assert.That(ExceptionRecordsFor("stale-remote"), Is.Zero);
+        }
         Assert.That(
             _loggedMessages.Any(m => m.Contains("no-such-remote", StringComparison.Ordinal)),
             Is.True, "The diagnostic names the offending config value.");
@@ -212,9 +212,12 @@ public class GitWizardRepositoryInvalidUpstreamTests
         var report = new GitWizardReport();
         report.Refresh([fixture.Path, worktreePath], fetchRemotes: false, deepRefresh: false, allBranches: true, computeLocalCommitCount: true);
 
-        Assert.That(DiagnosticsFor("url-remote"), Is.EqualTo(1),
-            "All worktrees share one config; the diagnostic is logged once per repository.");
-        Assert.That(ExceptionRecordsFor("url-remote"), Is.EqualTo(0));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(DiagnosticsFor("url-remote"), Is.EqualTo(1),
+                    "All worktrees share one config; the diagnostic is logged once per repository.");
+            Assert.That(ExceptionRecordsFor("url-remote"), Is.Zero);
+        }
     }
 
     [Test]
@@ -228,17 +231,17 @@ public class GitWizardRepositoryInvalidUpstreamTests
 
         repo.Refresh(allBranches: true);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
-            Assert.That(repo.AheadOfRemoteCount, Is.EqualTo(0),
+            Assert.That(repo.AheadOfRemoteCount, Is.Zero,
                 "No resolvable upstream means the existing no-upstream 0/0 representation.");
-            Assert.That(repo.BehindRemoteCount, Is.EqualTo(0));
+            Assert.That(repo.BehindRemoteCount, Is.Zero);
             Assert.That(DiagnosticsFor("url-remote"), Is.EqualTo(1),
                 "CollectBranches and RefreshRemoteDivergence dedupe onto one diagnostic.");
             Assert.That(
                 _loggedMessages.Any(m => m.Contains("Exception computing remote divergence", StringComparison.Ordinal)),
                 Is.False, "RefreshRemoteDivergence must not fall into its exception path.");
-        });
+        }
     }
 
     [Test]
@@ -304,12 +307,12 @@ public class GitWizardRepositoryInvalidUpstreamTests
         worktreeRepo.Refresh(allBranches: true);
 
         var branch = worktreeRepo.Branches?.FirstOrDefault(b => b.Name == "wt-branch");
-        Assert.Multiple(() =>
+        Assert.That(branch, Is.Not.Null);
+        using (Assert.EnterMultipleScope())
         {
-            Assert.That(branch, Is.Not.Null);
             Assert.That(branch!.HasUpstream, Is.True, "Valid tracking in a linked worktree should report HasUpstream = true");
             Assert.That(worktreeRepo.AheadOfRemoteCount, Is.GreaterThan(0), "Should report ahead count for linked worktree");
-        });
+        }
     }
 
     [Test]
@@ -379,17 +382,17 @@ public class GitWizardRepositoryInvalidUpstreamTests
         repo.Refresh(allBranches: true);
 
         var branch = repo.Branches?.FirstOrDefault(b => b.Name == "padded-remote");
-        Assert.Multiple(() =>
+        Assert.That(branch, Is.Not.Null,
+            "A branch whose effective remote is whitespace-padded must stay in the branch list.");
+        using (Assert.EnterMultipleScope())
         {
-            Assert.That(branch, Is.Not.Null,
-                "A branch whose effective remote is whitespace-padded must stay in the branch list.");
             Assert.That(branch!.HasUpstream, Is.False,
                 "' origin ' does not name the configured 'origin' remote; trimming it away would wrongly match.");
             Assert.That(DiagnosticsFor("padded-remote"), Is.EqualTo(1),
                 "Exactly one diagnostic names the branch and its offending (untrimmed) config value.");
-            Assert.That(ExceptionRecordsFor("padded-remote"), Is.EqualTo(0),
+            Assert.That(ExceptionRecordsFor("padded-remote"), Is.Zero,
                 "The whitespace-padded remote must not be mistaken for the configured remote and rethrown.");
-        });
+        }
         Assert.That(
             _loggedMessages.Any(m => m.Contains("' origin '", StringComparison.Ordinal)),
             Is.True, "The diagnostic names the offending value verbatim, whitespace included.");
@@ -417,17 +420,17 @@ public class GitWizardRepositoryInvalidUpstreamTests
             repo.Refresh(allBranches: true);
 
             var branch = repo.Branches?.FirstOrDefault(b => b.Name == "cond-url");
-            Assert.Multiple(() =>
+            Assert.That(branch, Is.Not.Null,
+                "The branch whose effective upstream is a URL must stay in the branch list.");
+            using (Assert.EnterMultipleScope())
             {
-                Assert.That(branch, Is.Not.Null,
-                    "The branch whose effective upstream is a URL must stay in the branch list.");
                 Assert.That(branch!.HasUpstream, Is.False,
                     "Native resolution evaluates the conditional include, sees the URL, and reports no upstream.");
                 Assert.That(DiagnosticsFor("cond-url"), Is.EqualTo(1),
                     "Exactly one diagnostic is logged for the unresolved upstream.");
-                Assert.That(ExceptionRecordsFor("cond-url"), Is.EqualTo(0),
+                Assert.That(ExceptionRecordsFor("cond-url"), Is.Zero,
                     "The conditional-include override must not surface as an exception record.");
-            });
+            }
             Assert.That(
                 _loggedMessages.Any(m => m.Contains("https://example.invalid/owner/repo.git", StringComparison.Ordinal)),
                 Is.True,
@@ -460,15 +463,15 @@ public class GitWizardRepositoryInvalidUpstreamTests
         repo.Refresh(allBranches: true);
 
         var branch = repo.Branches?.FirstOrDefault(b => b.Name == "bad-merge");
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(branch, Is.Null,
                 "CollectBranches drops a branch whose resolution throws, the same as any other branch-collection exception.");
-            Assert.That(DiagnosticsFor("bad-merge"), Is.EqualTo(0),
+            Assert.That(DiagnosticsFor("bad-merge"), Is.Zero,
                 "A malformed merge ref with a valid, configured remote is not the invalid-remote condition and must not log that diagnostic.");
             Assert.That(ExceptionRecordsFor("bad-merge"), Is.EqualTo(1),
                 "The malformed ref must surface through CollectBranches' existing exception logging instead of being misreported as a bad remote.");
-        });
+        }
     }
 
     [Test]
@@ -490,15 +493,15 @@ public class GitWizardRepositoryInvalidUpstreamTests
         repo.Refresh(allBranches: true);
 
         var branch = repo.Branches?.FirstOrDefault(b => b.Name == "bad-merge-local");
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(branch, Is.Null,
                 "CollectBranches drops a branch whose resolution throws, the same as any other branch-collection exception.");
-            Assert.That(DiagnosticsFor("bad-merge-local"), Is.EqualTo(0),
+            Assert.That(DiagnosticsFor("bad-merge-local"), Is.Zero,
                 "remote = \".\" is local-to-local tracking, not the invalid-remote condition, and must not log that diagnostic.");
             Assert.That(ExceptionRecordsFor("bad-merge-local"), Is.EqualTo(1),
                 "The malformed ref must surface through CollectBranches' existing exception logging instead of being misreported as a bad remote.");
-        });
+        }
     }
 
     [Test]
@@ -528,16 +531,16 @@ public class GitWizardRepositoryInvalidUpstreamTests
             repo.Refresh(allBranches: true);
 
             var branch = repo.Branches?.FirstOrDefault(b => b.Name == "cond-valid");
-            Assert.Multiple(() =>
+            Assert.That(branch, Is.Not.Null);
+            using (Assert.EnterMultipleScope())
             {
-                Assert.That(branch, Is.Not.Null);
                 Assert.That(branch!.HasUpstream, Is.True,
                     "Native resolution evaluates the conditional include and resolves the real remote.");
                 Assert.That(repo.AheadOfRemoteCount, Is.GreaterThan(0),
                     "The checked-out branch is ahead of its real (conditionally-included) upstream.");
-                Assert.That(DiagnosticsFor("cond-valid"), Is.EqualTo(0),
+                Assert.That(DiagnosticsFor("cond-valid"), Is.Zero,
                     "A resolvable upstream must not log the unresolved-upstream diagnostic.");
-            });
+            }
         }
         finally
         {

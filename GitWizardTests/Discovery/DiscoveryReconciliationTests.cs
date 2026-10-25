@@ -238,6 +238,6 @@ public class DiscoveryReconciliationTests
         var detached = result.DetachIndexSession();
         Assert.That(detached, Is.SameAs(fixture.Owner));
         await result.DisposeAsync();
-        Assert.That(fixture.ConnectionDisposals, Is.EqualTo(0));
+        Assert.That(fixture.ConnectionDisposals, Is.Zero);
     }
 }

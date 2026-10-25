@@ -362,9 +362,12 @@ public class GitWizardConfigurationTests
         config.IgnoredPaths.Add("/b/path");
 
         var paths = config.IgnoredPaths.ToList();
-        Assert.That(paths[0], Is.EqualTo("/a/path"));
-        Assert.That(paths[1], Is.EqualTo("/b/path"));
-        Assert.That(paths[2], Is.EqualTo("/c/path"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(paths[0], Is.EqualTo("/a/path"));
+            Assert.That(paths[1], Is.EqualTo("/b/path"));
+            Assert.That(paths[2], Is.EqualTo("/c/path"));
+        }
     }
 
     [Test]
@@ -376,9 +379,12 @@ public class GitWizardConfigurationTests
         config.SearchPaths.Add("/b/search");
 
         var paths = config.SearchPaths.ToList();
-        Assert.That(paths[0], Is.EqualTo("/a/search"));
-        Assert.That(paths[1], Is.EqualTo("/b/search"));
-        Assert.That(paths[2], Is.EqualTo("/c/search"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(paths[0], Is.EqualTo("/a/search"));
+            Assert.That(paths[1], Is.EqualTo("/b/search"));
+            Assert.That(paths[2], Is.EqualTo("/c/search"));
+        }
     }
 
     [Test]

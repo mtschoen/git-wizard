@@ -21,13 +21,13 @@ public class GitWizardRepositoryRemoteDivergenceTests
 
         repo.Refresh();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
-            Assert.That(repo.BehindRemoteCount, Is.EqualTo(0));
-            Assert.That(repo.AheadOfRemoteCount, Is.EqualTo(0));
+            Assert.That(repo.BehindRemoteCount, Is.Zero);
+            Assert.That(repo.AheadOfRemoteCount, Is.Zero);
             Assert.That(repo.LastFetchTime, Is.Null,
                 "fetchRemotes defaults to false, so no fetch should be recorded.");
-        });
+        }
     }
 
     [Test]
@@ -39,11 +39,11 @@ public class GitWizardRepositoryRemoteDivergenceTests
 
         repo.Refresh();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
-            Assert.That(repo.BehindRemoteCount, Is.EqualTo(0));
-            Assert.That(repo.AheadOfRemoteCount, Is.EqualTo(0));
-        });
+            Assert.That(repo.BehindRemoteCount, Is.Zero);
+            Assert.That(repo.AheadOfRemoteCount, Is.Zero);
+        }
     }
 
     [Test]
@@ -56,11 +56,11 @@ public class GitWizardRepositoryRemoteDivergenceTests
 
         repo.Refresh();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repo.AheadOfRemoteCount, Is.EqualTo(1));
-            Assert.That(repo.BehindRemoteCount, Is.EqualTo(0));
-        });
+            Assert.That(repo.BehindRemoteCount, Is.Zero);
+        }
     }
 
     [Test]
@@ -78,7 +78,7 @@ public class GitWizardRepositoryRemoteDivergenceTests
         Assert.Multiple(() =>
         {
             Assert.That(repo.BehindRemoteCount, Is.EqualTo(1));
-            Assert.That(repo.AheadOfRemoteCount, Is.EqualTo(0));
+            Assert.That(repo.AheadOfRemoteCount, Is.Zero);
             Assert.That(repo.LastFetchTime, Is.Not.Null);
             Assert.That(repo.LastFetchTime!.Value, Is.InRange(before, after),
                 "LastFetchTime must reflect when this refresh's fetch ran.");
@@ -95,11 +95,11 @@ public class GitWizardRepositoryRemoteDivergenceTests
 
         repo.Refresh();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
-            Assert.That(repo.BehindRemoteCount, Is.EqualTo(0));
+            Assert.That(repo.BehindRemoteCount, Is.Zero);
             Assert.That(repo.LastFetchTime, Is.Null);
-        });
+        }
     }
 
     [Test]
@@ -200,11 +200,11 @@ public class GitWizardRepositoryRemoteDivergenceTests
 
         repo.Refresh();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repo.IsDetachedHead, Is.True);
-            Assert.That(repo.BehindRemoteCount, Is.EqualTo(0));
-            Assert.That(repo.AheadOfRemoteCount, Is.EqualTo(0));
-        });
+            Assert.That(repo.BehindRemoteCount, Is.Zero);
+            Assert.That(repo.AheadOfRemoteCount, Is.Zero);
+        }
     }
 }

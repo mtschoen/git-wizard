@@ -57,10 +57,13 @@ public class RefreshPhaseObservationAndCancellationTests
 
             report.Refresh(paths);
 
-            Assert.That(reachedPhase1.Count, Is.EqualTo(repositoryCount),
-                $"Expected all {repositoryCount} repositories to reach phase 1. Reached: {reachedPhase1.Count}");
-            Assert.That(report.Repositories.Values.Select(repository => repository.RefreshError), Has.All.Null,
-                "Expected no repository to report a timeout or error.");
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(reachedPhase1, Has.Count.EqualTo(repositoryCount),
+                            $"Expected all {repositoryCount} repositories to reach phase 1. Reached: {reachedPhase1.Count}");
+                Assert.That(report.Repositories.Values.Select(repository => repository.RefreshError), Has.All.Null,
+                    "Expected no repository to report a timeout or error.");
+            }
         }
         finally
         {
@@ -84,9 +87,12 @@ public class RefreshPhaseObservationAndCancellationTests
         repository.Refresh(cancellationToken: observer.Token);
 
         Assert.That(observer.ObservedPhases, Does.Contain(2), "Expected phase 2 to be reached before cancellation.");
-        Assert.That(observer.ObservedPhases, Does.Not.Contain(3), "Expected phase 3 to never run after cancellation.");
-        Assert.That(repository.RefreshError, Is.EqualTo("Timed out"));
-        Assert.That(repository.IsRefreshing, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(observer.ObservedPhases, Does.Not.Contain(3), "Expected phase 3 to never run after cancellation.");
+            Assert.That(repository.RefreshError, Is.EqualTo("Timed out"));
+            Assert.That(repository.IsRefreshing, Is.False);
+        }
     }
 
     sealed class PhaseCancellationObserver : IDisposable
@@ -127,9 +133,12 @@ public class RefreshPhaseObservationAndCancellationTests
 
         repository.Refresh(cancellationToken: cancellationTokenSource.Token);
 
-        Assert.That(observedPhases, Is.Empty, "Expected no refresh phase to execute on a pre-cancelled token.");
-        Assert.That(repository.RefreshError, Is.EqualTo("Timed out"));
-        Assert.That(repository.IsRefreshing, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(observedPhases, Is.Empty, "Expected no refresh phase to execute on a pre-cancelled token.");
+            Assert.That(repository.RefreshError, Is.EqualTo("Timed out"));
+            Assert.That(repository.IsRefreshing, Is.False);
+        }
     }
 
     [Test]
@@ -158,8 +167,11 @@ public class RefreshPhaseObservationAndCancellationTests
             report.Repositories[fixture.Path] = repository;
             report.Refresh(new SortedSet<string> { fixture.Path });
 
-            Assert.That(repository.RefreshError, Is.EqualTo("Timed out"));
-            Assert.That(repository.IsRefreshing, Is.False);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(repository.RefreshError, Is.EqualTo("Timed out"));
+                Assert.That(repository.IsRefreshing, Is.False);
+            }
         }
         finally
         {
@@ -196,18 +208,21 @@ public class RefreshPhaseObservationAndCancellationTests
 
         repository.Refresh(handler, cancellationToken: cancellationTokenSource.Token);
 
-        Assert.That(handler.SubmodulesCreated.Length, Is.EqualTo(1),
-            "Expected the submodule-created callback to fire from inside the RefreshSubmodules loop before cancellation stopped further work.");
+        Assert.That(handler.SubmodulesCreated, Has.Length.EqualTo(1),
+                "Expected the submodule-created callback to fire from inside the RefreshSubmodules loop before cancellation stopped further work.");
         Assert.That(observedPhases, Does.Contain(0), "Expected the submodule refresh phase to be entered.");
 
         var submodule = handler.SubmodulesCreated.SingleOrDefault().Submodule;
         Assert.That(submodule, Is.Not.Null, "Expected the created submodule repository to be captured by the handler.");
-        Assert.That(submodule!.RefreshError, Is.EqualTo("Timed out"),
-            "Expected the submodule's own Refresh call to observe the token cancelled by the callback and stop immediately.");
-        Assert.That(submodule.IsRefreshing, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(submodule!.RefreshError, Is.EqualTo("Timed out"),
+                    "Expected the submodule's own Refresh call to observe the token cancelled by the callback and stop immediately.");
+            Assert.That(submodule.IsRefreshing, Is.False);
 
-        Assert.That(repository.RefreshError, Is.EqualTo("Timed out"));
-        Assert.That(repository.IsRefreshing, Is.False);
+            Assert.That(repository.RefreshError, Is.EqualTo("Timed out"));
+            Assert.That(repository.IsRefreshing, Is.False);
+        }
     }
 
     /// <summary>
@@ -239,17 +254,20 @@ public class RefreshPhaseObservationAndCancellationTests
 
         repository.Refresh(handler, cancellationToken: cancellationTokenSource.Token);
 
-        Assert.That(handler.WorktreesCreated.Length, Is.EqualTo(1),
-            "Expected the worktree-created callback to fire from inside the RefreshWorktrees loop before cancellation stopped further work.");
+        Assert.That(handler.WorktreesCreated, Has.Length.EqualTo(1),
+                "Expected the worktree-created callback to fire from inside the RefreshWorktrees loop before cancellation stopped further work.");
         Assert.That(observedPhases, Does.Contain(2), "Expected the worktree refresh phase to be entered.");
 
         var worktree = handler.WorktreesCreated.SingleOrDefault();
         Assert.That(worktree, Is.Not.Null, "Expected the created worktree repository to be captured by the handler.");
-        Assert.That(worktree!.RefreshError, Is.EqualTo("Timed out"),
-            "Expected the worktree's own Refresh call to observe the token cancelled by the callback and stop immediately.");
-        Assert.That(worktree.IsRefreshing, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(worktree!.RefreshError, Is.EqualTo("Timed out"),
+                    "Expected the worktree's own Refresh call to observe the token cancelled by the callback and stop immediately.");
+            Assert.That(worktree.IsRefreshing, Is.False);
 
-        Assert.That(repository.RefreshError, Is.EqualTo("Timed out"));
-        Assert.That(repository.IsRefreshing, Is.False);
+            Assert.That(repository.RefreshError, Is.EqualTo("Timed out"));
+            Assert.That(repository.IsRefreshing, Is.False);
+        }
     }
 }

@@ -75,7 +75,7 @@ public class MainViewModelCachedPathsTests
 
         var cachedPaths = await GitWizardApi.GetCachedRepositoryPathsAsync();
         Assert.That(cachedPaths, Is.Not.Null);
-        Assert.That(cachedPaths!.Length, Is.EqualTo(1));
+        Assert.That(cachedPaths!, Has.Length.EqualTo(1));
         Assert.That(cachedPaths[0], Is.EqualTo(healthyPath));
 
     }
@@ -91,7 +91,7 @@ public class MainViewModelCachedPathsTests
 
         var cachedPaths = await GitWizardApi.GetCachedRepositoryPathsAsync();
         Assert.That(cachedPaths, Is.Not.Null);
-        Assert.That(cachedPaths!.Length, Is.EqualTo(1));
+        Assert.That(cachedPaths!, Has.Length.EqualTo(1));
         Assert.That(cachedPaths[0], Is.EqualTo(path));
 
     }

@@ -15,14 +15,14 @@ public class AgentInstructionsTests
     public void Instructions_StayWithinDocumentAndBlockBudgets()
     {
         var instructions = Read("AGENTS.md");
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(instructions.EnumerateRunes().Count(), Is.LessThan(15000));
             foreach (var block in Regex.Split(instructions, @"\r?\n[\t ]*\r?\n"))
             {
                 Assert.That(block.EnumerateRunes().Count(), Is.LessThan(3000), block);
             }
-        });
+        }
     }
 
     [Test]
@@ -47,13 +47,13 @@ public class AgentInstructionsTests
         var flags = Regex.Matches(help, "--[a-z][a-z-]*")
             .Concat(Regex.Matches(parser, "--[a-z][a-z-]*"))
             .Select(match => match.Value).Distinct();
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             foreach (var flag in flags)
             {
                 Assert.That(documented, Does.Contain($"`{flag}`"), flag);
             }
-        });
+        }
     }
 
     [Test]
@@ -61,7 +61,7 @@ public class AgentInstructionsTests
     {
         var properties = XDocument.Parse(Read("Directory.Build.props"));
         var version = properties.Descendants("Version").Single().Value;
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(Capture(["--version"]).Trim(), Is.EqualTo(version));
             foreach (var assembly in new[] { typeof(RunConfiguration).Assembly, typeof(GitWizardUI.App).Assembly })
@@ -71,7 +71,7 @@ public class AgentInstructionsTests
             }
             Assert.That(XDocument.Parse(Read("GitWizardUI/GitWizardUI.csproj")).Descendants("Version"), Is.Empty);
             Assert.That(XDocument.Parse(Read("git-wizard/git-wizard.csproj")).Descendants("Version"), Is.Empty);
-        });
+        }
     }
 
     [Test]

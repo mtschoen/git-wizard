@@ -159,12 +159,18 @@ static class WatchFailureAssertions
                 scripted.WaitForStartAsync('Y', 1, cancellation.Token));
             scripted.WatchFor('X').LoseChannel(new IOException("X watch failed"));
             await failed.Task.WaitAsync(cancellation.Token);
-            Assert.That(service.ScanErrors["X"], Is.EqualTo("X watch failed"));
-            Assert.That(index.Drives.Single(drive => drive.Drive == 'X').State, Is.EqualTo(DriveState.Ready));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(service.ScanErrors["X"], Is.EqualTo("X watch failed"));
+                Assert.That(index.Drives.Single(drive => drive.Drive == 'X').State, Is.EqualTo(DriveState.Ready));
+            }
             var markers = index.Search(new SearchQuery(".git", NameMatchMode.Exact)).ToArray();
             Assert.That(markers, Has.Length.EqualTo(2), "Both the failed and healthy drive remain queryable.");
-            Assert.That(markers.All(entry => entry.Parent is { Name: "repo" }), Is.True);
-            Assert.That(deaths, Is.Empty);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(markers.All(entry => entry.Parent is { Name: "repo" }), Is.True);
+                Assert.That(deaths, Is.Empty);
+            }
             await scripted.WatchFor('Y').PublishBatchAsync([new SyntheticJournalRecord
                 {
                     RecordNumber = 50, ParentRecordNumber = 6, SequenceNumber = 1,
@@ -177,8 +183,11 @@ static class WatchFailureAssertions
             pending = reader.MoveNextAsync().AsTask();
             scripted.WatchFor('Y').LoseChannel(new IOException("Y watch failed"));
             Assert.That(await pending, Is.False);
-            Assert.That(deaths, Has.Count.EqualTo(1));
-            Assert.That(service.ScanErrors["Y"], Is.EqualTo("Y watch failed"));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(deaths, Has.Count.EqualTo(1));
+                Assert.That(service.ScanErrors["Y"], Is.EqualTo("Y watch failed"));
+            }
         }
         finally
         {

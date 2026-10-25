@@ -20,12 +20,15 @@ public class BranchInventoryReportTests
         Assert.That(repoItem.Branches, Has.Count.EqualTo(1));
 
         var branch = repoItem.Branches[0];
-        Assert.That(branch.Name, Is.EqualTo("feature-1"));
-        Assert.That(branch.IsMerged, Is.False);
-        Assert.That(branch.AheadOfBase, Is.EqualTo(1));
-        Assert.That(branch.BehindBase, Is.EqualTo(0));
-        Assert.That(branch.HasUpstream, Is.False);
-        Assert.That(branch.UniqueCommitCount, Is.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(branch.Name, Is.EqualTo("feature-1"));
+            Assert.That(branch.IsMerged, Is.False);
+            Assert.That(branch.AheadOfBase, Is.EqualTo(1));
+            Assert.That(branch.BehindBase, Is.Zero);
+            Assert.That(branch.HasUpstream, Is.False);
+            Assert.That(branch.UniqueCommitCount, Is.EqualTo(1));
+        }
     }
 
     [Test]
@@ -44,8 +47,11 @@ public class BranchInventoryReportTests
         // Scan with notMergedOnly = false
         var fullReport = BranchInventoryReport.Scan([repo.Path], notMergedOnly: false);
         Assert.That(fullReport.Repositories, Has.Count.EqualTo(1));
-        Assert.That(fullReport.Repositories[0].Branches[0].IsMerged, Is.True);
-        Assert.That(fullReport.Repositories[0].Branches[0].UniqueCommitCount, Is.EqualTo(0));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(fullReport.Repositories[0].Branches[0].IsMerged, Is.True);
+            Assert.That(fullReport.Repositories[0].Branches[0].UniqueCommitCount, Is.Zero);
+        }
     }
 
     [Test]
@@ -81,9 +87,12 @@ public class BranchInventoryReportTests
         Assert.That(report.Repositories, Has.Count.EqualTo(1));
         var branchInfo = report.Repositories[0].Branches.FirstOrDefault(b => b.Name == "feature-pushed");
         Assert.That(branchInfo, Is.Not.Null);
-        Assert.That(branchInfo!.HasUpstream, Is.True);
-        Assert.That(branchInfo.AheadOfUpstream, Is.EqualTo(0));
-        Assert.That(branchInfo.UniqueCommitCount, Is.EqualTo(0), "Pushed commits are on remote, so unique commits should be 0");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(branchInfo!.HasUpstream, Is.True);
+            Assert.That(branchInfo.AheadOfUpstream, Is.Zero);
+            Assert.That(branchInfo.UniqueCommitCount, Is.Zero, "Pushed commits are on remote, so unique commits should be 0");
+        }
     }
 
     [Test]
@@ -127,15 +136,18 @@ public class BranchInventoryReportTests
         Assert.That(item.Branches.Select(branch => branch.Name),
             Is.EqualTo(["a-affected", "z-healthy"]));
         var affected = item.Branches[0];
-        Assert.That(affected.HasUpstream, Is.False);
-        Assert.That(affected.UpstreamBranch, Is.Null);
-        Assert.That(affected.AheadOfUpstream, Is.Zero);
-        Assert.That(affected.BehindUpstream, Is.Zero);
-        Assert.That(affected.AheadOfBase, Is.EqualTo(1));
-        Assert.That(affected.BehindBase, Is.Zero);
-        Assert.That(affected.IsMerged, Is.False);
-        Assert.That(affected.UniqueCommitCount, Is.EqualTo(1));
-        Assert.That(affected.LastCommitDate, Is.Not.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(affected.HasUpstream, Is.False);
+            Assert.That(affected.UpstreamBranch, Is.Null);
+            Assert.That(affected.AheadOfUpstream, Is.Zero);
+            Assert.That(affected.BehindUpstream, Is.Zero);
+            Assert.That(affected.AheadOfBase, Is.EqualTo(1));
+            Assert.That(affected.BehindBase, Is.Zero);
+            Assert.That(affected.IsMerged, Is.False);
+            Assert.That(affected.UniqueCommitCount, Is.EqualTo(1));
+            Assert.That(affected.LastCommitDate, Is.Not.Null);
+        }
     }
 
     [TestCase("origin", true)]
@@ -167,11 +179,14 @@ public class BranchInventoryReportTests
         var item = report.Repositories[0];
         Assert.That(item.Error, Is.Null);
         var branch = item.Branches.Single(candidate => candidate.Name == "feature-tracked");
-        Assert.That(branch.HasUpstream, Is.True);
-        Assert.That(branch.UpstreamBranch, Is.EqualTo($"{remoteName}/feature-tracked"));
-        Assert.That(branch.AheadOfUpstream, Is.EqualTo(hasTrackingReference ? 1 : 0));
-        Assert.That(branch.BehindUpstream, Is.EqualTo(hasTrackingReference ? 1 : 0));
-        Assert.That(branch.AheadOfBase, Is.EqualTo(1));
-        Assert.That(branch.UniqueCommitCount, Is.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(branch.HasUpstream, Is.True);
+            Assert.That(branch.UpstreamBranch, Is.EqualTo($"{remoteName}/feature-tracked"));
+            Assert.That(branch.AheadOfUpstream, Is.EqualTo(hasTrackingReference ? 1 : 0));
+            Assert.That(branch.BehindUpstream, Is.EqualTo(hasTrackingReference ? 1 : 0));
+            Assert.That(branch.AheadOfBase, Is.EqualTo(1));
+            Assert.That(branch.UniqueCommitCount, Is.EqualTo(1));
+        }
     }
 }

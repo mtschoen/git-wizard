@@ -44,7 +44,7 @@ public class SettingsViewModelTests
         var picker = new StubFolderPicker();
         var vm = TestViewModels.CreateSettings(folderPicker: picker);
 
-        Assert.That(vm.SkipHiddenDirectories, Is.EqualTo(false));
+        Assert.That(vm.SkipHiddenDirectories, Is.False);
     }
 
     [Test]
@@ -449,7 +449,7 @@ public class SettingsViewModelTests
 
         vm.ResetToDefaults();
 
-        Assert.That(vm.SkipHiddenDirectories, Is.EqualTo(false));
+        Assert.That(vm.SkipHiddenDirectories, Is.False);
     }
 
     [Test]

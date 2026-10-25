@@ -55,14 +55,20 @@ public class GitWizardReportMergeTests
             new List<string> { newRepo.Path });
 
         Assert.That(merged.Repositories.ContainsKey(existingPath), Is.True,
-            "merge must preserve the pre-existing entry");
-        Assert.That(merged.Repositories[existingPath].RefreshError, Is.EqualTo("sentinel-marker"));
-        Assert.That(merged.Repositories.ContainsKey(newRepo.Path), Is.True,
-            "merge must insert the new entry");
+                "merge must preserve the pre-existing entry");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(merged.Repositories[existingPath].RefreshError, Is.EqualTo("sentinel-marker"));
+            Assert.That(merged.Repositories.ContainsKey(newRepo.Path), Is.True,
+                "merge must insert the new entry");
+        }
 
         var onDisk = JsonSerializer.Deserialize<GitWizardReport>(File.ReadAllText(savePath));
-        Assert.That(onDisk!.Repositories.ContainsKey(existingPath), Is.True);
-        Assert.That(onDisk.Repositories.ContainsKey(newRepo.Path), Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(onDisk!.Repositories.ContainsKey(existingPath), Is.True);
+            Assert.That(onDisk.Repositories.ContainsKey(newRepo.Path), Is.True);
+        }
     }
 
     [Test]
@@ -87,12 +93,15 @@ public class GitWizardReportMergeTests
             new List<string> { repo.Path });
 
         Assert.That(merged.Repositories.ContainsKey(repo.Path), Is.True);
-        Assert.That(merged.Repositories[repo.Path].RefreshError,
-            Is.Not.EqualTo("stale-placeholder-error"),
-            "merge must refresh (replace) the target entry, not keep the stale one");
-        // A freshly-refreshed valid repo has its CurrentBranch populated.
-        Assert.That(merged.Repositories[repo.Path].CurrentBranch, Is.Not.Null,
-            "the target entry should reflect a real refresh");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(merged.Repositories[repo.Path].RefreshError,
+                Is.Not.EqualTo("stale-placeholder-error"),
+                "merge must refresh (replace) the target entry, not keep the stale one");
+            // A freshly-refreshed valid repo has its CurrentBranch populated.
+            Assert.That(merged.Repositories[repo.Path].CurrentBranch, Is.Not.Null,
+                "the target entry should reflect a real refresh");
+        }
     }
 
     [Test]
@@ -144,8 +153,11 @@ public class GitWizardReportMergeTests
         }
         else
         {
-            Assert.That(merged.Repositories, Is.Empty);
-            Assert.That(File.Exists(savePath), Is.True);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(merged.Repositories, Is.Empty);
+                Assert.That(File.Exists(savePath), Is.True);
+            }
         }
     }
 
@@ -177,9 +189,12 @@ public class GitWizardReportMergeTests
         var merged = GitWizardReport.MergeIntoFile(savePath, configuration,
             new List<string> { repo.Path });
 
-        Assert.That(File.Exists(savePath), Is.True,
-            "the atomic writer must create missing parent directories");
-        Assert.That(merged.Repositories.ContainsKey(repo.Path), Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(File.Exists(savePath), Is.True,
+                    "the atomic writer must create missing parent directories");
+            Assert.That(merged.Repositories.ContainsKey(repo.Path), Is.True);
+        }
     }
 
     [TestCase(false)]
@@ -252,13 +267,16 @@ public class GitWizardReportMergeTests
         var root = JsonNode.Parse(File.ReadAllText(savePath))!.AsObject();
         var repositories = root["Repositories"]!.AsObject();
         Assert.That(repositories.ContainsKey(preservedPath), Is.True,
-            "the untouched entry must remain after the merge");
-        Assert.That((string?)repositories[preservedPath]!["CurrentBranch"],
-            Is.EqualTo("preserved-branch"),
-            "a private-set field on the untouched entry must survive the merge verbatim");
-        // And the refreshed target still landed.
-        Assert.That(repositories.ContainsKey(repo.Path), Is.True,
-            "the refreshed target entry must be present");
+                "the untouched entry must remain after the merge");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That((string?)repositories[preservedPath]!["CurrentBranch"],
+                Is.EqualTo("preserved-branch"),
+                "a private-set field on the untouched entry must survive the merge verbatim");
+            // And the refreshed target still landed.
+            Assert.That(repositories.ContainsKey(repo.Path), Is.True,
+                "the refreshed target entry must be present");
+        }
     }
 
     [Test]
@@ -297,13 +315,19 @@ public class GitWizardReportMergeTests
         var merged = GitWizardReport.MergeIntoFile(savePath, configuration,
             new List<string> { repo.Path });
 
-        Assert.That(merged.Repositories.ContainsKey(repo.Path), Is.True);
-        Assert.That(merged.Repositories.Count, Is.EqualTo(501));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(merged.Repositories.ContainsKey(repo.Path), Is.True);
+            Assert.That(merged.Repositories, Has.Count.EqualTo(501));
+        }
 
         var onDisk = JsonNode.Parse(File.ReadAllText(savePath))!.AsObject();
         var onDiskRepos = onDisk["Repositories"]!.AsObject();
-        Assert.That(onDiskRepos.Count, Is.EqualTo(501));
-        Assert.That(onDiskRepos.ContainsKey(repo.Path), Is.True);
-        Assert.That(onDiskRepos.ContainsKey("/large/test/repository/path/number/0250"), Is.True);
+        Assert.That(onDiskRepos, Has.Count.EqualTo(501));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(onDiskRepos.ContainsKey(repo.Path), Is.True);
+            Assert.That(onDiskRepos.ContainsKey("/large/test/repository/path/number/0250"), Is.True);
+        }
     }
 }

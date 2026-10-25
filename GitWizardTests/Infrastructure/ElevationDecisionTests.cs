@@ -42,8 +42,11 @@ public class ElevationDecisionTests
 
         Assert.That(result, Is.True);
         Assert.That(fake.RunElevatedCalls, Has.Count.EqualTo(1));
-        Assert.That(fake.RunElevatedCalls[0].Arguments, Is.EqualTo(["--elevated-defender"]));
-        Assert.That(fake.RunElevatedCalls[0].Timeout, Is.EqualTo(TimeSpan.FromSeconds(60)));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(fake.RunElevatedCalls[0].Arguments, Is.EqualTo(["--elevated-defender"]));
+            Assert.That(fake.RunElevatedCalls[0].Timeout, Is.EqualTo(TimeSpan.FromSeconds(60)));
+        }
     }
 
     [Test]
@@ -54,8 +57,11 @@ public class ElevationDecisionTests
 
         var result = WindowsDefender.AddExclusions(fake);
 
-        Assert.That(result, Is.False);
-        Assert.That(fake.RunElevatedCalls, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Is.False);
+            Assert.That(fake.RunElevatedCalls, Is.Empty);
+        }
     }
 
     [Test]
@@ -65,8 +71,11 @@ public class ElevationDecisionTests
 
         var result = WindowsDefender.TryRunElevatedHelper(["git-wizard.exe", "-summary"], fake);
 
-        Assert.That(result, Is.Null);
-        Assert.That(fake.RunElevatedCalls, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Is.Null);
+            Assert.That(fake.RunElevatedCalls, Is.Empty);
+        }
     }
 
     [Test]
@@ -107,8 +116,11 @@ public class ElevationDecisionTests
                     throw new AssertionException("Empty search paths must not connect.");
                 },
                 _ => true));
-        Assert.That(result.Success, Is.False);
-        Assert.That(calls, Is.Zero);
-        Assert.That(paths, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Success, Is.False);
+            Assert.That(calls, Is.Zero);
+            Assert.That(paths, Is.Empty);
+        }
     }
 }

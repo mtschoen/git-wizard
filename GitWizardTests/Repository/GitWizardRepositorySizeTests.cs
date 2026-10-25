@@ -11,7 +11,7 @@ public class GitWizardRepositorySizeTests
     {
         using var directory = new TempDirectory("gw-empty-");
         var size = GitWizardRepository.ComputeDirectorySize(directory.Path);
-        Assert.That(size, Is.EqualTo(0));
+        Assert.That(size, Is.Zero);
     }
 
     [Test]

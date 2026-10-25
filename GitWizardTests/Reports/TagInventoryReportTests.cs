@@ -10,7 +10,7 @@ public class TagInventoryReportTests
     [Test]
     public void IsTagMatch_PatternWildcards_BehavesCorrectly()
     {
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(TagInventoryReport.IsTagMatch("v1.0.0", "*"), Is.True);
             Assert.That(TagInventoryReport.IsTagMatch("archive/2026-01", "archive/*"), Is.True);
@@ -20,7 +20,7 @@ public class TagInventoryReportTests
             Assert.That(TagInventoryReport.IsTagMatch("v1.00", "v1.?"), Is.False);
             Assert.That(TagInventoryReport.IsTagMatch("v1.0.0", "v1.0.0"), Is.True);
             Assert.That(TagInventoryReport.IsTagMatch("v1.0.1", "v1.0.0"), Is.False);
-        });
+        }
     }
 
     [Test]
@@ -35,9 +35,12 @@ public class TagInventoryReportTests
         Assert.That(report.Repositories, Has.Count.EqualTo(1));
         var repoItem = report.Repositories[0];
         Assert.That(repoItem.Tags, Has.Count.EqualTo(1));
-        Assert.That(repoItem.Tags[0].Name, Is.EqualTo("archive/old-release"));
-        Assert.That(repoItem.Tags[0].CommitSha, Is.Not.Empty);
-        Assert.That(repoItem.Tags[0].ExistsOnRemote, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(repoItem.Tags[0].Name, Is.EqualTo("archive/old-release"));
+            Assert.That(repoItem.Tags[0].CommitSha, Is.Not.Empty);
+            Assert.That(repoItem.Tags[0].ExistsOnRemote, Is.False);
+        }
     }
 
     [Test]
@@ -76,12 +79,18 @@ public class TagInventoryReportTests
         Assert.That(repoItem.Tags, Has.Count.EqualTo(2));
 
         var reapedTag = repoItem.Tags.First(t => t.Name == "archive/reaped-on-remote");
-        Assert.That(reapedTag.ExistsOnRemote, Is.False);
-        Assert.That(reapedTag.Remotes, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(reapedTag.ExistsOnRemote, Is.False);
+            Assert.That(reapedTag.Remotes, Is.Empty);
+        }
 
         var presentTag = repoItem.Tags.First(t => t.Name == "archive/still-on-remote");
-        Assert.That(presentTag.ExistsOnRemote, Is.True);
-        Assert.That(presentTag.Remotes, Does.Contain("origin"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(presentTag.ExistsOnRemote, Is.True);
+            Assert.That(presentTag.Remotes, Does.Contain("origin"));
+        }
     }
 
     [Test]
@@ -114,12 +123,12 @@ public class TagInventoryReportTests
 
         var tags = await TagInventoryReport.FetchRemoteTagsAsync(originUrl);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(tags, Does.Contain("v1.0.0"));
             Assert.That(tags, Does.Contain("v2.0.0"));
             Assert.That(tags, Does.Not.Contain("v2.0.0^{}"));
-        });
+        }
     }
 
     [Test]
@@ -144,11 +153,17 @@ public class TagInventoryReportTests
         Assert.That(repoItem.Tags, Has.Count.EqualTo(2));
 
         var reapedTag = repoItem.Tags.First(t => t.Name == "archive/reaped-on-remote");
-        Assert.That(reapedTag.ExistsOnRemote, Is.False);
-        Assert.That(reapedTag.Remotes, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(reapedTag.ExistsOnRemote, Is.False);
+            Assert.That(reapedTag.Remotes, Is.Empty);
+        }
 
         var presentTag = repoItem.Tags.First(t => t.Name == "archive/still-on-remote");
-        Assert.That(presentTag.ExistsOnRemote, Is.True);
-        Assert.That(presentTag.Remotes, Does.Contain("origin"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(presentTag.ExistsOnRemote, Is.True);
+            Assert.That(presentTag.Remotes, Does.Contain("origin"));
+        }
     }
 }

@@ -42,13 +42,13 @@ public class GitWizardReportErrorPathTests
         // Every handler callback throws; Refresh must complete and still record the repository.
         report.Refresh([fixture.Path], handler);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(report.Repositories.ContainsKey(fixture.Path), Is.True,
                 "The repository must be scanned even though every handler callback threw.");
             Assert.That(startProgressCalls, Is.GreaterThan(0));
             Assert.That(repositoryCreatedCalls, Is.GreaterThan(0));
             Assert.That(updateProgressCalls, Is.GreaterThan(0));
-        });
+        }
     }
 }

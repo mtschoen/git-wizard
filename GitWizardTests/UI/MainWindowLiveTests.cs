@@ -21,7 +21,7 @@ public class MainWindowLiveTests
         Assert.Multiple(() =>
         {
             Assert.That(button.Content, Is.EqualTo("Live"));
-            Assert.That(button.Classes.Contains("live"), Is.False);
+            Assert.That(button.Classes, Does.Not.Contain("live"));
             Assert.That(button.IsEnabled, Is.True);
         });
 
@@ -33,8 +33,8 @@ public class MainWindowLiveTests
         Assert.Multiple(() =>
         {
             Assert.That(button.Content, Is.EqualTo("Starting Live..."));
-            Assert.That(button.Classes.Contains("liveStarting"), Is.True);
-            Assert.That(button.Classes.Contains("live"), Is.False);
+            Assert.That(button.Classes, Does.Contain("liveStarting"));
+            Assert.That(button.Classes, Does.Not.Contain("live"));
             Assert.That(button.IsEnabled, Is.True);
         });
 
@@ -43,8 +43,8 @@ public class MainWindowLiveTests
         Assert.Multiple(() =>
         {
             Assert.That(button.Content, Is.EqualTo("Live"));
-            Assert.That(button.Classes.Contains("live"), Is.True);
-            Assert.That(button.Classes.Contains("liveStarting"), Is.False);
+            Assert.That(button.Classes, Does.Contain("live"));
+            Assert.That(button.Classes, Does.Not.Contain("liveStarting"));
             Assert.That(button.IsEnabled, Is.True);
         });
     }

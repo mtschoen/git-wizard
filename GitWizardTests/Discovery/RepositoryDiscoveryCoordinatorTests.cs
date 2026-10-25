@@ -146,7 +146,7 @@ public class RepositoryDiscoveryCoordinatorTests
         Assert.That(result.Inventory.Observations.Single().Source, Is.EqualTo(DiscoverySource.Scan));
         Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.CompleteNonempty));
         Assert.That(broker.ConnectionCount, Is.EqualTo(seedDifferentRetention ? 2 : 1));
-        Assert.That(broker.Scans.Count, Is.EqualTo(seedDifferentRetention ? 2 : 1));
+        Assert.That(broker.Scans, Has.Count.EqualTo(seedDifferentRetention ? 2 : 1));
     }
 
     [Test]

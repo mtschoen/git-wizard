@@ -62,8 +62,11 @@ public class ReportDiscoverySessionTests
         Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
         await report.DisposeAsync();
         await report.DisposeAsync();
-        Assert.That(replacement.ConnectionDisposals, Is.EqualTo(1));
-        Assert.That(report.DiscoveryIndex, Is.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(replacement.ConnectionDisposals, Is.EqualTo(1));
+            Assert.That(report.DiscoveryIndex, Is.Null);
+        }
     }
 
     [Test]
@@ -95,8 +98,11 @@ public class ReportDiscoverySessionTests
         await report.SetDiscoveryIndexAsync(fixture.Owner);
         var owner = report.DetachDiscoveryIndex();
         await report.DisposeAsync();
-        Assert.That(owner!.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single().Parent!.Value.Name, Is.EqualTo("repo"));
-        Assert.That(fixture.ConnectionDisposals, Is.Zero);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(owner!.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single().Parent!.Value.Name, Is.EqualTo("repo"));
+            Assert.That(fixture.ConnectionDisposals, Is.Zero);
+        }
         await owner.DisposeAsync();
         await owner.DisposeAsync();
         Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));

@@ -11,8 +11,11 @@ sealed class TempDirectoryTests
         var first = new TempDirectory(create: create);
         try
         {
-            Assert.That(first.Path, Is.Not.EqualTo(second.Path));
-            Assert.That(Directory.Exists(first.Path), Is.EqualTo(create));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(first.Path, Is.Not.EqualTo(second.Path));
+                Assert.That(Directory.Exists(first.Path), Is.EqualTo(create));
+            }
             Directory.CreateDirectory(Path.Combine(first.Path, "child"));
             var file = Path.Combine(first.Path, "child", "read-only.txt");
             File.WriteAllText(file, "owned");

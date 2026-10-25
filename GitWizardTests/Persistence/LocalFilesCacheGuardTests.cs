@@ -49,10 +49,13 @@ public class LocalFilesCacheGuardTests
         var before = Directory.GetFiles(root, "*", SearchOption.AllDirectories)
             .ToDictionary(path => path, File.ReadAllBytes);
         Assert.That(GitWizardApi.TryDeleteAllLocalFiles(out var refusal), Is.False);
-        Assert.That(refusal, Does.Contain("mft-index"));
-        Assert.That(Directory.Exists(cache), Is.True);
-        Assert.That(Directory.GetFiles(root, "*", SearchOption.AllDirectories),
-            Is.EquivalentTo(before.Keys));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(refusal, Does.Contain("mft-index"));
+            Assert.That(Directory.Exists(cache), Is.True);
+            Assert.That(Directory.GetFiles(root, "*", SearchOption.AllDirectories),
+                Is.EquivalentTo(before.Keys));
+        }
         foreach (var pair in before)
         {
             Assert.That(File.ReadAllBytes(pair.Key), Is.EqualTo(pair.Value));
@@ -73,10 +76,13 @@ public class LocalFilesCacheGuardTests
         File.WriteAllText(GitWizardApi.GetCachedRepositoryListPath(), "repository sentinel");
         File.WriteAllText(GitWizardReport.GetCachedReportPath(), "{}");
         GitWizardApi.ClearCache();
-        Assert.That(File.ReadAllText(block), Is.EqualTo("block sentinel"));
-        Assert.That(File.ReadAllText(configuration), Is.EqualTo("configuration sentinel"));
-        Assert.That(File.Exists(GitWizardApi.GetCachedRepositoryListPath()), Is.False);
-        Assert.That(File.Exists(GitWizardReport.GetCachedReportPath()), Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(File.ReadAllText(block), Is.EqualTo("block sentinel"));
+            Assert.That(File.ReadAllText(configuration), Is.EqualTo("configuration sentinel"));
+            Assert.That(File.Exists(GitWizardApi.GetCachedRepositoryListPath()), Is.False);
+            Assert.That(File.Exists(GitWizardReport.GetCachedReportPath()), Is.False);
+        }
     }
 
     [TestCase(false, false)]
@@ -100,11 +106,11 @@ public class LocalFilesCacheGuardTests
 
         Assert.DoesNotThrow(GitWizardApi.ClearCache);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(File.Exists(repoListPath), Is.False);
             Assert.That(File.Exists(reportPath), Is.False);
-        });
+        }
     }
 
     [Test]
@@ -129,8 +135,11 @@ public class LocalFilesCacheGuardTests
         File.WriteAllText(Path.Combine(nested, "sentinel.txt"), "ordinary file");
         File.WriteAllText(Path.Combine(root, "top-level.txt"), "ordinary file");
         Assert.That(GitWizardApi.TryDeleteAllLocalFiles(out var refusal), Is.True);
-        Assert.That(refusal, Is.Null);
-        Assert.That(Directory.Exists(root), Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(refusal, Is.Null);
+            Assert.That(Directory.Exists(root), Is.False);
+        }
     }
 
     [Test]
@@ -144,9 +153,12 @@ public class LocalFilesCacheGuardTests
         await using var viewModel = TestViewModels.Create(dialogs: dialogs);
         await viewModel.IndexCache.DeleteAllLocalFilesAsync();
         Assert.That(dialogs.AlertCalls, Has.Count.EqualTo(1));
-        Assert.That(dialogs.AlertCalls.Single().Title, Is.EqualTo("Files Not Deleted"));
-        Assert.That(dialogs.AlertCalls.Single().Message, Does.Contain("mft-index"));
-        Assert.That(await File.ReadAllTextAsync(sentinel), Is.EqualTo("retained"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(dialogs.AlertCalls.Single().Title, Is.EqualTo("Files Not Deleted"));
+            Assert.That(dialogs.AlertCalls.Single().Message, Does.Contain("mft-index"));
+            Assert.That(await File.ReadAllTextAsync(sentinel), Is.EqualTo("retained"));
+        }
     }
 
     [Test]
@@ -156,7 +168,10 @@ public class LocalFilesCacheGuardTests
         var dialogs = new StubUserDialogs();
         await using var viewModel = TestViewModels.Create(dialogs: dialogs);
         await viewModel.IndexCache.DeleteAllLocalFilesAsync();
-        Assert.That(dialogs.AlertCalls.Single().Title, Is.EqualTo("Files Deleted"));
-        Assert.That(Directory.Exists(GitWizardApi.GetLocalFilesPath()), Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(dialogs.AlertCalls.Single().Title, Is.EqualTo("Files Deleted"));
+            Assert.That(Directory.Exists(GitWizardApi.GetLocalFilesPath()), Is.False);
+        }
     }
 }

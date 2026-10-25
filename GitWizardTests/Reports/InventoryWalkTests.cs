@@ -66,8 +66,11 @@ public class InventoryWalkTests
         var normalizedRepo = GitWizardApi.NormalizePath(repo.Path);
         var normalizedSub = GitWizardApi.NormalizePath(submoduleDir);
 
-        Assert.That(expanded.Count(p => string.Equals(p, normalizedRepo, StringComparison.OrdinalIgnoreCase)), Is.EqualTo(1));
-        Assert.That(expanded.Count(p => string.Equals(p, normalizedSub, StringComparison.OrdinalIgnoreCase)), Is.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(expanded.Count(p => string.Equals(p, normalizedRepo, StringComparison.OrdinalIgnoreCase)), Is.EqualTo(1));
+            Assert.That(expanded.Count(p => string.Equals(p, normalizedSub, StringComparison.OrdinalIgnoreCase)), Is.EqualTo(1));
+        }
     }
 
     [Test]

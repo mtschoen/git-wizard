@@ -189,11 +189,11 @@ public class GitWizardLogTests
 
         GitWizardLog.Log("Warning message", GitWizardLog.LogType.Warning);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(output, Does.Contain("Warning"));
             Assert.That(output, Does.Contain("Warning message"));
-        });
+        }
     }
 
     [Test]
@@ -329,9 +329,12 @@ public class GitWizardLogTests
         GitWizardLog.Log("Third");
 
         Assert.That(outputs, Has.Count.EqualTo(3));
-        Assert.That(outputs[0], Does.Contain("First"));
-        Assert.That(outputs[1], Does.Contain("Second"));
-        Assert.That(outputs[2], Does.Contain("Third"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(outputs[0], Does.Contain("First"));
+            Assert.That(outputs[1], Does.Contain("Second"));
+            Assert.That(outputs[2], Does.Contain("Third"));
+        }
     }
 
     [Test]
@@ -401,11 +404,11 @@ public class GitWizardLogTests
             GitWizardLog.Log("file sink failure");
             await CompleteFileWriterAsync();
 
-            Assert.Multiple(() =>
+            using (Assert.EnterMultipleScope())
             {
                 Assert.That(stdout.ToString(), Is.Empty);
                 Assert.That(stderr.ToString(), Does.Contain("[GitWizardLog] Failed to create log file:"));
-            });
+            }
         }
         finally
         {
@@ -507,7 +510,7 @@ public class GitWizardLogTests
             if (detail.StackTrace != null)
             {
                 Assert.That(detail.StackTrace, Does.Contain(nameof(CaptureNestedException))
-                    .Or.Contain(nameof(CaptureDeepNestedException)));
+                                .Or.Contain(nameof(CaptureDeepNestedException)));
                 Assert.That(record, Does.Contain(detail.StackTrace));
             }
         }
@@ -619,10 +622,10 @@ public class GitWizardLogTests
 
         await AsyncCondition.WaitUntilAsync(() => !File.Exists(oldFile));
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(File.Exists(oldFile), Is.False);
             Assert.That(File.Exists(newFile), Is.True);
-        });
+        }
     }
 }

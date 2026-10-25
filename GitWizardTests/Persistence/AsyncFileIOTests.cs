@@ -41,10 +41,16 @@ public class AsyncFileIOTests
         var loaded = await GitWizardConfiguration.GetConfigurationAtPathAsync(configPath);
 
         Assert.That(loaded, Is.Not.Null);
-        Assert.That(loaded!.SearchPaths, Has.Count.EqualTo(2));
-        Assert.That(loaded.SearchPaths, Does.Contain("/path/one"));
-        Assert.That(loaded.SearchPaths, Does.Contain("/path/two"));
-        Assert.That(loaded.IgnoredPaths, Has.Count.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(loaded!.SearchPaths, Has.Count.EqualTo(2));
+            Assert.That(loaded.SearchPaths, Does.Contain("/path/one"));
+        }
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(loaded.SearchPaths, Does.Contain("/path/two"));
+            Assert.That(loaded.IgnoredPaths, Has.Count.EqualTo(1));
+        }
         Assert.That(loaded.IgnoredPaths, Does.Contain("/ignored/path"));
     }
 
@@ -93,8 +99,11 @@ public class AsyncFileIOTests
         var loaded = await GitWizardConfiguration.GetConfigurationAtPathAsync(configPath);
 
         Assert.That(loaded, Is.Not.Null);
-        Assert.That(loaded!.SearchPaths, Has.Count.EqualTo(0));
-        Assert.That(loaded.IgnoredPaths, Has.Count.EqualTo(0));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(loaded!.SearchPaths, Has.Count.EqualTo(0));
+            Assert.That(loaded.IgnoredPaths, Has.Count.EqualTo(0));
+        }
     }
 
 

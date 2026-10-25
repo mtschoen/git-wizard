@@ -27,8 +27,11 @@ public class TempDirectoriesTests
     [Test]
     public void IsTempPath_UserProfileOutsideTemp_IsFalse()
     {
-        Assert.That(TempDirectories.IsTempPath(@"C:\Users\someone\AppData\Local\Programs\repo"), Is.False);
-        Assert.That(TempDirectories.IsTempPath(@"C:\Users\someone\repos\repo"), Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(TempDirectories.IsTempPath(@"C:\Users\someone\AppData\Local\Programs\repo"), Is.False);
+            Assert.That(TempDirectories.IsTempPath(@"C:\Users\someone\repos\repo"), Is.False);
+        }
     }
 
     [Test]
@@ -48,15 +51,21 @@ public class TempDirectoriesTests
     [Test]
     public void IsTempPath_UnderPosixTmp_IsTrue()
     {
-        Assert.That(TempDirectories.IsTempPath("/tmp/repo-a"), Is.True);
-        Assert.That(TempDirectories.IsTempPath("/tmp"), Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(TempDirectories.IsTempPath("/tmp/repo-a"), Is.True);
+            Assert.That(TempDirectories.IsTempPath("/tmp"), Is.True);
+        }
     }
 
     [Test]
     public void IsTempPath_PosixPathOutsideTmp_IsFalse()
     {
-        Assert.That(TempDirectories.IsTempPath("/var/tmp/repo-a"), Is.False);
-        Assert.That(TempDirectories.IsTempPath("/home/example/repos/repo-a"), Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(TempDirectories.IsTempPath("/var/tmp/repo-a"), Is.False);
+            Assert.That(TempDirectories.IsTempPath("/home/example/repos/repo-a"), Is.False);
+        }
     }
 
     [Test]

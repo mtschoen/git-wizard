@@ -41,7 +41,7 @@ public class MainViewModelCompositionTests
     public void ShellFile_StaysWithinLineBudget()
     {
         var path = Path.Combine(SourceTree.RepositoryRoot, "GitWizardUI", "ViewModels", "MainViewModel.cs");
-        Assert.That(File.ReadAllLines(path).Length, Is.LessThanOrEqualTo(450));
+        Assert.That(File.ReadAllLines(path), Has.Length.LessThanOrEqualTo(450));
     }
 
     [Test]

@@ -36,7 +36,7 @@ public class MainViewModelPrePopulateTests
         // Both repos should appear in the UI immediately.
         Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(2),
             "Pre-population should add cached repos to Repositories.");
-        Assert.That(vm.RepositoryList.AllRepositories.Count, Is.EqualTo(2),
+        Assert.That(vm.RepositoryList.AllRepositories, Has.Count.EqualTo(2),
             "Pre-population should add cached repos to AllRepositories.");
 
     }

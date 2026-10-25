@@ -27,9 +27,13 @@ public class LocalFilesSandboxTests
                 throw new InvalidOperationException("unwind");
             }
             catch (InvalidOperationException exception) when (exception.Message == "unwind") { }
+
             Assert.That(innerPath, Is.Not.Null);
-            Assert.That(Directory.Exists(innerPath), Is.False);
-            Assert.That(Environment.GetEnvironmentVariable("GITWIZARD_HOME"), Is.EqualTo(outer.Path));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(Directory.Exists(innerPath), Is.False);
+                Assert.That(Environment.GetEnvironmentVariable("GITWIZARD_HOME"), Is.EqualTo(outer.Path));
+            }
         }
         Assert.That(Environment.GetEnvironmentVariable("GITWIZARD_HOME"), Is.EqualTo(previous));
     }

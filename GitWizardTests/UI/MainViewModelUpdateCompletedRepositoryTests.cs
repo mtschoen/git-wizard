@@ -159,6 +159,6 @@ public class MainViewModelUpdateCompletedRepositoryTests
 
         vm.RepositoryList.UpdateCompletedRepository(repo, streaming: false);
 
-        Assert.That(vm.ErrorLog.Count, Is.EqualTo(0));
+        Assert.That(vm.ErrorLog.Count, Is.Zero);
     }
 }

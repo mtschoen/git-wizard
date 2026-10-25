@@ -47,11 +47,11 @@ public class MainWindowSidebarTests
 
             Click(button);
             Assert.That(viewModel.RepositoryList.ActiveFilter, Is.EqualTo(filter), $"{name} click must activate its filter");
-            Assert.That(button.Classes.Contains("active"), Is.True, $"{name} must show the active highlight");
+            Assert.That(button.Classes, Does.Contain("active"), $"{name} must show the active highlight");
 
             Click(button);
             Assert.That(viewModel.RepositoryList.ActiveFilter, Is.EqualTo(FilterType.None), $"{name} re-click must clear the filter");
-            Assert.That(button.Classes.Contains("active"), Is.False, $"{name} must drop the active highlight");
+            Assert.That(button.Classes, Does.Not.Contain("active"), $"{name} must drop the active highlight");
         }
     }
 

@@ -27,13 +27,13 @@ public class GitWizardRepositoryBranchesTests
 
         using var library = new Repository(fixture.Path);
         var featureTip = library.Branches["feature"].Tip!.Sha;
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(library.Head.Tip!.Sha, Is.EqualTo(featureTip),
                 "Checkout must move HEAD to the named branch's tip commit.");
             Assert.That(File.Exists(Path.Combine(fixture.Path, "feature.txt")), Is.True,
                 "The branch's file must be present in the working tree after checkout.");
-        });
+        }
     }
 
     [Test]
@@ -60,12 +60,12 @@ public class GitWizardRepositoryBranchesTests
 
         repo.Refresh();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repo.IsDetachedHead, Is.True);
             Assert.That(repo.MatchingBranchName, Is.AnyOf("main", "master"),
                 "A detached HEAD sitting on the default branch's tip must resolve to that branch.");
-        });
+        }
     }
 
     [Test]
@@ -78,12 +78,12 @@ public class GitWizardRepositoryBranchesTests
 
         repo.Refresh();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repo.IsDetachedHead, Is.True);
             Assert.That(repo.MatchingBranchName, Is.Null,
                 "No local branch points at this commit, so no match must be recorded.");
-        });
+        }
     }
 
     [Test]
@@ -96,14 +96,14 @@ public class GitWizardRepositoryBranchesTests
 
         repo.Refresh(handler);
 
-        Assert.Multiple(() =>
+        Assert.That(repo.Worktrees, Is.Not.Null);
+        Assert.That(repo.Worktrees!, Is.Not.Empty, "The linked worktree must be discovered.");
+        using (Assert.EnterMultipleScope())
         {
-            Assert.That(repo.Worktrees, Is.Not.Null);
-            Assert.That(repo.Worktrees!, Is.Not.Empty, "The linked worktree must be discovered.");
             Assert.That(repo.IsWorktree, Is.False, "The primary repository is not itself a worktree.");
-            Assert.That(handler.WorktreesCreated.Length, Is.GreaterThan(0),
+            Assert.That(handler.WorktreesCreated, Is.Not.Empty,
                 "OnWorktreeCreated must fire for the newly discovered worktree.");
-        });
+        }
 
         var discovered = repo.Worktrees!.Values
             .Where(w => w != null)
@@ -180,8 +180,11 @@ public class GitWizardRepositoryBranchesTests
         var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh();
 
-        Assert.That(repository.IsDetachedHead, Is.True);
-        Assert.That(repository.MatchingBranchName, Is.EqualTo(defaultBranchName));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(repository.IsDetachedHead, Is.True);
+            Assert.That(repository.MatchingBranchName, Is.EqualTo(defaultBranchName));
+        }
     }
 
     [Test]
@@ -192,8 +195,11 @@ public class GitWizardRepositoryBranchesTests
         var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh();
 
-        Assert.That(repository.IsDetachedHead, Is.False);
-        Assert.That(repository.MatchingBranchName, Is.Null.Or.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(repository.IsDetachedHead, Is.False);
+            Assert.That(repository.MatchingBranchName, Is.Null.Or.Empty);
+        }
     }
 
     [Test]
@@ -213,8 +219,11 @@ public class GitWizardRepositoryBranchesTests
         var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh();
 
-        Assert.That(repository.IsDetachedHead, Is.True);
-        Assert.That(repository.MatchingBranchName, Is.Null.Or.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(repository.IsDetachedHead, Is.True);
+            Assert.That(repository.MatchingBranchName, Is.Null.Or.Empty);
+        }
     }
 
     [Test]
@@ -243,8 +252,11 @@ public class GitWizardRepositoryBranchesTests
 
         repository.Refresh();
 
-        Assert.That(repository.IsDetachedHead, Is.True);
-        Assert.That(repository.MatchingBranchName, Is.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(repository.IsDetachedHead, Is.True);
+            Assert.That(repository.MatchingBranchName, Is.Null);
+        }
     }
 
     [Test]
@@ -259,9 +271,12 @@ public class GitWizardRepositoryBranchesTests
         Assert.That(repository.Branches, Is.Not.Null);
         var feature = repository.Branches!.SingleOrDefault(b => b.Name == "feature/ahead");
         Assert.That(feature, Is.Not.Null);
-        Assert.That(feature!.IsMerged, Is.False);
-        Assert.That(feature.AheadOfDefault, Is.GreaterThan(0));
-        Assert.That(feature.MergedInto, Is.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(feature!.IsMerged, Is.False);
+            Assert.That(feature.AheadOfDefault, Is.GreaterThan(0));
+            Assert.That(feature.MergedInto, Is.Null);
+        }
     }
 
     [Test]
@@ -282,10 +297,13 @@ public class GitWizardRepositoryBranchesTests
         Assert.That(repository.Branches, Is.Not.Null);
         var merged = repository.Branches!.SingleOrDefault(b => b.Name == "old/merged");
         Assert.That(merged, Is.Not.Null);
-        Assert.That(merged!.IsMerged, Is.True);
-        Assert.That(merged.AheadOfDefault, Is.EqualTo(0));
-        Assert.That(merged.BehindDefault, Is.GreaterThan(0));
-        Assert.That(merged.MergedInto, Is.AnyOf("main", "master"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(merged!.IsMerged, Is.True);
+            Assert.That(merged.AheadOfDefault, Is.Zero);
+            Assert.That(merged.BehindDefault, Is.GreaterThan(0));
+            Assert.That(merged.MergedInto, Is.AnyOf("main", "master"));
+        }
     }
 
     [Test]
@@ -301,8 +319,11 @@ public class GitWizardRepositoryBranchesTests
         var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh();
 
-        Assert.That(repository.Branches, Is.Null);
-        Assert.That(repository.DefaultBranch, Is.AnyOf("main", "master"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(repository.Branches, Is.Null);
+            Assert.That(repository.DefaultBranch, Is.AnyOf("main", "master"));
+        }
     }
 
     [Test]
@@ -358,12 +379,12 @@ public class GitWizardRepositoryBranchesTests
         Assert.That(repo.Branches, Is.Not.Null);
         var diverged = repo.Branches!.FirstOrDefault(b => b.Name == "diverged");
         Assert.That(diverged, Is.Not.Null);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(diverged!.AheadOfDefault, Is.GreaterThan(0));
             Assert.That(diverged.BehindDefault, Is.GreaterThan(0));
             Assert.That(diverged.IsMerged, Is.False);
-        });
+        }
     }
 
     [Test]
@@ -412,11 +433,11 @@ public class GitWizardRepositoryBranchesTests
         var repo = new GitWizardRepository(fixture.Path);
         repo.Refresh();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repo.IsDetachedHead, Is.True);
             Assert.That(repo.DefaultBranch, Is.Null);
-        });
+        }
     }
 
     [Test]
@@ -474,11 +495,11 @@ public class GitWizardRepositoryBranchesTests
         Assert.That(repo.Branches, Is.Not.Null);
         var feature = repo.Branches!.FirstOrDefault(b => b.Name == "feature-x");
         Assert.That(feature, Is.Not.Null);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(feature!.AheadOfDefault, Is.GreaterThan(0));
             Assert.That(feature.IsMerged, Is.False);
-        });
+        }
     }
 
     [Test]
@@ -494,12 +515,12 @@ public class GitWizardRepositoryBranchesTests
         Assert.That(repo.Branches, Is.Not.Null);
         var merged = repo.Branches!.FirstOrDefault(b => b.Name == "to-merge");
         Assert.That(merged, Is.Not.Null);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(merged!.IsMerged, Is.True);
             Assert.That(merged.MergedInto, Is.Not.Null.And.Not.Empty);
-            Assert.That(merged.AheadOfDefault, Is.EqualTo(0));
-        });
+            Assert.That(merged.AheadOfDefault, Is.Zero);
+        }
     }
 
     [Test]
@@ -611,11 +632,11 @@ public class GitWizardRepositoryBranchesTests
         var repo = new GitWizardRepository(fixture.Path);
         repo.Refresh();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repo.IsDetachedHead, Is.True);
             Assert.That(repo.MatchingBranchName, Is.EqualTo("my-feature"));
-        });
+        }
     }
 
     [Test]

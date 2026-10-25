@@ -151,7 +151,7 @@ public class FanotifyFilesystemIdentifierTests
             Assert.That(result.Errors, Is.Empty);
             Assert.That(openAfterArming, Is.Empty, "arming validates each root and closes its descriptor");
             Assert.That(entries, Has.Count.EqualTo(2));
-            Assert.That(_native.OpenedDirectories.Count, Is.GreaterThan(2), "the batch opened its own descriptors");
+            Assert.That(_native.OpenedDirectories, Has.Count.GreaterThan(2), "the batch opened its own descriptors");
             Assert.That(_native.OpenMountDescriptors, Is.Empty, "the batch closed every descriptor it opened");
         });
     }
@@ -204,7 +204,7 @@ public class FanotifyFilesystemIdentifierTests
         {
             Assert.That(_native.ClosedDescriptors, Does.Contain(7));
             Assert.That(_native.OpenMountDescriptors, Is.Empty);
-            Assert.That(result.Errors.Count, Is.EqualTo(initializeFails ? 1 : 0));
+            Assert.That(result.Errors, Has.Count.EqualTo(initializeFails ? 1 : 0));
             Assert.That(source.Readiness.Volumes.Select(volume => volume.Volume), Does.Not.Contain(_firstRoot));
         });
         Assert.ThrowsAsync<InvalidOperationException>(async () =>

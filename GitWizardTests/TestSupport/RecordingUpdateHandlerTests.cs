@@ -19,8 +19,11 @@ public class RecordingUpdateHandlerTests
         Assert.That(snapshot, Has.Length.EqualTo(32));
         Assert.That(snapshot, Has.All.SameAs(repository));
         Assert.Throws<InvalidOperationException>(() => handler.OnRepositoryRefreshCompleted(repository));
-        Assert.That(snapshot, Has.Length.EqualTo(32));
-        Assert.That(handler.RefreshCompleted, Has.Length.EqualTo(33));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(snapshot, Has.Length.EqualTo(32));
+            Assert.That(handler.RefreshCompleted, Has.Length.EqualTo(33));
+        }
     }
 
     [Test]
@@ -38,7 +41,7 @@ public class RecordingUpdateHandlerTests
         handler.OnWorktreeCreated(child);
         handler.OnUninitializedSubmoduleCreated(parent, "uninitialized");
         handler.OnRepositoryRefreshCompleted(parent);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(handler.ProgressStarts, Is.EqualTo([("scan", 7)]));
             Assert.That(handler.ProgressCounts, Is.EqualTo([3]));
@@ -48,6 +51,6 @@ public class RecordingUpdateHandlerTests
             Assert.That(handler.WorktreesCreated.Single(), Is.SameAs(child));
             Assert.That(handler.UninitializedSubmodulesCreated.Single(), Is.EqualTo((parent, "uninitialized")));
             Assert.That(handler.RefreshCompleted.Single(), Is.SameAs(parent));
-        });
+        }
     }
 }

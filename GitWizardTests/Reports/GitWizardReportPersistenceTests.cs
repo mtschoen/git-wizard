@@ -66,11 +66,11 @@ public class GitWizardReportPersistenceTests
             : LoadSync();
 
         Assert.That(loaded, Is.Not.Null);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(loaded!.SchemaVersion, Is.EqualTo(GitWizardReport.CurrentSchemaVersion));
             Assert.That(loaded.Repositories.Keys, Is.EqualTo(["/repo/one", "/repo/two"]));
-        });
+        }
     }
 
     [TestCase(false)]
@@ -161,8 +161,11 @@ public class GitWizardReportPersistenceTests
         var json = await File.ReadAllTextAsync(path);
         Assert.That(json, Does.Contain(GitWizardReport.CurrentSchemaVersion));
         var deserialized = System.Text.Json.JsonSerializer.Deserialize<GitWizardReport>(json);
-        Assert.That(deserialized!.SchemaVersion, Is.EqualTo(GitWizardReport.CurrentSchemaVersion));
-        Assert.That(deserialized.Repositories.ContainsKey("/repo/one"), Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(deserialized!.SchemaVersion, Is.EqualTo(GitWizardReport.CurrentSchemaVersion));
+            Assert.That(deserialized.Repositories.ContainsKey("/repo/one"), Is.True);
+        }
     }
 
     [TestCase(false)]
@@ -226,7 +229,10 @@ public class GitWizardReportPersistenceTests
         Directory.CreateDirectory(target);
         var report = new GitWizardReport();
         Assert.DoesNotThrow(() => report.SaveAtomic(target));
-        Assert.That(Directory.Exists(target), Is.True);
-        Assert.That(Directory.GetFiles(root, "*.tmp"), Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(Directory.Exists(target), Is.True);
+            Assert.That(Directory.GetFiles(root, "*.tmp"), Is.Empty);
+        }
     }
 }

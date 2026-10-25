@@ -20,9 +20,12 @@ public class GitWizardRepositoryTests
         var deserialized = JsonSerializer.Deserialize<GitWizardCommitInfo>(json);
 
         Assert.That(deserialized, Is.Not.Null);
-        Assert.That(deserialized!.Hash, Is.EqualTo("abc1234"));
-        Assert.That(deserialized.Message, Is.EqualTo("Fix the thing"));
-        Assert.That(deserialized.AuthorEmail, Is.EqualTo("dev@example.com"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(deserialized!.Hash, Is.EqualTo("abc1234"));
+            Assert.That(deserialized.Message, Is.EqualTo("Fix the thing"));
+            Assert.That(deserialized.AuthorEmail, Is.EqualTo("dev@example.com"));
+        }
     }
 
     [Test]
@@ -43,11 +46,14 @@ public class GitWizardRepositoryTests
         var deserialized = JsonSerializer.Deserialize<BranchInfo>(json);
 
         Assert.That(deserialized, Is.Not.Null);
-        Assert.That(deserialized!.Name, Is.EqualTo("feature/x"));
-        Assert.That(deserialized.AheadOfDefault, Is.EqualTo(4));
-        Assert.That(deserialized.BehindDefault, Is.EqualTo(1));
-        Assert.That(deserialized.IsMerged, Is.False);
-        Assert.That(deserialized.HasUpstream, Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(deserialized!.Name, Is.EqualTo("feature/x"));
+            Assert.That(deserialized.AheadOfDefault, Is.EqualTo(4));
+            Assert.That(deserialized.BehindDefault, Is.EqualTo(1));
+            Assert.That(deserialized.IsMerged, Is.False);
+            Assert.That(deserialized.HasUpstream, Is.True);
+        }
     }
 
     [Test]
@@ -60,12 +66,12 @@ public class GitWizardRepositoryTests
         var json = JsonSerializer.Serialize(repo);
 
         Assert.That(json, Is.Not.Null);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(json, Does.Contain("WorkingDirectory"));
             Assert.That(json, Does.Contain("CurrentBranch"));
             Assert.That(json, Does.Contain("SizeOnDisk"));
-        });
+        }
     }
 
     [Test]
@@ -131,9 +137,12 @@ public class GitWizardRepositoryTests
 
         Assert.That(repository.HasSubmoduleIssues, Is.True);
         Assert.That(repository.SubmoduleHealth, Does.ContainKey("external/libfoo"));
-        Assert.That(repository.SubmoduleHealth["external/libfoo"].Status,
-            Is.EqualTo(SubmoduleHealthStatus.MissingFromIndex));
-        Assert.That(repository.SubmoduleHealth["external/libfoo"].Issues, Is.Not.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(repository.SubmoduleHealth["external/libfoo"].Status,
+                    Is.EqualTo(SubmoduleHealthStatus.MissingFromIndex));
+            Assert.That(repository.SubmoduleHealth["external/libfoo"].Issues, Is.Not.Empty);
+        }
     }
 
     [Test]
@@ -193,8 +202,11 @@ public class GitWizardRepositoryTests
         var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh();
 
-        Assert.That(repository.HasSubmoduleIssues, Is.False);
-        Assert.That(repository.SubmoduleHealth, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(repository.HasSubmoduleIssues, Is.False);
+            Assert.That(repository.SubmoduleHealth, Is.Empty);
+        }
     }
 
     [Test]
@@ -214,7 +226,7 @@ public class GitWizardRepositoryTests
             Assert.That(health.Status, Is.EqualTo(SubmoduleHealthStatus.StaleUpstream));
             Assert.That(health.BehindUpstreamCount, Is.EqualTo(3));
             Assert.That(health.GitLinkSha, Is.Not.Null);
-            Assert.That(health.GitLinkSha!.Length, Is.GreaterThanOrEqualTo(7));
+            Assert.That(health.GitLinkSha!, Has.Length.GreaterThanOrEqualTo(7));
             Assert.That(health.ExpectedCommitSha, Is.EqualTo(health.GitLinkSha));
             Assert.That(health.ActualCommitSha, Is.Not.Null);
             Assert.That(health.ActualCommitSha, Is.EqualTo(health.GitLinkSha));
@@ -252,8 +264,11 @@ public class GitWizardRepositoryTests
         repository.Refresh();
 
         var health = repository.SubmoduleHealth["external/libbar"];
-        Assert.That(health.Status, Is.EqualTo(SubmoduleHealthStatus.WrongRef));
-        Assert.That(health.BehindUpstreamCount, Is.EqualTo(0));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(health.Status, Is.EqualTo(SubmoduleHealthStatus.WrongRef));
+            Assert.That(health.BehindUpstreamCount, Is.Zero);
+        }
     }
 
     [Test]
@@ -280,10 +295,10 @@ public class GitWizardRepositoryTests
         var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repository.HasSubmoduleIssues, Is.False);
             Assert.That(repository.IsPublishReady, Is.True);
-        });
+        }
     }
 }

@@ -15,7 +15,7 @@ public class RepositorySweepReportTests
         var report = RepositorySweepReport.Scan([fixture.Path]);
 
         var item = report.Repositories.Single();
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(report.SchemaVersion, Is.EqualTo("1.0"));
             Assert.That(item.Path, Is.EqualTo(fixture.Path));
@@ -23,7 +23,7 @@ public class RepositorySweepReportTests
             Assert.That(item.UnpushedBranches, Is.Empty);
             Assert.That(item.StashCount, Is.Zero);
             Assert.That(item.Error, Is.Null);
-        });
+        }
     }
 
     [Test]
@@ -52,9 +52,12 @@ public class RepositorySweepReportTests
 
         var item = RepositorySweepReport.Scan([fixture.Path]).Repositories.Single();
 
-        Assert.That(item.UnpushedBranches.Select(branch => branch.Name),
-            Is.EqualTo(new[] { "feature/local", defaultBranchName }.Order(StringComparer.Ordinal)));
-        Assert.That(item.UnpushedBranches, Has.All.Property(nameof(UnpushedBranchInfo.CommitCount)).EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(item.UnpushedBranches.Select(branch => branch.Name),
+                    Is.EqualTo(new[] { "feature/local", defaultBranchName }.Order(StringComparer.Ordinal)));
+            Assert.That(item.UnpushedBranches, Has.All.Property(nameof(UnpushedBranchInfo.CommitCount)).EqualTo(1));
+        }
         Assert.That(item.UnpushedBranches.Select(branch => branch.Name), Does.Not.Contain("remote-known"));
     }
 
@@ -67,11 +70,11 @@ public class RepositorySweepReportTests
 
         var item = RepositorySweepReport.Scan([fixture.Path]).Repositories.Single();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(item.DirtyTrackedFiles, Is.Empty);
             Assert.That(item.StashCount, Is.EqualTo(1));
-        });
+        }
     }
 
     [Test]
@@ -88,12 +91,12 @@ public class RepositorySweepReportTests
         Assert.That(report.Repositories.Select(item => item.Path),
             Is.EqualTo(paths.Order(StringComparer.Ordinal)));
         var invalidItem = report.Repositories.Single(item => item.Path == invalid);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(invalidItem.Error, Is.Not.Empty);
             Assert.That(invalidItem.DirtyTrackedFiles, Is.Empty);
             Assert.That(invalidItem.UnpushedBranches, Is.Empty);
             Assert.That(invalidItem.StashCount, Is.Zero);
-        });
+        }
     }
 }

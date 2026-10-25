@@ -43,11 +43,14 @@ public class RepositoryDiscoveryCoordinatorTests
         var coordinator = new RepositoryDiscoveryCoordinator(dependencies);
         await using var result = await coordinator.DiscoverAsync(request, null, CancellationToken.None);
 
-        Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.CompleteNonempty));
-        Assert.That(result.Inventory.Observations.Single().Source, Is.EqualTo(DiscoverySource.RepositoryList));
-        Assert.That(result.Inventory.Paths, Is.EqualTo([@"C:\repos\r1"]));
-        Assert.That(openCount, Is.Zero);
-        Assert.That(crawlCount, Is.Zero);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.CompleteNonempty));
+            Assert.That(result.Inventory.Observations.Single().Source, Is.EqualTo(DiscoverySource.RepositoryList));
+            Assert.That(result.Inventory.Paths, Is.EqualTo([@"C:\repos\r1"]));
+            Assert.That(openCount, Is.Zero);
+            Assert.That(crawlCount, Is.Zero);
+        }
     }
 
     [Test]
@@ -73,8 +76,11 @@ public class RepositoryDiscoveryCoordinatorTests
             CrawlRootAsync = (_, root, _) => { crawlerCalls.Add(root); return Task.FromResult(new RecursiveDiscovery([], [], new Dictionary<string, string>())); },
             OpenIndexAsync = (drives, cacheMode, progress, token) =>
             {
-                Assert.That(cacheMode, Is.EqualTo(CacheMode.ExistingOnly));
-                Assert.That(drives, Is.EquivalentTo(["X"]));
+                using (Assert.EnterMultipleScope())
+                {
+                    Assert.That(cacheMode, Is.EqualTo(CacheMode.ExistingOnly));
+                    Assert.That(drives, Is.EquivalentTo(["X"]));
+                }
                 return openSession(drives, cacheMode, progress, token);
             },
             ReadListAsync = _ => Task.FromResult<string[]?>(null),
@@ -86,14 +92,14 @@ public class RepositoryDiscoveryCoordinatorTests
         var coordinator = new RepositoryDiscoveryCoordinator(dependencies);
         await using var result = await coordinator.DiscoverAsync(request, updates, cancellation.Token);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.Inventory.Observations.Single().Source, Is.EqualTo(DiscoverySource.Snapshot));
             Assert.That(result.Inventory.Observations.Single().ScanTimestamp, Is.EqualTo(PackedIndexFixture.CompletionTimestamp));
             Assert.That(brokerConnections, Is.Zero);
             Assert.That(crawlerCalls, Is.Empty);
             Assert.That(updates.Messages.Any(message => message?.Contains("snapshot", StringComparison.OrdinalIgnoreCase) == true), Is.True);
-        });
+        }
     }
 
     [TestCase(false)]
@@ -117,11 +123,14 @@ public class RepositoryDiscoveryCoordinatorTests
 
         await using var session = await MftIndexSession.OpenAsync([broker.Drive('X')], broker.CreateSession(),
             cache, CacheMode.ExistingOnly, null, CancellationToken.None);
-        Assert.That(session.CaptureDriveStatuses().Single().IndexStatus!.State, Is.EqualTo(DriveState.Failed));
-        Assert.That(session.CaptureDriveStatuses().Single().IndexStatus!.Failure?.Kind,
-            Is.EqualTo(seedDifferentRetention
-                ? DriveFailureKind.CacheIdentityMismatch
-                : DriveFailureKind.CacheDeclined));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(session.CaptureDriveStatuses().Single().IndexStatus!.State, Is.EqualTo(DriveState.Failed));
+            Assert.That(session.CaptureDriveStatuses().Single().IndexStatus!.Failure?.Kind,
+                Is.EqualTo(seedDifferentRetention
+                    ? DriveFailureKind.CacheIdentityMismatch
+                    : DriveFailureKind.CacheDeclined));
+        }
 
         var configuration = new GitWizardConfiguration { SearchPaths = { broker.Drive('X').RootDirectory } };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, false, []);
@@ -143,10 +152,13 @@ public class RepositoryDiscoveryCoordinatorTests
         var coordinator = new RepositoryDiscoveryCoordinator(dependencies);
         await using var result = await coordinator.DiscoverAsync(request, null, CancellationToken.None);
 
-        Assert.That(result.Inventory.Observations.Single().Source, Is.EqualTo(DiscoverySource.Scan));
-        Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.CompleteNonempty));
-        Assert.That(broker.ConnectionCount, Is.EqualTo(seedDifferentRetention ? 2 : 1));
-        Assert.That(broker.Scans, Has.Count.EqualTo(seedDifferentRetention ? 2 : 1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Inventory.Observations.Single().Source, Is.EqualTo(DiscoverySource.Scan));
+            Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.CompleteNonempty));
+            Assert.That(broker.ConnectionCount, Is.EqualTo(seedDifferentRetention ? 2 : 1));
+            Assert.That(broker.Scans, Has.Count.EqualTo(seedDifferentRetention ? 2 : 1));
+        }
     }
 
     [Test]
@@ -209,9 +221,12 @@ public class RepositoryDiscoveryCoordinatorTests
         var coordinator = new RepositoryDiscoveryCoordinator(dependencies);
         await using var result = await coordinator.DiscoverAsync(request, null, CancellationToken.None);
 
-        Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Unusable));
-        Assert.That(crawlerCalls, Is.Zero);
-        Assert.That(refusedBroker.ConnectionCount, Is.Zero);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Unusable));
+            Assert.That(crawlerCalls, Is.Zero);
+            Assert.That(refusedBroker.ConnectionCount, Is.Zero);
+        }
     }
 
     [Test]
@@ -238,9 +253,12 @@ public class RepositoryDiscoveryCoordinatorTests
         var coordinator = new RepositoryDiscoveryCoordinator(dependencies);
         await using var result = await coordinator.DiscoverAsync(request, null, CancellationToken.None);
 
-        Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Unusable));
-        Assert.That(result.Inventory.RequestedNtfsDrives, Is.EquivalentTo(["X"]));
-        Assert.That(result.Inventory.Errors, Does.ContainKey("X").WithValue("Volume identity could not be acquired"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Unusable));
+            Assert.That(result.Inventory.RequestedNtfsDrives, Is.EquivalentTo(["X"]));
+            Assert.That(result.Inventory.Errors, Does.ContainKey("X").WithValue("Volume identity could not be acquired"));
+        }
     }
 
     [Test]
@@ -273,9 +291,12 @@ public class RepositoryDiscoveryCoordinatorTests
             request.RetainedRoots, [], dependencies.ClassifyRoot);
         await using var result = await coordinator.DiscoverScopeAsync(request, scope, null, null, CancellationToken.None);
 
-        Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Partial));
-        Assert.That(result.Inventory.Paths, Is.Empty);
-        Assert.That(writtenPaths.Single(), Is.EquivalentTo([@"D:\repos\keep"]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Partial));
+            Assert.That(result.Inventory.Paths, Is.Empty);
+            Assert.That(writtenPaths.Single(), Is.EquivalentTo([@"D:\repos\keep"]));
+        }
     }
 
     [Test]
@@ -305,8 +326,11 @@ public class RepositoryDiscoveryCoordinatorTests
             request.RetainedRoots, [], dependencies.ClassifyRoot);
         await using var result = await coordinator.DiscoverScopeAsync(request, scope, null, null, CancellationToken.None);
 
-        Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Unusable));
-        Assert.That(listWriterCalled, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Unusable));
+            Assert.That(listWriterCalled, Is.False);
+        }
     }
 
     [Test]
@@ -334,8 +358,11 @@ public class RepositoryDiscoveryCoordinatorTests
         var coordinator = new RepositoryDiscoveryCoordinator(dependencies);
         await using var result = await coordinator.DiscoverAsync(request, null, CancellationToken.None);
 
-        Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.CompleteEmpty));
-        Assert.That(writtenPaths.Single(), Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.CompleteEmpty));
+            Assert.That(writtenPaths.Single(), Is.Empty);
+        }
     }
 
     [Test]
@@ -363,8 +390,11 @@ public class RepositoryDiscoveryCoordinatorTests
         var coordinator = new RepositoryDiscoveryCoordinator(dependencies);
         await using var result = await coordinator.DiscoverAsync(request, null, CancellationToken.None);
 
-        Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Unusable));
-        Assert.That(result.Inventory.CanPublishFullInventory, Is.False);
-        Assert.That(result.Inventory.Errors, Does.ContainKey("X").WithValue("MFT producer failed during rescan"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Unusable));
+            Assert.That(result.Inventory.CanPublishFullInventory, Is.False);
+            Assert.That(result.Inventory.Errors, Does.ContainKey("X").WithValue("MFT producer failed during rescan"));
+        }
     }
 }

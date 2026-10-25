@@ -12,11 +12,14 @@ public class MftIndexCachePolicyTests
     public void PolicyDefinesTheDiscoveryScanAndOneCacheDirectory()
     {
         using var files = new PackedIndexFixture();
-        Assert.That(MftIndexCachePolicy.DirectoryScanFileNames, Is.EqualTo([".git", "HEAD"]));
-        Assert.That(SyntheticCacheTag.GetFourCharacterCode(MftIndexCachePolicy.CacheTag), Is.EqualTo("GWMI"));
-        Assert.That(SyntheticCacheTag.GetVersion(MftIndexCachePolicy.CacheTag), Is.EqualTo(2u));
-        Assert.That(Path.GetDirectoryName(MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath)),
-            Is.EqualTo(MftIndexCachePolicy.GetCacheRoot(files.DirectoryPath)));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(MftIndexCachePolicy.DirectoryScanFileNames, Is.EqualTo([".git", "HEAD"]));
+            Assert.That(SyntheticCacheTag.GetFourCharacterCode(MftIndexCachePolicy.CacheTag), Is.EqualTo("GWMI"));
+            Assert.That(SyntheticCacheTag.GetVersion(MftIndexCachePolicy.CacheTag), Is.EqualTo(2u));
+            Assert.That(Path.GetDirectoryName(MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath)),
+                Is.EqualTo(MftIndexCachePolicy.GetCacheRoot(files.DirectoryPath)));
+        }
     }
 
     [Test]
@@ -56,8 +59,11 @@ public class MftIndexCachePolicyTests
             Assert.That(second.Drives.Single().Block?.Origin, Is.EqualTo(BlockOrigin.ProducedByScan));
         }
 
-        Assert.That(calls, Is.EqualTo(2));
-        Assert.That(CacheDirectory.InspectCached(path).Single().CacheTag,
-            Is.EqualTo(MftIndexCachePolicy.CacheTag));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(calls, Is.EqualTo(2));
+            Assert.That(CacheDirectory.InspectCached(path).Single().CacheTag,
+                Is.EqualTo(MftIndexCachePolicy.CacheTag));
+        }
     }
 }

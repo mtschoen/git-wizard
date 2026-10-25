@@ -72,19 +72,19 @@ sealed class RunConfigurationTests
     {
         var configuration = new RunConfiguration();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(configuration.Command, Is.EqualTo(CommandKind.Report));
             Assert.That(configuration.RefreshReport, Is.True);
             Assert.That(configuration.HasParseError, Is.False);
-        });
+        }
     }
 
     [Test]
     public void Parse_NoArguments_AllDefaultValues()
     {
         var parsed = CliParser.Parse([]);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(parsed.RebuildRepositoryList, Is.False);
             Assert.That(parsed.RebuildReport, Is.False);
@@ -103,7 +103,7 @@ sealed class RunConfigurationTests
             Assert.That(parsed.SavePath, Is.Null);
             Assert.That(parsed.CustomConfigurationPath, Is.Null);
             Assert.That(parsed.HasParseError, Is.False);
-        });
+        }
     }
 
     [TestCase("--rebuild-report", nameof(RunConfiguration.RebuildReport), true)]
@@ -144,8 +144,11 @@ sealed class RunConfigurationTests
             "SilentMode" => GitWizardLog.SilentMode,
             _ => throw new ArgumentOutOfRangeException(nameof(member), member, null)
         };
-        Assert.That(actual, Is.EqualTo(expected));
-        Assert.That(parsed.HasParseError, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(actual, Is.EqualTo(expected));
+            Assert.That(parsed.HasParseError, Is.False);
+        }
     }
 
     [TestCase("--filter")]
@@ -179,7 +182,7 @@ sealed class RunConfigurationTests
             _ => throw new ArgumentOutOfRangeException(nameof(argument), argument, null)
         };
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(actual, Is.EqualTo(value));
             Assert.That(parsed.HasParseError, Is.False);
@@ -188,7 +191,7 @@ sealed class RunConfigurationTests
                 Assert.That(parsed.Json, Is.False);
                 Assert.That(parsed.RefreshReport, Is.True);
             }
-        });
+        }
     }
 
     [TestCase("m\u00fcnchen")]
@@ -224,22 +227,22 @@ sealed class RunConfigurationTests
     public void ParseCommandLine_MergeWithPathsAndSavePath_AllSet()
     {
         var parsed = CliParser.Parse(["--merge", "--paths", "C:/repo", "--save-path", "out.json"]);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(parsed.PathsArgument, Is.EqualTo("C:/repo"));
             Assert.That(parsed.SavePath, Is.EqualTo("out.json"));
-        });
+        }
     }
 
     [Test]
     public void ParseCommandLine_SavePathWithoutValue_ReportsParseError()
     {
         var parsed = CliParser.Parse(["--save-path"]);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(parsed.SavePath, Is.Null);
             Assert.That(parsed.HasParseError, Is.True);
-        });
+        }
     }
 
     [Test]
@@ -248,34 +251,34 @@ sealed class RunConfigurationTests
         using var files = new TempDirectory();
         var missingParent = Path.Combine(files.Path, "absent", "output.json");
         var parsed = CliParser.Parse(["--save-path", missingParent]);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(parsed.SavePath, Is.Null);
             Assert.That(parsed.HasParseError, Is.True);
-        });
+        }
     }
 
     [Test]
     public void ParseCommandLine_ConfigPathWithNonExistentFile_ReturnsNullAndHasError()
     {
         var parsed = CliParser.Parse(["--config-path", "/nonexistent/path/to/config.json"]);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(parsed.CustomConfigurationPath, Is.Null);
             Assert.That(parsed.HasParseError, Is.True);
-        });
+        }
     }
 
     [Test]
     public void ParseCommandLine_SavePathWithNonExistentParentAndConfigPathWithMissingFile_BothErrors()
     {
         var parsed = CliParser.Parse(["--save-path", "/no/such/dir/out.json", "--config-path", "/no/such/config.json"]);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(parsed.SavePath, Is.Null);
             Assert.That(parsed.CustomConfigurationPath, Is.Null);
             Assert.That(parsed.HasParseError, Is.True);
-        });
+        }
     }
 
     [Test]
@@ -283,33 +286,33 @@ sealed class RunConfigurationTests
     {
         var configuration = CliParser.Parse(["--no-such-flag"]);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(configuration.HasParseError, Is.True);
             Assert.That(configuration.Command, Is.EqualTo(CommandKind.Report));
-        });
+        }
     }
 
     [Test]
     public void ParseCommandLine_SingleDashLongFlag_SetsHasError()
     {
         var parsed = CliParser.Parse(["-save-path"]);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(parsed.HasParseError, Is.True);
             Assert.That(parsed.Command, Is.Not.EqualTo(CommandKind.HelpPrinted));
-        });
+        }
     }
 
     [Test]
     public void ParseCommandLine_UnknownMixedFlags_SetsHasError()
     {
         var parsed = CliParser.Parse(["--unknown-flag", "-v"]);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(parsed.HasParseError, Is.True);
             Assert.That(parsed.Command, Is.Not.EqualTo(CommandKind.HelpPrinted));
-        });
+        }
     }
 
     [Test]
@@ -342,34 +345,34 @@ sealed class RunConfigurationTests
         GitWizardLog.VerboseMode = false;
         GitWizardLog.SilentMode = false;
         CliParser.Parse(["-v", "--silent"]);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(GitWizardLog.VerboseMode, Is.True);
             Assert.That(GitWizardLog.SilentMode, Is.True);
-        });
+        }
     }
 
     [Test]
     public void ParseCommandLine_ScanOnlyWithFilter_BothSet()
     {
         var parsed = CliParser.Parse(["--scan-only", "--filter", "my-proj"]);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(parsed.Command, Is.EqualTo(CommandKind.ScanOnly));
             Assert.That(parsed.RebuildRepositoryList, Is.True);
             Assert.That(parsed.FilterPattern, Is.EqualTo("my-proj"));
-        });
+        }
     }
 
     [Test]
     public void ParseCommandLine_WatchWithNoMft_BothSet()
     {
         var parsed = CliParser.Parse(["--watch", "--no-mft"]);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(parsed.Command, Is.EqualTo(CommandKind.Watch));
             Assert.That(parsed.NoMft, Is.True);
-        });
+        }
     }
 
     [Test]
@@ -381,7 +384,7 @@ sealed class RunConfigurationTests
             "--no-mft", "--no-local-commit-count", "--json", "--merge", "--no-refresh",
             "--minified", "--db-size", "--all-branches", "--watch"
         ]);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(parsed.RebuildReport, Is.True);
             Assert.That(parsed.RebuildRepositoryList, Is.True);
@@ -395,7 +398,7 @@ sealed class RunConfigurationTests
             Assert.That(parsed.Minified, Is.True);
             Assert.That(parsed.Command, Is.EqualTo(CommandKind.DbSize));
             Assert.That(parsed.AllBranches, Is.True);
-        });
+        }
     }
 
     [TestCase("--summary")]
@@ -410,12 +413,12 @@ sealed class RunConfigurationTests
     public void Parse_JsonMinified_SelectsExplicitJson()
     {
         var parsed = CliParser.Parse(["--json", "--minified"]);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(parsed.HasParseError, Is.False);
             Assert.That(parsed.Json, Is.True);
             Assert.That(parsed.Minified, Is.True);
-        });
+        }
     }
 
     [Test]
@@ -424,23 +427,23 @@ sealed class RunConfigurationTests
         using var directory = new TempDirectory();
         var savePath = Path.Combine(directory.Path, "report.json");
         var parsed = CliParser.Parse(["-paths", "/test/repo", "-save-path", savePath, "-silent"]);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(parsed.PathsArgument, Is.EqualTo("/test/repo"));
             Assert.That(parsed.SavePath, Is.EqualTo(savePath));
             Assert.That(parsed.Silent, Is.True);
-        });
+        }
     }
 
     [Test]
     public void Parse_PathsWithLiteralDashSilent_PreservesValue()
     {
         var parsed = CliParser.Parse(["--paths", "-silent"]);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(parsed.PathsArgument, Is.EqualTo("-silent"));
             Assert.That(parsed.Silent, Is.False);
-        });
+        }
     }
 
     [Test]
@@ -463,11 +466,11 @@ sealed class RunConfigurationTests
             var version = typeof(RunConfiguration).Assembly
                 .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
                 .Cast<System.Reflection.AssemblyInformationalVersionAttribute>().Single().InformationalVersion.Split('+')[0];
-            Assert.Multiple(() =>
+            using (Assert.EnterMultipleScope())
             {
                 Assert.That(output.Trim(), Is.EqualTo(version));
                 Assert.That(output, Does.Not.Match("git-wizard.*git-wizard"));
-            });
+            }
         }
         finally
         {

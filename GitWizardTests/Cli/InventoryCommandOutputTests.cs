@@ -129,11 +129,11 @@ public class InventoryCommandOutputTests
             ? new[] { _alphaPath, _betaPath }
             : new[] { _alphaPath };
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(exitCode, Is.Zero);
             Assert.That(output, Is.EqualTo(ExpectedGoldenJson(command, minified, expectedPaths) + Environment.NewLine));
-        });
+        }
     }
 
     [Test]

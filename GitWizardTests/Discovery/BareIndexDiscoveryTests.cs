@@ -56,13 +56,16 @@ public class BareIndexDiscoveryTests
 
         var candidates = GitWizardApi.SelectRepositoryCandidates(index, scope, CancellationToken.None);
 
-        Assert.That(candidates.Select(item => (item.Path, item.Kind)), Is.EquivalentTo([
-            (ordinaryPath, RepositoryCandidateKind.Ordinary),
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(candidates.Select(item => (item.Path, item.Kind)), Is.EquivalentTo([
+                    (ordinaryPath, RepositoryCandidateKind.Ordinary),
             (barePath, RepositoryCandidateKind.Bare),
             (worktreePath, RepositoryCandidateKind.GitFile)
-        ]));
-        Assert.That(candidates.Any(item => item.Path.Contains("/.git/", StringComparison.OrdinalIgnoreCase) ||
-                                           item.Path.Contains("\\.git\\", StringComparison.OrdinalIgnoreCase)), Is.False);
+                ]));
+            Assert.That(candidates.Any(item => item.Path.Contains("/.git/", StringComparison.OrdinalIgnoreCase) ||
+                                               item.Path.Contains("\\.git\\", StringComparison.OrdinalIgnoreCase)), Is.False);
+        }
     }
 
     [Test]
@@ -90,15 +93,18 @@ public class BareIndexDiscoveryTests
         Directory.CreateDirectory(unrelated);
         File.WriteAllText(Path.Combine(unrelated, "HEAD"), "not a repo");
 
-        Assert.That(RepositoryCandidateProbe.Exists(ordinary, RepositoryCandidateKind.Ordinary), Is.True);
-        Assert.That(RepositoryCandidateProbe.Exists(worktree, RepositoryCandidateKind.GitFile), Is.True);
-        Assert.That(RepositoryCandidateProbe.Exists(bare, RepositoryCandidateKind.Bare), Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(RepositoryCandidateProbe.Exists(ordinary, RepositoryCandidateKind.Ordinary), Is.True);
+            Assert.That(RepositoryCandidateProbe.Exists(worktree, RepositoryCandidateKind.GitFile), Is.True);
+            Assert.That(RepositoryCandidateProbe.Exists(bare, RepositoryCandidateKind.Bare), Is.True);
 
-        // Internal .git is excluded
-        Assert.That(RepositoryCandidateProbe.Exists(internalGit, RepositoryCandidateKind.Bare), Is.False);
-        Assert.That(RepositoryCandidateProbe.Exists(internalGit, RepositoryCandidateKind.Ordinary), Is.False);
+            // Internal .git is excluded
+            Assert.That(RepositoryCandidateProbe.Exists(internalGit, RepositoryCandidateKind.Bare), Is.False);
+            Assert.That(RepositoryCandidateProbe.Exists(internalGit, RepositoryCandidateKind.Ordinary), Is.False);
 
-        // Unrelated HEAD is not a bare repo
-        Assert.That(RepositoryCandidateProbe.Exists(unrelated, RepositoryCandidateKind.Bare), Is.False);
+            // Unrelated HEAD is not a bare repo
+            Assert.That(RepositoryCandidateProbe.Exists(unrelated, RepositoryCandidateKind.Bare), Is.False);
+        }
     }
 }

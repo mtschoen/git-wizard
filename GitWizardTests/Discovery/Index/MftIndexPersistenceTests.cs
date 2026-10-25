@@ -48,10 +48,13 @@ public class MftIndexPersistenceTests
         }
         await using var session = await MftIndexSession.OpenAsync([drive], BrokerTestHarness.CreateSession(Unexpected),
             cache, intent, null, CancellationToken.None);
-        Assert.That(calls, Is.Zero);
-        Assert.That(session.CaptureDriveStatuses().Single().IndexStatus!.Block?.Origin,
-            Is.EqualTo(BlockOrigin.WarmStartedFromCache));
-        Assert.That(session.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)), Has.Count.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(calls, Is.Zero);
+            Assert.That(session.CaptureDriveStatuses().Single().IndexStatus!.Block?.Origin,
+                Is.EqualTo(BlockOrigin.WarmStartedFromCache));
+            Assert.That(session.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)), Has.Count.EqualTo(1));
+        }
     }
 
     [Test]
@@ -62,12 +65,15 @@ public class MftIndexPersistenceTests
             MftIndexCachePolicy.GetCacheDirectory(broker.CacheDirectory),
             CacheMode.ExistingOnly, null, CancellationToken.None);
         var status = session.CaptureDriveStatuses().Single().IndexStatus!;
-        Assert.That(status.State, Is.EqualTo(DriveState.Failed));
-        Assert.That(status.Failure?.Kind, Is.EqualTo(DriveFailureKind.CacheDeclined));
-        Assert.That(status.Block, Is.Null);
-        Assert.That(session.ScanErrors, Contains.Key("X"));
-        Assert.That(broker.ConnectionCount, Is.Zero);
-        Assert.That(broker.ScannedDrives, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(status.State, Is.EqualTo(DriveState.Failed));
+            Assert.That(status.Failure?.Kind, Is.EqualTo(DriveFailureKind.CacheDeclined));
+            Assert.That(status.Block, Is.Null);
+            Assert.That(session.ScanErrors, Contains.Key("X"));
+            Assert.That(broker.ConnectionCount, Is.Zero);
+            Assert.That(broker.ScannedDrives, Is.Empty);
+        }
     }
 
     [Test]
@@ -98,17 +104,23 @@ public class MftIndexPersistenceTests
         await using (var refused = await MftIndexSession.OpenAsync([drive], otherBroker.CreateSession(),
             cache, CacheMode.ExistingOnly, null, CancellationToken.None))
         {
-            Assert.That(refused.CaptureDriveStatuses().Single().IndexStatus!.Failure?.Kind,
-                Is.EqualTo(DriveFailureKind.InUse));
-            Assert.That(otherBroker.ConnectionCount, Is.Zero);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(refused.CaptureDriveStatuses().Single().IndexStatus!.Failure?.Kind,
+                            Is.EqualTo(DriveFailureKind.InUse));
+                Assert.That(otherBroker.ConnectionCount, Is.Zero);
+            }
         }
         await using (var competitor = await MftIndexSession.OpenAsync([drive], otherBroker.CreateSession(),
             cache, CacheMode.Persistent, null, CancellationToken.None))
         {
-            Assert.That(competitor.CaptureDriveStatuses().Single().IndexStatus!.Block?.CacheLocation,
-                Is.EqualTo(CacheLocation.PrivateFallback));
-            Assert.That(competitor.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)), Has.Count.EqualTo(1));
-            Assert.That(await ReadSharedAsync(canonical), Is.EqualTo(before));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(competitor.CaptureDriveStatuses().Single().IndexStatus!.Block?.CacheLocation,
+                            Is.EqualTo(CacheLocation.PrivateFallback));
+                Assert.That(competitor.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)), Has.Count.EqualTo(1));
+                Assert.That(await ReadSharedAsync(canonical), Is.EqualTo(before));
+            }
         }
         await first.DisposeAsync();
         Assert.That(await ReadSharedAsync(canonical), Is.EqualTo(before));
@@ -142,8 +154,11 @@ public class MftIndexPersistenceTests
         index.Changed += _ => changed.TrySetResult();
         await index.StartWatchingAsync(['X'], CancellationToken.None);
         var start = source.Starts.Single();
-        Assert.That(start.Cursor.JournalIdentifier, Is.EqualTo(PackedIndexFixture.JournalIdentifier));
-        Assert.That(start.Cursor.NextUsn, Is.EqualTo(PackedIndexFixture.NextUsn));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(start.Cursor.JournalIdentifier, Is.EqualTo(PackedIndexFixture.JournalIdentifier));
+            Assert.That(start.Cursor.NextUsn, Is.EqualTo(PackedIndexFixture.NextUsn));
+        }
         await source.WatchFor('X').PublishBatchAsync([
             new SyntheticJournalRecord
             {
@@ -177,8 +192,11 @@ public class MftIndexPersistenceTests
             Assert.That(broker.ConnectionCount, Is.Zero);
             await session.Index.StartWatchingAsync(['X'], CancellationToken.None);
             await broker.WatchStarted.WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.That(broker.ConnectionCount, Is.EqualTo(1));
-            Assert.That(broker.ScannedDrives, Is.Empty);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(broker.ConnectionCount, Is.EqualTo(1));
+                Assert.That(broker.ScannedDrives, Is.Empty);
+            }
         }
         finally
         {
@@ -198,14 +216,20 @@ public class MftIndexPersistenceTests
         try
         {
             var old = session.CaptureDriveStatuses();
-            Assert.That(old.Single().IndexStatus!.Failure?.Kind, Is.EqualTo(DriveFailureKind.CacheDeclined));
-            Assert.That(broker.ConnectionCount, Is.Zero);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(old.Single().IndexStatus!.Failure?.Kind, Is.EqualTo(DriveFailureKind.CacheDeclined));
+                Assert.That(broker.ConnectionCount, Is.Zero);
+            }
             await session.Index.RescanAsync(['X'], CancellationToken.None);
             var current = session.CaptureDriveStatuses().Single().IndexStatus!;
-            Assert.That(current.Block?.Origin, Is.EqualTo(BlockOrigin.ProducedByScan));
-            Assert.That(current.Failure, Is.Null);
-            Assert.That(old.Single().IndexStatus!.Failure?.Kind, Is.EqualTo(DriveFailureKind.CacheDeclined));
-            Assert.That(broker.ConnectionCount, Is.EqualTo(1));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(current.Block?.Origin, Is.EqualTo(BlockOrigin.ProducedByScan));
+                Assert.That(current.Failure, Is.Null);
+                Assert.That(old.Single().IndexStatus!.Failure?.Kind, Is.EqualTo(DriveFailureKind.CacheDeclined));
+                Assert.That(broker.ConnectionCount, Is.EqualTo(1));
+            }
         }
         finally
         {
@@ -224,10 +248,13 @@ public class MftIndexPersistenceTests
             broker.CreateSession(), MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath),
             CacheMode.ExistingOnly, null, CancellationToken.None);
         var status = session.CaptureDriveStatuses().Single().IndexStatus!;
-        Assert.That(status.State, Is.EqualTo(DriveState.Offline));
-        Assert.That(status.Failure, Is.Null);
-        Assert.That(status.Block, Is.Null);
-        Assert.That(session.ScanErrors, Contains.Key("X"));
-        Assert.That(broker.ConnectionCount, Is.Zero);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(status.State, Is.EqualTo(DriveState.Offline));
+            Assert.That(status.Failure, Is.Null);
+            Assert.That(status.Block, Is.Null);
+            Assert.That(session.ScanErrors, Contains.Key("X"));
+            Assert.That(broker.ConnectionCount, Is.Zero);
+        }
     }
 }

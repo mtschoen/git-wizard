@@ -39,11 +39,11 @@ public class WatchPreparedOwnerTests
             .PrepareWatchAsync(CreateRequest(), fixture.Owner, CancellationToken.None)
             .WaitAsync(TestTimeouts.HangGuard);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(fixture.Owner.IsDisposed, Is.True);
             Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
-        });
+        }
     }
 
     [Test]
@@ -55,10 +55,10 @@ public class WatchPreparedOwnerTests
         Assert.ThrowsAsync<PlatformNotSupportedException>(() =>
             CreateCoordinator(isLinux: false).PrepareWatchAsync(CreateRequest(), fixture.Owner, CancellationToken.None));
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(fixture.Owner.IsDisposed, Is.True);
             Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
-        });
+        }
     }
 }

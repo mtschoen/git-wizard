@@ -36,11 +36,14 @@ public class EnumerationDiscoveryTests
     {
         var options = EnumerationDiscovery.CreateIndexOptions(new GitWizardConfiguration(), _root, []);
 
-        Assert.That(options.RetainedFileNames, Is.EqualTo([".git", "HEAD"]));
-        Assert.That(options.CacheMode, Is.EqualTo(CacheMode.Disabled));
-        Assert.That(options.CacheDirectory, Is.Null);
-        Assert.That(options.Drives.Single().Producer, Is.EqualTo(ProducerKind.Enumeration));
-        Assert.That(options.Drives.Single().RootDirectory, Is.EqualTo(_root));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(options.RetainedFileNames, Is.EqualTo([".git", "HEAD"]));
+            Assert.That(options.CacheMode, Is.EqualTo(CacheMode.Disabled));
+            Assert.That(options.CacheDirectory, Is.Null);
+            Assert.That(options.Drives.Single().Producer, Is.EqualTo(ProducerKind.Enumeration));
+            Assert.That(options.Drives.Single().RootDirectory, Is.EqualTo(_root));
+        }
     }
 
     [Test]
@@ -61,8 +64,11 @@ public class EnumerationDiscoveryTests
 
         var walk = EnumerationDiscovery.CreateDirectoryWalk(configuration, _root, []);
 
-        Assert.That(walk.PruneDotDirectories, Is.EqualTo(skipHidden));
-        Assert.That(walk.PrunedDirectoryAttributes, Is.EqualTo(skipHidden ? FileAttributes.Hidden : 0));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(walk.PruneDotDirectories, Is.EqualTo(skipHidden));
+            Assert.That(walk.PrunedDirectoryAttributes, Is.EqualTo(skipHidden ? FileAttributes.Hidden : 0));
+        }
     }
 
     [Test]
@@ -70,8 +76,11 @@ public class EnumerationDiscoveryTests
     {
         var walk = EnumerationDiscovery.CreateDirectoryWalk(new GitWizardConfiguration(), _root, []);
 
-        Assert.That(walk.PruneDotDirectories, Is.False);
-        Assert.That(walk.PrunedDirectoryAttributes, Is.EqualTo((FileAttributes)0));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(walk.PruneDotDirectories, Is.False);
+            Assert.That(walk.PrunedDirectoryAttributes, Is.EqualTo((FileAttributes)0));
+        }
     }
 
     [Test]
@@ -131,8 +140,11 @@ public class EnumerationDiscoveryTests
         var result = RepositoryDiscoveryDependencies.CreateDefault()
             .CrawlRootAsync(request, _root, CancellationToken.None).GetAwaiter().GetResult();
 
-        Assert.That(result.Paths, Is.EqualTo([GitWizardApi.NormalizePath(repository)]));
-        Assert.That(result.Errors, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Paths, Is.EqualTo([GitWizardApi.NormalizePath(repository)]));
+            Assert.That(result.Errors, Is.Empty);
+        }
     }
 
     [Test]
@@ -156,7 +168,10 @@ public class EnumerationDiscoveryTests
 
         var result = EnumerationDiscovery.DiscoverAsync(request, missing, CancellationToken.None).GetAwaiter().GetResult();
 
-        Assert.That(result.FailedSubtrees, Is.EqualTo([missing]));
-        Assert.That(result.Errors, Does.ContainKey(missing));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.FailedSubtrees, Is.EqualTo([missing]));
+            Assert.That(result.Errors, Does.ContainKey(missing));
+        }
     }
 }

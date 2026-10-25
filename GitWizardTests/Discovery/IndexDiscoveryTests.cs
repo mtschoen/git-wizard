@@ -16,9 +16,12 @@ public class IndexDiscoveryTests
         await using var index = await files.OpenIndexAsync();
         var markers = GitWizardApi.SelectGitEntries(index, includeGitFiles: false);
         Assert.That(markers, Has.Count.EqualTo(1));
-        Assert.That(markers[0].Name, Is.EqualTo(".git"));
-        Assert.That(markers[0].IsDirectory, Is.True);
-        Assert.That(markers[0].Parent, Is.EqualTo(index.Search(new SearchQuery("repository", NameMatchMode.Exact)).Single()));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(markers[0].Name, Is.EqualTo(".git"));
+            Assert.That(markers[0].IsDirectory, Is.True);
+            Assert.That(markers[0].Parent, Is.EqualTo(index.Search(new SearchQuery("repository", NameMatchMode.Exact)).Single()));
+        }
         Assert.That(markers[0].Parent!.Value.IsDirectory, Is.True);
     }
 
@@ -30,9 +33,12 @@ public class IndexDiscoveryTests
         await using var index = await files.OpenIndexAsync();
         var markers = GitWizardApi.SelectGitEntries(index, includeGitFiles: true);
         Assert.That(markers, Has.Count.EqualTo(1));
-        Assert.That(markers[0].Name, Is.EqualTo(".git"));
-        Assert.That(markers[0].IsDirectory, Is.False);
-        Assert.That(markers[0].Parent, Is.EqualTo(index.Search(new SearchQuery("worktree", NameMatchMode.Exact)).Single()));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(markers[0].Name, Is.EqualTo(".git"));
+            Assert.That(markers[0].IsDirectory, Is.False);
+            Assert.That(markers[0].Parent, Is.EqualTo(index.Search(new SearchQuery("worktree", NameMatchMode.Exact)).Single()));
+        }
     }
 
     [Test]
@@ -45,8 +51,11 @@ public class IndexDiscoveryTests
         Assert.That(index.Search(new SearchQuery(".git", NameMatchMode.Exact)), Has.Count.EqualTo(2));
         var markers = GitWizardApi.SelectGitEntries(index, includeGitFiles: false);
         Assert.That(markers, Has.Count.EqualTo(1));
-        Assert.That(markers[0].IsDirectory, Is.True);
-        Assert.That(markers[0].Parent!.Value.Name, Is.EqualTo("repository"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(markers[0].IsDirectory, Is.True);
+            Assert.That(markers[0].Parent!.Value.Name, Is.EqualTo("repository"));
+        }
     }
 
     [Test]
@@ -57,9 +66,12 @@ public class IndexDiscoveryTests
         await using var index = await files.OpenIndexAsync();
         var markers = GitWizardApi.SelectGitEntries(index, includeGitFiles: false);
         Assert.That(markers, Has.Count.EqualTo(1));
-        Assert.That(markers[0].Name, Is.EqualTo(".GIT"));
-        Assert.That(markers[0].IsDirectory, Is.True);
-        Assert.That(markers[0].Parent, Is.EqualTo(index.Search(new SearchQuery("repository", NameMatchMode.Exact)).Single()));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(markers[0].Name, Is.EqualTo(".GIT"));
+            Assert.That(markers[0].IsDirectory, Is.True);
+            Assert.That(markers[0].Parent, Is.EqualTo(index.Search(new SearchQuery("repository", NameMatchMode.Exact)).Single()));
+        }
     }
     [Test]
     public async Task DirectoryAndMarkerFileSelection()
@@ -68,10 +80,13 @@ public class IndexDiscoveryTests
         files.AddMarker("repository");
         files.AddMarker("worktree", false);
         await using var index = await files.OpenIndexAsync();
-        Assert.That(GitWizardApi.SelectGitEntries(index, false).Single().Parent!.Value.Name,
-            Is.EqualTo("repository"));
-        Assert.That(GitWizardApi.SelectGitEntries(index, true).Select(entry => entry.Parent!.Value.Name),
-            Is.EquivalentTo(["repository", "worktree"]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(GitWizardApi.SelectGitEntries(index, false).Single().Parent!.Value.Name,
+                    Is.EqualTo("repository"));
+            Assert.That(GitWizardApi.SelectGitEntries(index, true).Select(entry => entry.Parent!.Value.Name),
+                Is.EquivalentTo(["repository", "worktree"]));
+        }
     }
 
     [Test]
@@ -82,10 +97,13 @@ public class IndexDiscoveryTests
             File(6, "freed", 5) with { IsFree = true },
             Directory(7, ".git", 5) with { IsTombstone = true },
             File(8, "ordinary", 5));
-        Assert.That(index.Search(new SearchQuery("ordinary", NameMatchMode.Exact)).Single().IsDirectory, Is.False);
-        Assert.That(index.Search(new SearchQuery("freed", NameMatchMode.Exact)), Is.Empty);
-        Assert.That(index.Search(new SearchQuery(".git", NameMatchMode.Exact)), Is.Empty);
-        Assert.That(GitWizardApi.SelectGitEntries(index, true), Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(index.Search(new SearchQuery("ordinary", NameMatchMode.Exact)).Single().IsDirectory, Is.False);
+            Assert.That(index.Search(new SearchQuery("freed", NameMatchMode.Exact)), Is.Empty);
+            Assert.That(index.Search(new SearchQuery(".git", NameMatchMode.Exact)), Is.Empty);
+            Assert.That(GitWizardApi.SelectGitEntries(index, true), Is.Empty);
+        }
     }
 
     [Test]
@@ -97,11 +115,17 @@ public class IndexDiscoveryTests
             Directory(7, "repository", 5),
             Directory(9, ".git", 7));
         var marker = index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single();
-        Assert.That(marker.IsDirectory, Is.True);
-        Assert.That(marker.Parent!.Value.Name, Is.EqualTo("repository"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(marker.IsDirectory, Is.True);
+            Assert.That(marker.Parent!.Value.Name, Is.EqualTo("repository"));
+        }
         var root = marker.Parent.Value.Parent!.Value;
-        Assert.That(root.Name, Is.EqualTo("root"));
-        Assert.That(root.Parent, Is.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(root.Name, Is.EqualTo("root"));
+            Assert.That(root.Parent, Is.Null);
+        }
     }
 
     [Test]

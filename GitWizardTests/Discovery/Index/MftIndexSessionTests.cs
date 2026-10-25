@@ -16,15 +16,21 @@ public class MftIndexSessionTests
         await using (var empty = await MftIndexSession.OpenAsync([], broker.CreateSession(),
             broker.CacheDirectory, null, CancellationToken.None))
         {
-            Assert.That(empty.Drives, Is.Empty);
-            Assert.That(broker.ConnectionCount, Is.Zero);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(empty.Drives, Is.Empty);
+                Assert.That(broker.ConnectionCount, Is.Zero);
+            }
         }
         await using var session = await MftIndexSession.OpenAsync([broker.Drive('X'), broker.Drive('Y')],
             broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);
-        Assert.That(broker.ConnectionCount, Is.EqualTo(1));
-        Assert.That(session.Drives, Is.EqualTo(["X", "Y"]));
-        Assert.That(session.Index.Drives.Select(drive => drive.State), Is.All.EqualTo(DriveState.Ready));
-        Assert.That(broker.ScannedDrives, Is.EquivalentTo(["X", "Y"]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(broker.ConnectionCount, Is.EqualTo(1));
+            Assert.That(session.Drives, Is.EqualTo(["X", "Y"]));
+            Assert.That(session.Index.Drives.Select(drive => drive.State), Is.All.EqualTo(DriveState.Ready));
+            Assert.That(broker.ScannedDrives, Is.EquivalentTo(["X", "Y"]));
+        }
     }
 
     [Test]
@@ -38,9 +44,12 @@ public class MftIndexSessionTests
         {
             await session.Index.StartWatchingAsync(['X'], CancellationToken.None);
             var watchedDrive = await broker.WatchStarted.WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.That(watchedDrive.Drive, Is.EqualTo("X"));
-            Assert.That(broker.ConnectionCount, Is.EqualTo(1));
-            Assert.That(session.IsFaulted, Is.False);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(watchedDrive.Drive, Is.EqualTo("X"));
+                Assert.That(broker.ConnectionCount, Is.EqualTo(1));
+                Assert.That(session.IsFaulted, Is.False);
+            }
             var fault = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             session.Index.WatchFaulted += _ => fault.TrySetResult();
             await broker.DisconnectAsync();
@@ -53,8 +62,12 @@ public class MftIndexSessionTests
         {
             await session.DisposeAsync();
         }
-        Assert.That(session.IsFaulted, Is.True);
-        Assert.That(session.IsDisposed, Is.True);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(session.IsFaulted, Is.True);
+            Assert.That(session.IsDisposed, Is.True);
+        }
     }
 
     [Test]
@@ -68,8 +81,11 @@ public class MftIndexSessionTests
         var first = session.DisposeAsync().AsTask();
         await lifetime.Started.Task;
         var second = session.DisposeAsync().AsTask();
-        Assert.That(session.IsDisposed, Is.True);
-        Assert.That(second.IsCompleted, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(session.IsDisposed, Is.True);
+            Assert.That(second.IsCompleted, Is.False);
+        }
         lifetime.Release.SetResult();
         await Task.WhenAll(first, second);
         await session.DisposeAsync();
@@ -111,9 +127,12 @@ public class MftIndexSessionTests
         Assert.That(async () => await openTask.WaitAsync(TimeSpan.FromSeconds(10)),
             Throws.InstanceOf<OperationCanceledException>());
         await broker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.That(broker.ConnectionCount, Is.EqualTo(1));
-        Assert.That(broker.RecordsYielded, Is.EqualTo(1));
-        Assert.That(broker.ScanCompleted, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(broker.ConnectionCount, Is.EqualTo(1));
+            Assert.That(broker.RecordsYielded, Is.EqualTo(1));
+            Assert.That(broker.ScanCompleted, Is.False);
+        }
 
         await using var watchBroker = new BlockBrokerFixture();
         using var watchCancellation = new CancellationTokenSource();
@@ -128,8 +147,11 @@ public class MftIndexSessionTests
         await watchBroker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.That(session.IsDisposed, Is.True);
         Assert.Throws<ObjectDisposedException>(() => session.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)));
-        Assert.That(session.IsFaulted, Is.False, "Orderly disposal does not complete the broker end signal.");
-        Assert.That(watchBroker.ConnectionCount, Is.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(session.IsFaulted, Is.False, "Orderly disposal does not complete the broker end signal.");
+            Assert.That(watchBroker.ConnectionCount, Is.EqualTo(1));
+        }
     }
 
     [Test]
@@ -159,11 +181,14 @@ public class MftIndexSessionTests
             drive => drive == 'W' ? throw new IOException("identity denied") : broker.Drive(drive.Letter),
             broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);
         Assert.That(session.Drives, Is.EqualTo(["W", "X", "Y"]));
-        Assert.That(session.ScanErrors["W"], Does.Contain("identity denied"));
-        Assert.That(session.ScanErrors["X"], Does.Contain("volume denied"));
-        Assert.That(session.ScanErrors.ContainsKey("Y"), Is.False);
-        Assert.That(session.Index.Drives.Single(drive => drive.Drive == 'Y').State, Is.EqualTo(DriveState.Ready));
-        Assert.That(broker.ConnectionCount, Is.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(session.ScanErrors["W"], Does.Contain("identity denied"));
+            Assert.That(session.ScanErrors["X"], Does.Contain("volume denied"));
+            Assert.That(session.ScanErrors.ContainsKey("Y"), Is.False);
+            Assert.That(session.Index.Drives.Single(drive => drive.Drive == 'Y').State, Is.EqualTo(DriveState.Ready));
+            Assert.That(broker.ConnectionCount, Is.EqualTo(1));
+        }
     }
 
     [Test]
@@ -184,16 +209,22 @@ public class MftIndexSessionTests
             // The drive channels and the control pipe read EOF independently, so the open can return
             // before the process end is observed; IsFaulted is defined once the end has completed.
             await broker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.That(session.IsFaulted, Is.True, "Broker death during opening must remain latched.");
-            Assert.That(session.ScanErrors, Has.Count.EqualTo(1));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(session.IsFaulted, Is.True, "Broker death during opening must remain latched.");
+                Assert.That(session.ScanErrors, Has.Count.EqualTo(1));
+            }
         }
         await using (var broker = new BlockBrokerFixture())
         {
             await using var session = await MftIndexSession.OpenSelectedVolumesAsync(["X", "Y"],
                 _ => throw new IOException("identity denied"), broker.CreateSession(),
                 broker.CacheDirectory, null, CancellationToken.None);
-            Assert.That(session.ScanErrors, Has.Count.EqualTo(2));
-            Assert.That(broker.ConnectionCount, Is.Zero);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(session.ScanErrors, Has.Count.EqualTo(2));
+                Assert.That(broker.ConnectionCount, Is.Zero);
+            }
         }
     }
 
@@ -210,12 +241,15 @@ public class MftIndexSessionTests
         await using var session = await MftIndexSession.OpenAsync([broker.Drive('X')],
             broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);
         var scan = broker.Scans.Single();
-        Assert.That(scan.RetainedFileNames, Is.EqualTo([".git", "HEAD"]));
-        Assert.That(session.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)), Has.Count.EqualTo(2));
-        Assert.That(session.Index.Search(new SearchQuery("HEAD", NameMatchMode.Exact)).Single().IsDirectory, Is.False);
-        Assert.That(session.Index.Search(new SearchQuery("ordinary.txt", NameMatchMode.Exact)), Is.Empty);
-        Assert.That(session.Index.Search(new SearchQuery("repo", NameMatchMode.Exact)).Single().IsDirectory, Is.True);
-        Assert.That(session.Index.Root('X').RecordKey.ProducerKind, Is.EqualTo(ProducerKind.Mft));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(scan.RetainedFileNames, Is.EqualTo([".git", "HEAD"]));
+            Assert.That(session.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)), Has.Count.EqualTo(2));
+            Assert.That(session.Index.Search(new SearchQuery("HEAD", NameMatchMode.Exact)).Single().IsDirectory, Is.False);
+            Assert.That(session.Index.Search(new SearchQuery("ordinary.txt", NameMatchMode.Exact)), Is.Empty);
+            Assert.That(session.Index.Search(new SearchQuery("repo", NameMatchMode.Exact)).Single().IsDirectory, Is.True);
+            Assert.That(session.Index.Root('X').RecordKey.ProducerKind, Is.EqualTo(ProducerKind.Mft));
+        }
     }
 
     [Test]
@@ -230,10 +264,13 @@ public class MftIndexSessionTests
         await using var session = await MftIndexSession.OpenAsync([drive],
             BrokerTestHarness.CreateSession(_ => throw new AssertionException("Enumeration must not connect.")),
             files.BlockDirectory, null, CancellationToken.None);
-        Assert.That(session.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)), Has.Count.EqualTo(2));
-        Assert.That(session.Index.Search(new SearchQuery("HEAD", NameMatchMode.Exact)).Single().IsDirectory, Is.False);
-        Assert.That(session.Index.Search(new SearchQuery("ordinary.txt", NameMatchMode.Exact)), Is.Empty);
-        Assert.That(session.Index.Search(new SearchQuery("nested", NameMatchMode.Exact)).Single().IsDirectory, Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(session.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)), Has.Count.EqualTo(2));
+            Assert.That(session.Index.Search(new SearchQuery("HEAD", NameMatchMode.Exact)).Single().IsDirectory, Is.False);
+            Assert.That(session.Index.Search(new SearchQuery("ordinary.txt", NameMatchMode.Exact)), Is.Empty);
+            Assert.That(session.Index.Search(new SearchQuery("nested", NameMatchMode.Exact)).Single().IsDirectory, Is.True);
+        }
     }
 
     [Test]
@@ -269,13 +306,13 @@ public class MftIndexSessionTests
 
         Assert.That(samples.Where(sample => sample.Phase == IndexScanPhase.ParsingMft).ToArray(), Has.Length.EqualTo(1));
         var sample = samples.Single(candidate => candidate.Phase == IndexScanPhase.ParsingMft);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(sample.Drive, Is.EqualTo((DriveKey)'X'));
             Assert.That(sample.Phase, Is.EqualTo(IndexScanPhase.ParsingMft));
             Assert.That(sample.WrittenRowCount, Is.EqualTo(600_000u));
             Assert.That(sample.ExpectedRowCount, Is.EqualTo(1_200_000u));
-        });
+        }
     }
 
     sealed class ProgressSink<T>(Action<T> onReport) : IProgress<T>

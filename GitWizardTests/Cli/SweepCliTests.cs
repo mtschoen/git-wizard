@@ -53,11 +53,11 @@ public class SweepCliTests
         var report = JsonSerializer.Deserialize<RepositorySweepReport>(stdout.ToString());
         var cachedPaths = await GitWizardApi.GetCachedRepositoryPathsAsync();
         var expectedPaths = new[] { GitWizardApi.NormalizePath(newPath) };
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(exitCode, Is.Zero, stderr.ToString());
             Assert.That(report!.Repositories.Select(repository => repository.Path), Is.EqualTo(expectedPaths));
             Assert.That(cachedPaths, Is.EqualTo(expectedPaths));
-        });
+        }
     }
 }

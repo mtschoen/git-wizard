@@ -78,23 +78,30 @@ public class ProgramWatchLoopTests
             source.Publish(new VolumeChangeBatch("Y",
                 [new VolumeChangeEntry(@"Y:\repo\file", VolumeEntryKind.Modified)]));
             await changed.Task.WaitAsync(cancellation.Token);
-            Assert.That(running.IsCompleted, Is.False);
-            Assert.That(lines, Is.EqualTo(new[]
+            using (Assert.EnterMultipleScope())
             {
+                Assert.That(running.IsCompleted, Is.False);
+                Assert.That(lines, Is.EqualTo(new[]
+                {
                 "ready: mode=pump caught-up=X,Y excluded=-",
                 "scan error on X: watch failed",
                 "scan error on X: watch failed again",
                 @"changed: Y:\repo"
             }));
+            }
         }
         finally
         {
             source.Complete();
             await running;
         }
-        Assert.That(source.DiagnosticSubscribers, Is.Zero);
-        Assert.That(WatchSubscriptionProbe.ScanErrorsSubscribers(service), Is.Zero,
-            "The CLI must detach from the service after shutdown.");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(source.DiagnosticSubscribers, Is.Zero);
+            Assert.That(WatchSubscriptionProbe.ScanErrorsSubscribers(service), Is.Zero,
+                "The CLI must detach from the service after shutdown.");
+        }
     }
 
     [Test]
@@ -133,15 +140,18 @@ public class ProgramWatchLoopTests
         }
 
         const string stamp = "2026-10-01T00:00:00.000Z ";
-        Assert.That(lines.Where(line => line.StartsWith(stamp + "drive:", StringComparison.Ordinal)), Is.EqualTo(new[]
+        using (Assert.EnterMultipleScope())
         {
+            Assert.That(lines.Where(line => line.StartsWith(stamp + "drive:", StringComparison.Ordinal)), Is.EqualTo(new[]
+                {
             stamp + "drive: X state=caught-up origin=warm",
             stamp + "drive: Y state=caught-up origin=warm",
             stamp + "drive: X state=catching-up origin=cold",
             stamp + "drive: X state=caught-up origin=cold"
         }));
-        Assert.That(lines, Has.None.Contain("error").IgnoreCase.Or.Contain("Hint on"),
-            "A drive MFTLib recovers is not an error and leaves no error line behind.");
+            Assert.That(lines, Has.None.Contain("error").IgnoreCase.Or.Contain("Hint on"),
+                "A drive MFTLib recovers is not an error and leaves no error line behind.");
+        }
         Assert.That(lines, Does.Contain(stamp + @"changed: Y:\repo"));
     }
 
@@ -166,15 +176,18 @@ public class ProgramWatchLoopTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var stopped = await Program.RunWatchLoopAsync(service, lines.Add, NoExit, cts.Token);
 
-        Assert.That(stopped, Is.False);
-        Assert.That(lines, Is.EqualTo(new[]
+        using (Assert.EnterMultipleScope())
         {
+            Assert.That(stopped, Is.False);
+            Assert.That(lines, Is.EqualTo(new[]
+            {
             "scan error on D: drive not ready",
             "ready: mode=pump caught-up=C excluded=-",
             @"changed: C:\repo\a",
             @"created: C:\repo\b\newrepo",
             @"deleted: C:\repo\gone",
         }));
+        }
     }
 
     // A no-op exit for the tests that never hit the terminal broker-spawn-failure path.
@@ -200,8 +213,11 @@ public class ProgramWatchLoopTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var stopped = await Program.RunWatchLoopAsync(service, lines.Add, NoExit, cts.Token);
 
-        Assert.That(stopped, Is.False);
-        Assert.That(lines, Is.EqualTo(new[] { "ready: mode=pump caught-up=- excluded=-" }));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(stopped, Is.False);
+            Assert.That(lines, Is.EqualTo(new[] { "ready: mode=pump caught-up=- excluded=-" }));
+        }
     }
 
     [Test]
@@ -221,8 +237,11 @@ public class ProgramWatchLoopTests
         source.KillSource("volume unmounted");
         var stopped = await loopTask;
 
-        Assert.That(stopped, Is.True);
-        Assert.That(lines, Does.Contain("Broker died: volume unmounted"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(stopped, Is.True);
+            Assert.That(lines, Does.Contain("Broker died: volume unmounted"));
+        }
     }
 
     [Test]
@@ -241,9 +260,12 @@ public class ProgramWatchLoopTests
 
         await Program.RunWatchLoopAsync(service, lines.Add, exitCodes.Add, cts.Token);
 
-        Assert.That(lines, Does.Contain(
-            "Could not start the journal broker: The operation was canceled by the user."));
-        Assert.That(exitCodes, Is.EqualTo(new[] { 1 }));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(lines, Does.Contain(
+                    "Could not start the journal broker: The operation was canceled by the user."));
+            Assert.That(exitCodes, Is.EqualTo(new[] { 1 }));
+        }
     }
 
     [Test]
@@ -265,11 +287,11 @@ public class ProgramWatchLoopTests
         var stopped = await Program.RunWatchLoopAsync(service, lines.Add, NoExit, cts.Token);
 
         Assert.That(stopped, Is.True);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(lines, Does.Contain(@"changed: C:\repo\a"));
             Assert.That(lines, Does.Contain("Broker died: pipe broken unexpectedly"));
-        });
+        }
     }
 
     [Test]
@@ -294,8 +316,11 @@ public class ProgramWatchLoopTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var stopped = await Program.RunWatchLoopAsync(service, lines.Add, NoExit, cts.Token);
 
-        Assert.That(stopped, Is.True);
-        Assert.That(lines, Does.Contain("Broker died: No requested drives could be watched."));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(stopped, Is.True);
+            Assert.That(lines, Does.Contain("Broker died: No requested drives could be watched."));
+        }
     }
 
     [Test]
@@ -315,8 +340,11 @@ public class ProgramWatchLoopTests
         source.KillSource("No requested drives could be watched: cache declined");
         var stopped = await running;
 
-        Assert.That(stopped, Is.True);
-        Assert.That(lines, Has.Some.Contains("scan error on X: cache declined"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(stopped, Is.True);
+            Assert.That(lines, Has.Some.Contains("scan error on X: cache declined"));
+        }
         Assert.That(lines, Has.Some.Contains("Hint on X:").And.Contains("at least 136 MB"));
         Assert.That(lines, Has.Some.Contains("Broker died: No requested drives could be watched: cache declined"));
     }
@@ -409,8 +437,11 @@ public class ProgramWatchLoopTests
         source.Complete();
         await running;
 
-        Assert.That(service.ScanWarnings.Single().IsRecoveryStopped, Is.True);
-        Assert.That(lines, Has.Some.Contains("Automatic recovery stopped"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(service.ScanWarnings.Single().IsRecoveryStopped, Is.True);
+            Assert.That(lines, Has.Some.Contains("Automatic recovery stopped"));
+        }
         Assert.That(lines, Has.None.Contains("was rescanned and the watch has caught up"));
     }
 
@@ -437,8 +468,11 @@ public class ProgramWatchLoopTests
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             var stopped = await Program.RunWatchLoopAsync(service, lines.Add, NoExit, cts.Token);
 
-            Assert.That(stopped, Is.False);
-            Assert.That(lines, Is.EqualTo(new[] { $"ready: mode=pump caught-up={volume} excluded=-", $"created: {repoPath}" }));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(stopped, Is.False);
+                Assert.That(lines, Is.EqualTo(new[] { $"ready: mode=pump caught-up={volume} excluded=-", $"created: {repoPath}" }));
+            }
         }
         finally
         {

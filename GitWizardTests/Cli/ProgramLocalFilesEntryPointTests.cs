@@ -25,12 +25,12 @@ public class ProgramLocalFilesEntryPointTests
                 "--clear-cache", "--no-mft", "--rebuild-report", "--no-local-commit-count", "--paths", repository.Path, "--json");
 
             using var document = JsonDocument.Parse(result.StandardOutput);
-            Assert.Multiple(() =>
+            using (Assert.EnterMultipleScope())
             {
                 Assert.That(document.RootElement.GetProperty("SchemaVersion").GetString(), Is.EqualTo("2.1"));
                 Assert.That(result.StandardError, Does.Contain("Caught exception trying to clear cache"));
                 Assert.That(result.StandardOutput, Does.Not.Contain("Caught exception"));
-            });
+            }
         }
         finally
         {
@@ -90,10 +90,13 @@ public class ProgramLocalFilesEntryPointTests
         }
 
         var result = await RunCliAsync(arguments.ToArray());
-        Assert.That(result.ExitCode, Is.EqualTo(1));
-        Assert.That(result.StandardError, Does.Contain("mft-index"));
-        Assert.That(result.StandardOutput, Is.Empty);
-        Assert.That(await File.ReadAllTextAsync(sentinel), Is.EqualTo("retained"));
-        Assert.That(await File.ReadAllTextAsync(list), Is.EqualTo("repository sentinel"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.ExitCode, Is.EqualTo(1));
+            Assert.That(result.StandardError, Does.Contain("mft-index"));
+            Assert.That(result.StandardOutput, Is.Empty);
+            Assert.That(await File.ReadAllTextAsync(sentinel), Is.EqualTo("retained"));
+            Assert.That(await File.ReadAllTextAsync(list), Is.EqualTo("repository sentinel"));
+        }
     }
 }

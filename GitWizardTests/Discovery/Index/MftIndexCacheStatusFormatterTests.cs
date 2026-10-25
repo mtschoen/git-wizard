@@ -53,8 +53,11 @@ public class MftIndexCacheStatusFormatterTests
             MftIndexCacheInspection.InspectDirectory);
         var text = MftIndexCacheStatusFormatter.Format(service.Capture(files.DirectoryPath, [active]));
         var inventoryLine = text.Split(Environment.NewLine).Single(line => line.StartsWith("Drive X:", StringComparison.Ordinal));
-        Assert.That(inventoryLine.Contains("this session owns the cache", StringComparison.Ordinal), Is.EqualTo(owned));
-        Assert.That(text, Does.Contain("Directory-entry last-write UTC:"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(inventoryLine.Contains("this session owns the cache", StringComparison.Ordinal), Is.EqualTo(owned));
+            Assert.That(text, Does.Contain("Directory-entry last-write UTC:"));
+        }
         Assert.That(text, Does.Contain("Size:"));
         Assert.That(text, Does.Contain("serial 00000001"));
         Assert.That(text, Does.Contain("Retention: directories plus .git, HEAD"));

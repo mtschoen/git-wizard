@@ -201,12 +201,12 @@ public class ReportPublicationTests
             stdout,
             stderr);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(exitCode, Is.Zero);
             Assert.That(File.Exists(cachedReportPath), Is.True);
             Assert.That(File.Exists(customSavePath), Is.True);
-        });
+        }
 
         var cachedText = await File.ReadAllTextAsync(cachedReportPath);
         var customText = await File.ReadAllTextAsync(customSavePath);
@@ -214,13 +214,13 @@ public class ReportPublicationTests
         using var cachedDoc = JsonDocument.Parse(cachedText);
         using var customDoc = JsonDocument.Parse(customText);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(cachedDoc.RootElement.GetProperty("SchemaVersion").GetString(), Is.EqualTo("2.1"));
             Assert.That(cachedDoc.RootElement.GetProperty("Repositories").EnumerateObject().Count(), Is.Zero);
             Assert.That(customDoc.RootElement.GetProperty("SchemaVersion").GetString(), Is.EqualTo("2.1"));
             Assert.That(customDoc.RootElement.GetProperty("Repositories").EnumerateObject().Count(), Is.Zero);
-        });
+        }
     }
 
     [Test]
@@ -260,11 +260,11 @@ public class ReportPublicationTests
             stdout,
             stderr);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(exitCode, Is.EqualTo(1));
             Assert.That(File.Exists(customSavePath), Is.True);
-        });
+        }
 
         var savedText = await File.ReadAllTextAsync(customSavePath);
         using var doc = JsonDocument.Parse(savedText);

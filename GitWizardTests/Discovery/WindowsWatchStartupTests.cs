@@ -42,8 +42,11 @@ public class WindowsWatchStartupTests
         var startupTask = coordinator.PrepareWatchAsync(request, null, cts.Token);
 
         await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
-        Assert.That(startupTask.IsCompleted, Is.False, "Startup must withhold completion until catch-up drains.");
-        Assert.That(listWrites, Is.Empty, "List writes must not happen before catch-up.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(startupTask.IsCompleted, Is.False, "Startup must withhold completion until catch-up drains.");
+            Assert.That(listWrites, Is.Empty, "List writes must not happen before catch-up.");
+        }
 
         // Publish journal changes and caught up marker
         await scripted.WatchFor('X').PublishBatchAsync([
@@ -53,11 +56,14 @@ public class WindowsWatchStartupTests
 
         await using var startup = await startupTask;
 
-        Assert.That(startup.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.CompleteNonempty));
-        Assert.That(startup.Inventory.Paths, Does.Contain(Path.Combine(files.TreePath, "repo")));
-        Assert.That(startup.Source, Is.Not.Null);
-        Assert.That(startup.WatchVolumes, Is.EquivalentTo(new[] { "X" }));
-        Assert.That(listWrites, Is.Not.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(startup.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.CompleteNonempty));
+            Assert.That(startup.Inventory.Paths, Does.Contain(Path.Combine(files.TreePath, "repo")));
+            Assert.That(startup.Source, Is.Not.Null);
+            Assert.That(startup.WatchVolumes, Is.EquivalentTo(new[] { "X" }));
+            Assert.That(listWrites, Is.Not.Empty);
+        }
     }
 
     [Test]
@@ -91,8 +97,11 @@ public class WindowsWatchStartupTests
 
         await using var startup = await coordinator.PrepareWatchAsync(request, null, cts.Token);
 
-        Assert.That(openCalled, Is.True, "Watch preparation must open index even when a cached list exists.");
-        Assert.That(startup.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.CompleteNonempty));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(openCalled, Is.True, "Watch preparation must open index even when a cached list exists.");
+            Assert.That(startup.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.CompleteNonempty));
+        }
     }
 
     [Test]
@@ -124,8 +133,11 @@ public class WindowsWatchStartupTests
 
         await using var startup = await coordinator.PrepareWatchAsync(request, null, cts.Token);
 
-        Assert.That(startup.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.CompleteEmpty));
-        Assert.That(startup.Source, Is.Null, "Clean complete empty must dispose and clear the source.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(startup.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.CompleteEmpty));
+            Assert.That(startup.Source, Is.Null, "Clean complete empty must dispose and clear the source.");
+        }
     }
 
     [Test]
@@ -199,8 +211,11 @@ public class WindowsWatchStartupTests
 
         await using var startup = await coordinator.PrepareWatchAsync(request, null, cts.Token);
 
-        Assert.That(openedDrives, Is.EquivalentTo(new[] { "X" }), "Z: must not be sent to MFT opener.");
-        Assert.That(startup.Inventory.WatchExcludedRoots, Is.EquivalentTo(new[] { nonNtfsDir }).IgnoreCase);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(openedDrives, Is.EquivalentTo(new[] { "X" }), "Z: must not be sent to MFT opener.");
+            Assert.That(startup.Inventory.WatchExcludedRoots, Is.EquivalentTo(new[] { nonNtfsDir }).IgnoreCase);
+        }
     }
 
     [Test]
@@ -246,9 +261,12 @@ public class WindowsWatchStartupTests
 
         await using var startup = await startupTask;
 
-        Assert.That(startup.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Partial));
-        Assert.That(startup.Source, Is.Not.Null, "Healthy drive X must keep source active.");
-        Assert.That(startup.Inventory.Errors, Does.ContainKey("Y"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(startup.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Partial));
+            Assert.That(startup.Source, Is.Not.Null, "Healthy drive X must keep source active.");
+            Assert.That(startup.Inventory.Errors, Does.ContainKey("Y"));
+        }
     }
 
     [Test]
@@ -283,8 +301,11 @@ public class WindowsWatchStartupTests
 
         await using var startup = await coordinator.PrepareWatchAsync(request, oldSession, cts.Token);
 
-        Assert.That(oldSession.IsDisposed, Is.True, "Mismatched session must be disposed.");
-        Assert.That(openerCalled, Is.True, "Fallback opener must be called for new drives.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(oldSession.IsDisposed, Is.True, "Mismatched session must be disposed.");
+            Assert.That(openerCalled, Is.True, "Fallback opener must be called for new drives.");
+        }
     }
 
     [Test]
@@ -371,14 +392,14 @@ public class WindowsWatchStartupTests
 
         await using var startup = await startupTask;
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(startup.StartupBatches, Is.Not.Empty,
                 "Catch-up batches must survive membership reconciliation for the watch service.");
             Assert.That(startup.StartupBatches.SelectMany(batch => batch.Entries)
                 .Any(entry => entry.FullPath.EndsWith("notes.txt", StringComparison.OrdinalIgnoreCase)), Is.True,
                 "The buffered modification must reach the service, not vanish with the buffer.");
-        });
+        }
     }
 
     [Test]
@@ -429,14 +450,14 @@ public class WindowsWatchStartupTests
 
         await using var startup = await startupTask;
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(startup.Inventory.Paths, Does.Contain(plainRepo).IgnoreCase,
                 "A filesystem-valid replay candidate under a search root joins the inventory.");
             Assert.That(startup.Inventory.Paths.Any(path =>
                     path.Contains(".hidden", StringComparison.OrdinalIgnoreCase)), Is.False,
                 "A replay candidate under a hidden directory must respect SkipHiddenDirectories.");
-        });
+        }
     }
 
     static Task<FileIndex> OpenDefaultIndexAsync(string treePath) =>

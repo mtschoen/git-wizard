@@ -85,11 +85,11 @@ public class ProgramWatchStartupTests
         var paths = await LoadTrackedRepositoryPathsAsync(config, coordinator);
         var cached = await GitWizardApi.GetCachedRepositoryPathsAsync();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(paths, Does.Contain(fresh).IgnoreCase);
             Assert.That(cached, Does.Contain(fresh).IgnoreCase);
-        });
+        }
     }
 
     [Test]
@@ -125,11 +125,11 @@ public class ProgramWatchStartupTests
         var paths = await LoadTrackedRepositoryPathsAsync(config, coordinator);
         var cached = await GitWizardApi.GetCachedRepositoryPathsAsync();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(paths, Is.EquivalentTo(new[] { existing, fresh }).IgnoreCase);
             Assert.That(cached, Is.EquivalentTo(new[] { existing, fresh }).IgnoreCase);
-        });
+        }
     }
 
     [Test]
@@ -167,11 +167,11 @@ public class ProgramWatchStartupTests
         var paths = await LoadTrackedRepositoryPathsAsync(config, coordinator);
         var cached = await GitWizardApi.GetCachedRepositoryPathsAsync();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(paths, Is.EquivalentTo(new[] { normalized }));
             Assert.That(cached, Is.EquivalentTo(new[] { normalized }));
-        });
+        }
     }
 
     [Test]
@@ -199,12 +199,12 @@ public class ProgramWatchStartupTests
         var request = new DiscoveryRequest(new GitWizardConfiguration { SearchPaths = { files.TreePath } }, DiscoveryPurpose.Watch, false, false, []);
         await using var startup = await coordinator.PrepareWatchAsync(request, null, CancellationToken.None);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(openCount, Is.EqualTo(1));
             Assert.That(startup.Source, Is.Null);
             Assert.That(startup.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Unusable));
-        });
+        }
     }
 
     [Test]
@@ -236,12 +236,12 @@ public class ProgramWatchStartupTests
         var request = new DiscoveryRequest(new GitWizardConfiguration { SearchPaths = { files.TreePath, dRoot } }, DiscoveryPurpose.Watch, false, false, []);
         await using var startup = await coordinator.PrepareWatchAsync(request, null, CancellationToken.None);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(startup.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Partial));
             Assert.That(startup.Source, Is.Not.Null);
             Assert.That(startup.WatchVolumes, Is.EquivalentTo(new[] { "C" }));
-        });
+        }
     }
 
     [Test]
@@ -256,11 +256,11 @@ public class ProgramWatchStartupTests
         using var stderr = new StringWriter();
         var exitCode = await Program.RunWatchAsync(runConfig, config, coordinator, stdout, stderr, CancellationToken.None);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(exitCode, Is.Zero);
             Assert.That(stdout.ToString(), Does.Contain("No tracked repositories found; nothing to watch."));
-        });
+        }
     }
 
     [Test]
@@ -348,10 +348,10 @@ public class ProgramWatchStartupTests
         var paths = await LoadTrackedRepositoryPathsAsync(config, coordinator);
         var cached = await GitWizardApi.GetCachedRepositoryPathsAsync();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(paths, Is.Empty);
             Assert.That(cached, Is.Null);
-        });
+        }
     }
 }

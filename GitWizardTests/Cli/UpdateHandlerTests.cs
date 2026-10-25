@@ -48,11 +48,11 @@ public class UpdateHandlerTests
     {
         new UpdateHandler().SendUpdateMessage(null);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(_capturedOut.ToString(), Is.Empty);
             Assert.That(_capturedError.ToString(), Does.Contain("null message"));
-        });
+        }
     }
 
     [TestCase(false)]
@@ -62,11 +62,11 @@ public class UpdateHandlerTests
         GitWizardLog.VerboseMode = verbose;
         new UpdateHandler().SendUpdateMessage("refresh details");
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(_capturedOut.ToString(), Is.Empty);
             Assert.That(_capturedError.ToString().Contains("refresh details", StringComparison.Ordinal), Is.EqualTo(verbose));
-        });
+        }
     }
 
     [TestCase("repository", "repository-path")]
@@ -80,11 +80,11 @@ public class UpdateHandlerTests
 
         InvokeCallback(new UpdateHandler(), callback);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(_capturedOut.ToString(), Is.Empty);
             Assert.That(_capturedError.ToString(), Does.Contain(expectedPath));
-        });
+        }
     }
 
     [Test]
@@ -96,11 +96,11 @@ public class UpdateHandlerTests
             InvokeCallback(handler, callback);
         }
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(_capturedOut.ToString(), Is.Empty);
             Assert.That(_capturedError.ToString(), Is.Empty);
-        });
+        }
     }
 
     static void InvokeCallback(UpdateHandler handler, string callback)
@@ -136,13 +136,13 @@ public class UpdateHandlerTests
         handler.UpdateProgress(2);
         handler.UpdateProgress(4);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(_capturedOut.ToString(), Is.Empty);
             Assert.That(_capturedError.ToString(), Does.Contain("Refreshing")
                 .And.Contain("0/4").And.Contain("50%").And.Contain("2/4")
                 .And.Contain("100%").And.EndsWith(Environment.NewLine));
-        });
+        }
     }
 
     [TestCase(0)]
@@ -153,11 +153,11 @@ public class UpdateHandlerTests
         handler.StartProgress("Nothing", total);
         handler.UpdateProgress(1);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(_capturedOut.ToString(), Is.Empty);
             Assert.That(_capturedError.ToString(), Is.Empty);
-        });
+        }
     }
 
     [TestCase(-1, "[░░░░░░░░░░░░░░░░░░░░]")]
@@ -169,11 +169,11 @@ public class UpdateHandlerTests
         _capturedError.GetStringBuilder().Clear();
         handler.UpdateProgress(count);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(_capturedOut.ToString(), Is.Empty);
             Assert.That(_capturedError.ToString(), Does.Contain(expectedBar));
-        });
+        }
     }
 
     [TestCase("submodule", "[SKIPPED] Submodule parent not created yet: parent")]
@@ -226,7 +226,7 @@ public class UpdateHandlerTests
         var before = handler.CaptureRun();
         handler.OnRepositoryCreated(parent);
         handler.RecordWarning("later warning");
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(before.Created, Is.EqualTo(3));
             Assert.That(before.Refreshed, Is.EqualTo(2));
@@ -234,7 +234,7 @@ public class UpdateHandlerTests
             Assert.That(before.Warnings, Is.Empty);
             Assert.That(handler.CaptureRun().Created, Is.EqualTo(4));
             Assert.That(handler.CaptureRun().Warnings, Is.EqualTo(["later warning"]));
-        });
+        }
     }
 
     [Test]
@@ -248,13 +248,13 @@ public class UpdateHandlerTests
         handler.StartProgress("Parallel test", 32);
         await Task.WhenAll(Enumerable.Range(1, 32)
             .Select(count => Task.Run(() => handler.UpdateProgress(count))));
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(writer.UnlockedWrites, Is.Zero);
             Assert.That(writer.Lines, Has.Count.EqualTo(33));
             Assert.That(writer.Lines, Has.Some.Contains("32/32"));
             Assert.That(writer.Newlines, Is.EqualTo(1));
-        });
+        }
     }
 
     sealed class ProgressLockWriter : TextWriter

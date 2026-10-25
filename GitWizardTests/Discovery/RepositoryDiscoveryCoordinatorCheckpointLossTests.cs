@@ -93,19 +93,22 @@ public class RepositoryDiscoveryCoordinatorCheckpointLossTests
         await SeedCacheAsync();
         _windows['X'] = Lost;
         var session = await OpenSessionAsync(cacheOnly, source);
-        Assert.That(session.Index.Drives.Single().Watch.CheckpointLoss, Is.Not.Null);
-        Assert.That(session.Index.Drives.Single().Block?.Origin, Is.EqualTo(expectedInitialOrigin));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(session.Index.Drives.Single().Watch.CheckpointLoss, Is.Not.Null);
+            Assert.That(session.Index.Drives.Single().Block?.Origin, Is.EqualTo(expectedInitialOrigin));
+        }
         var productionsBeforeWatch = _productions;
         using var cancellation = new CancellationTokenSource(TestTimeouts.HangGuard);
 
         await using var startup = await CreateCoordinator()
             .PrepareWatchAsync(CreateWatchRequest(), session, cancellation.Token);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(_productions - productionsBeforeWatch, Is.EqualTo(expectedAdditionalProductions));
             Assert.That(source.Starts, Has.Count.EqualTo(1));
             Assert.That(startup.WatchVolumes, Is.EquivalentTo(["X"]));
-        });
+        }
     }
 }

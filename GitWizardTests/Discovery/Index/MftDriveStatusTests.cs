@@ -30,17 +30,23 @@ public class MftDriveStatusTests
     {
         var statuses = session.CaptureDriveStatuses();
         Assert.That(statuses.Select(status => status.Drive), Is.EqualTo(["W", "X"]));
-        Assert.That(statuses[0].IdentityFailure, Is.EqualTo("identity denied"));
-        Assert.That(statuses[0].IndexStatus, Is.Null);
-        Assert.That(statuses[1].IdentityFailure, Is.Null);
-        Assert.That(statuses[1].IndexStatus!.Failure?.Kind, Is.EqualTo(DriveFailureKind.ProducerFailed));
-        Assert.That(statuses[1].IndexStatus!.Block, Is.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(statuses[0].IdentityFailure, Is.EqualTo("identity denied"));
+            Assert.That(statuses[0].IndexStatus, Is.Null);
+            Assert.That(statuses[1].IdentityFailure, Is.Null);
+            Assert.That(statuses[1].IndexStatus!.Failure?.Kind, Is.EqualTo(DriveFailureKind.ProducerFailed));
+            Assert.That(statuses[1].IndexStatus!.Block, Is.Null);
+        }
         await using var result = new MftDiscoveryResult(false, session);
         var captured = result.DriveStatuses;
         Assert.That(result.DetachIndexSession(), Is.SameAs(session));
         await session.DisposeAsync();
-        Assert.That(result.DriveStatuses, Is.EqualTo(captured));
-        Assert.That(captured[1].IndexStatus!.Failure?.Message, Does.Contain("scan refused"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.DriveStatuses, Is.EqualTo(captured));
+            Assert.That(captured[1].IndexStatus!.Failure?.Message, Does.Contain("scan refused"));
+        }
     }
 
     [Test]
@@ -52,8 +58,11 @@ public class MftDriveStatusTests
         var first = session.CaptureDriveStatuses();
         var second = session.CaptureDriveStatuses();
         Assert.That(second, Is.Not.SameAs(first));
-        Assert.That(second, Is.EqualTo(first));
-        Assert.That(first, Is.InstanceOf<System.Collections.ObjectModel.ReadOnlyCollection<MftDriveStatus>>());
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(second, Is.EqualTo(first));
+            Assert.That(first, Is.InstanceOf<System.Collections.ObjectModel.ReadOnlyCollection<MftDriveStatus>>());
+        }
         Assert.That(first.Single().IndexStatus!.State, Is.EqualTo(DriveState.Ready));
     }
 
@@ -70,11 +79,14 @@ public class MftDriveStatusTests
             Watch = drive.Watch with { FailureMessage = "watch failed", CheckpointLoss = loss }
         };
         var projection = new MftDriveStatus("X", source, null);
-        Assert.That(projection.IndexStatus!.State, Is.EqualTo(DriveState.Ready));
-        Assert.That(projection.IndexStatus.Block?.Origin, Is.EqualTo(BlockOrigin.WarmStartedFromCache));
-        Assert.That(projection.IndexStatus.Failure, Is.Null);
-        Assert.That(projection.IndexStatus.Watch.FailureMessage, Is.EqualTo("watch failed"));
-        Assert.That(projection.IndexStatus.Watch.CheckpointLoss, Is.EqualTo(loss));
-        Assert.That(projection.IndexStatus.Block?.ScanTimestamp, Is.EqualTo(source.Block!.ScanTimestamp));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(projection.IndexStatus!.State, Is.EqualTo(DriveState.Ready));
+            Assert.That(projection.IndexStatus.Block?.Origin, Is.EqualTo(BlockOrigin.WarmStartedFromCache));
+            Assert.That(projection.IndexStatus.Failure, Is.Null);
+            Assert.That(projection.IndexStatus.Watch.FailureMessage, Is.EqualTo("watch failed"));
+            Assert.That(projection.IndexStatus.Watch.CheckpointLoss, Is.EqualTo(loss));
+            Assert.That(projection.IndexStatus.Block?.ScanTimestamp, Is.EqualTo(source.Block!.ScanTimestamp));
+        }
     }
 }

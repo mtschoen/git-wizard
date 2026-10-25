@@ -106,13 +106,13 @@ public class EnumerationDiscoverySelectionTests
         var folder = Path.Combine(_tempDir, "folder");
         Directory.CreateDirectory(folder);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(EnumerationDiscovery.IsConfirmed(new RepositoryCandidate(folder, RepositoryCandidateKind.GitFile)),
                 Is.False);
             Assert.That(EnumerationDiscovery.IsConfirmed(new RepositoryCandidate(folder, RepositoryCandidateKind.Bare)),
                 Is.False);
-        });
+        }
     }
 
     [Test]
@@ -151,10 +151,13 @@ public class EnumerationDiscoverySelectionTests
         var diagnostics = new CandidateSelectionDiagnostics();
         var result = Discover(diagnostics);
 
-        Assert.That(diagnostics.UnresolvedPathCount, Is.Zero);
-        Assert.That(result.FailedSubtrees, Is.Empty);
-        Assert.That(result.Paths,
-            Is.EqualTo([GitWizardApi.NormalizePath(Path.Combine(_tempDir, "repo"))]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(diagnostics.UnresolvedPathCount, Is.Zero);
+            Assert.That(result.FailedSubtrees, Is.Empty);
+            Assert.That(result.Paths,
+                Is.EqualTo([GitWizardApi.NormalizePath(Path.Combine(_tempDir, "repo"))]));
+        }
     }
 
     int CountIndexScans(int headFileCount)
@@ -181,13 +184,13 @@ public class EnumerationDiscoverySelectionTests
         var diagnostics = new CandidateSelectionDiagnostics();
         var result = Discover(diagnostics);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(diagnostics.UnresolvedPathCount, Is.GreaterThan(0));
             Assert.That(result.Paths, Is.Empty);
             Assert.That(result.FailedSubtrees, Has.Count.EqualTo(1));
             Assert.That(result.Errors, Has.Count.EqualTo(1));
-        });
+        }
     }
 
     string CreateDeepDirectory(string name)

@@ -145,8 +145,11 @@ public class RecursiveDiscoveryTests
         var result = EnumeratedDiscovery.Run(request, _tempDir);
 
         var normalizedRoot = GitWizardApi.NormalizePath(_tempDir);
-        Assert.That(result.Paths, Does.Contain(GitWizardApi.NormalizePath(accessibleRepo)));
-        Assert.That(result.FailedSubtrees, Does.Contain(normalizedRoot));
-        Assert.That(result.Errors, Does.ContainKey(normalizedRoot));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Paths, Does.Contain(GitWizardApi.NormalizePath(accessibleRepo)));
+            Assert.That(result.FailedSubtrees, Does.Contain(normalizedRoot));
+            Assert.That(result.Errors, Does.ContainKey(normalizedRoot));
+        }
     }
 }

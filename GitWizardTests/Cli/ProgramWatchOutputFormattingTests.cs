@@ -16,21 +16,27 @@ public class ProgramWatchOutputFormattingTests
             VolumeWatchStatus.Excluded("E", VolumeBlockOrigin.Unknown, "Drive is \"Offline\", retry."),
             VolumeWatchStatus.Excluded("F", VolumeBlockOrigin.Cold, "watch failed")
         ]);
-        Assert.That(Program.FormatReadyLine(readiness), Is.EqualTo(
-            "ready: mode=journal caught-up=C,D excluded=E=\"Drive is \\u0022Offline\\u0022, retry.\",F=\"watch failed\""));
-        Assert.That(Program.FormatReadyLine(new WatchReadiness(WatchReadinessMode.FilesystemMarks, ["/home"], [])),
-            Is.EqualTo("ready: mode=marks caught-up=/home excluded=-"));
-        Assert.That(Program.FormatReadyLine(new WatchReadiness(WatchReadinessMode.PumpActive, [], [])),
-            Is.EqualTo("ready: mode=pump caught-up=- excluded=-"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(Program.FormatReadyLine(readiness), Is.EqualTo(
+                    "ready: mode=journal caught-up=C,D excluded=E=\"Drive is \\u0022Offline\\u0022, retry.\",F=\"watch failed\""));
+            Assert.That(Program.FormatReadyLine(new WatchReadiness(WatchReadinessMode.FilesystemMarks, ["/home"], [])),
+                Is.EqualTo("ready: mode=marks caught-up=/home excluded=-"));
+            Assert.That(Program.FormatReadyLine(new WatchReadiness(WatchReadinessMode.PumpActive, [], [])),
+                Is.EqualTo("ready: mode=pump caught-up=- excluded=-"));
+        }
     }
 
     [Test]
     public void VolumeAndStartupLinesAreStable()
     {
-        Assert.That(Program.FormatVolumeLine(VolumeWatchStatus.CatchingUp("C", VolumeBlockOrigin.Warm)), Is.EqualTo("drive: C state=catching-up origin=warm"));
-        Assert.That(Program.FormatVolumeLine(VolumeWatchStatus.Excluded("D", VolumeBlockOrigin.Cold, "x \"y\"")), Is.EqualTo("drive: D state=excluded origin=cold reason=\"x \\u0022y\\u0022\""));
-        Assert.That(Program.FormatStartupLine(new WatchStartupProgress(WatchStartupPhase.RequestingElevation)), Is.EqualTo("startup: requesting-elevation"));
-        Assert.That(Program.FormatStartupLine(new WatchStartupProgress(WatchStartupPhase.Scanning, "C")), Is.EqualTo("startup: scanning C"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(Program.FormatVolumeLine(VolumeWatchStatus.CatchingUp("C", VolumeBlockOrigin.Warm)), Is.EqualTo("drive: C state=catching-up origin=warm"));
+            Assert.That(Program.FormatVolumeLine(VolumeWatchStatus.Excluded("D", VolumeBlockOrigin.Cold, "x \"y\"")), Is.EqualTo("drive: D state=excluded origin=cold reason=\"x \\u0022y\\u0022\""));
+            Assert.That(Program.FormatStartupLine(new WatchStartupProgress(WatchStartupPhase.RequestingElevation)), Is.EqualTo("startup: requesting-elevation"));
+            Assert.That(Program.FormatStartupLine(new WatchStartupProgress(WatchStartupPhase.Scanning, "C")), Is.EqualTo("startup: scanning C"));
+        }
     }
 
     [Test]
@@ -87,12 +93,18 @@ public class ProgramWatchOutputFormattingTests
         Assert.That(snapshot, Has.All.StartsWith(stamp));
         Assert.That(snapshot.Count(line => line.Contains(" ready: ")), Is.EqualTo(1));
         var ready = snapshot.Single(line => line.Contains(" ready: "));
-        Assert.That(ready, Is.EqualTo(stamp + "ready: mode=journal caught-up=X excluded=Y=\"Y failed\""));
-        Assert.That(snapshot, Does.Contain(stamp + "drive: X state=catching-up origin=warm"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(ready, Is.EqualTo(stamp + "ready: mode=journal caught-up=X excluded=Y=\"Y failed\""));
+            Assert.That(snapshot, Does.Contain(stamp + "drive: X state=catching-up origin=warm"));
+        }
         Assert.That(snapshot, Does.Contain(stamp + "drive: X state=caught-up origin=warm"));
         Assert.That(snapshot, Does.Contain(stamp + "drive: Y state=excluded origin=cold reason=\"Y failed\""));
-        Assert.That(snapshot, Does.Contain(stamp + @"changed: X:\repo"));
-        Assert.That(Array.IndexOf(snapshot, ready), Is.LessThan(Array.IndexOf(snapshot, stamp + @"changed: X:\repo")));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(snapshot, Does.Contain(stamp + @"changed: X:\repo"));
+            Assert.That(Array.IndexOf(snapshot, ready), Is.LessThan(Array.IndexOf(snapshot, stamp + @"changed: X:\repo")));
+        }
     }
 
     [Test]

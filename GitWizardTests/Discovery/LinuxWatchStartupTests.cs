@@ -103,7 +103,6 @@ public class LinuxWatchStartupTests
 
         finishCrawl.TrySetResult();
         await using var startup = await startupTask.WaitAsync(TestTimeouts.HangGuard);
-
         Assert.That(startup.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.CompleteNonempty));
         Assert.That(startup.Inventory.Paths, Is.EquivalentTo([repositoryPath]));
 
@@ -124,13 +123,16 @@ public class LinuxWatchStartupTests
 
         await using var enumerator = service.RunAsync(cts.Token).GetAsyncEnumerator();
         var moveNext = enumerator.MoveNextAsync().AsTask();
-
         Assert.That(await moveNext.WaitAsync(TestTimeouts.HangGuard), Is.True);
-        Assert.That(inventoryFired, Is.True);
-        Assert.That(startedFired, Is.True);
-        Assert.That(inventoryBeforeStarted, Is.True, "InventoryReady must fire before Started.");
-        Assert.That(enumerator.Current.RepoRoot, Is.EqualTo(repositoryPath));
-        Assert.That(enumerator.Current.Kind, Is.EqualTo(RepositoryChangeKind.Changed));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(inventoryFired, Is.True);
+            Assert.That(startedFired, Is.True);
+            Assert.That(inventoryBeforeStarted, Is.True, "InventoryReady must fire before Started.");
+            Assert.That(enumerator.Current.RepoRoot, Is.EqualTo(repositoryPath));
+            Assert.That(enumerator.Current.Kind, Is.EqualTo(RepositoryChangeKind.Changed));
+        }
     }
 
     [Test]
@@ -205,13 +207,19 @@ public class LinuxWatchStartupTests
 
         await using var startup = await coordinator.PrepareWatchAsync(request, null, cts.Token);
 
-        Assert.That(startup.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Partial));
-        Assert.That(startup.Inventory.Route, Is.EqualTo(DiscoveryRoute.RecursiveOnly));
-        Assert.That(startup.Source, Is.Not.Null, "Healthy mark must keep source active.");
-        Assert.That(startup.Inventory.Errors, Does.ContainKey(failedRoot));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(startup.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Partial));
+            Assert.That(startup.Inventory.Route, Is.EqualTo(DiscoveryRoute.RecursiveOnly));
+            Assert.That(startup.Source, Is.Not.Null, "Healthy mark must keep source active.");
+            Assert.That(startup.Inventory.Errors, Does.ContainKey(failedRoot));
+        }
         var failedObservation = startup.Inventory.Observations.Single(o => o.Root == failedRoot);
-        Assert.That(failedObservation.Complete, Is.False);
-        Assert.That(failedObservation.Error, Is.EqualTo("fanotify_mark failed: EPERM"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(failedObservation.Complete, Is.False);
+            Assert.That(failedObservation.Error, Is.EqualTo("fanotify_mark failed: EPERM"));
+        }
     }
 
     [Test]
@@ -242,9 +250,12 @@ public class LinuxWatchStartupTests
 
         await using var startup = await coordinator.PrepareWatchAsync(request, null, cts.Token);
 
-        Assert.That(startup.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Unusable));
-        Assert.That(startup.Source, Is.Null, "Wholly failed marks must dispose source.");
-        Assert.That(source.Disposed, Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(startup.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Unusable));
+            Assert.That(startup.Source, Is.Null, "Wholly failed marks must dispose source.");
+            Assert.That(source.Disposed, Is.True);
+        }
     }
 
     [Test]

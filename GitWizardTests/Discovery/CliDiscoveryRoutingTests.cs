@@ -49,8 +49,11 @@ public class CliDiscoveryRoutingTests
 
         await fixture.RunAsync();
 
-        Assert.That(fixture.Dependencies.CrawledRoots, Is.Empty);
-        Assert.That(fixture.OpenedDriveSets, Is.Not.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(fixture.Dependencies.CrawledRoots, Is.Empty);
+            Assert.That(fixture.OpenedDriveSets, Is.Not.Empty);
+        }
         foreach (var drives in fixture.OpenedDriveSets)
         {
             Assert.That(drives, Is.EquivalentTo(["C"]));
@@ -98,11 +101,11 @@ public class CliDiscoveryRoutingTests
 
         var exitCode = await fixture.RunAsync();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(exitCode, Is.EqualTo(3));
             Assert.That(fixture.Stderr.ToString(), Does.Contain("Drive C failure"));
-        });
+        }
     }
 
     [Test]
@@ -118,12 +121,12 @@ public class CliDiscoveryRoutingTests
 
         var exitCode = await fixture.RunAsync();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(exitCode, Is.EqualTo(3));
             Assert.That(fixture.Stdout.ToString(), Does.Contain("Drive C failure"));
             Assert.That(fixture.Stderr.ToString(), Does.Not.Contain("Drive C failure"));
-        });
+        }
     }
 
     [Test]
@@ -139,10 +142,10 @@ public class CliDiscoveryRoutingTests
 
         var exitCode = await fixture.RunAsync();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(exitCode, Is.EqualTo(1));
             Assert.That(fixture.Stderr.ToString(), Does.Contain("Drive C failure"));
-        });
+        }
     }
 }

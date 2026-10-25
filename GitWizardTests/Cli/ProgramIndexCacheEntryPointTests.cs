@@ -12,9 +12,12 @@ public class ProgramIndexCacheEntryPointTests
     public void ClearIndexCacheParsesWithoutChangingExistingClearFlag()
     {
         var result = CliParser.Parse(["--clear-index-cache"]);
-        Assert.That(result.HasParseError, Is.False);
-        Assert.That(result.Command, Is.EqualTo(CommandKind.ClearIndexCache));
-        Assert.That(result.ClearCache, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.HasParseError, Is.False);
+            Assert.That(result.Command, Is.EqualTo(CommandKind.ClearIndexCache));
+            Assert.That(result.ClearCache, Is.False);
+        }
     }
 
     [Test, NonParallelizable]
@@ -27,37 +30,52 @@ public class ProgramIndexCacheEntryPointTests
         await using (var owner = await files.OpenOwnerAsync())
         {
             var result = await RunCliAsync("--clear-index-cache", "--silent", "--watch");
-            Assert.That(result.ExitCode, Is.EqualTo(1));
-            Assert.That(result.StandardOutput, Does.Contain("X: (00000001)"));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.ExitCode, Is.EqualTo(1));
+                Assert.That(result.StandardOutput, Does.Contain("X: (00000001)"));
+            }
             Assert.That(result.StandardOutput, Does.Contain("InUse"));
             Assert.That(result.StandardOutput, Does.Contain("Y: (00000001)"));
             Assert.That(result.StandardOutput, Does.Contain("Deleted"));
             Assert.That(result.StandardOutput, Does.Contain("Cache inspection"));
-            Assert.That(result.StandardOutput, Does.Not.Contain("Session Start Message"));
-            Assert.That(result.StandardError, Does.Contain("incomplete"));
-            Assert.That(File.Exists(files.OwnedPath), Is.True);
-            Assert.That(File.Exists(files.FreePath), Is.False);
-            Assert.That(File.Exists(files.OwnedPath + ".lock"), Is.True);
-            Assert.That(File.Exists(files.FreePath + ".lock"), Is.True);
-            Assert.That(owner.Root('X').IsDirectory, Is.True);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.StandardOutput, Does.Not.Contain("Session Start Message"));
+                Assert.That(result.StandardError, Does.Contain("incomplete"));
+                Assert.That(File.Exists(files.OwnedPath), Is.True);
+                Assert.That(File.Exists(files.FreePath), Is.False);
+                Assert.That(File.Exists(files.OwnedPath + ".lock"), Is.True);
+                Assert.That(File.Exists(files.FreePath + ".lock"), Is.True);
+                Assert.That(owner.Root('X').IsDirectory, Is.True);
+            }
         }
         var retry = await RunCliAsync("--clear-index-cache");
-        Assert.That(retry.ExitCode, Is.Zero);
-        Assert.That(retry.StandardError, Is.Empty);
-        Assert.That(retry.StandardOutput, Does.Contain("No canonical cached blocks remain"));
-        Assert.That(await File.ReadAllTextAsync(repositoryList), Is.EqualTo("repository sentinel"));
-        Assert.That(File.Exists(files.OwnedPath + ".lock"), Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(retry.ExitCode, Is.Zero);
+            Assert.That(retry.StandardError, Is.Empty);
+            Assert.That(retry.StandardOutput, Does.Contain("No canonical cached blocks remain"));
+            Assert.That(await File.ReadAllTextAsync(repositoryList), Is.EqualTo("repository sentinel"));
+            Assert.That(File.Exists(files.OwnedPath + ".lock"), Is.True);
+        }
     }
 
     [Test]
     public void IndexCacheStatusParsesAsReadOnly()
     {
         var result = CliParser.Parse(["--index-cache-status"]);
-        Assert.That(result.HasParseError, Is.False);
-        Assert.That(result.Command, Is.EqualTo(CommandKind.IndexCacheStatus));
-        Assert.That(result.Command, Is.Not.EqualTo(CommandKind.ClearIndexCache));
-        Assert.That(result.ClearCache, Is.False);
-        Assert.That(result.DeleteAllLocalFiles, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.HasParseError, Is.False);
+            Assert.That(result.Command, Is.EqualTo(CommandKind.IndexCacheStatus));
+        }
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Command, Is.Not.EqualTo(CommandKind.ClearIndexCache));
+            Assert.That(result.ClearCache, Is.False);
+            Assert.That(result.DeleteAllLocalFiles, Is.False);
+        }
     }
 
     [TestCase("--clear-index-cache")]
@@ -78,8 +96,11 @@ public class ProgramIndexCacheEntryPointTests
             var snapshot = new MftIndexCacheInspection(new FrozenCacheClock(), true,
                 _ => throw new IOException("unreadable inventory")).Capture(files.DirectoryPath);
             Assert.That(await Program.WriteIndexCacheStatusAsync(snapshot, output, error), Is.EqualTo(1));
-            Assert.That(output.ToString(), Does.Contain("Error:"));
-            Assert.That(error.ToString(), Does.Contain("unreadable inventory"));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(output.ToString(), Does.Contain("Error:"));
+                Assert.That(error.ToString(), Does.Contain("unreadable inventory"));
+            }
         }
         finally
         {
@@ -94,13 +115,19 @@ public class ProgramIndexCacheEntryPointTests
         try
         {
             var result = await RunCliAsync("--index-cache-status", "--watch", "--setup-defender", "--silent");
-            Assert.That(result.ExitCode, Is.Zero);
-            Assert.That(result.StandardError, Is.Empty);
-            Assert.That(result.StandardOutput, Does.Not.Contain("Session Start Message"));
-            Assert.That(result.StandardOutput, Does.Contain(OperatingSystem.IsWindows()
-                ? "No cached blocks" : "not applicable"));
-            Assert.That(Directory.Exists(MftIndexCachePolicy.GetCacheRoot(GitWizardApi.GetLocalFilesPath())), Is.False);
-            Assert.That(File.Exists(GitWizardApi.GetCachedRepositoryListPath()), Is.False);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.ExitCode, Is.Zero);
+                Assert.That(result.StandardError, Is.Empty);
+                Assert.That(result.StandardOutput, Does.Not.Contain("Session Start Message"));
+            }
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.StandardOutput, Does.Contain(OperatingSystem.IsWindows()
+                            ? "No cached blocks" : "not applicable"));
+                Assert.That(Directory.Exists(MftIndexCachePolicy.GetCacheRoot(GitWizardApi.GetLocalFilesPath())), Is.False);
+                Assert.That(File.Exists(GitWizardApi.GetCachedRepositoryListPath()), Is.False);
+            }
         }
         finally
         {
@@ -118,20 +145,29 @@ public class ProgramIndexCacheEntryPointTests
             await using (var owner = await files.OpenOwnerAsync())
             {
                 var held = await RunCliAsync("--index-cache-status");
-                Assert.That(held.ExitCode, Is.Zero);
-                Assert.That(held.StandardOutput, Does.Contain("holder identity unavailable"));
+                using (Assert.EnterMultipleScope())
+                {
+                    Assert.That(held.ExitCode, Is.Zero);
+                    Assert.That(held.StandardOutput, Does.Contain("holder identity unavailable"));
+                }
                 Assert.That(held.StandardOutput, Does.Contain("serial 00000001"));
                 Assert.That(held.StandardOutput, Does.Contain("Invalid"));
-                Assert.That(held.StandardOutput, Does.Not.Contain("this session owns the cache"));
-                Assert.That(owner.Root('X').IsDirectory, Is.True);
+                using (Assert.EnterMultipleScope())
+                {
+                    Assert.That(held.StandardOutput, Does.Not.Contain("this session owns the cache"));
+                    Assert.That(owner.Root('X').IsDirectory, Is.True);
+                }
             }
             var canonical = await File.ReadAllBytesAsync(files.OwnedPath);
             var invalid = await File.ReadAllBytesAsync(files.FreePath);
             var available = await RunCliAsync("--index-cache-status");
-            Assert.That(available.ExitCode, Is.Zero);
-            Assert.That(available.StandardOutput, Does.Contain("Drive X: serial 00000001; Available"));
-            Assert.That(await File.ReadAllBytesAsync(files.OwnedPath), Is.EqualTo(canonical));
-            Assert.That(await File.ReadAllBytesAsync(files.FreePath), Is.EqualTo(invalid));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(available.ExitCode, Is.Zero);
+                Assert.That(available.StandardOutput, Does.Contain("Drive X: serial 00000001; Available"));
+                Assert.That(await File.ReadAllBytesAsync(files.OwnedPath), Is.EqualTo(canonical));
+                Assert.That(await File.ReadAllBytesAsync(files.FreePath), Is.EqualTo(invalid));
+            }
         }
         finally
         {

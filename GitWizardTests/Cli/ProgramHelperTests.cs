@@ -53,12 +53,12 @@ public class ProgramHelperTests
         using var document = JsonDocument.Parse(json);
         var repository = document.RootElement.GetProperty("Repositories")[0];
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repository.GetProperty("DirtyTrackedFiles").GetArrayLength(), Is.Zero);
             Assert.That(repository.GetProperty("UnpushedBranches").GetArrayLength(), Is.Zero);
             Assert.That(repository.GetProperty("StashCount").GetInt32(), Is.Zero);
-        });
+        }
     }
 
     [Test]
@@ -169,13 +169,13 @@ public class ProgramHelperTests
         var rc = new RunConfiguration { FilterPattern = "alpha" };
 
         var result = Program.ApplyFilter(rc, report);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result, Is.Not.SameAs(report));
             Assert.That(result.Repositories, Has.Count.EqualTo(2));
             Assert.That(result.Repositories.ContainsKey("/repo/alpha"), Is.True);
             Assert.That(result.Repositories.ContainsKey("/repo/alpha-2"), Is.True);
-        });
+        }
     }
 
     [Test]
@@ -213,11 +213,11 @@ public class ProgramHelperTests
         var rc = new RunConfiguration { FilterPattern = "nomatch" };
 
         var result = Program.ApplyFilter(rc, report);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.SearchPaths, Is.SameAs(report.SearchPaths));
             Assert.That(result.IgnoredPaths, Is.SameAs(report.IgnoredPaths));
-        });
+        }
     }
 
     #endregion
@@ -412,12 +412,12 @@ public class ProgramHelperTests
         try
         {
             var result = Program.EnsureUsableSearchPaths(config, code => exitCode = code);
-            Assert.Multiple(() =>
+            using (Assert.EnterMultipleScope())
             {
                 Assert.That(result, Is.False);
                 Assert.That(exitCode, Is.EqualTo(1));
                 Assert.That(loggedMessages.Any(m => m.Contains("0 of 3 configured search paths are usable")), Is.True);
-            });
+            }
         }
         finally
         {
@@ -444,12 +444,12 @@ public class ProgramHelperTests
         try
         {
             var result = Program.EnsureUsableSearchPaths(config, code => exitCode = code);
-            Assert.Multiple(() =>
+            using (Assert.EnterMultipleScope())
             {
                 Assert.That(result, Is.False);
                 Assert.That(exitCode, Is.EqualTo(1));
                 Assert.That(loggedMessages.Any(m => m.Contains("0 of 0 configured search paths are usable")), Is.True);
-            });
+            }
         }
         finally
         {
@@ -469,11 +469,11 @@ public class ProgramHelperTests
         var exitCalled = false;
         var result = Program.EnsureUsableSearchPaths(config, _ => exitCalled = true);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result, Is.True);
             Assert.That(exitCalled, Is.False);
-        });
+        }
     }
 
     #endregion

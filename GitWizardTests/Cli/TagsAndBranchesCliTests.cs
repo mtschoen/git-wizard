@@ -25,13 +25,13 @@ public class TagsAndBranchesCliTests
     {
         var result = CliParser.Parse(["tags"]);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.Command, Is.EqualTo(CommandKind.Tags));
             Assert.That(result.TagMatchPattern, Is.EqualTo("*"));
             Assert.That(result.HasParseError, Is.False);
             Assert.That(result.Command, Is.Not.EqualTo(CommandKind.HelpPrinted));
-        });
+        }
     }
 
     [Test]
@@ -39,12 +39,12 @@ public class TagsAndBranchesCliTests
     {
         var result = CliParser.Parse(["tags", "-m", "archive/*"]);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.Command, Is.EqualTo(CommandKind.Tags));
             Assert.That(result.TagMatchPattern, Is.EqualTo("archive/*"));
             Assert.That(result.HasParseError, Is.False);
-        });
+        }
     }
 
     [Test]
@@ -52,12 +52,12 @@ public class TagsAndBranchesCliTests
     {
         var result = CliParser.Parse(["tags", "--match", "v1.*"]);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.Command, Is.EqualTo(CommandKind.Tags));
             Assert.That(result.TagMatchPattern, Is.EqualTo("v1.*"));
             Assert.That(result.HasParseError, Is.False);
-        });
+        }
     }
 
     [TestCase("--print-minified")]
@@ -66,7 +66,7 @@ public class TagsAndBranchesCliTests
     {
         var result = CliParser.Parse(["tags", "-p", "/repo/one,/repo/two", "-f", "repo", minifiedOption, "--no-mft", "-v"]);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.HasParseError, Is.False);
             Assert.That(result.Command, Is.EqualTo(CommandKind.Tags));
@@ -75,7 +75,7 @@ public class TagsAndBranchesCliTests
             Assert.That(result.Minified, Is.True);
             Assert.That(result.NoMft, Is.True);
             Assert.That(GitWizardLog.VerboseMode, Is.True);
-        });
+        }
     }
 
     [Test]
@@ -91,14 +91,14 @@ public class TagsAndBranchesCliTests
     {
         var result = CliParser.Parse(["branches"]);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.Command, Is.EqualTo(CommandKind.Branches));
             Assert.That(result.NotMergedOnly, Is.False);
             Assert.That(result.NotMergedBranch, Is.Null);
             Assert.That(result.HasParseError, Is.False);
             Assert.That(result.Command, Is.Not.EqualTo(CommandKind.HelpPrinted));
-        });
+        }
     }
 
     [Test]
@@ -106,13 +106,13 @@ public class TagsAndBranchesCliTests
     {
         var result = CliParser.Parse(["branches", "--not-merged", "main"]);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.Command, Is.EqualTo(CommandKind.Branches));
             Assert.That(result.NotMergedOnly, Is.True);
             Assert.That(result.NotMergedBranch, Is.EqualTo("main"));
             Assert.That(result.HasParseError, Is.False);
-        });
+        }
     }
 
     [Test]
@@ -120,13 +120,13 @@ public class TagsAndBranchesCliTests
     {
         var result = CliParser.Parse(["branches", "--not", "develop"]);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.Command, Is.EqualTo(CommandKind.Branches));
             Assert.That(result.NotMergedOnly, Is.True);
             Assert.That(result.NotMergedBranch, Is.EqualTo("develop"));
             Assert.That(result.HasParseError, Is.False);
-        });
+        }
     }
 
     [TestCase("--print-minified")]
@@ -135,7 +135,7 @@ public class TagsAndBranchesCliTests
     {
         var result = CliParser.Parse(["branches", "-p", "/path/a", "-f", "alpha", minifiedOption, "--no-mft"]);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.HasParseError, Is.False);
             Assert.That(result.Command, Is.EqualTo(CommandKind.Branches));
@@ -143,7 +143,7 @@ public class TagsAndBranchesCliTests
             Assert.That(result.FilterPattern, Is.EqualTo("alpha"));
             Assert.That(result.Minified, Is.True);
             Assert.That(result.NoMft, Is.True);
-        });
+        }
     }
 
     [Test]

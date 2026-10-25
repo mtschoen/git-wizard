@@ -17,7 +17,7 @@ public class ProgramInventoryEntryPointTests
 
         using var document = JsonDocument.Parse(result.StandardOutput);
         var repository = document.RootElement.GetProperty("Repositories")[0];
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.ExitCode, Is.Zero);
             Assert.That(result.StandardError, Is.Empty);
@@ -27,7 +27,7 @@ public class ProgramInventoryEntryPointTests
             Assert.That(repository.GetProperty("DirtyTrackedFiles").GetArrayLength(), Is.Zero);
             Assert.That(repository.GetProperty("UnpushedBranches").GetArrayLength(), Is.Zero);
             Assert.That(repository.GetProperty("StashCount").GetInt32(), Is.Zero);
-        });
+        }
     }
 
     [Test]
@@ -39,13 +39,13 @@ public class ProgramInventoryEntryPointTests
         var result = await RunCliAsync("--sweep", "--print-minified", "--paths", fixture.Path);
 
         using var document = JsonDocument.Parse(result.StandardOutput);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.ExitCode, Is.Zero);
             Assert.That(result.StandardError, Is.Empty);
             Assert.That(result.StandardOutput.TrimEnd(), Does.Not.Contain('\n'));
             Assert.That(document.RootElement.GetProperty("Repositories").GetArrayLength(), Is.EqualTo(1));
-        });
+        }
     }
 
     [Test]
@@ -53,11 +53,11 @@ public class ProgramInventoryEntryPointTests
     {
         var result = await RunCliAsync("--sweep", "--unknown-sweep-option");
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.ExitCode, Is.EqualTo(2));
             Assert.That(result.StandardOutput, Does.Not.Contain("\"Repositories\""));
-        });
+        }
     }
 
     [Test]
@@ -75,7 +75,7 @@ public class ProgramInventoryEntryPointTests
 
             var result = await RunCliAsync("--config-path", tempConfigFile, "--scan-only", "--no-mft");
 
-            Assert.Multiple(() =>
+            using (Assert.EnterMultipleScope())
             {
                 Assert.That(result.ExitCode, Is.Zero);
                 // Stdout contains ONLY discovered repository paths, no session banner or log lines
@@ -85,7 +85,7 @@ public class ProgramInventoryEntryPointTests
                 // Stderr contains session banner / diagnostics
                 Assert.That(result.StandardError, Does.Contain("Session Start Message"));
                 Assert.That(result.StandardError, Does.Contain("git-wizard Session Started"));
-            });
+            }
         }
         finally
         {
@@ -110,7 +110,7 @@ public class ProgramInventoryEntryPointTests
 
             var result = await RunCliAsync("--config-path", tempConfigFile, "--scan-only", "--no-mft");
 
-            Assert.Multiple(() =>
+            using (Assert.EnterMultipleScope())
             {
                 Assert.That(result.ExitCode, Is.EqualTo(1));
                 // Stdout is completely empty
@@ -118,7 +118,7 @@ public class ProgramInventoryEntryPointTests
                 // Stderr contains per-path errors and summary message
                 Assert.That(result.StandardError, Does.Contain("0 of 3 configured search paths are usable"));
                 Assert.That(result.StandardError, Does.Contain("Could not get repository paths at /nonexistent/search/one"));
-            });
+            }
         }
         finally
         {
@@ -143,11 +143,11 @@ public class ProgramInventoryEntryPointTests
 
             var result = await RunCliAsync("--config-path", tempConfigFile, "--rebuild-report", "--no-mft");
 
-            Assert.Multiple(() =>
+            using (Assert.EnterMultipleScope())
             {
                 Assert.That(result.ExitCode, Is.EqualTo(1));
                 Assert.That(result.StandardOutput, Does.Not.Contain("\"Repositories\""));
-            });
+            }
         }
         finally
         {
@@ -173,12 +173,12 @@ public class ProgramInventoryEntryPointTests
 
             var result = await RunCliAsync("--config-path", tempConfigFile, "--scan-only", "--filter", "nonexistentfilterpattern", "--no-mft");
 
-            Assert.Multiple(() =>
+            using (Assert.EnterMultipleScope())
             {
                 Assert.That(result.ExitCode, Is.Zero);
                 Assert.That(result.StandardOutput.Trim(), Is.Empty);
                 Assert.That(result.StandardError, Does.Contain("Session Start Message"));
-            });
+            }
         }
         finally
         {
@@ -223,13 +223,13 @@ public class ProgramInventoryEntryPointTests
         var result = await RunCliAsync("tags", minifiedOption, "-p", fixture.Path);
 
         using var document = JsonDocument.Parse(result.StandardOutput);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.ExitCode, Is.Zero);
             Assert.That(result.StandardError, Is.Empty);
             Assert.That(result.StandardOutput.TrimEnd(), Does.Not.Contain('\n'));
             Assert.That(document.RootElement.GetProperty("Repositories").GetArrayLength(), Is.EqualTo(1));
-        });
+        }
     }
 
     [Test]
@@ -267,13 +267,13 @@ public class ProgramInventoryEntryPointTests
         var result = await RunCliAsync("branches", minifiedOption, "-p", fixture.Path);
 
         using var document = JsonDocument.Parse(result.StandardOutput);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.ExitCode, Is.Zero);
             Assert.That(result.StandardError, Is.Empty);
             Assert.That(result.StandardOutput.TrimEnd(), Does.Not.Contain('\n'));
             Assert.That(document.RootElement.GetProperty("Repositories").GetArrayLength(), Is.EqualTo(1));
-        });
+        }
     }
 
     [Test]
@@ -282,15 +282,18 @@ public class ProgramInventoryEntryPointTests
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         var destination = Path.Combine(fixture.Path, "consumer-report.json");
         var result = await RunCliAsync("-paths", fixture.Path, "-save-path", destination, "-silent");
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.ExitCode, Is.AnyOf(0, 1));
             Assert.That(result.StandardOutput, Is.Empty);
             Assert.That(result.StandardError, Is.Empty);
-        });
+        }
         using var document = JsonDocument.Parse(await File.ReadAllTextAsync(destination));
-        Assert.That(document.RootElement.GetProperty("Repositories").EnumerateObject().Count(), Is.EqualTo(1));
-        Assert.That(document.RootElement.GetProperty("run").GetProperty("created").GetInt32(), Is.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(document.RootElement.GetProperty("Repositories").EnumerateObject().Count(), Is.EqualTo(1));
+            Assert.That(document.RootElement.GetProperty("run").GetProperty("created").GetInt32(), Is.EqualTo(1));
+        }
     }
 
     [Test]
@@ -299,13 +302,13 @@ public class ProgramInventoryEntryPointTests
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         await File.WriteAllTextAsync(Path.Combine(fixture.Path, "pending.txt"), "dirty");
         var result = await RunCliAsync("--paths", fixture.Path);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.ExitCode, Is.EqualTo(1));
             Assert.That(result.StandardOutput, Does.Contain("dirty").And.Contain("Run: created=1 refreshed=1 skipped=0"));
             Assert.That(result.StandardOutput, Does.Not.Contain("\"Repositories\""));
             Assert.That(result.StandardError, Does.Contain("Scanning repositories").And.Not.Contain("Session Started"));
-        });
+        }
     }
 
     [TestCase(false)]
@@ -321,12 +324,12 @@ public class ProgramInventoryEntryPointTests
 
         var result = await RunCliAsync(arguments.ToArray());
         using var document = JsonDocument.Parse(result.StandardOutput);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.ExitCode, Is.AnyOf(0, 1));
             Assert.That(document.RootElement.GetProperty("run").GetProperty("created").GetInt32(), Is.EqualTo(1));
             Assert.That(document.RootElement.GetProperty("Repositories").EnumerateObject().Count(), Is.EqualTo(1));
             Assert.That(result.StandardOutput.TrimEnd().Contains('\n'), Is.EqualTo(!minified));
-        });
+        }
     }
 }

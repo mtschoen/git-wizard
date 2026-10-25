@@ -37,12 +37,12 @@ public class IndexDiscoverySupersededEntryTests
         var scope = new GitWizardApi.CandidateScope(
             WatchPath.Parse(files.TreePath), false, false, new CandidateAdmissionPolicy([], true, false),
             WatchPath.Parse(files.TreePath));
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(GitWizardApi.TryReadIsDirectory(directory, out _), Is.False);
             Assert.That(GitWizardApi.TryGetScopedParent(directory, scope, out _, out _), Is.False);
             Assert.That(GitWizardApi.SelectGitEntries(index, includeGitFiles: false), Is.Empty);
-        });
+        }
     }
 
     static SyntheticJournalRecord Record(

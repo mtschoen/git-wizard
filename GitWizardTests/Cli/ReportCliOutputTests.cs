@@ -72,7 +72,7 @@ public class ReportCliOutputTests
             configuration, stdout: stdout, stderr: stderr);
         var output = stdout.ToString();
         var error = stderr.ToString();
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(exitCode, Is.EqualTo(1));
             Assert.That(output, Does.Contain(GitWizardApi.NormalizePath(repository.Path)).And.Contain("dirty"));
@@ -86,7 +86,7 @@ public class ReportCliOutputTests
                 .And.Not.Contain("[MISSING]")
                 .And.Not.Contain("Warning:")
                 .And.Not.Contain("Error:"));
-        });
+        }
     }
 
     [TestCase(false, false)]
@@ -162,9 +162,12 @@ public class ReportCliOutputTests
         }
         else
         {
-            Assert.That(output.IndexOf("Run:", StringComparison.Ordinal),
-                Is.LessThan(output.IndexOf("[SKIPPED]", StringComparison.Ordinal)));
-            Assert.That(output, Does.Contain("skipped=1"));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(output.IndexOf("Run:", StringComparison.Ordinal),
+                            Is.LessThan(output.IndexOf("[SKIPPED]", StringComparison.Ordinal)));
+                Assert.That(output, Does.Contain("skipped=1"));
+            }
         }
     }
 
@@ -211,22 +214,22 @@ public class ReportCliOutputTests
         {
             var missExitCode = await Program.RunCommandCoreAsync(
                 CliParser.Parse(arguments), configuration, stdout: missStdout, stderr: TextWriter.Null);
-            Assert.Multiple(() =>
+            using (Assert.EnterMultipleScope())
             {
                 Assert.That(missExitCode, Is.Zero);
                 Assert.That(missStdout.ToString(), Does.Contain("Repositories: 1;"));
-            });
+            }
         }
 
         using (var hitStdout = new StringWriter())
         {
             var hitExitCode = await Program.RunCommandCoreAsync(
                 CliParser.Parse(arguments), configuration, stdout: hitStdout, stderr: TextWriter.Null);
-            Assert.Multiple(() =>
+            using (Assert.EnterMultipleScope())
             {
                 Assert.That(hitExitCode, Is.Zero);
                 Assert.That(hitStdout.ToString(), Does.Contain("Cached report: 1;"));
-            });
+            }
         }
     }
 
@@ -243,14 +246,14 @@ public class ReportCliOutputTests
 
         var exitCode = await Program.RunCommandCoreAsync(runConfiguration, configuration, stdout: stdout, stderr: stderr);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(exitCode, Is.EqualTo(1));
             Assert.That(stdout.ToString(), Does.Contain("Run: created=0 refreshed=0 skipped=0").And.Contain("0 of 1 configured search paths are usable"));
             Assert.That(stderr.ToString(), Is.Empty);
             Assert.That(_consoleOut.ToString(), Is.Empty);
             Assert.That(_consoleError.ToString(), Is.Empty);
-        });
+        }
     }
 
     [TestCase(false, "success")]
@@ -293,8 +296,11 @@ public class ReportCliOutputTests
                 Assert.That(await reportTask, Is.EqualTo(outcome == "error" ? 1 : 0));
             }
 
-            Assert.That(GitWizardLog.LogMethod, Is.SameAs(originalSink));
-            Assert.That(GitWizardLog.TypedLogMethod, Is.SameAs(originalTypedSink));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(GitWizardLog.LogMethod, Is.SameAs(originalSink));
+                Assert.That(GitWizardLog.TypedLogMethod, Is.SameAs(originalTypedSink));
+            }
         }
         GitWizardLog.Log("after report");
         Assert.That(laterMessages, Has.Count.EqualTo(1));
@@ -357,14 +363,14 @@ public class ReportCliOutputTests
             await Program.RunCommandCoreAsync(runConfiguration, configuration, stdout: stdout, stderr: stderr);
 
             using var document = JsonDocument.Parse(stdout.ToString());
-            Assert.Multiple(() =>
+            using (Assert.EnterMultipleScope())
             {
                 Assert.That(exited, Is.False);
                 Assert.That(document.RootElement.GetProperty("SchemaVersion").GetString(), Is.EqualTo("2.1"));
                 Assert.That(stderr.ToString(), Does.Contain("Caught exception trying to clear cache"));
                 Assert.That(_consoleOut.ToString(), Is.Empty);
                 Assert.That(GitWizardLog.LogMethod, Is.SameAs(originalSink));
-            });
+            }
         }
         finally
         {
@@ -407,13 +413,13 @@ public class ReportCliOutputTests
         await report.SaveAsync(GitWizardReport.GetCachedReportPath());
         using var saved = JsonDocument.Parse(await File.ReadAllTextAsync(GitWizardReport.GetCachedReportPath()));
         var run = saved.RootElement.GetProperty("run");
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(run.GetProperty("created").GetInt32(), Is.Zero);
             Assert.That(run.GetProperty("refreshed").GetInt32(), Is.Zero);
             Assert.That(run.GetProperty("skipped").GetInt32(), Is.Zero);
             Assert.That(run.GetProperty("warnings")[0].GetString(), Is.EqualTo("ordering warning"));
-        });
+        }
     }
     [TestCase(false)]
     [TestCase(true)]
@@ -462,7 +468,7 @@ public class ReportCliOutputTests
         using var output = JsonDocument.Parse(stdout.ToString());
         using var saved = JsonDocument.Parse(await File.ReadAllTextAsync(destination));
         using var cached = JsonDocument.Parse(await File.ReadAllTextAsync(GitWizardReport.GetCachedReportPath()));
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(output.RootElement.GetProperty("Repositories").EnumerateObject().Count(), Is.EqualTo(1));
             Assert.That(saved.RootElement.GetProperty("Repositories").EnumerateObject().Count(), Is.EqualTo(2));
@@ -470,6 +476,6 @@ public class ReportCliOutputTests
             Assert.That(JsonElement.DeepEquals(output.RootElement.GetProperty("run"), saved.RootElement.GetProperty("run")), Is.True);
             Assert.That(JsonElement.DeepEquals(output.RootElement.GetProperty("run"), cached.RootElement.GetProperty("run")), Is.True);
             Assert.That(stdout.ToString().TrimEnd(), Does.Not.Contain('\n'));
-        });
+        }
     }
 }

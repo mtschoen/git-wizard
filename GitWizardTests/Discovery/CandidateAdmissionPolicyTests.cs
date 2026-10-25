@@ -125,13 +125,13 @@ public class CandidateAdmissionPolicyTests
                 scopePath, repositoryPath, ignoredPath, admissionCase.SkipHiddenDirectories, admissionCase.IncludeTemporary))
             .Any(path => SamePath(path, repositoryPath));
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(walk, Is.EqualTo(admissionCase.Expected), "recursive walk");
             Assert.That(indexed, Is.EqualTo(admissionCase.Expected), "indexed candidate filter");
             Assert.That(replay, Is.EqualTo(admissionCase.Expected), "replay");
             Assert.That(linuxRetainedRoots, Is.EqualTo(admissionCase.Expected), "Linux retained roots");
-        });
+        }
     }
 
     public sealed record SyntaxCase(
@@ -174,14 +174,14 @@ public class CandidateAdmissionPolicyTests
         var searchRoot = WatchPath.Parse(syntaxCase.SearchRoot);
         var candidate = WatchPath.Parse(syntaxCase.Candidate);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(policy.AdmitsWithin(searchRoot, candidate), Is.EqualTo(syntaxCase.Expected), "walk");
             Assert.That(
                 CandidateAdmissionPolicy.AdmitsInventoryCandidate(scope, syntaxCase.Candidate),
                 Is.EqualTo(syntaxCase.Expected),
                 "replay and Linux retained roots");
-        });
+        }
     }
 
     [TestCase(@"C:\", @"C:\repos\repo", true)]

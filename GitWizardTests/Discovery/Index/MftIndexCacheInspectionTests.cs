@@ -39,9 +39,12 @@ public class MftIndexCacheInspectionTests
     {
         using var files = new PackedIndexFixture();
         var snapshot = Create().Capture(files.DirectoryPath);
-        Assert.That(snapshot.Inventory, Is.Empty);
-        Assert.That(snapshot.Errors, Is.Empty);
-        Assert.That(Directory.Exists(snapshot.CacheDirectory), Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(snapshot.Inventory, Is.Empty);
+            Assert.That(snapshot.Errors, Is.Empty);
+            Assert.That(Directory.Exists(snapshot.CacheDirectory), Is.False);
+        }
     }
 
     [Test]
@@ -51,9 +54,12 @@ public class MftIndexCacheInspectionTests
         var service = new MftIndexCacheInspection(new FrozenCacheClock(), false,
             _ => throw new AssertionException("Non-Windows inspected a Windows cache"));
         var snapshot = service.Capture(files.DirectoryPath);
-        Assert.That(snapshot.IsApplicable, Is.False);
-        Assert.That(snapshot.Inventory, Is.Empty);
-        Assert.That(Directory.Exists(snapshot.CacheDirectory), Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(snapshot.IsApplicable, Is.False);
+            Assert.That(snapshot.Inventory, Is.Empty);
+            Assert.That(Directory.Exists(snapshot.CacheDirectory), Is.False);
+        }
     }
 
     [TestCase(false)]
@@ -71,9 +77,12 @@ public class MftIndexCacheInspectionTests
             throw new IOException("unreadable cache");
         });
         var snapshot = service.Capture(files.DirectoryPath);
-        Assert.That(snapshot.Succeeded, Is.False);
-        Assert.That(snapshot.Errors.Single(), Does.Contain(denied ? "denied cache" : "unreadable cache"));
-        Assert.That(MftIndexCacheStatusFormatter.Format(snapshot), Does.Contain("Error:"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(snapshot.Succeeded, Is.False);
+            Assert.That(snapshot.Errors.Single(), Does.Contain(denied ? "denied cache" : "unreadable cache"));
+            Assert.That(MftIndexCacheStatusFormatter.Format(snapshot), Does.Contain("Error:"));
+        }
     }
 
     [Test]
@@ -99,23 +108,32 @@ public class MftIndexCacheInspectionTests
         var file = CacheDirectory.InspectCached(cache).Single().File;
         var before = await File.ReadAllBytesAsync(file.Path);
         var available = Create().Capture(files.DirectoryPath);
-        Assert.That(available.Inventory.Single().Availability, Is.EqualTo(CachedBlockAvailability.Available));
-        Assert.That(await File.ReadAllBytesAsync(file.Path), Is.EqualTo(before));
-        Assert.That(File.Exists(file.Path + ".lock"), Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(available.Inventory.Single().Availability, Is.EqualTo(CachedBlockAvailability.Available));
+            Assert.That(await File.ReadAllBytesAsync(file.Path), Is.EqualTo(before));
+            Assert.That(File.Exists(file.Path + ".lock"), Is.True);
+        }
 
         await using (var owner = await Open(files, cache))
         {
             var inUse = Create().Capture(files.DirectoryPath);
             Assert.That(inUse.Inventory.Single().Availability, Is.EqualTo(CachedBlockAvailability.InUse));
             await using var refused = await Open(files, cache, cacheOnly: true);
-            Assert.That(refused.Drives.Single().Failure?.Kind, Is.EqualTo(DriveFailureKind.InUse));
-            Assert.That(owner.Root('X').IsDirectory, Is.True);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(refused.Drives.Single().Failure?.Kind, Is.EqualTo(DriveFailureKind.InUse));
+                Assert.That(owner.Root('X').IsDirectory, Is.True);
+            }
         }
         Assert.That(await File.ReadAllBytesAsync(file.Path), Is.EqualTo(before));
         await File.WriteAllTextAsync(file.Path, "invalid block fixture");
         var invalid = Create().Capture(files.DirectoryPath).Inventory.Single();
-        Assert.That(invalid.Availability, Is.EqualTo(CachedBlockAvailability.Invalid));
-        Assert.That(invalid.Validation, Is.Not.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(invalid.Availability, Is.EqualTo(CachedBlockAvailability.Invalid));
+            Assert.That(invalid.Validation, Is.Not.Null);
+        }
     }
 
     [Test]
@@ -131,9 +149,12 @@ public class MftIndexCacheInspectionTests
         var snapshot = Create().Capture(files.DirectoryPath);
 
         var available = snapshot.Inventory.Single(row => row.File.Drive == 'X');
-        Assert.That(available.Availability, Is.EqualTo(CachedBlockAvailability.Available));
-        Assert.That(available.CacheTag, Is.EqualTo(stored));
-        Assert.That(snapshot.RequestedCacheTag, Is.EqualTo(MftIndexCachePolicy.CacheTag));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(available.Availability, Is.EqualTo(CachedBlockAvailability.Available));
+            Assert.That(available.CacheTag, Is.EqualTo(stored));
+            Assert.That(snapshot.RequestedCacheTag, Is.EqualTo(MftIndexCachePolicy.CacheTag));
+        }
         var lines = MftIndexCacheStatusFormatter.Format(snapshot).Split(Environment.NewLine)
             .Where(line => line.StartsWith("  Cache tag:", StringComparison.Ordinal)).ToArray();
         Assert.That(lines, Is.EqualTo([
@@ -151,16 +172,25 @@ public class MftIndexCacheInspectionTests
         var ui = new MftIndexSession(index, null, ["X"],
         [new IndexedDrive('X', files.TreePath, 1)], new Dictionary<string, string>(), cache);
         await using var cli = await Open(files, cache);
-        Assert.That(cli.Drives.Single().Block?.CacheLocation, Is.EqualTo(CacheLocation.PrivateFallback));
-        Assert.That(cli.Drives.Single().Block?.Origin, Is.EqualTo(BlockOrigin.ProducedByScan));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(cli.Drives.Single().Block?.CacheLocation, Is.EqualTo(CacheLocation.PrivateFallback));
+            Assert.That(cli.Drives.Single().Block?.Origin, Is.EqualTo(BlockOrigin.ProducedByScan));
+        }
         var snapshot = Create().Capture(files.DirectoryPath, [ui.CaptureCacheStatus()!]);
-        Assert.That(snapshot.Inventory.Single().Availability, Is.EqualTo(CachedBlockAvailability.InUse));
-        Assert.That(MftIndexCacheStatusFormatter.Format(snapshot), Does.Contain("this session owns the cache"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(snapshot.Inventory.Single().Availability, Is.EqualTo(CachedBlockAvailability.InUse));
+            Assert.That(MftIndexCacheStatusFormatter.Format(snapshot), Does.Contain("this session owns the cache"));
+        }
         await using var refused = await Open(files, cache, cacheOnly: true);
-        Assert.That(refused.Drives.Single().State, Is.EqualTo(DriveState.Failed));
-        Assert.That(refused.Drives.Single().Failure?.Kind, Is.EqualTo(DriveFailureKind.InUse));
-        Assert.That(cli.Root('X').IsDirectory, Is.True);
-        Assert.That(index.Root('X').IsDirectory, Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(refused.Drives.Single().State, Is.EqualTo(DriveState.Failed));
+            Assert.That(refused.Drives.Single().Failure?.Kind, Is.EqualTo(DriveFailureKind.InUse));
+            Assert.That(cli.Root('X').IsDirectory, Is.True);
+            Assert.That(index.Root('X').IsDirectory, Is.True);
+        }
         await ui.DisposeAsync();
         Assert.That(cli.Drives.Single().Block?.CacheLocation, Is.EqualTo(CacheLocation.PrivateFallback));
         await cli.RescanAsync(['X'], CancellationToken.None);

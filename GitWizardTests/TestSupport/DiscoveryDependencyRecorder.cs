@@ -3,7 +3,7 @@ using MFTLib.Index;
 
 namespace GitWizardTests.TestSupport;
 
-internal sealed class DiscoveryDependencyRecorder : IDisposable
+sealed class DiscoveryDependencyRecorder : IDisposable
 {
     public List<IReadOnlyList<string>> OpenedDriveSets { get; } = [];
     public List<string> CrawledRoots { get; } = [];

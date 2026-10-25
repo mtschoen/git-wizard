@@ -4,7 +4,7 @@ using GitWizard.Watch.Linux;
 namespace GitWizardTests.Watch.Linux;
 
 /// <summary>Builds synthetic fanotify event buffers and kernel file-handle payloads for decoder tests.</summary>
-internal static class FanotifyEventBuffers
+static class FanotifyEventBuffers
 {
     public static byte[] GetFullHandleBytes(byte[] fHandle)
     {

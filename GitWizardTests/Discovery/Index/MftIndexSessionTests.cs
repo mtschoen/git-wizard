@@ -203,9 +203,9 @@ public class MftIndexSessionTests
         await using var broker = new BlockBrokerFixture();
         broker.AdditionalScanRecords =
         [
-            new() { RecordNumber = 44, ParentRecordNumber = 42, FileName = ".git" },
-            new() { RecordNumber = 45, ParentRecordNumber = 42, FileName = "HEAD" },
-            new() { RecordNumber = 46, ParentRecordNumber = 42, FileName = "ordinary.txt" }
+            new SyntheticScanRecord { RecordNumber = 44, ParentRecordNumber = 42, FileName = ".git" },
+            new SyntheticScanRecord { RecordNumber = 45, ParentRecordNumber = 42, FileName = "HEAD" },
+            new SyntheticScanRecord { RecordNumber = 46, ParentRecordNumber = 42, FileName = "ordinary.txt" }
         ];
         await using var session = await MftIndexSession.OpenAsync([broker.Drive('X')],
             broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);

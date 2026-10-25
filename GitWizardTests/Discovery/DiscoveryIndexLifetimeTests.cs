@@ -51,7 +51,7 @@ public class DiscoveryIndexLifetimeTests
             Route = DiscoveryRoute.Indexed,
             Paths = [@"C:\repo"],
             RequestedNtfsDrives = ["X"],
-            Observations = [new(@"C:\repo", false, true, DiscoverySource.Scan, DateTime.UtcNow, null)],
+            Observations = [new RootObservation(@"C:\repo", false, true, DiscoverySource.Scan, DateTime.UtcNow, null)],
             DriveStatuses = fixture.Owner.CaptureDriveStatuses(),
             Errors = new Dictionary<string, string>(),
             WatchExcludedRoots = []

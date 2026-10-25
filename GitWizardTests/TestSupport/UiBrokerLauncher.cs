@@ -2,7 +2,7 @@ using System.Diagnostics;
 
 namespace GitWizardTests.TestSupport;
 
-internal static class UiBrokerLauncher
+static class UiBrokerLauncher
 {
     internal static bool LaunchUiBroker(string brokerArguments)
     {

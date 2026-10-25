@@ -5,7 +5,7 @@ namespace GitWizardTests.Watch;
 
 // Emits one relevant change followed by continuous unrelated drive activity. A global
 // idle-based debounce never flushes this stream; a fixed relevant-change window does.
-internal sealed class BusyVolumeChangeSource : IVolumeChangeSource
+sealed class BusyVolumeChangeSource : IVolumeChangeSource
 {
     event Action<string>? IVolumeChangeSource.SourceDied
     {

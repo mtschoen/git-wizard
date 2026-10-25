@@ -193,7 +193,7 @@ public class MainViewModelRefreshBatchTests
     public void AddRepositoriesBatch_DuplicatePathWithinOneBatch_KeepsOnlyLatestNode()
     {
         var viewModel = NewViewModel();
-        var stalePath = @"C:\repos\alpha";
+        const string stalePath = @"C:\repos\alpha";
         var stale = Repo(stalePath);
         var fresh = Repo(stalePath);
 
@@ -284,7 +284,7 @@ public class MainViewModelRefreshBatchTests
         for (var i = 0; i < count; i++)
         {
             var drive = drives[i % drives.Length];
-            repoList.Add(Repo($@"{drive}repo_{i:D3}"));
+            repoList.Add(Repo($"{drive}repo_{i:D3}"));
         }
 
         var reposToFeed = randomOrder

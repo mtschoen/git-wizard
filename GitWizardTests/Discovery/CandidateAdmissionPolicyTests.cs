@@ -28,26 +28,26 @@ public class CandidateAdmissionPolicyTests
 
     public static IEnumerable<AdmissionCase> Cases()
     {
-        yield return new("ordinary repository", "repo", null, true, null, true);
-        yield return new("ignored root itself", "", "", false, null, false);
-        yield return new("ignored ancestor", "ignored/repo", "ignored", false, null, false);
-        yield return new("ignored sibling leaves repository", "repo", "ignored", false, null, true);
-        yield return new("dot-prefixed ancestor skipped", ".dot/repo", null, true, null, false);
-        yield return new("dot-prefixed ancestor kept", ".dot/repo", null, false, null, true);
-        yield return new("hidden attribute ancestor skipped", "plain/repo", null, true, "plain", false);
-        yield return new("hidden attribute ancestor kept", "plain/repo", null, false, "plain", true);
-        yield return new("temporary directory excluded", "tmp/repo", null, false, null, false,
+        yield return new AdmissionCase("ordinary repository", "repo", null, true, null, true);
+        yield return new AdmissionCase("ignored root itself", "", "", false, null, false);
+        yield return new AdmissionCase("ignored ancestor", "ignored/repo", "ignored", false, null, false);
+        yield return new AdmissionCase("ignored sibling leaves repository", "repo", "ignored", false, null, true);
+        yield return new AdmissionCase("dot-prefixed ancestor skipped", ".dot/repo", null, true, null, false);
+        yield return new AdmissionCase("dot-prefixed ancestor kept", ".dot/repo", null, false, null, true);
+        yield return new AdmissionCase("hidden attribute ancestor skipped", "plain/repo", null, true, "plain", false);
+        yield return new AdmissionCase("hidden attribute ancestor kept", "plain/repo", null, false, "plain", true);
+        yield return new AdmissionCase("temporary directory excluded", "tmp/repo", null, false, null, false,
             IncludeTemporary: false, TemporaryRelative: ["tmp"]);
-        yield return new("temporary directory globally included", "tmp/repo", null, false, null, true,
+        yield return new AdmissionCase("temporary directory globally included", "tmp/repo", null, false, null, true,
             IncludeTemporary: true, TemporaryRelative: ["tmp"]);
-        yield return new("temporary sibling leaves repository", "repo", null, false, null, true,
+        yield return new AdmissionCase("temporary sibling leaves repository", "repo", null, false, null, true,
             IncludeTemporary: false, TemporaryRelative: ["tmp"]);
-        yield return new("temporary search root opts in", "repo", null, false, null, true,
+        yield return new AdmissionCase("temporary search root opts in", "repo", null, false, null, true,
             IncludeTemporary: false, TemporaryRelative: [""]);
-        yield return new("temporary search root opts in for nested repository", "plain/repo", null, false, null, true,
+        yield return new AdmissionCase("temporary search root opts in for nested repository", "plain/repo", null, false, null, true,
             IncludeTemporary: false, TemporaryRelative: [""]);
-        yield return new("ignored volume root", "repo", null, false, null, false, IgnoreVolumeRoot: true);
-        yield return new("ignored volume root with nested repository", "plain/repo", null, true, null, false, IgnoreVolumeRoot: true);
+        yield return new AdmissionCase("ignored volume root", "repo", null, false, null, false, IgnoreVolumeRoot: true);
+        yield return new AdmissionCase("ignored volume root with nested repository", "plain/repo", null, true, null, false, IgnoreVolumeRoot: true);
     }
 
     [TestCaseSource(nameof(Cases))]
@@ -147,19 +147,19 @@ public class CandidateAdmissionPolicyTests
 
     public static IEnumerable<SyntaxCase> SyntaxCases()
     {
-        yield return new("Windows ignored volume root with trailing separator", "C:\\", @"C:\repos\repo", "C:\\", false, false);
-        yield return new("Windows ignored volume root with slash", "C:\\", @"C:\repos\repo", "C:/", false, false);
-        yield return new("Windows ignored volume root keeps another drive", "D:\\", @"D:\repos\repo", "C:\\", false, true);
-        yield return new("POSIX ignored volume root", "/", "/repos/repo", "/", false, false);
-        yield return new("POSIX ignored volume root repository at the root", "/", "/repo", "/", false, false);
-        yield return new("POSIX ignored sibling", "/", "/repos/repo", "/other", false, true);
-        yield return new("Windows temporary directory under a volume root", "C:\\", @"C:\Users\someone\AppData\Local\Temp\repo", null, false, false);
-        yield return new("Windows temporary directory included", "C:\\", @"C:\Users\someone\AppData\Local\Temp\repo", null, true, true);
-        yield return new("Windows temporary search root admits its repositories", @"C:\Users\someone\AppData\Local\Temp", @"C:\Users\someone\AppData\Local\Temp\repo", null, false, true);
-        yield return new("POSIX temporary directory under a volume root", "/", "/tmp/repo", null, false, false);
-        yield return new("POSIX temporary directory included", "/", "/tmp/repo", null, true, true);
-        yield return new("POSIX temporary search root admits its repositories", "/tmp", "/tmp/repo", null, false, true);
-        yield return new("POSIX ordinary repository", "/", "/repos/repo", null, false, true);
+        yield return new SyntaxCase("Windows ignored volume root with trailing separator", "C:\\", @"C:\repos\repo", "C:\\", false, false);
+        yield return new SyntaxCase("Windows ignored volume root with slash", "C:\\", @"C:\repos\repo", "C:/", false, false);
+        yield return new SyntaxCase("Windows ignored volume root keeps another drive", "D:\\", @"D:\repos\repo", "C:\\", false, true);
+        yield return new SyntaxCase("POSIX ignored volume root", "/", "/repos/repo", "/", false, false);
+        yield return new SyntaxCase("POSIX ignored volume root repository at the root", "/", "/repo", "/", false, false);
+        yield return new SyntaxCase("POSIX ignored sibling", "/", "/repos/repo", "/other", false, true);
+        yield return new SyntaxCase("Windows temporary directory under a volume root", "C:\\", @"C:\Users\someone\AppData\Local\Temp\repo", null, false, false);
+        yield return new SyntaxCase("Windows temporary directory included", "C:\\", @"C:\Users\someone\AppData\Local\Temp\repo", null, true, true);
+        yield return new SyntaxCase("Windows temporary search root admits its repositories", @"C:\Users\someone\AppData\Local\Temp", @"C:\Users\someone\AppData\Local\Temp\repo", null, false, true);
+        yield return new SyntaxCase("POSIX temporary directory under a volume root", "/", "/tmp/repo", null, false, false);
+        yield return new SyntaxCase("POSIX temporary directory included", "/", "/tmp/repo", null, true, true);
+        yield return new SyntaxCase("POSIX temporary search root admits its repositories", "/tmp", "/tmp/repo", null, false, true);
+        yield return new SyntaxCase("POSIX ordinary repository", "/", "/repos/repo", null, false, true);
     }
 
     [TestCaseSource(nameof(SyntaxCases))]

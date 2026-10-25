@@ -9,7 +9,7 @@ namespace GitWizardTests;
 /// boolean and value flags, Unicode filters, and regression edge cases.
 /// </summary>
 [NonParallelizable]
-internal sealed class RunConfigurationTests
+sealed class RunConfigurationTests
 {
     bool _originalVerboseMode;
     bool _originalSilentMode;
@@ -269,7 +269,7 @@ internal sealed class RunConfigurationTests
     [Test]
     public void ParseCommandLine_SavePathWithNonExistentParentAndConfigPathWithMissingFile_BothErrors()
     {
-        var parsed = CliParser.Parse(["--save-path", @"/no/such/dir/out.json", "--config-path", "/no/such/config.json"]);
+        var parsed = CliParser.Parse(["--save-path", "/no/such/dir/out.json", "--config-path", "/no/such/config.json"]);
         Assert.Multiple(() =>
         {
             Assert.That(parsed.SavePath, Is.Null);
@@ -466,7 +466,7 @@ internal sealed class RunConfigurationTests
             Assert.Multiple(() =>
             {
                 Assert.That(output.Trim(), Is.EqualTo(version));
-                Assert.That(output, Does.Not.Match(@"git-wizard.*git-wizard"));
+                Assert.That(output, Does.Not.Match("git-wizard.*git-wizard"));
             });
         }
         finally

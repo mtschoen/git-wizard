@@ -5,7 +5,7 @@ using MFTLibTestExtensions;
 namespace GitWizardTests.TestSupport;
 
 /// <summary>What a requested drive does while a synthetic session opens it.</summary>
-internal enum SyntheticDriveBehavior
+enum SyntheticDriveBehavior
 {
     /// <summary>The synthetic producer completes a scan of the fixture tree.</summary>
     Ready = 0,
@@ -21,7 +21,7 @@ internal enum SyntheticDriveBehavior
 /// Opens real <see cref="MftIndexSession" /> values whose drive statuses come from the synthetic producer,
 /// so tests observe the statuses the library reports instead of replacing them.
 /// </summary>
-internal static class StatusSessions
+static class StatusSessions
 {
     public static string ProducerFailureMessage(char drive) => $"Drive {drive} failure";
 

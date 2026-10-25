@@ -3,7 +3,7 @@ using MFTLibTestExtensions;
 
 namespace GitWizardTests.TestSupport;
 
-internal sealed class PackedIndexFixture : IDisposable
+sealed class PackedIndexFixture : IDisposable
 {
     internal static readonly DateTime CompletionTimestamp = new(2026, 9, 12, 0, 0, 0, DateTimeKind.Utc);
     const uint RootRow = 5;

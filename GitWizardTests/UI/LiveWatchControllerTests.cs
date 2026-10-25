@@ -41,7 +41,7 @@ public class LiveWatchControllerTests
             Assert.That(WatchSubscriptionProbe.ScanErrorsSubscribers(service), Is.EqualTo(1));
             source.FailDrive("X", "watch failed");
             Assert.That(controller.ScanErrors, Does.ContainKey("X").WithValue("watch failed"));
-            Assert.That(errorUpdates.Last(), Does.ContainKey("X").WithValue("watch failed"));
+            Assert.That(errorUpdates[^1], Does.ContainKey("X").WithValue("watch failed"));
             source.Publish(new VolumeChangeBatch("Y",
                 [new VolumeChangeEntry(@"Y:\repo\file", VolumeEntryKind.Modified)]));
             Assert.That((await changed.Task.WaitAsync(cancellation.Token)).RepoRoot, Is.EqualTo(@"Y:\repo"));
@@ -162,7 +162,7 @@ public class LiveWatchControllerTests
         var secondSource = new ScriptedVolumeChangeSource(Array.Empty<VolumeChangeBatch>());
         var sources = new Queue<IVolumeChangeSource>([firstSource, secondSource]);
         var sourceFactoryCallCount = 0;
-        Func<IVolumeChangeSource> factory = () =>
+        var factory = () =>
         {
             sourceFactoryCallCount++;
             return sources.Dequeue();
@@ -306,7 +306,7 @@ public class LiveWatchControllerTests
         var secondSource = new ScriptedVolumeChangeSource { KeepWatching = true, ReplayDeathToLateSubscribers = true };
         var sources = new Queue<IVolumeChangeSource>([firstSource, secondSource]);
         var sourceFactoryCallCount = 0;
-        Func<IVolumeChangeSource> factory = () =>
+        var factory = () =>
         {
             sourceFactoryCallCount++;
             return sources.Dequeue();
@@ -607,7 +607,7 @@ public class LiveWatchControllerTests
             source.SetVolume(VolumeWatchStatus.CaughtUp("X", VolumeBlockOrigin.Cold));
             await WaitUntilAsync(() => ready.Count == 1);
             Assert.That(controller.Readiness, Is.SameAs(ready[0]));
-            Assert.That(snapshots.Last().CaughtUpVolumes, Is.EqualTo(["X"]));
+            Assert.That(snapshots[^1].CaughtUpVolumes, Is.EqualTo(["X"]));
         }
         finally
         {

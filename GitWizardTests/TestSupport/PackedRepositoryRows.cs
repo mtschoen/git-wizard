@@ -3,7 +3,7 @@ using MFTLibTestExtensions;
 
 namespace GitWizardTests.TestSupport;
 
-internal static class PackedRepositoryRows
+static class PackedRepositoryRows
 {
     /// <summary>Opens drive X over a block holding the root row (row 5) plus <paramref name="rows"/>.</summary>
     public static Task<FileIndex> OpenRowsAsync(PackedIndexFixture files, params SyntheticRow[] rows) =>

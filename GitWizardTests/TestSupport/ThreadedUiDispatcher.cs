@@ -7,7 +7,7 @@ namespace GitWizardTests.TestSupport;
 /// Test dispatcher backed by a real dedicated thread, so <see cref="IsOnUiThread"/> reflects
 /// genuine thread identity. Work is queued FIFO and pumped on that thread.
 /// </summary>
-internal sealed class ThreadedUiDispatcher : IUiDispatcher, IDisposable
+sealed class ThreadedUiDispatcher : IUiDispatcher, IDisposable
 {
     readonly BlockingCollection<Action> _queue = new();
     readonly Thread _uiThread;

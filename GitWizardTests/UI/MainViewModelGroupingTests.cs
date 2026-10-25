@@ -95,7 +95,7 @@ public class MainViewModelGroupingTests
 
         if (OperatingSystem.IsWindows())
         {
-            var groupKeys = headers.Select(h => h.GroupKey).OrderBy(k => k).ToList();
+            var groupKeys = headers.Select(h => h.GroupKey).Order().ToList();
             Assert.Multiple(() =>
             {
                 Assert.That(groupKeys[0], Is.EqualTo("C:\\"));

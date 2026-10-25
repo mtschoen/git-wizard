@@ -1,6 +1,6 @@
 namespace GitWizardTests.TestSupport;
 
-internal static class SourceTree
+static class SourceTree
 {
     internal static string RepositoryRoot
     {

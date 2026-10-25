@@ -3,7 +3,7 @@ using GitWizard;
 
 namespace GitWizardTests.TestSupport;
 
-internal sealed class RecordingUpdateHandler : IUpdateHandler
+sealed class RecordingUpdateHandler : IUpdateHandler
 {
     readonly ConcurrentQueue<(string Description, int Total)> _progressStarts = new();
     readonly ConcurrentQueue<int> _progressCounts = new();

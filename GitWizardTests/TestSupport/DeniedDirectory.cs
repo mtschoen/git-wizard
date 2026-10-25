@@ -12,12 +12,7 @@ sealed class DeniedDirectory : IDisposable
 
     public static DeniedDirectory Deny(string path)
     {
-        if (OperatingSystem.IsWindows())
-        {
-            return DenyWindows(path);
-        }
-
-        return DenyUnix(path);
+        return OperatingSystem.IsWindows() ? DenyWindows(path) : DenyUnix(path);
     }
 
     [System.Runtime.Versioning.UnsupportedOSPlatform("windows")]

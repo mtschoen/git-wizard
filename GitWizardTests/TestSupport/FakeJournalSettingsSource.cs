@@ -5,14 +5,14 @@ using MFTLibTestExtensions;
 
 namespace GitWizardTests.TestSupport;
 
-internal sealed class FakeJournalSettingsSource : IVolumeChangeSource, IUsnJournalGrower
+sealed class FakeJournalSettingsSource : IVolumeChangeSource, IUsnJournalGrower
 {
     readonly DiagnosticVolumeChangeSource _changes = new();
     public Dictionary<char, uint> VolumeSerials { get; } = new() { ['C'] = 'C', ['D'] = 'D' };
     public Dictionary<char, UsnJournalSettings> Settings { get; } = new()
     {
-        ['C'] = new() { MaximumSize = 32 * 1024 * 1024, AllocationDelta = 8 * 1024 * 1024 },
-        ['D'] = new() { MaximumSize = 64 * 1024 * 1024, AllocationDelta = 8 * 1024 * 1024 }
+        ['C'] = new UsnJournalSettings { MaximumSize = 32 * 1024 * 1024, AllocationDelta = 8 * 1024 * 1024 },
+        ['D'] = new UsnJournalSettings { MaximumSize = 64 * 1024 * 1024, AllocationDelta = 8 * 1024 * 1024 }
     };
     public List<JournalCheckpointLoss> CheckpointLosses { get; } =
     [

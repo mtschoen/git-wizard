@@ -31,12 +31,9 @@ static class EnumeratedDiscovery
     public static RecursiveDiscovery Run(DiscoveryRequest request, string rootPath, CancellationToken cancellationToken = default)
     {
         var expanded = GitWizardApi.ExpandSearchPath(rootPath);
-        if (expanded == null)
-        {
-            return new RecursiveDiscovery([], [], new Dictionary<string, string>());
-        }
-
-        return EnumerationDiscovery.DiscoverAsync(request, expanded, cancellationToken).GetAwaiter().GetResult();
+        return expanded == null
+            ? new RecursiveDiscovery([], [], new Dictionary<string, string>())
+            : EnumerationDiscovery.DiscoverAsync(request, expanded, cancellationToken).GetAwaiter().GetResult();
     }
 
     /// <summary>Adds the repositories found under <paramref name="rootPath" /> to <paramref name="paths" />.</summary>

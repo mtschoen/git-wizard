@@ -4,7 +4,7 @@ using GitWizard.CLI;
 
 namespace GitWizardTests.TestSupport;
 
-internal sealed class CliDiscoveryFixture : IAsyncDisposable
+sealed class CliDiscoveryFixture : IAsyncDisposable
 {
     readonly string _command;
     readonly string[] _extraArgs;
@@ -33,7 +33,7 @@ internal sealed class CliDiscoveryFixture : IAsyncDisposable
         EnsureZShared();
 
         var cPath = Dependencies.IndexFixture.TreePath;
-        var zPath = @"Z:\shared";
+        const string zPath = @"Z:\shared";
         Configuration = new GitWizardConfiguration
         {
             SearchPaths = { cPath, zPath }

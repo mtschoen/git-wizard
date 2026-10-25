@@ -88,7 +88,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         source.StartStartupBuffering();
         var deliveredAtCaughtUp = new TaskCompletionSource<IReadOnlyList<VolumeChangeBatch>>(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        Func<IReadOnlyList<VolumeChangeBatch>> drainBuffer = source.CompleteStartupBuffer;
+        var drainBuffer = source.CompleteStartupBuffer;
         // Subscribed after the arm, so the first CaughtUp it sees is the recovered drive's.
         source.ReadinessChanged += snapshot =>
         {

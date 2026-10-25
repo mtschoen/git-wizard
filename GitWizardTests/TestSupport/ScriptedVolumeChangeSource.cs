@@ -3,7 +3,7 @@ using GitWizard.Watch;
 
 namespace GitWizardTests.TestSupport;
 
-internal sealed class ScriptedVolumeChangeSource : IVolumeChangeSource, IVolumeScanProgress
+sealed class ScriptedVolumeChangeSource : IVolumeChangeSource, IVolumeScanProgress
 {
     readonly IReadOnlyList<VolumeChangeBatch> _batches;
     readonly IReadOnlyDictionary<string, string> _errors;

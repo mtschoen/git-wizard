@@ -10,7 +10,7 @@ namespace GitWizardTests.Watch.Linux;
 /// stays mounted, so a test never leaves a mount behind.
 /// </summary>
 [SupportedOSPlatform("linux")]
-internal sealed class TemporaryTmpfsMount : IDisposable
+sealed class TemporaryTmpfsMount : IDisposable
 {
     bool _unmounted;
 

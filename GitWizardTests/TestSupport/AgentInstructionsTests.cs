@@ -44,8 +44,8 @@ public class AgentInstructionsTests
         var documented = Read("docs/cli-options.md");
         var help = Capture(command.Length == 0 ? ["--help"] : [command, "--help"]);
         var parser = Read("git-wizard/CliParser.cs") + Read("git-wizard/CliParser.Subcommands.cs");
-        var flags = Regex.Matches(help, @"--[a-z][a-z-]*")
-            .Concat(Regex.Matches(parser, @"--[a-z][a-z-]*"))
+        var flags = Regex.Matches(help, "--[a-z][a-z-]*")
+            .Concat(Regex.Matches(parser, "--[a-z][a-z-]*"))
             .Select(match => match.Value).Distinct();
         Assert.Multiple(() =>
         {

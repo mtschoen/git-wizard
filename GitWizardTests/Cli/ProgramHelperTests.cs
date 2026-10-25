@@ -363,7 +363,7 @@ public class ProgramHelperTests
         var rc = new RunConfiguration();
 
         var json = Program.SerializeReport(rc, report);
-        Assert.That(json, Does.Contain($"\"SchemaVersion\""));
+        Assert.That(json, Does.Contain("\"SchemaVersion\""));
         Assert.That(json, Does.Contain(GitWizardReport.CurrentSchemaVersion));
     }
 

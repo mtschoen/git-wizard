@@ -5,7 +5,7 @@ using MFTLibTestExtensions;
 
 namespace GitWizardTests.TestSupport;
 
-internal static class WatchFailureAssertions
+static class WatchFailureAssertions
 {
     public static async Task VerifyEarlyStopAsync()
     {

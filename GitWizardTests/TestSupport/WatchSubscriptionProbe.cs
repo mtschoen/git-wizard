@@ -5,7 +5,7 @@ using GitWizardUI.ViewModels;
 namespace GitWizardTests.TestSupport;
 
 // Inspect consumer subscriptions directly because upstream detachment and UI guards can hide leaks.
-internal static class WatchSubscriptionProbe
+static class WatchSubscriptionProbe
 {
     public static RepositoryWatchService Service(LiveWatchController controller) =>
         controller.Service

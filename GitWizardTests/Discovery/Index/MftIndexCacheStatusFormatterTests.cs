@@ -48,7 +48,7 @@ public class MftIndexCacheStatusFormatterTests
             CacheDirectory = cache
         }, CancellationToken.None);
         var active = new MftActiveCacheSession(sameDirectory ? cache : files.BlockDirectory,
-            [new(new MftDriveStatus("X", index.Drives.Single(), null), serial)]);
+            [new MftActiveCacheDrive(new MftDriveStatus("X", index.Drives.Single(), null), serial)]);
         var service = new MftIndexCacheInspection(new FrozenCacheClock(), true,
             MftIndexCacheInspection.InspectDirectory);
         var text = MftIndexCacheStatusFormatter.Format(service.Capture(files.DirectoryPath, [active]));
@@ -76,7 +76,7 @@ public class MftIndexCacheStatusFormatterTests
         };
         var directory = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         var active = new MftActiveCacheSession(directory,
-            [new(new MftDriveStatus("X", status, null), 1)]);
+            [new MftActiveCacheDrive(new MftDriveStatus("X", status, null), 1)]);
         var snapshot = new MftIndexCacheInspection(new FrozenCacheClock(), true,
             _ => Array.Empty<CachedBlockStatus>()).Capture(files.DirectoryPath, [active]);
         var text = MftIndexCacheStatusFormatter.Format(snapshot);

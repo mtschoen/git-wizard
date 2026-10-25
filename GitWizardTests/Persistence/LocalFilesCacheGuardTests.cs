@@ -98,7 +98,7 @@ public class LocalFilesCacheGuardTests
             File.WriteAllText(reportPath, "{}");
         }
 
-        Assert.DoesNotThrow(() => GitWizardApi.ClearCache());
+        Assert.DoesNotThrow(GitWizardApi.ClearCache);
 
         Assert.Multiple(() =>
         {

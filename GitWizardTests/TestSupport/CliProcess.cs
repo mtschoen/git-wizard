@@ -2,7 +2,7 @@ using System.Diagnostics;
 
 namespace GitWizardTests;
 
-internal static class CliProcess
+static class CliProcess
 {
     internal static Task<(int ExitCode, string StandardOutput, string StandardError)> RunCliAsync(params string[] args) =>
         RunCliInHomeAsync(Environment.GetEnvironmentVariable("GITWIZARD_HOME"), args);

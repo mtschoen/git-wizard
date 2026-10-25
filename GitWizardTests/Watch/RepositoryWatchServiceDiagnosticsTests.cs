@@ -32,7 +32,7 @@ public class RepositoryWatchServiceDiagnosticsTests
             var previous = service.ScanErrors;
             source.FailDrive("X", "watch failed");
             Assert.That(service.ScanErrors, Does.ContainKey("X").WithValue("watch failed"));
-            Assert.That(updates.Last(), Is.SameAs(service.ScanErrors));
+            Assert.That(updates[^1], Is.SameAs(service.ScanErrors));
             Assert.That(previous, Is.Empty);
             var firstFailure = service.ScanErrors;
             source.FailDrive("X", "changed failure");

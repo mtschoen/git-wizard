@@ -1,6 +1,6 @@
 namespace GitWizardTests.TestSupport;
 
-internal sealed class TempDirectory : IDisposable
+sealed class TempDirectory : IDisposable
 {
     public static string SystemTempPath => System.IO.Path.GetTempPath();
 

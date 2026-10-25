@@ -21,10 +21,10 @@ public class DiscoveryScopeTests
         {
             if (root.StartsWith(@"Z:\", StringComparison.Ordinal))
             {
-                return new(root, RootFileSystem.Recursive, null, null);
+                return new RootClassification(root, RootFileSystem.Recursive, null, null);
             }
 
-            string? drive = driveForm switch
+            var drive = driveForm switch
             {
                 "letter" => root[..1],
                 "spec" => $" {root[..1].ToLowerInvariant()}/ ",
@@ -32,7 +32,7 @@ public class DiscoveryScopeTests
                 "fallback" => null,
                 _ => throw new AssertionException("Unexpected drive form.")
             };
-            return new(root, RootFileSystem.Ntfs, drive, null);
+            return new RootClassification(root, RootFileSystem.Ntfs, drive, null);
         }
 
         var scope = DiscoveryScope.CreateExpanded(request, configuration.SearchPaths.ToArray(),
@@ -78,11 +78,11 @@ public class DiscoveryScopeTests
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Watch, false, true, [@"E:\retained"]);
         RootClassification Classify(string root) => root switch
         {
-            @"C:\ntfs" => new(root, RootFileSystem.Ntfs, "C", null),
-            @"Z:\remote" => new(root, RootFileSystem.Recursive, null, null),
-            @"U:\unknown" => new(root, RootFileSystem.Unknown, null, "not available"),
-            @"E:\retained" => new(root, RootFileSystem.Ntfs, "E", null),
-            _ => new(root, RootFileSystem.Unknown, null, "unrecognized")
+            @"C:\ntfs" => new RootClassification(root, RootFileSystem.Ntfs, "C", null),
+            @"Z:\remote" => new RootClassification(root, RootFileSystem.Recursive, null, null),
+            @"U:\unknown" => new RootClassification(root, RootFileSystem.Unknown, null, "not available"),
+            @"E:\retained" => new RootClassification(root, RootFileSystem.Ntfs, "E", null),
+            _ => new RootClassification(root, RootFileSystem.Unknown, null, "unrecognized")
         };
 
         var scope = DiscoveryScope.CreateExpanded(request, configuration.SearchPaths.ToArray(),

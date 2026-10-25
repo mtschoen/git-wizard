@@ -5,7 +5,7 @@ namespace GitWizardTests.Watch;
 [TestFixture]
 public class WatchTokensTests
 {
-    private static void AssertTable<TEnum>(Dictionary<TEnum, string> expected, Func<TEnum, string> token)
+    static void AssertTable<TEnum>(Dictionary<TEnum, string> expected, Func<TEnum, string> token)
         where TEnum : struct, Enum
     {
         Assert.That(expected.Keys, Is.EquivalentTo(Enum.GetValues<TEnum>()));

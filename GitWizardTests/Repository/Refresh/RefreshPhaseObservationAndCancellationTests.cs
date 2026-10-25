@@ -89,9 +89,9 @@ public class RefreshPhaseObservationAndCancellationTests
         Assert.That(repository.IsRefreshing, Is.False);
     }
 
-    private sealed class PhaseCancellationObserver : IDisposable
+    sealed class PhaseCancellationObserver : IDisposable
     {
-        private readonly CancellationTokenSource _cancellationTokenSource = new();
+        readonly CancellationTokenSource _cancellationTokenSource = new();
 
         public List<int> ObservedPhases { get; } = [];
 
@@ -123,7 +123,7 @@ public class RefreshPhaseObservationAndCancellationTests
         cancellationTokenSource.Cancel();
 
         var observedPhases = new List<int>();
-        repository.PhaseObserverForTesting = phaseIndex => observedPhases.Add(phaseIndex);
+        repository.PhaseObserverForTesting = observedPhases.Add;
 
         repository.Refresh(cancellationToken: cancellationTokenSource.Token);
 

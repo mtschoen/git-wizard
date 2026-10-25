@@ -3,7 +3,7 @@ using MFTLibTestExtensions;
 
 namespace GitWizardTests.TestSupport;
 
-internal static class DriveStatuses
+static class DriveStatuses
 {
     public static DriveStatus CreateDriveStatus(char drive, DriveState state,
         DriveBlockStatus? block = null, DriveFailure? failure = null, bool watchSupported = false)

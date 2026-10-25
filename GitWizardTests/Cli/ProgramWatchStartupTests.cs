@@ -53,8 +53,8 @@ public class ProgramWatchStartupTests
                 var indexed = drives.Select(d => new IndexedDrive(d[0], files.TreePath, 1)).ToList();
                 return new MftIndexSession(index, new CountingOwner(), drives, indexed, new Dictionary<string, string>());
             },
-            ReadListAsync = token => GitWizardApi.GetCachedRepositoryPathsAsync(token),
-            WriteListAsync = (paths, token) => GitWizardApi.SaveCachedRepositoryPathsAsync(paths, token),
+            ReadListAsync = GitWizardApi.GetCachedRepositoryPathsAsync,
+            WriteListAsync = GitWizardApi.SaveCachedRepositoryPathsAsync,
             CandidateExists = (path, _) => Directory.Exists(path),
             CreateLinuxSource = () => throw new PlatformNotSupportedException()
         };
@@ -115,8 +115,8 @@ public class ProgramWatchStartupTests
             ClassifyRoot = root => new RootClassification(root, RootFileSystem.Ntfs, "C", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled"),
             OpenIndexAsync = (_, _, _, _) => Task.FromResult(session),
-            ReadListAsync = token => GitWizardApi.GetCachedRepositoryPathsAsync(token),
-            WriteListAsync = (paths, token) => GitWizardApi.SaveCachedRepositoryPathsAsync(paths, token),
+            ReadListAsync = GitWizardApi.GetCachedRepositoryPathsAsync,
+            WriteListAsync = GitWizardApi.SaveCachedRepositoryPathsAsync,
             CandidateExists = RepositoryCandidateProbe.Exists,
             CreateLinuxSource = () => throw new PlatformNotSupportedException()
         });
@@ -153,8 +153,8 @@ public class ProgramWatchStartupTests
                 return Task.FromResult(new RecursiveDiscovery([normalized], [], new Dictionary<string, string>()));
             },
             OpenIndexAsync = (_, _, _, _) => throw new PlatformNotSupportedException(),
-            ReadListAsync = token => GitWizardApi.GetCachedRepositoryPathsAsync(token),
-            WriteListAsync = (paths, token) => GitWizardApi.SaveCachedRepositoryPathsAsync(paths, token),
+            ReadListAsync = GitWizardApi.GetCachedRepositoryPathsAsync,
+            WriteListAsync = GitWizardApi.SaveCachedRepositoryPathsAsync,
             CandidateExists = RepositoryCandidateProbe.Exists,
             CreateLinuxSource = () =>
             {
@@ -190,8 +190,8 @@ public class ProgramWatchStartupTests
                 Interlocked.Increment(ref openCount);
                 throw new InvalidOperationException("MFT access denied");
             },
-            ReadListAsync = token => GitWizardApi.GetCachedRepositoryPathsAsync(token),
-            WriteListAsync = (paths, token) => GitWizardApi.SaveCachedRepositoryPathsAsync(paths, token),
+            ReadListAsync = GitWizardApi.GetCachedRepositoryPathsAsync,
+            WriteListAsync = GitWizardApi.SaveCachedRepositoryPathsAsync,
             CandidateExists = RepositoryCandidateProbe.Exists,
             CreateLinuxSource = () => throw new PlatformNotSupportedException()
         });
@@ -227,8 +227,8 @@ public class ProgramWatchStartupTests
                 : new RootClassification(root, RootFileSystem.Ntfs, "C", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled"),
             OpenIndexAsync = (_, _, _, _) => Task.FromResult(session),
-            ReadListAsync = token => GitWizardApi.GetCachedRepositoryPathsAsync(token),
-            WriteListAsync = (paths, token) => GitWizardApi.SaveCachedRepositoryPathsAsync(paths, token),
+            ReadListAsync = GitWizardApi.GetCachedRepositoryPathsAsync,
+            WriteListAsync = GitWizardApi.SaveCachedRepositoryPathsAsync,
             CandidateExists = RepositoryCandidateProbe.Exists,
             CreateLinuxSource = () => throw new PlatformNotSupportedException()
         });
@@ -312,8 +312,8 @@ public class ProgramWatchStartupTests
                 requestedDrives = drives;
                 throw new InvalidOperationException("MFT access denied");
             },
-            ReadListAsync = token => GitWizardApi.GetCachedRepositoryPathsAsync(token),
-            WriteListAsync = (paths, token) => GitWizardApi.SaveCachedRepositoryPathsAsync(paths, token),
+            ReadListAsync = GitWizardApi.GetCachedRepositoryPathsAsync,
+            WriteListAsync = GitWizardApi.SaveCachedRepositoryPathsAsync,
             CandidateExists = RepositoryCandidateProbe.Exists,
             CreateLinuxSource = () => throw new PlatformNotSupportedException()
         });

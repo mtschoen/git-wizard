@@ -1,7 +1,7 @@
 namespace GitWizardTests.TestSupport;
 
 [TestFixture]
-internal sealed class TempDirectoryTests
+sealed class TempDirectoryTests
 {
     [TestCase(true)]
     [TestCase(false)]

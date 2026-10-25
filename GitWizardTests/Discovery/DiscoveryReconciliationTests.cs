@@ -50,8 +50,8 @@ public class DiscoveryReconciliationTests
             Route = DiscoveryRoute.Indexed,
             Paths = [],
             RequestedNtfsDrives = ["C", "D"],
-            Observations = [new(@"C:\repos", false, true, DiscoverySource.Replay, null, null),
-             new(@"D:\repos", false, false, DiscoverySource.Replay, null, "offline")],
+            Observations = [new RootObservation(@"C:\repos", false, true, DiscoverySource.Replay, null, null),
+             new RootObservation(@"D:\repos", false, false, DiscoverySource.Replay, null, "offline")],
             DriveStatuses = [],
             Errors = new Dictionary<string, string> { ["D"] = "offline" },
             WatchExcludedRoots = []
@@ -70,7 +70,7 @@ public class DiscoveryReconciliationTests
             Route = DiscoveryRoute.Indexed,
             Paths = [],
             RequestedNtfsDrives = ["C"],
-            Observations = [new(@"C:\repos", false, true, DiscoverySource.Scan, DateTime.UtcNow, null)],
+            Observations = [new RootObservation(@"C:\repos", false, true, DiscoverySource.Scan, DateTime.UtcNow, null)],
             DriveStatuses = [],
             Errors = new Dictionary<string, string>(),
             WatchExcludedRoots = []
@@ -89,7 +89,7 @@ public class DiscoveryReconciliationTests
             Route = DiscoveryRoute.Indexed,
             Paths = [@"C:\repos\new1", @"C:\repos\new2"],
             RequestedNtfsDrives = ["C"],
-            Observations = [new(@"C:\repos", false, true, DiscoverySource.Scan, DateTime.UtcNow, null)],
+            Observations = [new RootObservation(@"C:\repos", false, true, DiscoverySource.Scan, DateTime.UtcNow, null)],
             DriveStatuses = [],
             Errors = new Dictionary<string, string>(),
             WatchExcludedRoots = []
@@ -109,8 +109,8 @@ public class DiscoveryReconciliationTests
             Route = DiscoveryRoute.Indexed,
             Paths = [],
             RequestedNtfsDrives = ["C", "D"],
-            Observations = [new(@"C:\repos", false, false, DiscoverySource.Scan, null, "broker error"),
-             new(@"D:\repos", false, false, DiscoverySource.Scan, null, "offline")],
+            Observations = [new RootObservation(@"C:\repos", false, false, DiscoverySource.Scan, null, "broker error"),
+             new RootObservation(@"D:\repos", false, false, DiscoverySource.Scan, null, "offline")],
             DriveStatuses = [],
             Errors = new Dictionary<string, string> { ["C"] = "broker error", ["D"] = "offline" },
             WatchExcludedRoots = []
@@ -128,8 +128,8 @@ public class DiscoveryReconciliationTests
             Route = DiscoveryRoute.Indexed,
             Paths = [@"C:\repos\survived"],
             RequestedNtfsDrives = ["C"],
-            Observations = [new(@"C:\repos", false, true, DiscoverySource.Scan, DateTime.UtcNow, null),
-             new(@"C:\repos\sub", false, false, DiscoverySource.Scan, null, "access denied")],
+            Observations = [new RootObservation(@"C:\repos", false, true, DiscoverySource.Scan, DateTime.UtcNow, null),
+             new RootObservation(@"C:\repos\sub", false, false, DiscoverySource.Scan, null, "access denied")],
             DriveStatuses = [],
             Errors = new Dictionary<string, string> { [@"C:\repos\sub"] = "access denied" },
             WatchExcludedRoots = []
@@ -148,7 +148,7 @@ public class DiscoveryReconciliationTests
             Route = DiscoveryRoute.Indexed,
             Paths = [@"C:\repos\found"],
             RequestedNtfsDrives = ["C"],
-            Observations = [new(@"C:\repos", false, true, DiscoverySource.Snapshot, DateTime.UtcNow.AddHours(-2), null)],
+            Observations = [new RootObservation(@"C:\repos", false, true, DiscoverySource.Snapshot, DateTime.UtcNow.AddHours(-2), null)],
             DriveStatuses = [],
             Errors = new Dictionary<string, string>(),
             WatchExcludedRoots = []
@@ -167,8 +167,8 @@ public class DiscoveryReconciliationTests
             Route = DiscoveryRoute.Indexed,
             Paths = [],
             RequestedNtfsDrives = ["C"],
-            Observations = [new(@"C:\repos", false, true, DiscoverySource.Scan, DateTime.UtcNow, null),
-             new(@"E:\retained", true, false, DiscoverySource.Scan, null, "offline")],
+            Observations = [new RootObservation(@"C:\repos", false, true, DiscoverySource.Scan, DateTime.UtcNow, null),
+             new RootObservation(@"E:\retained", true, false, DiscoverySource.Scan, null, "offline")],
             DriveStatuses = [],
             Errors = new Dictionary<string, string> { ["E"] = "offline" },
             WatchExcludedRoots = []
@@ -187,7 +187,7 @@ public class DiscoveryReconciliationTests
             Route = DiscoveryRoute.RecursiveOnly,
             Paths = ["/repos/MyRepo"],
             RequestedNtfsDrives = [],
-            Observations = [new("/repos", false, true, DiscoverySource.Recursive, DateTime.UtcNow, null)],
+            Observations = [new RootObservation("/repos", false, true, DiscoverySource.Recursive, DateTime.UtcNow, null)],
             DriveStatuses = [],
             Errors = new Dictionary<string, string>(),
             WatchExcludedRoots = []

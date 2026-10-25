@@ -196,7 +196,7 @@ public class GitWizardReportTests
         // running discovery - discovery would trigger MFT/UAC on Windows, and the subject under
         // test here is parallel Refresh, not discovery.
         var repositoryPaths = new SortedSet<string> { repoA.Path, repoB.Path };
-        Parallel.For(0, 10, _ => { report.Refresh(repositoryPaths); });
+        Parallel.For(0, 10, _ => report.Refresh(repositoryPaths));
 
         // Ten concurrent full refreshes over the same two paths race unsynchronized
         // dictionary mutation (PruneDeletedRepositories, PruneNonRepositoryPaths) against

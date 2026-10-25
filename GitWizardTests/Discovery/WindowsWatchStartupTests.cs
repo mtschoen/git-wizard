@@ -447,7 +447,7 @@ public class WindowsWatchStartupTests
         }, CancellationToken.None);
 
     static SyntheticJournalRecord Entry(ulong recordNumber, ulong parentNumber, string name, SyntheticJournalReason reason, bool isDirectory = false) =>
-        new SyntheticJournalRecord
+        new()
         {
             RecordNumber = recordNumber,
             ParentRecordNumber = parentNumber,

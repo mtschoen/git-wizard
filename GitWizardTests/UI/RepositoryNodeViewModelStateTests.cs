@@ -98,7 +98,7 @@ public class RepositoryNodeViewModelStateTests
             Assert.That(node.HasMatchingBranch, Is.True);
             Assert.That(node.MatchingBranchName, Is.AnyOf("main", "master"));
             Assert.That(node.MatchesFilter(FilterType.DetachedHead), Is.True);
-            Assert.That(node.DisplayText, Does.Contain(node.MatchingBranchName!),
+            Assert.That(node.DisplayText, Does.Contain(node.MatchingBranchName),
                 "A detached HEAD with a known branch must show that branch in the row label.");
         });
 

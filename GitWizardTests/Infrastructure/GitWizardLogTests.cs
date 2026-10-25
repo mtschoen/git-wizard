@@ -112,7 +112,7 @@ public class GitWizardLogTests
         GitWizardLog.VerboseMode = verbose;
         GitWizardLog.SilentMode = true;
         var output = string.Empty;
-        GitWizardLog.LogMethod = msg => { output = msg!; };
+        GitWizardLog.LogMethod = msg => output = msg!;
 
         GitWizardLog.Log(message, logType);
 
@@ -124,7 +124,7 @@ public class GitWizardLogTests
     {
         GitWizardLog.VerboseMode = false;
         var output = string.Empty;
-        GitWizardLog.LogMethod = msg => { output = msg!; };
+        GitWizardLog.LogMethod = msg => output = msg!;
 
         GitWizardLog.Log("Verbose message", GitWizardLog.LogType.Verbose);
 
@@ -136,7 +136,7 @@ public class GitWizardLogTests
     {
         GitWizardLog.VerboseMode = true;
         var output = string.Empty;
-        GitWizardLog.LogMethod = msg => { output = msg!; };
+        GitWizardLog.LogMethod = msg => output = msg!;
 
         GitWizardLog.Log("Verbose message", GitWizardLog.LogType.Verbose);
 
@@ -150,7 +150,7 @@ public class GitWizardLogTests
         GitWizardLog.VerboseMode = true;
         GitWizardLog.SilentMode = false;
         var output = string.Empty;
-        GitWizardLog.LogMethod = msg => { output = msg!; };
+        GitWizardLog.LogMethod = msg => output = msg!;
 
         GitWizardLog.Log("info message");
 
@@ -161,7 +161,7 @@ public class GitWizardLogTests
     public void Log_OutputsFormattedMessage()
     {
         var output = string.Empty;
-        GitWizardLog.LogMethod = msg => { output = msg!; };
+        GitWizardLog.LogMethod = msg => output = msg!;
 
         GitWizardLog.Log("Hello world");
 
@@ -174,7 +174,7 @@ public class GitWizardLogTests
     public void Log_ErrorType_OutputsError()
     {
         var output = string.Empty;
-        GitWizardLog.LogMethod = msg => { output = msg!; };
+        GitWizardLog.LogMethod = msg => output = msg!;
 
         GitWizardLog.Log("Error occurred", GitWizardLog.LogType.Error);
 
@@ -185,7 +185,7 @@ public class GitWizardLogTests
     public void Log_WarningType_OutputsWarning()
     {
         var output = string.Empty;
-        GitWizardLog.LogMethod = msg => { output = msg!; };
+        GitWizardLog.LogMethod = msg => output = msg!;
 
         GitWizardLog.Log("Warning message", GitWizardLog.LogType.Warning);
 
@@ -293,7 +293,7 @@ public class GitWizardLogTests
     public void LogMethod_LogsDateTimeFormat()
     {
         var output = string.Empty;
-        GitWizardLog.LogMethod = msg => { output = msg!; };
+        GitWizardLog.LogMethod = msg => output = msg!;
 
         GitWizardLog.Log("Format test");
 
@@ -305,7 +305,7 @@ public class GitWizardLogTests
     public void Log_DoesNotThrowWithCustomLogMethod()
     {
         var captured = string.Empty;
-        GitWizardLog.LogMethod = msg => { captured = msg!; };
+        GitWizardLog.LogMethod = msg => captured = msg!;
 
         GitWizardLog.Log("Test");
 
@@ -339,7 +339,7 @@ public class GitWizardLogTests
     {
         GitWizardLog.SilentMode = true;
         var output = string.Empty;
-        GitWizardLog.LogMethod = msg => { output = msg!; };
+        GitWizardLog.LogMethod = msg => output = msg!;
 
         GitWizardLog.Log("Info");
         Assert.That(output, Is.Empty);
@@ -455,7 +455,7 @@ public class GitWizardLogTests
             Assert.That(outputs[0], Does.Contain($"Error: {context} Exception follows:"));
             expected.Add(outputs[0]);
         }
-        for (Exception? current = exception; current != null; current = current.InnerException)
+        for (var current = exception; current != null; current = current.InnerException)
         {
             if (current != exception)
             {
@@ -502,7 +502,7 @@ public class GitWizardLogTests
         };
         foreach (var detail in details)
         {
-            Assert.That(record, Does.Contain(detail.GetType().FullName!));
+            Assert.That(record, Does.Contain(detail.GetType().FullName));
             Assert.That(record, Does.Contain(detail.Message));
             if (detail.StackTrace != null)
             {
@@ -581,7 +581,7 @@ public class GitWizardLogTests
     {
         GitWizardLog.VerboseMode = false;
         var output = string.Empty;
-        GitWizardLog.LogMethod = msg => { output = msg!; };
+        GitWizardLog.LogMethod = msg => output = msg!;
 
         GitWizardLog.Log("Debug message", GitWizardLog.LogType.Debug);
 
@@ -593,7 +593,7 @@ public class GitWizardLogTests
     {
         GitWizardLog.VerboseMode = true;
         var output = string.Empty;
-        GitWizardLog.LogMethod = msg => { output = msg!; };
+        GitWizardLog.LogMethod = msg => output = msg!;
 
         GitWizardLog.Log("Debug message", GitWizardLog.LogType.Debug);
 

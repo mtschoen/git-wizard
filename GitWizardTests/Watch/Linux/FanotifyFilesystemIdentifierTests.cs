@@ -224,7 +224,7 @@ public class FanotifyFilesystemIdentifierTests
         _native.ReadQueue.Enqueue(CreateEvents((FirstFilesystem, directory, "before.txt")));
         var source = new FanotifyVolumeChangeSource(_native);
         await source.ArmAndCatchUpAsync([_firstRoot, _siblingRoot], CancellationToken.None);
-        var delivered = (await ReadEntriesAsync(source, 1)).Select(entry => entry.FullPath).ToList();
+        var delivered = (await ReadEntriesAsync(source, 1)).ConvertAll(entry => entry.FullPath);
 
         _native.GoneMountPaths.Add(_firstRoot);
         _native.ReadQueue.Enqueue(CreateEvents((FirstFilesystem, directory, "after.txt")));
@@ -248,7 +248,7 @@ public class FanotifyFilesystemIdentifierTests
         _native.ReadQueue.Enqueue(CreateEvents((FirstFilesystem, directory, "before.txt")));
         var source = new FanotifyVolumeChangeSource(_native);
         await source.ArmAndCatchUpAsync([_firstRoot], CancellationToken.None);
-        var delivered = (await ReadEntriesAsync(source, 1)).Select(entry => entry.FullPath).ToList();
+        var delivered = (await ReadEntriesAsync(source, 1)).ConvertAll(entry => entry.FullPath);
 
         _native.GoneMountPaths.Add(_firstRoot);
         _native.ReadQueue.Enqueue(CreateEvents((FirstFilesystem, directory, "dropped.txt")));
@@ -278,7 +278,7 @@ public class FanotifyFilesystemIdentifierTests
             (FirstFilesystem, firstHandle, "a.txt"), (SecondFilesystem, secondHandle, "a.txt")));
         var source = new FanotifyVolumeChangeSource(_native);
         await source.ArmAndCatchUpAsync([_firstRoot, _secondRoot], CancellationToken.None);
-        var delivered = (await ReadEntriesAsync(source, 2)).Select(entry => entry.FullPath).ToList();
+        var delivered = (await ReadEntriesAsync(source, 2)).ConvertAll(entry => entry.FullPath);
         _native.GoneMountPaths.Add(_firstRoot);
         _native.ReadQueue.Enqueue(CreateEvents(
             (FirstFilesystem, firstHandle, "b.txt"), (SecondFilesystem, secondHandle, "b.txt")));
@@ -346,7 +346,7 @@ public class FanotifyFilesystemIdentifierTests
         _native.ReadQueue.Enqueue(CreateEvents((FirstFilesystem, firstHandle, "a.txt")));
         var source = new FanotifyVolumeChangeSource(_native);
         await source.ArmAndCatchUpAsync([_firstRoot, _siblingRoot, _secondRoot], CancellationToken.None);
-        var delivered = (await ReadEntriesAsync(source, 1)).Select(entry => entry.FullPath).ToList();
+        var delivered = (await ReadEntriesAsync(source, 1)).ConvertAll(entry => entry.FullPath);
 
         ApplyScenario(scenario);
         _native.ReadQueue.Enqueue(CreateEvents((FirstFilesystem, unmappedHandle, "gone.txt")));

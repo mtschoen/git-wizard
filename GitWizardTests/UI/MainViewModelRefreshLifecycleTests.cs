@@ -46,8 +46,8 @@ public class MainViewModelRefreshLifecycleTests
             CrawlRootAsync = (_, root, _) => Task.FromResult(new RecursiveDiscovery(
                 [], [root], new Dictionary<string, string> { [root] = "access denied" })),
             OpenIndexAsync = (_, _, _, _) => throw new AssertionException("Recursive roots must not open an index."),
-            ReadListAsync = token => GitWizardApi.GetCachedRepositoryPathsAsync(token),
-            WriteListAsync = (paths, token) => GitWizardApi.SaveCachedRepositoryPathsAsync(paths, token),
+            ReadListAsync = GitWizardApi.GetCachedRepositoryPathsAsync,
+            WriteListAsync = GitWizardApi.SaveCachedRepositoryPathsAsync,
             CandidateExists = RepositoryCandidateProbe.Exists,
             CreateLinuxSource = () => throw new PlatformNotSupportedException()
         });

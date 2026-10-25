@@ -60,9 +60,9 @@ public class RefreshConcurrencyGateTests
             string.Join(", ", sequence.Select(entry => $"(thread {entry.ThreadId}, phase {entry.PhaseIndex})")));
     }
 
-    private sealed class ConcurrentRefreshCoordinator(GitWizardRepository repository) : IDisposable
+    sealed class ConcurrentRefreshCoordinator(GitWizardRepository repository) : IDisposable
     {
-        private readonly ManualResetEventSlim _startSignal = new(false);
+        readonly ManualResetEventSlim _startSignal = new(false);
 
         public void Start() => _startSignal.Set();
 

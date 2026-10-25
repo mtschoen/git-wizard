@@ -1,7 +1,7 @@
 
 namespace GitWizardTests.TestSupport;
 
-internal sealed class LocalFilesSandbox : IDisposable
+sealed class LocalFilesSandbox : IDisposable
 {
     readonly TempDirectory _directory = new("GitWizardHome-");
     readonly string? _previousHome = Environment.GetEnvironmentVariable("GITWIZARD_HOME");

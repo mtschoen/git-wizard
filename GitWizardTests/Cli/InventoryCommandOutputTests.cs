@@ -87,13 +87,13 @@ public class InventoryCommandOutputTests
         {
             "sweep" => minified
                 ? $"{{\"SchemaVersion\":\"1.0\",\"Repositories\":[{string.Join(",", items)}]}}"
-                : $"{{\n  \"SchemaVersion\": \"1.0\",\n  \"Repositories\": [\n{string.Join($",\n", items)}\n  ]\n}}".ReplaceLineEndings(),
+                : $"{{\n  \"SchemaVersion\": \"1.0\",\n  \"Repositories\": [\n{string.Join(",\n", items)}\n  ]\n}}".ReplaceLineEndings(),
             "tags" => minified
                 ? $"{{\"SchemaVersion\":\"1.0\",\"MatchPattern\":\"*\",\"Repositories\":[{string.Join(",", items)}]}}"
-                : $"{{\n  \"SchemaVersion\": \"1.0\",\n  \"MatchPattern\": \"*\",\n  \"Repositories\": [\n{string.Join($",\n", items)}\n  ]\n}}".ReplaceLineEndings(),
+                : $"{{\n  \"SchemaVersion\": \"1.0\",\n  \"MatchPattern\": \"*\",\n  \"Repositories\": [\n{string.Join(",\n", items)}\n  ]\n}}".ReplaceLineEndings(),
             _ => minified
                 ? $"{{\"SchemaVersion\":\"1.0\",\"Repositories\":[{string.Join(",", items)}]}}"
-                : $"{{\n  \"SchemaVersion\": \"1.0\",\n  \"Repositories\": [\n{string.Join($",\n", items)}\n  ]\n}}".ReplaceLineEndings()
+                : $"{{\n  \"SchemaVersion\": \"1.0\",\n  \"Repositories\": [\n{string.Join(",\n", items)}\n  ]\n}}".ReplaceLineEndings()
         };
     }
 

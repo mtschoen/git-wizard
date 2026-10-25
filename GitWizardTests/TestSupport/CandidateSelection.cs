@@ -4,7 +4,7 @@ using MFTLib.Index;
 namespace GitWizardTests.TestSupport;
 
 /// <summary>Runs the production candidate selection for one logical search root and returns the repository paths.</summary>
-internal static class CandidateSelection
+static class CandidateSelection
 {
     public static string[] Paths(
         FileIndex index, string root, string[] ignoredPaths, bool? skipHiddenDirectories = null,

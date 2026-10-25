@@ -87,8 +87,8 @@ public class IndexVolumeChangeSourceCheckpointLossTests
             Assert.Multiple(() =>
             {
                 Assert.That(finalWarnings.Select(warning => warning.Loss).Distinct().Count(), Is.EqualTo(1));
-                Assert.That(finalWarnings.Last().Message, Does.Contain("was rescanned and the watch has caught up"));
-                Assert.That(finalWarnings.Last().Message, Does.Not.Contain("is being rescanned"));
+                Assert.That(finalWarnings[^1].Message, Does.Contain("was rescanned and the watch has caught up"));
+                Assert.That(finalWarnings[^1].Message, Does.Not.Contain("is being rescanned"));
             });
         }
         finally

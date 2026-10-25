@@ -52,7 +52,7 @@ public class IndexVolumeChangeSourceReadinessTests
         Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo(["X"]));
         var excluded = source.Readiness.ExcludedVolumes.Single();
         Assert.That((excluded.Volume, excluded.ExclusionReason), Is.EqualTo(("Y", "Y failed")));
-        Assert.That(snapshots.Last(), Is.SameAs(source.Readiness));
+        Assert.That(snapshots[^1], Is.SameAs(source.Readiness));
         Assert.That(snapshots.Select(s => s.Volumes.Count), Is.All.LessThanOrEqualTo(2));
     }
 
@@ -169,8 +169,8 @@ public class IndexVolumeChangeSourceReadinessTests
             scripted.WatchFor('Y').PublishCaughtUpAsync());
 
         await arming.WaitAsync(TestTimeouts.HangGuard);
-        Assert.That(snapshots.Last().IsSettled, Is.True);
-        Assert.That(snapshots.Last().CaughtUpVolumes, Is.EquivalentTo(["X", "Y"]));
-        Assert.That(snapshots.Last(), Is.EqualTo(source.Readiness));
+        Assert.That(snapshots[^1].IsSettled, Is.True);
+        Assert.That(snapshots[^1].CaughtUpVolumes, Is.EquivalentTo(["X", "Y"]));
+        Assert.That(snapshots[^1], Is.EqualTo(source.Readiness));
     }
 }

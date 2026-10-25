@@ -9,7 +9,7 @@ namespace GitWizardTests;
 /// by tests that need to control pending-changes and unpushed-commit state
 /// without depending on the running checkout.
 /// </summary>
-internal sealed class TempRepoFixture : IDisposable
+sealed class TempRepoFixture : IDisposable
 {
     readonly TempDirectory _directory;
 

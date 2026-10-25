@@ -97,8 +97,8 @@ public class RepositoryChangeFilterTests
     [Test]
     public void Classify_GitCreatedDirectlyUnderSearchRoot_MapsToCreatedParent()
     {
-        var searchRoot = @"C:\repos";
-        var newRepoGitPath = @"C:\repos\new-repo\.git";
+        const string searchRoot = @"C:\repos";
+        const string newRepoGitPath = @"C:\repos\new-repo\.git";
         var filter = new RepositoryChangeFilter([], [searchRoot]);
 
         var result = filter.Classify([Created(newRepoGitPath)]);
@@ -111,8 +111,8 @@ public class RepositoryChangeFilterTests
     [Test]
     public void Classify_GitCreatedNestedUnderSearchRoot_MapsToCreatedParent()
     {
-        var searchRoot = @"C:\repos";
-        var newRepoGitPath = @"C:\repos\vendor\deep\new-repo\.git";
+        const string searchRoot = @"C:\repos";
+        const string newRepoGitPath = @"C:\repos\vendor\deep\new-repo\.git";
         var filter = new RepositoryChangeFilter([], [searchRoot]);
 
         var result = filter.Classify([Created(newRepoGitPath)]);
@@ -153,7 +153,7 @@ public class RepositoryChangeFilterTests
     [Test]
     public void Classify_NonGitDirectoryCreated_IsIgnored()
     {
-        var searchRoot = @"C:\repos";
+        const string searchRoot = @"C:\repos";
         var filter = new RepositoryChangeFilter([], [searchRoot]);
 
         var result = filter.Classify([Created(Path.Combine(searchRoot, "new-repo", "src"))]);
@@ -196,10 +196,10 @@ public class RepositoryChangeFilterTests
     [Test]
     public void Classify_MixedBatch_PopulatesAllThreeCollectionsIndependently()
     {
-        var searchRoot = @"C:\repos";
-        var trackedRoot = @"C:\repos\existing-repo";
-        var deletedRoot = @"C:\repos\gone-repo";
-        var newRoot = @"C:\repos\new-repo";
+        const string searchRoot = @"C:\repos";
+        const string trackedRoot = @"C:\repos\existing-repo";
+        const string deletedRoot = @"C:\repos\gone-repo";
+        const string newRoot = @"C:\repos\new-repo";
         var filter = new RepositoryChangeFilter([trackedRoot, deletedRoot], [searchRoot]);
 
         var result = filter.Classify(
@@ -217,7 +217,7 @@ public class RepositoryChangeFilterTests
     [Test]
     public void Classify_MovedInGitDirectoryUnderSearchRoot_AddsParentAsMovedInCandidate()
     {
-        var searchRoot = @"C:\repos";
+        const string searchRoot = @"C:\repos";
         var filter = new RepositoryChangeFilter([], [searchRoot]);
 
         var result = filter.Classify([MovedIn(@"C:\repos\new-repo\.git")]);

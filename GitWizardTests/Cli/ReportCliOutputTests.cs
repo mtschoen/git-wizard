@@ -275,7 +275,7 @@ public class ReportCliOutputTests
         var runConfiguration = CliParser.Parse(["--rebuild-report", "--no-mft"]);
         var laterMessages = new List<string?>();
         Action<string?> originalSink = laterMessages.Add;
-        Action<string?, GitWizardLog.LogType>? originalTypedSink = GitWizardLog.TypedLogMethod;
+        var originalTypedSink = GitWizardLog.TypedLogMethod;
         GitWizardLog.LogMethod = originalSink;
         using (var stdout = outcome == "exception" ? new FailingReportWriter() : new StringWriter())
         using (var stderr = new StringWriter())

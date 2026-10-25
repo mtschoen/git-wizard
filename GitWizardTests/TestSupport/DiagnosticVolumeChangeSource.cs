@@ -4,7 +4,7 @@ using GitWizard.Watch;
 
 namespace GitWizardTests.TestSupport;
 
-internal sealed class DiagnosticVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDiagnostics
+sealed class DiagnosticVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDiagnostics
 {
     readonly Channel<VolumeChangeBatch> _batches = Channel.CreateUnbounded<VolumeChangeBatch>();
     readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);

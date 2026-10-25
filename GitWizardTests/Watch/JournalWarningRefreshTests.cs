@@ -75,9 +75,9 @@ public class JournalWarningRefreshTests
         var warnings = harness.Warnings;
         Assert.Multiple(() =>
         {
-            Assert.That(warnings.First().Message, Does.Contain(RescanInProgress));
-            Assert.That(warnings.Last().Message, Does.Contain(RescanFinished));
-            Assert.That(warnings.Last().Message, Does.Not.Contain(RescanInProgress));
+            Assert.That(warnings[0].Message, Does.Contain(RescanInProgress));
+            Assert.That(warnings[^1].Message, Does.Contain(RescanFinished));
+            Assert.That(warnings[^1].Message, Does.Not.Contain(RescanInProgress));
             Assert.That(warnings.Select(warning => warning.Loss).Distinct().Count(), Is.EqualTo(1),
                 "a refreshed warning stays the same episode");
         });
@@ -107,8 +107,8 @@ public class JournalWarningRefreshTests
         var warnings = harness.Warnings;
         Assert.Multiple(() =>
         {
-            Assert.That(warnings.Last().Message, Does.Contain(RecoveryStopped));
-            Assert.That(warnings.Last().Message, Does.Not.Contain(RescanInProgress));
+            Assert.That(warnings[^1].Message, Does.Contain(RecoveryStopped));
+            Assert.That(warnings[^1].Message, Does.Not.Contain(RescanInProgress));
             Assert.That(warnings.Select(warning => warning.Loss).Distinct().Count(), Is.EqualTo(1));
         });
     }

@@ -11,7 +11,7 @@ namespace GitWizardTests.TestSupport;
 /// every scan yields the same four directory records (root, code, repo and its .git marker), and
 /// every watch yields <see cref="WatchEntries" /> once and then waits for its channel to close.
 /// </summary>
-internal sealed class BlockBrokerFixture : IAsyncDisposable
+sealed class BlockBrokerFixture : IAsyncDisposable
 {
     static readonly SyntheticJournalCursor Cursor = new(100UL, 1000L);
     static readonly SyntheticJournalCursor CaughtUpCursor = new(100UL, 1500L);

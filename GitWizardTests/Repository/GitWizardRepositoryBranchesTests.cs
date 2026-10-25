@@ -338,7 +338,7 @@ public class GitWizardRepositoryBranchesTests
         repository.Refresh(allBranches: true);
 
         Assert.That(repository.Branches, Is.Not.Null);
-        var names = repository.Branches!.Select(b => b.Name).ToList();
+        var names = repository.Branches!.ConvertAll(b => b.Name);
         Assert.That(names, Does.Contain("samepoint"));
         var def = repository.Branches!.SingleOrDefault(b => b.Name == repository.DefaultBranch);
         Assert.That(def, Is.Not.Null);

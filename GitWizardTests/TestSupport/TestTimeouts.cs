@@ -1,6 +1,6 @@
 namespace GitWizardTests.TestSupport;
 
-internal static class TestTimeouts
+static class TestTimeouts
 {
     public static TimeSpan HangGuard => TimeSpan.FromSeconds(10);
     public static TimeSpan BrokerHangGuard => TimeSpan.FromSeconds(30);

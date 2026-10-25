@@ -8,7 +8,7 @@ namespace GitWizardTests.TestSupport;
 /// Scripted source with per-volume readiness. Every fence is driven from the test: arm result,
 /// per-volume state, batches, drive failure, source death, channel fault.
 /// </summary>
-internal sealed class ReadinessVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDiagnostics, IVolumeReadiness, IPumpLifecycle
+sealed class ReadinessVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDiagnostics, IVolumeReadiness, IPumpLifecycle
 {
     readonly Channel<VolumeChangeBatch> _batches = Channel.CreateUnbounded<VolumeChangeBatch>();
     readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);

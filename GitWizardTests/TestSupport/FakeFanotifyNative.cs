@@ -2,7 +2,7 @@ using GitWizard.Watch.Linux;
 
 namespace GitWizardTests.TestSupport;
 
-internal sealed class FakeFanotifyNative : IFanotifyNative
+sealed class FakeFanotifyNative : IFanotifyNative
 {
     public FakeFanotifyNative() { }
 

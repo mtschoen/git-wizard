@@ -3,7 +3,7 @@ using MFTLibTestExtensions;
 
 namespace GitWizardTests.TestSupport;
 
-internal sealed class IndexOwnerFixture : IAsyncDisposable
+sealed class IndexOwnerFixture : IAsyncDisposable
 {
     readonly PackedIndexFixture _files = new();
     readonly CountingConnection _connection = new();

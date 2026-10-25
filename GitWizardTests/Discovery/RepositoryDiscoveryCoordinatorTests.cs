@@ -56,7 +56,7 @@ public class RepositoryDiscoveryCoordinatorTests
         using var files = new PackedIndexFixture();
         files.AddMarker("repo1");
 
-        var brokerConnections = 0;
+        const int brokerConnections = 0;
         var crawlerCalls = new List<string>();
         var updates = new RecordingUpdateHandler();
         using var cancellation = new CancellationTokenSource();
@@ -92,7 +92,7 @@ public class RepositoryDiscoveryCoordinatorTests
             Assert.That(result.Inventory.Observations.Single().ScanTimestamp, Is.EqualTo(PackedIndexFixture.CompletionTimestamp));
             Assert.That(brokerConnections, Is.Zero);
             Assert.That(crawlerCalls, Is.Empty);
-            Assert.That(updates.Messages.Any(message => message is not null && message.Contains("snapshot", StringComparison.OrdinalIgnoreCase)), Is.True);
+            Assert.That(updates.Messages.Any(message => message?.Contains("snapshot", StringComparison.OrdinalIgnoreCase) == true), Is.True);
         });
     }
 

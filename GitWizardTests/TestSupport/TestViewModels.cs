@@ -3,7 +3,7 @@ using GitWizardUI.ViewModels.Services;
 
 namespace GitWizardTests.TestSupport;
 
-internal static class TestViewModels
+static class TestViewModels
 {
     public static MainViewModel Create(IUiDispatcher? dispatcher = null,
         IUserDialogs? dialogs = null, IClipboardService? clipboard = null,

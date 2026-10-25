@@ -411,9 +411,9 @@ public class IndexVolumeChangeSourceTests
         Assert.Multiple(() =>
         {
             Assert.That(warnings, Has.Count.EqualTo(2));
-            Assert.That(warnings.Last().Loss, Is.SameAs(liveLoss));
-            Assert.That(warnings.Last().IsRecoveryStopped, Is.True);
-            Assert.That(warnings.Last().Message, Does.Contain("Automatic recovery stopped"));
+            Assert.That(warnings[^1].Loss, Is.SameAs(liveLoss));
+            Assert.That(warnings[^1].IsRecoveryStopped, Is.True);
+            Assert.That(warnings[^1].Message, Does.Contain("Automatic recovery stopped"));
         });
 
         // Two successive journal recreations produce distinct report instances with identical

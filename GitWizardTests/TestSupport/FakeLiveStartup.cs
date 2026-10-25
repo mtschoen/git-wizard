@@ -12,7 +12,7 @@ namespace GitWizardTests.TestSupport;
 /// cleanup does. The inventory claims the request's retained roots, the effective membership
 /// the coordinator would report when every retained root is still present.
 /// </summary>
-internal static class FakeLiveStartup
+static class FakeLiveStartup
 {
     public static async Task<WatchStartupResult> FromSourceArmedAsync(
         IVolumeChangeSource source,

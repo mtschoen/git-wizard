@@ -4,7 +4,7 @@ using MFTLibTestExtensions;
 
 namespace GitWizardTests.TestSupport;
 
-internal sealed class IndexCacheFixture : IDisposable
+sealed class IndexCacheFixture : IDisposable
 {
     readonly PackedIndexFixture _files = new();
     public string Home { get; }

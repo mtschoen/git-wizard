@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 
 namespace GitWizardTests.TestSupport;
 
-internal static class AsyncCondition
+static class AsyncCondition
 {
     public static async Task WaitUntilAsync(
         Func<bool> condition,

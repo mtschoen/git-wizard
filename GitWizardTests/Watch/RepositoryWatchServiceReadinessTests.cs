@@ -70,7 +70,7 @@ public class RepositoryWatchServiceReadinessTests
         // Later recovery or fault changes per-drive state without a second marker.
         source.SetVolume(VolumeWatchStatus.Excluded("Y", VolumeBlockOrigin.Cold, "Y faulted later"));
         Assert.That(run.Ready, Has.Count.EqualTo(1));
-        Assert.That(run.Snapshots.Last().TryGet("Y", out var y) && y.State == VolumeWatchState.Excluded, Is.True);
+        Assert.That(run.Snapshots[^1].TryGet("Y", out var y) && y.State == VolumeWatchState.Excluded, Is.True);
     }
 
     [Test]
@@ -97,7 +97,7 @@ public class RepositoryWatchServiceReadinessTests
         var service = new RepositoryWatchService(source, [@"X:\repo"], [], TimeSpan.Zero);
         await using var run = Run.Start(service);
         await WaitUntilAsync(() => run.Ready.Count == 1);
-        Assert.That(run.Snapshots.First().Volumes.Single().State, Is.EqualTo(VolumeWatchState.CaughtUp),
+        Assert.That(run.Snapshots[0].Volumes.Single().State, Is.EqualTo(VolumeWatchState.CaughtUp),
             "The snapshot read at subscribe time must be forwarded.");
         Assert.That(run.Ready[0].CaughtUpVolumes, Is.EqualTo(["X"]));
     }
@@ -300,7 +300,7 @@ public class RepositoryWatchServiceReadinessTests
 
         await WaitUntilAsync(() => run.Ready.Count == 1);
         Assert.That(run.Ready, Has.Count.EqualTo(1));
-        Assert.That(run.Snapshots.Last().RecentTransitions.Select(t => t.State),
+        Assert.That(run.Snapshots[^1].RecentTransitions.Select(t => t.State),
             Is.EqualTo(["Faulted", "Recovering", "CatchingUp", "CaughtUp"]));
     }
 }

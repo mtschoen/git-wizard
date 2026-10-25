@@ -16,8 +16,8 @@ public class MainViewModelCachedPathsTests
     public async Task UpdateCachedPathsAfterScan_RemovesNonRepositoryPaths()
     {
         using var sandbox = new LocalFilesSandbox();
-        var validPath = "/valid/repo";
-        var stalePath = "/stale/not-a-repo";
+        const string validPath = "/valid/repo";
+        const string stalePath = "/stale/not-a-repo";
 
         // Write a repositories.txt with both valid and stale paths.
         await GitWizardApi.SaveCachedRepositoryPathsAsync([validPath, stalePath]);
@@ -40,8 +40,8 @@ public class MainViewModelCachedPathsTests
     public async Task UpdateCachedPathsAfterScan_RemovesDeletedPaths()
     {
         using var sandbox = new LocalFilesSandbox();
-        var validPath = "/valid/repo";
-        var deletedPath = "/deleted/repo";
+        const string validPath = "/valid/repo";
+        const string deletedPath = "/deleted/repo";
 
         await GitWizardApi.SaveCachedRepositoryPathsAsync([validPath, deletedPath]);
 
@@ -61,10 +61,10 @@ public class MainViewModelCachedPathsTests
     public async Task UpdateCachedPathsAfterScan_RemovesAllThreeTypes()
     {
         using var sandbox = new LocalFilesSandbox();
-        var healthyPath = "/healthy/repo";
-        var deletedPath = "/deleted/repo";
-        var stalePath = "/stale/not-a-repo";
-        var renamedPath = "/old-name/repo";
+        const string healthyPath = "/healthy/repo";
+        const string deletedPath = "/deleted/repo";
+        const string stalePath = "/stale/not-a-repo";
+        const string renamedPath = "/old-name/repo";
 
         await GitWizardApi.SaveCachedRepositoryPathsAsync([healthyPath, deletedPath, stalePath, renamedPath]);
 
@@ -84,7 +84,7 @@ public class MainViewModelCachedPathsTests
     public async Task UpdateCachedPathsAfterScan_NoPathsToRemove_NoChange()
     {
         using var sandbox = new LocalFilesSandbox();
-        var path = "/valid/repo";
+        const string path = "/valid/repo";
         await GitWizardApi.SaveCachedRepositoryPathsAsync([path]);
 
         await RefreshCoordinator.UpdateCachedPathsAfterScanAsync([], [], []);

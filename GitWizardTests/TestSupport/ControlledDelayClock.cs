@@ -1,6 +1,6 @@
 namespace GitWizardTests.TestSupport;
 
-internal sealed class ControlledDelayClock : TimeProvider
+sealed class ControlledDelayClock : TimeProvider
 {
     long _timestamp;
 

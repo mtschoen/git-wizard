@@ -81,7 +81,7 @@ public class GitWizardApiTests
     [Test]
     public void PrettyPrintPath_PassesThroughPathWithoutEnvVars()
     {
-        var path = "/some/fixed/path";
+        const string path = "/some/fixed/path";
         var result = GitWizardApi.PrettyPrintPath(path);
         Assert.That(result, Is.EqualTo(path));
     }
@@ -138,7 +138,7 @@ public class GitWizardApiTests
     [Test]
     public void ExpandSearchPath_ExpandsEnvironmentVariables()
     {
-        Environment.SetEnvironmentVariable("TEST_EXPAND_PATH", _tempRoot!);
+        Environment.SetEnvironmentVariable("TEST_EXPAND_PATH", _tempRoot);
         try
         {
             var result = GitWizardApi.ExpandSearchPath("%TEST_EXPAND_PATH%");
@@ -212,7 +212,7 @@ public class GitWizardApiTests
     [Test]
     public void ExpandIgnoredPath_ExpandsEnvironmentVariables()
     {
-        Environment.SetEnvironmentVariable("TEST_IGNORED_PATH", _tempRoot!);
+        Environment.SetEnvironmentVariable("TEST_IGNORED_PATH", _tempRoot);
         try
         {
             var result = GitWizardApi.ExpandIgnoredPath("%TEST_IGNORED_PATH%");

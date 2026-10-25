@@ -2,7 +2,7 @@ using GitWizard.Watch;
 
 namespace GitWizardTests;
 
-internal sealed class ThrowingWatchVolumeChangeSource : IVolumeChangeSource
+sealed class ThrowingWatchVolumeChangeSource : IVolumeChangeSource
 {
     readonly VolumeChangeBatch _firstBatch;
     readonly string _faultMessage;

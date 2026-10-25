@@ -5,7 +5,7 @@ namespace GitWizardTests.UI;
 // A source whose WatchAsync deliberately ignores its CancellationToken and only unblocks when the
 // source itself is disposed - used to prove StopAsync's force-dispose path can stop a source that
 // never honours cancellation.
-internal sealed class DisposeToUnblockSource : IVolumeChangeSource
+sealed class DisposeToUnblockSource : IVolumeChangeSource
 {
     readonly TaskCompletionSource _disposed = new(TaskCreationOptions.RunContinuationsAsynchronously);
 

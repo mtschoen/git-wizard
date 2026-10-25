@@ -82,7 +82,7 @@ public class MainViewModelPrePopulateTests
         using var sandbox = new LocalFilesSandbox();
         var vm = CreateViewModel();
         var config = new GitWizardConfiguration { SearchPaths = ["/repos"] };
-        vm.RepositoryList.PrePopulateFromReport(config, null!, null);
+        vm.RepositoryList.PrePopulateFromReport(config, null, null);
 
         Assert.That(vm.RepositoryList.Repositories, Is.Empty,
             "Pre-population should be a no-op when repositoryPaths is null.");

@@ -4,7 +4,7 @@ namespace GitWizardTests.UI;
 
 // Like ScriptedVolumeChangeSource, but its DisposeAsync parks until ReleaseDispose() is called - giving
 // a test a deterministic barrier inside the respawn path's dispose-before-re-check window.
-internal sealed class GatedDisposeKillableSource : IVolumeChangeSource
+sealed class GatedDisposeKillableSource : IVolumeChangeSource
 {
     readonly TaskCompletionSource _releaseDispose = new(TaskCreationOptions.RunContinuationsAsynchronously);
     readonly Lock _gate = new();

@@ -3,7 +3,7 @@ using GitWizardUI.ViewModels.Services;
 
 namespace GitWizardTests.TestSupport;
 
-internal sealed class QueuedUiDispatcher(bool isOnUiThread = true) : IUiDispatcher
+sealed class QueuedUiDispatcher(bool isOnUiThread = true) : IUiDispatcher
 {
     readonly ConcurrentQueue<Action> _posted = new();
     public bool IsOnUiThread => isOnUiThread;

@@ -41,12 +41,7 @@ public class IndexCacheViewModelTests
         var model = new IndexCacheViewModel(new StubUiDispatcher(), new StubUserDialogs(), new PreparedDiscoveryIndexStore(), () =>
         {
             entered.TrySetResult();
-            if (!release.Task.Wait(TimeSpan.FromSeconds(5)))
-            {
-                throw new TimeoutException("Test did not release inspection");
-            }
-
-            return snapshot;
+            return !release.Task.Wait(TimeSpan.FromSeconds(5)) ? throw new TimeoutException("Test did not release inspection") : snapshot;
         }, NoClear);
         var first = model.RefreshAsync();
         try
@@ -81,12 +76,7 @@ public class IndexCacheViewModelTests
             {
                 Interlocked.Increment(ref clears);
                 entered.TrySetResult();
-                if (!release.Task.Wait(TimeSpan.FromSeconds(5)))
-                {
-                    throw new TimeoutException("Test did not release clear");
-                }
-
-                return NoClear();
+                return !release.Task.Wait(TimeSpan.FromSeconds(5)) ? throw new TimeoutException("Test did not release clear") : NoClear();
             });
         var first = model.ClearAsync();
         try

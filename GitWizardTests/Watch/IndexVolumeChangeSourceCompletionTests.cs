@@ -232,8 +232,11 @@ public class IndexVolumeChangeSourceCompletionTests
         var session = Guid.NewGuid();
         var snapshot = VolumeReadinessSnapshot.Empty;
         for (var version = 1; version <= 70; version++)
+        {
             snapshot = snapshot.WithTransition(new VolumeWatchTransition(
                 session, "X", version, "Recovering", null, DateTimeOffset.UnixEpoch));
+        }
+
         var previous = snapshot;
         snapshot = snapshot.With(VolumeWatchStatus.CaughtUp("Y", VolumeBlockOrigin.Cold));
         Assert.That(snapshot.RecentTransitions.Select(item => item.Version),
@@ -275,7 +278,13 @@ public class IndexVolumeChangeSourceCompletionTests
 
         public string[] Violations
         {
-            get { lock (_violations) return _violations.ToArray(); }
+            get
+            {
+                lock (_violations)
+                {
+                    return _violations.ToArray();
+                }
+            }
         }
 
         public static async Task<Scenario> CreateAsync(char[] drives, string? faultDuringFirstReconciliation,
@@ -289,7 +298,10 @@ public class IndexVolumeChangeSourceCompletionTests
                 .Task.WaitAsync(token);
             // The startup fault releases the first rescan itself once it has seen the drive recovering.
             if (!faultAfterStartup)
+            {
                 scenario._firstRescan.SetResult();
+            }
+
             scenario.Owner = IndexVolumeChangeSourceTests.Owner(index, drives.Select(drive => drive.ToString()).ToArray());
             var owner = scenario.Owner;
             scenario.Source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner))
@@ -309,7 +321,10 @@ public class IndexVolumeChangeSourceCompletionTests
         Task FaultAfterStartupOnceAsync(char drive)
         {
             if (Interlocked.Exchange(ref _startupFaulted, 1) != 0)
+            {
                 return Task.CompletedTask;
+            }
+
             Scripted.WatchFor(drive).FailDrive(new IOException($"{drive} failed after its first catch-up"));
             return ReleaseFirstRescanWhenRecoveringAsync(drive);
         }
@@ -325,7 +340,10 @@ public class IndexVolumeChangeSourceCompletionTests
         void InjectSecondFault(char drive, string kind)
         {
             if (Interlocked.Exchange(ref _secondFault, 1) != 0)
+            {
                 return;
+            }
+
             Volatile.Write(ref _productionsAtSecondFault, Volatile.Read(ref _productions));
             switch (kind)
             {
@@ -347,17 +365,26 @@ public class IndexVolumeChangeSourceCompletionTests
         void OnReadinessChanged(VolumeReadinessSnapshot snapshot, string? faultOnRecoveredCaughtUp)
         {
             if (!snapshot.TryGet("X", out var status) || status.State != VolumeWatchState.CaughtUp)
+            {
                 return;
+            }
+
             var state = StateOf('X');
             if (state != WatchState.CaughtUp)
             {
                 lock (_violations)
+                {
                     _violations.Add($"CaughtUp published while MFTLib read {state}");
+                }
             }
             if (Volatile.Read(ref _secondFault) != 0)
+            {
                 Volatile.Write(ref _caughtUpAfterSecondFault, 1);
+            }
             else if (faultOnRecoveredCaughtUp is not null && Volatile.Read(ref _productions) >= 1)
+            {
                 InjectSecondFault('X', faultOnRecoveredCaughtUp);
+            }
         }
 
         public void ReleaseHeldRescan() => _heldRescan.TrySetResult();

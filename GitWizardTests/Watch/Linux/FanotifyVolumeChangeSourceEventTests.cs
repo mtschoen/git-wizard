@@ -50,7 +50,9 @@ public class FanotifyVolumeChangeSourceEventTests
         {
             batches.Add(batch);
             if (batches.Count >= 1 && batches.Sum(b => b.Entries.Count) >= 5)
+            {
                 break;
+            }
         }
 
         Assert.Multiple(() =>

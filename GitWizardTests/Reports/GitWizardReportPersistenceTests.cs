@@ -52,9 +52,13 @@ public class GitWizardReportPersistenceTests
 
         var path = GitWizardReport.GetCachedReportPath();
         if (async)
+        {
             await report.SaveAsync(path);
+        }
         else
+        {
             SaveSync(report, path);
+        }
 
         TestUtilities.ResetStaticCaches();
         var loaded = async
@@ -101,9 +105,13 @@ public class GitWizardReportPersistenceTests
         var report = new GitWizardReport();
         var path = GitWizardReport.GetCachedReportPath();
         if (async)
+        {
             await report.SaveAsync(path);
+        }
         else
+        {
             SaveSync(report, path);
+        }
 
         var first = async
             ? await GitWizardReport.GetCachedReportAsync()
@@ -123,9 +131,13 @@ public class GitWizardReportPersistenceTests
         var report = new GitWizardReport();
         var nested = Path.Combine(_tempRoot!, "sub", "dir", async ? "async_report.json" : "report.json");
         if (async)
+        {
             await report.SaveAsync(nested);
+        }
         else
+        {
             SaveSync(report, nested);
+        }
 
         Assert.That(File.Exists(nested), Is.True);
     }
@@ -138,9 +150,13 @@ public class GitWizardReportPersistenceTests
         report.Repositories["/repo/one"] = new GitWizardRepository("/repo/one");
         var path = Path.Combine(_tempRoot!, async ? "version_async.json" : "version_sync.json");
         if (async)
+        {
             await report.SaveAsync(path);
+        }
         else
+        {
             SaveSync(report, path);
+        }
 
         var json = await File.ReadAllTextAsync(path);
         Assert.That(json, Does.Contain(GitWizardReport.CurrentSchemaVersion));
@@ -157,9 +173,13 @@ public class GitWizardReportPersistenceTests
         Directory.CreateDirectory(dir);
         var report = new GitWizardReport();
         if (async)
+        {
             await report.SaveAsync(dir);
+        }
         else
+        {
             SaveSync(report, dir);
+        }
 
         Assert.That(Directory.Exists(dir), Is.True);
     }

@@ -37,7 +37,10 @@ public class IndexVolumeChangeSourcePreparedIndexTests
     static async Task AssertFallbackCoreAsync(IndexOwnerFixture fixture, bool disposeFirst)
     {
         if (disposeFirst)
+        {
             await fixture.Owner.DisposeAsync();
+        }
+
         var opens = 0;
         await using var source = new IndexVolumeChangeSource((drives, _, _) =>
         {

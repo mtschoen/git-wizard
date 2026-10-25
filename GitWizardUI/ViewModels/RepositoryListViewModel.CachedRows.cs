@@ -17,7 +17,9 @@ public sealed partial class RepositoryListViewModel
         _prePopulatedNodes = null;
 
         if (repositoryPaths == null || repositoryPaths.Length == 0 || cachedReport == null || cachedReport.Repositories.Count == 0)
+        {
             return;
+        }
 
         var pathsSet = new HashSet<string>(repositoryPaths);
 
@@ -35,7 +37,9 @@ public sealed partial class RepositoryListViewModel
         foreach (var (path, repo) in cachedReport.Repositories)
         {
             if (!pathsSet.Contains(path))
+            {
                 continue;
+            }
 
             var node = new RepositoryNodeViewModel(repo);
             RepositoryMap[path] = node;
@@ -44,10 +48,15 @@ public sealed partial class RepositoryListViewModel
             _prePopulatedNodes.Add(node);
 
             if (!node.MatchesFilter(ActiveFilter, MainViewModel.GlobalUserEmail))
+            {
                 continue;
+            }
+
             if (!string.IsNullOrWhiteSpace(SearchText) &&
                 !path.Contains(SearchText, StringComparison.OrdinalIgnoreCase))
+            {
                 continue;
+            }
 
             if (ActiveGroupMode == GroupMode.None)
             {
@@ -73,13 +82,17 @@ public sealed partial class RepositoryListViewModel
         if (ungroupedBatch != null)
         {
             foreach (var node in RepositorySortOrder.SortBatchForDisplay(ungroupedBatch, ActiveSortMode))
+            {
                 Repositories.Add(node);
+            }
         }
 
         if (groupedBatches != null)
         {
             foreach (var (key, bucket) in groupedBatches)
+            {
                 MergeGroupBatch(key, bucket);
+            }
         }
     }
 

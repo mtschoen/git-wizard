@@ -219,7 +219,9 @@ public class FanotifyVolumeChangeSourceArmTests
 
         var batches = new List<VolumeChangeBatch>();
         await foreach (var batch in source.WatchAsync(CancellationToken.None))
+        {
             batches.Add(batch);
+        }
 
         Assert.That(batches, Is.Empty);
         Assert.That(source.PumpStarted.IsCompleted, Is.False,

@@ -13,7 +13,10 @@ sealed class CollectionReplacementRecorder
         viewModel.RepositoryList.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName != nameof(RepositoryListViewModel.Repositories))
+            {
                 return;
+            }
+
             var published = viewModel.RepositoryList.Repositories;
             ReplacedCollectionRowCounts.Add(published.Count);
             published.CollectionChanged += (_, _) => MutationsAfterReplacement++;

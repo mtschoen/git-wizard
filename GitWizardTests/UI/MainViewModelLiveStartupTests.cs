@@ -21,7 +21,10 @@ public class MainViewModelLiveStartupTests
     {
         var repository = new GitWizardRepository(workingDirectory);
         foreach (var url in remotes)
+        {
             repository.RemoteUrls.Add(url);
+        }
+
         return repository;
     }
 
@@ -72,7 +75,9 @@ public class MainViewModelLiveStartupTests
             finally
             {
                 if (running is not null)
+                {
                     await running;
+                }
             }
         }
         var completedSource = await sourceReady.Task;

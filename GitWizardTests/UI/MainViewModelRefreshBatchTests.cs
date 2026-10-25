@@ -39,7 +39,9 @@ public class MainViewModelRefreshBatchTests
         var positionalInserts = new PositionalInsertRecorder(viewModel.RepositoryList.Repositories);
         var report = new GitWizardReport();
         foreach (var path in paths)
+        {
             report.Repositories[path] = Repo(path);
+        }
 
         viewModel.RepositoryList.PrePopulateFromReport(new GitWizardConfiguration(), paths, report);
 
@@ -142,9 +144,13 @@ public class MainViewModelRefreshBatchTests
         viewModel.RepositoryList.Repositories.CollectionChanged += (_, args) =>
         {
             if (args.Action == NotifyCollectionChangedAction.Reset)
+            {
                 resetCount++;
+            }
             else if (args.Action == NotifyCollectionChangedAction.Add)
+            {
                 addCount += args.NewItems?.Count ?? 0;
+            }
         };
 
         const int batches = 5;
@@ -215,7 +221,9 @@ public class MainViewModelRefreshBatchTests
         var publication = new GroupPublicationRecorder(viewModel.RepositoryList.Repositories);
         var report = new GitWizardReport();
         foreach (var path in paths)
+        {
             report.Repositories[path] = Repo(path);
+        }
 
         viewModel.RepositoryList.PrePopulateFromReport(new GitWizardConfiguration(), paths, report);
 

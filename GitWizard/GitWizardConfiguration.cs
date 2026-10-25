@@ -12,7 +12,9 @@ public class GitWizardConfiguration
     internal static void ResetGlobalConfiguration()
     {
         lock (ConfigurationLock)
+        {
             _globalConfiguration = null;
+        }
     }
 
     // Cached options reused across serialization (CA1869: avoid allocating a new
@@ -93,7 +95,10 @@ public class GitWizardConfiguration
         catch
         {
             if (added)
+            {
                 IgnoredJournalWarnings.Remove(volumeSerial);
+            }
+
             throw;
         }
     }
@@ -101,7 +106,9 @@ public class GitWizardConfiguration
     public static async Task<GitWizardConfiguration?> GetConfigurationAtPathAsync(string path, CancellationToken cancellationToken = default)
     {
         if (!File.Exists(path))
+        {
             return null;
+        }
 
         try
         {
@@ -119,7 +126,9 @@ public class GitWizardConfiguration
     public static GitWizardConfiguration? GetConfigurationAtPath(string path)
     {
         if (!File.Exists(path))
+        {
             return null;
+        }
 
         try
         {
@@ -164,7 +173,9 @@ public class GitWizardConfiguration
     {
         var directory = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+        {
             Directory.CreateDirectory(directory);
+        }
 
         try
         {
@@ -180,7 +191,9 @@ public class GitWizardConfiguration
     {
         var directory = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+        {
             Directory.CreateDirectory(directory);
+        }
 
         try
         {
@@ -196,12 +209,16 @@ public class GitWizardConfiguration
     public static async Task<GitWizardConfiguration> GetGlobalConfigurationAsync(CancellationToken cancellationToken = default)
     {
         if (_globalConfiguration != null)
+        {
             return _globalConfiguration;
+        }
 
         lock (ConfigurationLock)
         {
             if (_globalConfiguration != null)
+            {
                 return _globalConfiguration;
+            }
         }
 
         var config = await LoadConfigurationAsync(cancellationToken).ConfigureAwait(false);

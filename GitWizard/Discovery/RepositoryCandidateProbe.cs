@@ -7,7 +7,9 @@ public static class RepositoryCandidateProbe
     public static bool Exists(string path, RepositoryCandidateKind kind)
     {
         if (IsInsideGitDirectory(path))
+        {
             return false;
+        }
 
         return kind switch
         {
@@ -26,7 +28,9 @@ public static class RepositoryCandidateProbe
     {
         // Must exclude any candidate whose path is inside a .git directory
         if (IsInsideGitDirectory(path))
+        {
             return false;
+        }
 
         return File.Exists(Path.Combine(path, "HEAD")) &&
                Directory.Exists(Path.Combine(path, "objects")) &&

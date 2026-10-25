@@ -8,7 +8,9 @@ public sealed partial class RepositoryListViewModel
     {
         var path = repository.WorkingDirectory;
         if (string.IsNullOrEmpty(path))
+        {
             return;
+        }
 
         var node = new RepositoryNodeViewModel(repository);
         RepositoryMap[path] = node;
@@ -25,20 +27,28 @@ public sealed partial class RepositoryListViewModel
         AllRepositories.Add(node);
 
         if (!node.MatchesFilter(ActiveFilter, MainViewModel.GlobalUserEmail))
+        {
             return;
+        }
 
         if (!string.IsNullOrWhiteSpace(SearchText) &&
             !node.WorkingDirectory.Contains(SearchText, StringComparison.OrdinalIgnoreCase))
+        {
             return;
+        }
 
         if (ActiveGroupMode == GroupMode.None)
         {
             if (!Repositories.Any(candidate => candidate.WorkingDirectory == path))
             {
                 if (streaming)
+                {
                     Repositories.Add(node);
+                }
                 else
+                {
                     RepositorySortOrder.InsertRepositoryNode(Repositories, node, ActiveSortMode);
+                }
             }
         }
         else
@@ -46,7 +56,9 @@ public sealed partial class RepositoryListViewModel
             if (streaming)
             {
                 foreach (var key in RepositoryGroupKeys.GetGroupKeys(node, ActiveGroupMode))
+                {
                     MergeGroupBatch(key, new List<RepositoryNodeViewModel> { node }, sort: false);
+                }
             }
             else
             {
@@ -61,7 +73,9 @@ public sealed partial class RepositoryListViewModel
     internal void AddRepositoriesBatch(IReadOnlyList<GitWizardRepository> repositories, bool streaming)
     {
         if (repositories.Count == 0)
+        {
             return;
+        }
 
         if (repositories.Count == 1 && !streaming)
         {
@@ -71,7 +85,9 @@ public sealed partial class RepositoryListViewModel
 
         var newNodesByPath = ResolveBatchAgainstExistingRepositories(repositories);
         if (newNodesByPath.Count > 0)
+        {
             MergeNewNodesIntoDisplay(newNodesByPath.Values, streaming);
+        }
     }
 
     internal void ClearRepositories()
@@ -86,14 +102,18 @@ public sealed partial class RepositoryListViewModel
     {
         var visibleIndex = Repositories.IndexOf(existingNode);
         if (visibleIndex >= 0)
+        {
             Repositories[visibleIndex] = freshNode;
+        }
 
         foreach (var groupHeader in Repositories.Where(candidate => candidate.IsGroupHeader)
                      .Concat(PendingGroups.Values).Distinct())
         {
             var childIndex = groupHeader.Children.IndexOf(existingNode);
             if (childIndex < 0)
+            {
                 continue;
+            }
 
             groupHeader.Children[childIndex] = freshNode;
             groupHeader.UpdateDisplayText();
@@ -104,11 +124,15 @@ public sealed partial class RepositoryListViewModel
     {
         var parentPath = parent.WorkingDirectory;
         if (string.IsNullOrEmpty(parentPath) || !RepositoryMap.TryGetValue(parentPath, out var parentNode))
+        {
             return;
+        }
 
         var submodulePath = submodule.WorkingDirectory;
         if (string.IsNullOrEmpty(submodulePath))
+        {
             return;
+        }
 
         var submoduleNode = new RepositoryNodeViewModel(submodule);
         RepositoryMap[submodulePath] = submoduleNode;
@@ -128,10 +152,14 @@ public sealed partial class RepositoryListViewModel
         var path = repository.WorkingDirectory;
 
         if (!string.IsNullOrEmpty(repository.RefreshError))
+        {
             _errorLog.PostError(_ui, repository.RefreshError, path);
+        }
 
         if (string.IsNullOrEmpty(path) || !RepositoryMap.TryGetValue(path, out var node))
+        {
             return;
+        }
 
         node.Update();
 
@@ -141,13 +169,19 @@ public sealed partial class RepositoryListViewModel
             var isShown = Repositories.Contains(node);
             var shouldShow = node.MatchesFilter(ActiveFilter, MainViewModel.GlobalUserEmail);
             if (isShown && !shouldShow)
+            {
                 Repositories.Remove(node);
+            }
             else if (!isShown && shouldShow)
             {
                 if (streaming)
+                {
                     Repositories.Add(node);
+                }
                 else
+                {
                     RepositorySortOrder.InsertRepositoryNode(Repositories, node, ActiveSortMode);
+                }
             }
 
             UpdateHeaderWithFilterInfo();

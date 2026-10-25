@@ -24,7 +24,10 @@ internal sealed class IndexOwnerFixture : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         if (_owner is not null)
+        {
             await _owner.DisposeAsync();
+        }
+
         _files.Dispose();
     }
 

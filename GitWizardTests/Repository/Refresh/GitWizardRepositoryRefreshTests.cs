@@ -16,7 +16,9 @@ public class GitWizardRepositoryRefreshTests
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         for (var i = 1; i < totalCommits; i++)
+        {
             fixture.AppendCommit($"file{i}.txt");
+        }
 
         var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh();
@@ -79,7 +81,9 @@ public class GitWizardRepositoryRefreshTests
         var readmePath = Path.Combine(fixture.Path, "README.md");
         File.Delete(readmePath);
         using (var gitRepository = new Repository(fixture.Path))
+        {
             Commands.Stage(gitRepository, "README.md");
+        }
 
         var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh();
@@ -163,7 +167,9 @@ public class GitWizardRepositoryRefreshTests
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         for (var i = 0; i < 5; i++)
+        {
             File.WriteAllText(Path.Combine(fixture.Path, $"untracked{i}.txt"), $"content{i}");
+        }
 
         var repo = new GitWizardRepository(fixture.Path);
         repo.Refresh();
@@ -413,7 +419,13 @@ public class GitWizardRepositoryRefreshTests
         var originalLogMethod = GitWizardLog.LogMethod;
         var originalVerboseMode = GitWizardLog.VerboseMode;
         var originalSilentMode = GitWizardLog.SilentMode;
-        GitWizardLog.LogMethod = message => { if (message != null) messages.Add(message); };
+        GitWizardLog.LogMethod = message =>
+        {
+            if (message != null)
+            {
+                messages.Add(message);
+            }
+        };
         GitWizardLog.VerboseMode = true;
         GitWizardLog.SilentMode = false;
         try
@@ -440,7 +452,13 @@ public class GitWizardRepositoryRefreshTests
         var originalLogMethod = GitWizardLog.LogMethod;
         var originalVerboseMode = GitWizardLog.VerboseMode;
         var originalSilentMode = GitWizardLog.SilentMode;
-        GitWizardLog.LogMethod = message => { if (message != null) messages.Add(message); };
+        GitWizardLog.LogMethod = message =>
+        {
+            if (message != null)
+            {
+                messages.Add(message);
+            }
+        };
         GitWizardLog.VerboseMode = false;
         GitWizardLog.SilentMode = false;
         try

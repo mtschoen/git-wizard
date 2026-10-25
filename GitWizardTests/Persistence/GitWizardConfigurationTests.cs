@@ -50,7 +50,9 @@ public class GitWizardConfigurationTests
     public void CreateDefaultConfiguration_SearchPath_ContainsHome_OnUnix()
     {
         if (OperatingSystem.IsWindows())
+        {
             Assert.Ignore("Unix-only: Windows default search path is %USERPROFILE% (see Windows companion).");
+        }
 
         var config = GitWizardConfiguration.CreateDefaultConfiguration();
         Assert.That(config.SearchPaths, Does.Contain("~"));
@@ -60,7 +62,9 @@ public class GitWizardConfigurationTests
     public void CreateDefaultConfiguration_SearchPath_ContainsUserProfile_OnWindows()
     {
         if (!OperatingSystem.IsWindows())
+        {
             Assert.Ignore("Windows-only: Unix default search path is ~ (see Unix companion).");
+        }
 
         var config = GitWizardConfiguration.CreateDefaultConfiguration();
         Assert.That(config.SearchPaths, Does.Contain("%USERPROFILE%"));

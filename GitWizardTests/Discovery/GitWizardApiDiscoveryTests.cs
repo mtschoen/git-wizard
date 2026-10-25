@@ -56,7 +56,10 @@ public class GitWizardApiDiscoveryTests
     public void GetRepositoryPaths_FindsSiblingAndArbitrarilyNestedRepos()
     {
         for (var i = 0; i < 5; i++)
+        {
             Directory.CreateDirectory(Path.Combine(_tempRoot!, $"repo{i}", ".git"));
+        }
+
         Directory.CreateDirectory(Path.Combine(_tempRoot!, "a", "b", "c", ".git"));
         Directory.CreateDirectory(Path.Combine(_tempRoot!, "parent", "child", ".git"));
 
@@ -109,7 +112,9 @@ public class GitWizardApiDiscoveryTests
     public void GetRepositoryPaths_SkipsHiddenAttributeDirectory()
     {
         if (!OperatingSystem.IsWindows())
+        {
             Assert.Ignore("FileAttributes.Hidden is a Windows concept; the Hidden-attribute skip only applies there.");
+        }
 
         var hidden = Path.Combine(_tempRoot!, "hiddendir");
         Directory.CreateDirectory(Path.Combine(hidden, "repo", ".git"));
@@ -201,10 +206,14 @@ public class GitWizardApiDiscoveryTests
 
         var paths = new SortedSet<string>();
         if (includeTemp.HasValue)
+        {
             EnumeratedDiscovery.GetRepositoryPaths(_tempRoot!, paths, Array.Empty<string>(),
                 skipHiddenDirectories: null, includeTempDirectories: includeTemp.Value);
+        }
         else
+        {
             EnumeratedDiscovery.GetRepositoryPaths(_tempRoot!, paths, Array.Empty<string>());
+        }
 
         Assert.That(paths, Does.Contain(tempRepo).IgnoreCase);
     }
@@ -213,7 +222,9 @@ public class GitWizardApiDiscoveryTests
     public async Task TryDiscoverRepositoriesUsingMftAsync_EmptySearchPaths_ReturnsFalse()
     {
         if (!OperatingSystem.IsWindows())
+        {
             Assert.Ignore("MFT is Windows-only.");
+        }
 
         var config = new GitWizardConfiguration();
         var paths = new SortedSet<string>();
@@ -225,7 +236,9 @@ public class GitWizardApiDiscoveryTests
     public async Task TryDiscoverRepositoriesUsingMftAsync_ReturnsFalse_OnNonWindows()
     {
         if (OperatingSystem.IsWindows())
+        {
             Assert.Ignore("MFT scanning is Windows-only; the non-Windows early-return is only reachable off Windows.");
+        }
 
         await using var result = await GitWizardApi.TryDiscoverRepositoriesUsingMftAsync(
             new GitWizardConfiguration(), new SortedSet<string>());

@@ -16,13 +16,22 @@ sealed class GroupPublicationRecorder
         displayed.CollectionChanged += (_, args) =>
         {
             if (args.Action != NotifyCollectionChangedAction.Add || args.NewItems == null)
+            {
                 return;
+            }
+
             if (args.NewStartingIndex + args.NewItems.Count != displayed.Count)
+            {
                 PositionalInserts++;
+            }
+
             foreach (RepositoryNodeViewModel node in args.NewItems)
             {
                 if (!node.IsGroupHeader)
+                {
                     continue;
+                }
+
                 PublishedHeaderChildCounts.Add(node.Children.Count);
                 node.Children.CollectionChanged += (_, _) => ChildMutationsAfterPublication++;
             }

@@ -198,7 +198,7 @@ public sealed partial class RepositoryListViewModel : INotifyPropertyChanged, ID
     // CaptureScrollAnchor() call before RefreshAsync clears Repositories; that one rebuild's swap
     // must not fire BeforeRepositoriesSwap again and recapture from the rebuilt streaming list,
     // which would overwrite the anchor saved at refresh start. The value is a parameter captured
-    // by SwapInRepositories's own closure (not a shared field) so that a second,
+    // by the posted swap's own closure (not a shared field) so that a second,
     // independently-triggered ApplyFilterAndGrouping call (e.g. a filter/search rebuild whose swap
     // is posted to the UI thread ahead of this one) can never consume this call's suppression or
     // have its own suppressed by it (pr-crew round-9 review of PR #241/#243).
@@ -216,17 +216,34 @@ public sealed partial class RepositoryListViewModel : INotifyPropertyChanged, ID
             : AllRepositories.Where(r => r.MatchesFilter(_activeFilter, MainViewModel.GlobalUserEmail)).ToList();
 
         if (!string.IsNullOrWhiteSpace(_searchText))
+        {
             filtered = filtered.Where(r => r.WorkingDirectory.Contains(_searchText, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
 
         var sorted = RepositorySortOrder.ApplySort(filtered, _activeSortMode);
+        var newCollection = BuildRepositoryCollection(sorted);
 
+        if (_ui.IsOnUiThread)
+        {
+            SwapInRepositories(newCollection, suppressAnchorCapture);
+        }
+        else
+        {
+            _ui.Post(() => SwapInRepositories(newCollection, suppressAnchorCapture));
+        }
+    }
+
+    ObservableCollection<RepositoryNodeViewModel> BuildRepositoryCollection(List<RepositoryNodeViewModel> sorted)
+    {
         // Build off-screen and swap in one shot to avoid per-item layout updates
         var newCollection = new ObservableCollection<RepositoryNodeViewModel>();
 
         if (_activeGroupMode == GroupMode.None)
         {
             foreach (var repo in sorted)
+            {
                 newCollection.Add(repo);
+            }
         }
         else
         {
@@ -239,11 +256,15 @@ public sealed partial class RepositoryListViewModel : INotifyPropertyChanged, ID
             foreach (var group in groups.OrderByDescending(g => g.Value.Count))
             {
                 if (group.Value.Count < minGroupSize)
+                {
                     continue;
+                }
 
                 var header = RepositoryNodeViewModel.CreateGroupHeader(group.Key);
                 foreach (var repo in RepositorySortOrder.ApplySort(group.Value, _activeSortMode))
+                {
                     header.Children.Add(repo);
+                }
 
                 // Update display text now that children are added (so count is correct)
                 header.UpdateDisplayText();
@@ -251,34 +272,34 @@ public sealed partial class RepositoryListViewModel : INotifyPropertyChanged, ID
             }
         }
 
-        // Swap the collection on the UI thread. The view hooks snapshot/restore the ListBox
-        // ScrollViewer offset (whose getter enforces UI-thread affinity), and RefreshAsync reaches
-        // this method on a thread-pool thread via its ConfigureAwait(false) continuation - so an
-        // inline swap there throws "Call from invalid thread", so the swap must run on the UI
-        // thread while the build above stays off-thread to preserve the off-screen-build perf win.
-        // The header's repository/group count is computed here, after the swap, rather than as a
-        // separate call below: computing it on the calling thread right after posting an async
-        // swap would read the OLD Repositories collection, showing a stale group count until some
-        // later update happened to refresh it (issue #241 addendum: "953 repositories in 2 groups"
-        // while six groups were listed).
-        void SwapInRepositories()
+        return newCollection;
+    }
+
+    // Swap the collection on the UI thread. The view hooks snapshot/restore the ListBox
+    // ScrollViewer offset (whose getter enforces UI-thread affinity), and RefreshAsync reaches
+    // ApplyFilterAndGrouping on a thread-pool thread via its ConfigureAwait(false) continuation - so an
+    // inline swap there throws "Call from invalid thread", so the swap must run on the UI
+    // thread while the build above stays off-thread to preserve the off-screen-build perf win.
+    // The header's repository/group count is computed here, after the swap, rather than as a
+    // separate call below: computing it on the calling thread right after posting an async
+    // swap would read the OLD Repositories collection, showing a stale group count until some
+    // later update happened to refresh it (issue #241 addendum: "953 repositories in 2 groups"
+    // while six groups were listed).
+    void SwapInRepositories(ObservableCollection<RepositoryNodeViewModel> newCollection, bool suppressAnchorCapture)
+    {
+        var previousSelectedPath = SelectedRepository?.WorkingDirectory;
+        if (!suppressAnchorCapture)
         {
-            var previousSelectedPath = SelectedRepository?.WorkingDirectory;
-            if (!suppressAnchorCapture)
-                BeforeRepositoriesSwap?.Invoke();
-            Repositories = newCollection;
-            if (previousSelectedPath != null)
-            {
-                SelectedRepository = newCollection.FirstOrDefault(n => n.WorkingDirectory == previousSelectedPath)
-                    ?? AllRepositories.FirstOrDefault(n => n.WorkingDirectory == previousSelectedPath);
-            }
-            UpdateHeaderWithFilterInfo();
-            AfterRepositoriesSwap?.Invoke();
+            BeforeRepositoriesSwap?.Invoke();
         }
 
-        if (_ui.IsOnUiThread)
-            SwapInRepositories();
-        else
-            _ui.Post(SwapInRepositories);
+        Repositories = newCollection;
+        if (previousSelectedPath != null)
+        {
+            SelectedRepository = newCollection.FirstOrDefault(n => n.WorkingDirectory == previousSelectedPath)
+                ?? AllRepositories.FirstOrDefault(n => n.WorkingDirectory == previousSelectedPath);
+        }
+        UpdateHeaderWithFilterInfo();
+        AfterRepositoriesSwap?.Invoke();
     }
 }

@@ -31,7 +31,9 @@ public class MainViewModelLiveReadinessTests
         viewModel.LiveWatch.PropertyChanged += (_, arguments) =>
         {
             if (arguments.PropertyName == nameof(LiveWatchViewModel.LiveReadinessTooltip))
+            {
                 tooltipNotifications.Value++;
+            }
         };
         viewModel.LiveWatch.CapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
         viewModel.LiveWatch.PrepareWatchAsync = (request, _, progress, cancellationToken) =>
@@ -93,7 +95,14 @@ public class MainViewModelLiveReadinessTests
         }
         finally
         {
-            try { await viewModel.DisposeAsync(); } finally { if (running is not null) await running; }
+            try { await viewModel.DisposeAsync(); }
+            finally
+            {
+                if (running is not null)
+                {
+                    await running;
+                }
+            }
         }
         dispatcher.Drain();
         Assert.That(viewModel.LiveWatch.LiveVolumes, Is.Empty, "Stopping clears per-drive state.");
@@ -143,7 +152,14 @@ public class MainViewModelLiveReadinessTests
         }
         finally
         {
-            try { await viewModel.DisposeAsync(); } finally { if (running is not null) await running; }
+            try { await viewModel.DisposeAsync(); }
+            finally
+            {
+                if (running is not null)
+                {
+                    await running;
+                }
+            }
         }
         dispatcher.Drain();
         Assert.That(viewModel.LiveWatch.LiveWatchEvents, Is.Empty, "Stopping clears transition history.");

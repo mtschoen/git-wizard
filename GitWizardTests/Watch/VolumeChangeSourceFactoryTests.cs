@@ -63,11 +63,17 @@ public class VolumeChangeSourceFactoryTests
         await using var source = VolumeChangeSourceFactory.Create();
 
         if (OperatingSystem.IsWindows())
+        {
             Assert.That(source.GetType().Name, Is.EqualTo("IndexVolumeChangeSource"));
+        }
         else if (OperatingSystem.IsLinux())
+        {
             Assert.That(source.GetType().Name, Is.EqualTo("FanotifyVolumeChangeSource"));
+        }
         else
+        {
             Assert.Ignore("Unsupported platform.");
+        }
     }
 
     [Test]

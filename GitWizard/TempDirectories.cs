@@ -27,16 +27,22 @@ internal static class TempDirectories
     public static bool IsTempPath(string path)
     {
         if (IsTempPathOverride is { } decide)
+        {
             return decide(path);
+        }
 
         var parsed = WatchPath.Parse(path);
         if (IsWindowsProfileTempPath(parsed))
+        {
             return true;
+        }
 
         foreach (var root in ProcessTempRoots)
         {
             if (parsed.IsUnderOrEqual(root))
+            {
                 return true;
+            }
         }
 
         return false;
@@ -54,13 +60,17 @@ internal static class TempDirectories
         {
             var value = Environment.GetEnvironmentVariable(variable);
             if (!string.IsNullOrEmpty(value))
+            {
                 candidates.Add(value);
+            }
         }
 
         candidates.Add("/tmp");
         var parsedRoot = WatchPath.Parse(searchRoot);
         if (parsedRoot.IsWindows && parsedRoot.Volume is { Length: 1 } volume)
+        {
             candidates.AddRange(EnumerateProfileTempDirectories($"{volume}:{Path.DirectorySeparatorChar}"));
+        }
 
         return candidates
             .Where(candidate => Path.IsPathFullyQualified(candidate) && Directory.Exists(candidate) && IsTempPath(candidate))
@@ -90,7 +100,9 @@ internal static class TempDirectories
     static bool IsWindowsProfileTempPath(WatchPath path)
     {
         if (!path.IsWindows)
+        {
             return false;
+        }
 
         var segments = path.Comparison.Split('/');
         return segments.Length >= 6
@@ -114,7 +126,9 @@ internal static class TempDirectories
         {
             var value = Environment.GetEnvironmentVariable(variable);
             if (!string.IsNullOrEmpty(value))
+            {
                 roots.Add(WatchPath.Parse(value));
+            }
         }
 
         roots.Add(WatchPath.Parse("/tmp"));

@@ -64,7 +64,10 @@ public class MftIndexCacheInspectionTests
         var service = new MftIndexCacheInspection(new FrozenCacheClock(), true, _ =>
         {
             if (denied)
+            {
                 throw new UnauthorizedAccessException("denied cache");
+            }
+
             throw new IOException("unreadable cache");
         });
         var snapshot = service.Capture(files.DirectoryPath);
@@ -89,7 +92,10 @@ public class MftIndexCacheInspectionTests
         using var files = new PackedIndexFixture();
         var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         await using (var seed = await Open(files, cache))
+        {
             Assert.That(seed.Drives.Single().Block?.CacheLocation, Is.EqualTo(CacheLocation.OwnedCanonical));
+        }
+
         var file = CacheDirectory.InspectCached(cache).Single().File;
         var before = await File.ReadAllBytesAsync(file.Path);
         var available = Create().Capture(files.DirectoryPath);

@@ -25,7 +25,9 @@ public class EnumerationDiscoverySelectionTests
         if (!OperatingSystem.IsWindows())
         {
             foreach (var directory in _restoreAccess.Where(Directory.Exists))
+            {
                 File.SetUnixFileMode(directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            }
         }
 
         _restoreAccess.Clear();
@@ -118,7 +120,9 @@ public class EnumerationDiscoverySelectionTests
     public void Discover_RejectsMixedCaseMarkers_OnCaseSensitiveFilesystems()
     {
         if (OperatingSystem.IsWindows() || OperatingSystem.IsMacOS())
+        {
             Assert.Ignore("Mixed-case markers are the same names on a case-insensitive filesystem.");
+        }
 
         var upperGitFile = Path.Combine(_tempDir, "upper-gitfile");
         Directory.CreateDirectory(upperGitFile);
@@ -190,7 +194,9 @@ public class EnumerationDiscoverySelectionTests
     {
         var path = Path.Combine(_tempDir, name);
         for (var level = 0; level < DeepLevelCount; level++)
+        {
             path = Path.Combine(path, "d");
+        }
 
         Directory.CreateDirectory(path);
         return path;

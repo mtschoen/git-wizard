@@ -46,7 +46,9 @@ public class RefreshConcurrencyGateTests
         for (var i = 1; i < sequence.Length; i++)
         {
             if (sequence[i].ThreadId != sequence[i - 1].ThreadId)
+            {
                 threadHandoffCount++;
+            }
         }
 
         // With the two Refresh calls serialized by the per-repository gate, one call's entire

@@ -176,7 +176,9 @@ public class IndexVolumeChangeSourceWindowsTests
             {
                 if (batch.Entries.Any(entry =>
                     entry.FullPath.Equals(expectedPath, StringComparison.OrdinalIgnoreCase)))
+                {
                     return true;
+                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

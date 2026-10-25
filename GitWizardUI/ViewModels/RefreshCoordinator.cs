@@ -125,7 +125,9 @@ public sealed partial class RefreshCoordinator : IUpdateHandler, INotifyProperty
     public async Task HardRefreshAsync()
     {
         if (IsRefreshing)
+        {
             return;
+        }
 
         await RefreshAsync(rebuild: true).ConfigureAwait(false);
     }
@@ -133,7 +135,9 @@ public sealed partial class RefreshCoordinator : IUpdateHandler, INotifyProperty
     public async Task RefreshAsync(bool fetchRemotes = false, bool rebuild = false)
     {
         if (IsRefreshing)
+        {
             return;
+        }
 
         IsRefreshing = true;
         IsScanning = true;
@@ -172,7 +176,9 @@ public sealed partial class RefreshCoordinator : IUpdateHandler, INotifyProperty
         // commands are queued before a refresh determines that a path is no longer a repo,
         // so pruning earlier could let a late command restore a stale row.
         if (!await WaitForUICommandsToDrainAsync().ConfigureAwait(false))
+        {
             return;
+        }
 
         await _ui.InvokeAsync(() =>
         {
@@ -180,7 +186,10 @@ public sealed partial class RefreshCoordinator : IUpdateHandler, INotifyProperty
             // pre-populated rows be pruned for missing from the fresh scan. An incomplete
             // discovery retains the rows its scope did not cover.
             if (publishable)
+            {
                 _repositoryList.PruneStalePrePopulatedRepos(freshPaths, renamedOldPaths);
+            }
+
             _repositoryList.RemoveRenamedReposFromUi(renamedOldPaths);
         }).ConfigureAwait(false);
 
@@ -272,11 +281,20 @@ public sealed partial class RefreshCoordinator : IUpdateHandler, INotifyProperty
 
             var refreshMsg = $"Refresh completed in {(float)_stopwatch.ElapsedMilliseconds / 1000:F2} seconds";
             if (deletedPaths.Count > 0)
+            {
                 refreshMsg += $", {deletedPaths.Count} deleted";
+            }
+
             if (renamedOldPaths.Count > 0)
+            {
                 refreshMsg += $", {renamedOldPaths.Count} renamed";
+            }
+
             if (nonRepositoryPaths.Count > 0)
+            {
                 refreshMsg += $", {nonRepositoryPaths.Count} stale";
+            }
+
             if (!publishable)
             {
                 refreshMsg += " - discovery incomplete; previous entries preserved";
@@ -287,7 +305,9 @@ public sealed partial class RefreshCoordinator : IUpdateHandler, INotifyProperty
             // Only a publishable discovery may replace the cached list; an unusable or partial
             // outcome leaves the coordinator's reconciled list (and the prior entries) intact.
             if (repositoryPaths == null && publishable)
+            {
                 await GitWizardApi.SaveCachedRepositoryPathsAsync(report.GetRepositoryPaths()).ConfigureAwait(false);
+            }
         }).ConfigureAwait(false);
 
         return (deletedPaths, renamedOldPaths, nonRepositoryPaths, freshPaths, publishable);

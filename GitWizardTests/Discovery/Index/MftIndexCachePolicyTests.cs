@@ -41,12 +41,21 @@ public class MftIndexCachePolicyTests
         };
         var version = SyntheticCacheTag.GetVersion(MftIndexCachePolicy.CacheTag);
         await using (var first = await FileIndex.OpenAsync(Options(1, false), CancellationToken.None))
+        {
             Assert.That(first.Drives.Single().Block?.Origin, Is.EqualTo(BlockOrigin.ProducedByScan));
+        }
+
         await using (var declined = await FileIndex.OpenAsync(Options(version, true), CancellationToken.None))
+        {
             Assert.That(declined.Drives.Single().Failure?.Kind, Is.EqualTo(DriveFailureKind.CacheIdentityMismatch));
+        }
+
         Assert.That(calls, Is.EqualTo(1));
         await using (var second = await FileIndex.OpenAsync(Options(version, false), CancellationToken.None))
+        {
             Assert.That(second.Drives.Single().Block?.Origin, Is.EqualTo(BlockOrigin.ProducedByScan));
+        }
+
         Assert.That(calls, Is.EqualTo(2));
         Assert.That(CacheDirectory.InspectCached(path).Single().CacheTag,
             Is.EqualTo(MftIndexCachePolicy.CacheTag));

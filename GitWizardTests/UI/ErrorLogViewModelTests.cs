@@ -60,7 +60,9 @@ public class ErrorLogViewModelTests
         var log = new ErrorLogViewModel();
 
         for (var i = 0; i < ErrorLogViewModel.MaxEntries + 10; i++)
+        {
             log.AddError($"error-{i}");
+        }
 
         Assert.Multiple(() =>
         {

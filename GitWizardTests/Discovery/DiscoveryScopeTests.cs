@@ -20,7 +20,10 @@ public class DiscoveryScopeTests
         RootClassification Classify(string root)
         {
             if (root.StartsWith(@"Z:\", StringComparison.Ordinal))
+            {
                 return new(root, RootFileSystem.Recursive, null, null);
+            }
+
             string? drive = driveForm switch
             {
                 "letter" => root[..1],

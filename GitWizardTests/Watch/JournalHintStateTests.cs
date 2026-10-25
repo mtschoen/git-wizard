@@ -34,7 +34,9 @@ public class JournalHintStateTests
         foreach (var detection in RecoverableDetections)
         {
             foreach (var cause in Causes)
+            {
                 yield return new TestCaseData(cause, detection).SetName($"{cause}_{detection}");
+            }
         }
     }
 

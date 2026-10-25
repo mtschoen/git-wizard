@@ -33,7 +33,10 @@ public sealed class RepositoryDiscoveryDependencies
             OpenIndexAsync = (drives, cacheMode, progress, token) =>
             {
                 if (!OperatingSystem.IsWindows())
+                {
                     throw new PlatformNotSupportedException("MFT discovery requires Windows.");
+                }
+
                 return MftIndexSession.OpenWindowsAsync(drives, BrokerLauncher.Launch, cacheMode, null, progress, token);
             },
             ReadListAsync = token => GitWizardApi.GetCachedRepositoryPathsAsync(token),
@@ -42,7 +45,10 @@ public sealed class RepositoryDiscoveryDependencies
             CreateLinuxSource = () =>
             {
                 if (!OperatingSystem.IsLinux())
+                {
                     throw new PlatformNotSupportedException("Linux source requires Linux.");
+                }
+
                 return new FanotifyVolumeChangeSource();
             }
         };

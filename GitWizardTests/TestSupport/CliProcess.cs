@@ -20,13 +20,17 @@ internal static class CliProcess
         };
 
         if (!string.IsNullOrEmpty(home))
+        {
             startInfo.Environment["GITWIZARD_HOME"] = home;
+        }
 
         foreach (var arg in args)
+        {
             startInfo.ArgumentList.Add(arg);
+        }
 
         using var process = Process.Start(startInfo)
-            ?? throw new InvalidOperationException($"Could not start CLI at {executablePath}.");
+                            ?? throw new InvalidOperationException($"Could not start CLI at {executablePath}.");
         var standardOutput = process.StandardOutput.ReadToEndAsync();
         var standardError = process.StandardError.ReadToEndAsync();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));

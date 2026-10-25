@@ -45,7 +45,9 @@ public class GlobalTestSetup
         try
         {
             if (!string.IsNullOrEmpty(_home) && Directory.Exists(_home))
+            {
                 Directory.Delete(_home, recursive: true);
+            }
         }
         catch
         {

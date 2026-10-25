@@ -41,7 +41,10 @@ public class RepositoryWatchServiceRepeatedBatchTests
         var events = new List<RepositoryChangeEvent>();
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await foreach (var change in service.RunAsync(cancellation.Token))
+        {
             events.Add(change);
+        }
+
         return events;
     }
 }

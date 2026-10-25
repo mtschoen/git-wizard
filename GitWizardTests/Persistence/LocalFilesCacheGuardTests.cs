@@ -42,7 +42,10 @@ public class LocalFilesCacheGuardTests
         File.WriteAllText(list, "repository sentinel");
         var block = Path.Combine(cache, "block-sentinel.mlix");
         if (populated)
+        {
             File.WriteAllText(block, "block sentinel");
+        }
+
         var before = Directory.GetFiles(root, "*", SearchOption.AllDirectories)
             .ToDictionary(path => path, File.ReadAllBytes);
         Assert.That(GitWizardApi.TryDeleteAllLocalFiles(out var refusal), Is.False);
@@ -51,7 +54,9 @@ public class LocalFilesCacheGuardTests
         Assert.That(Directory.GetFiles(root, "*", SearchOption.AllDirectories),
             Is.EquivalentTo(before.Keys));
         foreach (var pair in before)
+        {
             Assert.That(File.ReadAllBytes(pair.Key), Is.EqualTo(pair.Value));
+        }
     }
 
     [Test]
@@ -84,9 +89,14 @@ public class LocalFilesCacheGuardTests
         var repoListPath = GitWizardApi.GetCachedRepositoryListPath();
         var reportPath = GitWizardReport.GetCachedReportPath();
         if (createRepoList)
+        {
             File.WriteAllText(repoListPath, "path1\npath2");
+        }
+
         if (createReport)
+        {
             File.WriteAllText(reportPath, "{}");
+        }
 
         Assert.DoesNotThrow(() => GitWizardApi.ClearCache());
 
@@ -102,7 +112,10 @@ public class LocalFilesCacheGuardTests
     {
         var root = GitWizardApi.GetLocalFilesPath();
         if (Directory.Exists(root))
+        {
             Directory.Delete(root, recursive: true);
+        }
+
         Assert.That(GitWizardApi.TryDeleteAllLocalFiles(out var refusal), Is.True);
         Assert.That(refusal, Is.Null);
     }

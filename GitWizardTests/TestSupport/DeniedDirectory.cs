@@ -13,7 +13,9 @@ sealed class DeniedDirectory : IDisposable
     public static DeniedDirectory Deny(string path)
     {
         if (OperatingSystem.IsWindows())
+        {
             return DenyWindows(path);
+        }
 
         return DenyUnix(path);
     }

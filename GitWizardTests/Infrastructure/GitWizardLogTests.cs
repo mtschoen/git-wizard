@@ -203,7 +203,9 @@ public class GitWizardLogTests
         GitWizardLog.LogMethod = msg =>
         {
             if (output.Length == 0 && msg is not null)
+            {
                 output = msg;
+            }
         };
 
         var exception = new InvalidOperationException("Something went wrong");
@@ -216,7 +218,13 @@ public class GitWizardLogTests
     public void LogException_WithMessage_OutputsMessage()
     {
         var outputs = new List<string>();
-        GitWizardLog.LogMethod = msg => { if (msg is not null) outputs.Add(msg); };
+        GitWizardLog.LogMethod = msg =>
+        {
+            if (msg is not null)
+            {
+                outputs.Add(msg);
+            }
+        };
 
         var exception = new InvalidOperationException("Inner error");
         GitWizardLog.LogException(exception, "Context message");
@@ -229,7 +237,13 @@ public class GitWizardLogTests
     public void LogException_WithInnerException_OutputsInner()
     {
         var outputs = new List<string>();
-        GitWizardLog.LogMethod = msg => { if (msg is not null) outputs.Add(msg); };
+        GitWizardLog.LogMethod = msg =>
+        {
+            if (msg is not null)
+            {
+                outputs.Add(msg);
+            }
+        };
 
         var inner = new InvalidOperationException("Inner detail");
         var outer = new AggregateException("Outer", inner);
@@ -242,7 +256,13 @@ public class GitWizardLogTests
     public void LogException_InnerExceptionLabel_ShowsInnerExceptionText()
     {
         var outputs = new List<string>();
-        GitWizardLog.LogMethod = msg => { if (msg is not null) outputs.Add(msg); };
+        GitWizardLog.LogMethod = msg =>
+        {
+            if (msg is not null)
+            {
+                outputs.Add(msg);
+            }
+        };
 
         var inner = new InvalidOperationException("Inner exception text");
         var outer = new InvalidOperationException("Outer exception", inner);
@@ -255,7 +275,13 @@ public class GitWizardLogTests
     public void LogMethod_CanBeOverridden()
     {
         var outputs = new List<string>();
-        GitWizardLog.LogMethod = msg => { if (msg is not null) outputs.Add(msg); };
+        GitWizardLog.LogMethod = msg =>
+        {
+            if (msg is not null)
+            {
+                outputs.Add(msg);
+            }
+        };
 
         GitWizardLog.Log("Custom output");
 
@@ -290,7 +316,13 @@ public class GitWizardLogTests
     public void Log_MultipleMessages_CanBeCaptured()
     {
         var outputs = new List<string>();
-        GitWizardLog.LogMethod = msg => { if (msg is not null) outputs.Add(msg); };
+        GitWizardLog.LogMethod = msg =>
+        {
+            if (msg is not null)
+            {
+                outputs.Add(msg);
+            }
+        };
 
         GitWizardLog.Log("First");
         GitWizardLog.Log("Second");
@@ -426,14 +458,20 @@ public class GitWizardLogTests
         for (Exception? current = exception; current != null; current = current.InnerException)
         {
             if (current != exception)
+            {
                 expected.Add("Inner exception:");
+            }
+
             expected.Add(current.Message);
             expected.Add(current.StackTrace);
         }
         Assert.That(outputs, Is.EqualTo(expected));
         GitWizardLog.LogMethod = _ => { };
         if (silent)
+        {
             GitWizardLog.Log(suppressed);
+        }
+
         GitWizardLog.SilentMode = false;
         GitWizardLog.Log(after);
         await CompleteFileWriterAsync();
@@ -446,7 +484,9 @@ public class GitWizardLogTests
         Assert.That(record, Does.Contain(exception.ToString()));
         Assert.That(record, Does.Not.Contain(suppressed));
         if (context == null)
+        {
             Assert.That(record, Does.Not.Contain("Exception follows:"));
+        }
         else
         {
             var header = record.IndexOf($"{context} Exception follows:", StringComparison.Ordinal);
@@ -472,7 +512,9 @@ public class GitWizardLogTests
             }
         }
         if (scenario == "never-thrown")
+        {
             Assert.That(exception.StackTrace, Is.Null);
+        }
         else if (scenario == "deep-nested")
         {
             Assert.That(exception.StackTrace, Is.Not.Null);
@@ -501,7 +543,9 @@ public class GitWizardLogTests
         GitWizardLog.LogMethod = text =>
         {
             if (text == exception.Message)
+            {
                 GitWizardLog.Log(marker);
+            }
         };
         GitWizardLog.LogException(exception, context);
         await CompleteFileWriterAsync();
@@ -519,7 +563,13 @@ public class GitWizardLogTests
     {
         GitWizardLog.SilentMode = false;
         var output = string.Empty;
-        GitWizardLog.LogMethod = msg => { if (msg is not null) output = msg; };
+        GitWizardLog.LogMethod = msg =>
+        {
+            if (msg is not null)
+            {
+                output = msg;
+            }
+        };
 
         GitWizardLog.Log("Test message for log file");
 

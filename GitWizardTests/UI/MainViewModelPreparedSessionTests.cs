@@ -75,7 +75,9 @@ public class MainViewModelPreparedSessionTests
         finally
         {
             if (owner is not null)
+            {
                 await owner.DisposeAsync();
+            }
         }
         Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
     }

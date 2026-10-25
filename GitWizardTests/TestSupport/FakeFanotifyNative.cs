@@ -14,7 +14,9 @@ internal sealed class FakeFanotifyNative : IFanotifyNative
     {
         InitializeResult = initializeResult;
         foreach (var result in markResults)
+        {
             MarkResults.Enqueue(result);
+        }
     }
 
     public FanotifyNativeCallResult InitializeResult { get; set; } = new(1, 0);
@@ -63,13 +65,19 @@ internal sealed class FakeFanotifyNative : IFanotifyNative
     public int Poll(int descriptor, int timeoutMilliseconds)
     {
         if (PollResult < 0)
+        {
             return PollResult;
+        }
 
         if (ReadThrowsException || ReadReturnsZero)
+        {
             return 1;
+        }
 
         if (ReadQueue.Count > 0)
+        {
             return 1;
+        }
 
         return 0;
     }
@@ -77,13 +85,19 @@ internal sealed class FakeFanotifyNative : IFanotifyNative
     public int Read(int descriptor, byte[] buffer, int count)
     {
         if (ReadThrowsException)
+        {
             throw new InvalidOperationException("Simulated read exception");
+        }
 
         if (ReadReturnsZero)
+        {
             return 0;
+        }
 
         if (ReadQueue.Count == 0)
+        {
             return 0;
+        }
 
         var source = ReadQueue.Dequeue();
         var bytesToCopy = Math.Min(source.Length, count);
@@ -125,7 +139,9 @@ internal sealed class FakeFanotifyNative : IFanotifyNative
     public FanotifyNativeCallResult OpenDirectory(string path)
     {
         if (UnopenableMountPaths.Contains(path) || !Directory.Exists(path))
+        {
             return new FanotifyNativeCallResult(-1, 2);
+        }
 
         var descriptor = _nextMountDescriptor++;
         if (!UnreadableIdentifierMountPaths.Contains(path))
@@ -149,11 +165,15 @@ internal sealed class FakeFanotifyNative : IFanotifyNative
         OpenByHandleCalls.Add((mountDirectoryDescriptor, handle));
         OpenByHandleRoots.Add(_rootByDescriptor[mountDirectoryDescriptor]);
         if (!_filesystemIdByDescriptor.TryGetValue(mountDirectoryDescriptor, out var filesystemId))
+        {
             return -1;
+        }
 
         var key = new FileHandleKey(filesystemId, handle);
         if (!HandleToFdMap.TryGetValue(key, out var fd))
+        {
             return -1;
+        }
 
         _rootByDirectoryDescriptor[fd] = _rootByDescriptor[mountDirectoryDescriptor];
         return fd;
@@ -165,7 +185,9 @@ internal sealed class FakeFanotifyNative : IFanotifyNative
             && int.TryParse(path["/proc/self/fd/".Length..], out var fd))
         {
             if (_relativePathByDirectoryDescriptor.TryGetValue(fd, out var relativePath))
+            {
                 return Path.Combine(_rootByDirectoryDescriptor[fd], relativePath);
+            }
 
             return FdToPathMap.TryGetValue(fd, out var resolved) ? resolved : null;
         }

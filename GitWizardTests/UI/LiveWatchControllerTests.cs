@@ -258,7 +258,9 @@ public class LiveWatchControllerTests
         Task.WhenAll(Enumerable.Range(0, 4).Select(_ => Task.Run(async () =>
         {
             for (var iteration = 0; iteration < 50; iteration++)
+            {
                 await VerifyRespawnLimitAsync();
+            }
         })));
 
     [Test]

@@ -108,7 +108,10 @@ public class IndexVolumeChangeSourceTests
         {
             var oldOwner = Owner(await files.OpenIndexAsync(), "X");
             if (disposePrepared)
+            {
                 await oldOwner.DisposeAsync();
+            }
+
             var requested = disposePrepared ? "X" : "Y";
             var fresh = Owner(await files.OpenIndexAsync(), requested);
             var opens = 0;

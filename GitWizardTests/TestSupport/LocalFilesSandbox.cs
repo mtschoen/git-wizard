@@ -26,7 +26,10 @@ internal sealed class LocalFilesSandbox : IDisposable
     public void Dispose()
     {
         if (_disposed)
+        {
             return;
+        }
+
         _disposed = true;
         try
         {

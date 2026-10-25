@@ -33,7 +33,13 @@ public class TaskFaultLoggingTests
     public async Task RunAndLogFaults_FaultedTask_LogsOperationAndException()
     {
         var outputs = new List<string>();
-        GitWizardLog.LogMethod = message => { if (message is not null) outputs.Add(message); };
+        GitWizardLog.LogMethod = message =>
+        {
+            if (message is not null)
+            {
+                outputs.Add(message);
+            }
+        };
 
         var fault = Task.FromException(new InvalidOperationException("clipboard exploded"));
         await fault.RunAndLogFaults("Copying the working directory");
@@ -51,7 +57,13 @@ public class TaskFaultLoggingTests
     public async Task RunAndLogFaults_SuccessfulTask_LogsNothing()
     {
         var outputs = new List<string>();
-        GitWizardLog.LogMethod = message => { if (message is not null) outputs.Add(message); };
+        GitWizardLog.LogMethod = message =>
+        {
+            if (message is not null)
+            {
+                outputs.Add(message);
+            }
+        };
 
         await Task.CompletedTask.RunAndLogFaults("Refreshing repositories");
 

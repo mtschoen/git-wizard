@@ -13,7 +13,10 @@ public class RepositoryWatchServiceMembershipTests
         var events = new List<RepositoryChangeEvent>();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await foreach (var ev in svc.RunAsync(cts.Token))
+        {
             events.Add(ev);
+        }
+
         return events;
     }
 
@@ -312,7 +315,9 @@ public class RepositoryWatchServiceMembershipTests
     public async Task WindowsCaseRenameAfterCreatedInSameBatch_EmitsCreatedDeletedCreated()
     {
         if (!OperatingSystem.IsWindows())
+        {
             Assert.Ignore("Case-only Windows rename test is Windows-only.");
+        }
 
         var searchRoot = Path.Combine(TestContext.CurrentContext.WorkDirectory,
             $"watch-case-rename-create-{Guid.NewGuid():N}");

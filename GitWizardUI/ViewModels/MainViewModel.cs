@@ -57,7 +57,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
         ErrorLog.PropertyChanged += (_, arguments) =>
         {
             if (arguments.PropertyName == nameof(ErrorLogViewModel.Count))
+            {
                 OnPropertyChanged(nameof(ErrorsButtonLabel));
+            }
         };
     }
 
@@ -75,7 +77,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
     internal static async Task EnsureGlobalUserEmailAsync()
     {
         if (GlobalUserEmail != null)
+        {
             return;
+        }
 
         try
         {
@@ -89,7 +93,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IAsyncDisposable
             };
             using var process = Process.Start(startInfo);
             if (process != null)
+            {
                 GlobalUserEmail = (await process.StandardOutput.ReadToEndAsync()).Trim();
+            }
         }
         catch (Exception exception)
         {

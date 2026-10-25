@@ -63,7 +63,10 @@ public class MftIndexDiagnosticsTests
             MftSource = SyntheticIndexSource.Create(files.Producer),
             Diagnostics = relay.Report
         }, CancellationToken.None))
+        {
             Assert.That(File.Exists(retired), Is.False);
+        }
+
         await relay.DisposeAsync();
         Assert.That(messages.Any(message => message.Contains(retired, StringComparison.Ordinal) &&
             message.Contains("sweeping a stale", StringComparison.Ordinal)), Is.True);

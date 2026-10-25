@@ -32,7 +32,9 @@ public class IndexCacheStatusWindowTests
         {
             offThread |= !Dispatcher.UIThread.CheckAccess();
             if (arguments.PropertyName == nameof(model.Snapshot))
+            {
                 completed.TrySetResult();
+            }
         };
         var window = new IndexCacheStatusWindow(model);
         try

@@ -39,7 +39,9 @@ public class IndexVolumeChangeSourceRecoveryTests
         service.VolumeReadinessChanged += snapshot =>
         {
             if (snapshot.TryGet("X", out var status) && status.State == VolumeWatchState.CaughtUp)
+            {
                 recoveredCaughtUp.TrySetResult();
+            }
         };
         scripted.WatchFor('X').FailDrive(new IOException("X failed"));
         await WaitUntilAsync(() => owner.Index.Drives.Single(drive => drive.Drive == 'X').Watch.State ==
@@ -52,11 +54,16 @@ public class IndexVolumeChangeSourceRecoveryTests
         await WaitUntilAsync(() =>
         {
             lock (events)
+            {
                 return events.Count >= 3;
+            }
         });
         RepositoryChangeEvent[] observed;
         lock (events)
+        {
             observed = events.ToArray();
+        }
+
         Assert.That(observed, Does.Contain(new RepositoryChangeEvent(@"X:\newrepo", RepositoryChangeKind.Created)));
         Assert.That(observed, Does.Contain(new RepositoryChangeEvent(@"X:\oldrepo", RepositoryChangeKind.Deleted)));
         Assert.That(observed, Does.Contain(new RepositoryChangeEvent(@"X:\keptrepo", RepositoryChangeKind.Changed)),
@@ -86,7 +93,9 @@ public class IndexVolumeChangeSourceRecoveryTests
         source.ReadinessChanged += snapshot =>
         {
             if (snapshot.TryGet("X", out var status) && status.State == VolumeWatchState.CaughtUp)
+            {
                 deliveredAtCaughtUp.TrySetResult(drainBuffer());
+            }
         };
 
         scripted.WatchFor('X').FailDrive(new IOException("X failed"));
@@ -226,12 +235,17 @@ public class IndexVolumeChangeSourceRecoveryTests
         {
             pathsRead.Add(entry.Path);
             if (entry.Parent!.Value.Name == "lastrepo")
+            {
                 throw failure;
+            }
         }
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var scanStarted = HoldRecoveryScan(files, release.Task);
         if (failBaseline)
+        {
             source.RepositoryMarkerReadingForTest = FailLastPath;
+        }
+
         scripted.WatchFor('X').FailDrive(new IOException("X failed"));
         await scanStarted.WaitAsync(TestTimeouts.HangGuard);
         source.RepositoryMarkerReadingForTest = failBaseline ? null : FailLastPath;
@@ -306,7 +320,10 @@ public class IndexVolumeChangeSourceRecoveryTests
         source.RepositoryMarkerReadingForTest = entry =>
         {
             if (entry.Parent!.Value.Name != "supersededrepo")
+            {
                 return;
+            }
+
             var deletion = IndexVolumeChangeSourceTests.Entry(entry.RecordKey.RecordNumber,
                 entry.Parent!.Value.RecordKey.RecordNumber, ".git", SyntheticJournalReason.FileDelete, directory: true);
             reuseDelivered = scripted.WatchFor('X').QueueBatchAsync([
@@ -378,7 +395,9 @@ public class IndexVolumeChangeSourceRecoveryTests
             await foreach (var change in service.RunAsync(cancellationToken))
             {
                 lock (events)
+                {
                     events.Add(change);
+                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

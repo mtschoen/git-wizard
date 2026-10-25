@@ -30,7 +30,16 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
     public event Action<VolumeReadinessSnapshot>? ReadinessChanged;
 
     public WatchReadinessMode Mode => WatchReadinessMode.FilesystemMarks;
-    public VolumeReadinessSnapshot Readiness { get { lock (_readinessGate) return _readiness; } }
+    public VolumeReadinessSnapshot Readiness
+    {
+        get
+        {
+            lock (_readinessGate)
+            {
+                return _readiness;
+            }
+        }
+    }
 
     /// <summary>Completes once <see cref="PumpEventsAsync"/> has actually begun executing on its pool thread.</summary>
     public Task PumpStarted => Volatile.Read(ref _pumpStarted).Task;
@@ -48,7 +57,10 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
     void ReportSourceDeath(string reason)
     {
         foreach (var volume in _watchedVolumes)
+        {
             PublishVolumeState(VolumeWatchStatus.Excluded(volume, VolumeBlockOrigin.Unknown, reason));
+        }
+
         SourceDied?.Invoke(reason);
     }
 
@@ -81,11 +93,15 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
         _mounts.Clear();
 
         lock (_readinessGate)
+        {
             _readiness = VolumeReadinessSnapshot.Empty;
+        }
 
         var errors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (volumes.Count == 0)
+        {
             return new VolumeArmResult(errors, Array.Empty<JournalWarning>());
+        }
 
         var initializeResult = _native.Initialize(
             FanotifyConstants.CloseOnExecute | FanotifyConstants.ReportDirectoryFileIdAndName,
@@ -105,6 +121,13 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
 
         _descriptor = new SafeUnixFileDescriptor(initializeResult.Value, _native);
 
+        var watched = MarkVolumes(volumes, errors, _descriptor.Value);
+        _watchedVolumes = watched.OrderByDescending(volume => volume.Length).ToList();
+        return new VolumeArmResult(errors, Array.Empty<JournalWarning>());
+    }
+
+    List<string> MarkVolumes(IReadOnlyCollection<string> volumes, Dictionary<string, string> errors, int descriptor)
+    {
         var watched = new List<string>();
         foreach (var volume in volumes)
         {
@@ -121,7 +144,7 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
             else
             {
                 var markResult = _native.Mark(
-                    _descriptor.Value,
+                    descriptor,
                     FanotifyConstants.MarkAdd | FanotifyConstants.MarkFilesystem,
                     FanotifyConstants.ProbeEventMask,
                     FanotifyConstants.CurrentWorkingDirectory,
@@ -145,17 +168,20 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
             }
         }
 
-        _watchedVolumes = watched.OrderByDescending(volume => volume.Length).ToList();
-        return new VolumeArmResult(errors, Array.Empty<JournalWarning>());
+        return watched;
     }
 
     public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync([EnumeratorCancellation] CancellationToken ct)
     {
         if (_descriptor is null)
+        {
             throw new InvalidOperationException("ArmAndCatchUpAsync must be called before WatchAsync.");
+        }
 
         if (_watchedVolumes.Count == 0)
+        {
             yield break;
+        }
 
         var pumpStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         Volatile.Write(ref _pumpStarted, pumpStarted);
@@ -171,7 +197,9 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
         try
         {
             await foreach (var batch in channel.Reader.ReadAllAsync(ct).ConfigureAwait(false))
+            {
                 yield return batch;
+            }
         }
         finally
         {
@@ -266,38 +294,55 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
             while (!cancellationToken.IsCancellationRequested)
             {
                 if (descriptor.IsClosed || descriptor.IsInvalid)
+                {
                     break;
+                }
 
                 var pollResult = _native.Poll(descriptor.Value, 250);
                 if (pollResult < 0)
                 {
                     if (!cancellationToken.IsCancellationRequested)
+                    {
                         ReportSourceDeath("fanotify poll failed.");
+                    }
+
                     break;
                 }
 
                 if (pollResult == 0)
+                {
                     continue;
+                }
 
                 if (descriptor.IsClosed || descriptor.IsInvalid)
+                {
                     break;
+                }
 
                 var bytesRead = _native.Read(descriptor.Value, buffer, buffer.Length);
                 if (bytesRead <= 0)
                 {
                     if (!cancellationToken.IsCancellationRequested)
+                    {
                         ReportSourceDeath("fanotify read returned no bytes.");
+                    }
+
                     break;
                 }
 
                 var (entries, queueOverflow) = DecodeEvents(buffer, bytesRead);
                 if (entries.Count > 0)
+                {
                     await writer.WriteAsync(new VolumeChangeBatch(LinuxWatchRouting.Volume, entries), cancellationToken).ConfigureAwait(false);
+                }
 
                 if (queueOverflow)
                 {
                     if (!cancellationToken.IsCancellationRequested)
+                    {
                         ReportSourceDeath("fanotify event queue overflowed.");
+                    }
+
                     break;
                 }
             }

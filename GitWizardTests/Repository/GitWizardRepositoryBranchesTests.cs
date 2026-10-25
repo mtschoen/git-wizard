@@ -149,14 +149,18 @@ public class GitWizardRepositoryBranchesTests
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         if (modifyFile)
+        {
             File.WriteAllText(Path.Combine(fixture.Path, "README.md"), "modified");
+        }
 
         var repo = new GitWizardRepository(fixture.Path);
         repo.Refresh(deepRefresh: true);
 
         Assert.That(repo.RefreshError, Is.Null);
         if (modifyFile)
+        {
             Assert.That(repo.HasPendingChanges, Is.True);
+        }
     }
 
     [Test]
@@ -266,7 +270,10 @@ public class GitWizardRepositoryBranchesTests
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
 
         using (var repo = new Repository(fixture.Path))
+        {
             repo.Branches.Add("old/merged", repo.Head.Tip);
+        }
+
         fixture.AppendCommit("advance.txt");
 
         var repository = new GitWizardRepository(fixture.Path);
@@ -287,7 +294,9 @@ public class GitWizardRepositoryBranchesTests
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
 
         using (var repo = new Repository(fixture.Path))
+        {
             repo.Branches.Add("samepoint", repo.Head.Tip);
+        }
 
         var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh();
@@ -307,7 +316,10 @@ public class GitWizardRepositoryBranchesTests
         Assert.That(repository.Branches, Is.Not.Null, "precondition: unmerged branch detected");
 
         using (var repo = new Repository(fixture.Path))
+        {
             repo.Branches.Remove("feature/ahead");
+        }
+
         repository.Refresh();
 
         Assert.That(repository.Branches, Is.Null);
@@ -318,7 +330,9 @@ public class GitWizardRepositoryBranchesTests
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         using (var repo = new Repository(fixture.Path))
+        {
             repo.Branches.Add("samepoint", repo.Head.Tip);
+        }
 
         var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh(allBranches: true);

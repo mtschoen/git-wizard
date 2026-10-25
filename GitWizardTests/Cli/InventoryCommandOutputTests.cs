@@ -41,7 +41,9 @@ public class InventoryCommandOutputTests
         using (var repository = new Repository(Repository.Init(path)))
         {
             if (repository.Head.FriendlyName != "main")
+            {
                 repository.Refs.UpdateTarget("HEAD", "refs/heads/main");
+            }
 
             var signature = new Signature("Test", "test@example.invalid", new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero));
             repository.Commit("initial", signature, signature, new CommitOptions { AllowEmptyCommit = true });
@@ -57,11 +59,19 @@ public class InventoryCommandOutputTests
         var arguments = new List<string> { command == "sweep" ? "--sweep" : command };
         arguments.AddRange(["--paths", $"{_alphaPath},{_betaPath}", "--no-mft"]);
         if (minified)
+        {
             arguments.Add("--print-minified");
+        }
+
         if (filter != null)
+        {
             arguments.AddRange(["--filter", filter]);
+        }
+
         if (savePath != null)
+        {
             arguments.AddRange(["--save-path", savePath]);
+        }
 
         using var stdout = new StringWriter();
         using var stderr = new StringWriter();

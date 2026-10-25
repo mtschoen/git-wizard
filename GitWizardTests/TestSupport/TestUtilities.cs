@@ -39,7 +39,9 @@ public static class TestUtilities
         // wipes the user's real config (search paths and all). GlobalTestSetup sets DefaultHome.
         Environment.SetEnvironmentVariable("GITWIZARD_HOME", DefaultHome);
         if (string.IsNullOrEmpty(temp))
+        {
             return;
+        }
 
         // A fire-and-forget config write can still be in flight when the test ends: e.g.
         // SettingsViewModel mutations (and its constructor) call SaveImmediate(), which runs
@@ -53,7 +55,10 @@ public static class TestUtilities
             try
             {
                 if (Directory.Exists(temp))
+                {
                     TempDirectory.DeleteTree(temp);
+                }
+
                 return;
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)

@@ -55,7 +55,10 @@ public class ScriptedVolumeChangeSourceTests
         await source.ArmAndCatchUpAsync(["X"], cancellation.Token);
         var observed = new List<VolumeChangeBatch>();
         await foreach (var batch in source.WatchAsync(cancellation.Token))
+        {
             observed.Add(batch);
+        }
+
         Assert.That(observed, Is.EqualTo(batches));
     }
 

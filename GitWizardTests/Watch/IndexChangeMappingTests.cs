@@ -34,9 +34,14 @@ public class IndexChangeMappingTests
     public async Task TearDown()
     {
         if (_index is not null)
+        {
             await _index.DisposeAsync();
+        }
+
         if (Directory.Exists(_fixtureDirectory))
+        {
             Directory.Delete(_fixtureDirectory, recursive: true);
+        }
     }
 
     [Test]
@@ -192,7 +197,9 @@ public class IndexChangeMappingTests
         index.Changed += change =>
         {
             lock (changes)
+            {
                 changes.Add(change);
+            }
         };
         await index.StartWatchingAsync(['X'], CancellationToken.None);
         await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
@@ -217,13 +224,18 @@ public class IndexChangeMappingTests
         Assert.Throws<InvalidOperationException>(() => _ = renameChange.Entry.IsDirectory);
 
         if (!hasPreviousPath)
+        {
             renameChange = renameChange with { PreviousPath = null };
+        }
 
         IReadOnlyList<VolumeChangeEntry> mappedEntries = null!;
         Assert.DoesNotThrow(() => mappedEntries = IndexChangeMapping.Map(renameChange));
         var expected = new List<VolumeChangeEntry>();
         if (hasPreviousPath)
+        {
             expected.Add(new VolumeChangeEntry(renameChange.PreviousPath!, VolumeEntryKind.Deleted));
+        }
+
         expected.Add(new VolumeChangeEntry(renameChange.Path, VolumeEntryKind.MovedIn));
         Assert.That(mappedEntries, Is.EqualTo(expected));
 

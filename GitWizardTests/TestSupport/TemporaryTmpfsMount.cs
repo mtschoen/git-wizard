@@ -39,7 +39,9 @@ internal sealed class TemporaryTmpfsMount : IDisposable
     {
         var result = Run("umount", "-l", Path);
         if (result.ExitCode != 0)
+        {
             throw new InvalidOperationException($"Lazy unmount of {Path} failed: {result.Output.Trim()}");
+        }
 
         _unmounted = true;
     }
@@ -47,11 +49,15 @@ internal sealed class TemporaryTmpfsMount : IDisposable
     public void Dispose()
     {
         if (_unmounted)
+        {
             return;
+        }
 
         var result = Run("umount", Path);
         if (result.ExitCode == 0)
+        {
             return;
+        }
 
         var lazy = Run("umount", "-l", Path);
         throw new InvalidOperationException(
@@ -67,7 +73,9 @@ internal sealed class TemporaryTmpfsMount : IDisposable
             UseShellExecute = false
         };
         foreach (var argument in arguments)
+        {
             startInfo.ArgumentList.Add(argument);
+        }
 
         try
         {

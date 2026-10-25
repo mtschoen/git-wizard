@@ -64,7 +64,9 @@ public class FanotifyVolumeChangeSourceLifecycleTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var batches = new List<VolumeChangeBatch>();
         await foreach (var batch in source.WatchAsync(cts.Token))
+        {
             batches.Add(batch);
+        }
 
         Assert.Multiple(() =>
         {
@@ -91,7 +93,9 @@ public class FanotifyVolumeChangeSourceLifecycleTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var batches = new List<VolumeChangeBatch>();
         await foreach (var batch in source.WatchAsync(cts.Token))
+        {
             batches.Add(batch);
+        }
 
         Assert.Multiple(() =>
         {
@@ -118,7 +122,9 @@ public class FanotifyVolumeChangeSourceLifecycleTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var batches = new List<VolumeChangeBatch>();
         await foreach (var batch in source.WatchAsync(cts.Token))
+        {
             batches.Add(batch);
+        }
 
         Assert.Multiple(() =>
         {
@@ -162,7 +168,9 @@ public class FanotifyVolumeChangeSourceLifecycleTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var batches = new List<VolumeChangeBatch>();
         await foreach (var batch in source.WatchAsync(cts.Token))
+        {
             batches.Add(batch);
+        }
 
         Assert.Multiple(() =>
         {

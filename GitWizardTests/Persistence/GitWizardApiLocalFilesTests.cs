@@ -39,9 +39,13 @@ public class GitWizardApiLocalFilesTests
     {
         string[] paths = ["/repo/one", "", " /repo/two "];
         if (saveAsync)
+        {
             await GitWizardApi.SaveCachedRepositoryPathsAsync(paths);
+        }
         else
+        {
             SaveSync(paths);
+        }
 
         var actual = loadAsync
             ? await GitWizardApi.GetCachedRepositoryPathsAsync()
@@ -60,7 +64,10 @@ public class GitWizardApiLocalFilesTests
     {
         var path = GitWizardApi.GetCachedRepositoryListPath();
         if (content is not null)
+        {
             await File.WriteAllTextAsync(path, content);
+        }
+
         var actual = loadAsync
             ? await GitWizardApi.GetCachedRepositoryPathsAsync()
             : LoadSync();
@@ -73,12 +80,18 @@ public class GitWizardApiLocalFilesTests
     {
         var localPath = GitWizardApi.GetLocalFilesPath();
         if (Directory.Exists(localPath))
+        {
             Directory.Delete(localPath, recursive: true);
+        }
 
         if (async)
+        {
             await GitWizardApi.SaveCachedRepositoryPathsAsync(["/test"]);
+        }
         else
+        {
             SaveSync(["/test"]);
+        }
 
         Assert.That(Directory.Exists(localPath), Is.True);
         Assert.That(File.Exists(GitWizardApi.GetCachedRepositoryListPath()), Is.True);
@@ -111,7 +124,10 @@ public class GitWizardApiLocalFilesTests
     {
         var localPath = GitWizardApi.GetLocalFilesPath();
         if (Directory.Exists(localPath))
+        {
             Directory.Delete(localPath, recursive: true);
+        }
+
         var size = GitWizardApi.GetLocalFilesSize();
         Assert.That(size, Is.EqualTo(0L));
     }

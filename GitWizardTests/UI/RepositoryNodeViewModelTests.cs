@@ -84,7 +84,10 @@ public class RepositoryNodeViewModelTests
         var fired = false;
         node.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == "IsExpanded") fired = true;
+            if (e.PropertyName == "IsExpanded")
+            {
+                fired = true;
+            }
         };
 
         node.IsExpanded = true;
@@ -98,7 +101,10 @@ public class RepositoryNodeViewModelTests
         var fired = false;
         node.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == "DisplayText") fired = true;
+            if (e.PropertyName == "DisplayText")
+            {
+                fired = true;
+            }
         };
 
         node.DisplayText = "Custom text";

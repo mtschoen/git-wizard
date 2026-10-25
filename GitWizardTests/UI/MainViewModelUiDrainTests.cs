@@ -38,7 +38,9 @@ public class MainViewModelUiDrainTests
         try
         {
             for (var index = 0; index < 20; index++)
+            {
                 vm.Refresh.OnRepositoryCreated(Repo($"C:/repos/repository-{index:00}"));
+            }
 
             Assert.That(clock.CreatedTimerCount, Is.EqualTo(1), "One batching window covers the whole burst.");
             Assert.That(clock.Timer!.Period, Is.EqualTo(Timeout.InfiniteTimeSpan), "The window is one-shot.");
@@ -259,7 +261,9 @@ public class MainViewModelUiDrainTests
         public void RunAll()
         {
             while (_queued.TryDequeue(out var action))
+            {
                 action();
+            }
         }
     }
 }

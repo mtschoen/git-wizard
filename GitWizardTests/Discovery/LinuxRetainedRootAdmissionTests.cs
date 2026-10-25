@@ -34,7 +34,9 @@ public class LinuxRetainedRootAdmissionTests
             SkipHiddenDirectories = skipHiddenDirectories
         };
         if (ignoredRoot is not null)
+        {
             configuration.IgnoredPaths.Add(ignoredRoot);
+        }
 
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Watch, false, false, [retainedRoot]);
         using var cancellation = new CancellationTokenSource(TestTimeouts.HangGuard);

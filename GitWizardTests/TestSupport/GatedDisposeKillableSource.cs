@@ -19,13 +19,17 @@ internal sealed class GatedDisposeKillableSource : IVolumeChangeSource
             {
                 _sourceDied += value;
                 if (_deathReason is not null)
+                {
                     value?.Invoke(_deathReason);
+                }
             }
         }
         remove
         {
             lock (_gate)
+            {
                 _sourceDied -= value;
+            }
         }
     }
 

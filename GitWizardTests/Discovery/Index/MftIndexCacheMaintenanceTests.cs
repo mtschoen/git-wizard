@@ -36,7 +36,10 @@ public class MftIndexCacheMaintenanceTests
             Assert.That(File.Exists(unknownBlock), Is.True);
             Assert.That(await File.ReadAllTextAsync(Path.Combine(files.Cache, "unrelated.txt")), Is.EqualTo("keep"));
             foreach (var path in new[] { files.OwnedPath, files.FreePath, olderBlock })
+            {
                 Assert.That(File.Exists(path + ".lock"), Is.True);
+            }
+
             Assert.That(result.Inventory.Select(row => row.File.Path), Is.EqualTo(new[] { files.OwnedPath }));
             Assert.That(result.Inventory.Single().Availability, Is.EqualTo(CachedBlockAvailability.InUse));
             Assert.That(owner.Drives.Single().State, Is.EqualTo(DriveState.Ready));
@@ -76,7 +79,9 @@ public class MftIndexCacheMaintenanceTests
         Assert.That(result.ToClearText(), Does.Contain(outcome.ToString()));
         Assert.That(result.ToClearText(), Does.Contain(file.Path));
         if (reason is not null)
+        {
             Assert.That(result.ToClearText(), Does.Contain(reason));
+        }
     }
 
     [Test]

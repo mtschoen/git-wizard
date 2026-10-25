@@ -44,7 +44,9 @@ public class LinuxWatchStartupTests
         public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync([EnumeratorCancellation] CancellationToken ct)
         {
             await foreach (var batch in EventChannel.Reader.ReadAllAsync(ct).ConfigureAwait(false))
+            {
                 yield return batch;
+            }
         }
 
         public ValueTask DisposeAsync()
@@ -114,7 +116,9 @@ public class LinuxWatchStartupTests
         {
             inventoryFired = true;
             if (!startedFired)
+            {
                 inventoryBeforeStarted = true;
+            }
         };
         service.Started += () => startedFired = true;
 

@@ -41,9 +41,14 @@ internal sealed class PackedIndexFixture : IDisposable
         var path = Path.Combine(TreePath, repository, markerName);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         if (isDirectory)
+        {
             Directory.CreateDirectory(path);
+        }
         else
+        {
             File.WriteAllText(path, "gitdir: elsewhere");
+        }
+
         return path;
     }
 
@@ -72,7 +77,9 @@ internal sealed class PackedIndexFixture : IDisposable
         var rows = new List<SyntheticRow>();
         WalkDirectory(TreePath, RootRow, ref nextRow, rows);
         foreach (var row in rows)
+        {
             yield return row;
+        }
     }
 
     static void WalkDirectory(string path, uint parent, ref uint nextRow, List<SyntheticRow> rows)

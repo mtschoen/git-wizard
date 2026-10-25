@@ -34,7 +34,9 @@ public class ProgramWatchLoopTests
         {
             lines.Enqueue(line);
             if (line.Contains("Hint on C:"))
+            {
                 changed.TrySetResult();
+            }
         }, _ => { }, cancellation.Token);
 
         await changed.Task.WaitAsync(cancellation.Token);
@@ -57,7 +59,9 @@ public class ProgramWatchLoopTests
         {
             lines.Enqueue(line);
             if (line.StartsWith("changed:", StringComparison.Ordinal))
+            {
                 changed.TrySetResult();
+            }
         }, NoExit, cancellation.Token);
         await source.Started;
         try
@@ -105,7 +109,9 @@ public class ProgramWatchLoopTests
         {
             lines.Enqueue(line);
             if (line.EndsWith(@"changed: Y:\repo", StringComparison.Ordinal))
+            {
                 changed.TrySetResult();
+            }
         }, NoExit, cancellation.Token, verbose: true, new FixedTimeProvider());
         await source.Started;
         try
@@ -329,7 +335,9 @@ public class ProgramWatchLoopTests
         {
             lines.Enqueue(line);
             if (line.Contains("Live updates for this drive stopped", StringComparison.Ordinal))
+            {
                 liveHintPrinted.TrySetResult();
+            }
         }, NoExit, cancellation.Token);
         await source.Started;
 
@@ -357,7 +365,9 @@ public class ProgramWatchLoopTests
         {
             lines.Enqueue(line);
             if (line.Contains("Hint on C:", StringComparison.Ordinal))
+            {
                 printed.Release();
+            }
         }, NoExit, cancellation.Token);
         await source.Started;
 

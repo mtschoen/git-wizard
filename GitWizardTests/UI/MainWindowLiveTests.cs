@@ -103,8 +103,11 @@ public class MainWindowLiveTests
         await using var window = new MainWindow();
         var model = (MainViewModel)window.DataContext!;
         foreach (var volume in new[] { "C", "D", "E", "F", "G" })
+        {
             model.LiveWatch.LiveVolumes.Add(new LiveVolumeStatusViewModel(
                 VolumeWatchStatus.CaughtUp(volume, VolumeBlockOrigin.Warm)));
+        }
+
         model.LiveWatch.IsLive = true;
         model.LiveWatch.LiveReadinessText = "Ready (journal): C, D, E, F, G";
         // Rebind the seeded fixture; event-driven tooltip notifications are covered in Task 1.

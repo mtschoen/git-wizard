@@ -203,7 +203,10 @@ public class GitWizardReportMergeTests
             new List<string>());
 
         if (existingFile)
+        {
             Assert.That(merged.Repositories.ContainsKey(existingPath), Is.True);
+        }
+
         Assert.That(merged.SchemaVersion, Is.EqualTo(GitWizardReport.CurrentSchemaVersion));
 
         var onDisk = JsonSerializer.Deserialize<GitWizardReport>(File.ReadAllText(savePath));

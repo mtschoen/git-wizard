@@ -56,7 +56,9 @@ public class ReportPublicationTests
         var cachedPath = GitWizardReport.GetCachedReportPath();
         var dir = Path.GetDirectoryName(cachedPath)!;
         if (!Directory.Exists(dir))
+        {
             Directory.CreateDirectory(dir);
+        }
 
         var report = new GitWizardReport();
         report.Repositories[@"C:\repo1"] = new GitWizardRepository(@"C:\repo1");
@@ -84,7 +86,9 @@ public class ReportPublicationTests
     {
         using var files = new PackedIndexFixture();
         if (nonzeroCandidates)
+        {
             files.AddMarker("healthy-repo");
+        }
 
         var dRoot = Path.Combine(files.DirectoryPath, "d-root");
         Directory.CreateDirectory(dRoot);
@@ -101,9 +105,20 @@ public class ReportPublicationTests
         }
 
         var args = new List<string> { "--rebuild-report", "--save-path", customSavePath };
-        if (json || minified) args.Add("--json");
-        if (minified) args.Add("--minified");
-        if (silent) args.Add("--silent");
+        if (json || minified)
+        {
+            args.Add("--json");
+        }
+
+        if (minified)
+        {
+            args.Add("--minified");
+        }
+
+        if (silent)
+        {
+            args.Add("--silent");
+        }
 
         var runConfig = CliParser.Parse(args.ToArray());
         Assert.That(runConfig.HasParseError, Is.False);
@@ -128,9 +143,13 @@ public class ReportPublicationTests
             Assert.That(exitCode, Is.EqualTo(3));
             Assert.That(File.ReadAllBytes(cachedReportPath), Is.EqualTo(priorBytes));
             if (seedSavePath)
+            {
                 Assert.That(File.ReadAllBytes(customSavePath), Is.EqualTo(priorSaveBytes));
+            }
             else
+            {
                 Assert.That(File.Exists(customSavePath), Is.False);
+            }
 
             if (silent)
             {

@@ -89,10 +89,7 @@ public sealed class DiscoveryScope
 
             if (classification.FileSystem == RootFileSystem.Ntfs)
             {
-                var pathOrDrive = (classification.NtfsDrive ?? root).Trim();
-                var volume = WatchPath.Parse(pathOrDrive).Volume ?? pathOrDrive;
-                if (DriveKey.TryParse(volume, out var drive))
-                    requestedNtfsDrives.Add(drive);
+                AddNtfsDrive(classification, root, requestedNtfsDrives);
             }
             else if (classification.FileSystem == RootFileSystem.Recursive)
             {
@@ -118,27 +115,7 @@ public sealed class DiscoveryScope
         }
 
         // Retained roots are exact roots; classify them for NTFS journal watch inclusion
-        foreach (var root in retainedRoots)
-        {
-            var classification = classify(root);
-            classifications.Add(classification);
-
-            if (classification.FileSystem == RootFileSystem.Ntfs)
-            {
-                var pathOrDrive = (classification.NtfsDrive ?? root).Trim();
-                var volume = WatchPath.Parse(pathOrDrive).Volume ?? pathOrDrive;
-                if (DriveKey.TryParse(volume, out var drive))
-                    requestedNtfsDrives.Add(drive);
-            }
-            else
-            {
-                watchExcludedRoots.Add(root);
-                if (classification.FileSystem == RootFileSystem.Unknown && !request.NoMft)
-                {
-                    errors[root] = classification.Error ?? $"Unknown filesystem for retained root: {root}";
-                }
-            }
-        }
+        classifications.AddRange(ClassifyRetainedRoots(request, retainedRoots, classify, requestedNtfsDrives, watchExcludedRoots, errors));
 
         var sortedDrives = requestedNtfsDrives.OrderBy(drive => drive.Letter)
             .Select(drive => drive.ToString()).ToArray();
@@ -153,5 +130,46 @@ public sealed class DiscoveryScope
             recursiveRoots,
             watchExcludedRoots,
             errors);
+    }
+
+    static List<RootClassification> ClassifyRetainedRoots(
+        DiscoveryRequest request,
+        IReadOnlyList<string> retainedRoots,
+        Func<string, RootClassification> classify,
+        HashSet<DriveKey> requestedNtfsDrives,
+        List<string> watchExcludedRoots,
+        Dictionary<string, string> errors)
+    {
+        var classifications = new List<RootClassification>();
+        foreach (var root in retainedRoots)
+        {
+            var classification = classify(root);
+            classifications.Add(classification);
+
+            if (classification.FileSystem == RootFileSystem.Ntfs)
+            {
+                AddNtfsDrive(classification, root, requestedNtfsDrives);
+            }
+            else
+            {
+                watchExcludedRoots.Add(root);
+                if (classification.FileSystem == RootFileSystem.Unknown && !request.NoMft)
+                {
+                    errors[root] = classification.Error ?? $"Unknown filesystem for retained root: {root}";
+                }
+            }
+        }
+
+        return classifications;
+    }
+
+    static void AddNtfsDrive(RootClassification classification, string root, HashSet<DriveKey> requestedNtfsDrives)
+    {
+        var pathOrDrive = (classification.NtfsDrive ?? root).Trim();
+        var volume = WatchPath.Parse(pathOrDrive).Volume ?? pathOrDrive;
+        if (DriveKey.TryParse(volume, out var drive))
+        {
+            requestedNtfsDrives.Add(drive);
+        }
     }
 }

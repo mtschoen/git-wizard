@@ -115,7 +115,9 @@ public sealed partial class RepositoryListViewModel
             }
 
             foreach (var key in promoted)
+            {
                 PendingGroups.Remove(key);
+            }
         }
 
         UpdateHeaderWithFilterInfo();

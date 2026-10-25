@@ -85,11 +85,15 @@ public class RepositoryNodeViewModelSizeTests
         Assert.That(headers, Has.Length.EqualTo(2));
         var notifiedHeaders = new HashSet<RepositoryNodeViewModel>();
         foreach (var header in headers)
+        {
             header.PropertyChanged += (_, eventArguments) =>
             {
                 if (eventArguments.PropertyName == nameof(RepositoryNodeViewModel.SizeText))
+                {
                     notifiedHeaders.Add(header);
+                }
             };
+        }
 
         repository.SizeOnDisk = 1572864L;
         viewModel.RepositoryList.UpdateCompletedRepository(repository, streaming: false);
@@ -116,7 +120,9 @@ public class RepositoryNodeViewModelSizeTests
     {
         var header = RepositoryNodeViewModel.CreateGroupHeader("Repositories");
         for (var index = 0; index < 1000; index++)
+        {
             header.Children.Add(CreateMeasuredNode(1048576));
+        }
 
         header.UpdateDisplayText();
 
@@ -141,7 +147,9 @@ public class RepositoryNodeViewModelSizeTests
     {
         var header = RepositoryNodeViewModel.CreateGroupHeader("Repositories");
         for (var index = 0; index < 4000; index++)
+        {
             header.Children.Add(CreateMeasuredNode(1048576));
+        }
 
         var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
         var text = header.SizeText;
@@ -171,7 +179,9 @@ public class RepositoryNodeViewModelSizeTests
     {
         var header = RepositoryNodeViewModel.CreateGroupHeader("Repositories");
         for (var index = 0; index < 500; index++)
+        {
             header.Children.Add(new RepositoryNodeViewModel(new GitWizardRepository(string.Empty)));
+        }
 
         header.UpdateDisplayText();
         Assert.That(header.SizeText, Is.EqualTo(string.Empty));

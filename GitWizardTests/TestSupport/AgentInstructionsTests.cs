@@ -19,7 +19,9 @@ public class AgentInstructionsTests
         {
             Assert.That(instructions.EnumerateRunes().Count(), Is.LessThan(15000));
             foreach (var block in Regex.Split(instructions, @"\r?\n[\t ]*\r?\n"))
+            {
                 Assert.That(block.EnumerateRunes().Count(), Is.LessThan(3000), block);
+            }
         });
     }
 
@@ -29,7 +31,9 @@ public class AgentInstructionsTests
         var links = Regex.Matches(Read("AGENTS.md"), @"\]\((docs/[^)#]+\.md)(?:#[^)]*)?\)");
         Assert.That(links, Is.Not.Empty);
         foreach (Match link in links)
+        {
             Assert.That(File.Exists(Path.Combine(SourceTree.RepositoryRoot, link.Groups[1].Value)), Is.True, link.Value);
+        }
     }
 
     [TestCase("")]
@@ -46,7 +50,9 @@ public class AgentInstructionsTests
         Assert.Multiple(() =>
         {
             foreach (var flag in flags)
+            {
                 Assert.That(documented, Does.Contain($"`{flag}`"), flag);
+            }
         });
     }
 

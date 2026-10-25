@@ -57,7 +57,9 @@ public class FanotifyVolumeChangeSourceIntegrationTests
                 // fanotify merges a create and a delete of one name into a single event, so each file is
                 // deleted only after its creation was observed.
                 foreach (var file in new[] { outerFile, tmpfsFile })
+                {
                     await File.WriteAllTextAsync(file, "hello", watchToken);
+                }
 
                 var observed = new HashSet<(string Path, VolumeEntryKind Kind)>();
                 var deleted = false;
@@ -66,10 +68,12 @@ public class FanotifyVolumeChangeSourceIntegrationTests
                     await foreach (var batch in source.WatchAsync(watchToken))
                     {
                         foreach (var entry in batch.Entries)
+                        {
                             observed.Add((entry.FullPath, entry.Kind));
+                        }
 
                         if (!deleted && observed.Contains((outerFile, VolumeEntryKind.Created))
-                            && observed.Contains((tmpfsFile, VolumeEntryKind.Created)))
+                                     && observed.Contains((tmpfsFile, VolumeEntryKind.Created)))
                         {
                             deleted = true;
                             File.Delete(outerFile);
@@ -77,7 +81,9 @@ public class FanotifyVolumeChangeSourceIntegrationTests
                         }
 
                         if (expected.IsSubsetOf(observed))
+                        {
                             break;
+                        }
                     }
                 }
                 catch (OperationCanceledException)

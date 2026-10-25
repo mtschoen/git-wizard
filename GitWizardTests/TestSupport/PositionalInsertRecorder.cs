@@ -15,6 +15,8 @@ sealed class PositionalInsertRecorder
         {
             if (args.Action == NotifyCollectionChangedAction.Add
                 && args.NewStartingIndex + (args.NewItems?.Count ?? 0) != nodes.Count)
+            {
                 Count++;
+            }
         };
 }

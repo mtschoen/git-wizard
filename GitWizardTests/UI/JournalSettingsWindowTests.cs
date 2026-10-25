@@ -109,9 +109,14 @@ public class JournalSettingsWindowTests
             warning.PropertyChanged += (_, _) =>
             {
                 if (!Dispatcher.UIThread.CheckAccess())
+                {
                     Interlocked.Increment(ref offThreadUpdates);
+                }
+
                 if (warning.StatusMessage.StartsWith("Before:", StringComparison.Ordinal))
+                {
                     completed.TrySetResult();
+                }
             };
 
             buttons[0].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

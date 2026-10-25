@@ -165,7 +165,9 @@ internal sealed class RunConfigurationTests
             _ => throw new ArgumentOutOfRangeException(nameof(argument), argument, null)
         };
         if (argument == "--config-path")
+        {
             File.WriteAllText(value, "{}");
+        }
 
         var parsed = CliParser.Parse([argument, value]);
         var actual = argument switch

@@ -43,7 +43,10 @@ internal sealed class FakeJournalSettingsSource : IVolumeChangeSource, IUsnJourn
                 Loss = loss
             }).ToArray();
         if (CompleteAfterArm)
+        {
             _changes.Complete();
+        }
+
         return Task.FromResult(new VolumeArmResult(new Dictionary<string, string>(), warnings));
     }
 
@@ -57,9 +60,15 @@ internal sealed class FakeJournalSettingsSource : IVolumeChangeSource, IUsnJourn
         RequestedGrowthTarget = target;
         GrowEntered.TrySetResult();
         if (GrowRelease is { } release)
+        {
             await release.Task.WaitAsync(cancellationToken);
+        }
+
         if (GrowFailure is { } failure)
+        {
             throw failure;
+        }
+
         var result = new UsnJournalSettings { MaximumSize = target.MaximumSize + target.AllocationDelta, AllocationDelta = target.AllocationDelta };
         Settings[drive.Letter] = result;
         return result;

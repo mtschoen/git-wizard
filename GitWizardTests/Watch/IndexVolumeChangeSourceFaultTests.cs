@@ -303,9 +303,27 @@ public class IndexVolumeChangeSourceFaultTests
             Scripted = scripted;
             Owner = owner;
             Source = source;
-            source.SourceDied += reason => { lock (_deaths) _deaths.Add(reason); };
-            source.DriveFailed += (drive, message) => { lock (_failures) _failures.Add((drive, message)); };
-            source.ReadinessChanged += snapshot => { lock (_snapshots) _snapshots.Add(snapshot); };
+            source.SourceDied += reason =>
+            {
+                lock (_deaths)
+                {
+                    _deaths.Add(reason);
+                }
+            };
+            source.DriveFailed += (drive, message) =>
+            {
+                lock (_failures)
+                {
+                    _failures.Add((drive, message));
+                }
+            };
+            source.ReadinessChanged += snapshot =>
+            {
+                lock (_snapshots)
+                {
+                    _snapshots.Add(snapshot);
+                }
+            };
         }
 
         public ScriptedWatchSource Scripted { get; }
@@ -317,12 +335,24 @@ public class IndexVolumeChangeSourceFaultTests
 
         public string[] Deaths
         {
-            get { lock (_deaths) return _deaths.ToArray(); }
+            get
+            {
+                lock (_deaths)
+                {
+                    return _deaths.ToArray();
+                }
+            }
         }
 
         public (string Drive, string Message)[] Failures
         {
-            get { lock (_failures) return _failures.ToArray(); }
+            get
+            {
+                lock (_failures)
+                {
+                    return _failures.ToArray();
+                }
+            }
         }
         /// <summary>The read the harness issued at start; later reads are issued by <see cref="ReadAsync" />.</summary>
         public Task<bool> PendingRead { get; private set; } = Task.FromResult(false);
@@ -342,7 +372,10 @@ public class IndexVolumeChangeSourceFaultTests
             var names = drives.Select(drive => drive.ToString()).ToArray();
             var index = await files.OpenMftIndexAsync(scripted, drives);
             if (beforeRescan is not null)
+            {
                 files.BeforeProduceAsync = (_, token) => beforeRescan(token);
+            }
+
             var owner = IndexVolumeChangeSourceTests.Owner(index, names);
             var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
             var harness = new FaultHarness(files, scripted, owner, source);
@@ -375,7 +408,10 @@ public class IndexVolumeChangeSourceFaultTests
         {
             // Current stays valid until the next read is issued, so each read starts here.
             if (_pendingReadConsumed)
+            {
                 PendingRead = _reader!.MoveNextAsync().AsTask();
+            }
+
             _pendingReadConsumed = true;
             return PendingRead.WaitAsync(TestTimeouts.HangGuard);
         }

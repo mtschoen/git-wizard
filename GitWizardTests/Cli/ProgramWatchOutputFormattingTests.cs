@@ -41,23 +41,49 @@ public class ProgramWatchOutputFormattingTests
         var lines = new List<string>();
         var sink = new Lock();
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        var loop = Program.RunWatchLoopAsync(service, line => { lock (sink) lines.Add(line); }, _ => { }, cancellation.Token,
+        var loop = Program.RunWatchLoopAsync(service, line =>
+        {
+            lock (sink)
+            {
+                lines.Add(line);
+            }
+        }, _ => { }, cancellation.Token,
             verbose: true, clock: new FrozenCacheClock());
         await source.Started.WaitAsync(TimeSpan.FromSeconds(5));
         source.SetVolume(VolumeWatchStatus.CatchingUp("X", VolumeBlockOrigin.Warm));
         source.SetVolume(VolumeWatchStatus.CatchingUp("Y", VolumeBlockOrigin.Cold));
         source.SetVolume(VolumeWatchStatus.CaughtUp("X", VolumeBlockOrigin.Warm));
-        lock (sink) Assert.That(lines, Has.None.Contains("ready:"));
+        lock (sink)
+        {
+            Assert.That(lines, Has.None.Contains("ready:"));
+        }
+
         source.SetVolume(VolumeWatchStatus.Excluded("Y", VolumeBlockOrigin.Cold, "Y failed"));
-        await WaitUntilAsync(() => { lock (sink) return lines.Any(line => line.Contains("ready:")); });
+        await WaitUntilAsync(() =>
+        {
+            lock (sink)
+            {
+                return lines.Any(line => line.Contains("ready:"));
+            }
+        });
         source.Publish(new VolumeChangeBatch("X", [new VolumeChangeEntry(@"X:\repo\file", VolumeEntryKind.Modified)]));
-        await WaitUntilAsync(() => { lock (sink) return lines.Any(line => line.Contains("changed:")); });
+        await WaitUntilAsync(() =>
+        {
+            lock (sink)
+            {
+                return lines.Any(line => line.Contains("changed:"));
+            }
+        });
         await cancellation.CancelAsync();
         await loop;
 
         const string stamp = "2026-09-23T12:00:00.000Z ";
         string[] snapshot;
-        lock (sink) snapshot = lines.ToArray();
+        lock (sink)
+        {
+            snapshot = lines.ToArray();
+        }
+
         Assert.That(snapshot, Has.All.StartsWith(stamp));
         Assert.That(snapshot.Count(line => line.Contains(" ready: ")), Is.EqualTo(1));
         var ready = snapshot.Single(line => line.Contains(" ready: "));
@@ -78,13 +104,34 @@ public class ProgramWatchOutputFormattingTests
         var lines = new List<string>();
         var sink = new Lock();
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        var loop = Program.RunWatchLoopAsync(service, line => { lock (sink) lines.Add(line); }, _ => { }, cancellation.Token);
-        await WaitUntilAsync(() => { lock (sink) return lines.Contains("ready: mode=journal caught-up=X excluded=-"); });
+        var loop = Program.RunWatchLoopAsync(service, line =>
+        {
+            lock (sink)
+            {
+                lines.Add(line);
+            }
+        }, _ => { }, cancellation.Token);
+        await WaitUntilAsync(() =>
+        {
+            lock (sink)
+            {
+                return lines.Contains("ready: mode=journal caught-up=X excluded=-");
+            }
+        });
         source.Publish(new VolumeChangeBatch("X", [new VolumeChangeEntry(@"X:\repo\file", VolumeEntryKind.Modified)]));
-        await WaitUntilAsync(() => { lock (sink) return lines.Contains(@"changed: X:\repo"); });
+        await WaitUntilAsync(() =>
+        {
+            lock (sink)
+            {
+                return lines.Contains(@"changed: X:\repo");
+            }
+        });
         await cancellation.CancelAsync();
         await loop;
-        lock (sink) Assert.That(lines, Has.None.StartsWith("drive: "));
+        lock (sink)
+        {
+            Assert.That(lines, Has.None.StartsWith("drive: "));
+        }
     }
 
     [Test]
@@ -95,7 +142,13 @@ public class ProgramWatchOutputFormattingTests
         var lines = new List<string>();
         var sink = new Lock();
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        var loop = Program.RunWatchLoopAsync(service, line => { lock (sink) lines.Add(line); }, _ => { }, cancellation.Token);
+        var loop = Program.RunWatchLoopAsync(service, line =>
+        {
+            lock (sink)
+            {
+                lines.Add(line);
+            }
+        }, _ => { }, cancellation.Token);
         await source.Started.WaitAsync(TimeSpan.FromSeconds(5));
         source.SetVolume(VolumeWatchStatus.CatchingUp("X", VolumeBlockOrigin.Warm));
         source.KillThenSettle("broker died", VolumeWatchStatus.CaughtUp("X", VolumeBlockOrigin.Warm));

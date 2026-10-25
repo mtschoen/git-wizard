@@ -53,7 +53,9 @@ public class FanotifyFilesystemIdentifierTests
             {
                 entries.AddRange(batch.Entries);
                 if (entries.Count >= expectedCount)
+                {
                     break;
+                }
             }
         }
         catch (OperationCanceledException)
@@ -193,7 +195,9 @@ public class FanotifyFilesystemIdentifierTests
         await using var source = new FanotifyVolumeChangeSource(_native);
         await source.ArmAndCatchUpAsync(new[] { _firstRoot }, CancellationToken.None);
         if (initializeFails)
+        {
             _native.InitializeResult = new FanotifyNativeCallResult(-1, FanotifyError.NotPermitted);
+        }
 
         var result = await source.ArmAndCatchUpAsync(
             initializeFails ? new[] { _secondRoot } : Array.Empty<string>(), CancellationToken.None);
@@ -208,7 +212,9 @@ public class FanotifyFilesystemIdentifierTests
         Assert.ThrowsAsync<InvalidOperationException>(async () =>
         {
             await foreach (var batch in source.WatchAsync(CancellationToken.None))
+            {
                 Assert.Fail($"Unexpected batch: {batch}");
+            }
         });
     }
 
@@ -360,9 +366,15 @@ public class FanotifyFilesystemIdentifierTests
 
         var expected = new List<string> { Path.Combine("/first/dir", "a.txt") };
         if (siblingStillReachable)
+        {
             expected.Add(Path.Combine("/sibling/dir", "b.txt"));
+        }
+
         if (scenario == StaleRootScenario.OvermountedThenUncovered)
+        {
             expected.Add(Path.Combine("/later/dir", "c.txt"));
+        }
+
         Assert.Multiple(() =>
         {
             Assert.That(delivered, Is.EqualTo(expected));

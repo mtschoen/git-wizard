@@ -94,7 +94,10 @@ public class IndexVolumeChangeSourceCheckpointLossTests
         finally
         {
             if (reader is not null)
+            {
                 await reader.DisposeAsync();
+            }
+
             await source.DisposeAsync();
             await owner.DisposeAsync();
         }

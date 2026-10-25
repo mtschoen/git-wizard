@@ -169,7 +169,9 @@ internal sealed class TempRepoFixture : IDisposable
     {
         string originUrl;
         using (var repository = new Repository(Path))
+        {
             originUrl = repository.Network.Remotes["origin"].Url;
+        }
 
         var scratch = new TempDirectory("gw-scratch-", create: false);
         _extraCleanupDirs.Add(scratch);
@@ -208,7 +210,10 @@ internal sealed class TempRepoFixture : IDisposable
         RunGit(Path, "-c", "protocol.file.allow=always", "-c", "user.email=test@example.com",
             "-c", "user.name=Test", "submodule", "add", upstream, path);
         using (var repository = new Repository(Path))
+        {
             repository.Commit($"add submodule {path}", Author, Author);
+        }
+
         return System.IO.Path.Combine(Path, path);
     }
 
@@ -253,7 +258,9 @@ internal sealed class TempRepoFixture : IDisposable
         RunGit(Path, "-c", "protocol.file.allow=always", "clone", upstream, submoduleDir);
 
         if (remoteName != "origin")
+        {
             RunGit(submoduleDir, "remote", "rename", "origin", remoteName);
+        }
 
         // Create .gitmodules entry (matches what 'git submodule add' would do).
         var name = System.IO.Path.GetFileName(path);
@@ -278,7 +285,9 @@ internal sealed class TempRepoFixture : IDisposable
         RunGit(Path, "update-index", "--add", "--cacheinfo",
             $"160000,{initialSha},{path}");
         using (var repository = new Repository(Path))
+        {
             repository.Commit($"add submodule {path} (pinned at initial)", Author, Author);
+        }
 
         // Advance the submodule's default branch beyond the gitlink.
         RunGit(submoduleDir, "checkout", defaultBranchName);
@@ -302,7 +311,9 @@ internal sealed class TempRepoFixture : IDisposable
     {
         string sha;
         using (var repository = new Repository(Path))
+        {
             sha = repository.Head.Tip!.Sha;
+        }
 
         RunGit(Path, "update-index", "--add", "--cacheinfo", $"160000,{sha},{path}");
         using var parent = new Repository(Path);
@@ -407,18 +418,28 @@ internal sealed class TempRepoFixture : IDisposable
             UseShellExecute = false,
         };
         foreach (var argument in arguments)
+        {
             startInfo.ArgumentList.Add(argument);
+        }
 
         using var process = Process.Start(startInfo)
-            ?? throw new InvalidOperationException("Failed to start git");
+                            ?? throw new InvalidOperationException("Failed to start git");
         var standardErrorBuilder = new System.Text.StringBuilder();
-        process.ErrorDataReceived += (_, e) => { if (e.Data != null) standardErrorBuilder.AppendLine(e.Data); };
+        process.ErrorDataReceived += (_, e) =>
+        {
+            if (e.Data != null)
+            {
+                standardErrorBuilder.AppendLine(e.Data);
+            }
+        };
         process.BeginErrorReadLine();
         process.BeginOutputReadLine();
         process.WaitForExit(60000);
         if (process.ExitCode != 0)
+        {
             throw new InvalidOperationException(
                 $"git {string.Join(' ', arguments)} failed (exit {process.ExitCode}): {standardErrorBuilder}");
+        }
     }
 
     /// <summary>
@@ -441,6 +462,8 @@ internal sealed class TempRepoFixture : IDisposable
     {
         _directory.Dispose();
         foreach (var directory in _extraCleanupDirs)
+        {
             directory.Dispose();
+        }
     }
 }

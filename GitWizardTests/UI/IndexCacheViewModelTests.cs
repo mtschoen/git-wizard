@@ -42,7 +42,10 @@ public class IndexCacheViewModelTests
         {
             entered.TrySetResult();
             if (!release.Task.Wait(TimeSpan.FromSeconds(5)))
+            {
                 throw new TimeoutException("Test did not release inspection");
+            }
+
             return snapshot;
         }, NoClear);
         var first = model.RefreshAsync();
@@ -79,7 +82,10 @@ public class IndexCacheViewModelTests
                 Interlocked.Increment(ref clears);
                 entered.TrySetResult();
                 if (!release.Task.Wait(TimeSpan.FromSeconds(5)))
+                {
                     throw new TimeoutException("Test did not release clear");
+                }
+
                 return NoClear();
             });
         var first = model.ClearAsync();

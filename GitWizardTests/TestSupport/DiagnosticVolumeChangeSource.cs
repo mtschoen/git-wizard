@@ -29,7 +29,9 @@ internal sealed class DiagnosticVolumeChangeSource : IVolumeChangeSource, IVolum
         {
             HandoffBarrier?.SignalAndWait(TimeSpan.FromSeconds(5));
             lock (_warningLock)
+            {
                 return CurrentWarnings.ToArray();
+            }
         }
     }
     public Action? Arming { get; set; }
@@ -44,7 +46,9 @@ internal sealed class DiagnosticVolumeChangeSource : IVolumeChangeSource, IVolum
     {
         _started.TrySetResult();
         await foreach (var batch in _batches.Reader.ReadAllAsync(ct))
+        {
             yield return batch;
+        }
     }
 
     public void FailDrive(string drive, string message) => DriveFailed?.Invoke(drive, message);

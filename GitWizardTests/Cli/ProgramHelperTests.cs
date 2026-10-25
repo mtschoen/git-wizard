@@ -400,7 +400,13 @@ public class ProgramHelperTests
         };
 
         var loggedMessages = new List<string>();
-        GitWizardLog.LogMethod = msg => { if (msg != null) loggedMessages.Add(msg); };
+        GitWizardLog.LogMethod = msg =>
+        {
+            if (msg != null)
+            {
+                loggedMessages.Add(msg);
+            }
+        };
         var exitCode = -1;
 
         try
@@ -426,7 +432,13 @@ public class ProgramHelperTests
         config.SearchPaths.Clear();
 
         var loggedMessages = new List<string>();
-        GitWizardLog.LogMethod = msg => { if (msg != null) loggedMessages.Add(msg); };
+        GitWizardLog.LogMethod = msg =>
+        {
+            if (msg != null)
+            {
+                loggedMessages.Add(msg);
+            }
+        };
         var exitCode = -1;
 
         try

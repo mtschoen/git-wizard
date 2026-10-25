@@ -32,7 +32,9 @@ public class GitWizardReportDiscoveryProgressTests
     public void DeleteSearchPaths()
     {
         foreach (var directory in _searchDirectories)
+        {
             directory.Dispose();
+        }
     }
 
     [Test]

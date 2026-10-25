@@ -32,7 +32,9 @@ public class GitWizardRepositoryInvalidUpstreamTests
         GitWizardLog.LogMethod = message =>
         {
             if (message != null)
+            {
                 _loggedMessages.Enqueue(message);
+            }
         };
     }
 

@@ -11,11 +11,19 @@ static class EnumeratedDiscovery
     {
         var configuration = new GitWizardConfiguration();
         if (skipHiddenDirectories.HasValue)
+        {
             configuration.SkipHiddenDirectories = skipHiddenDirectories.Value;
+        }
+
         if (includeTempDirectories.HasValue)
+        {
             configuration.IncludeTempDirectories = includeTempDirectories.Value;
+        }
+
         foreach (var ignored in ignoredPaths)
+        {
             configuration.IgnoredPaths.Add(ignored);
+        }
 
         return Run(new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, true, []), rootPath);
     }
@@ -24,7 +32,9 @@ static class EnumeratedDiscovery
     {
         var expanded = GitWizardApi.ExpandSearchPath(rootPath);
         if (expanded == null)
+        {
             return new RecursiveDiscovery([], [], new Dictionary<string, string>());
+        }
 
         return EnumerationDiscovery.DiscoverAsync(request, expanded, cancellationToken).GetAwaiter().GetResult();
     }
@@ -35,6 +45,8 @@ static class EnumeratedDiscovery
         bool? skipHiddenDirectories = null, bool? includeTempDirectories = null)
     {
         foreach (var path in Run(rootPath, ignoredPaths, skipHiddenDirectories, includeTempDirectories).Paths)
+        {
             paths.Add(path);
+        }
     }
 }

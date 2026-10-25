@@ -92,7 +92,9 @@ public class UpdateHandlerTests
     {
         var handler = new UpdateHandler();
         foreach (var callback in new[] { "repository", "submodule", "worktree", "uninitialized", "completed" })
+        {
             InvokeCallback(handler, callback);
+        }
 
         Assert.Multiple(() =>
         {
@@ -266,12 +268,20 @@ public class UpdateHandlerTests
         public override System.Text.Encoding Encoding => System.Text.Encoding.UTF8;
         public override void Write(string? value)
         {
-            if (!Monitor.IsEntered(ProgressLock)) Interlocked.Increment(ref _unlockedWrites);
+            if (!Monitor.IsEntered(ProgressLock))
+            {
+                Interlocked.Increment(ref _unlockedWrites);
+            }
+
             Lines.Enqueue(value ?? string.Empty);
         }
         public override void WriteLine()
         {
-            if (!Monitor.IsEntered(ProgressLock)) Interlocked.Increment(ref _unlockedWrites);
+            if (!Monitor.IsEntered(ProgressLock))
+            {
+                Interlocked.Increment(ref _unlockedWrites);
+            }
+
             Interlocked.Increment(ref _newlines);
         }
     }

@@ -17,6 +17,8 @@ internal sealed class QueuedUiDispatcher(bool isOnUiThread = true) : IUiDispatch
     public void Drain()
     {
         while (_posted.TryDequeue(out var action))
+        {
             action();
+        }
     }
 }

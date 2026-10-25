@@ -42,7 +42,9 @@ public static partial class GitWizardApi
             foreach (var candidate in scopeCandidates)
             {
                 if (seenPaths.Add(candidate.Path))
+                {
                     results.Add(candidate);
+                }
             }
         }
 
@@ -72,7 +74,9 @@ public static partial class GitWizardApi
         {
             var retained = WatchPath.Parse(retainedRoot);
             if (!scope.SearchRoots.Any(searchRoot => retained.IsUnderOrEqual(WatchPath.Parse(searchRoot))))
+            {
                 roots.Add((retainedRoot, true));
+            }
         }
 
         var policy = CandidateAdmissionPolicy.ForScope(scope) with
@@ -105,11 +109,19 @@ public static partial class GitWizardApi
         foreach (var entry in gitEntries)
         {
             if (entry.IsDeleted || !TryReadIsDirectory(entry, out var isDirectory))
+            {
                 continue;
+            }
+
             if (candidateScope.CoversDriveRoot && !isDirectory)
+            {
                 continue;
+            }
+
             if (!TryGetScopedParent(entry, candidateScope, out _, out var candidate, diagnostics))
+            {
                 continue;
+            }
 
             var kind = isDirectory ? RepositoryCandidateKind.Ordinary : RepositoryCandidateKind.GitFile;
             yield return new RepositoryCandidate(candidate.Original, kind);
@@ -123,14 +135,25 @@ public static partial class GitWizardApi
         foreach (var entry in headEntries)
         {
             if (entry.IsDeleted || !TryReadIsDirectory(entry, out var isDirectory) || isDirectory)
+            {
                 continue;
+            }
+
             if (!TryGetScopedParent(entry, candidateScope, out var parent, out var candidate, diagnostics))
+            {
                 continue;
+            }
+
             if (candidate.Comparison.Split('/').Any(segment =>
                     string.Equals(segment, GitEntryName, StringComparison.OrdinalIgnoreCase)))
+            {
                 continue;
+            }
+
             if (!layouts.Value.Contains(parent))
+            {
                 continue;
+            }
 
             yield return new RepositoryCandidate(candidate.Original, RepositoryCandidateKind.Bare);
         }
@@ -163,7 +186,9 @@ public static partial class GitWizardApi
         try
         {
             if (entry.Parent is not { IsDirectory: true } entryParent)
+            {
                 return false;
+            }
 
             parent = entryParent;
             parentPath = parent.Path;
@@ -200,9 +225,14 @@ public static partial class GitWizardApi
             for (var level = 0; level < depth; level++)
             {
                 if (CandidateAdmissionPolicy.HasHiddenAttribute(current.Attributes))
+                {
                     return true;
+                }
+
                 if (current.Parent is not { } next)
+                {
                     return false;
+                }
 
                 current = next;
             }
@@ -225,7 +255,10 @@ public static partial class GitWizardApi
     static WatchPath TranslateToRealRoot(FileIndex index, WatchPath path)
     {
         if (!path.IsWindows || path.Volume is not { Length: 1 } volume || !char.IsAsciiLetter(volume[0]))
+        {
             return path;
+        }
+
         string realRoot;
         try
         {
@@ -242,9 +275,14 @@ public static partial class GitWizardApi
         }
         var realRootPath = WatchPath.Parse(realRoot);
         if (path.IsUnderOrEqual(realRootPath))
+        {
             return path;
+        }
+
         if (realRootPath.IsWindows && string.Equals(realRootPath.Volume, volume, StringComparison.OrdinalIgnoreCase))
+        {
             return path;
+        }
 
         var relative = path.Comparison.Length > 3 ? path.Comparison[3..] : string.Empty;
         return WatchPath.Parse(relative.Length == 0

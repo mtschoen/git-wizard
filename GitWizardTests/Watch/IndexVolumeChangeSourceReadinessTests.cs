@@ -156,7 +156,9 @@ public class IndexVolumeChangeSourceReadinessTests
         source.ReadinessChanged += s =>
         {
             lock (lockObj)
+            {
                 snapshots.Add(s);
+            }
         };
         var arming = source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
         await Task.WhenAll(scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard),

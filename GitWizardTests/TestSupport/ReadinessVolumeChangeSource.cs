@@ -30,7 +30,9 @@ internal sealed class ReadinessVolumeChangeSource : IVolumeChangeSource, IVolume
     public ReadinessVolumeChangeSource(bool autoStartPump = true)
     {
         if (autoStartPump)
+        {
             _pumpStarted.TrySetResult();
+        }
     }
 
     public WatchReadinessMode Mode { get; init; } = WatchReadinessMode.JournalBacklog;
@@ -42,7 +44,13 @@ internal sealed class ReadinessVolumeChangeSource : IVolumeChangeSource, IVolume
 
     public VolumeReadinessSnapshot Readiness
     {
-        get { lock (_gate) return _readiness; }
+        get
+        {
+            lock (_gate)
+            {
+                return _readiness;
+            }
+        }
     }
 
     public Task<VolumeArmResult> ArmAndCatchUpAsync(IReadOnlyCollection<string> volumes, CancellationToken ct) =>
@@ -52,19 +60,29 @@ internal sealed class ReadinessVolumeChangeSource : IVolumeChangeSource, IVolume
     {
         _started.TrySetResult();
         await foreach (var batch in _batches.Reader.ReadAllAsync(ct))
+        {
             yield return batch;
+        }
     }
 
     public void SetVolume(VolumeWatchStatus status)
     {
         VolumeReadinessSnapshot snapshot;
-        lock (_gate) snapshot = _readiness = _readiness.With(status);
+        lock (_gate)
+        {
+            snapshot = _readiness = _readiness.With(status);
+        }
+
         ReadinessChanged?.Invoke(snapshot);
     }
 
     public void SetSnapshot(VolumeReadinessSnapshot snapshot)
     {
-        lock (_gate) _readiness = snapshot;
+        lock (_gate)
+        {
+            _readiness = snapshot;
+        }
+
         ReadinessChanged?.Invoke(snapshot);
     }
 

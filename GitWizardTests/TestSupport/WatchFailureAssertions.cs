@@ -27,7 +27,9 @@ internal static class WatchFailureAssertions
         {
             source.Complete();
             if (stopping is not null)
+            {
                 await stopping;
+            }
             else
             {
                 try
@@ -50,14 +52,22 @@ internal static class WatchFailureAssertions
             await using var source = new DiagnosticVolumeChangeSource();
             var service = new RepositoryWatchService(source, [], []);
             if (scenario == "arm")
+            {
                 source.Arming = () => throw new InvalidOperationException("arming failed");
+            }
+
             if (scenario == "started")
+            {
                 service.Started += () => throw new InvalidOperationException("subscriber failed");
+            }
+
             using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             await using var reader = service.RunAsync(cancellation.Token).GetAsyncEnumerator();
             var pending = reader.MoveNextAsync().AsTask();
             if (scenario is "arm" or "started")
+            {
                 Assert.ThrowsAsync<InvalidOperationException>(async () => await pending);
+            }
             else
             {
                 await source.Started.WaitAsync(cancellation.Token);
@@ -137,7 +147,9 @@ internal static class WatchFailureAssertions
             service.ScanErrorsChanged += () =>
             {
                 if (service.ScanErrors.ContainsKey("X"))
+                {
                     failed.TrySetResult();
+                }
             };
             service.Stopped += deaths.Add;
             using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));

@@ -85,7 +85,10 @@ public class ProgramLocalFilesEntryPointTests
         await File.WriteAllTextAsync(list, "repository sentinel");
         var arguments = new List<string> { "--delete-all-local-files", "--no-refresh", "--silent" };
         if (alsoClear)
+        {
             arguments.Add("--clear-cache");
+        }
+
         var result = await RunCliAsync(arguments.ToArray());
         Assert.That(result.ExitCode, Is.EqualTo(1));
         Assert.That(result.StandardError, Does.Contain("mft-index"));

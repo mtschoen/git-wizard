@@ -29,11 +29,16 @@ internal static class AsyncCondition
             }
 
             if (satisfied)
+            {
                 return;
+            }
+
             if (elapsed.Elapsed >= limit)
+            {
                 throw new AssertionException(
                     $"Timed out waiting for '{expression}' after {polls} poll(s); " +
                     $"elapsed {elapsed.Elapsed}; limit {limit}.");
+            }
 
             await Task.Delay(10).ConfigureAwait(false);
         }

@@ -34,7 +34,9 @@ static class EnumerationDiscovery
         var ignoredPaths = GitWizardApi.ExpandIgnoredPaths(request.Configuration.IgnoredPaths);
         var searchRoot = WatchPath.Parse(GitWizardApi.NormalizePath(expandedRoot));
         if (!CandidateAdmissionPolicy.Create(ignoredPaths, request.Configuration).AdmitsWithin(searchRoot, searchRoot))
+        {
             return new RecursiveDiscovery(paths, failedSubtrees, errors);
+        }
 
         var scope = DiscoveryScope.CreateExpanded(request, [expandedRoot], [], ignoredPaths,
             root => new RootClassification(root, RootFileSystem.Recursive, null, null));
@@ -54,26 +56,37 @@ static class EnumerationDiscovery
         {
             var status = index.Drives.Single();
             if (status.State != DriveState.Ready)
+            {
                 return Failed(paths, failedSubtrees, errors, expandedRoot,
                     status.Failure?.Message ?? $"Drive is {status.State}.");
+            }
 
             diagnostics ??= new CandidateSelectionDiagnostics();
             foreach (var candidate in GitWizardApi.SelectRepositoryCandidates(index, scope, diagnostics, cancellationToken))
             {
                 if (IsConfirmed(candidate))
+                {
                     paths.Add(GitWizardApi.NormalizePath(candidate.Path));
+                }
             }
 
             if (diagnostics.UnresolvedPathCount > 0)
+            {
                 return Failed(paths, failedSubtrees, errors, expandedRoot,
                     $"{diagnostics.UnresolvedPathCount} repository candidate(s) under {expandedRoot} are nested deeper than the index can name.");
+            }
 
             if (status.Block is { IsCapacityExhausted: true })
+            {
                 return Failed(paths, failedSubtrees, errors, expandedRoot,
                     $"The index block for {expandedRoot} ran out of capacity before the walk finished.");
+            }
+
             if (status.Block is { AccessDeniedSubtreeCount: > 0 } block)
+            {
                 return Failed(paths, failedSubtrees, errors, expandedRoot,
                     $"{block.AccessDeniedSubtreeCount} subtree(s) under {expandedRoot} could not be entered.");
+            }
         }
 
         return new RecursiveDiscovery(paths, failedSubtrees, errors);
@@ -102,7 +115,9 @@ static class EnumerationDiscovery
         var skipHidden = configuration.SkipHiddenDirectories == true;
         var prunedPaths = new List<string>(ignoredPaths.Where(Path.IsPathFullyQualified));
         if (configuration.IncludeTempDirectories != true && !TempDirectories.IsTempPath(root))
+        {
             prunedPaths.AddRange(TempDirectories.ExpandConcretePaths(root));
+        }
 
         return new DirectoryWalkOptions
         {
@@ -127,7 +142,9 @@ static class EnumerationDiscovery
             for (var bit = 0; bit < letterIndexes.Length; bit++)
             {
                 if ((mask & (1 << bit)) != 0)
+                {
                     characters[letterIndexes[bit]] = char.ToUpperInvariant(characters[letterIndexes[bit]]);
+                }
             }
 
             spellings[mask] = new string(characters);

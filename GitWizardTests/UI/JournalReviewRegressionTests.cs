@@ -23,7 +23,10 @@ public class JournalReviewRegressionTests
         var notifications = 0;
         service.ScanWarningsChanged += () => notifications++;
         await foreach (var change in service.RunAsync(CancellationToken.None))
+        {
             Assert.Fail($"Unexpected change: {change}");
+        }
+
         Assert.That(notifications, Is.EqualTo(1), "An empty re-arm must clear previous warnings.");
     }
 }

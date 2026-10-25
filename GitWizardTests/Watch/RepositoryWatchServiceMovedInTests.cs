@@ -13,7 +13,10 @@ public class RepositoryWatchServiceMovedInTests
         var events = new List<RepositoryChangeEvent>();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await foreach (var ev in svc.RunAsync(cts.Token))
+        {
             events.Add(ev);
+        }
+
         return events;
     }
 

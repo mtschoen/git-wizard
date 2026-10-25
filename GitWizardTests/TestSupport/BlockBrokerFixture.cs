@@ -90,7 +90,9 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
         get
         {
             lock (_processes)
+            {
                 return _processes.SelectMany(handle => handle.Scans).ToArray();
+            }
         }
     }
 
@@ -108,7 +110,10 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
         ConnectionCount++;
         var handle = BrokerTestHarness.StartInProcess(_volumes);
         lock (_processes)
+        {
             _processes.Add(handle);
+        }
+
         _handle = handle;
         _ = ObserveShutdownAsync(handle);
         return Task.FromResult(handle);
@@ -124,7 +129,10 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
     public async Task DisconnectAsync()
     {
         if (_handle is not { } handle)
+        {
             return;
+        }
+
         handle.Crash();
         await handle.Ended.ConfigureAwait(false);
     }
@@ -142,9 +150,15 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
             throw new IOException("The broker host crashed during the scan.");
         }
         if (_scanError != null && (FailedDrive == null || FailedDrive == scan.Drive.ToString()))
+        {
             throw new IOException(_scanError);
+        }
+
         if (ParseProgressToReport is { } sample)
+        {
             scan.ReportParsed(sample.RecordsParsed, sample.TotalRecords);
+        }
+
         AfterParseProgressAsync?.Invoke(scan.CancellationToken).Wait(TestTimeouts.BrokerHangGuard, CancellationToken.None);
         return YieldRecords(scan.CancellationToken);
     }
@@ -154,7 +168,10 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
         Interlocked.Increment(ref _recordsYielded);
         yield return [Directory(5, ".", 5)];
         if (MidScanAsync is { } midScan)
+        {
             midScan(cancellationToken).Wait(TestTimeouts.BrokerHangGuard, CancellationToken.None);
+        }
+
         cancellationToken.ThrowIfCancellationRequested();
         Interlocked.Add(ref _recordsYielded, 3);
         yield return [Directory(6, "code", 5), Directory(42, "repo", 6), Directory(43, ".git", 42)];
@@ -191,9 +208,15 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
         _watchStarted.TrySetResult((drive.ToString(), since));
         // A watch resumed from before the catch-up entries replays them, as the journal would.
         if (since == Cursor && _catchUpEntries.Length > 0)
+        {
             yield return (_catchUpEntries, CaughtUpCursor);
+        }
+
         if (WatchEntries.Length > 0)
+        {
             yield return (WatchEntries, WatchCursor);
+        }
+
         await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
     }
 
@@ -207,9 +230,14 @@ internal sealed class BlockBrokerFixture : IAsyncDisposable
         {
             InProcessBrokerHandle[] processes;
             lock (_processes)
+            {
                 processes = _processes.ToArray();
+            }
+
             foreach (var handle in processes)
+            {
                 await handle.DisposeAsync();
+            }
         }
         finally
         {

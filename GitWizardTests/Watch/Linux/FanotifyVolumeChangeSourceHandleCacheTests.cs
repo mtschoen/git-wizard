@@ -40,7 +40,9 @@ public class FanotifyVolumeChangeSourceHandleCacheTests
             // Simulate directory deletion by clearing OpenByHandle mapping after first batch
             native.HandleToFdMap.Clear();
             if (batches.Count >= 2)
+            {
                 break;
+            }
         }
 
         Assert.Multiple(() =>
@@ -153,7 +155,9 @@ public class FanotifyVolumeChangeSourceHandleCacheTests
         finally
         {
             if (Directory.Exists(tempBase))
+            {
                 Directory.Delete(tempBase, true);
+            }
         }
     }
 
@@ -185,7 +189,9 @@ public class FanotifyVolumeChangeSourceHandleCacheTests
         {
             batches.Add(batch);
             if (batches.Count >= 3)
+            {
                 break;
+            }
         }
 
         Assert.Multiple(() =>
@@ -233,7 +239,9 @@ public class FanotifyVolumeChangeSourceHandleCacheTests
             {
                 batches.Add(batch);
                 if (batches.Count >= 2)
+                {
                     break;
+                }
             }
 
             Assert.Multiple(() =>
@@ -248,7 +256,9 @@ public class FanotifyVolumeChangeSourceHandleCacheTests
         finally
         {
             if (Directory.Exists(tempBase))
+            {
                 Directory.Delete(tempBase, true);
+            }
         }
     }
 

@@ -36,13 +36,17 @@ internal sealed class ThreadedUiDispatcher : IUiDispatcher, IDisposable
     public void Post(Action action)
     {
         if (!_queue.IsAddingCompleted)
+        {
             _queue.Add(action);
+        }
     }
 
     public Task InvokeAsync(Action action)
     {
         if (_queue.IsAddingCompleted)
+        {
             return Task.CompletedTask;
+        }
 
         var completion = new TaskCompletionSource();
         _queue.Add(() =>
@@ -56,7 +60,9 @@ internal sealed class ThreadedUiDispatcher : IUiDispatcher, IDisposable
     public Task InvokeAsync(Func<Task> action)
     {
         if (_queue.IsAddingCompleted)
+        {
             return Task.CompletedTask;
+        }
 
         var completion = new TaskCompletionSource();
         _queue.Add(() => _ = RunAndSignalAsync(action, completion));

@@ -43,13 +43,17 @@ internal sealed class ScriptedVolumeChangeSource : IVolumeChangeSource, IVolumeS
             {
                 _sourceDied += value;
                 if (ReplayDeathToLateSubscribers && _deathReason is not null)
+                {
                     value?.Invoke(_deathReason);
+                }
             }
         }
         remove
         {
             lock (_gate)
+            {
                 _sourceDied -= value;
+            }
         }
     }
 
@@ -59,9 +63,15 @@ internal sealed class ScriptedVolumeChangeSource : IVolumeChangeSource, IVolumeS
     {
         _armStarted.TrySetResult();
         if (ArmGate is not null)
+        {
             await ArmGate.WaitAsync(ct).ConfigureAwait(false);
+        }
+
         if (ArmFailure is not null)
+        {
             throw ArmFailure;
+        }
+
         _armed.TrySetResult();
         return new VolumeArmResult(_errors, []);
     }
@@ -76,7 +86,9 @@ internal sealed class ScriptedVolumeChangeSource : IVolumeChangeSource, IVolumeS
             await Task.Yield();
         }
         if (KeepWatching)
+        {
             await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+        }
     }
 
     public void KillSource(string reason)

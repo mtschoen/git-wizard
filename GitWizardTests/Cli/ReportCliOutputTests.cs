@@ -97,7 +97,11 @@ public class ReportCliOutputTests
         using var repository = TempRepoFixture.CreateWithInitialCommit();
         await File.WriteAllTextAsync(Path.Combine(repository.Path, "pending.txt"), "pending change");
         var arguments = new List<string> { "--no-mft", "--rebuild-report", "--no-local-commit-count", "--json" };
-        if (minified) arguments.Add("--minified");
+        if (minified)
+        {
+            arguments.Add("--minified");
+        }
+
         var runConfiguration = CliParser.Parse(arguments.ToArray());
         Assert.That(runConfiguration.HasParseError, Is.False);
         var configuration = new GitWizardConfiguration
@@ -259,7 +263,10 @@ public class ReportCliOutputTests
     {
         var searchPath = Path.Combine(_temporaryHome, "repositories");
         if (outcome != "error")
+        {
             Directory.CreateDirectory(searchPath);
+        }
+
         var configuration = new GitWizardConfiguration
         {
             SearchPaths = { searchPath },
@@ -278,9 +285,13 @@ public class ReportCliOutputTests
                 : Program.RunCommandCoreAsync(runConfiguration, configuration, stdout: stdout, stderr: stderr);
 
             if (outcome == "exception")
+            {
                 Assert.ThrowsAsync<IOException>(async () => await reportTask);
+            }
             else
+            {
                 Assert.That(await reportTask, Is.EqualTo(outcome == "error" ? 1 : 0));
+            }
 
             Assert.That(GitWizardLog.LogMethod, Is.SameAs(originalSink));
             Assert.That(GitWizardLog.TypedLogMethod, Is.SameAs(originalTypedSink));
@@ -333,10 +344,16 @@ public class ReportCliOutputTests
             GitWizardLog.LogMethod = originalSink;
             var exited = Program.TryHandleImmediateExitFlags(runConfiguration, stderr);
             if (lockedReport != null)
+            {
                 await lockedReport.DisposeAsync();
+            }
+
             lockedReport = null;
             if (originalDirectoryMode != null && !OperatingSystem.IsWindows())
+            {
                 RestoreDirectoryMode(localFilesPath, originalDirectoryMode.Value);
+            }
+
             await Program.RunCommandCoreAsync(runConfiguration, configuration, stdout: stdout, stderr: stderr);
 
             using var document = JsonDocument.Parse(stdout.ToString());
@@ -352,9 +369,14 @@ public class ReportCliOutputTests
         finally
         {
             if (lockedReport != null)
+            {
                 await lockedReport.DisposeAsync();
+            }
+
             if (originalDirectoryMode != null && !OperatingSystem.IsWindows())
+            {
                 RestoreDirectoryMode(localFilesPath, originalDirectoryMode.Value);
+            }
         }
     }
 

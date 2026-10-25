@@ -52,7 +52,10 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
     public UsnJournalSettings QueryUsnJournalSettings(DriveKey drive)
     {
         if (!OperatingSystem.IsWindows())
+        {
             throw new PlatformNotSupportedException("USN journals require Windows.");
+        }
+
         var owner = _owner ?? throw new InvalidOperationException("No index session available.");
         return owner.Index.QueryUsnJournalSettings(drive);
     }
@@ -73,7 +76,10 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             if (_arming is not null)
+            {
                 throw new InvalidOperationException("This source has already been armed.");
+            }
+
             var armFinished = _armFinished =
                 new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             return _arming = ArmCoreAsync(volumes.ToArray(), armFinished, ct);
@@ -100,7 +106,10 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
                 var prepared = _owner;
                 _owner = null;
                 if (prepared is not null)
+                {
                     await prepared.DisposeAsync().ConfigureAwait(false);
+                }
+
                 _owner = await _openSession(requested, new ArmScanProgress(requested, ReportScanProgress),
                     cancellationToken).ConfigureAwait(false);
             }
@@ -110,7 +119,9 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
             var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync(cancellationToken).ConfigureAwait(false);
 
             foreach (var drive in _owner.Index.Drives)
+            {
                 ProcessArmedDrive(drive, configuration, errors, warnings, cancellationToken);
+            }
 
             cancellationToken.ThrowIfCancellationRequested();
             PublishArmedDrives(_owner, requested, errors);
@@ -119,29 +130,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
             {
                 await EnsureWatchStartedAsync(_owner, cancellationToken).ConfigureAwait(false);
 
-                var catchUpDrives = CaptureUsableDrives();
-                var catchUpTasks = catchUpDrives.Select(d => WaitDriveAsync(_owner, d, cancellationToken)).ToArray();
-                await Task.WhenAll(catchUpTasks).ConfigureAwait(false);
-
-                foreach (var d in catchUpDrives)
-                {
-                    var driveStatus = _owner.CaptureDriveStatuses().FirstOrDefault(s =>
-                        string.Equals(s.Drive, d.ToString(), StringComparison.OrdinalIgnoreCase));
-                    if (driveStatus?.IndexStatus is { State: DriveState.Failed or DriveState.Offline } failed)
-                    {
-                        var message = failed.Failure?.Message ?? $"Drive is {failed.State}.";
-                        RecordStartupDriveFailure(d, message);
-                    }
-                }
-                ExcludeDrivesWithFailedWatch(_owner, catchUpDrives);
-
-                lock (_faultLock)
-                {
-                    foreach (var (drv, msg) in _startupErrors)
-                    {
-                        errors[drv.ToString()] = msg;
-                    }
-                }
+                await CatchUpArmedDrivesAsync(_owner, errors, cancellationToken).ConfigureAwait(false);
             }
 
             // The warnings above were built before watching started: report the drives as they are now.
@@ -156,12 +145,43 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
             var owner = _owner;
             _owner = null;
             if (owner is not null)
+            {
                 await owner.DisposeAsync().ConfigureAwait(false);
+            }
+
             throw;
         }
         finally
         {
             armFinished.TrySetResult();
+        }
+    }
+
+    async Task CatchUpArmedDrivesAsync(MftIndexSession owner, Dictionary<string, string> errors,
+        CancellationToken cancellationToken)
+    {
+        var catchUpDrives = CaptureUsableDrives();
+        var catchUpTasks = catchUpDrives.Select(drive => WaitDriveAsync(owner, drive, cancellationToken)).ToArray();
+        await Task.WhenAll(catchUpTasks).ConfigureAwait(false);
+
+        foreach (var drive in catchUpDrives)
+        {
+            var driveStatus = owner.CaptureDriveStatuses().FirstOrDefault(status =>
+                string.Equals(status.Drive, drive.ToString(), StringComparison.OrdinalIgnoreCase));
+            if (driveStatus?.IndexStatus is { State: DriveState.Failed or DriveState.Offline } failed)
+            {
+                var message = failed.Failure?.Message ?? $"Drive is {failed.State}.";
+                RecordStartupDriveFailure(drive, message);
+            }
+        }
+        ExcludeDrivesWithFailedWatch(owner, catchUpDrives);
+
+        lock (_faultLock)
+        {
+            foreach (var (drive, message) in _startupErrors)
+            {
+                errors[drive.ToString()] = message;
+            }
         }
     }
 
@@ -171,13 +191,21 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         foreach (var status in owner.CaptureDriveStatuses())
         {
             if (status.IdentityFailure is not null)
+            {
                 errors[status.Drive] = status.IdentityFailure;
+            }
             else if (status.IndexStatus?.Failure?.Message is { Length: > 0 } message)
+            {
                 errors[status.Drive] = message;
+            }
             else if (status.IndexStatus?.State is DriveState.Failed or DriveState.Offline)
+            {
                 errors[status.Drive] = $"Drive is {status.IndexStatus.State}.";
+            }
             else
+            {
                 errors.Remove(status.Drive);
+            }
         }
 
         return errors;
@@ -188,7 +216,10 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         lock (_lifecycleLock)
         {
             if (_watchStarted)
+            {
                 return Task.CompletedTask;
+            }
+
             _watchStarted = true;
             return StartWatch(owner, cancellationToken);
         }
@@ -204,9 +235,15 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
             {
                 ObjectDisposedException.ThrowIf(_disposed, this);
                 if (_arming?.IsCompletedSuccessfully != true)
+                {
                     throw new InvalidOperationException("ArmAndCatchUpAsync must finish before WatchAsync.");
+                }
+
                 if (_watchClaimed)
+                {
                     throw new InvalidOperationException("This source already has a watch reader.");
+                }
+
                 _watchClaimed = claimed = true;
                 owner = _owner;
             }
@@ -220,12 +257,16 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
                 yield break;
             }
             await foreach (var batch in _output.Reader.ReadAllAsync(ct).ConfigureAwait(false))
+            {
                 yield return batch;
+            }
         }
         finally
         {
             if (claimed)
+            {
                 await StopOnceAsync().ConfigureAwait(false);
+            }
         }
     }
 
@@ -245,14 +286,19 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
     {
         var results = await index.StartWatchingAsync(index.Drives.Select(status => status.Drive), cancellationToken).ConfigureAwait(false);
         foreach (var result in results.Where(result => result.Outcome == DriveOperationOutcome.Failed))
+        {
             RecordStartupDriveFailure(result.Drive.Letter, result.Failure?.Message ?? "The drive watch could not start.");
+        }
+
         _pumpStarted.TrySetResult();
     }
 
     void OnChanged(FileChange change)
     {
         lock (_deliveryLock)
+        {
             DeliverChange(change);
+        }
     }
 
     void DeliverChange(FileChange change)
@@ -298,7 +344,10 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
     static string RewriteToDriveLetterRoot(string realPath, string realRoot, char driveLetter)
     {
         if (!realPath.StartsWith(realRoot, StringComparison.OrdinalIgnoreCase))
+        {
             return realPath;
+        }
+
         if (realPath.Length > realRoot.Length &&
             !realRoot.EndsWith('/') && !realRoot.EndsWith('\\') &&
             realPath[realRoot.Length] is not ('/' or '\\'))
@@ -361,13 +410,18 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
             _output.Writer.TryComplete(exception);
         }
         if (terminal)
+        {
             ReportDeath(fault.Exception.Message);
+        }
     }
 
     void ReportDeath(string reason)
     {
         if (Interlocked.Exchange(ref _deathReported, 1) != 0)
+        {
             return;
+        }
+
         try
         {
             SourceDied?.Invoke(reason);

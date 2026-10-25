@@ -54,7 +54,9 @@ public class CandidateAdmissionPolicyTests
     public async Task EveryRouteAdmitsTheSameRepositories(AdmissionCase admissionCase)
     {
         if (admissionCase.HiddenAttributeDirectory is not null && !OperatingSystem.IsWindows())
+        {
             Assert.Ignore("The Hidden file attribute exists only on Windows.");
+        }
 
         using var fixture = new PackedIndexFixture();
         var scopePath = Path.Combine(fixture.TreePath, "scope");
@@ -73,7 +75,9 @@ public class CandidateAdmissionPolicyTests
             SkipHiddenDirectories = admissionCase.SkipHiddenDirectories
         };
         if (ignoredPath is not null)
+        {
             configuration.IgnoredPaths.Add(ignoredPath);
+        }
 
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, true, []);
         var temporaryRoots = (admissionCase.TemporaryRelative ?? [])
@@ -191,7 +195,9 @@ public class CandidateAdmissionPolicyTests
     static string? IgnoredPathFor(AdmissionCase admissionCase, string scopePath)
     {
         if (admissionCase.IgnoreVolumeRoot)
+        {
             return Path.GetPathRoot(scopePath);
+        }
 
         return admissionCase.IgnoredRelative is null
             ? null
@@ -201,7 +207,9 @@ public class CandidateAdmissionPolicyTests
     static string[] LogicalIgnoredFor(AdmissionCase admissionCase, string treePath, string? ignoredPath)
     {
         if (ignoredPath is null)
+        {
             return [];
+        }
 
         return admissionCase.IgnoreVolumeRoot ? ["X:/"] : [ToLogical(treePath, ignoredPath)];
     }

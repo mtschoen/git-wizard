@@ -51,9 +51,15 @@ public class JournalWarningRefreshTests
         public async ValueTask DisposeAsync()
         {
             if (Source is not null)
+            {
                 await Source.DisposeAsync();
+            }
+
             if (_owner is not null)
+            {
                 await _owner.DisposeAsync();
+            }
+
             _files.Dispose();
         }
     }

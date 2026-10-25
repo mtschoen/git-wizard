@@ -90,7 +90,9 @@ public class ProgramInventoryEntryPointTests
         finally
         {
             if (File.Exists(tempConfigFile))
+            {
                 File.Delete(tempConfigFile);
+            }
         }
     }
 
@@ -121,7 +123,9 @@ public class ProgramInventoryEntryPointTests
         finally
         {
             if (File.Exists(tempConfigFile))
+            {
                 File.Delete(tempConfigFile);
+            }
         }
     }
 
@@ -148,7 +152,9 @@ public class ProgramInventoryEntryPointTests
         finally
         {
             if (File.Exists(tempConfigFile))
+            {
                 File.Delete(tempConfigFile);
+            }
         }
     }
 
@@ -177,7 +183,9 @@ public class ProgramInventoryEntryPointTests
         finally
         {
             if (File.Exists(tempConfigFile))
+            {
                 File.Delete(tempConfigFile);
+            }
         }
     }
 
@@ -306,7 +314,11 @@ public class ProgramInventoryEntryPointTests
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         var arguments = new List<string> { "--paths", fixture.Path, "--json" };
-        if (minified) arguments.Add("--minified");
+        if (minified)
+        {
+            arguments.Add("--minified");
+        }
+
         var result = await RunCliAsync(arguments.ToArray());
         using var document = JsonDocument.Parse(result.StandardOutput);
         Assert.Multiple(() =>

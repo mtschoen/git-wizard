@@ -39,7 +39,9 @@ public class MainViewModelWorkingDirectorySortTests
 
         // ActiveSortMode already defaults to WorkingDirectory; no explicit ApplySort call.
         foreach (var path in MixedOrderPaths)
+        {
             viewModel.RepositoryList.AddRepository(Repo(path), streaming: false);
+        }
 
         var expected = MixedOrderPaths.OrderBy(path => path, PlatformComparer).ToArray();
         var actual = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray();
@@ -51,7 +53,9 @@ public class MainViewModelWorkingDirectorySortTests
     {
         var viewModel = NewViewModel();
         foreach (var path in MixedOrderPaths)
+        {
             viewModel.RepositoryList.AddRepository(Repo(path), streaming: false);
+        }
 
         // Simulates the final AddRepository call ApplyLiveCreatedAsync makes once a newly
         // created repository's refresh completes.
@@ -69,7 +73,9 @@ public class MainViewModelWorkingDirectorySortTests
         var viewModel = NewViewModel();
         var report = new GitWizardReport();
         foreach (var path in MixedOrderPaths)
+        {
             report.Repositories[path] = Repo(path);
+        }
 
         viewModel.RepositoryList.PrePopulateFromReport(new GitWizardConfiguration(), MixedOrderPaths, report);
 
@@ -83,7 +89,9 @@ public class MainViewModelWorkingDirectorySortTests
     {
         var viewModel = NewViewModel();
         foreach (var path in MixedOrderPaths)
+        {
             viewModel.RepositoryList.AddRepository(Repo(path), streaming: false);
+        }
 
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
 
@@ -99,7 +107,9 @@ public class MainViewModelWorkingDirectorySortTests
         // for both ungrouped and grouped views, including as new rows arrive).
         var headers = viewModel.RepositoryList.Repositories.Where(n => n.IsGroupHeader).ToList();
         foreach (var header in headers)
+        {
             viewModel.RepositoryList.ToggleGroupExpand(header);
+        }
 
         const string arriving = @"C:\repos\Beta";
         viewModel.RepositoryList.AddRepository(Repo(arriving), streaming: false);
@@ -120,7 +130,9 @@ public class MainViewModelWorkingDirectorySortTests
     public void GroupByDrive_MixedCasePaths_ProduceOneGroupPerDrive()
     {
         if (!OperatingSystem.IsWindows())
+        {
             Assert.Ignore("Drive-letter case ambiguity is a Windows-only concern.");
+        }
 
         var viewModel = NewViewModel();
 
@@ -142,7 +154,9 @@ public class MainViewModelWorkingDirectorySortTests
     public void GroupByDrive_LiveArrivalWithDifferentCase_JoinsExistingGroup()
     {
         if (!OperatingSystem.IsWindows())
+        {
             Assert.Ignore("Drive-letter case ambiguity is a Windows-only concern.");
+        }
 
         var viewModel = NewViewModel();
         viewModel.RepositoryList.AddRepository(Repo(@"c:\repos\alpha"), streaming: false);
@@ -170,7 +184,10 @@ public class MainViewModelWorkingDirectorySortTests
         var paths = Enumerable.Range(0, existingCount).Select(i => $@"C:\repos\r{i:D4}").ToArray();
         var report = new GitWizardReport();
         foreach (var path in paths)
+        {
             report.Repositories[path] = Repo(path);
+        }
+
         viewModel.RepositoryList.PrePopulateFromReport(new GitWizardConfiguration(), paths, report);
 
         // Sorts strictly between "C:\repos\r0099" and "C:\repos\r0100" - a genuine mid-list
@@ -199,7 +216,10 @@ public class MainViewModelWorkingDirectorySortTests
         var paths = Enumerable.Range(0, existingCount).Select(i => $@"C:\repos\r{i:D4}").ToArray();
         var report = new GitWizardReport();
         foreach (var path in paths)
+        {
             report.Repositories[path] = Repo(path);
+        }
+
         viewModel.RepositoryList.PrePopulateFromReport(new GitWizardConfiguration(), paths, report);
 
         var reads = CountingList.Install(viewModel.RepositoryList.Repositories);

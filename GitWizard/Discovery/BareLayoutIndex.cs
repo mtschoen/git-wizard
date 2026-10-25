@@ -32,7 +32,9 @@ sealed class BareLayoutIndex
             try
             {
                 if (!entry.IsDeleted && entry.IsDirectory && entry.Parent is { } parent)
+                {
                     parents.Add(parent);
+                }
             }
             catch (InvalidOperationException)
             {

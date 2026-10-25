@@ -81,9 +81,15 @@ internal static class FakeLiveStartup
         ArgumentNullException.ThrowIfNull(sourceFactory);
         var configuration = new GitWizardConfiguration { IncludeTempDirectories = includeTempDirectories };
         foreach (var searchRoot in searchRoots)
+        {
             configuration.SearchPaths.Add(searchRoot);
+        }
+
         foreach (var ignoredPath in ignoredPaths ?? [])
+        {
             configuration.IgnoredPaths.Add(ignoredPath);
+        }
+
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Watch, false, false, trackedRoots.ToArray());
         return (_, cancellationToken) => FromSourceArmedAsync(sourceFactory(), request, cancellationToken);
     }

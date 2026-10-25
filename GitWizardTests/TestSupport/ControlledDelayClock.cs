@@ -25,13 +25,18 @@ internal sealed class ControlledDelayClock : TimeProvider
         public void Fire()
         {
             if (!IsDisposed)
+            {
                 callback(state);
+            }
         }
 
         public bool Change(TimeSpan dueTime, TimeSpan period)
         {
             if (IsDisposed)
+            {
                 return false;
+            }
+
             DueTime = dueTime;
             Period = period;
             return true;

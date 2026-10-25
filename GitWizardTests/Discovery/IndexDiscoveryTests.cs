@@ -111,7 +111,10 @@ public class IndexDiscoveryTests
         var depth = (uint)SyntheticBlock.MaximumPathDepth;
         var rows = new List<SyntheticRow>();
         for (uint row = 6; row < 6 + depth; row++)
+        {
             rows.Add(Directory(row, "parent", row - 1));
+        }
+
         rows.Add(Directory(6 + depth, ".git", 5 + depth));
         await using var index = await OpenRowsAsync(files, [.. rows]);
         var marker = index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single();
@@ -126,7 +129,10 @@ public class IndexDiscoveryTests
         var depth = (uint)SyntheticBlock.MaximumPathDepth;
         var rows = new List<SyntheticRow> { Directory(6, "validrepo", 5), Directory(7, ".git", 6) };
         for (uint row = 8; row < 8 + depth; row++)
+        {
             rows.Add(Directory(row, "parent", row - 1));
+        }
+
         rows.Add(Directory(8 + depth, ".git", 7 + depth));
         await using var index = await OpenRowsAsync(files, [.. rows]);
         var entries = GitWizardApi.SelectGitEntries(index, includeGitFiles: true);

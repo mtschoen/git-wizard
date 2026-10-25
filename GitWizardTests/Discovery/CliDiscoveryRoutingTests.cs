@@ -29,7 +29,9 @@ public class CliDiscoveryRoutingTests
         await fixture.RunAsync();
         Assert.That(fixture.OpenedDriveSets, Is.Not.Empty);
         foreach (var drives in fixture.OpenedDriveSets)
+        {
             Assert.That(drives, Is.EquivalentTo(new[] { "C" }));
+        }
     }
 
     [TestCase("report")]
@@ -50,7 +52,9 @@ public class CliDiscoveryRoutingTests
         Assert.That(fixture.Dependencies.CrawledRoots, Is.Empty);
         Assert.That(fixture.OpenedDriveSets, Is.Not.Empty);
         foreach (var drives in fixture.OpenedDriveSets)
+        {
             Assert.That(drives, Is.EquivalentTo(new[] { "C" }));
+        }
     }
 
     [TestCase("report")]

@@ -20,7 +20,10 @@ public class MainViewModelLiveEventTests
     {
         var repository = new GitWizardRepository(workingDirectory);
         foreach (var url in remotes)
+        {
             repository.RemoteUrls.Add(url);
+        }
+
         return repository;
     }
 

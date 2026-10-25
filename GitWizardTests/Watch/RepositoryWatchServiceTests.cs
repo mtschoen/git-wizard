@@ -14,7 +14,10 @@ public class RepositoryWatchServiceTests
         var events = new List<RepositoryChangeEvent>();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await foreach (var ev in svc.RunAsync(cts.Token))
+        {
             events.Add(ev);
+        }
+
         return events;
     }
 
@@ -41,7 +44,9 @@ public class RepositoryWatchServiceTests
         var events = new List<RepositoryChangeEvent>();
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await foreach (var changeEvent in service.RunAsync(cancellation.Token))
+        {
             events.Add(changeEvent);
+        }
 
         Assert.That(events, Is.EqualTo(new[]
         {

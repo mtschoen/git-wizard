@@ -22,7 +22,9 @@ public partial class MainWindow : Window, IAsyncDisposable
         _viewModel = new MainViewModel(new AvaloniaUiDispatcher(), new AvaloniaUserDialogs(), clipboard);
         DataContext = _viewModel;
         if (!OperatingSystem.IsWindows())
+        {
             DefenderButton.IsVisible = false;
+        }
 
         // Scroll a specific repo into view when the view model asks (e.g. after grouping).
         _viewModel.RepositoryList.ScrollToRequest = node => RepositoryList.ScrollIntoView(node);
@@ -68,7 +70,10 @@ public partial class MainWindow : Window, IAsyncDisposable
 
     async void CheckWindowsDefenderMenuItem_Click(object? sender, RoutedEventArgs e)
     {
-        if (!OperatingSystem.IsWindows()) return;
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
 
         var success = await Task.Run(() => WindowsDefender.AddExclusions());
         var message = success
@@ -108,19 +113,25 @@ public partial class MainWindow : Window, IAsyncDisposable
     void FilterButton_Click(object? sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is FilterType filter)
+        {
             _viewModel.RepositoryList.ToggleFilter(filter);
+        }
     }
 
     void GroupButton_Click(object? sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is GroupMode mode)
+        {
             _viewModel.RepositoryList.ToggleGroupMode(mode);
+        }
     }
 
     void SortButton_Click(object? sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is SortMode mode)
+        {
             _viewModel.RepositoryList.SetSortMode(mode);
+        }
     }
 
     bool _refreshShiftHeld;
@@ -139,9 +150,13 @@ public partial class MainWindow : Window, IAsyncDisposable
         CaptureScrollAnchor();
 
         if (hardRefresh)
+        {
             _ = _viewModel.Refresh.HardRefreshAsync().RunAndLogFaults("Hard-refreshing repositories");
+        }
         else
+        {
             _ = _viewModel.Refresh.RefreshAsync().RunAndLogFaults("Refreshing repositories");
+        }
     }
 
     RepositoryNodeViewModel? _lastTappedGroup;
@@ -163,7 +178,9 @@ public partial class MainWindow : Window, IAsyncDisposable
             _lastGroupTapPointer = isSecondTap ? null : e.Pointer;
             _lastGroupTapTimestamp = isSecondTap ? 0 : e.Timestamp;
             if (isSecondTap)
+            {
                 return;
+            }
 
             _viewModel.RepositoryList.ToggleGroupExpand(node);
         }
@@ -172,7 +189,9 @@ public partial class MainWindow : Window, IAsyncDisposable
     void RepositoryList_DoubleTapped(object? sender, TappedEventArgs e)
     {
         if ((e.Source as Control)?.DataContext is RepositoryNodeViewModel { IsGroupHeader: false } node)
+        {
             _viewModel.Commands.OpenInExplorer(node);
+        }
     }
 
     // Scroll anchoring across a refresh. RefreshAsync clears the Repositories collection at the
@@ -207,7 +226,10 @@ public partial class MainWindow : Window, IAsyncDisposable
                 _anchorPath = (container.DataContext as RepositoryNodeViewModel)?.WorkingDirectory;
                 _anchorAbove = Math.Max(0, -point.Y);
                 if (GitWizardLog.VerboseMode)
+                {
                     GitWizardLog.Log($"[scroll] captured anchor index={i} above={_anchorAbove:F0} path={_anchorPath}");
+                }
+
                 break;
             }
         }
@@ -229,7 +251,10 @@ public partial class MainWindow : Window, IAsyncDisposable
     void RestoreScrollAnchor()
     {
         if (_anchorPath is not { } path)
+        {
             return;
+        }
+
         var above = _anchorAbove;
         _anchorPath = null;
 
@@ -252,52 +277,25 @@ public partial class MainWindow : Window, IAsyncDisposable
             if (index < 0)
             {
                 if (GitWizardLog.VerboseMode)
+                {
                     GitWizardLog.Log($"[scroll] restore skipped: path not found {path}");
+                }
+
                 return;
             }
             if (RepositoryList.Items[index] is not { } anchorItem)
+            {
                 return;
+            }
 
             // Materialize the anchor once. Re-running ScrollIntoView each pass would re-align a
             // partly-off-top row to fully-visible and fight the offset nudge (oscillation).
             RepositoryList.ScrollIntoView(anchorItem);
 
-            var pass = 0;
+            var state = new ScrollAnchorState(index, anchorItem, above);
             _scrollRestoreTimer = new DispatcherTimer(
                 TimeSpan.FromMilliseconds(40), DispatcherPriority.Background, (_, _) =>
-                {
-                    if (++pass > 8)
-                    {
-                        _scrollRestoreTimer?.Stop();
-                        _scrollRestoreTimer = null;
-                        return;
-                    }
-                    if (ListScrollViewer is not { } scrollViewer)
-                        return;
-
-                    // If the anchor virtualized away between passes, re-materialize and retry.
-                    if (RepositoryList.ContainerFromIndex(index) is not { } container
-                        || container.TranslatePoint(default, RepositoryList) is not { } point)
-                    {
-                        RepositoryList.ScrollIntoView(anchorItem);
-                        return;
-                    }
-
-                    var delta = point.Y + above;   // converged when point.Y == -above
-                    if (Math.Abs(delta) < 1.0)
-                    {
-                        _scrollRestoreTimer?.Stop();
-                        _scrollRestoreTimer = null;
-                        if (GitWizardLog.VerboseMode)
-                            GitWizardLog.Log($"[scroll] restored index={index} above={above:F0} in {pass} pass(es)");
-                        return;
-                    }
-
-                    var targetOffsetY = Math.Max(0, scrollViewer.Offset.Y + delta);
-                    scrollViewer.Offset = scrollViewer.Offset.WithY(targetOffsetY);
-                    if (GitWizardLog.VerboseMode)
-                        GitWizardLog.Log($"[scroll] pass {pass} index={index} containerY={point.Y:F0} delta={delta:F0} -> offsetY={targetOffsetY:F0}");
-                });
+                    ConvergeScrollAnchor(state));
             _scrollRestoreTimer.Start();
         }, DispatcherPriority.Background);
     }
@@ -306,8 +304,13 @@ public partial class MainWindow : Window, IAsyncDisposable
     {
         var count = RepositoryList.ItemCount;
         for (var i = 0; i < count; i++)
+        {
             if (RepositoryList.Items[i] is RepositoryNodeViewModel node && node.WorkingDirectory == path)
+            {
                 return i;
+            }
+        }
+
         return -1;
     }
 
@@ -324,43 +327,57 @@ public partial class MainWindow : Window, IAsyncDisposable
     void ForkButton_Click(object? sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is RepositoryNodeViewModel node)
+        {
             _ = _viewModel.Commands.OpenInForkAsync(node).RunAndLogFaults("Opening the repository in Fork");
+        }
     }
 
     void DeepRefreshButton_Click(object? sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is RepositoryNodeViewModel node)
+        {
             _viewModel.Commands.DeepRefreshRepository(node);
+        }
     }
 
     void CheckoutMatchingBranchButton_Click(object? sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is RepositoryNodeViewModel node)
+        {
             _viewModel.Commands.CheckoutMatchingBranch(node);
+        }
     }
 
     void CleanDownstreamButton_Click(object? sender, RoutedEventArgs e)
     {
         if ((sender as Button)?.Tag is RepositoryNodeViewModel node)
+        {
             _ = _viewModel.Commands.CleanDownstreamBranchesAsync(node).RunAndLogFaults("Cleaning downstream branches");
+        }
     }
 
     void OnOpenInExplorerClick(object? sender, RoutedEventArgs e)
     {
         if ((sender as MenuItem)?.Tag is RepositoryNodeViewModel node)
+        {
             _viewModel.Commands.OpenInExplorer(node);
+        }
     }
 
     void OnOpenInForkClick(object? sender, RoutedEventArgs e)
     {
         if ((sender as MenuItem)?.Tag is RepositoryNodeViewModel node)
+        {
             _ = _viewModel.Commands.OpenInForkAsync(node).RunAndLogFaults("Opening the repository in Fork");
+        }
     }
 
     void OnCopyToClipboardClick(object? sender, RoutedEventArgs e)
     {
         if ((sender as MenuItem)?.Tag is RepositoryNodeViewModel node)
+        {
             _ = _viewModel.Commands.CopyToClipboardAsync(node).RunAndLogFaults("Copying the working directory to the clipboard");
+        }
     }
 
     // ContextMenu.PlacementTarget is always null in Avalonia 11 (AvaloniaUI/Avalonia#16344), so the
@@ -370,6 +387,8 @@ public partial class MainWindow : Window, IAsyncDisposable
     void OnRepositoryContextRequested(object? sender, ContextRequestedEventArgs e)
     {
         if (sender is Control control && control.ContextMenu is { } menu)
+        {
             menu.DataContext = control.DataContext;
+        }
     }
 }

@@ -140,22 +140,22 @@ public sealed class RepositoryChangeFilter
                 {
                     var candidate = path.TryGetGitDirectoryParent(out var parent) ? parent : path;
                     var trackedRoot = FindContainingTrackedRoot(candidate);
-                    if (trackedRoot is not null)
+                    if (trackedRoot is null)
                     {
-                        // A case-only rename of a tracked root itself is a moved-in candidate
-                        // (the service layer re-adds it under its new casing), not a content change.
-                        if (candidate.IsEqualTo(trackedRoot.Value)
-                            && !string.Equals(candidate.Original, trackedRoot.Value.Original, StringComparison.Ordinal))
-                        {
-                            return null;
-                        }
-
-                        return !IsExcludedTempPath(trackedRoot.Value)
-                            ? (RepositoryChangeKind.Changed, trackedRoot.Value.Original)
-                            : null;
+                        return null;
                     }
 
-                    return null;
+                    // A case-only rename of a tracked root itself is a moved-in candidate
+                    // (the service layer re-adds it under its new casing), not a content change.
+                    if (candidate.IsEqualTo(trackedRoot.Value)
+                        && !string.Equals(candidate.Original, trackedRoot.Value.Original, StringComparison.Ordinal))
+                    {
+                        return null;
+                    }
+
+                    return !IsExcludedTempPath(trackedRoot.Value)
+                        ? (RepositoryChangeKind.Changed, trackedRoot.Value.Original)
+                        : null;
                 }
             default:
                 return null;
@@ -248,6 +248,10 @@ public sealed class RepositoryChangeFilter
                 case RepositoryChangeKind.Deleted:
                     deleted.Add(root);
                     break;
+                case RepositoryChangeKind.Renamed:
+                    throw new InvalidOperationException("Rename correlation belongs to the watch consumer.");
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(entries), kind, "Unknown repository change kind.");
             }
         }
 
@@ -334,11 +338,13 @@ public sealed class RepositoryChangeFilter
             }
             list.RemoveAt(lastIndex);
 
-            if (list.Count == 0)
+            if (list.Count != 0)
             {
-                _rootsByLength.Remove(length);
-                _descendingLengths.Remove(length);
+                return;
             }
+
+            _rootsByLength.Remove(length);
+            _descendingLengths.Remove(length);
             return;
         }
     }

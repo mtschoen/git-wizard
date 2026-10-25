@@ -1,7 +1,7 @@
 using GitWizard.Watch;
 using MFTLib.Index;
 
-namespace GitWizard;
+namespace GitWizard.Discovery;
 
 /// <summary>
 /// Discovers repositories under one recursive root by walking it into an enumeration-backed
@@ -62,13 +62,9 @@ static class EnumerationDiscovery
             }
 
             diagnostics ??= new CandidateSelectionDiagnostics();
-            foreach (var candidate in GitWizardApi.SelectRepositoryCandidates(index, scope, diagnostics, cancellationToken))
-            {
-                if (IsConfirmed(candidate))
-                {
-                    paths.Add(GitWizardApi.NormalizePath(candidate.Path));
-                }
-            }
+            paths.AddRange(GitWizardApi.SelectRepositoryCandidates(index, scope, diagnostics, cancellationToken)
+                .Where(IsConfirmed)
+                .Select(candidate => GitWizardApi.NormalizePath(candidate.Path)));
 
             if (diagnostics.UnresolvedPathCount > 0)
             {
@@ -76,16 +72,14 @@ static class EnumerationDiscovery
                     $"{diagnostics.UnresolvedPathCount} repository candidate(s) under {expandedRoot} are nested deeper than the index can name.");
             }
 
-            if (status.Block is { IsCapacityExhausted: true })
+            switch (status.Block)
             {
-                return Failed(paths, failedSubtrees, errors, expandedRoot,
-                    $"The index block for {expandedRoot} ran out of capacity before the walk finished.");
-            }
-
-            if (status.Block is { AccessDeniedSubtreeCount: > 0 } block)
-            {
-                return Failed(paths, failedSubtrees, errors, expandedRoot,
-                    $"{block.AccessDeniedSubtreeCount} subtree(s) under {expandedRoot} could not be entered.");
+                case { IsCapacityExhausted: true }:
+                    return Failed(paths, failedSubtrees, errors, expandedRoot,
+                        $"The index block for {expandedRoot} ran out of capacity before the walk finished.");
+                case { AccessDeniedSubtreeCount: > 0 } block:
+                    return Failed(paths, failedSubtrees, errors, expandedRoot,
+                        $"{block.AccessDeniedSubtreeCount} subtree(s) under {expandedRoot} could not be entered.");
             }
         }
 

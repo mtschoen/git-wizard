@@ -75,14 +75,16 @@ public partial class GitWizardRepository
             return false;
         }
 
-        if (Submodules != null)
+        if (Submodules == null)
         {
-            foreach (var sub in Submodules.Values)
+            return true;
+        }
+
+        foreach (var sub in Submodules.Values)
+        {
+            if (sub?.IsSubmodulePublishReady() == false)
             {
-                if (sub?.IsSubmodulePublishReady() == false)
-                {
-                    return false;
-                }
+                return false;
             }
         }
 
@@ -106,10 +108,10 @@ public partial class GitWizardRepository
     /// review doc: <c>SemaphoreSlim</c> is <see cref="IDisposable"/>, and <see
     /// cref="GitWizardRepository"/> is constructed at every discovery and refresh call site
     /// without ever being disposed, so making the type disposable would turn every one of those
-    /// call sites into an undisposed-object analyzer finding for no behavioral gain. A monitor
+    /// call sites into an undisposed-object analyzer finding for no behavioral gain. A dedicated
     /// lock gives the same per-object mutual exclusion without that liability.
     /// </summary>
-    readonly object _refreshGate = new();
+    readonly Lock _refreshGate = new();
 
     internal GitWizardRepository() { }
 
@@ -201,13 +203,6 @@ public partial class GitWizardRepository
     {
         var workingDirectory = WorkingDirectory ?? string.Empty;
         var phaseIndex = 0;
-        void Step(Action action)
-        {
-            PhaseObserverForTesting?.Invoke(phaseIndex++);
-            cancellationToken.ThrowIfCancellationRequested();
-            action();
-        }
-
         Step(() => RefreshSubmodules(updateHandler, repository, workingDirectory, cancellationToken));
         Step(() => CheckSubmoduleHealth(repository, workingDirectory));
         if (!IsWorktree)
@@ -230,6 +225,14 @@ public partial class GitWizardRepository
         PhaseObserverForTesting?.Invoke(phaseIndex);
         cancellationToken.ThrowIfCancellationRequested();
         RefreshSizeOnDisk(workingDirectory);
+        return;
+
+        void Step(Action action)
+        {
+            PhaseObserverForTesting?.Invoke(phaseIndex++);
+            cancellationToken.ThrowIfCancellationRequested();
+            action();
+        }
     }
 
     void RefreshHeadInfo(Repository repository)
@@ -309,23 +312,25 @@ public partial class GitWizardRepository
                 .Where(tip => tip != null)
                 .ToList();
 
-            if (localTips.Count > 0)
+            if (localTips.Count == 0)
             {
-                var filter = new CommitFilter { IncludeReachableFrom = localTips };
-
-                var remoteTips = repository.Branches
-                    .Where(branch => branch.IsRemote)
-                    .Select(branch => branch.Tip)
-                    .Where(tip => tip != null)
-                    .ToList();
-                if (remoteTips.Count > 0)
-                {
-                    filter.ExcludeReachableFrom = remoteTips;
-                }
-
-                LocalCommitCount = repository.Commits.QueryBy(filter).Count();
-                LocalOnlyCommits = LocalCommitCount > 0;
+                return;
             }
+
+            var filter = new CommitFilter { IncludeReachableFrom = localTips };
+
+            var remoteTips = repository.Branches
+                .Where(branch => branch.IsRemote)
+                .Select(branch => branch.Tip)
+                .Where(tip => tip != null)
+                .ToList();
+            if (remoteTips.Count > 0)
+            {
+                filter.ExcludeReachableFrom = remoteTips;
+            }
+
+            LocalCommitCount = repository.Commits.QueryBy(filter).Count();
+            LocalOnlyCommits = LocalCommitCount > 0;
         }
         catch (Exception exception)
         {

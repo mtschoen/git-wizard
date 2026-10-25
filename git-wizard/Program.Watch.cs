@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using GitWizard.Discovery;
 using GitWizard.Watch;
 
 // ReSharper disable once CheckNamespace
@@ -79,12 +80,13 @@ public static partial class Program
 
         if (startup.Source is null)
         {
-            if (startup.Inventory.CanPublishFullInventory)
+            if (!startup.Inventory.CanPublishFullInventory)
             {
-                await stdout.WriteLineAsync("No tracked repositories found; nothing to watch.").ConfigureAwait(false);
-                return 0;
+                return 1;
             }
-            return 1;
+
+            await stdout.WriteLineAsync("No tracked repositories found; nothing to watch.").ConfigureAwait(false);
+            return 0;
         }
 
         var service = new RepositoryWatchService(startup);

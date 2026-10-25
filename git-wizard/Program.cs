@@ -1,3 +1,4 @@
+using GitWizard.Discovery;
 using MFTLib;
 
 namespace GitWizard.CLI;
@@ -56,6 +57,19 @@ public static partial class Program
             case CommandKind.DbSize:
                 Console.WriteLine(ByteSizeFormatter.Format(GitWizardApi.GetLocalFilesSize()));
                 return;
+            case CommandKind.Report:
+            case CommandKind.Sweep:
+            case CommandKind.Tags:
+            case CommandKind.Branches:
+            case CommandKind.ScanOnly:
+            case CommandKind.Merge:
+            case CommandKind.Watch:
+                break;
+            case CommandKind.HelpPrinted:
+                return;
+            default:
+                throw new ArgumentOutOfRangeException(
+                    nameof(runConfiguration), runConfiguration.Command, "Unknown command.");
         }
 
         if (TryHandleImmediateExitFlags(runConfiguration, Console.Error))
@@ -108,9 +122,15 @@ public static partial class Program
                     return await RunWatchAsync(runConfiguration, configuration, coordinator, stdout, stderr, cancellationToken).ConfigureAwait(false);
                 case CommandKind.Report:
                     return await RunDefaultReportCoreAsync(runConfiguration, configuration, coordinator, stdout, stderr, cancellationToken).ConfigureAwait(false);
-                default:
+                case CommandKind.HelpPrinted:
+                case CommandKind.IndexCacheStatus:
+                case CommandKind.ClearIndexCache:
+                case CommandKind.DbSize:
                     throw new ArgumentOutOfRangeException(
                         nameof(runConfiguration), runConfiguration.Command, "This command exits before RunCommandCoreAsync.");
+                default:
+                    throw new ArgumentOutOfRangeException(
+                        nameof(runConfiguration), runConfiguration.Command, "Unknown command.");
             }
         }
         finally
@@ -126,11 +146,13 @@ public static partial class Program
         GitWizardLog.Log(SessionStartMessage);
         configuration ??= await GetConfigurationAsync(runConfiguration).ConfigureAwait(false);
 
-        if (runConfiguration.SetupDefender)
+        if (!runConfiguration.SetupDefender)
         {
-            GitWizardLog.Log("Setting up Windows Defender exclusions...");
-            WindowsDefender.AddExclusions();
+            return configuration;
         }
+
+        GitWizardLog.Log("Setting up Windows Defender exclusions...");
+        WindowsDefender.AddExclusions();
 
         return configuration;
     }
@@ -184,17 +206,19 @@ public static partial class Program
             }
         }
 
-        if (runConfiguration.ClearCache)
+        if (!runConfiguration.ClearCache)
         {
-            GitWizardApi.ClearCache();
-            if (!runConfiguration.RefreshReport)
-            {
-                Environment.Exit(0);
-                return true;
-            }
+            return false;
         }
 
-        return false;
+        GitWizardApi.ClearCache();
+        if (runConfiguration.RefreshReport)
+        {
+            return false;
+        }
+
+        Environment.Exit(0);
+        return true;
     }
 
     static async Task<GitWizardConfiguration> GetConfigurationAsync(RunConfiguration runConfiguration)
@@ -243,21 +267,21 @@ public static partial class Program
     internal static bool EnsureUsableSearchPaths(GitWizardConfiguration configuration, Action<int>? exit = null)
     {
         var usableCount = configuration.SearchPaths.Count(path => GitWizardApi.ExpandSearchPath(path) != null);
-        if (usableCount == 0)
+        if (usableCount != 0)
         {
-            GitWizardLog.SilentMode = false;
-            foreach (var searchPath in configuration.SearchPaths)
-            {
-                GitWizardLog.Log($"Could not get repository paths at {searchPath} because it is not a directory", GitWizardLog.LogType.Error);
-            }
-
-            GitWizardLog.Log(
-                $"{usableCount} of {configuration.SearchPaths.Count} configured search paths are usable",
-                GitWizardLog.LogType.Error);
-            (exit ?? Environment.Exit)(1);
-            return false;
+            return true;
         }
 
-        return true;
+        GitWizardLog.SilentMode = false;
+        foreach (var searchPath in configuration.SearchPaths)
+        {
+            GitWizardLog.Log($"Could not get repository paths at {searchPath} because it is not a directory", GitWizardLog.LogType.Error);
+        }
+
+        GitWizardLog.Log(
+            $"{usableCount} of {configuration.SearchPaths.Count} configured search paths are usable",
+            GitWizardLog.LogType.Error);
+        (exit ?? Environment.Exit)(1);
+        return false;
     }
 }

@@ -12,7 +12,7 @@ public sealed partial class IndexVolumeChangeSource
                 return null;
             }
 
-            owner = _owner;
+            owner = Session;
         }
         return owner?.CaptureCacheStatus();
     }

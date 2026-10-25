@@ -3,7 +3,7 @@ using GitWizard.Watch.Linux;
 using MFTLib;
 using MFTLib.Index;
 
-namespace GitWizard;
+namespace GitWizard.Discovery;
 
 public sealed class RepositoryDiscoveryDependencies
 {
@@ -30,27 +30,15 @@ public sealed class RepositoryDiscoveryDependencies
             IsLinux = OperatingSystem.IsLinux(),
             ClassifyRoot = WindowsRootClassifier.Classify,
             CrawlRootAsync = (request, root, token) => EnumerationDiscovery.DiscoverAsync(request, root, token),
-            OpenIndexAsync = (drives, cacheMode, progress, token) =>
-            {
-                if (!OperatingSystem.IsWindows())
-                {
-                    throw new PlatformNotSupportedException("MFT discovery requires Windows.");
-                }
-
-                return MftIndexSession.OpenWindowsAsync(drives, BrokerLauncher.Launch, cacheMode, null, progress, token);
-            },
+            OpenIndexAsync = (drives, cacheMode, progress, token) => OperatingSystem.IsWindows()
+                ? MftIndexSession.OpenWindowsAsync(drives, BrokerLauncher.Launch, cacheMode, null, progress, token)
+                : throw new PlatformNotSupportedException("MFT discovery requires Windows."),
             ReadListAsync = GitWizardApi.GetCachedRepositoryPathsAsync,
             WriteListAsync = GitWizardApi.SaveCachedRepositoryPathsAsync,
             CandidateExists = RepositoryCandidateProbe.Exists,
-            CreateLinuxSource = () =>
-            {
-                if (!OperatingSystem.IsLinux())
-                {
-                    throw new PlatformNotSupportedException("Linux source requires Linux.");
-                }
-
-                return new FanotifyVolumeChangeSource();
-            }
+            CreateLinuxSource = () => OperatingSystem.IsLinux()
+                ? new FanotifyVolumeChangeSource()
+                : throw new PlatformNotSupportedException("Linux source requires Linux.")
         };
     }
 }

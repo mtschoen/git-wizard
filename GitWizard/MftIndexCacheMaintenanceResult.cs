@@ -13,28 +13,19 @@ public sealed record MftIndexCacheMaintenanceResult(
     public string ToClearText()
     {
         var lines = new List<string>();
-        foreach (var row in Deletions)
-        {
-            lines.Add($"{Identity(row.File)}: {row.Outcome}" +
-                (row.FailureReason is null ? string.Empty : $" - {row.FailureReason}"));
-        }
+        lines.AddRange(Deletions.Select(row => $"{Identity(row.File)}: {row.Outcome}" +
+            (row.FailureReason is null ? string.Empty : $" - {row.FailureReason}")));
 
         lines.Add("Cache inspection (point in time):");
-        foreach (var row in Inventory)
-        {
-            lines.Add($"{Identity(row.File)}: {row.Availability}" +
-                (row.Validation is null ? string.Empty : $" - {row.Validation}"));
-        }
+        lines.AddRange(Inventory.Select(row => $"{Identity(row.File)}: {row.Availability}" +
+            (row.Validation is null ? string.Empty : $" - {row.Validation}")));
 
         if (Inventory.Count == 0 && Errors.Count == 0)
         {
             lines.Add("No canonical cached blocks remain in the supported policy directories.");
         }
 
-        foreach (var error in Errors)
-        {
-            lines.Add($"Error: {error}");
-        }
+        lines.AddRange(Errors.Select(error => $"Error: {error}"));
 
         return string.Join(Environment.NewLine, lines);
     }

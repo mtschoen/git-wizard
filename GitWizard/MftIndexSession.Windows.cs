@@ -8,13 +8,6 @@ public sealed partial class MftIndexSession
 {
     [SupportedOSPlatform("windows")]
     public static Task<MftIndexSession> OpenWindowsAsync(IReadOnlyList<string> drives,
-        Func<string, bool> brokerLauncher, CancellationToken cancellationToken)
-    {
-        return OpenWindowsAsync(drives, brokerLauncher, null, null, cancellationToken);
-    }
-
-    [SupportedOSPlatform("windows")]
-    public static Task<MftIndexSession> OpenWindowsAsync(IReadOnlyList<string> drives,
         Func<string, bool> brokerLauncher, TimeSpan? connectTimeout, CancellationToken cancellationToken)
     {
         return OpenWindowsAsync(drives, brokerLauncher, connectTimeout, null, cancellationToken);

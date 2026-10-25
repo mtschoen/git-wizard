@@ -183,7 +183,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
         }
     }
 
-    internal BrokerSession? BrokerSession { get; set; }
+    internal BrokerSession? BrokerSession { get; init; }
 
     Task DisposeCoreAsync()
     {

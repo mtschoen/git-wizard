@@ -9,8 +9,8 @@ public sealed partial class IndexVolumeChangeSource
     bool _startupBuffering;
     readonly Dictionary<char, string> _startupErrors = [];
 
-    internal MftIndexSession? Session => _owner;
-    internal FileIndex? Index => _owner?.Index;
+    internal MftIndexSession? Session { get; private set; }
+    internal FileIndex? Index => Session?.Index;
 
     public static IndexVolumeChangeSource CreatePrepared(MftIndexSession owner)
     {
@@ -49,17 +49,18 @@ public sealed partial class IndexVolumeChangeSource
         try
         {
             var results = await owner.Index.WaitForCatchUpAsync([upper], token).ConfigureAwait(false);
-            if (results is [{ Outcome: DriveOperationOutcome.Succeeded }])
+            switch (results)
             {
-                if (StartupCatchUpSettledForTest is { } settled)
-                {
-                    await settled(upper).ConfigureAwait(false);
-                }
-            }
-            else if (results is [{ Outcome: DriveOperationOutcome.Failed, Failure: var failure }])
-            {
-                GitWizardLog.Log($"Live watch on {upper}: catch-up wait ended without catching up: " +
-                    failure?.Message, GitWizardLog.LogType.Verbose);
+                case [{ Outcome: DriveOperationOutcome.Succeeded }]:
+                    if (StartupCatchUpSettledForTest is not null)
+                    {
+                        await StartupCatchUpSettledForTest(upper).ConfigureAwait(false);
+                    }
+                    break;
+                case [{ Outcome: DriveOperationOutcome.Failed, Failure: var failure }]:
+                    GitWizardLog.Log($"Live watch on {upper}: catch-up wait ended without catching up: " +
+                        failure?.Message, GitWizardLog.LogType.Verbose);
+                    break;
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)

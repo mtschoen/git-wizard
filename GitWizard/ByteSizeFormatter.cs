@@ -36,11 +36,8 @@ public static class ByteSizeFormatter
             return $"{bytes.Value / bytesPerGigabyte:F1} GB";
         }
 
-        if (bytes.Value >= bytesPerMegabyte)
-        {
-            return $"{bytes.Value / bytesPerMegabyte:F1} MB";
-        }
-
-        return $"{bytes.Value / bytesPerKilobyte:F1} KB";
+        return bytes.Value >= bytesPerMegabyte
+            ? $"{bytes.Value / bytesPerMegabyte:F1} MB"
+            : $"{bytes.Value / bytesPerKilobyte:F1} KB";
     }
 }

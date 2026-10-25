@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using MFTLib.Index;
 
-namespace GitWizard;
+namespace GitWizard.Discovery;
 
 public static partial class WindowsRootClassifier
 {
@@ -59,31 +59,31 @@ public static partial class WindowsRootClassifier
             fileSystemName = fileSystemName[..nullIndex];
         }
 
-        if (string.Equals(fileSystemName, "NTFS", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(fileSystemName, "NTFS", StringComparison.OrdinalIgnoreCase))
         {
-            string? selectedDrive = null;
-            if (volumePath.Length >= 2 && volumePath[1] == ':' && char.IsAsciiLetter(volumePath[0]))
-            {
-                selectedDrive = char.ToUpperInvariant(volumePath[0]).ToString();
-            }
-
-            if (selectedDrive is null)
-            {
-                return new RootClassification(root, RootFileSystem.Unknown, null, "Unsupported volume identity without drive letter");
-            }
-
-            try
-            {
-                _ = IndexedDrive.FromWindowsVolume(selectedDrive[0]);
-                return new RootClassification(root, RootFileSystem.Ntfs, selectedDrive, null);
-            }
-            catch (Exception ex)
-            {
-                return new RootClassification(root, RootFileSystem.Unknown, null, $"Unsupported volume identity: {ex.Message}");
-            }
+            return new RootClassification(root, RootFileSystem.Recursive, null, null);
         }
 
-        return new RootClassification(root, RootFileSystem.Recursive, null, null);
+        string? selectedDrive = null;
+        if (volumePath.Length >= 2 && volumePath[1] == ':' && char.IsAsciiLetter(volumePath[0]))
+        {
+            selectedDrive = char.ToUpperInvariant(volumePath[0]).ToString();
+        }
+
+        if (selectedDrive is null)
+        {
+            return new RootClassification(root, RootFileSystem.Unknown, null, "Unsupported volume identity without drive letter");
+        }
+
+        try
+        {
+            _ = IndexedDrive.FromWindowsVolume(selectedDrive[0]);
+            return new RootClassification(root, RootFileSystem.Ntfs, selectedDrive, null);
+        }
+        catch (Exception ex)
+        {
+            return new RootClassification(root, RootFileSystem.Unknown, null, $"Unsupported volume identity: {ex.Message}");
+        }
     }
 
     [LibraryImport("kernel32.dll", EntryPoint = "GetVolumePathNameW", StringMarshalling = StringMarshalling.Utf16, SetLastError = true)]

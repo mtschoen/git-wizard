@@ -1,6 +1,6 @@
 using GitWizard.Watch;
 
-namespace GitWizard;
+namespace GitWizard.Discovery;
 
 /// <summary>Reads the Hidden attribute of a candidate's ancestors from disk for routes without an index.</summary>
 static class DiskHiddenAncestors

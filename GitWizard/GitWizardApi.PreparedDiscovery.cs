@@ -1,3 +1,4 @@
+using GitWizard.Discovery;
 using GitWizard.Watch;
 using MFTLib;
 

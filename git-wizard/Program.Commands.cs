@@ -1,9 +1,10 @@
+using GitWizard.Discovery;
 // ReSharper disable once CheckNamespace
 namespace GitWizard.CLI;
 
 public static partial class Program
 {
-    internal static Task<int> RunSweepAsync(
+    static Task<int> RunSweepAsync(
         RunConfiguration runConfiguration,
         GitWizardConfiguration configuration,
         RepositoryDiscoveryCoordinator? coordinator = null,
@@ -19,7 +20,7 @@ public static partial class Program
             new CommandEnvironment(coordinator, stdout, stderr),
             cancellationToken);
 
-    internal static Task<int> RunTagsAsync(
+    static Task<int> RunTagsAsync(
         RunConfiguration runConfiguration,
         GitWizardConfiguration configuration,
         RepositoryDiscoveryCoordinator? coordinator = null,
@@ -36,7 +37,7 @@ public static partial class Program
             new CommandEnvironment(coordinator, stdout, stderr),
             cancellationToken);
 
-    internal static Task<int> RunBranchesAsync(
+    static Task<int> RunBranchesAsync(
         RunConfiguration runConfiguration,
         GitWizardConfiguration configuration,
         RepositoryDiscoveryCoordinator? coordinator = null,
@@ -55,7 +56,7 @@ public static partial class Program
             new CommandEnvironment(coordinator, stdout, stderr),
             cancellationToken);
 
-    internal static async Task<int> RunScanOnlyAsync(
+    static async Task<int> RunScanOnlyAsync(
         RunConfiguration runConfiguration,
         GitWizardConfiguration configuration,
         RepositoryDiscoveryCoordinator? coordinator = null,

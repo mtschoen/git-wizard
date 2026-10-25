@@ -16,7 +16,6 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
     readonly HashSet<char> _usableDrives = [];
     readonly Dictionary<char, string> _driveRealRoots = new();
     readonly TaskCompletionSource _pumpStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    MftIndexSession? _owner;
     Task<VolumeArmResult>? _arming;
     TaskCompletionSource? _armFinished;
     Task? _stopping;
@@ -46,7 +45,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
     {
         ArgumentNullException.ThrowIfNull(openSession);
         _openSession = openSession;
-        _owner = preparedIndex;
+        Session = preparedIndex;
     }
 
     public UsnJournalSettings QueryUsnJournalSettings(DriveKey drive)
@@ -56,14 +55,14 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
             throw new PlatformNotSupportedException("USN journals require Windows.");
         }
 
-        var owner = _owner ?? throw new InvalidOperationException("No index session available.");
+        var owner = Session ?? throw new InvalidOperationException("No index session available.");
         return owner.Index.QueryUsnJournalSettings(drive);
     }
 
     public Task<UsnJournalSettings> GrowUsnJournalAsync(DriveKey drive, UsnJournalSettings target, CancellationToken cancellationToken)
     {
         // The session launches the broker on first use, so a grow never needs a connected process up front.
-        var owner = _owner ?? throw new InvalidOperationException("No index session available.");
+        var owner = Session ?? throw new InvalidOperationException("No index session available.");
         var brokerSession = owner.BrokerSession
             ?? throw new InvalidOperationException("The index session has no broker session.");
         return brokerSession.GrowUsnJournalAsync(drive, target, cancellationToken);
@@ -98,52 +97,52 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
                 .Select(value => DriveKey.TryParse(value, out var drive) ? (DriveKey?)drive : null)
                 .OfType<DriveKey>().Distinct().ToArray();
             var requested = requestedKeys.Select(drive => drive.ToString()).ToArray();
-            if (_owner?.IsDisposed != false || _owner.IsFaulted ||
-                !requestedKeys.ToHashSet().SetEquals(_owner.Drives
+            if (Session?.IsDisposed != false || Session.IsFaulted ||
+                !requestedKeys.ToHashSet().SetEquals(Session.Drives
                     .Select(value => DriveKey.TryParse(value, out var drive) ? (DriveKey?)drive : null)
                     .OfType<DriveKey>()))
             {
-                var prepared = _owner;
-                _owner = null;
+                var prepared = Session;
+                Session = null;
                 if (prepared is not null)
                 {
                     await prepared.DisposeAsync().ConfigureAwait(false);
                 }
 
-                _owner = await _openSession(requested, new ArmScanProgress(requested, ReportScanProgress),
+                Session = await _openSession(requested, new ArmScanProgress(requested, ReportScanProgress),
                     cancellationToken).ConfigureAwait(false);
             }
             cancellationToken.ThrowIfCancellationRequested();
-            var errors = CollectArmedDriveErrors(_owner);
+            var errors = CollectArmedDriveErrors(Session);
             var warnings = new List<JournalWarning>();
             var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync(cancellationToken).ConfigureAwait(false);
 
-            foreach (var drive in _owner.Index.Drives)
+            foreach (var drive in Session.Index.Drives)
             {
                 ProcessArmedDrive(drive, configuration, errors, warnings, cancellationToken);
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            PublishArmedDrives(_owner, requested, errors);
+            PublishArmedDrives(Session, requested, errors);
 
             if (HasUsableDrives())
             {
-                await EnsureWatchStartedAsync(_owner, cancellationToken).ConfigureAwait(false);
+                await EnsureWatchStartedAsync(Session, cancellationToken).ConfigureAwait(false);
 
-                await CatchUpArmedDrivesAsync(_owner, errors, cancellationToken).ConfigureAwait(false);
+                await CatchUpArmedDrivesAsync(Session, errors, cancellationToken).ConfigureAwait(false);
             }
 
             // The warnings above were built before watching started: report the drives as they are now.
             warnings.Clear();
-            warnings.AddRange(CollectArmedJournalWarnings(_owner, configuration));
+            warnings.AddRange(CollectArmedJournalWarnings(Session, configuration));
             return new VolumeArmResult(errors, warnings);
         }
         catch
         {
             // Stop a watch this arm started before its index is disposed under it.
             await StopOnceAsync().ConfigureAwait(false);
-            var owner = _owner;
-            _owner = null;
+            var owner = Session;
+            Session = null;
             if (owner is not null)
             {
                 await owner.DisposeAsync().ConfigureAwait(false);
@@ -168,11 +167,13 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         {
             var driveStatus = owner.CaptureDriveStatuses().FirstOrDefault(status =>
                 string.Equals(status.Drive, drive.ToString(), StringComparison.OrdinalIgnoreCase));
-            if (driveStatus?.IndexStatus is { State: DriveState.Failed or DriveState.Offline } failed)
+            if (driveStatus?.IndexStatus is not { State: DriveState.Failed or DriveState.Offline } failed)
             {
-                var message = failed.Failure?.Message ?? $"Drive is {failed.State}.";
-                RecordStartupDriveFailure(drive, message);
+                continue;
             }
+
+            var message = failed.Failure?.Message ?? $"Drive is {failed.State}.";
+            RecordStartupDriveFailure(drive, message);
         }
         ExcludeDrivesWithFailedWatch(owner, catchUpDrives);
 
@@ -245,12 +246,12 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
                 }
 
                 _watchClaimed = claimed = true;
-                owner = _owner;
+                owner = Session;
             }
             var hasWatchableDrives = owner is not null && HasUsableDrives();
             if (!hasWatchableDrives)
             {
-                var reason = _owner?.ScanErrors.Values.FirstOrDefault() is { Length: > 0 } error
+                var reason = Session?.ScanErrors.Values.FirstOrDefault() is { Length: > 0 } error
                     ? $"No requested drives could be watched: {error}"
                     : "No requested drives could be watched.";
                 ReportDeath(reason);
@@ -343,14 +344,10 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
     /// </summary>
     static string RewriteToDriveLetterRoot(string realPath, string realRoot, char driveLetter)
     {
-        if (!realPath.StartsWith(realRoot, StringComparison.OrdinalIgnoreCase))
-        {
-            return realPath;
-        }
-
-        if (realPath.Length > realRoot.Length &&
-            !realRoot.EndsWith('/') && !realRoot.EndsWith('\\') &&
-            realPath[realRoot.Length] is not ('/' or '\\'))
+        if (!realPath.StartsWith(realRoot, StringComparison.OrdinalIgnoreCase) ||
+            (realPath.Length > realRoot.Length &&
+             !realRoot.EndsWith('/') && !realRoot.EndsWith('\\') &&
+             realPath[realRoot.Length] is not ('/' or '\\')))
         {
             return realPath;
         }
@@ -387,7 +384,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
             return;
         }
         bool terminal;
-        var owner = _owner;
+        var owner = Session;
         var origin = owner is null ? VolumeBlockOrigin.Unknown : CurrentOrigin(owner, drive);
         lock (_watchStateLock)
         {

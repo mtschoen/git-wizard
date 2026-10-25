@@ -55,15 +55,7 @@ static class TempDirectories
     /// </summary>
     public static IReadOnlyList<string> ExpandConcretePaths(string searchRoot)
     {
-        var candidates = new List<string>();
-        foreach (var variable in TempEnvironmentVariables)
-        {
-            var value = Environment.GetEnvironmentVariable(variable);
-            if (!string.IsNullOrEmpty(value))
-            {
-                candidates.Add(value);
-            }
-        }
+        var candidates = ReadTempEnvironmentVariables().ToList();
 
         candidates.Add("/tmp");
         var parsedRoot = WatchPath.Parse(searchRoot);
@@ -116,20 +108,17 @@ static class TempDirectories
             && segments[5].Equals("temp", StringComparison.OrdinalIgnoreCase);
     }
 
+    static IEnumerable<string> ReadTempEnvironmentVariables() => TempEnvironmentVariables
+        .Select(Environment.GetEnvironmentVariable)
+        .OfType<string>()
+        .Where(value => value.Length > 0);
+
     // Both syntaxes are captured unconditionally: WatchPath.IsUnderOrEqual never matches across
     // the Windows/POSIX syntax boundary, so a Windows host's temporary-directory root simply never matches a
     // POSIX path and /tmp never matches a Windows path.
     static WatchPath[] CaptureProcessTempRoots()
     {
-        var roots = new List<WatchPath>();
-        foreach (var variable in TempEnvironmentVariables)
-        {
-            var value = Environment.GetEnvironmentVariable(variable);
-            if (!string.IsNullOrEmpty(value))
-            {
-                roots.Add(WatchPath.Parse(value));
-            }
-        }
+        var roots = ReadTempEnvironmentVariables().Select(WatchPath.Parse).ToList();
 
         roots.Add(WatchPath.Parse("/tmp"));
         return roots.ToArray();

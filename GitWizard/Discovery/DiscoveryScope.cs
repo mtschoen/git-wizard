@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 using GitWizard.Watch;
 using MFTLib.Index;
 
-namespace GitWizard;
+namespace GitWizard.Discovery;
 
 public sealed class DiscoveryScope
 {
@@ -87,28 +87,26 @@ public sealed class DiscoveryScope
             var classification = classify(root);
             classifications.Add(classification);
 
-            if (classification.FileSystem == RootFileSystem.Ntfs)
+            switch (classification.FileSystem)
             {
-                AddNtfsDrive(classification, root, requestedNtfsDrives);
-            }
-            else if (classification.FileSystem == RootFileSystem.Recursive)
-            {
-                watchExcludedRoots.Add(root);
-            }
-            else // Unknown
-            {
-                watchExcludedRoots.Add(root);
-                if (!request.NoMft)
-                {
-                    errors[root] = classification.Error ?? $"Unknown filesystem for search root: {root}";
-                }
+                case RootFileSystem.Ntfs:
+                    AddNtfsDrive(classification, root, requestedNtfsDrives);
+                    break;
+                case RootFileSystem.Recursive:
+                    watchExcludedRoots.Add(root);
+                    break;
+                case RootFileSystem.Unknown:
+                    watchExcludedRoots.Add(root);
+                    if (!request.NoMft)
+                    {
+                        errors[root] = classification.Error ?? $"Unknown filesystem for search root: {root}";
+                    }
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(classify), classification.FileSystem, "Unknown filesystem classification.");
             }
 
-            if (request.NoMft)
-            {
-                recursiveRoots.Add(root);
-            }
-            else if (classification.FileSystem == RootFileSystem.Recursive)
+            if (request.NoMft || classification.FileSystem == RootFileSystem.Recursive)
             {
                 recursiveRoots.Add(root);
             }

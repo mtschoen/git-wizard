@@ -23,7 +23,7 @@ public static partial class Program
             }
         }
 
-        public void WriteVerbose(string line)
+        void WriteVerbose(string line)
         {
             if (verbose)
             {

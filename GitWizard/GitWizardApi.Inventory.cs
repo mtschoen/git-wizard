@@ -1,3 +1,4 @@
+using GitWizard.Discovery;
 using LibGit2Sharp;
 
 namespace GitWizard;

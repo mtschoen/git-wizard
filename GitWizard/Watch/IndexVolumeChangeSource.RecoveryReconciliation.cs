@@ -101,7 +101,7 @@ public sealed partial class IndexVolumeChangeSource
     // at once, so no borrowed handle outlives the block it came from.
     HashSet<string>? CaptureRepositoryMarkers(char drive)
     {
-        var owner = _owner;
+        var owner = Session;
         if (owner is null)
         {
             return null;

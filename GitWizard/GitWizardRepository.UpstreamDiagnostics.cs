@@ -75,13 +75,15 @@ public partial class GitWizardRepository
         try
         {
             var trackedBranch = branch.TrackedBranch;
-            if (trackedBranch == null)
+            if (trackedBranch != null)
             {
-                var configuredRemote = GetUnresolvedUpstreamRemote(repository, branch);
-                if (configuredRemote != null)
-                {
-                    LogUnresolvedUpstreamRemoteOnce(repository, branch.FriendlyName, configuredRemote);
-                }
+                return trackedBranch;
+            }
+
+            var configuredRemote = GetUnresolvedUpstreamRemote(repository, branch);
+            if (configuredRemote != null)
+            {
+                LogUnresolvedUpstreamRemoteOnce(repository, branch.FriendlyName, configuredRemote);
             }
 
             return trackedBranch;
@@ -242,11 +244,13 @@ public partial class GitWizardRepository
     {
         var gitDirectory = Path.GetFullPath(repository.Info.Path);
         var commonDirectoryFile = Path.Combine(gitDirectory, "commondir");
-        if (File.Exists(commonDirectoryFile))
+        if (!File.Exists(commonDirectoryFile))
         {
-            var commonDirectory = File.ReadAllText(commonDirectoryFile).Trim();
-            gitDirectory = Path.GetFullPath(Path.Combine(gitDirectory, commonDirectory));
+            return gitDirectory.Replace('\\', '/').TrimEnd('/');
         }
+
+        var commonDirectory = File.ReadAllText(commonDirectoryFile).Trim();
+        gitDirectory = Path.GetFullPath(Path.Combine(gitDirectory, commonDirectory));
 
         return gitDirectory.Replace('\\', '/').TrimEnd('/');
     }

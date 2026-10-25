@@ -48,15 +48,8 @@ public static class FanotifyInterop
     }
 }
 
-sealed class FanotifyProbe
+sealed class FanotifyProbe(IFanotifyNative native)
 {
-    readonly IFanotifyNative _native;
-
-    public FanotifyProbe(IFanotifyNative native)
-    {
-        _native = native;
-    }
-
     public FanotifyCapabilityResult Probe(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -65,7 +58,7 @@ sealed class FanotifyProbe
             throw new ArgumentException("Path must identify an existing directory.", nameof(path));
         }
 
-        var initializeResult = _native.Initialize(
+        var initializeResult = native.Initialize(
             FanotifyConstants.CloseOnExecute | FanotifyConstants.ReportDirectoryFileIdAndName,
             FanotifyConstants.ReadOnly);
         if (initializeResult.Value < 0)
@@ -73,7 +66,7 @@ sealed class FanotifyProbe
             return ClassifyFailure(initializeResult.ErrorNumber);
         }
 
-        using var descriptor = new SafeUnixFileDescriptor(initializeResult.Value, _native);
+        using var descriptor = new SafeUnixFileDescriptor(initializeResult.Value, native);
         var addResult = Mark(initializeResult.Value, FanotifyConstants.MarkAdd, path);
         if (addResult.Value < 0)
         {
@@ -88,7 +81,7 @@ sealed class FanotifyProbe
 
     FanotifyNativeCallResult Mark(int descriptor, uint operation, string path)
     {
-        return _native.Mark(
+        return native.Mark(
             descriptor,
             operation | FanotifyConstants.MarkFilesystem,
             FanotifyConstants.ProbeEventMask,
@@ -260,14 +253,12 @@ sealed partial class FanotifyNative : IFanotifyNative
             const int initialSize = 1024;
             var buffer = stackalloc byte[initialSize];
             var result = NativeReadLink(path, buffer, initialSize);
-            if (result <= 0)
+            switch (result)
             {
-                return null;
-            }
-
-            if (result < initialSize)
-            {
-                return System.Text.Encoding.UTF8.GetString(buffer, (int)result);
+                case <= 0:
+                    return null;
+                case < initialSize:
+                    return System.Text.Encoding.UTF8.GetString(buffer, (int)result);
             }
 
             var bufferSize = 4096;
@@ -349,8 +340,8 @@ static class FanotifyConstants
 {
     public const uint CloseOnExecute = 0x00000001;
     public const uint ReadOnly = 0;
-    public const uint ReportDirectoryFileId = 0x00000400;
-    public const uint ReportName = 0x00000800;
+    const uint ReportDirectoryFileId = 0x00000400;
+    const uint ReportName = 0x00000800;
     public const uint ReportDirectoryFileIdAndName = ReportDirectoryFileId | ReportName;
 
     public const uint MarkAdd = 0x00000001;
@@ -377,9 +368,9 @@ static class FanotifyConstants
     public const int StatfsBufferSize = 256;
     public const int StatfsFilesystemIdOffset = 56;
 
-    public const int OpenPath = 0x00200000;
-    public const int OpenDirectory = 0x00010000;
-    public const int OpenCloseOnExecute = 0x00080000;
+    const int OpenPath = 0x00200000;
+    const int OpenDirectory = 0x00010000;
+    const int OpenCloseOnExecute = 0x00080000;
     public const int OpenDirectoryFlags = (int)ReadOnly | OpenDirectory | OpenCloseOnExecute | OpenPath;
 
     // open_by_handle_at rejects an O_PATH mount descriptor with EBADF, so the descriptor that anchors handle

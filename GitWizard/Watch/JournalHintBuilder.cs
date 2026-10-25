@@ -23,44 +23,42 @@ static class JournalHintBuilder
 
     static string BuildRecreatedHint(JournalCheckpointLoss loss, WatchState? watchState, bool recoveryStopped)
     {
-        if (loss.DetectedDuring == JournalCheckpointLossDetection.LiveWatch)
+        return loss.DetectedDuring switch
         {
-            return $"Hint on {loss.Drive}: The change journal was recreated, so the position " +
-                   "the watch had reached no longer refers to anything and live updates for this " +
-                   $"drive stopped.{BuildRecoveryClause(watchState, recoveryStopped)} No journal size change is needed.";
-        }
-
-        if (loss.DetectedDuring == JournalCheckpointLossDetection.ScanCatchUp)
-        {
-            return $"Hint on {loss.Drive}: The change journal was recreated while the drive " +
-                   $"was being scanned, so the scan could not catch up.{BuildRecoveryClause(watchState, recoveryStopped)} " +
-                   "No journal size change is needed.";
-        }
-
-        return $"Hint on {loss.Drive}: The change journal was recreated, so the saved " +
-               "position no longer refers to anything and a full rescan was needed. " +
-               "Nothing needs changing.";
+            JournalCheckpointLossDetection.LiveWatch =>
+                $"Hint on {loss.Drive}: The change journal was recreated, so the position " +
+                "the watch had reached no longer refers to anything and live updates for this " +
+                $"drive stopped.{BuildRecoveryClause(watchState, recoveryStopped)} No journal size change is needed.",
+            JournalCheckpointLossDetection.ScanCatchUp =>
+                $"Hint on {loss.Drive}: The change journal was recreated while the drive " +
+                $"was being scanned, so the scan could not catch up.{BuildRecoveryClause(watchState, recoveryStopped)} " +
+                "No journal size change is needed.",
+            JournalCheckpointLossDetection.DriveOpening =>
+                $"Hint on {loss.Drive}: The change journal was recreated, so the saved " +
+                "position no longer refers to anything and a full rescan was needed. " +
+                "Nothing needs changing.",
+            _ => throw new ArgumentOutOfRangeException(nameof(loss), loss.DetectedDuring, "Unknown checkpoint loss detection phase.")
+        };
     }
 
     static string BuildAdvancedHint(JournalCheckpointLoss loss, WatchState? watchState, bool recoveryStopped)
     {
-        if (loss.DetectedDuring == JournalCheckpointLossDetection.LiveWatch)
+        return loss.DetectedDuring switch
         {
-            return $"Hint on {loss.Drive}: The change journal moved while the watch was running, " +
-                   $"so live updates for this drive stopped.{BuildRecoveryClause(watchState, recoveryStopped)} " +
-                   "No journal size change is needed.";
-        }
-
-        if (loss.DetectedDuring == JournalCheckpointLossDetection.ScanCatchUp)
-        {
-            return $"Hint on {loss.Drive}: The change journal moved while the drive was being " +
-                   $"scanned, so the scan could not catch up.{BuildRecoveryClause(watchState, recoveryStopped)} " +
-                   "No journal size change is needed.";
-        }
-
-        return $"Hint on {loss.Drive}: The change journal moved while the index was closed, " +
-               "so the saved journal position could not be resumed. A full open rescans the drive; " +
-               "a snapshot open keeps the cached index until the next full open. Nothing needs changing.";
+            JournalCheckpointLossDetection.LiveWatch =>
+                $"Hint on {loss.Drive}: The change journal moved while the watch was running, " +
+                $"so live updates for this drive stopped.{BuildRecoveryClause(watchState, recoveryStopped)} " +
+                "No journal size change is needed.",
+            JournalCheckpointLossDetection.ScanCatchUp =>
+                $"Hint on {loss.Drive}: The change journal moved while the drive was being " +
+                $"scanned, so the scan could not catch up.{BuildRecoveryClause(watchState, recoveryStopped)} " +
+                "No journal size change is needed.",
+            JournalCheckpointLossDetection.DriveOpening =>
+                $"Hint on {loss.Drive}: The change journal moved while the index was closed, " +
+                "so the saved journal position could not be resumed. A full open rescans the drive; " +
+                "a snapshot open keeps the cached index until the next full open. Nothing needs changing.",
+            _ => throw new ArgumentOutOfRangeException(nameof(loss), loss.DetectedDuring, "Unknown checkpoint loss detection phase.")
+        };
     }
 
     static string BuildTrimmedHint(JournalCheckpointLoss loss, WatchState? watchState, bool recoveryStopped)
@@ -82,27 +80,27 @@ static class JournalHintBuilder
     // claim about it follows the current state.
     static string BuildRescanClause(JournalCheckpointLoss loss, WatchState? watchState, bool recoveryStopped)
     {
-        if (loss.DetectedDuring == JournalCheckpointLossDetection.LiveWatch)
+        switch (loss.DetectedDuring)
         {
-            var recovery = BuildRecoveryClause(watchState, recoveryStopped);
-            return loss.BytesBehind is { } liveBytesBehind
-                ? "Live updates for this drive stopped because the change journal moved " +
-                  $"{ByteSizeFormatter.Format(liveBytesBehind)} past the position the watch had " +
-                  $"reached.{recovery} "
-                : "Live updates for this drive stopped because the change journal moved past " +
-                  $"the position the watch had reached.{recovery} ";
+            case JournalCheckpointLossDetection.LiveWatch:
+                var recovery = BuildRecoveryClause(watchState, recoveryStopped);
+                return loss.BytesBehind is { } liveBytesBehind
+                    ? "Live updates for this drive stopped because the change journal moved " +
+                      $"{ByteSizeFormatter.Format(liveBytesBehind)} past the position the watch had " +
+                      $"reached.{recovery} "
+                    : "Live updates for this drive stopped because the change journal moved past " +
+                      $"the position the watch had reached.{recovery} ";
+            case JournalCheckpointLossDetection.ScanCatchUp:
+                return "The change journal moved past the position recorded before the drive's scan " +
+                       $"while the scan ran, so the scan could not catch up.{BuildRecoveryClause(watchState, recoveryStopped)} ";
+            case JournalCheckpointLossDetection.DriveOpening:
+                return loss.BytesBehind is { } bytesBehind
+                    ? $"The last saved position was {ByteSizeFormatter.Format(bytesBehind)} older than " +
+                      "the change journal still holds, so a full rescan was needed. "
+                    : "The last saved position fell out of the change journal, so a full rescan was needed. ";
+            default:
+                throw new ArgumentOutOfRangeException(nameof(loss), loss.DetectedDuring, "Unknown checkpoint loss detection phase.");
         }
-
-        if (loss.DetectedDuring == JournalCheckpointLossDetection.ScanCatchUp)
-        {
-            return "The change journal moved past the position recorded before the drive's scan " +
-                   $"while the scan ran, so the scan could not catch up.{BuildRecoveryClause(watchState, recoveryStopped)} ";
-        }
-
-        return loss.BytesBehind is { } bytesBehind
-            ? $"The last saved position was {ByteSizeFormatter.Format(bytesBehind)} older than " +
-              "the change journal still holds, so a full rescan was needed. "
-            : "The last saved position fell out of the change journal, so a full rescan was needed. ";
     }
 
     // Starts with a space so it follows the sentence it qualifies. Only a stopped recovery, a

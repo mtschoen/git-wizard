@@ -29,7 +29,7 @@ public sealed partial class IndexVolumeChangeSource
     internal void ProcessArmedDrive(DriveStatus drive, GitWizardConfiguration configuration,
         Dictionary<string, string> errors, List<JournalWarning> warnings, CancellationToken cancellationToken)
     {
-        var owner = _owner ?? throw new InvalidOperationException("No index session available.");
+        var owner = Session ?? throw new InvalidOperationException("No index session available.");
         if (drive.State is DriveState.Failed or DriveState.Offline)
         {
             errors[drive.Drive.ToString()] = drive.Failure?.Message ?? $"Drive is {drive.State}.";
@@ -59,7 +59,7 @@ public sealed partial class IndexVolumeChangeSource
     // drive's hint can be refreshed in the same moment the failure is reported.
     void RaiseFaultJournalWarning(char driveLetter)
     {
-        var owner = _owner;
+        var owner = Session;
         var drive = owner?.Index.Drives.FirstOrDefault(candidate =>
             candidate.Drive.Letter == driveLetter);
         if (owner is null || drive is null)

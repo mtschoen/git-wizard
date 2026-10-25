@@ -1,78 +1,9 @@
-using System.Runtime.InteropServices;
 using LibGit2Sharp;
 
 namespace GitWizard;
 
 public partial class GitWizardRepository
 {
-    void RefreshWorktrees(IUpdateHandler? updateHandler, Repository repository, CancellationToken cancellationToken)
-    {
-        var worktrees = repository.Worktrees;
-        if (worktrees.Any())
-        {
-            Worktrees ??= new SortedDictionary<string, GitWizardRepository?>();
-            Parallel.ForEach(worktrees, new ParallelOptions { CancellationToken = cancellationToken }, worktree =>
-            {
-                try
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-
-                    if (worktree == null)
-                    {
-                        GitWizardLog.Log($"Worktree is null in {repository}");
-                        return;
-                    }
-
-                    var path = worktree.WorktreeRepository.Info.WorkingDirectory;
-                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                    {
-                        path = path.ToLowerInvariant();
-                    }
-
-                    bool hasExisting;
-                    GitWizardRepository? worktreeRepository;
-                    lock (Worktrees)
-                    {
-                        hasExisting = Worktrees.TryGetValue(path, out worktreeRepository);
-                    }
-
-                    if (!hasExisting)
-                    {
-                        if (Repository.IsValid(path))
-                        {
-                            worktreeRepository = new GitWizardRepository(path) { IsWorktree = true };
-                            lock (Worktrees)
-                            {
-                                Worktrees[path] = worktreeRepository;
-                            }
-
-                            try
-                            {
-                                updateHandler?.OnWorktreeCreated(worktreeRepository);
-                            }
-                            catch (Exception exception)
-                            {
-                                GitWizardLog.LogException(exception,
-                                    "Exception thrown by Refresh OnWorktreeCreated callback.");
-                            }
-                        }
-                        else
-                        {
-                            GitWizardLog.LogException(new InvalidOperationException("Worktree in unknown state"), $"Unknown worktree state for {path}");
-                        }
-                    }
-
-                    worktreeRepository?.Refresh(updateHandler, cancellationToken: cancellationToken);
-                }
-                catch (Exception exception) when (exception is not OperationCanceledException)
-                {
-                    GitWizardLog.LogException(exception,
-                        $"Exception updating worktrees for {WorkingDirectory}");
-                }
-            });
-        }
-    }
-
     internal void MarkRefreshFailed(string error, IUpdateHandler? updateHandler = null)
     {
         RefreshError = error;
@@ -116,15 +47,17 @@ public partial class GitWizardRepository
 
             process.ErrorDataReceived += (_, args) =>
             {
-                if (args.Data != null)
+                if (args.Data == null)
                 {
-                    if (errorBuilder.Length > 0)
-                    {
-                        errorBuilder.AppendLine();
-                    }
-
-                    errorBuilder.Append(args.Data);
+                    return;
                 }
+
+                if (errorBuilder.Length > 0)
+                {
+                    errorBuilder.AppendLine();
+                }
+
+                errorBuilder.Append(args.Data);
             };
             process.BeginErrorReadLine();
 
@@ -135,13 +68,15 @@ public partial class GitWizardRepository
                 return false;
             }
 
-            if (process.ExitCode != 0)
+            if (process.ExitCode == 0)
             {
-                var error = errorBuilder.ToString();
-                if (!string.IsNullOrEmpty(error))
-                {
-                    GitWizardLog.Log($"git fetch --all reported: {error}", GitWizardLog.LogType.Warning);
-                }
+                return true;
+            }
+
+            var error = errorBuilder.ToString();
+            if (!string.IsNullOrEmpty(error))
+            {
+                GitWizardLog.Log($"git fetch --all reported: {error}", GitWizardLog.LogType.Warning);
             }
 
             return true;
@@ -173,11 +108,13 @@ public partial class GitWizardRepository
 
                 try
                 {
-                    if (branch.Tip != null && branch.Tip.Sha == detachedTip.Sha)
+                    if (branch.Tip == null || branch.Tip.Sha != detachedTip.Sha)
                     {
-                        MatchingBranchName = branch.FriendlyName;
-                        return;
+                        continue;
                     }
+
+                    MatchingBranchName = branch.FriendlyName;
+                    return;
                 }
                 catch (Exception exception)
                 {
@@ -351,39 +288,45 @@ public partial class GitWizardRepository
 
             var errorBuilder = new System.Text.StringBuilder();
             using var process = System.Diagnostics.Process.Start(psi);
-            if (process != null)
+            if (process == null)
             {
-                process.ErrorDataReceived += (_, args) =>
-                {
-                    if (args.Data != null)
-                    {
-                        if (errorBuilder.Length > 0)
-                        {
-                            errorBuilder.AppendLine();
-                        }
+                return;
+            }
 
-                        errorBuilder.Append(args.Data);
-                    }
-                };
-                process.BeginErrorReadLine();
-
-                if (!process.WaitForExit(30000))
+            process.ErrorDataReceived += (_, args) =>
+            {
+                if (args.Data == null)
                 {
-                    GitWizardLog.Log($"git update-index --refresh timed out for {workingDirectory}", GitWizardLog.LogType.Warning);
-                    process.Kill();
                     return;
                 }
 
-                // Note: git update-index --refresh returns non-zero if files are truly modified,
-                // which is normal and expected. We only log if there's an actual error message.
-                if (process.ExitCode != 0)
+                if (errorBuilder.Length > 0)
                 {
-                    var error = errorBuilder.ToString();
-                    if (!string.IsNullOrEmpty(error))
-                    {
-                        GitWizardLog.Log($"git update-index --refresh reported: {error}", GitWizardLog.LogType.Warning);
-                    }
+                    errorBuilder.AppendLine();
                 }
+
+                errorBuilder.Append(args.Data);
+            };
+            process.BeginErrorReadLine();
+
+            if (!process.WaitForExit(30000))
+            {
+                GitWizardLog.Log($"git update-index --refresh timed out for {workingDirectory}", GitWizardLog.LogType.Warning);
+                process.Kill();
+                return;
+            }
+
+            // Note: git update-index --refresh returns non-zero if files are truly modified,
+            // which is normal and expected. We only log if there's an actual error message.
+            if (process.ExitCode == 0)
+            {
+                return;
+            }
+
+            var error = errorBuilder.ToString();
+            if (!string.IsNullOrEmpty(error))
+            {
+                GitWizardLog.Log($"git update-index --refresh reported: {error}", GitWizardLog.LogType.Warning);
             }
         }
         catch (Exception exception)

@@ -85,9 +85,9 @@ public sealed partial class IndexVolumeChangeSource
         }
         finally
         {
-            if (_owner is not null)
+            if (Session is not null)
             {
-                await _owner.DisposeAsync().ConfigureAwait(false);
+                await Session.DisposeAsync().ConfigureAwait(false);
             }
         }
     }

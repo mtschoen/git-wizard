@@ -30,11 +30,13 @@ public sealed partial class IndexVolumeChangeSource
             var ordinal = 0;
             for (var i = 0; i < requestedDrives.Count; i++)
             {
-                if (string.Equals(requestedDrives[i], letter, StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(requestedDrives[i], letter, StringComparison.OrdinalIgnoreCase))
                 {
-                    ordinal = i + 1;
-                    break;
+                    continue;
                 }
+
+                ordinal = i + 1;
+                break;
             }
 
             // A sample naming a drive outside the requested set should not exist; clamp rather

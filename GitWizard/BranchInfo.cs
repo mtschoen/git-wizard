@@ -18,7 +18,7 @@ public class BranchInfo
     public string Name { get; set; } = string.Empty;
 
     /// <summary>True when fully merged into the default branch (AheadOfDefault == 0).</summary>
-    public bool IsMerged { get; set; }
+    public bool IsMerged { get; init; }
 
     /// <summary>The default branch name when merged (safe to delete), else null.</summary>
     [UsedImplicitly]

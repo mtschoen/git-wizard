@@ -1,6 +1,6 @@
 using GitWizard.Watch;
 
-namespace GitWizard;
+namespace GitWizard.Discovery;
 
 public partial class RepositoryDiscoveryCoordinator(RepositoryDiscoveryDependencies dependencies)
 {
@@ -11,7 +11,7 @@ public partial class RepositoryDiscoveryCoordinator(RepositoryDiscoveryDependenc
     {
     }
 
-    internal static bool Contains(RootObservation observation, string path)
+    static bool Contains(RootObservation observation, string path)
     {
         var target = WatchPath.Parse(path);
         var root = WatchPath.Parse(observation.Root);
@@ -44,7 +44,7 @@ public partial class RepositoryDiscoveryCoordinator(RepositoryDiscoveryDependenc
         return retained.Concat(inventory.Paths).Distinct(WatchPath.StringComparer).ToArray();
     }
 
-    internal async Task PersistAsync(
+    async Task PersistAsync(
         IReadOnlyList<string> previous, DiscoveryInventory inventory, CancellationToken cancellationToken)
     {
         if (inventory.Outcome == DiscoveryOutcome.Unusable)

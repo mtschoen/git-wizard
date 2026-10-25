@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using GitWizard.Discovery;
 using MFTLib.Index;
 
 namespace GitWizard;

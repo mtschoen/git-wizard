@@ -1,3 +1,4 @@
+using GitWizard.Discovery;
 using GitWizard.Watch;
 using MFTLib.Index;
 
@@ -39,13 +40,7 @@ public static partial class GitWizardApi
             cancellationToken.ThrowIfCancellationRequested();
             var scopeCandidates = SelectGitMarkerCandidates(gitEntries, candidateScope, diagnostics)
                 .Concat(SelectBareCandidates(headEntries, candidateScope, layouts, diagnostics));
-            foreach (var candidate in scopeCandidates)
-            {
-                if (seenPaths.Add(candidate.Path))
-                {
-                    results.Add(candidate);
-                }
-            }
+            results.AddRange(scopeCandidates.Where(candidate => seenPaths.Add(candidate.Path)));
         }
 
         return results.AsReadOnly();
@@ -70,14 +65,10 @@ public static partial class GitWizardApi
     static List<CandidateScope> BuildCandidateScopes(FileIndex index, DiscoveryScope scope)
     {
         var roots = scope.SearchRoots.Select(root => (Root: root, IsExact: false)).ToList();
-        foreach (var retainedRoot in scope.RetainedRoots)
-        {
-            var retained = WatchPath.Parse(retainedRoot);
-            if (!scope.SearchRoots.Any(searchRoot => retained.IsUnderOrEqual(WatchPath.Parse(searchRoot))))
-            {
-                roots.Add((retainedRoot, true));
-            }
-        }
+        roots.AddRange(scope.RetainedRoots
+            .Select(retainedRoot => (Root: retainedRoot, Path: WatchPath.Parse(retainedRoot)))
+            .Where(retained => !scope.SearchRoots.Any(searchRoot => retained.Path.IsUnderOrEqual(WatchPath.Parse(searchRoot))))
+            .Select(retained => (retained.Root, true)));
 
         var policy = CandidateAdmissionPolicy.ForScope(scope) with
         {
@@ -274,12 +265,8 @@ public static partial class GitWizardApi
             return path;
         }
         var realRootPath = WatchPath.Parse(realRoot);
-        if (path.IsUnderOrEqual(realRootPath))
-        {
-            return path;
-        }
-
-        if (realRootPath.IsWindows && string.Equals(realRootPath.Volume, volume, StringComparison.OrdinalIgnoreCase))
+        if (path.IsUnderOrEqual(realRootPath) ||
+            (realRootPath.IsWindows && string.Equals(realRootPath.Volume, volume, StringComparison.OrdinalIgnoreCase)))
         {
             return path;
         }

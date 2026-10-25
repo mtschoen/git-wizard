@@ -1,4 +1,4 @@
-namespace GitWizard;
+namespace GitWizard.Discovery;
 
 /// <summary>
 /// What a candidate selection observed about itself: how many whole-index scans it started, and how many

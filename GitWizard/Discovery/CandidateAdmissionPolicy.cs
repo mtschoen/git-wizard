@@ -1,6 +1,6 @@
 using GitWizard.Watch;
 
-namespace GitWizard;
+namespace GitWizard.Discovery;
 
 /// <summary>
 /// Decides whether a repository candidate may enter an inventory. The recursive walk, indexed
@@ -27,11 +27,11 @@ readonly partial record struct CandidateAdmissionPolicy(
             configuration.IncludeTempDirectories == true,
             configuration.SkipHiddenDirectories == true);
 
-    public static bool IsDotPrefixed(string directoryName) => directoryName.StartsWith('.');
+    static bool IsDotPrefixed(string directoryName) => directoryName.StartsWith('.');
 
     public static bool HasHiddenAttribute(FileAttributes attributes) => attributes.HasFlag(FileAttributes.Hidden);
 
-    public bool IsIgnored(WatchPath path) => IgnoredRoots.Any(path.IsUnderOrEqual);
+    bool IsIgnored(WatchPath path) => IgnoredRoots.Any(path.IsUnderOrEqual);
 
     /// <summary>
     /// Applies the ignored, temporary and hidden rules to <paramref name="candidate"/>, which must

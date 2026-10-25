@@ -70,7 +70,7 @@ public static class GitWizardLog
         }
     }
 
-    static readonly object LogFileLock = new();
+    static readonly Lock LogFileLock = new();
     static readonly TimeSpan LogFileLifetime = TimeSpan.FromDays(30);
     static int _dropWarningCount;
 
@@ -166,14 +166,19 @@ public static class GitWizardLog
 
     static void LogExceptionToConsole(Exception exception)
     {
-        DispatchConsole(exception.Message, LogType.Error);
-        DispatchConsole(exception.StackTrace, LogType.Error);
-
-        var innerException = exception.InnerException;
-        if (innerException != null)
+        while (true)
         {
+            DispatchConsole(exception.Message, LogType.Error);
+            DispatchConsole(exception.StackTrace, LogType.Error);
+
+            var innerException = exception.InnerException;
+            if (innerException is null)
+            {
+                return;
+            }
+
             DispatchConsole("Inner exception:", LogType.Error);
-            LogExceptionToConsole(innerException);
+            exception = innerException;
         }
     }
 
@@ -316,21 +321,25 @@ public static class GitWizardLog
     /// </summary>
     static void LogToFile(string formattedMessage)
     {
-        if (!_logChannel.Writer.TryWrite(formattedMessage))
+        if (_logChannel.Writer.TryWrite(formattedMessage))
         {
-            // Channel is full - message was dropped.
-            // Rate-limit the warning to avoid console spam under load.
-            if (Interlocked.Increment(ref _dropWarningCount) % 100 == 0)
-            {
-                try
-                {
-                    Console.Error.WriteLine("[GitWizardLog] Log channel full, message dropped.");
-                }
-                catch
-                {
-                    // Ignore console failures
-                }
-            }
+            return;
+        }
+
+        // Channel is full - message was dropped.
+        // Rate-limit the warning to avoid console spam under load.
+        if (Interlocked.Increment(ref _dropWarningCount) % 100 != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            Console.Error.WriteLine("[GitWizardLog] Log channel full, message dropped.");
+        }
+        catch
+        {
+            // Ignore console failures
         }
     }
 

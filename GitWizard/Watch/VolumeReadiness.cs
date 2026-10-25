@@ -41,7 +41,7 @@ public sealed record VolumeReadinessSnapshot
 {
     public static readonly VolumeReadinessSnapshot Empty = new([]);
 
-    public VolumeReadinessSnapshot(IReadOnlyList<VolumeWatchStatus> volumes, IReadOnlyList<VolumeWatchTransition>? recentTransitions = null)
+    VolumeReadinessSnapshot(IReadOnlyList<VolumeWatchStatus> volumes, IReadOnlyList<VolumeWatchTransition>? recentTransitions = null)
     {
         ArgumentNullException.ThrowIfNull(volumes);
         Volumes = Array.AsReadOnly(volumes.ToArray());

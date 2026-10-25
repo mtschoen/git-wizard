@@ -183,13 +183,20 @@ public sealed partial class RepositoryWatchService
 
             hasRelevantChanges = true;
             var (kind, root) = classification.Value;
-            if (kind == RepositoryChangeKind.Created)
+            switch (kind)
             {
-                filter.AddRepositoryRoot(root);
-            }
-            else if (kind == RepositoryChangeKind.Deleted)
-            {
-                filter.RemoveRepositoryRoot(root);
+                case RepositoryChangeKind.Created:
+                    filter.AddRepositoryRoot(root);
+                    break;
+                case RepositoryChangeKind.Deleted:
+                    filter.RemoveRepositoryRoot(root);
+                    break;
+                case RepositoryChangeKind.Changed:
+                    break;
+                case RepositoryChangeKind.Renamed:
+                    throw new InvalidOperationException("Rename correlation belongs to the watch consumer.");
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(batch), kind, "Unknown repository change kind.");
             }
 
             pending.Add(root, kind);
@@ -206,13 +213,20 @@ public sealed partial class RepositoryWatchService
         var createdRoots = new HashSet<string>(WatchPath.StringComparer);
         foreach (var changeEvent in pending.DrainEvents())
         {
-            if (changeEvent.Kind == RepositoryChangeKind.Created)
+            switch (changeEvent.Kind)
             {
-                createdRoots.Add(changeEvent.RepoRoot);
-            }
-            else if (changeEvent.Kind == RepositoryChangeKind.Deleted)
-            {
-                createdRoots.Remove(changeEvent.RepoRoot);
+                case RepositoryChangeKind.Created:
+                    createdRoots.Add(changeEvent.RepoRoot);
+                    break;
+                case RepositoryChangeKind.Deleted:
+                    createdRoots.Remove(changeEvent.RepoRoot);
+                    break;
+                case RepositoryChangeKind.Changed:
+                    break;
+                case RepositoryChangeKind.Renamed:
+                    throw new InvalidOperationException("Rename correlation belongs to the watch consumer.");
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(pending), changeEvent.Kind, "Unknown repository change kind.");
             }
 
             await writer.WriteAsync(changeEvent, ct).ConfigureAwait(false);

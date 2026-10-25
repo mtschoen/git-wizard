@@ -130,11 +130,8 @@ public static class MftIndexCacheStatusFormatter
             return $"{Math.Floor(age.TotalHours).ToString(CultureInfo.InvariantCulture)}h";
         }
 
-        if (age.TotalMinutes >= 1)
-        {
-            return $"{Math.Floor(age.TotalMinutes).ToString(CultureInfo.InvariantCulture)}m";
-        }
-
-        return $"{Math.Floor(age.TotalSeconds).ToString(CultureInfo.InvariantCulture)}s";
+        return age.TotalMinutes >= 1
+            ? $"{Math.Floor(age.TotalMinutes).ToString(CultureInfo.InvariantCulture)}m"
+            : $"{Math.Floor(age.TotalSeconds).ToString(CultureInfo.InvariantCulture)}s";
     }
 }

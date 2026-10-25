@@ -1,7 +1,7 @@
 using GitWizard.Watch;
 using MFTLib.Index;
 
-namespace GitWizard;
+namespace GitWizard.Discovery;
 
 public partial class RepositoryDiscoveryCoordinator
 {
@@ -202,13 +202,18 @@ public partial class RepositoryDiscoveryCoordinator
         foreach (var result in results)
         {
             var drive = result.Drive.ToString();
-            if (result.Outcome == DriveOperationOutcome.Succeeded)
+            switch (result.Outcome)
             {
-                accumulator.RescannedDrives.Add(drive);
-            }
-            else if (result.Outcome == DriveOperationOutcome.Failed)
-            {
-                accumulator.Errors[drive] = result.Failure?.Message ?? "The drive rescan failed.";
+                case DriveOperationOutcome.Succeeded:
+                    accumulator.RescannedDrives.Add(drive);
+                    break;
+                case DriveOperationOutcome.Failed:
+                    accumulator.Errors[drive] = result.Failure?.Message ?? "The drive rescan failed.";
+                    break;
+                case DriveOperationOutcome.NotApplicable:
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(session), result.Outcome, "Unknown rescan outcome.");
             }
         }
     }
@@ -245,17 +250,12 @@ public partial class RepositoryDiscoveryCoordinator
 
     static DiscoveryRoute DetermineRoute(DiscoveryScope scope)
     {
-        if (scope.RequestedNtfsDrives.Count > 0 && scope.RecursiveRoots.Count > 0)
+        return (scope.RequestedNtfsDrives.Count, scope.RecursiveRoots.Count) switch
         {
-            return DiscoveryRoute.Mixed;
-        }
-
-        if (scope.RequestedNtfsDrives.Count > 0)
-        {
-            return DiscoveryRoute.Indexed;
-        }
-
-        return DiscoveryRoute.RecursiveOnly;
+            ( > 0, > 0) => DiscoveryRoute.Mixed,
+            ( > 0, _) => DiscoveryRoute.Indexed,
+            _ => DiscoveryRoute.RecursiveOnly
+        };
     }
 
     static bool NeedsScan(DiscoveryPurpose purpose, MftDriveStatus drive)

@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using GitWizard.Discovery;
 
 namespace GitWizard;
 
@@ -8,7 +9,7 @@ namespace GitWizard;
 public partial class GitWizardReport : IAsyncDisposable
 {
     static GitWizardReport? _cachedReport;
-    static readonly object ReportLock = new();
+    static readonly Lock ReportLock = new();
 
     internal static void ResetCachedReport()
     {

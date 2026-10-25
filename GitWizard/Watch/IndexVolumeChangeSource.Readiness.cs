@@ -4,7 +4,7 @@ namespace GitWizard.Watch;
 
 public sealed partial class IndexVolumeChangeSource : IVolumeReadiness
 {
-    internal const string NotWatchableReason = "Live watch is not supported for this drive's index.";
+    const string NotWatchableReason = "Live watch is not supported for this drive's index.";
     VolumeReadinessSnapshot _readiness = VolumeReadinessSnapshot.Empty;
 
     public WatchReadinessMode Mode => WatchReadinessMode.JournalBacklog;

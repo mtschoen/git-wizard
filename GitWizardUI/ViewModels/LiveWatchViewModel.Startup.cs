@@ -1,4 +1,5 @@
 using GitWizard;
+using GitWizard.Discovery;
 using GitWizard.Watch;
 using GitWizardUI.Services;
 

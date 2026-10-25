@@ -1,27 +1,15 @@
-using System.Text.Json.Serialization;
-using MFTLib.Index;
-
-namespace GitWizard;
+namespace GitWizard.Discovery;
 
 /// <summary>
 /// Owns the discovery index session until transferred or disposed.
 /// </summary>
-public sealed class RepositoryDiscoveryResult : IAsyncDisposable
+public sealed class RepositoryDiscoveryResult(
+    DiscoveryInventory inventory,
+    MftIndexSession? indexSession = null) : IAsyncDisposable
 {
-    MftIndexSession? _indexSession;
+    MftIndexSession? _indexSession = indexSession;
 
-    public DiscoveryInventory Inventory { get; }
-
-    [JsonIgnore]
-    public FileIndex? Index => _indexSession?.Index;
-
-    public RepositoryDiscoveryResult(
-        DiscoveryInventory inventory,
-        MftIndexSession? indexSession = null)
-    {
-        Inventory = inventory;
-        _indexSession = indexSession;
-    }
+    public DiscoveryInventory Inventory { get; } = inventory;
 
     public MftIndexSession? DetachIndexSession() => Interlocked.Exchange(ref _indexSession, null);
 

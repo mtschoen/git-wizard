@@ -4,7 +4,7 @@ sealed class UpdateHandler : IUpdateHandler
 {
     readonly TextWriter _stderr;
     readonly object _progressLock = new();
-    readonly object _stateLock = new();
+    readonly Lock _stateLock = new();
     readonly HashSet<string> _createdPaths = new(StringComparer.Ordinal);
     readonly List<string> _warnings = [];
     int _progressTotal;

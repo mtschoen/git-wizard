@@ -1,6 +1,6 @@
 using GitWizard.Watch;
 
-namespace GitWizard;
+namespace GitWizard.Discovery;
 
 public partial class RepositoryDiscoveryCoordinator
 {

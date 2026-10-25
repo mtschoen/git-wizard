@@ -1,3 +1,4 @@
+using GitWizard.Discovery;
 using JetBrains.Annotations;
 
 namespace GitWizard;
@@ -25,18 +26,18 @@ public class GitWizardReportOptions
     public bool AllBranches { get; set; }
 
     /// <summary>When false, skip the expensive per-branch local-only-commit count (LocalCommitCount/LocalOnlyCommits). Default is true.</summary>
-    public bool ComputeLocalCommitCount { get; set; } = true;
+    public bool ComputeLocalCommitCount { get; init; } = true;
 
     /// <summary>When true, retain any elevated MftIndexSession created during MFT discovery on the report.</summary>
     [UsedImplicitly]
     public bool RetainDiscoveryIndex { get; set; }
 
     /// <summary>Purpose of the discovery pass (default is Ordinary).</summary>
-    public DiscoveryPurpose DiscoveryPurpose { get; set; } = DiscoveryPurpose.Ordinary;
+    public DiscoveryPurpose DiscoveryPurpose { get; init; } = DiscoveryPurpose.Ordinary;
 
     /// <summary>When true, allows reading from the cached repository list.</summary>
-    public bool AllowRepositoryList { get; set; } = true;
+    public bool AllowRepositoryList { get; init; } = true;
 
     /// <summary>Injected coordinator for testing and routing.</summary>
-    public RepositoryDiscoveryCoordinator? DiscoveryCoordinator { get; set; }
+    public RepositoryDiscoveryCoordinator? DiscoveryCoordinator { get; init; }
 }

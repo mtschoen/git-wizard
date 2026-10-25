@@ -1,3 +1,4 @@
+using GitWizard.Discovery;
 namespace GitWizard;
 
 /// <summary>

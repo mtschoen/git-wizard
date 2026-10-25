@@ -7,7 +7,7 @@ sealed class ReportLogScope : IDisposable
     readonly RunConfiguration _configuration;
     readonly TextWriter _stdout;
     readonly TextWriter _stderr;
-    readonly object _outputLock = new();
+    readonly Lock _outputLock = new();
 
     internal ReportLogScope(UpdateHandler handler, RunConfiguration configuration,
         TextWriter stdout, TextWriter stderr)

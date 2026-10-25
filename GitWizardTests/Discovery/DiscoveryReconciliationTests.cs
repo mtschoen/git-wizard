@@ -1,4 +1,3 @@
-using GitWizard;
 
 namespace GitWizardTests.Discovery;
 

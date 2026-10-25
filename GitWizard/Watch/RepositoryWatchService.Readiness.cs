@@ -39,17 +39,6 @@ public sealed partial class RepositoryWatchService
         }
     }
 
-    public VolumeReadinessSnapshot VolumeReadiness
-    {
-        get
-        {
-            lock (_readinessLock)
-            {
-                return _volumeReadiness;
-            }
-        }
-    }
-
     void ResetReadiness(WatchReadinessMode mode)
     {
         lock (_readinessLock)

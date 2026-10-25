@@ -175,23 +175,22 @@ public partial class GitWizardRepository
             {
                 var name = declared.FirstOrDefault(
                     entry => string.Equals(entry.Value, path, StringComparison.OrdinalIgnoreCase)).Key;
-                var isDeclared = !string.IsNullOrEmpty(name);
                 var isIndexed = indexedPaths.Contains(path);
                 var info = new SubmoduleHealthInfo { Path = path };
 
-                if (isDeclared && !isIndexed)
+                switch (name, isIndexed)
                 {
-                    info.Status = SubmoduleHealthStatus.MissingFromIndex;
-                    info.Issues.Add($"'{path}' is declared in .gitmodules but missing from the index");
-                }
-                else if (!isDeclared && isIndexed)
-                {
-                    info.Status = SubmoduleHealthStatus.MissingFromGitmodules;
-                    info.Issues.Add($"'{path}' is recorded in the index but missing from .gitmodules");
-                }
-                else if (!string.IsNullOrEmpty(name))
-                {
-                    EvaluateCheckedOutSubmodule(repository, name, path, info);
+                    case ({ Length: > 0 }, false):
+                        info.Status = SubmoduleHealthStatus.MissingFromIndex;
+                        info.Issues.Add($"'{path}' is declared in .gitmodules but missing from the index");
+                        break;
+                    case (null or "", true):
+                        info.Status = SubmoduleHealthStatus.MissingFromGitmodules;
+                        info.Issues.Add($"'{path}' is recorded in the index but missing from .gitmodules");
+                        break;
+                    case ({ Length: > 0 } declaredName, true):
+                        EvaluateCheckedOutSubmodule(repository, declaredName, path, info);
+                        break;
                 }
 
                 if (info.Status != SubmoduleHealthStatus.Healthy)
@@ -279,23 +278,29 @@ public partial class GitWizardRepository
                     tip = remoteBranch?.Tip;
                 }
 
-                if (tip != null && submoduleRepo != null)
+                if (tip == null || submoduleRepo == null)
                 {
-                    // Look up the gitlink commit in the submodule's own database.
-                    var submoduleDb = submoduleRepo.ObjectDatabase;
-                    var gitLinkInSubmodule = submoduleRepo.Lookup<Commit>(indexCommit.Sha);
-                    if (gitLinkInSubmodule != null)
-                    {
-                        var divergence = submoduleDb.CalculateHistoryDivergence(gitLinkInSubmodule, tip);
-                        info.BehindUpstreamCount = divergence.BehindBy ?? 0;
-                        if (info.BehindUpstreamCount > 0)
-                        {
-                            info.Status = SubmoduleHealthStatus.StaleUpstream;
-                            info.Issues.Add(
-                                $"'{path}' is behind upstream by {info.BehindUpstreamCount} commit(s) - the superproject-recorded pointer ({Shorten(gitLinkSha)}) is stale relative to the submodule's default branch ({Shorten(tip.Sha)})");
-                        }
-                    }
+                    return;
                 }
+
+                // Look up the gitlink commit in the submodule's own database.
+                var submoduleDb = submoduleRepo.ObjectDatabase;
+                var gitLinkInSubmodule = submoduleRepo.Lookup<Commit>(indexCommit.Sha);
+                if (gitLinkInSubmodule == null)
+                {
+                    return;
+                }
+
+                var divergence = submoduleDb.CalculateHistoryDivergence(gitLinkInSubmodule, tip);
+                info.BehindUpstreamCount = divergence.BehindBy ?? 0;
+                if (info.BehindUpstreamCount <= 0)
+                {
+                    return;
+                }
+
+                info.Status = SubmoduleHealthStatus.StaleUpstream;
+                info.Issues.Add(
+                    $"'{path}' is behind upstream by {info.BehindUpstreamCount} commit(s) - the superproject-recorded pointer ({Shorten(gitLinkSha)}) is stale relative to the submodule's default branch ({Shorten(tip.Sha)})");
             }
             finally
             {

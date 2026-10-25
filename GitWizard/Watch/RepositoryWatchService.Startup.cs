@@ -1,3 +1,4 @@
+using GitWizard.Discovery;
 namespace GitWizard.Watch;
 
 public sealed partial class RepositoryWatchService

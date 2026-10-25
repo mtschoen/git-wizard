@@ -1,6 +1,6 @@
 using MFTLib.Index;
 
-namespace GitWizard;
+namespace GitWizard.Discovery;
 
 /// <summary>
 /// The directories holding both an <c>objects</c> and a <c>refs</c> child directory, found with one index

@@ -1,7 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Text.Json.Serialization;
 
-namespace GitWizard;
+namespace GitWizard.Discovery;
 
 public enum DiscoveryOutcome
 {
@@ -63,12 +63,7 @@ public sealed record DiscoveryRequest(
     bool NoMft,
     IReadOnlyList<string> RetainedRoots)
 {
-    readonly IReadOnlyList<string> _retainedRoots = Array.AsReadOnly(RetainedRoots.ToArray());
-    public IReadOnlyList<string> RetainedRoots
-    {
-        get => _retainedRoots;
-        init => _retainedRoots = Array.AsReadOnly(value.ToArray());
-    }
+    public IReadOnlyList<string> RetainedRoots { get; } = Array.AsReadOnly(RetainedRoots.ToArray());
 }
 
 public sealed record RootObservation(
@@ -81,52 +76,45 @@ public sealed record RootObservation(
 
 public sealed record DiscoveryInventory
 {
-    readonly IReadOnlyList<string> _paths = [];
-    readonly IReadOnlyList<string> _requestedNtfsDrives = [];
-    readonly IReadOnlyList<RootObservation> _observations = [];
-    readonly IReadOnlyList<MftDriveStatus> _driveStatuses = [];
-    readonly IReadOnlyDictionary<string, string> _errors = new ReadOnlyDictionary<string, string>(new Dictionary<string, string>());
-    readonly IReadOnlyList<string> _watchExcludedRoots = [];
-
     public required DiscoveryOutcome Outcome { get; init; }
 
     public required DiscoveryRoute Route { get; init; }
 
     public required IReadOnlyList<string> Paths
     {
-        get => _paths;
-        init => _paths = Array.AsReadOnly(value.ToArray());
-    }
+        get;
+        init => field = Array.AsReadOnly(value.ToArray());
+    } = [];
 
     public required IReadOnlyList<string> RequestedNtfsDrives
     {
-        get => _requestedNtfsDrives;
-        init => _requestedNtfsDrives = Array.AsReadOnly(value.ToArray());
-    }
+        get;
+        init => field = Array.AsReadOnly(value.ToArray());
+    } = [];
 
     public required IReadOnlyList<RootObservation> Observations
     {
-        get => _observations;
-        init => _observations = Array.AsReadOnly(value.ToArray());
-    }
+        get;
+        init => field = Array.AsReadOnly(value.ToArray());
+    } = [];
 
     public required IReadOnlyList<MftDriveStatus> DriveStatuses
     {
-        get => _driveStatuses;
-        init => _driveStatuses = Array.AsReadOnly(value.ToArray());
-    }
+        get;
+        init => field = Array.AsReadOnly(value.ToArray());
+    } = [];
 
     public required IReadOnlyDictionary<string, string> Errors
     {
-        get => _errors;
-        init => _errors = new ReadOnlyDictionary<string, string>(new Dictionary<string, string>(value));
-    }
+        get;
+        init => field = new ReadOnlyDictionary<string, string>(new Dictionary<string, string>(value));
+    } = new ReadOnlyDictionary<string, string>(new Dictionary<string, string>());
 
     public required IReadOnlyList<string> WatchExcludedRoots
     {
-        get => _watchExcludedRoots;
-        init => _watchExcludedRoots = Array.AsReadOnly(value.ToArray());
-    }
+        get;
+        init => field = Array.AsReadOnly(value.ToArray());
+    } = [];
 
     [JsonIgnore]
     public bool CanPublishFullInventory => Outcome is
@@ -138,25 +126,10 @@ public sealed record RecursiveDiscovery(
     IReadOnlyList<string> FailedSubtrees,
     IReadOnlyDictionary<string, string> Errors)
 {
-    readonly IReadOnlyList<string> _paths = Array.AsReadOnly(Paths.ToArray());
-    public IReadOnlyList<string> Paths
-    {
-        get => _paths;
-        init => _paths = Array.AsReadOnly(value.ToArray());
-    }
+    public IReadOnlyList<string> Paths { get; } = Array.AsReadOnly(Paths.ToArray());
 
-    readonly IReadOnlyList<string> _failedSubtrees = Array.AsReadOnly(FailedSubtrees.ToArray());
-    public IReadOnlyList<string> FailedSubtrees
-    {
-        get => _failedSubtrees;
-        init => _failedSubtrees = Array.AsReadOnly(value.ToArray());
-    }
+    public IReadOnlyList<string> FailedSubtrees { get; } = Array.AsReadOnly(FailedSubtrees.ToArray());
 
-    readonly IReadOnlyDictionary<string, string> _errors = new ReadOnlyDictionary<string, string>(
+    public IReadOnlyDictionary<string, string> Errors { get; } = new ReadOnlyDictionary<string, string>(
         new Dictionary<string, string>(Errors));
-    public IReadOnlyDictionary<string, string> Errors
-    {
-        get => _errors;
-        init => _errors = new ReadOnlyDictionary<string, string>(new Dictionary<string, string>(value));
-    }
 }

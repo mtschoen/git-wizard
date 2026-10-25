@@ -1,7 +1,7 @@
 using GitWizard.Watch;
 using MFTLib.Index;
 
-namespace GitWizard;
+namespace GitWizard.Discovery;
 
 public partial class RepositoryDiscoveryCoordinator
 {
@@ -256,17 +256,19 @@ public partial class RepositoryDiscoveryCoordinator
             }
         }
 
-        if (movedRoots.Count > 0 && source.Index is { } index)
+        if (movedRoots.Count == 0 || source.Index is not { } index)
         {
-            // One candidate selection covers every moved-in subtree; re-enumerating the full
-            // index per entry is quadratic when the replay holds O(N) renames.
-            foreach (var candidate in GitWizardApi.SelectRepositoryCandidates(index, accumulator.Scope, cancellationToken))
+            return batches;
+        }
+
+        // One candidate selection covers every moved-in subtree; re-enumerating the full
+        // index per entry is quadratic when the replay holds O(N) renames.
+        foreach (var candidate in GitWizardApi.SelectRepositoryCandidates(index, accumulator.Scope, cancellationToken))
+        {
+            var candidatePath = WatchPath.Parse(candidate.Path);
+            if (movedRoots.Any(candidatePath.IsUnderOrEqual))
             {
-                var candidatePath = WatchPath.Parse(candidate.Path);
-                if (movedRoots.Any(candidatePath.IsUnderOrEqual))
-                {
-                    ReconcileCandidateInvalidation(candidate.Path, accumulator);
-                }
+                ReconcileCandidateInvalidation(candidate.Path, accumulator);
             }
         }
 

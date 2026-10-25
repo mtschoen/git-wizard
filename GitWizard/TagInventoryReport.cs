@@ -84,14 +84,7 @@ public sealed class TagInventoryReport
 
             using var repository = new Repository(path);
 
-            var matchingTags = new List<Tag>();
-            foreach (var tag in repository.Tags)
-            {
-                if (IsTagMatch(tag.FriendlyName, matchPattern))
-                {
-                    matchingTags.Add(tag);
-                }
-            }
+            var matchingTags = repository.Tags.Where(tag => IsTagMatch(tag.FriendlyName, matchPattern)).ToList();
 
             if (matchingTags.Count == 0)
             {
@@ -254,16 +247,18 @@ public sealed class TagInventoryReport
 
             var refName = line[(tabIndex + 1)..].Trim();
             const string tagPrefix = "refs/tags/";
-            if (refName.StartsWith(tagPrefix, StringComparison.Ordinal))
+            if (!refName.StartsWith(tagPrefix, StringComparison.Ordinal))
             {
-                var rawTag = refName[tagPrefix.Length..];
-                if (rawTag.EndsWith("^{}", StringComparison.Ordinal))
-                {
-                    rawTag = rawTag[..^3];
-                }
-
-                tags.Add(rawTag);
+                continue;
             }
+
+            var rawTag = refName[tagPrefix.Length..];
+            if (rawTag.EndsWith("^{}", StringComparison.Ordinal))
+            {
+                rawTag = rawTag[..^3];
+            }
+
+            tags.Add(rawTag);
         }
 
         return tags;

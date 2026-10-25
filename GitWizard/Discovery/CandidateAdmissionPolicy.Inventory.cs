@@ -1,6 +1,6 @@
 using GitWizard.Watch;
 
-namespace GitWizard;
+namespace GitWizard.Discovery;
 
 readonly partial record struct CandidateAdmissionPolicy
 {
@@ -11,7 +11,7 @@ readonly partial record struct CandidateAdmissionPolicy
     /// Admits an inventory candidate: it must satisfy <see cref="AdmitsWithin"/> for a search root
     /// that claims it, or equal a retained root that no search root claims.
     /// </summary>
-    public bool AdmitsInventoryCandidate(
+    bool AdmitsInventoryCandidate(
         IReadOnlyList<string> searchRoots, IReadOnlyList<string> retainedRoots, string candidateRoot)
     {
         var candidate = WatchPath.Parse(candidateRoot);

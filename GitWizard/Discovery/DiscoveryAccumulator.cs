@@ -1,7 +1,7 @@
 using GitWizard.Watch;
 using MFTLib.Index;
 
-namespace GitWizard;
+namespace GitWizard.Discovery;
 
 /// <summary>
 /// Collects the paths, errors, observations, and drive outcomes of one discovery pass and turns
@@ -22,7 +22,7 @@ sealed class DiscoveryAccumulator
     public List<RootObservation> Observations { get; } = [];
     public HashSet<string> RescannedDrives { get; } = new(StringComparer.OrdinalIgnoreCase);
     public HashSet<string> ObservedDrives { get; } = new(StringComparer.OrdinalIgnoreCase);
-    public IReadOnlyList<MftDriveStatus> FinalStatuses { get; private set; } = [];
+    IReadOnlyList<MftDriveStatus> FinalStatuses { get; set; } = [];
 
     public void RecordDriveStatuses(IReadOnlyList<MftDriveStatus> statuses)
     {

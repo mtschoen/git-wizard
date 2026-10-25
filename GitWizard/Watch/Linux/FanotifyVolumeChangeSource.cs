@@ -15,7 +15,7 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
 {
     readonly IFanotifyNative _native;
     readonly MountRootTable _mounts;
-    readonly object _handleCacheLock = new();
+    readonly Lock _handleCacheLock = new();
     readonly Dictionary<FileHandleKey, string> _handleCache = [];
     readonly Lock _readinessGate = new();
     VolumeReadinessSnapshot _readiness = VolumeReadinessSnapshot.Empty;
@@ -273,6 +273,16 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
         }
     }
 
+    void ReportPumpFailure(string message, CancellationToken cancellationToken)
+    {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        ReportSourceDeath(message);
+    }
+
     async Task PumpEventsAsync(ChannelWriter<VolumeChangeBatch> writer, TaskCompletionSource pumpStarted, CancellationToken cancellationToken)
     {
         var descriptor = _descriptor;
@@ -301,10 +311,7 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
                 var pollResult = _native.Poll(descriptor.Value, 250);
                 if (pollResult < 0)
                 {
-                    if (!cancellationToken.IsCancellationRequested)
-                    {
-                        ReportSourceDeath("fanotify poll failed.");
-                    }
+                    ReportPumpFailure("fanotify poll failed.", cancellationToken);
 
                     break;
                 }
@@ -322,10 +329,7 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
                 var bytesRead = _native.Read(descriptor.Value, buffer, buffer.Length);
                 if (bytesRead <= 0)
                 {
-                    if (!cancellationToken.IsCancellationRequested)
-                    {
-                        ReportSourceDeath("fanotify read returned no bytes.");
-                    }
+                    ReportPumpFailure("fanotify read returned no bytes.", cancellationToken);
 
                     break;
                 }
@@ -336,15 +340,14 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
                     await writer.WriteAsync(new VolumeChangeBatch(LinuxWatchRouting.Volume, entries), cancellationToken).ConfigureAwait(false);
                 }
 
-                if (queueOverflow)
+                if (!queueOverflow)
                 {
-                    if (!cancellationToken.IsCancellationRequested)
-                    {
-                        ReportSourceDeath("fanotify event queue overflowed.");
-                    }
-
-                    break;
+                    continue;
                 }
+
+                ReportPumpFailure("fanotify event queue overflowed.", cancellationToken);
+
+                break;
             }
         }
         catch (OperationCanceledException)

@@ -1,6 +1,6 @@
-using GitWizard.Watch;
+using GitWizard.Discovery;
 
-namespace GitWizard;
+namespace GitWizard.Watch;
 
 /// <summary>
 /// Owns an already-armed volume change source and the immutable initial inventory for watch mode.

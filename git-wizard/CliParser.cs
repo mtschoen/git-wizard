@@ -236,12 +236,7 @@ static partial class CliParser
         var command = ResolveCommand(options);
         var json = options.Json.HasValue();
         var minified = options.Minified.HasValue() || options.PrintMinified.HasValue();
-        if (command == CommandKind.Report &&
-            (options.PrintMinified.HasValue() || (minified && !json)))
-        {
-            GitWizardLog.Log("Ordinary reports use --json --minified for compact JSON.", GitWizardLog.LogType.Error);
-            hasError = true;
-        }
+        hasError |= HasInvalidReportFormat(options, command, minified, json);
 
         return new RunConfiguration
         {
@@ -300,12 +295,18 @@ static partial class CliParser
             return CommandKind.ScanOnly;
         }
 
-        if (options.Watch.HasValue())
+        return options.Watch.HasValue() ? CommandKind.Watch : CommandKind.Report;
+    }
+
+    static bool HasInvalidReportFormat(RootOptions options, CommandKind command, bool minified, bool json)
+    {
+        if (command != CommandKind.Report || (!options.PrintMinified.HasValue() && (!minified || json)))
         {
-            return CommandKind.Watch;
+            return false;
         }
 
-        return CommandKind.Report;
+        GitWizardLog.Log("Ordinary reports use --json --minified for compact JSON.", GitWizardLog.LogType.Error);
+        return true;
     }
 
     static string? GetLastValue(CommandOption opt)
@@ -315,28 +316,36 @@ static partial class CliParser
 
     static void ValidateSavePath(ref string? savePath, ref bool hasError)
     {
-        if (savePath != null && !string.IsNullOrEmpty(savePath))
+        if (string.IsNullOrEmpty(savePath))
         {
-            var parentDir = Path.GetDirectoryName(savePath);
-            if (!string.IsNullOrEmpty(parentDir) && !Directory.Exists(parentDir))
-            {
-                GitWizardLog.Log($"The directory for --save-path does not exist: {parentDir}", GitWizardLog.LogType.Error);
-                hasError = true;
-                savePath = null;
-            }
+            return;
         }
+
+        var parentDir = Path.GetDirectoryName(savePath);
+        if (string.IsNullOrEmpty(parentDir) || Directory.Exists(parentDir))
+        {
+            return;
+        }
+
+        GitWizardLog.Log($"The directory for --save-path does not exist: {parentDir}", GitWizardLog.LogType.Error);
+        hasError = true;
+        savePath = null;
     }
 
     static void ValidateConfigPath(ref string? configPath, ref bool hasError)
     {
-        if (configPath != null && !string.IsNullOrEmpty(configPath))
+        if (string.IsNullOrEmpty(configPath))
         {
-            if (!File.Exists(configPath))
-            {
-                GitWizardLog.Log($"The configuration file does not exist: {configPath}", GitWizardLog.LogType.Error);
-                hasError = true;
-                configPath = null;
-            }
+            return;
         }
+
+        if (File.Exists(configPath))
+        {
+            return;
+        }
+
+        GitWizardLog.Log($"The configuration file does not exist: {configPath}", GitWizardLog.LogType.Error);
+        hasError = true;
+        configPath = null;
     }
 }

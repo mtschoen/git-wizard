@@ -1,8 +1,9 @@
+using GitWizard.Discovery;
 namespace GitWizard.CLI;
 
 public static partial class Program
 {
-    internal static int? GetDiscoveryExitCode(DiscoveryInventory? inventory, bool fullInventory)
+    static int? GetDiscoveryExitCode(DiscoveryInventory? inventory, bool fullInventory)
     {
         return fullInventory && inventory is { CanPublishFullInventory: false } ? 3 : null;
     }
@@ -12,7 +13,7 @@ public static partial class Program
     /// <paramref name="includeLinkedClones"/> the inventory also lists each repository's linked
     /// worktrees and submodule checkouts (the tags and branches commands).
     /// </summary>
-    internal static Task<RepositoryDiscoveryResult> DiscoverForCommandAsync(
+    static Task<RepositoryDiscoveryResult> DiscoverForCommandAsync(
         RunConfiguration runConfiguration,
         GitWizardConfiguration configuration,
         RepositoryDiscoveryCoordinator? coordinator = null,
@@ -69,7 +70,7 @@ public static partial class Program
         WatchExcludedRoots = []
     };
 
-    internal static void WriteDiscoveryDiagnostics(DiscoveryInventory inventory, TextWriter writer)
+    static void WriteDiscoveryDiagnostics(DiscoveryInventory inventory, TextWriter writer)
     {
         foreach (var (key, error) in inventory.Errors)
         {

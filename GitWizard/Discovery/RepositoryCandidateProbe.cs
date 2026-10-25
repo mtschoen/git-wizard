@@ -1,6 +1,6 @@
 using GitWizard.Watch;
 
-namespace GitWizard;
+namespace GitWizard.Discovery;
 
 public static class RepositoryCandidateProbe
 {
@@ -24,7 +24,7 @@ public static class RepositoryCandidateProbe
         WatchPath.Parse(path).Comparison.Split('/').Any(segment =>
             string.Equals(segment, GitWizardApi.GitEntryName, StringComparison.OrdinalIgnoreCase));
 
-    internal static bool IsBareGitRepository(string path)
+    static bool IsBareGitRepository(string path)
     {
         // Must exclude any candidate whose path is inside a .git directory
         if (IsInsideGitDirectory(path))

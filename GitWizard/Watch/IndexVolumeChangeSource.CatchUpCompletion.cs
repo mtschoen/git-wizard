@@ -35,7 +35,7 @@ public sealed partial class IndexVolumeChangeSource
     void CompleteCaughtUp(char drive, long version)
     {
         HashSet<string>? baseline;
-        var owner = _owner;
+        var owner = Session;
         if (owner is null)
         {
             return;

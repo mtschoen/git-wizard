@@ -127,7 +127,7 @@ public sealed partial class RepositoryWatchService
     {
         // Synchronous with the cancel: a pump sitting between its startup flush and its
         // MarkStartupDelivered cannot publish Ready once the consumer has given up.
-        using var terminalOnCancel = ct.Register(MarkTerminal);
+        await using var terminalOnCancel = ct.Register(MarkTerminal).ConfigureAwait(false);
         var channel = Channel.CreateUnbounded<RepositoryChangeEvent>();
         using var deathSignal = new SourceDeathSignal(_source, reason =>
         {

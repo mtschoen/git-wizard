@@ -7,7 +7,7 @@ namespace GitWizard;
 public class GitWizardConfiguration
 {
     static GitWizardConfiguration? _globalConfiguration;
-    static readonly object ConfigurationLock = new();
+    static readonly Lock ConfigurationLock = new();
 
     internal static void ResetGlobalConfiguration()
     {
@@ -26,10 +26,10 @@ public class GitWizardConfiguration
     };
 
     public SortedSet<string> SearchPaths { get; set; } = new();
-    public SortedSet<string> IgnoredPaths { get; set; } = new();
+    public SortedSet<string> IgnoredPaths { get; init; } = new();
 
     [JsonPropertyName("ignoredJournalWarnings")]
-    public SortedSet<uint> IgnoredJournalWarnings { get; set; } = new();
+    public SortedSet<uint> IgnoredJournalWarnings { get; init; } = new();
 
     /// <summary>
     /// Whether to skip directories whose last path segment starts with '.' during
@@ -159,7 +159,7 @@ public class GitWizardConfiguration
         if (Directory.Exists(prCrewReposPath))
         {
             configuration.SearchPaths.Add(RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-                ? "%USERPROFILE%\\.pr-crew\\repos"
+                ? @"%USERPROFILE%\.pr-crew\repos"
                 : "~/.pr-crew/repos");
         }
 

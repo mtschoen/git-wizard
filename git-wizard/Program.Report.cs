@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using GitWizard.Discovery;
 
 namespace GitWizard.CLI;
 
@@ -122,20 +123,22 @@ public static partial class Program
         }
     }
 
-    internal static int OutputFailedRun(ReportRunSummary run, RunConfiguration configuration,
+    static int OutputFailedRun(ReportRunSummary run, RunConfiguration configuration,
         TextWriter stdout, int exitCode)
     {
-        if (!configuration.Silent && !GitWizardLog.SilentMode)
+        if (configuration.Silent || GitWizardLog.SilentMode)
         {
-            if (configuration.Json)
-            {
-                stdout.WriteLine(JsonSerializer.Serialize(new { run },
-                    GetSerializerOptions(configuration, JsonIgnoreCondition.WhenWritingDefault)));
-            }
-            else
-            {
-                ReportTextFormatter.WriteRun(stdout, run);
-            }
+            return exitCode;
+        }
+
+        if (configuration.Json)
+        {
+            stdout.WriteLine(JsonSerializer.Serialize(new { run },
+                GetSerializerOptions(configuration, JsonIgnoreCondition.WhenWritingDefault)));
+        }
+        else
+        {
+            ReportTextFormatter.WriteRun(stdout, run);
         }
         return exitCode;
     }
@@ -145,16 +148,18 @@ public static partial class Program
     {
         report.Run ??= new ReportRunSummary();
         var filteredReport = ApplyFilter(runConfiguration, report);
-        if (!GitWizardLog.SilentMode && !runConfiguration.Silent)
+        if (GitWizardLog.SilentMode || runConfiguration.Silent)
         {
-            if (runConfiguration.Json)
-            {
-                stdout.WriteLine(SerializeReport(runConfiguration, filteredReport));
-            }
-            else
-            {
-                ReportTextFormatter.Write(stdout, filteredReport, fromCache);
-            }
+            return ReportNeedsAttention(filteredReport) ? 1 : 0;
+        }
+
+        if (runConfiguration.Json)
+        {
+            stdout.WriteLine(SerializeReport(runConfiguration, filteredReport));
+        }
+        else
+        {
+            ReportTextFormatter.Write(stdout, filteredReport, fromCache);
         }
         return ReportNeedsAttention(filteredReport) ? 1 : 0;
     }

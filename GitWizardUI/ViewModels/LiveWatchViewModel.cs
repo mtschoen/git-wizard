@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using GitWizard;
+using GitWizard.Discovery;
 using GitWizard.Watch;
 using GitWizard.Watch.Linux;
 using GitWizardUI.Services;

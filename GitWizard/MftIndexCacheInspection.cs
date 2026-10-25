@@ -65,7 +65,7 @@ public sealed class MftIndexCacheInspection
             : CacheDirectory.InspectCached(directory);
     }
 
-    internal static bool SameDirectory(string left, string right) => string.Equals(
+    static bool SameDirectory(string left, string right) => string.Equals(
         Path.TrimEndingDirectorySeparator(Path.GetFullPath(left)),
         Path.TrimEndingDirectorySeparator(Path.GetFullPath(right)), StringComparison.OrdinalIgnoreCase);
 }

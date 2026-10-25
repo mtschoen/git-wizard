@@ -23,7 +23,7 @@ public sealed partial class LiveWatchViewModel
                 return _liveWatchHistory;
             }
 
-            _liveWatchHistory = new LiveWatchHistoryViewModel(_ui.Post, _timeProvider);
+            _liveWatchHistory = new LiveWatchHistoryViewModel(action => _ui.Post(action), _timeProvider);
             _liveWatchHistory.Changed += () => OnPropertyChanged(nameof(LiveReadinessTooltip));
             return _liveWatchHistory;
         }

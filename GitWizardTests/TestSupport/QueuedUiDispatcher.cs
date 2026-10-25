@@ -8,9 +8,9 @@ internal sealed class QueuedUiDispatcher(bool isOnUiThread = true) : IUiDispatch
     readonly ConcurrentQueue<Action> _posted = new();
     public bool IsOnUiThread => isOnUiThread;
     public int QueuedCount => _posted.Count;
-    public void Post(Action action) => _posted.Enqueue(action);
-    public Task InvokeAsync(Action action) { action(); return Task.CompletedTask; }
-    public Task InvokeAsync(Func<Task> action) => action();
+    public void Post(Action action, string callbackName = "") => _posted.Enqueue(action);
+    public Task InvokeAsync(Action action, string callbackName = "") { action(); return Task.CompletedTask; }
+    public Task InvokeAsync(Func<Task> action, string callbackName = "") => action();
     public Action TakeNext() => _posted.TryDequeue(out var action)
         ? action : throw new InvalidOperationException("No UI callback is queued.");
     public void RunNext() => TakeNext()();

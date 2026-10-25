@@ -359,14 +359,14 @@ public class ProgramWatchLoopTests
         await using var source = new DiagnosticVolumeChangeSource();
         var service = new RepositoryWatchService(source, [@"C:\repo"], [], TimeSpan.Zero);
         var lines = new System.Collections.Concurrent.ConcurrentQueue<string>();
-        var printed = new SemaphoreSlim(0);
+        var printed = System.Threading.Channels.Channel.CreateUnbounded<string>();
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var running = Program.RunWatchLoopAsync(service, line =>
         {
             lines.Enqueue(line);
             if (line.Contains("Hint on C:", StringComparison.Ordinal))
             {
-                printed.Release();
+                printed.Writer.TryWrite(line);
             }
         }, NoExit, cancellation.Token);
         await source.Started;
@@ -377,7 +377,7 @@ public class ProgramWatchLoopTests
         foreach (var state in new[] { WatchState.Recovering, WatchState.CaughtUp, WatchState.Recovering })
         {
             source.RaiseJournalWarning(new JournalWarning { DriveLetter = "C", VolumeSerial = 12345, Loss = loss, WatchState = state });
-            await printed.WaitAsync(cancellation.Token);
+            await printed.Reader.ReadAsync(cancellation.Token);
         }
 
         source.Complete();

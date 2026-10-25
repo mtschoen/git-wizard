@@ -21,6 +21,17 @@ purpose, operator, and executable CI check.
 | `scripts/format-on-save.py` | Apply C# whitespace formatting after edits | Claude/AGY hooks and maintainers | python -m py_compile; ci/test_format_on_save.py |
 | `scripts/generate-test-report.ps1` | Generate the deterministic CI summary from TRX and Cobertura artifacts | CI publish-report and maintainers with an explicit output path | PowerShell parser; ci/script-tests/generate-test-report.tests.ps1 |
 
+## Dispatcher watchdog
+
+`GitWizardUI/Services/DispatcherWatchdog.cs` measures synchronous dispatcher
+callback time and writes one `Trace.WriteLine` warning for each callback over
+500 ms. Measurement and Trace warnings are active in both Debug and Release.
+Async dispatcher callbacks measure only the synchronous segment before the
+first await, so dialog waits are not counted as UI stalls. Attended
+`scripts/ui-live-timing.ps1` runs can read the `[DispatcherWatchdog]` Trace
+output. CI gates only the deterministic `DispatcherWatchdogTests` using
+`ControlledDelayClock`, never real wall-clock callback durations.
+
 Run `bash tools/ci-preflight.sh --only contracts` for the shared contract
 suite. Linux checks inventory, Bash/Python syntax, and Python behavior.
 PowerShell checks run on Linux when pwsh is available; otherwise they are

@@ -271,7 +271,7 @@ public partial class MainWindow : Window, IAsyncDisposable
         // it reaches the top (within 1px) or a bounded pass count. Self-heals against the estimate
         // and the settling timing; converges in 1-2 passes (validated headless + real window by
         // the avalonia-vsp-scroll-top spike).
-        Dispatcher.UIThread.Post(() =>
+        Dispatcher.UIThread.Post(DispatcherWatchdog.Wrap("Scroll anchor restore", () =>
         {
             var index = IndexOfPath(path);
             if (index < 0)
@@ -293,11 +293,12 @@ public partial class MainWindow : Window, IAsyncDisposable
             RepositoryList.ScrollIntoView(anchorItem);
 
             var state = new ScrollAnchorState(index, anchorItem, above);
+            var convergeTick = DispatcherWatchdog.Wrap("Scroll anchor restore", () => ConvergeScrollAnchor(state));
             _scrollRestoreTimer = new DispatcherTimer(
                 TimeSpan.FromMilliseconds(40), DispatcherPriority.Background, (_, _) =>
-                    ConvergeScrollAnchor(state));
+                    convergeTick());
             _scrollRestoreTimer.Start();
-        }, DispatcherPriority.Background);
+        }), DispatcherPriority.Background);
     }
 
     int IndexOfPath(string path)

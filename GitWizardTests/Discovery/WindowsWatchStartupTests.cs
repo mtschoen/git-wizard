@@ -135,7 +135,7 @@ public class WindowsWatchStartupTests
         files.AddMarker("repo");
         var retainedBase = Path.Combine(files.DirectoryPath, "retained");
         IReadOnlyList<string>? armedDrives = null;
-        var fixture = files;
+        var treePath = files.TreePath;
 
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {
@@ -148,7 +148,7 @@ public class WindowsWatchStartupTests
             OpenIndexAsync = (drives, _, _, _) =>
             {
                 armedDrives = drives;
-                return Task.FromResult(new MftIndexSession(fixture.OpenIndexAsync().GetAwaiter().GetResult(), new CountingOwner(), drives, [], new Dictionary<string, string>()));
+                return Task.FromResult(new MftIndexSession(OpenDefaultIndexAsync(treePath).GetAwaiter().GetResult(), new CountingOwner(), drives, [], new Dictionary<string, string>()));
             },
             ReadListAsync = _ => Task.FromResult<string[]?>([]),
             WriteListAsync = (_, _) => Task.CompletedTask,
@@ -172,7 +172,7 @@ public class WindowsWatchStartupTests
         files.AddMarker("repo");
         var nonNtfsDir = Directory.CreateDirectory(Path.Combine(files.DirectoryPath, "shared")).FullName;
         IReadOnlyList<string>? openedDrives = null;
-        var fixture = files;
+        var treePath = files.TreePath;
 
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {
@@ -185,7 +185,7 @@ public class WindowsWatchStartupTests
             OpenIndexAsync = (drives, _, _, _) =>
             {
                 openedDrives = drives;
-                return Task.FromResult(new MftIndexSession(fixture.OpenIndexAsync().GetAwaiter().GetResult(), new CountingOwner(), drives, [], new Dictionary<string, string>()));
+                return Task.FromResult(new MftIndexSession(OpenDefaultIndexAsync(treePath).GetAwaiter().GetResult(), new CountingOwner(), drives, [], new Dictionary<string, string>()));
             },
             ReadListAsync = _ => Task.FromResult<string[]?>([]),
             WriteListAsync = (_, _) => Task.CompletedTask,
@@ -258,18 +258,18 @@ public class WindowsWatchStartupTests
         var connection = new CountingOwner();
         var oldSession = new MftIndexSession(await files.OpenIndexAsync(), connection, ["X"], [], new Dictionary<string, string>());
         var openerCalled = false;
-        var fixture = files;
+        var treePath = files.TreePath;
 
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = _ => new RootClassification(fixture.TreePath, RootFileSystem.Ntfs, "Y", null),
+            ClassifyRoot = _ => new RootClassification(treePath, RootFileSystem.Ntfs, "Y", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled."),
             OpenIndexAsync = (drives, _, _, _) =>
             {
                 openerCalled = true;
-                return Task.FromResult(new MftIndexSession(fixture.OpenIndexAsync().GetAwaiter().GetResult(), new CountingOwner(), drives, [], new Dictionary<string, string>()));
+                return Task.FromResult(new MftIndexSession(OpenDefaultIndexAsync(treePath).GetAwaiter().GetResult(), new CountingOwner(), drives, [], new Dictionary<string, string>()));
             },
             ReadListAsync = _ => Task.FromResult<string[]?>([]),
             WriteListAsync = (_, _) => Task.CompletedTask,
@@ -438,6 +438,13 @@ public class WindowsWatchStartupTests
                 "A replay candidate under a hidden directory must respect SkipHiddenDirectories.");
         });
     }
+
+    static Task<FileIndex> OpenDefaultIndexAsync(string treePath) =>
+        FileIndex.OpenAsync(new FileIndexOptions
+        {
+            Drives = new[] { new IndexedDrive('X', treePath, 1, ProducerKind.Enumeration) },
+            CacheMode = CacheMode.Disabled
+        }, CancellationToken.None);
 
     static SyntheticJournalRecord Entry(ulong recordNumber, ulong parentNumber, string name, SyntheticJournalReason reason, bool isDirectory = false) =>
         new SyntheticJournalRecord

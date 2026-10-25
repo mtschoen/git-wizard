@@ -33,7 +33,7 @@ internal sealed class ThreadedUiDispatcher : IUiDispatcher, IDisposable
 
     public int UiThreadId => _uiThread.ManagedThreadId;
 
-    public void Post(Action action)
+    public void Post(Action action, string callbackName = "")
     {
         if (!_queue.IsAddingCompleted)
         {
@@ -41,7 +41,7 @@ internal sealed class ThreadedUiDispatcher : IUiDispatcher, IDisposable
         }
     }
 
-    public Task InvokeAsync(Action action)
+    public Task InvokeAsync(Action action, string callbackName = "")
     {
         if (_queue.IsAddingCompleted)
         {
@@ -57,7 +57,7 @@ internal sealed class ThreadedUiDispatcher : IUiDispatcher, IDisposable
         return completion.Task;
     }
 
-    public Task InvokeAsync(Func<Task> action)
+    public Task InvokeAsync(Func<Task> action, string callbackName = "")
     {
         if (_queue.IsAddingCompleted)
         {

@@ -51,7 +51,7 @@ public class GitWizardApiLocalFilesTests
             ? await GitWizardApi.GetCachedRepositoryPathsAsync()
             : LoadSync();
         Assert.That(File.Exists(GitWizardApi.GetCachedRepositoryListPath()), Is.True);
-        Assert.That(actual, Is.EqualTo(new[] { "/repo/one", "/repo/two" }));
+        Assert.That(actual, Is.EqualTo(["/repo/one", "/repo/two"]));
     }
 
     [TestCase(null, false)]

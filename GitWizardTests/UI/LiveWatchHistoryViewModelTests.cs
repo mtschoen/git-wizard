@@ -41,7 +41,7 @@ public class LiveWatchHistoryViewModelTests
         };
         history.Apply(events);
         history.Apply(events);
-        Assert.That(history.Events.Select(item => item.State), Is.EqualTo(new[] { "Faulted", "Recovering" }));
+        Assert.That(history.Events.Select(item => item.State), Is.EqualTo(["Faulted", "Recovering"]));
         clock.Now += TimeSpan.FromSeconds(29);
         history.Expire();
         Assert.That(history.Events, Has.Count.EqualTo(2));

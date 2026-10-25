@@ -41,7 +41,7 @@ public class FanotifyVolumeChangeSourceIntegrationTests
             await using (var source = new FanotifyVolumeChangeSource())
             {
                 using var armCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-                var armResult = await source.ArmAndCatchUpAsync(new[] { tempDir, tmpfs.Path }, armCts.Token);
+                var armResult = await source.ArmAndCatchUpAsync([tempDir, tmpfs.Path], armCts.Token);
                 Assert.That(armResult.Errors, Is.Empty);
 
                 using var watchCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));

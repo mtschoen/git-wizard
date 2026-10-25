@@ -230,7 +230,7 @@ public class MainViewModelRefreshBatchTests
         var header = viewModel.RepositoryList.Repositories.Single(n => n.IsGroupHeader);
         Assert.That(header.Children.Select(n => n.WorkingDirectory),
             Is.EqualTo(paths.OrderBy(p => p, PlatformComparer)));
-        Assert.That(publication.PublishedHeaderChildCounts, Is.EqualTo(new[] { count }),
+        Assert.That(publication.PublishedHeaderChildCounts, Is.EqualTo([count]),
             "The group header must be published once, already holding every child.");
         Assert.That(publication.ChildMutationsAfterPublication, Is.Zero,
             "Grouped pre-population must build a group's children once, not call AddToGroups per row.");
@@ -320,7 +320,7 @@ public class MainViewModelRefreshBatchTests
 
         Assert.That(positionalInserts.Count, Is.Zero,
             "Rebuilding at completion must replace the collection in a single step with zero positional inserts.");
-        Assert.That(completion.ReplacedCollectionRowCounts, Is.EqualTo(new[] { count }),
+        Assert.That(completion.ReplacedCollectionRowCounts, Is.EqualTo([count]),
             "Completion must publish exactly one replacement Repositories collection, already holding every row.");
         Assert.That(completion.MutationsAfterReplacement, Is.Zero,
             "The published collection must not be mutated incrementally after it replaces the drained one.");

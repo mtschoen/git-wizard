@@ -52,10 +52,9 @@ public class IndexChangeMappingTests
 
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             IndexChangeMapping.Map(change with { Kind = (FileChangeKind)(-1) }));
-        Assert.That(IndexChangeMapping.Map(change), Is.EqualTo(new[]
-        {
+        Assert.That(IndexChangeMapping.Map(change), Is.EqualTo([
             new VolumeChangeEntry(@"T:\captured\file.txt", VolumeEntryKind.Created)
-        }));
+        ]));
     }
 
     [Test]
@@ -65,10 +64,9 @@ public class IndexChangeMappingTests
             @"T:\deleted\file.txt", ChangeTime);
 
         Assert.That(change.Entry.Path, Is.Not.EqualTo(change.Path));
-        Assert.That(IndexChangeMapping.Map(change), Is.EqualTo(new[]
-        {
+        Assert.That(IndexChangeMapping.Map(change), Is.EqualTo([
             new VolumeChangeEntry(@"T:\deleted\file.txt", VolumeEntryKind.Deleted)
-        }));
+        ]));
     }
 
     [Test]
@@ -78,10 +76,9 @@ public class IndexChangeMappingTests
             @"T:\modified\file.txt", ChangeTime);
 
         Assert.That(change.Entry.Path, Is.Not.EqualTo(change.Path));
-        Assert.That(IndexChangeMapping.Map(change), Is.EqualTo(new[]
-        {
+        Assert.That(IndexChangeMapping.Map(change), Is.EqualTo([
             new VolumeChangeEntry(@"T:\modified\file.txt", VolumeEntryKind.Modified)
-        }));
+        ]));
     }
 
     [Test]
@@ -92,13 +89,12 @@ public class IndexChangeMappingTests
             @"T:\new\file.txt", ChangeTime, previousPath: @"T:\old\file.txt");
         ObserveDivergence(change);
         var entries = IndexChangeMapping.Map(change);
-        Assert.That(entries, Is.EqualTo(new[]
-        {
+        Assert.That(entries, Is.EqualTo([
             new VolumeChangeEntry(@"T:\old\file.txt", VolumeEntryKind.Deleted),
             new VolumeChangeEntry(@"T:\new\file.txt", VolumeEntryKind.Created)
-        }));
+        ]));
         var result = new RepositoryChangeFilter([@"T:\old", @"T:\new"]).Classify(entries);
-        Assert.That(result.Changed, Is.EquivalentTo(new[] { @"T:\old", @"T:\new" }));
+        Assert.That(result.Changed, Is.EquivalentTo([@"T:\old", @"T:\new"]));
         Assert.That(result.Created, Is.Empty);
         Assert.That(result.Deleted, Is.Empty);
 
@@ -106,23 +102,21 @@ public class IndexChangeMappingTests
             @"T:\new\.git", ChangeTime, previousPath: @"T:\old\.git");
         ObserveDivergence(markerChange);
         var markerEntries = IndexChangeMapping.Map(markerChange);
-        Assert.That(markerEntries, Is.EqualTo(new[]
-        {
+        Assert.That(markerEntries, Is.EqualTo([
             new VolumeChangeEntry(@"T:\old\.git", VolumeEntryKind.Deleted),
             new VolumeChangeEntry(@"T:\new\.git", VolumeEntryKind.MovedIn)
-        }));
+        ]));
         var markerFilter = new RepositoryChangeFilter([@"T:\old"], [@"T:\"]);
         var markerResult = markerFilter.Classify(markerEntries);
         Assert.That(markerResult.Changed, Is.Empty);
-        Assert.That(markerResult.Deleted, Is.EqualTo(new[] { @"T:\old" }));
+        Assert.That(markerResult.Deleted, Is.EqualTo([@"T:\old"]));
         Assert.That(markerResult.Created, Is.Empty,
             "A directory rename no longer yields Created; MovedIn candidate classification is separate.");
 
         var withoutPreviousPath = IndexChangeMapping.Map(markerChange with { PreviousPath = null });
-        Assert.That(withoutPreviousPath, Is.EqualTo(new[]
-        {
+        Assert.That(withoutPreviousPath, Is.EqualTo([
             new VolumeChangeEntry(@"T:\new\.git", VolumeEntryKind.MovedIn)
-        }));
+        ]));
     }
 
     [Test]
@@ -134,11 +128,10 @@ public class IndexChangeMappingTests
 
         var entries = IndexChangeMapping.Map(change);
 
-        Assert.That(entries, Is.EqualTo(new[]
-        {
+        Assert.That(entries, Is.EqualTo([
             new VolumeChangeEntry(@"T:\current\sub", VolumeEntryKind.Deleted),
             new VolumeChangeEntry(@"T:\current\sub-renamed", VolumeEntryKind.MovedIn)
-        }));
+        ]));
     }
 
     [Test]
@@ -150,10 +143,9 @@ public class IndexChangeMappingTests
 
         var entries = IndexChangeMapping.Map(change);
 
-        Assert.That(entries, Is.EqualTo(new[]
-        {
+        Assert.That(entries, Is.EqualTo([
             new VolumeChangeEntry(@"T:\current\sub-renamed", VolumeEntryKind.MovedIn)
-        }));
+        ]));
     }
 
 
@@ -174,15 +166,14 @@ public class IndexChangeMappingTests
             FileChange[] batch = [earlierChange, syntheticRenameChange];
 
             var earlierEntries = IndexChangeMapping.Map(batch[0]);
-            Assert.That(earlierEntries, Is.EqualTo(new[]
-            {
+            Assert.That(earlierEntries, Is.EqualTo([
                 new VolumeChangeEntry(@"T:\old\file.txt", VolumeEntryKind.Modified)
-            }));
+            ]));
             var syntheticFilter = new RepositoryChangeFilter([@"T:\old", @"T:\current"]);
             var earlierResult = syntheticFilter.Classify(earlierEntries);
-            Assert.That(earlierResult.Changed, Is.EqualTo(new[] { @"T:\old" }));
+            Assert.That(earlierResult.Changed, Is.EqualTo([@"T:\old"]));
             var syntheticResult = syntheticFilter.Classify(batch.SelectMany(IndexChangeMapping.Map).ToArray());
-            Assert.That(syntheticResult.Changed, Is.EquivalentTo(new[] { @"T:\old", @"T:\current" }));
+            Assert.That(syntheticResult.Changed, Is.EquivalentTo([@"T:\old", @"T:\current"]));
             Assert.That(syntheticResult.Created, Is.Empty);
             Assert.That(syntheticResult.Deleted, Is.Empty);
             Assert.That(earlierChange.Path, Is.EqualTo(@"T:\old\file.txt"));
@@ -241,11 +232,11 @@ public class IndexChangeMappingTests
 
         var root = index.Root('X').Path;
         var discoveryFilter = new RepositoryChangeFilter([], [root], includeTempDirectories: true);
-        Assert.That(discoveryFilter.Classify(mappedEntries).MovedInCandidates, Is.EqualTo(new[] { renameChange.Path }),
+        Assert.That(discoveryFilter.Classify(mappedEntries).MovedInCandidates, Is.EqualTo([renameChange.Path]),
             "An unknown type must reach probing rather than silently discard an untracked directory.");
         var markerRename = renameChange with { Path = Path.Combine(root, "newrepo", ".git") };
         Assert.That(discoveryFilter.Classify(IndexChangeMapping.Map(markerRename)).MovedInCandidates,
-            Is.EqualTo(new[] { Path.Combine(root, "newrepo") }), "Gitfile markers must still reach repository probing.");
+            Is.EqualTo([Path.Combine(root, "newrepo")]), "Gitfile markers must still reach repository probing.");
 
         var allMapped = changes.SelectMany(IndexChangeMapping.Map).ToArray();
         Assert.That(allMapped, Has.Length.EqualTo(4));

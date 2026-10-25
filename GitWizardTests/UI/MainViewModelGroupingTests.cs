@@ -202,7 +202,7 @@ public class MainViewModelGroupingTests
         viewModel.RepositoryList.SetSortMode(SortMode.RemoteUrl);
 
         var directories = viewModel.RepositoryList.Repositories.Select(n => n.WorkingDirectory).ToList();
-        Assert.That(directories, Is.EqualTo(new[] { "/a", "/z", "/n" }));
+        Assert.That(directories, Is.EqualTo(["/a", "/z", "/n"]));
     }
 
     [Test]
@@ -249,7 +249,7 @@ public class MainViewModelGroupingTests
         viewModel.RepositoryList.SetSortMode(SortMode.WorkingDirectory);
 
         var dirs = viewModel.RepositoryList.Repositories.Select(n => n.WorkingDirectory).ToList();
-        Assert.That(dirs, Is.EqualTo(new[] { "/a", "/z" }));
+        Assert.That(dirs, Is.EqualTo(["/a", "/z"]));
     }
 
     [Test]
@@ -284,7 +284,7 @@ public class MainViewModelGroupingTests
         viewModel.RepositoryList.SetSearchText("ALPHA");
 
         var directories = viewModel.RepositoryList.Repositories.Select(n => n.WorkingDirectory).ToList();
-        Assert.That(directories, Is.EqualTo(new[] { "/projects/alpha-service" }));
+        Assert.That(directories, Is.EqualTo(["/projects/alpha-service"]));
     }
 
     [Test]

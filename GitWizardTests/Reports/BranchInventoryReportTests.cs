@@ -125,7 +125,7 @@ public class BranchInventoryReportTests
         var item = report.Repositories[0];
         Assert.That(item.Error, Is.Null);
         Assert.That(item.Branches.Select(branch => branch.Name),
-            Is.EqualTo(new[] { "a-affected", "z-healthy" }));
+            Is.EqualTo(["a-affected", "z-healthy"]));
         var affected = item.Branches[0];
         Assert.That(affected.HasUpstream, Is.False);
         Assert.That(affected.UpstreamBranch, Is.Null);

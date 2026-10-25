@@ -34,7 +34,7 @@ public class RepositoryDiscoveryCoordinatorTests
             ClassifyRoot = root => new RootClassification(root, RootFileSystem.Ntfs, "C", null),
             CrawlRootAsync = (_, _, _) => { Interlocked.Increment(ref crawlCount); return Task.FromResult(new RecursiveDiscovery([], [], new Dictionary<string, string>())); },
             OpenIndexAsync = (_, _, _, _) => { Interlocked.Increment(ref openCount); throw new InvalidOperationException("Index should not be opened"); },
-            ReadListAsync = _ => Task.FromResult<string[]?>(new[] { @"C:\repos\r1" }),
+            ReadListAsync = _ => Task.FromResult<string[]?>([@"C:\repos\r1"]),
             WriteListAsync = (_, _) => Task.CompletedTask,
             CandidateExists = (_, _) => true,
             CreateLinuxSource = () => throw new PlatformNotSupportedException()
@@ -45,7 +45,7 @@ public class RepositoryDiscoveryCoordinatorTests
 
         Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.CompleteNonempty));
         Assert.That(result.Inventory.Observations.Single().Source, Is.EqualTo(DiscoverySource.RepositoryList));
-        Assert.That(result.Inventory.Paths, Is.EqualTo(new[] { @"C:\repos\r1" }));
+        Assert.That(result.Inventory.Paths, Is.EqualTo([@"C:\repos\r1"]));
         Assert.That(openCount, Is.Zero);
         Assert.That(crawlCount, Is.Zero);
     }
@@ -74,7 +74,7 @@ public class RepositoryDiscoveryCoordinatorTests
             OpenIndexAsync = (drives, cacheMode, progress, token) =>
             {
                 Assert.That(cacheMode, Is.EqualTo(CacheMode.ExistingOnly));
-                Assert.That(drives, Is.EquivalentTo(new[] { "X" }));
+                Assert.That(drives, Is.EquivalentTo(["X"]));
                 return openSession(drives, cacheMode, progress, token);
             },
             ReadListAsync = _ => Task.FromResult<string[]?>(null),
@@ -167,7 +167,7 @@ public class RepositoryDiscoveryCoordinatorTests
             ClassifyRoot = root => new RootClassification(root, RootFileSystem.Ntfs, "X", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS crawler invoked"),
             OpenIndexAsync = (_, _, _, _) => Task.FromResult(new MftIndexSession(fileIndex, null, ["X"], [], new Dictionary<string, string>())),
-            ReadListAsync = _ => Task.FromResult<string[]?>(new[] { @"C:\old" }),
+            ReadListAsync = _ => Task.FromResult<string[]?>([@"C:\old"]),
             WriteListAsync = (_, _) => Task.CompletedTask,
             CandidateExists = (_, _) => true,
             CreateLinuxSource = () => throw new PlatformNotSupportedException()
@@ -239,7 +239,7 @@ public class RepositoryDiscoveryCoordinatorTests
         await using var result = await coordinator.DiscoverAsync(request, null, CancellationToken.None);
 
         Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Unusable));
-        Assert.That(result.Inventory.RequestedNtfsDrives, Is.EquivalentTo(new[] { "X" }));
+        Assert.That(result.Inventory.RequestedNtfsDrives, Is.EquivalentTo(["X"]));
         Assert.That(result.Inventory.Errors, Does.ContainKey("X").WithValue("Volume identity could not be acquired"));
     }
 
@@ -262,7 +262,7 @@ public class RepositoryDiscoveryCoordinatorTests
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS crawler invoked"),
             OpenIndexAsync = StatusSessions.Opener(files,
                 ('C', SyntheticDriveBehavior.Ready), ('D', SyntheticDriveBehavior.Offline)),
-            ReadListAsync = _ => Task.FromResult<string[]?>(new[] { @"C:\repos\gone", @"D:\repos\keep" }),
+            ReadListAsync = _ => Task.FromResult<string[]?>([@"C:\repos\gone", @"D:\repos\keep"]),
             WriteListAsync = (paths, _) => { writtenPaths.Add(paths.ToArray()); return Task.CompletedTask; },
             CandidateExists = (_, _) => true,
             CreateLinuxSource = () => throw new PlatformNotSupportedException()
@@ -275,7 +275,7 @@ public class RepositoryDiscoveryCoordinatorTests
 
         Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Partial));
         Assert.That(result.Inventory.Paths, Is.Empty);
-        Assert.That(writtenPaths.Single(), Is.EquivalentTo(new[] { @"D:\repos\keep" }));
+        Assert.That(writtenPaths.Single(), Is.EquivalentTo([@"D:\repos\keep"]));
     }
 
     [Test]
@@ -294,7 +294,7 @@ public class RepositoryDiscoveryCoordinatorTests
             ClassifyRoot = root => new RootClassification(root, RootFileSystem.Ntfs, "C", "offline"),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS crawler invoked"),
             OpenIndexAsync = StatusSessions.Opener(files, ('C', SyntheticDriveBehavior.Offline)),
-            ReadListAsync = _ => Task.FromResult<string[]?>(new[] { @"C:\repos\keep" }),
+            ReadListAsync = _ => Task.FromResult<string[]?>([@"C:\repos\keep"]),
             WriteListAsync = (_, _) => { listWriterCalled = true; return Task.CompletedTask; },
             CandidateExists = (_, _) => true,
             CreateLinuxSource = () => throw new PlatformNotSupportedException()
@@ -325,7 +325,7 @@ public class RepositoryDiscoveryCoordinatorTests
             ClassifyRoot = root => new RootClassification(root, RootFileSystem.Ntfs, "X", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS crawler invoked"),
             OpenIndexAsync = StatusSessions.Opener(files, ('X', SyntheticDriveBehavior.Ready)),
-            ReadListAsync = _ => Task.FromResult<string[]?>(new[] { @"C:\repos\old" }),
+            ReadListAsync = _ => Task.FromResult<string[]?>([@"C:\repos\old"]),
             WriteListAsync = (paths, _) => { writtenPaths.Add(paths.ToArray()); return Task.CompletedTask; },
             CandidateExists = (_, _) => true,
             CreateLinuxSource = () => throw new PlatformNotSupportedException()

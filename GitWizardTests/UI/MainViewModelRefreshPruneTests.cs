@@ -25,7 +25,7 @@ public class MainViewModelRefreshPruneTests
 
         vm.RepositoryList.RemoveRepositoryPathFromUi("C:/repos/alpha");
 
-        Assert.That(vm.RepositoryList.Repositories.Select(node => node.WorkingDirectory), Is.EquivalentTo(new[] { "C:/repos/beta" }));
+        Assert.That(vm.RepositoryList.Repositories.Select(node => node.WorkingDirectory), Is.EquivalentTo(["C:/repos/beta"]));
     }
 
     [Test]
@@ -50,7 +50,7 @@ public class MainViewModelRefreshPruneTests
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
         var configuration = new GitWizardConfiguration
         {
-            SearchPaths = new SortedSet<string> { "C:/repos" }
+            SearchPaths = ["C:/repos"]
         };
         viewModel.RepositoryList.PrePopulateFromReport(configuration, ["C:/repos/alpha"], report);
         viewModel.RepositoryList.AddRepository(new GitWizardRepository("C:/repos/alpha"), streaming: false);
@@ -76,7 +76,7 @@ public class MainViewModelRefreshPruneTests
         var viewModel = CreateViewModel();
         var configuration = new GitWizardConfiguration
         {
-            SearchPaths = new SortedSet<string> { "/repos" }
+            SearchPaths = ["/repos"]
         };
         viewModel.RepositoryList.PrePopulateFromReport(configuration, ["/repos/old-alpha"], report);
         viewModel.RepositoryList.AddRepository(new GitWizardRepository("/repos/alpha"), streaming: false);
@@ -87,9 +87,9 @@ public class MainViewModelRefreshPruneTests
 
         Assert.That(viewModel.RepositoryList.RepositoryMap.ContainsKey("/repos/old-alpha"), Is.False);
         Assert.That(viewModel.RepositoryList.AllRepositories.Select(node => node.WorkingDirectory),
-            Is.EqualTo(new[] { "/repos/alpha" }));
+            Is.EqualTo(["/repos/alpha"]));
         Assert.That(viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory),
-            Is.EqualTo(new[] { "/repos/alpha" }));
+            Is.EqualTo(["/repos/alpha"]));
 
     }
 
@@ -107,7 +107,7 @@ public class MainViewModelRefreshPruneTests
         report.Save(Path.Combine(GitWizardApi.GetLocalFilesPath(), "report.json"));
 
         var vm = CreateViewModel();
-        var config = new GitWizardConfiguration { SearchPaths = new SortedSet<string> { "/repos" } };
+        var config = new GitWizardConfiguration { SearchPaths = ["/repos"] };
 
         // Simulate RefreshAsync: clear backing collections, pre-populate from cache.
         vm.RepositoryList.ClearRepositories();
@@ -124,7 +124,7 @@ public class MainViewModelRefreshPruneTests
         // beta is stale: its path is no longer in the validated fresh scan.
         // Pruning must remove the replacement node, not only the cached node identity.
         var freshPaths = new HashSet<string> { "/repos/alpha" };
-        vm.RepositoryList.PruneStalePrePopulatedRepos(freshPaths, new HashSet<string>());
+        vm.RepositoryList.PruneStalePrePopulatedRepos(freshPaths, []);
 
         Assert.That(vm.RepositoryList.RepositoryMap.ContainsKey("/repos/beta"), Is.False,
             "A deleted pre-populated repo must be removed from RepositoryMap.");

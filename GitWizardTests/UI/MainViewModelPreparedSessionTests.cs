@@ -89,7 +89,7 @@ public class MainViewModelPreparedSessionTests
         await fixture.StartAsync();
         await using var viewModel = NewViewModel();
         await viewModel.PreparedDiscoveryIndex.SetAsync(fixture.Owner);
-        Assert.That(viewModel.PreparedDiscoveryIndex.Current!.Drives, Is.EqualTo(new[] { "X" }));
+        Assert.That(viewModel.PreparedDiscoveryIndex.Current!.Drives, Is.EqualTo(["X"]));
         Assert.That(viewModel.PreparedDiscoveryIndex.Current.Index, Is.SameAs(fixture.Owner.Index));
     }
 

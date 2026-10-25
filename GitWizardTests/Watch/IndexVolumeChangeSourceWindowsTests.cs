@@ -85,7 +85,7 @@ public class IndexVolumeChangeSourceWindowsTests
         });
         using var armCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(120));
 
-        var armResult = await source.ArmAndCatchUpAsync(new[] { drive }, armCancellation.Token);
+        var armResult = await source.ArmAndCatchUpAsync([drive], armCancellation.Token);
 
         Assert.That(armResult.Errors, Does.Not.ContainKey(drive));
         Assert.That(session, Is.Not.Null);
@@ -112,7 +112,7 @@ public class IndexVolumeChangeSourceWindowsTests
         await using var source = new IndexVolumeChangeSource((drives, progress, cancellationToken) =>
             GitWizard.MftIndexSession.OpenWindowsAsync(drives, UiBrokerLauncher.LaunchUiBroker, null, progress, cancellationToken));
         using var armCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(120));
-        var armResult = await source.ArmAndCatchUpAsync(new[] { drive }, armCancellation.Token);
+        var armResult = await source.ArmAndCatchUpAsync([drive], armCancellation.Token);
         Assert.That(armResult.Errors, Does.Not.ContainKey(drive));
 
         using var watchCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(20));
@@ -141,7 +141,7 @@ public class IndexVolumeChangeSourceWindowsTests
         await using var source = new IndexVolumeChangeSource((drives, progress, cancellationToken) =>
             GitWizard.MftIndexSession.OpenWindowsAsync(drives, UiBrokerLauncher.LaunchUiBroker, null, progress, cancellationToken));
         using var armCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(120));
-        var armResult = await source.ArmAndCatchUpAsync(new[] { drive }, armCancellation.Token);
+        var armResult = await source.ArmAndCatchUpAsync([drive], armCancellation.Token);
         Assert.That(armResult.Errors, Does.Not.ContainKey(drive));
 
         using var watchCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(20));

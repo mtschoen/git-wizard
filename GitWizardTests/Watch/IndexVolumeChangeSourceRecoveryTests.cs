@@ -106,11 +106,10 @@ public class IndexVolumeChangeSourceRecoveryTests
 
         var delivered = await deliveredAtCaughtUp.Task.WaitAsync(TestTimeouts.HangGuard);
         Assert.That(delivered.Select(batch => batch.Volume), Is.All.EqualTo("X"));
-        Assert.That(delivered.SelectMany(batch => batch.Entries), Is.EquivalentTo(new[]
-        {
+        Assert.That(delivered.SelectMany(batch => batch.Entries), Is.EquivalentTo([
             new VolumeChangeEntry(@"X:\oldrepo\.git", VolumeEntryKind.Deleted),
             new VolumeChangeEntry(@"X:\newrepo\.git", VolumeEntryKind.Created)
-        }), "The reconciliation is delivered before the drive reads CaughtUp.");
+        ]), "The reconciliation is delivered before the drive reads CaughtUp.");
     }
 
     [Test]
@@ -142,15 +141,13 @@ public class IndexVolumeChangeSourceRecoveryTests
         release.SetResult();
 
         Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
-        Assert.That(reader.Current.Entries, Is.EqualTo(new[]
-        {
+        Assert.That(reader.Current.Entries, Is.EqualTo([
             new VolumeChangeEntry(@"X:\newrepo\.git", VolumeEntryKind.Created)
-        }), "The reconciliation read the block before the deletion, so it is delivered first.");
+        ]), "The reconciliation read the block before the deletion, so it is delivered first.");
         Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
-        Assert.That(reader.Current.Entries, Is.EqualTo(new[]
-        {
+        Assert.That(reader.Current.Entries, Is.EqualTo([
             new VolumeChangeEntry(@"X:\newrepo\.git", VolumeEntryKind.Deleted)
-        }));
+        ]));
     }
 
     [Test]
@@ -252,7 +249,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         release.SetResult();
         await WaitForRecoveredWorkAsync(source, owner.Index);
 
-        Assert.That(pathsRead.Select(Path.GetFileName), Is.EqualTo(new[] { ".git", ".git" }),
+        Assert.That(pathsRead.Select(Path.GetFileName), Is.EqualTo([".git", ".git"]),
             "The failure occurs after one marker has already been materialized.");
         Assert.That(source.CompleteStartupBuffer(), Is.Empty, "A partial inventory must never become repository events.");
         Assert.That(source.Readiness.TryGet("X", out var readiness), Is.True);
@@ -341,11 +338,10 @@ public class IndexVolumeChangeSourceRecoveryTests
         release.SetResult();
 
         Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
-        Assert.That(reader.Current.Entries, Is.EquivalentTo(new[]
-        {
+        Assert.That(reader.Current.Entries, Is.EquivalentTo([
             new VolumeChangeEntry(@"X:\supersededrepo\.git", VolumeEntryKind.Deleted),
             new VolumeChangeEntry(@"X:\newrepo\.git", VolumeEntryKind.Created)
-        }));
+        ]));
         await WaitForRecoveredWorkAsync(source, owner.Index);
         Assert.That(source.Readiness.TryGet("X", out var readiness), Is.True);
         Assert.That(readiness!.State, Is.EqualTo(VolumeWatchState.CaughtUp));

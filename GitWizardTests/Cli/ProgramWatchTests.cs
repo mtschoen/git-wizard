@@ -15,7 +15,7 @@ public class ProgramWatchTests
         var exitCode = await Program.RunElevatedWatchViaPkexecAsync(
             "/custom/bin/git-wizard",
             "/custom/home/.GitWizard",
-            new[] { "--watch", "--config-path", "test.json" },
+            ["--watch", "--config-path", "test.json"],
             startInfo =>
             {
                 capturedStartInfo = startInfo;
@@ -36,15 +36,14 @@ public class ProgramWatchTests
             Assert.That(capturedStartInfo, Is.Not.Null);
             Assert.That(capturedStartInfo!.FileName, Is.EqualTo("pkexec"));
             Assert.That(capturedStartInfo.UseShellExecute, Is.False);
-            Assert.That(capturedStartInfo.ArgumentList, Is.EqualTo(new[]
-            {
+            Assert.That(capturedStartInfo.ArgumentList, Is.EqualTo([
                 "env",
                 "GITWIZARD_HOME=/custom/home/.GitWizard",
                 "/custom/bin/git-wizard",
                 "--watch",
                 "--config-path",
                 "test.json"
-            }));
+            ]));
         });
     }
 
@@ -56,7 +55,7 @@ public class ProgramWatchTests
         var exitCode = await Program.RunElevatedWatchViaPkexecAsync(
             null,
             "/home/.GitWizard",
-            new[] { "--watch" },
+            ["--watch"],
             _ => throw new AssertionException("A missing process path must not start a process."),
             loggedErrors.Add,
             CancellationToken.None);
@@ -77,7 +76,7 @@ public class ProgramWatchTests
         var exitCode = await Program.RunElevatedWatchViaPkexecAsync(
             "/usr/bin/git-wizard",
             "/home/.GitWizard",
-            new[] { "--watch" },
+            ["--watch"],
             _ => null,
             loggedErrors.Add,
             CancellationToken.None);
@@ -98,7 +97,7 @@ public class ProgramWatchTests
         var exitCode = await Program.RunElevatedWatchViaPkexecAsync(
             "/usr/bin/git-wizard",
             "/home/.GitWizard",
-            new[] { "--watch" },
+            ["--watch"],
             _ => throw new InvalidOperationException("pkexec failed to launch"),
             loggedErrors.Add,
             CancellationToken.None);

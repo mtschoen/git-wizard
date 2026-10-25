@@ -20,7 +20,7 @@ public class RepositoryChangeFilterPathShapeTests
 
         var result = filter.Classify([Modified(@"c:\repos\repo-a\index.lock")]);
 
-        Assert.That(result.Changed, Is.EquivalentTo(new[] { repoRoot }));
+        Assert.That(result.Changed, Is.EquivalentTo([repoRoot]));
     }
 
     [Test]
@@ -40,7 +40,7 @@ public class RepositoryChangeFilterPathShapeTests
 
         var result = filter.Classify([Created(@"c:\repos\new-repo\.GIT")]);
 
-        Assert.That(result.Created, Is.EquivalentTo(new[] { @"c:\repos\new-repo" }));
+        Assert.That(result.Created, Is.EquivalentTo([@"c:\repos\new-repo"]));
     }
 
     [Test]
@@ -61,7 +61,7 @@ public class RepositoryChangeFilterPathShapeTests
 
         var result = filter.Classify([Modified(@"\\server\share\repo\file.txt")]);
 
-        Assert.That(result.Changed, Is.EquivalentTo(new[] { repositoryRoot }));
+        Assert.That(result.Changed, Is.EquivalentTo([repositoryRoot]));
     }
 
     [Test]
@@ -71,7 +71,7 @@ public class RepositoryChangeFilterPathShapeTests
 
         var result = filter.Classify([Created(@"\\server\share\repos\NewRepo\.GIT")]);
 
-        Assert.That(result.Created, Is.EquivalentTo(new[] { @"\\server\share\repos\NewRepo" }));
+        Assert.That(result.Created, Is.EquivalentTo([@"\\server\share\repos\NewRepo"]));
     }
 
     [Test]
@@ -82,7 +82,7 @@ public class RepositoryChangeFilterPathShapeTests
 
         var result = filter.Classify([Modified(@"\repos\repo\file.txt")]);
 
-        Assert.That(result.Changed, Is.EquivalentTo(new[] { repositoryRoot }));
+        Assert.That(result.Changed, Is.EquivalentTo([repositoryRoot]));
     }
 
     [Test]
@@ -92,7 +92,7 @@ public class RepositoryChangeFilterPathShapeTests
 
         var result = filter.Classify([Created(@"\repos\NewRepo\.GIT")]);
 
-        Assert.That(result.Created, Is.EquivalentTo(new[] { @"\repos\NewRepo" }));
+        Assert.That(result.Created, Is.EquivalentTo([@"\repos\NewRepo"]));
     }
 
     [Test]
@@ -103,7 +103,7 @@ public class RepositoryChangeFilterPathShapeTests
 
         var result = filter.Classify([Modified(@"c:\file.txt")]);
 
-        Assert.That(result.Changed, Is.EquivalentTo(new[] { repositoryRoot }));
+        Assert.That(result.Changed, Is.EquivalentTo([repositoryRoot]));
     }
 
     [Test]
@@ -114,7 +114,7 @@ public class RepositoryChangeFilterPathShapeTests
 
         var result = filter.Classify([Deleted(@"c:\")]);
 
-        Assert.That(result.Deleted, Is.EquivalentTo(new[] { repositoryRoot }));
+        Assert.That(result.Deleted, Is.EquivalentTo([repositoryRoot]));
     }
 
     [Test]
@@ -124,7 +124,7 @@ public class RepositoryChangeFilterPathShapeTests
 
         var result = filter.Classify([new VolumeChangeEntry("/repos/repo-renamed", VolumeEntryKind.MovedIn)]);
 
-        Assert.That(result.MovedInCandidates, Is.EquivalentTo(new[] { "/repos/repo-renamed" }));
+        Assert.That(result.MovedInCandidates, Is.EquivalentTo(["/repos/repo-renamed"]));
     }
 
     [Test]
@@ -135,8 +135,8 @@ public class RepositoryChangeFilterPathShapeTests
 
         var result = filter.Classify([Deleted(repoRoot), MovedIn(@"C:\repos\Repo-A")]);
 
-        Assert.That(result.Deleted, Is.EquivalentTo(new[] { repoRoot }));
-        Assert.That(result.MovedInCandidates, Is.EquivalentTo(new[] { @"C:\repos\Repo-A" }));
+        Assert.That(result.Deleted, Is.EquivalentTo([repoRoot]));
+        Assert.That(result.MovedInCandidates, Is.EquivalentTo([@"C:\repos\Repo-A"]));
         Assert.That(result.Changed, Is.Empty);
         Assert.That(result.Created, Is.Empty);
     }
@@ -149,7 +149,7 @@ public class RepositoryChangeFilterPathShapeTests
 
         var result = filter.Classify([MovedIn(@"D:\repos\Repo-A")]);
 
-        Assert.That(result.MovedInCandidates, Is.EquivalentTo(new[] { @"D:\repos\Repo-A" }));
+        Assert.That(result.MovedInCandidates, Is.EquivalentTo([@"D:\repos\Repo-A"]));
         Assert.That(result.Changed, Is.Empty);
     }
 
@@ -161,7 +161,7 @@ public class RepositoryChangeFilterPathShapeTests
 
         var result = filter.Classify([Modified("/repos/repo-a/index.lock")]);
 
-        Assert.That(result.Changed, Is.EquivalentTo(new[] { repoRoot }));
+        Assert.That(result.Changed, Is.EquivalentTo([repoRoot]));
     }
 
     [Test]
@@ -171,7 +171,7 @@ public class RepositoryChangeFilterPathShapeTests
 
         var result = filter.Classify([Created("/repos/new-repo/.git")]);
 
-        Assert.That(result.Created, Is.EquivalentTo(new[] { "/repos/new-repo" }));
+        Assert.That(result.Created, Is.EquivalentTo(["/repos/new-repo"]));
     }
 
     [Test]
@@ -181,6 +181,6 @@ public class RepositoryChangeFilterPathShapeTests
 
         var result = filter.Classify([Created("/repos/new-repo/.git")]);
 
-        Assert.That(result.Created, Is.EquivalentTo(new[] { "/repos/new-repo" }));
+        Assert.That(result.Created, Is.EquivalentTo(["/repos/new-repo"]));
     }
 }

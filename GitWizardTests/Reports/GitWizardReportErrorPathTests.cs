@@ -40,7 +40,7 @@ public class GitWizardReportErrorPathTests
         };
 
         // Every handler callback throws; Refresh must complete and still record the repository.
-        report.Refresh(new[] { fixture.Path }, handler);
+        report.Refresh([fixture.Path], handler);
 
         Assert.Multiple(() =>
         {

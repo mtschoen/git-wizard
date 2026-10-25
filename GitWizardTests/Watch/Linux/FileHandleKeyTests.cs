@@ -23,8 +23,8 @@ public class FileHandleKeyTests
     [Test]
     public void SamePayloadOnSameFilesystem_AreEqualKeysWithEqualHashCodes()
     {
-        var first = new FileHandleKey(7, new byte[] { 1, 2, 3, 4 });
-        var second = new FileHandleKey(7, new byte[] { 1, 2, 3, 4 });
+        var first = new FileHandleKey(7, [1, 2, 3, 4]);
+        var second = new FileHandleKey(7, [1, 2, 3, 4]);
 
         Assert.Multiple(() =>
         {
@@ -36,8 +36,8 @@ public class FileHandleKeyTests
     [Test]
     public void DifferentPayloadOnSameFilesystem_AreDifferentKeys()
     {
-        var first = new FileHandleKey(7, new byte[] { 1, 2, 3, 4 });
-        var second = new FileHandleKey(7, new byte[] { 1, 2, 3, 5 });
+        var first = new FileHandleKey(7, [1, 2, 3, 4]);
+        var second = new FileHandleKey(7, [1, 2, 3, 5]);
 
         Assert.That(first.Equals(second), Is.False);
     }

@@ -36,7 +36,7 @@ public class RepositorySweepReportTests
 
         var item = RepositorySweepReport.Scan([fixture.Path]).Repositories.Single();
 
-        Assert.That(item.DirtyTrackedFiles, Is.EqualTo(new[] { "README.md", "added.txt" }));
+        Assert.That(item.DirtyTrackedFiles, Is.EqualTo(["README.md", "added.txt"]));
     }
 
     [Test]

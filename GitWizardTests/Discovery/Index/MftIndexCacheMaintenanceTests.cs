@@ -40,7 +40,7 @@ public class MftIndexCacheMaintenanceTests
                 Assert.That(File.Exists(path + ".lock"), Is.True);
             }
 
-            Assert.That(result.Inventory.Select(row => row.File.Path), Is.EqualTo(new[] { files.OwnedPath }));
+            Assert.That(result.Inventory.Select(row => row.File.Path), Is.EqualTo([files.OwnedPath]));
             Assert.That(result.Inventory.Single().Availability, Is.EqualTo(CachedBlockAvailability.InUse));
             Assert.That(owner.Drives.Single().State, Is.EqualTo(DriveState.Ready));
             Assert.That(owner.Root('X').IsDirectory, Is.True);

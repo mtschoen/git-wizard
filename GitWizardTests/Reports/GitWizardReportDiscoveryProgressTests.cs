@@ -14,8 +14,8 @@ namespace GitWizardTests;
 /// </summary>
 public class GitWizardReportDiscoveryProgressTests
 {
-    readonly List<string> _searchPaths = new();
-    readonly List<TempDirectory> _searchDirectories = new();
+    readonly List<string> _searchPaths = [];
+    readonly List<TempDirectory> _searchDirectories = [];
 
     [OneTimeSetUp]
     public void CreateSearchPaths()
@@ -64,7 +64,7 @@ public class GitWizardReportDiscoveryProgressTests
         var report = new GitWizardReport
         {
             SearchPaths = { root },
-            IgnoredPaths = new SortedSet<string>()
+            IgnoredPaths = []
         };
         var paths = new SortedSet<string>();
         await report.GetRepositoryPathsAsync(paths, noMft: true);
@@ -82,7 +82,7 @@ public class GitWizardReportDiscoveryProgressTests
         var report = new GitWizardReport
         {
             SearchPaths = { root },
-            IgnoredPaths = new SortedSet<string>()
+            IgnoredPaths = []
         };
         var paths = new SortedSet<string>();
         var handler = new RecordingUpdateHandler
@@ -106,7 +106,7 @@ public class GitWizardReportDiscoveryProgressTests
         var report = new GitWizardReport
         {
             SearchPaths = { root1, root2 },
-            IgnoredPaths = new SortedSet<string>()
+            IgnoredPaths = []
         };
         var paths = new SortedSet<string>();
         await report.GetRepositoryPathsAsync(paths, noMft: true);

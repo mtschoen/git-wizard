@@ -143,7 +143,7 @@ public class GitWizardApiDiscoveryTests
         var paths = new SortedSet<string>();
         var ignoredA = Path.Combine(_tempRoot!, "a");
         var ignoredB = Path.Combine(_tempRoot!, "b");
-        EnumeratedDiscovery.GetRepositoryPaths(_tempRoot!, paths, new[] { ignoredA, ignoredB });
+        EnumeratedDiscovery.GetRepositoryPaths(_tempRoot!, paths, [ignoredA, ignoredB]);
 
         Assert.That(paths, Has.Count.EqualTo(1));
         Assert.That(paths.Single(), Does.Contain("c").IgnoreCase);
@@ -153,7 +153,7 @@ public class GitWizardApiDiscoveryTests
     public void GetRepositoryPaths_WithNonExistentIgnoredPath_DoesNotThrow()
     {
         var paths = new SortedSet<string>();
-        Assert.DoesNotThrow(() => EnumeratedDiscovery.GetRepositoryPaths(_tempRoot!, paths, new[] { "/nonexistent/ignored/path" }));
+        Assert.DoesNotThrow(() => EnumeratedDiscovery.GetRepositoryPaths(_tempRoot!, paths, ["/nonexistent/ignored/path"]));
         Assert.That(paths, Is.Empty);
     }
 
@@ -170,7 +170,7 @@ public class GitWizardApiDiscoveryTests
         try
         {
             var paths = new SortedSet<string>();
-            EnumeratedDiscovery.GetRepositoryPaths(_tempRoot!, paths, new[] { "%GITWIZARD_IGNORED%" });
+            EnumeratedDiscovery.GetRepositoryPaths(_tempRoot!, paths, ["%GITWIZARD_IGNORED%"]);
 
             Assert.That(paths, Has.Count.EqualTo(1));
             Assert.That(paths.Single(), Does.EndWith(Path.Combine("included", "repo")).IgnoreCase);
@@ -191,7 +191,7 @@ public class GitWizardApiDiscoveryTests
         Directory.CreateDirectory(Path.Combine(sibling, "repo", ".git"));
 
         var paths = new SortedSet<string>();
-        EnumeratedDiscovery.GetRepositoryPaths(_tempRoot!, paths, new[] { ignored });
+        EnumeratedDiscovery.GetRepositoryPaths(_tempRoot!, paths, [ignored]);
 
         Assert.That(paths, Has.Count.EqualTo(1));
         Assert.That(paths.Single(), Does.EndWith(Path.Combine("foobar", "repo")).IgnoreCase);

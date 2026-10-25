@@ -21,7 +21,7 @@ public class FanotifyVolumeChangeSourceLifecycleTests
             InitializeResult = new FanotifyNativeCallResult(9, 0)
         };
         var source = new FanotifyVolumeChangeSource(native);
-        await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
         Assert.That(source.PumpStarted.IsCompleted, Is.False,
             "Arming alone must not signal the pump; WatchAsync has not been called yet.");
@@ -59,7 +59,7 @@ public class FanotifyVolumeChangeSourceLifecycleTests
         string? diedReason = null;
         source.SourceDied += reason => diedReason = reason;
 
-        await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var batches = new List<VolumeChangeBatch>();
@@ -88,7 +88,7 @@ public class FanotifyVolumeChangeSourceLifecycleTests
         string? diedReason = null;
         source.SourceDied += reason => diedReason = reason;
 
-        await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var batches = new List<VolumeChangeBatch>();
@@ -117,7 +117,7 @@ public class FanotifyVolumeChangeSourceLifecycleTests
         string? diedReason = null;
         source.SourceDied += reason => diedReason = reason;
 
-        await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var batches = new List<VolumeChangeBatch>();
@@ -142,7 +142,7 @@ public class FanotifyVolumeChangeSourceLifecycleTests
         };
 
         var source = new FanotifyVolumeChangeSource(native);
-        await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
         await source.DisposeAsync();
 
@@ -163,7 +163,7 @@ public class FanotifyVolumeChangeSourceLifecycleTests
         string? diedReason = null;
         source.SourceDied += reason => diedReason = reason;
 
-        await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var batches = new List<VolumeChangeBatch>();
@@ -188,7 +188,7 @@ public class FanotifyVolumeChangeSourceLifecycleTests
         };
 
         var source = new FanotifyVolumeChangeSource(native);
-        await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
         using var cts = new CancellationTokenSource();
         var enumerator = source.WatchAsync(cts.Token).GetAsyncEnumerator(cts.Token);
@@ -209,7 +209,7 @@ public class FanotifyVolumeChangeSourceLifecycleTests
         };
 
         var source = new FanotifyVolumeChangeSource(native);
-        await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
         using var cts = new CancellationTokenSource();
         var enumerator = source.WatchAsync(cts.Token).GetAsyncEnumerator(cts.Token);

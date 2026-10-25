@@ -16,12 +16,12 @@ public class RepositoryChangeFilterMembershipTests
     {
         var filter = new RepositoryChangeFilter([], [@"C:\repos"]);
         var created = filter.Classify([Created(@"C:\repos\new-repo\.git")]);
-        Assert.That(created.Created, Is.EquivalentTo(new[] { @"C:\repos\new-repo" }));
+        Assert.That(created.Created, Is.EquivalentTo([@"C:\repos\new-repo"]));
 
         filter.AddRepositoryRoot(@"C:\repos\new-repo");
 
         var result = filter.Classify([Modified(@"C:\repos\new-repo\index.lock")]);
-        Assert.That(result.Changed, Is.EquivalentTo(new[] { @"C:\repos\new-repo" }));
+        Assert.That(result.Changed, Is.EquivalentTo([@"C:\repos\new-repo"]));
         Assert.That(result.Created, Is.Empty);
         Assert.That(result.Deleted, Is.Empty);
     }
@@ -34,7 +34,7 @@ public class RepositoryChangeFilterMembershipTests
         filter.AddRepositoryRoot(@"C:\repos\outer\inner");
 
         var result = filter.Classify([Modified(@"C:\repos\outer\inner\index.lock")]);
-        Assert.That(result.Changed, Is.EquivalentTo(new[] { @"C:\repos\outer\inner" }));
+        Assert.That(result.Changed, Is.EquivalentTo([@"C:\repos\outer\inner"]));
     }
 
     [Test]
@@ -47,7 +47,7 @@ public class RepositoryChangeFilterMembershipTests
 
         var recreated = filter.Classify([Created(@"C:\repos\NEW-REPO\.git")]);
         Assert.That(recreated.Created, Is.Empty);
-        Assert.That(recreated.Changed, Is.EquivalentTo(new[] { @"C:\repos\New-Repo" }));
+        Assert.That(recreated.Changed, Is.EquivalentTo([@"C:\repos\New-Repo"]));
     }
 
     [Test]
@@ -58,7 +58,7 @@ public class RepositoryChangeFilterMembershipTests
         filter.AddRepositoryRoot("/repos/new-repo");
 
         var result = filter.Classify([Modified("/repos/new-repo/index.lock")]);
-        Assert.That(result.Changed, Is.EquivalentTo(new[] { "/repos/new-repo" }));
+        Assert.That(result.Changed, Is.EquivalentTo(["/repos/new-repo"]));
     }
 
     [Test]
@@ -97,7 +97,7 @@ public class RepositoryChangeFilterMembershipTests
         Assert.That(afterRemoval.Changed, Is.Empty);
 
         var recreated = filter.Classify([Created(Path.Combine(RepoRoot, ".git"))]);
-        Assert.That(recreated.Created, Is.EquivalentTo(new[] { RepoRoot }));
+        Assert.That(recreated.Created, Is.EquivalentTo([RepoRoot]));
         Assert.That(recreated.Changed, Is.Empty);
     }
 
@@ -109,7 +109,7 @@ public class RepositoryChangeFilterMembershipTests
         filter.RemoveRepositoryRoot(@"C:\repos\never-tracked");
 
         var result = filter.Classify([Modified(Path.Combine(RepoRoot, "index.lock"))]);
-        Assert.That(result.Changed, Is.EquivalentTo(new[] { RepoRoot }));
+        Assert.That(result.Changed, Is.EquivalentTo([RepoRoot]));
     }
 
     [Test]

@@ -33,7 +33,7 @@ public class RepositoryWatchServiceRepeatedBatchTests
 
         var events = await DrainAsync(service);
 
-        Assert.That(events, Is.EqualTo(new[] { new RepositoryChangeEvent(@"C:\repo\a", RepositoryChangeKind.Deleted) }));
+        Assert.That(events, Is.EqualTo([new RepositoryChangeEvent(@"C:\repo\a", RepositoryChangeKind.Deleted)]));
     }
 
     static async Task<List<RepositoryChangeEvent>> DrainAsync(RepositoryWatchService service)

@@ -63,7 +63,7 @@ public class IndexVolumeChangeSourceCheckpointLossTests
                 Assert.That(source.Readiness.TryGet("Y", out var healthy), Is.True);
                 Assert.That(healthy!.State, Is.EqualTo(VolumeWatchState.CaughtUp));
                 Assert.That(warnings.Select(warning => warning.Loss.DetectedDuring),
-                    Is.EqualTo(new[] { JournalCheckpointLossDetection.LiveWatch }));
+                    Is.EqualTo([JournalCheckpointLossDetection.LiveWatch]));
             });
 
             await scripted.WatchFor('Y').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(50, 6, "while-x-recovers", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));

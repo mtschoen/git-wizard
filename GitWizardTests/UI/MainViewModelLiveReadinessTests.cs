@@ -91,7 +91,7 @@ public class MainViewModelLiveReadinessTests
                 "X: excluded (cold): watch died" + Environment.NewLine + "Y: caught up (warm)"));
             Assert.That(viewModel.LiveWatch.LiveReadinessText, Is.EqualTo("Ready (journal): Y; excluded: X"));
             Assert.That(cacheModel.LiveVolumes.Select(row => row.DisplayText), Is.EqualTo(
-                new[] { "X: excluded (cold): watch died", "Y: caught up (warm)" }));
+                ["X: excluded (cold): watch died", "Y: caught up (warm)"]));
         }
         finally
         {

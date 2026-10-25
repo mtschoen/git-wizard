@@ -48,7 +48,7 @@ public class LinuxRetainedRootAdmissionTests
     public async Task RetainedRootOutsideSearchRoots_IsAdmitted()
     {
         var paths = await InventoryAsync(Path.Combine(Root, "search"), Path.Combine(Root, "retained", "repo"), null, false, true);
-        Assert.That(paths, Is.EqualTo(new[] { Path.Combine(Root, "retained", "repo") }).IgnoreCase);
+        Assert.That(paths, Is.EqualTo([Path.Combine(Root, "retained", "repo")]).IgnoreCase);
     }
 
     [Test]

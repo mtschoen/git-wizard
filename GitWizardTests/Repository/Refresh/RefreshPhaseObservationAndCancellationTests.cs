@@ -93,7 +93,7 @@ public class RefreshPhaseObservationAndCancellationTests
     {
         private readonly CancellationTokenSource _cancellationTokenSource = new();
 
-        public List<int> ObservedPhases { get; } = new();
+        public List<int> ObservedPhases { get; } = [];
 
         public CancellationToken Token => _cancellationTokenSource.Token;
 

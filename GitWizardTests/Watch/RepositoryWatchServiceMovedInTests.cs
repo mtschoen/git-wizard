@@ -31,26 +31,24 @@ public class RepositoryWatchServiceMovedInTests
         try
         {
             var volume = WatchPath.Parse(newPath).Volume!;
-            var batch = new VolumeChangeBatch(volume, new[]
-            {
+            var batch = new VolumeChangeBatch(volume, [
                     new VolumeChangeEntry(oldPath, VolumeEntryKind.Deleted),
                     new VolumeChangeEntry(newPath, VolumeEntryKind.MovedIn),
-                });
+                ]);
             var svc = new RepositoryWatchService(
-                new ScriptedVolumeChangeSource(new[] { batch }),
-                trackedRoots: new[] { oldPath },
-                searchRoots: new[] { searchRoot },
+                new ScriptedVolumeChangeSource([batch]),
+                trackedRoots: [oldPath],
+                searchRoots: [searchRoot],
                 debounce: TimeSpan.FromMilliseconds(10));
 
             var events = await DrainAsync(svc);
 
             // Order matters: the probe-emitted Created lands after the window's Deleted events so
             // the UI's pending-delete rename correlation sees the old root first.
-            Assert.That(events, Is.EqualTo(new[]
-            {
+            Assert.That(events, Is.EqualTo([
                     new RepositoryChangeEvent(oldPath, RepositoryChangeKind.Deleted),
                     new RepositoryChangeEvent(newPath, RepositoryChangeKind.Created),
-                }));
+                ]));
         }
         finally
         {
@@ -71,19 +69,18 @@ public class RepositoryWatchServiceMovedInTests
         {
             var volume = WatchPath.Parse(repoPath).Volume!;
             var batch = new VolumeChangeBatch(volume,
-                new[] { new VolumeChangeEntry(repoPath, VolumeEntryKind.MovedIn) });
+                [new VolumeChangeEntry(repoPath, VolumeEntryKind.MovedIn)]);
             var svc = new RepositoryWatchService(
-                new ScriptedVolumeChangeSource(new[] { batch }),
+                new ScriptedVolumeChangeSource([batch]),
                 trackedRoots: Array.Empty<string>(),
-                searchRoots: new[] { searchRoot },
+                searchRoots: [searchRoot],
                 debounce: TimeSpan.FromMilliseconds(10));
 
             var events = await DrainAsync(svc);
 
-            Assert.That(events, Is.EqualTo(new[]
-            {
+            Assert.That(events, Is.EqualTo([
                     new RepositoryChangeEvent(repoPath, RepositoryChangeKind.Created),
-                }));
+                ]));
         }
         finally
         {
@@ -102,11 +99,11 @@ public class RepositoryWatchServiceMovedInTests
         {
             var volume = WatchPath.Parse(plainPath).Volume!;
             var batch = new VolumeChangeBatch(volume,
-                new[] { new VolumeChangeEntry(plainPath, VolumeEntryKind.MovedIn) });
+                [new VolumeChangeEntry(plainPath, VolumeEntryKind.MovedIn)]);
             var svc = new RepositoryWatchService(
-                new ScriptedVolumeChangeSource(new[] { batch }),
+                new ScriptedVolumeChangeSource([batch]),
                 trackedRoots: Array.Empty<string>(),
-                searchRoots: new[] { searchRoot },
+                searchRoots: [searchRoot],
                 debounce: TimeSpan.FromMilliseconds(10));
 
             var events = await DrainAsync(svc);
@@ -132,19 +129,18 @@ public class RepositoryWatchServiceMovedInTests
         {
             var volume = WatchPath.Parse(worktreePath).Volume!;
             var batch = new VolumeChangeBatch(volume,
-                new[] { new VolumeChangeEntry(worktreePath, VolumeEntryKind.MovedIn) });
+                [new VolumeChangeEntry(worktreePath, VolumeEntryKind.MovedIn)]);
             var svc = new RepositoryWatchService(
-                new ScriptedVolumeChangeSource(new[] { batch }),
+                new ScriptedVolumeChangeSource([batch]),
                 trackedRoots: Array.Empty<string>(),
-                searchRoots: new[] { searchRoot },
+                searchRoots: [searchRoot],
                 debounce: TimeSpan.FromMilliseconds(10));
 
             var events = await DrainAsync(svc);
 
-            Assert.That(events, Is.EqualTo(new[]
-            {
+            Assert.That(events, Is.EqualTo([
                     new RepositoryChangeEvent(worktreePath, RepositoryChangeKind.Created),
-                }));
+                ]));
         }
         finally
         {
@@ -164,13 +160,13 @@ public class RepositoryWatchServiceMovedInTests
         {
             var volume = WatchPath.Parse(repoPath).Volume!;
             var batch = new VolumeChangeBatch(volume,
-                new[] { new VolumeChangeEntry(repoPath, VolumeEntryKind.MovedIn) });
+                [new VolumeChangeEntry(repoPath, VolumeEntryKind.MovedIn)]);
             var svc = new RepositoryWatchService(
-                new ScriptedVolumeChangeSource(new[] { batch }),
+                new ScriptedVolumeChangeSource([batch]),
                 trackedRoots: Array.Empty<string>(),
-                searchRoots: new[] { searchRoot },
+                searchRoots: [searchRoot],
                 debounce: TimeSpan.FromMilliseconds(10),
-                ignoredPaths: new[] { ignoredRoot });
+                ignoredPaths: [ignoredRoot]);
 
             var events = await DrainAsync(svc);
 
@@ -194,19 +190,18 @@ public class RepositoryWatchServiceMovedInTests
         {
             var volume = WatchPath.Parse(repoPath).Volume!;
             var batch = new VolumeChangeBatch(volume,
-                new[] { new VolumeChangeEntry(gitPath, VolumeEntryKind.MovedIn) });
+                [new VolumeChangeEntry(gitPath, VolumeEntryKind.MovedIn)]);
             var svc = new RepositoryWatchService(
-                new ScriptedVolumeChangeSource(new[] { batch }),
+                new ScriptedVolumeChangeSource([batch]),
                 trackedRoots: Array.Empty<string>(),
-                searchRoots: new[] { searchRoot },
+                searchRoots: [searchRoot],
                 debounce: TimeSpan.FromMilliseconds(10));
 
             var events = await DrainAsync(svc);
 
-            Assert.That(events, Is.EqualTo(new[]
-            {
+            Assert.That(events, Is.EqualTo([
                     new RepositoryChangeEvent(repoPath, RepositoryChangeKind.Created),
-                }));
+                ]));
         }
         finally
         {
@@ -226,13 +221,13 @@ public class RepositoryWatchServiceMovedInTests
         {
             var volume = WatchPath.Parse(repoPath).Volume!;
             var batch = new VolumeChangeBatch(volume,
-                new[] { new VolumeChangeEntry(repoPath, VolumeEntryKind.MovedIn) });
+                [new VolumeChangeEntry(repoPath, VolumeEntryKind.MovedIn)]);
             var svc = new RepositoryWatchService(
-                new ScriptedVolumeChangeSource(new[] { batch }),
+                new ScriptedVolumeChangeSource([batch]),
                 trackedRoots: Array.Empty<string>(),
-                searchRoots: new[] { searchRoot },
+                searchRoots: [searchRoot],
                 debounce: TimeSpan.FromMilliseconds(10),
-                ignoredPaths: new[] { ignoredRoot });
+                ignoredPaths: [ignoredRoot]);
 
             var events = await DrainAsync(svc);
 

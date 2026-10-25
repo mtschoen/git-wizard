@@ -25,8 +25,8 @@ internal sealed class FakeFanotifyNative : IFanotifyNative
     public uint EventFileFlags { get; private set; }
 
     public Queue<FanotifyNativeCallResult> MarkResults { get; } = new();
-    public List<FanotifyMarkCall> MarkCalls { get; } = new();
-    public List<int> ClosedDescriptors { get; } = new();
+    public List<FanotifyMarkCall> MarkCalls { get; } = [];
+    public List<int> ClosedDescriptors { get; } = [];
 
     public int PollResult { get; set; } = 1;
     public bool ReadReturnsZero { get; set; }
@@ -110,12 +110,12 @@ internal sealed class FakeFanotifyNative : IFanotifyNative
     public HashSet<string> UnreadableIdentifierMountPaths { get; } = new(StringComparer.Ordinal);
     /// <summary>Roots whose mount was detached: opening the path now reaches the underlying filesystem.</summary>
     public HashSet<string> GoneMountPaths { get; } = new(StringComparer.Ordinal);
-    public List<(string Path, int Descriptor)> OpenedDirectories { get; } = new();
-    public List<(int MountDescriptor, byte[] Handle)> OpenByHandleCalls { get; } = new();
+    public List<(string Path, int Descriptor)> OpenedDirectories { get; } = [];
+    public List<(int MountDescriptor, byte[] Handle)> OpenByHandleCalls { get; } = [];
     /// <summary>Descriptors opened through <see cref="OpenDirectory"/> and not yet closed.</summary>
-    public HashSet<int> OpenMountDescriptors { get; } = new();
+    public HashSet<int> OpenMountDescriptors { get; } = [];
     /// <summary>Paths of the roots each <see cref="OpenByHandle"/> call resolved through, in call order.</summary>
-    public List<string> OpenByHandleRoots { get; } = new();
+    public List<string> OpenByHandleRoots { get; } = [];
     readonly Dictionary<int, string> _rootByDescriptor = new();
     readonly Dictionary<int, string> _relativePathByDirectoryDescriptor = new();
     readonly Dictionary<int, string> _rootByDirectoryDescriptor = new();

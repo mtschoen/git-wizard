@@ -30,7 +30,7 @@ public class FanotifyVolumeChangeSourceHandleCacheTests
         native.ReadQueue.Enqueue(secondBuffer);
 
         var source = new FanotifyVolumeChangeSource(native);
-        await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var batches = new List<VolumeChangeBatch>();
@@ -80,7 +80,7 @@ public class FanotifyVolumeChangeSourceHandleCacheTests
         native.ReadQueue.Enqueue(movedToBuffer);
 
         var source = new FanotifyVolumeChangeSource(native);
-        await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var batches = new List<VolumeChangeBatch>();
@@ -124,7 +124,7 @@ public class FanotifyVolumeChangeSourceHandleCacheTests
 
 
             var source = new FanotifyVolumeChangeSource(native);
-            var armResult = await source.ArmAndCatchUpAsync(new[] { tempBase, tempSub }, CancellationToken.None);
+            var armResult = await source.ArmAndCatchUpAsync([tempBase, tempSub], CancellationToken.None);
             Assert.That(armResult.Errors, Is.Empty);
 
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -146,10 +146,9 @@ public class FanotifyVolumeChangeSourceHandleCacheTests
             {
                 Assert.That(batches, Has.Count.EqualTo(1));
                 Assert.That(batches[0].Volume, Is.EqualTo("/"));
-                Assert.That(batches[0].Entries, Is.EqualTo(new[]
-                {
+                Assert.That(batches[0].Entries, Is.EqualTo([
                     new VolumeChangeEntry(Path.Combine(tempSub, "once.txt"), VolumeEntryKind.Created)
-                }));
+                ]));
             });
         }
         finally
@@ -181,7 +180,7 @@ public class FanotifyVolumeChangeSourceHandleCacheTests
         native.ReadQueue.Enqueue(modifiedFileBuffer);
 
         var source = new FanotifyVolumeChangeSource(native);
-        await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var batches = new List<VolumeChangeBatch>();
@@ -230,7 +229,7 @@ public class FanotifyVolumeChangeSourceHandleCacheTests
             native.ReadQueue.Enqueue(bufferOther);
 
             var source = new FanotifyVolumeChangeSource(native);
-            var armResult = await source.ArmAndCatchUpAsync(new[] { tempBase, tempSub, "/" }, CancellationToken.None);
+            var armResult = await source.ArmAndCatchUpAsync([tempBase, tempSub, "/"], CancellationToken.None);
             Assert.That(armResult.Errors, Is.Empty);
 
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));

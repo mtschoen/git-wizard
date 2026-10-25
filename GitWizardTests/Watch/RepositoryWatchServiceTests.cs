@@ -28,12 +28,11 @@ public class RepositoryWatchServiceTests
         // in journal order, through the same path as live batches.
         var startupBatches = new[]
         {
-            new VolumeChangeBatch("C", new[] { new VolumeChangeEntry(@"C:\repo\a\buffered.txt", VolumeEntryKind.Modified) })
+            new VolumeChangeBatch("C", [new VolumeChangeEntry(@"C:\repo\a\buffered.txt", VolumeEntryKind.Modified)])
         };
-        var source = new ScriptedVolumeChangeSource(new[]
-        {
-            new VolumeChangeBatch("C", new[] { new VolumeChangeEntry(@"C:\repo\b\live.txt", VolumeEntryKind.Modified) })
-        });
+        var source = new ScriptedVolumeChangeSource([
+            new VolumeChangeBatch("C", [new VolumeChangeEntry(@"C:\repo\b\live.txt", VolumeEntryKind.Modified)])
+        ]);
         var request = new DiscoveryRequest(
             new GitWizardConfiguration(), DiscoveryPurpose.Watch, false, false, []);
         await using var startup = await FakeLiveStartup.FromSourceArmedAsync(
@@ -48,25 +47,23 @@ public class RepositoryWatchServiceTests
             events.Add(changeEvent);
         }
 
-        Assert.That(events, Is.EqualTo(new[]
-        {
+        Assert.That(events, Is.EqualTo([
                 new RepositoryChangeEvent(@"C:\repo\a", RepositoryChangeKind.Changed),
                 new RepositoryChangeEvent(@"C:\repo\b", RepositoryChangeKind.Changed)
-            }));
+            ]));
     }
 
     [Test]
     public async Task ModifiedUnderTrackedRoot_CoalescesToSingleChanged()
     {
-        var batch = new VolumeChangeBatch("C", new[]
-        {
+        var batch = new VolumeChangeBatch("C", [
                 new VolumeChangeEntry(@"C:\repo\a\one.txt", VolumeEntryKind.Modified),
                 new VolumeChangeEntry(@"C:\repo\a\two.txt", VolumeEntryKind.Modified),
-            });
+            ]);
         var svc = new RepositoryWatchService(
-            new ScriptedVolumeChangeSource(new[] { batch }),
-            trackedRoots: new[] { @"C:\repo\a" },
-            searchRoots: new[] { @"C:\repo" },
+            new ScriptedVolumeChangeSource([batch]),
+            trackedRoots: [@"C:\repo\a"],
+            searchRoots: [@"C:\repo"],
             debounce: TimeSpan.FromMilliseconds(10));
 
         var events = await DrainAsync(svc);
@@ -78,22 +75,20 @@ public class RepositoryWatchServiceTests
     [Test]
     public async Task FileCreatedUnderTrackedRoot_EmitsChanged()
     {
-        var batch = new VolumeChangeBatch("C", new[]
-        {
+        var batch = new VolumeChangeBatch("C", [
                 new VolumeChangeEntry(@"C:\repo\a\test.txt", VolumeEntryKind.Created),
-            });
+            ]);
         var svc = new RepositoryWatchService(
-            new ScriptedVolumeChangeSource(new[] { batch }),
-            trackedRoots: new[] { @"C:\repo\a" },
-            searchRoots: new[] { @"C:\repo" },
+            new ScriptedVolumeChangeSource([batch]),
+            trackedRoots: [@"C:\repo\a"],
+            searchRoots: [@"C:\repo"],
             debounce: TimeSpan.FromMilliseconds(10));
 
         var events = await DrainAsync(svc);
 
-        Assert.That(events, Is.EqualTo(new[]
-        {
+        Assert.That(events, Is.EqualTo([
                 new RepositoryChangeEvent(@"C:\repo\a", RepositoryChangeKind.Changed),
-            }));
+            ]));
     }
 
     [Test]
@@ -101,12 +96,12 @@ public class RepositoryWatchServiceTests
     {
         var svc = new RepositoryWatchService(
             new ScriptedVolumeChangeSource(
-                new[] { new VolumeChangeBatch("C", new[]
-                {
+                [ new VolumeChangeBatch("C",
+                [
                     new VolumeChangeEntry(@"C:\repo\newrepo\.git", VolumeEntryKind.Created)
-                    }) }),
+                    ]) ]),
             trackedRoots: Array.Empty<string>(),
-            searchRoots: new[] { @"C:\repo" },
+            searchRoots: [@"C:\repo"],
             debounce: TimeSpan.FromMilliseconds(10));
 
         var events = await DrainAsync(svc);
@@ -120,12 +115,12 @@ public class RepositoryWatchServiceTests
     {
         var svc = new RepositoryWatchService(
             new ScriptedVolumeChangeSource(
-                new[] { new VolumeChangeBatch("C", new[]
-                {
+                [ new VolumeChangeBatch("C",
+                [
                     new VolumeChangeEntry(@"C:\repo\gone\.git", VolumeEntryKind.Deleted)
-                    }) }),
-            trackedRoots: new[] { @"C:\repo\gone" },
-            searchRoots: new[] { @"C:\repo" },
+                    ]) ]),
+            trackedRoots: [@"C:\repo\gone"],
+            searchRoots: [@"C:\repo"],
             debounce: TimeSpan.FromMilliseconds(10));
 
         var events = await DrainAsync(svc);
@@ -151,13 +146,12 @@ public class RepositoryWatchServiceTests
     [Test]
     public async Task TrackedRootWithNoSearchRootsOnVolume_StillClassifiesChanges()
     {
-        var batch = new VolumeChangeBatch("C", new[]
-        {
+        var batch = new VolumeChangeBatch("C", [
                 new VolumeChangeEntry(@"C:\repo\a\file.txt", VolumeEntryKind.Modified)
-            });
+            ]);
         var svc = new RepositoryWatchService(
-            new ScriptedVolumeChangeSource(new[] { batch }),
-            trackedRoots: new[] { @"C:\repo\a" },
+            new ScriptedVolumeChangeSource([batch]),
+            trackedRoots: [@"C:\repo\a"],
             searchRoots: Array.Empty<string>(),
             debounce: TimeSpan.FromMilliseconds(10));
 
@@ -172,8 +166,8 @@ public class RepositoryWatchServiceTests
     {
         var svc = new RepositoryWatchService(
             new BusyVolumeChangeSource(),
-            trackedRoots: new[] { @"C:\repo\a" },
-            searchRoots: new[] { @"C:\repo" },
+            trackedRoots: [@"C:\repo\a"],
+            searchRoots: [@"C:\repo"],
             debounce: TimeSpan.FromMilliseconds(20));
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         await using var enumerator = svc.RunAsync(cts.Token).GetAsyncEnumerator(cts.Token);
@@ -191,19 +185,17 @@ public class RepositoryWatchServiceTests
     {
         var batches = new[]
         {
-                new VolumeChangeBatch("C", new[]
-                {
+                new VolumeChangeBatch("C", [
                     new VolumeChangeEntry(@"C:\repo\a\one.txt", VolumeEntryKind.Modified)
-                }),
-                new VolumeChangeBatch("C", new[]
-                {
+                ]),
+                new VolumeChangeBatch("C", [
                     new VolumeChangeEntry(@"C:\repo\a\two.txt", VolumeEntryKind.Modified)
-                }),
+                ]),
             };
         var svc = new RepositoryWatchService(
             new DelayedVolumeChangeSource(batches, TimeSpan.FromMilliseconds(60)),
-            trackedRoots: new[] { @"C:\repo\a" },
-            searchRoots: new[] { @"C:\repo" },
+            trackedRoots: [@"C:\repo\a"],
+            searchRoots: [@"C:\repo"],
             debounce: TimeSpan.FromMilliseconds(10));
 
         var events = await DrainAsync(svc);
@@ -218,19 +210,17 @@ public class RepositoryWatchServiceTests
     [Test]
     public async Task CatchUpStyleLeadingBatch_ClassifiesTheSameAsLiveBatch()
     {
-        var catchUpStyleBatch = new VolumeChangeBatch("C", new[]
-        {
+        var catchUpStyleBatch = new VolumeChangeBatch("C", [
                 new VolumeChangeEntry(@"C:\repo\a\during-cold-scan.txt", VolumeEntryKind.Modified)
-            });
-        var liveBatch = new VolumeChangeBatch("C", new[]
-        {
+            ]);
+        var liveBatch = new VolumeChangeBatch("C", [
                 new VolumeChangeEntry(@"C:\repo\b\newrepo\.git", VolumeEntryKind.Created)
-            });
+            ]);
         var svc = new RepositoryWatchService(
             new ScriptedVolumeChangeSource(
-                new[] { catchUpStyleBatch, liveBatch }),
-            trackedRoots: new[] { @"C:\repo\a" },
-            searchRoots: new[] { @"C:\repo\b" },
+                [catchUpStyleBatch, liveBatch]),
+            trackedRoots: [@"C:\repo\a"],
+            searchRoots: [@"C:\repo\b"],
         debounce: TimeSpan.FromMilliseconds(10));
 
         var events = await DrainAsync(svc);

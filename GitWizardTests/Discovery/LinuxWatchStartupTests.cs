@@ -105,7 +105,7 @@ public class LinuxWatchStartupTests
         await using var startup = await startupTask.WaitAsync(TestTimeouts.HangGuard);
 
         Assert.That(startup.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.CompleteNonempty));
-        Assert.That(startup.Inventory.Paths, Is.EquivalentTo(new[] { repositoryPath }));
+        Assert.That(startup.Inventory.Paths, Is.EquivalentTo([repositoryPath]));
 
         var inventoryFired = false;
         var startedFired = false;

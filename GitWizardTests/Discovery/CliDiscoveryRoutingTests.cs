@@ -30,7 +30,7 @@ public class CliDiscoveryRoutingTests
         Assert.That(fixture.OpenedDriveSets, Is.Not.Empty);
         foreach (var drives in fixture.OpenedDriveSets)
         {
-            Assert.That(drives, Is.EquivalentTo(new[] { "C" }));
+            Assert.That(drives, Is.EquivalentTo(["C"]));
         }
     }
 
@@ -53,7 +53,7 @@ public class CliDiscoveryRoutingTests
         Assert.That(fixture.OpenedDriveSets, Is.Not.Empty);
         foreach (var drives in fixture.OpenedDriveSets)
         {
-            Assert.That(drives, Is.EquivalentTo(new[] { "C" }));
+            Assert.That(drives, Is.EquivalentTo(["C"]));
         }
     }
 

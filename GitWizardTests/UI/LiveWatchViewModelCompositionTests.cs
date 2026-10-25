@@ -25,11 +25,10 @@ public class LiveWatchViewModelCompositionTests
         viewModel.Refresh.IsRefreshing = true;
         Assert.Multiple(() =>
         {
-            Assert.That(liveNames, Is.EqualTo(new[]
-            {
+            Assert.That(liveNames, Is.EqualTo([
                 nameof(LiveWatchViewModel.CanToggleLive),
                 nameof(LiveWatchViewModel.LiveTooltip)
-            }));
+            ]));
             Assert.That(viewModel.LiveWatch.CanToggleLive, Is.False);
             Assert.That(shellNames, Is.Empty);
         });
@@ -62,7 +61,7 @@ public class LiveWatchViewModelCompositionTests
         {
             Assert.That(inserts.Count, Is.Zero);
             Assert.That(streamedRows.Select(row => row.WorkingDirectory),
-                Is.EqualTo(new[] { laterPath, fixture.Path }));
+                Is.EqualTo([laterPath, fixture.Path]));
             Assert.That(viewModel.Refresh.IsScanning, Is.True);
         });
 
@@ -72,7 +71,7 @@ public class LiveWatchViewModelCompositionTests
         {
             Assert.That(viewModel.RepositoryList.Repositories, Is.Not.SameAs(streamedRows));
             Assert.That(viewModel.RepositoryList.Repositories.Select(row => row.WorkingDirectory),
-                Is.EqualTo(new[] { fixture.Path, laterPath }));
+                Is.EqualTo([fixture.Path, laterPath]));
             Assert.That(viewModel.Refresh.IsRefreshing, Is.False);
             Assert.That(viewModel.Refresh.IsScanning, Is.False);
         });
@@ -93,7 +92,7 @@ public class LiveWatchViewModelCompositionTests
         var transition = new VolumeWatchTransition(Guid.NewGuid(), "C", 1,
             "Recovering", null, clock.GetUtcNow());
         viewModel.LiveWatch.LiveWatchEvents.Add(transition);
-        Assert.That(cache.LiveWatchEvents, Is.EqualTo(new[] { transition }));
+        Assert.That(cache.LiveWatchEvents, Is.EqualTo([transition]));
         row.Update(VolumeWatchStatus.CaughtUp("C", VolumeBlockOrigin.Cold));
         Assert.That(cache.LiveVolumes.Single().DisplayText, Is.EqualTo("C: caught up (cold)"));
 

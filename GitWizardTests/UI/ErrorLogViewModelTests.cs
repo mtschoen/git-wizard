@@ -17,7 +17,7 @@ public class ErrorLogViewModelTests
         log.AddError("first");
         log.AddError("second");
 
-        Assert.That(log.Entries.Select(e => e.Message), Is.EqualTo(new[] { "second", "first" }));
+        Assert.That(log.Entries.Select(e => e.Message), Is.EqualTo(["second", "first"]));
     }
 
     [Test]

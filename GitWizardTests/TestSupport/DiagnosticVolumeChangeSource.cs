@@ -18,9 +18,9 @@ internal sealed class DiagnosticVolumeChangeSource : IVolumeChangeSource, IVolum
     public int DiagnosticSubscribers => (DriveFailed?.GetInvocationList().Length ?? 0)
         + (JournalWarningDetected?.GetInvocationList().Length ?? 0);
     public Dictionary<string, string> ArmErrors { get; } = [];
-    public List<JournalWarning> ArmWarnings { get; } = new();
+    public List<JournalWarning> ArmWarnings { get; } = [];
     // What the source holds now; newer than ArmWarnings once a state change landed after the arm.
-    public List<JournalWarning> CurrentWarnings { get; } = new();
+    public List<JournalWarning> CurrentWarnings { get; } = [];
     public Barrier? HandoffBarrier { get; set; }
 
     IReadOnlyList<JournalWarning> IVolumeChangeDiagnostics.CurrentJournalWarnings

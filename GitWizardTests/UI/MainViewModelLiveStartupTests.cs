@@ -213,8 +213,8 @@ public class MainViewModelLiveStartupTests
     {
         var errors = new Dictionary<string, string> { ["D"] = "drive not ready" };
         var batch = new VolumeChangeBatch("C",
-            new[] { new VolumeChangeEntry(@"C:\tracked\file.txt", VolumeEntryKind.Modified) });
-        var source = new ScriptedVolumeChangeSource(new[] { batch }, errors);
+            [new VolumeChangeEntry(@"C:\tracked\file.txt", VolumeEntryKind.Modified)]);
+        var source = new ScriptedVolumeChangeSource([batch], errors);
 
         var viewModel = NewViewModel();
         viewModel.RepositoryList.AddRepository(Repo(@"C:\tracked"), streaming: false);
@@ -307,15 +307,14 @@ public class MainViewModelLiveStartupTests
         config.SearchPaths.Add(searchRoot);
 
         var volume = WatchPath.Parse(fixture.Path).Volume!;
-        var batch = new VolumeChangeBatch(volume, new[]
-        {
+        var batch = new VolumeChangeBatch(volume, [
                 new VolumeChangeEntry(oldPath, VolumeEntryKind.Deleted),
                 new VolumeChangeEntry(fixture.Path, VolumeEntryKind.MovedIn),
-            });
+            ]);
         var viewModel = NewViewModel();
         viewModel.RepositoryList.AddRepository(Repo(oldPath, remoteUrl), streaming: false);
         viewModel.LiveWatch.PrepareWatchAsync = (request, _, _, cancellationToken) =>
-            FakeLiveStartup.FromSourceArmedAsync(new ScriptedVolumeChangeSource(new[] { batch }), request, cancellationToken);
+            FakeLiveStartup.FromSourceArmedAsync(new ScriptedVolumeChangeSource([batch]), request, cancellationToken);
         viewModel.LiveWatch.IsElevated = () => false;
 
         await viewModel.LiveWatch.ToggleLiveAsync();
@@ -383,7 +382,7 @@ public class MainViewModelLiveStartupTests
             Assert.That(viewModel.LiveWatch.IsLiveStarting, Is.False);
             Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain("Live watch could not start: broker declined"));
             Assert.That(viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory),
-                Is.EqualTo(new[] { "/keep-me" }), "An unusable startup must not touch prior rows.");
+                Is.EqualTo(["/keep-me"]), "An unusable startup must not touch prior rows.");
         });
     }
 }

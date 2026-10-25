@@ -4,7 +4,7 @@ namespace GitWizardTests;
 
 public sealed class StubClipboardService : IClipboardService
 {
-    public List<string> Writes { get; } = new();
+    public List<string> Writes { get; } = [];
 
     public Task SetPlainTextAsync(string text)
     {

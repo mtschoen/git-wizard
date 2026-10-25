@@ -136,11 +136,10 @@ public class MftIndexCacheInspectionTests
         Assert.That(snapshot.RequestedCacheTag, Is.EqualTo(MftIndexCachePolicy.CacheTag));
         var lines = MftIndexCacheStatusFormatter.Format(snapshot).Split(Environment.NewLine)
             .Where(line => line.StartsWith("  Cache tag:", StringComparison.Ordinal)).ToArray();
-        Assert.That(lines, Is.EqualTo(new[]
-        {
+        Assert.That(lines, Is.EqualTo([
             $"  Cache tag: stored {stored}; requested {MftIndexCachePolicy.CacheTag}",
             $"  Cache tag: stored unavailable; requested {MftIndexCachePolicy.CacheTag}"
-        }));
+        ]));
     }
 
     [Test]

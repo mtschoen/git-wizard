@@ -117,7 +117,7 @@ public class IndexCacheViewModelTests
         var row = SyntheticNotifications.CreateCachedBlockStatus(SyntheticNotifications.CreateCachedBlockFile('X', 1, "fixture", 42,
             FrozenCacheClock.Now.UtcDateTime.AddMinutes(-5)), availability, null, null, null);
         var snapshot = new MftIndexCacheInspection(new FrozenCacheClock(), true,
-            _ => new[] { row }).Capture(files.DirectoryPath);
+            _ => [row]).Capture(files.DirectoryPath);
         var model = new IndexCacheViewModel(new StubUiDispatcher(), new StubUserDialogs(), new PreparedDiscoveryIndexStore(), () => snapshot, NoClear);
         await model.RefreshAsync();
         Assert.That(model.Snapshot!.Inventory.Single().Availability, Is.EqualTo(availability));

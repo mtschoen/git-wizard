@@ -26,7 +26,7 @@ public class MainViewModelCachedPathsTests
         await RefreshCoordinator.UpdateCachedPathsAfterScanAsync(
             deletedPaths: [],
             renamedOldPaths: [],
-            nonRepositoryPaths: new HashSet<string> { stalePath });
+            nonRepositoryPaths: [stalePath]);
 
         // The stale path should be removed from the cache file.
         var cachedPaths = await GitWizardApi.GetCachedRepositoryPathsAsync();
@@ -46,7 +46,7 @@ public class MainViewModelCachedPathsTests
         await GitWizardApi.SaveCachedRepositoryPathsAsync([validPath, deletedPath]);
 
         await RefreshCoordinator.UpdateCachedPathsAfterScanAsync(
-            deletedPaths: new HashSet<string> { deletedPath },
+            deletedPaths: [deletedPath],
             renamedOldPaths: [],
             nonRepositoryPaths: []);
 
@@ -69,9 +69,9 @@ public class MainViewModelCachedPathsTests
         await GitWizardApi.SaveCachedRepositoryPathsAsync([healthyPath, deletedPath, stalePath, renamedPath]);
 
         await RefreshCoordinator.UpdateCachedPathsAfterScanAsync(
-            deletedPaths: new HashSet<string> { deletedPath },
-            renamedOldPaths: new HashSet<string> { renamedPath },
-            nonRepositoryPaths: new HashSet<string> { stalePath });
+            deletedPaths: [deletedPath],
+            renamedOldPaths: [renamedPath],
+            nonRepositoryPaths: [stalePath]);
 
         var cachedPaths = await GitWizardApi.GetCachedRepositoryPathsAsync();
         Assert.That(cachedPaths, Is.Not.Null);

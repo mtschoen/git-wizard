@@ -28,10 +28,9 @@ public class GitWizardSummaryTests
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
 
         var repository = new GitWizardRepository(fixture.Path);
-        repository.Branches = new List<BranchInfo>
-        {
+        repository.Branches = [
             new BranchInfo { Name = "feature/x", IsMerged = true, MergedInto = "main" }
-        };
+        ];
         report.Repositories[fixture.Path] = repository;
 
         var summary = GitWizardSummary.FromReport(report);

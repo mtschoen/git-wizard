@@ -30,7 +30,7 @@ public class MainViewModelPrePopulateTests
         var vm = CreateViewModel();
 
         // Pre-populate from the cached report.
-        var config = new GitWizardConfiguration { SearchPaths = new SortedSet<string> { "/repos" } };
+        var config = new GitWizardConfiguration { SearchPaths = ["/repos"] };
         vm.RepositoryList.PrePopulateFromReport(config, ["/repos/alpha", "/repos/beta"], report);
 
         // Both repos should appear in the UI immediately.
@@ -52,7 +52,7 @@ public class MainViewModelPrePopulateTests
 
         // Only path "/repos/alpha" is in the repositoryPaths list.
         var vm = CreateViewModel();
-        var config = new GitWizardConfiguration { SearchPaths = new SortedSet<string> { "/repos" } };
+        var config = new GitWizardConfiguration { SearchPaths = ["/repos"] };
         vm.RepositoryList.PrePopulateFromReport(config, ["/repos/alpha"], report);
 
         Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1),
@@ -67,7 +67,7 @@ public class MainViewModelPrePopulateTests
         using var sandbox = new LocalFilesSandbox();
         // No cached report exists.
         var vm = CreateViewModel();
-        var config = new GitWizardConfiguration { SearchPaths = new SortedSet<string> { "/repos" } };
+        var config = new GitWizardConfiguration { SearchPaths = ["/repos"] };
         vm.RepositoryList.PrePopulateFromReport(config, ["/repos/alpha"], null);
 
         Assert.That(vm.RepositoryList.Repositories, Is.Empty,
@@ -81,7 +81,7 @@ public class MainViewModelPrePopulateTests
     {
         using var sandbox = new LocalFilesSandbox();
         var vm = CreateViewModel();
-        var config = new GitWizardConfiguration { SearchPaths = new SortedSet<string> { "/repos" } };
+        var config = new GitWizardConfiguration { SearchPaths = ["/repos"] };
         vm.RepositoryList.PrePopulateFromReport(config, null!, null);
 
         Assert.That(vm.RepositoryList.Repositories, Is.Empty,
@@ -102,7 +102,7 @@ public class MainViewModelPrePopulateTests
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
         var configuration = new GitWizardConfiguration
         {
-            SearchPaths = new SortedSet<string> { "C:/repos" }
+            SearchPaths = ["C:/repos"]
         };
 
         viewModel.RepositoryList.PrePopulateFromReport(configuration, ["C:/repos/alpha"], report);
@@ -123,7 +123,7 @@ public class MainViewModelPrePopulateTests
         var viewModel = CreateViewModel();
         var configuration = new GitWizardConfiguration
         {
-            SearchPaths = new SortedSet<string> { "/repos" }
+            SearchPaths = ["/repos"]
         };
         viewModel.RepositoryList.PrePopulateFromReport(configuration, ["/repos/alpha"], report);
         Assert.That(viewModel.RepositoryList.RepositoryMap, Does.ContainKey("/repos/alpha"));

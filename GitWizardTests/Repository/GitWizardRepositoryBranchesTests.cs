@@ -138,7 +138,7 @@ public class GitWizardRepositoryBranchesTests
 
         repo.Refresh();
 
-        var actionable = repo.Branches ?? new List<BranchInfo>();
+        var actionable = repo.Branches ?? [];
         Assert.That(actionable.Any(b => b.Name == "at-tip"), Is.False,
             "The actionable view must drop a branch sitting exactly at the default tip.");
     }

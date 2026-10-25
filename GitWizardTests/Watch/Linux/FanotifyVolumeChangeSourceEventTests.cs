@@ -42,7 +42,7 @@ public class FanotifyVolumeChangeSourceEventTests
         native.ReadQueue.Enqueue(combinedBuffer);
 
         var source = new FanotifyVolumeChangeSource(native);
-        await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var batches = new List<VolumeChangeBatch>();
@@ -82,7 +82,7 @@ public class FanotifyVolumeChangeSourceEventTests
         native.ReadQueue.Enqueue(buffer);
 
         var source = new FanotifyVolumeChangeSource(native);
-        await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var batches = new List<VolumeChangeBatch>();
@@ -115,7 +115,7 @@ public class FanotifyVolumeChangeSourceEventTests
         native.ReadQueue.Enqueue(buffer);
 
         var source = new FanotifyVolumeChangeSource(native);
-        await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var batches = new List<VolumeChangeBatch>();
@@ -148,7 +148,7 @@ public class FanotifyVolumeChangeSourceEventTests
         native.ReadQueue.Enqueue(buffer);
 
         var source = new FanotifyVolumeChangeSource(native);
-        await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var batches = new List<VolumeChangeBatch>();
@@ -181,7 +181,7 @@ public class FanotifyVolumeChangeSourceEventTests
         native.ReadQueue.Enqueue(buffer);
 
         var source = new FanotifyVolumeChangeSource(native);
-        await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var batches = new List<VolumeChangeBatch>();
@@ -242,7 +242,7 @@ public class FanotifyVolumeChangeSourceEventTests
         native.ReadQueue.Enqueue(combined);
 
         var source = new FanotifyVolumeChangeSource(native);
-        await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var batches = new List<VolumeChangeBatch>();
@@ -279,7 +279,7 @@ public class FanotifyVolumeChangeSourceEventTests
         native.ReadQueue.Enqueue(validBuffer);
 
         var source = new FanotifyVolumeChangeSource(native);
-        await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var batches = new List<VolumeChangeBatch>();
@@ -324,7 +324,7 @@ public class FanotifyVolumeChangeSourceEventTests
         native.ReadQueue.Enqueue(combined);
 
         var source = new FanotifyVolumeChangeSource(native);
-        await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var batches = new List<VolumeChangeBatch>();
@@ -355,7 +355,7 @@ public class FanotifyVolumeChangeSourceEventTests
 
 
         var source = new FanotifyVolumeChangeSource(native);
-        await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var batches = new List<VolumeChangeBatch>();
@@ -365,11 +365,10 @@ public class FanotifyVolumeChangeSourceEventTests
             break;
         }
 
-        Assert.That(batches.SelectMany(batch => batch.Entries), Is.EqualTo(new[]
-        {
+        Assert.That(batches.SelectMany(batch => batch.Entries), Is.EqualTo([
             new VolumeChangeEntry(Path.Combine("/repos", "incoming"), VolumeEntryKind.MovedIn),
             new VolumeChangeEntry(Path.Combine("/repos", "note.txt"), VolumeEntryKind.Created)
-        }));
+        ]));
     }
 
 }

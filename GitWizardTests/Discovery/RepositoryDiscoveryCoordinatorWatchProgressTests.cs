@@ -43,11 +43,10 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
         await AsyncCondition.WaitUntilAsync(() => reports.Any(r => r.Readiness?.TryGet("X", out var x) == true && x.State == VolumeWatchState.CatchingUp));
         await scripted.WatchFor('X').PublishCaughtUpAsync();
         await using var startup = await preparing.WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.That(reports.Select(r => r.Phase).Distinct(), Is.EqualTo(new[]
-        {
+        Assert.That(reports.Select(r => r.Phase).Distinct(), Is.EqualTo([
             WatchStartupPhase.Opening, WatchStartupPhase.CatchingUp, WatchStartupPhase.Discovering, WatchStartupPhase.Reconciling
-        }));
-        Assert.That(reports.Last(r => r.Readiness is not null).Readiness!.CaughtUpVolumes, Is.EqualTo(new[] { "X" }));
+        ]));
+        Assert.That(reports.Last(r => r.Readiness is not null).Readiness!.CaughtUpVolumes, Is.EqualTo(["X"]));
         Assert.That(startup.Source, Is.InstanceOf<IVolumeReadiness>());
     }
 
@@ -71,7 +70,7 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
         session.Connected += () => events.Add("Connected");
         // The session's ConnectAsync is internal to MFTLib; a grow is the public first use that launches.
         await session.GrowUsnJournalAsync('X', new UsnJournalSettings { MaximumSize = 4096, AllocationDelta = 512 }, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
-        Assert.That(events, Is.EqualTo(new[] { "Connecting", "launch", "Connected" }));
+        Assert.That(events, Is.EqualTo(["Connecting", "launch", "Connected"]));
         Assert.That(broker.ConnectionCount, Is.EqualTo(1));
     }
 

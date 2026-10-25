@@ -56,12 +56,11 @@ public class BareIndexDiscoveryTests
 
         var candidates = GitWizardApi.SelectRepositoryCandidates(index, scope, CancellationToken.None);
 
-        Assert.That(candidates.Select(item => (item.Path, item.Kind)), Is.EquivalentTo(new[]
-        {
+        Assert.That(candidates.Select(item => (item.Path, item.Kind)), Is.EquivalentTo([
             (ordinaryPath, RepositoryCandidateKind.Ordinary),
             (barePath, RepositoryCandidateKind.Bare),
             (worktreePath, RepositoryCandidateKind.GitFile)
-        }));
+        ]));
         Assert.That(candidates.Any(item => item.Path.Contains("/.git/", StringComparison.OrdinalIgnoreCase) ||
                                            item.Path.Contains("\\.git\\", StringComparison.OrdinalIgnoreCase)), Is.False);
     }

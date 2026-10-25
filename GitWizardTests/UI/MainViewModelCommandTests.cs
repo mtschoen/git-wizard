@@ -293,9 +293,8 @@ public class MainViewModelCommandTests
         var dialogs = new StubUserDialogs();
         await using var viewModel = TestViewModels.Create(dialogs: dialogs);
         await viewModel.IndexCache.ClearCacheAsync();
-        Assert.That(dialogs.AlertCalls, Is.EqualTo(new[]
-        {
+        Assert.That(dialogs.AlertCalls, Is.EqualTo([
             new StubUserDialogs.AlertCall("Cache Cleared", "Repository cache has been cleared")
-        }));
+        ]));
     }
 }

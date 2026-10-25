@@ -36,7 +36,7 @@ public class EnumerationDiscoveryTests
     {
         var options = EnumerationDiscovery.CreateIndexOptions(new GitWizardConfiguration(), _root, []);
 
-        Assert.That(options.RetainedFileNames, Is.EqualTo(new[] { ".git", "HEAD" }));
+        Assert.That(options.RetainedFileNames, Is.EqualTo([".git", "HEAD"]));
         Assert.That(options.CacheMode, Is.EqualTo(CacheMode.Disabled));
         Assert.That(options.CacheDirectory, Is.Null);
         Assert.That(options.Drives.Single().Producer, Is.EqualTo(ProducerKind.Enumeration));
@@ -48,10 +48,9 @@ public class EnumerationDiscoveryTests
     {
         var walk = EnumerationDiscovery.CreateDirectoryWalk(new GitWizardConfiguration(), _root, []);
 
-        Assert.That(walk.PrunedDirectoryNames, Is.EquivalentTo(new[]
-        {
+        Assert.That(walk.PrunedDirectoryNames, Is.EquivalentTo([
             ".git", ".Git", ".gIt", ".giT", ".GIt", ".GiT", ".gIT", ".GIT"
-        }));
+        ]));
     }
 
     [TestCase(true)]
@@ -132,7 +131,7 @@ public class EnumerationDiscoveryTests
         var result = RepositoryDiscoveryDependencies.CreateDefault()
             .CrawlRootAsync(request, _root, CancellationToken.None).GetAwaiter().GetResult();
 
-        Assert.That(result.Paths, Is.EqualTo(new[] { GitWizardApi.NormalizePath(repository) }));
+        Assert.That(result.Paths, Is.EqualTo([GitWizardApi.NormalizePath(repository)]));
         Assert.That(result.Errors, Is.Empty);
     }
 
@@ -146,7 +145,7 @@ public class EnumerationDiscoveryTests
         var paths = new List<string>();
         EnumeratedDiscovery.GetRepositoryPaths(_root, paths, [ignored], includeTempDirectories: true);
 
-        Assert.That(paths, Is.EqualTo(new[] { GitWizardApi.NormalizePath(Path.Combine(_root, "kept")) }));
+        Assert.That(paths, Is.EqualTo([GitWizardApi.NormalizePath(Path.Combine(_root, "kept"))]));
     }
 
     [Test]
@@ -157,7 +156,7 @@ public class EnumerationDiscoveryTests
 
         var result = EnumerationDiscovery.DiscoverAsync(request, missing, CancellationToken.None).GetAwaiter().GetResult();
 
-        Assert.That(result.FailedSubtrees, Is.EqualTo(new[] { missing }));
+        Assert.That(result.FailedSubtrees, Is.EqualTo([missing]));
         Assert.That(result.Errors, Does.ContainKey(missing));
     }
 }

@@ -23,7 +23,7 @@ public class MainViewModelCachedNodeReplacementTests
         report.Save(Path.Combine(GitWizardApi.GetLocalFilesPath(), "report.json"));
 
         var vm = CreateViewModel();
-        var config = new GitWizardConfiguration { SearchPaths = new SortedSet<string> { "/repos" } };
+        var config = new GitWizardConfiguration { SearchPaths = ["/repos"] };
         vm.RepositoryList.PrePopulateFromReport(config, ["/repos/alpha"], report);
 
         Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1), "Pre-condition: one repo pre-populated.");
@@ -56,7 +56,7 @@ public class MainViewModelCachedNodeReplacementTests
         report.Save(Path.Combine(GitWizardApi.GetLocalFilesPath(), "report.json"));
 
         var vm = CreateViewModel();
-        var config = new GitWizardConfiguration { SearchPaths = new SortedSet<string> { "/repos" } };
+        var config = new GitWizardConfiguration { SearchPaths = ["/repos"] };
         vm.RepositoryList.PrePopulateFromReport(config, ["/repos/alpha"], report);
 
         var cachedNode = vm.RepositoryList.AllRepositories[0];
@@ -102,7 +102,7 @@ public class MainViewModelCachedNodeReplacementTests
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
         var configuration = new GitWizardConfiguration
         {
-            SearchPaths = new SortedSet<string> { "C:/repos" }
+            SearchPaths = ["C:/repos"]
         };
         viewModel.RepositoryList.PrePopulateFromReport(configuration, ["C:/repos/alpha"], report);
 
@@ -130,7 +130,7 @@ public class MainViewModelCachedNodeReplacementTests
         GitWizardApi.SaveCachedRepositoryPaths(["/repos/alpha", "/repos/beta"]);
 
         var vm = CreateViewModel();
-        var config = new GitWizardConfiguration { SearchPaths = new SortedSet<string> { "/repos" } };
+        var config = new GitWizardConfiguration { SearchPaths = ["/repos"] };
 
         // First "refresh" cycle.
         vm.RepositoryList.PrePopulateFromReport(config, ["/repos/alpha", "/repos/beta"], report);

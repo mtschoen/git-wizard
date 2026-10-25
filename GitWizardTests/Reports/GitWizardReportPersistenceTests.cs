@@ -69,7 +69,7 @@ public class GitWizardReportPersistenceTests
         Assert.Multiple(() =>
         {
             Assert.That(loaded!.SchemaVersion, Is.EqualTo(GitWizardReport.CurrentSchemaVersion));
-            Assert.That(loaded.Repositories.Keys, Is.EqualTo(new[] { "/repo/one", "/repo/two" }));
+            Assert.That(loaded.Repositories.Keys, Is.EqualTo(["/repo/one", "/repo/two"]));
         });
     }
 

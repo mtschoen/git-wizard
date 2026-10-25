@@ -119,7 +119,7 @@ public class IndexVolumeChangeSourceTests
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Assert.That(oldOwner.IsDisposed, Is.True);
-                Assert.That(drives, Is.EqualTo(new[] { requested }));
+                Assert.That(drives, Is.EqualTo([requested]));
                 opens++;
                 return Task.FromResult(fresh);
             }, oldOwner))
@@ -183,11 +183,10 @@ public class IndexVolumeChangeSourceTests
         using var cancellation = new CancellationTokenSource(TestTimeouts.HangGuard);
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
         var firstRead = reader.MoveNextAsync().AsTask();
-        Assert.That(starts, Is.EquivalentTo(new[]
-        {
+        Assert.That(starts, Is.EquivalentTo([
             new ScriptedWatchStart('X', new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, PackedIndexFixture.NextUsn)),
             new ScriptedWatchStart('Y', new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, PackedIndexFixture.NextUsn))
-        }), "Arming must start the watch.");
+        ]), "Arming must start the watch.");
         // Routed through IndexVolumeChangeSource, which rewrites every path back onto its own
         // configured drive letter (MFTLib #143), so these stay the pre-existing synthetic shape.
         await scripted.WatchFor('X').PublishBatchAsync([
@@ -197,16 +196,14 @@ public class IndexVolumeChangeSourceTests
         ], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1004));
         Assert.That(await firstRead, Is.True);
         Assert.That(reader.Current, Is.EqualTo(new VolumeChangeBatch("X", reader.Current.Entries)));
-        Assert.That(reader.Current.Entries, Is.EqualTo(new[]
-        {
+        Assert.That(reader.Current.Entries, Is.EqualTo([
             new VolumeChangeEntry(@"X:\repo\file.txt", VolumeEntryKind.Created)
-        }));
+        ]));
         Assert.That(await reader.MoveNextAsync(), Is.True);
-        Assert.That(reader.Current.Entries, Is.EqualTo(new[]
-        {
+        Assert.That(reader.Current.Entries, Is.EqualTo([
             new VolumeChangeEntry(@"X:\repo\file.txt", VolumeEntryKind.Deleted),
             new VolumeChangeEntry(@"X:\repo\renamed.txt", VolumeEntryKind.Created)
-        }));
+        ]));
         Assert.That(await reader.MoveNextAsync(), Is.True);
         Assert.That(reader.Current.Entries.Single(), Is.EqualTo(
             new VolumeChangeEntry(@"X:\repo\renamed.txt", VolumeEntryKind.Deleted)));
@@ -305,7 +302,7 @@ public class IndexVolumeChangeSourceTests
         IProgress<IndexScanProgress>? capturedProgress = null;
         await using var source = new IndexVolumeChangeSource((drives, progress, _) =>
         {
-            Assert.That(drives, Is.EqualTo(new[] { "X", "Y" }));
+            Assert.That(drives, Is.EqualTo(["X", "Y"]));
             capturedProgress = progress;
             return Task.FromResult(owner);
         });
@@ -316,10 +313,9 @@ public class IndexVolumeChangeSourceTests
 
         Assert.That(capturedProgress, Is.Not.Null);
         capturedProgress!.Report(SyntheticNotifications.CreateIndexScanProgress('y', IndexScanPhase.ParsingMft, 600_000, expectedRowCount: 1_200_000));
-        Assert.That(samples, Is.EqualTo(new[]
-        {
+        Assert.That(samples, Is.EqualTo([
             new VolumeScanProgress("Y", 2, 2, 600_000u, 1_200_000u)
-        }));
+        ]));
     }
 
     internal static MftIndexSession Owner(FileIndex index, params string[] drives) =>
@@ -429,7 +425,7 @@ public class IndexVolumeChangeSourceTests
         source.ProcessFaultedDrive(status with { Watch = status.Watch with { CheckpointLoss = recreationLoss2 } }, owner, new GitWizardConfiguration());
         source.ProcessFaultedDrive(status with { Watch = status.Watch with { CheckpointLoss = recreationLoss2 } }, owner, new GitWizardConfiguration());
         Assert.That(warnings.Select(warning => warning.Loss),
-            Is.EqualTo(new[] { liveLoss, liveLoss, recreationLoss2 }));
+            Is.EqualTo([liveLoss, liveLoss, recreationLoss2]));
     }
 
 

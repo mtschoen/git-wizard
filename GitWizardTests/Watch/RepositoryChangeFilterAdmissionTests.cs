@@ -29,7 +29,7 @@ public class RepositoryChangeFilterAdmissionTests
 
         var result = filter.Classify([Created(@"C:\Users\example\AppData\Local\Temp\pytest-12602\repo\.git")]);
 
-        Assert.That(result.Created, Is.EquivalentTo(new[] { @"C:\Users\example\AppData\Local\Temp\pytest-12602\repo" }));
+        Assert.That(result.Created, Is.EquivalentTo([@"C:\Users\example\AppData\Local\Temp\pytest-12602\repo"]));
     }
 
     [Test]
@@ -56,7 +56,7 @@ public class RepositoryChangeFilterAdmissionTests
 
         var result = filter.Classify([Created(Path.Combine(repoPath, ".git"))]);
 
-        Assert.That(result.Created, Is.EquivalentTo(new[] { repoPath }));
+        Assert.That(result.Created, Is.EquivalentTo([repoPath]));
     }
 
     [Test]
@@ -111,7 +111,7 @@ public class RepositoryChangeFilterAdmissionTests
 
         var result = filter.Classify([Modified(Path.Combine(trackedTempRepo, "index.lock"))]);
 
-        Assert.That(result.Changed, Is.EquivalentTo(new[] { trackedTempRepo }));
+        Assert.That(result.Changed, Is.EquivalentTo([trackedTempRepo]));
     }
 
     [Test]
@@ -122,7 +122,7 @@ public class RepositoryChangeFilterAdmissionTests
 
         var result = filter.Classify([Created(Path.Combine(trackedTempRepo, ".git"))]);
 
-        Assert.That(result.Changed, Is.EquivalentTo(new[] { trackedTempRepo }));
+        Assert.That(result.Changed, Is.EquivalentTo([trackedTempRepo]));
     }
 
     [Test]
@@ -134,7 +134,7 @@ public class RepositoryChangeFilterAdmissionTests
 
         var result = filter.Classify([Modified(Path.Combine(trackedTempRepo, "index.lock"))]);
 
-        Assert.That(result.Changed, Is.EquivalentTo(new[] { trackedTempRepo }));
+        Assert.That(result.Changed, Is.EquivalentTo([trackedTempRepo]));
     }
 
     [Test]

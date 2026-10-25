@@ -38,17 +38,15 @@ public class MainViewModelLiveCapabilityTests
         viewModel.Refresh.IsRefreshing = true;
         viewModel.Refresh.IsRefreshing = true;
         Assert.That(viewModel.LiveWatch.CanToggleLive, Is.False);
-        Assert.That(changes, Is.EqualTo(new[]
-        {
+        Assert.That(changes, Is.EqualTo([
             nameof(LiveWatchViewModel.CanToggleLive), nameof(LiveWatchViewModel.LiveTooltip)
-        }));
+        ]));
         changes.Clear();
         viewModel.Refresh.IsRefreshing = false;
         Assert.That(viewModel.LiveWatch.CanToggleLive, Is.True);
-        Assert.That(changes, Is.EqualTo(new[]
-        {
+        Assert.That(changes, Is.EqualTo([
             nameof(LiveWatchViewModel.CanToggleLive), nameof(LiveWatchViewModel.LiveTooltip)
-        }));
+        ]));
         viewModel.LiveWatch.IsLive = true;
         viewModel.Refresh.IsRefreshing = true;
         Assert.That(viewModel.LiveWatch.CanToggleLive, Is.True, "Stopping remains available during refresh.");

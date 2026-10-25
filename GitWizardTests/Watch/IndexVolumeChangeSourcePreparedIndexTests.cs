@@ -46,7 +46,7 @@ public class IndexVolumeChangeSourcePreparedIndexTests
         {
             opens++;
             Assert.That(fixture.Owner.IsDisposed, Is.True);
-            Assert.That(drives, Is.EqualTo(disposeFirst ? new[] { "X" } : new[] { "X", "Y" }));
+            Assert.That(drives, Is.EqualTo(disposeFirst ? new[] { "X" } : ["X", "Y"]));
             throw new InvalidOperationException("Fresh open failed");
         }, fixture.Owner);
         Assert.ThrowsAsync<InvalidOperationException>(() => source.ArmAndCatchUpAsync(

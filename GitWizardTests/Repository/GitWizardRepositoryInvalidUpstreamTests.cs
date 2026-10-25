@@ -210,7 +210,7 @@ public class GitWizardRepositoryInvalidUpstreamTests
         var worktreePath = fixture.AddWorktree("wt-url-remote");
 
         var report = new GitWizardReport();
-        report.Refresh(new[] { fixture.Path, worktreePath }, fetchRemotes: false, deepRefresh: false, allBranches: true, computeLocalCommitCount: true);
+        report.Refresh([fixture.Path, worktreePath], fetchRemotes: false, deepRefresh: false, allBranches: true, computeLocalCommitCount: true);
 
         Assert.That(DiagnosticsFor("url-remote"), Is.EqualTo(1),
             "All worktrees share one config; the diagnostic is logged once per repository.");
@@ -356,7 +356,7 @@ public class GitWizardRepositoryInvalidUpstreamTests
         TempRepoFixture.RunGit(tempRoot, "worktree", "add", worktreePath, "-b", "wt-url-remote");
 
         var report = new GitWizardReport();
-        report.Refresh(new[] { tempRoot, worktreePath }, allBranches: true);
+        report.Refresh([tempRoot, worktreePath], allBranches: true);
 
         Assert.That(DiagnosticsFor("url-remote"), Is.EqualTo(1),
             "Main and linked paths of one repo should share a key even if the repo is in a directory named 'worktrees'");

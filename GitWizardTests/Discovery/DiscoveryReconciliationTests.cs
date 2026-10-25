@@ -58,7 +58,7 @@ public class DiscoveryReconciliationTests
         };
         var reconciled = RepositoryDiscoveryCoordinator.ReconcilePaths(
             [@"C:\repos\gone", @"D:\repos\keep", @"E:\outside\keep"], inventory);
-        Assert.That(reconciled, Is.EquivalentTo(new[] { @"D:\repos\keep", @"E:\outside\keep" }));
+        Assert.That(reconciled, Is.EquivalentTo([@"D:\repos\keep", @"E:\outside\keep"]));
     }
 
     [Test]
@@ -96,7 +96,7 @@ public class DiscoveryReconciliationTests
         };
         var reconciled = RepositoryDiscoveryCoordinator.ReconcilePaths(
             [@"C:\repos\old1"], inventory);
-        Assert.That(reconciled, Is.EquivalentTo(new[] { @"C:\repos\new1", @"C:\repos\new2" }));
+        Assert.That(reconciled, Is.EquivalentTo([@"C:\repos\new1", @"C:\repos\new2"]));
     }
 
     [Test]
@@ -136,7 +136,7 @@ public class DiscoveryReconciliationTests
         };
         var reconciled = RepositoryDiscoveryCoordinator.ReconcilePaths(
             [@"C:\repos\gone", @"C:\repos\sub\child_keep", @"C:\repos\survived"], inventory);
-        Assert.That(reconciled, Is.EquivalentTo(new[] { @"C:\repos\sub\child_keep", @"C:\repos\survived" }));
+        Assert.That(reconciled, Is.EquivalentTo([@"C:\repos\sub\child_keep", @"C:\repos\survived"]));
     }
 
     [Test]
@@ -155,7 +155,7 @@ public class DiscoveryReconciliationTests
         };
         var reconciled = RepositoryDiscoveryCoordinator.ReconcilePaths(
             [@"C:\repos\old", @"C:\repos\found"], inventory);
-        Assert.That(reconciled, Is.EquivalentTo(new[] { @"C:\repos\old", @"C:\repos\found" }));
+        Assert.That(reconciled, Is.EquivalentTo([@"C:\repos\old", @"C:\repos\found"]));
     }
 
     [Test]
@@ -175,7 +175,7 @@ public class DiscoveryReconciliationTests
         };
         var reconciled = RepositoryDiscoveryCoordinator.ReconcilePaths(
             [@"C:\repos\gone", @"E:\retained"], inventory);
-        Assert.That(reconciled, Is.EquivalentTo(new[] { @"E:\retained" }));
+        Assert.That(reconciled, Is.EquivalentTo([@"E:\retained"]));
     }
 
     [Test]
@@ -194,7 +194,7 @@ public class DiscoveryReconciliationTests
         };
         var reconciled = RepositoryDiscoveryCoordinator.ReconcilePaths(
             ["/repos/myrepo"], inventory);
-        Assert.That(reconciled, Is.EquivalentTo(new[] { "/repos/MyRepo" }));
+        Assert.That(reconciled, Is.EquivalentTo(["/repos/MyRepo"]));
     }
 
     [Test]

@@ -33,11 +33,10 @@ public class IndexVolumeChangeSourceReadinessTests
             scripted.WaitForStartAsync('Y', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard));
         await WaitUntilAsync(() => source.Readiness.Volumes.Count == 2);
         Assert.That(arming.IsCompleted, Is.False, "The arm must wait for catch-up, not merely for pump start.");
-        Assert.That(source.Readiness.Volumes.Select(v => (v.Volume, v.State, v.Origin)), Is.EquivalentTo(new[]
-        {
+        Assert.That(source.Readiness.Volumes.Select(v => (v.Volume, v.State, v.Origin)), Is.EquivalentTo([
             ("X", VolumeWatchState.CatchingUp, VolumeBlockOrigin.Cold),
             ("Y", VolumeWatchState.CatchingUp, VolumeBlockOrigin.Cold)
-        }));
+        ]));
         Assert.That(source.Readiness.IsSettled, Is.False);
 
         await scripted.WatchFor('X').PublishCaughtUpAsync();
@@ -50,7 +49,7 @@ public class IndexVolumeChangeSourceReadinessTests
         var result = await arming.WaitAsync(TestTimeouts.HangGuard);
         Assert.That(result.Errors["Y"], Is.EqualTo("Y failed"));
         Assert.That(source.Readiness.IsSettled, Is.True);
-        Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo(new[] { "X" }));
+        Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo(["X"]));
         var excluded = source.Readiness.ExcludedVolumes.Single();
         Assert.That((excluded.Volume, excluded.ExclusionReason), Is.EqualTo(("Y", "Y failed")));
         Assert.That(snapshots.Last(), Is.SameAs(source.Readiness));
@@ -131,14 +130,14 @@ public class IndexVolumeChangeSourceReadinessTests
         var owner = Owner(await files.OpenMftIndexAsync(scripted, 'X', 'Y'), "X", "Y");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
-        Assert.That(source.Readiness.CaughtUpVolumes, Is.EquivalentTo(new[] { "X", "Y" }));
+        Assert.That(source.Readiness.CaughtUpVolumes, Is.EquivalentTo(["X", "Y"]));
         using var cancellation = new CancellationTokenSource(TestTimeouts.HangGuard);
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
         var pending = reader.MoveNextAsync().AsTask();
         scripted.WatchFor('Y').LoseChannel(new IOException("Y died later"));
         await WaitUntilAsync(() => source.Readiness.TryGet("Y", out var y) && y.State == VolumeWatchState.Excluded);
         Assert.That(source.Readiness.TryGet("Y", out var status) ? status.ExclusionReason : null, Is.EqualTo("Y died later"));
-        Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo(new[] { "X" }));
+        Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo(["X"]));
         await cancellation.CancelAsync();
         try { await pending; } catch (OperationCanceledException) { }
     }
@@ -171,7 +170,7 @@ public class IndexVolumeChangeSourceReadinessTests
 
         await arming.WaitAsync(TestTimeouts.HangGuard);
         Assert.That(snapshots.Last().IsSettled, Is.True);
-        Assert.That(snapshots.Last().CaughtUpVolumes, Is.EquivalentTo(new[] { "X", "Y" }));
+        Assert.That(snapshots.Last().CaughtUpVolumes, Is.EquivalentTo(["X", "Y"]));
         Assert.That(snapshots.Last(), Is.EqualTo(source.Readiness));
     }
 }

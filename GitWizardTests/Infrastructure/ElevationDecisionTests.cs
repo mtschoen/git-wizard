@@ -15,7 +15,7 @@ public class ElevationDecisionTests
         public bool Elevated;
         public bool SelfElevatable = true;
         public bool RunElevatedResult;
-        public readonly List<(IReadOnlyList<string> Arguments, TimeSpan Timeout)> RunElevatedCalls = new();
+        public readonly List<(IReadOnlyList<string> Arguments, TimeSpan Timeout)> RunElevatedCalls = [];
 
         public bool IsElevated() => Elevated;
         public bool CanSelfElevate() => SelfElevatable;
@@ -42,7 +42,7 @@ public class ElevationDecisionTests
 
         Assert.That(result, Is.True);
         Assert.That(fake.RunElevatedCalls, Has.Count.EqualTo(1));
-        Assert.That(fake.RunElevatedCalls[0].Arguments, Is.EqualTo(new[] { "--elevated-defender" }));
+        Assert.That(fake.RunElevatedCalls[0].Arguments, Is.EqualTo(["--elevated-defender"]));
         Assert.That(fake.RunElevatedCalls[0].Timeout, Is.EqualTo(TimeSpan.FromSeconds(60)));
     }
 

@@ -12,7 +12,7 @@ public class MftIndexCachePolicyTests
     public void PolicyDefinesTheDiscoveryScanAndOneCacheDirectory()
     {
         using var files = new PackedIndexFixture();
-        Assert.That(MftIndexCachePolicy.DirectoryScanFileNames, Is.EqualTo(new[] { ".git", "HEAD" }));
+        Assert.That(MftIndexCachePolicy.DirectoryScanFileNames, Is.EqualTo([".git", "HEAD"]));
         Assert.That(SyntheticCacheTag.GetFourCharacterCode(MftIndexCachePolicy.CacheTag), Is.EqualTo("GWMI"));
         Assert.That(SyntheticCacheTag.GetVersion(MftIndexCachePolicy.CacheTag), Is.EqualTo(2u));
         Assert.That(Path.GetDirectoryName(MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath)),

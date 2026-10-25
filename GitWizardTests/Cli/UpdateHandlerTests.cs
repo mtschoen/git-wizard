@@ -233,7 +233,7 @@ public class UpdateHandlerTests
             Assert.That(before.Skipped, Is.Zero);
             Assert.That(before.Warnings, Is.Empty);
             Assert.That(handler.CaptureRun().Created, Is.EqualTo(4));
-            Assert.That(handler.CaptureRun().Warnings, Is.EqualTo(new[] { "later warning" }));
+            Assert.That(handler.CaptureRun().Warnings, Is.EqualTo(["later warning"]));
         });
     }
 

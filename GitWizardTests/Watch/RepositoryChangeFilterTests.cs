@@ -20,7 +20,7 @@ public class RepositoryChangeFilterTests
 
         var result = filter.Classify([MovedIn(Path.Combine(RepoRoot, "src-renamed"))]);
 
-        Assert.That(result.Changed, Is.EquivalentTo(new[] { RepoRoot }));
+        Assert.That(result.Changed, Is.EquivalentTo([RepoRoot]));
         Assert.That(result.MovedInCandidates, Is.Empty);
         Assert.That(result.Created, Is.Empty);
     }
@@ -32,7 +32,7 @@ public class RepositoryChangeFilterTests
 
         var result = filter.Classify([MovedIn(@"C:\repos\repo-renamed")]);
 
-        Assert.That(result.MovedInCandidates, Is.EquivalentTo(new[] { @"C:\repos\repo-renamed" }));
+        Assert.That(result.MovedInCandidates, Is.EquivalentTo([@"C:\repos\repo-renamed"]));
         Assert.That(result.Changed, Is.Empty);
         Assert.That(result.Created, Is.Empty);
         Assert.That(result.Deleted, Is.Empty);
@@ -65,7 +65,7 @@ public class RepositoryChangeFilterTests
 
         var result = filter.Classify([Modified(Path.Combine(RepoRoot, "index.lock"))]);
 
-        Assert.That(result.Changed, Is.EquivalentTo(new[] { RepoRoot }));
+        Assert.That(result.Changed, Is.EquivalentTo([RepoRoot]));
         Assert.That(result.Created, Is.Empty);
         Assert.That(result.Deleted, Is.Empty);
     }
@@ -77,7 +77,7 @@ public class RepositoryChangeFilterTests
 
         var result = filter.Classify([Created(Path.Combine(RepoRoot, "test.txt"))]);
 
-        Assert.That(result.Changed, Is.EquivalentTo(new[] { RepoRoot }));
+        Assert.That(result.Changed, Is.EquivalentTo([RepoRoot]));
         Assert.That(result.Created, Is.Empty);
         Assert.That(result.Deleted, Is.Empty);
     }
@@ -89,7 +89,7 @@ public class RepositoryChangeFilterTests
 
         var result = filter.Classify([Deleted(Path.Combine(RepoRoot, "test.txt"))]);
 
-        Assert.That(result.Changed, Is.EquivalentTo(new[] { RepoRoot }));
+        Assert.That(result.Changed, Is.EquivalentTo([RepoRoot]));
         Assert.That(result.Created, Is.Empty);
         Assert.That(result.Deleted, Is.Empty);
     }
@@ -103,7 +103,7 @@ public class RepositoryChangeFilterTests
 
         var result = filter.Classify([Created(newRepoGitPath)]);
 
-        Assert.That(result.Created, Is.EquivalentTo(new[] { @"C:\repos\new-repo" }));
+        Assert.That(result.Created, Is.EquivalentTo([@"C:\repos\new-repo"]));
         Assert.That(result.Changed, Is.Empty);
         Assert.That(result.Deleted, Is.Empty);
     }
@@ -117,7 +117,7 @@ public class RepositoryChangeFilterTests
 
         var result = filter.Classify([Created(newRepoGitPath)]);
 
-        Assert.That(result.Created, Is.EquivalentTo(new[] { @"C:\repos\vendor\deep\new-repo" }));
+        Assert.That(result.Created, Is.EquivalentTo([@"C:\repos\vendor\deep\new-repo"]));
     }
 
     [Test]
@@ -168,7 +168,7 @@ public class RepositoryChangeFilterTests
 
         var result = filter.Classify([Deleted(Path.Combine(RepoRoot, ".git"))]);
 
-        Assert.That(result.Deleted, Is.EquivalentTo(new[] { RepoRoot }));
+        Assert.That(result.Deleted, Is.EquivalentTo([RepoRoot]));
         Assert.That(result.Changed, Is.Empty);
         Assert.That(result.Created, Is.Empty);
     }
@@ -180,7 +180,7 @@ public class RepositoryChangeFilterTests
 
         var result = filter.Classify([Deleted(RepoRoot)]);
 
-        Assert.That(result.Deleted, Is.EquivalentTo(new[] { RepoRoot }));
+        Assert.That(result.Deleted, Is.EquivalentTo([RepoRoot]));
     }
 
     [Test]
@@ -209,9 +209,9 @@ public class RepositoryChangeFilterTests
                 Deleted(@"C:\repos\gone-repo\.git"),
             ]);
 
-        Assert.That(result.Changed, Is.EquivalentTo(new[] { trackedRoot }));
-        Assert.That(result.Created, Is.EquivalentTo(new[] { newRoot }));
-        Assert.That(result.Deleted, Is.EquivalentTo(new[] { deletedRoot }));
+        Assert.That(result.Changed, Is.EquivalentTo([trackedRoot]));
+        Assert.That(result.Created, Is.EquivalentTo([newRoot]));
+        Assert.That(result.Deleted, Is.EquivalentTo([deletedRoot]));
     }
 
     [Test]
@@ -222,7 +222,7 @@ public class RepositoryChangeFilterTests
 
         var result = filter.Classify([MovedIn(@"C:\repos\new-repo\.git")]);
 
-        Assert.That(result.MovedInCandidates, Is.EquivalentTo(new[] { @"C:\repos\new-repo" }));
+        Assert.That(result.MovedInCandidates, Is.EquivalentTo([@"C:\repos\new-repo"]));
         Assert.That(result.Created, Is.Empty);
         Assert.That(result.Changed, Is.Empty);
     }
@@ -252,7 +252,7 @@ public class RepositoryChangeFilterTests
 
         var result = filter.Classify([MovedIn(Path.Combine(RepoRoot, ".git"))]);
 
-        Assert.That(result.Changed, Is.EquivalentTo(new[] { RepoRoot }));
+        Assert.That(result.Changed, Is.EquivalentTo([RepoRoot]));
         Assert.That(result.MovedInCandidates, Is.Empty);
         Assert.That(result.Created, Is.Empty);
         Assert.That(result.Deleted, Is.Empty);

@@ -29,7 +29,7 @@ public class MainWindowRepositoryListBindingTests
             Assert.That(viewModel.RepositoryList.Repositories, Is.Not.SameAs(previous));
             Assert.That(list.ItemsSource, Is.SameAs(viewModel.RepositoryList.Repositories));
             Assert.That(list.Items.Cast<RepositoryNodeViewModel>().Select(node => node.WorkingDirectory),
-                Is.EqualTo(new[] { "C:/repos/alpha" }));
+                Is.EqualTo(["C:/repos/alpha"]));
         });
     }
 

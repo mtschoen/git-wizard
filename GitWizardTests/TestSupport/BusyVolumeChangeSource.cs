@@ -22,13 +22,13 @@ internal sealed class BusyVolumeChangeSource : IVolumeChangeSource
         [EnumeratorCancellation] CancellationToken ct)
     {
         yield return new VolumeChangeBatch("C",
-            new[] { new VolumeChangeEntry(@"C:\repo\a\test.txt", VolumeEntryKind.Created) });
+            [new VolumeChangeEntry(@"C:\repo\a\test.txt", VolumeEntryKind.Created)]);
 
         for (var index = 0; index < 1000; index++)
         {
             await Task.Delay(5, ct);
             yield return new VolumeChangeBatch("C",
-                new[] { new VolumeChangeEntry(@"C:\unrelated\noise.tmp", VolumeEntryKind.Modified) });
+                [new VolumeChangeEntry(@"C:\unrelated\noise.tmp", VolumeEntryKind.Modified)]);
         }
     }
 

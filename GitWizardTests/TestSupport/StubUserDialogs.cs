@@ -6,7 +6,7 @@ public sealed class StubUserDialogs : IUserDialogs
 {
     public record AlertCall(string Title, string Message);
 
-    public List<AlertCall> AlertCalls { get; } = new();
+    public List<AlertCall> AlertCalls { get; } = [];
     public bool NextConfirmResult { get; set; }
 
     public Task ShowAlertAsync(string title, string message, string okLabel = "OK")

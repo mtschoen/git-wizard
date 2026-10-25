@@ -13,7 +13,7 @@ public class GitFileIndexMappingTests
         fixture.AddMarker("worktree", false);
         await using var index = await fixture.OpenIndexAsync();
         var entries = GitWizardApi.SelectGitEntries(index, true);
-        Assert.That(entries.Select(entry => entry.Parent!.Value.Name), Is.EquivalentTo(new[] { "repo", "worktree" }));
+        Assert.That(entries.Select(entry => entry.Parent!.Value.Name), Is.EquivalentTo(["repo", "worktree"]));
         Assert.That(entries.Count(entry => entry.IsDirectory), Is.EqualTo(1));
     }
 
@@ -38,7 +38,7 @@ public class GitFileIndexMappingTests
         await File.WriteAllTextAsync(Path.Combine(fixture.TreePath, "gitconfig"), "content");
         await using var index = await fixture.OpenIndexAsync();
         Assert.That(GitWizardApi.SelectGitEntries(index, true).Select(entry => entry.Parent!.Value.Name),
-            Is.EquivalentTo(new[] { "repo", "upper" }));
+            Is.EquivalentTo(["repo", "upper"]));
     }
 
     [Test]
@@ -154,7 +154,7 @@ public class GitFileIndexMappingTests
         fixture.AddMarker(Path.Combine("outer", "vendor", "worktree"), false);
         await using var index = await fixture.OpenIndexAsync();
         var entries = GitWizardApi.SelectGitEntries(index, true);
-        Assert.That(entries.Select(entry => entry.Parent!.Value.Name), Is.EquivalentTo(new[] { "outer", "worktree" }));
+        Assert.That(entries.Select(entry => entry.Parent!.Value.Name), Is.EquivalentTo(["outer", "worktree"]));
         Assert.That(CandidateSelection.Paths(index, "X:/outer", [], includeTempDirectories: true), Has.Length.EqualTo(2));
     }
 

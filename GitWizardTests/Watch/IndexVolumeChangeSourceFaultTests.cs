@@ -34,10 +34,9 @@ public class IndexVolumeChangeSourceFaultTests
 
         Assert.That(await harness.ReadAsync(), Is.True);
         Assert.That(harness.Current.Volume, Is.EqualTo("X"));
-        Assert.That(harness.Current.Entries, Is.EqualTo(new[]
-        {
+        Assert.That(harness.Current.Entries, Is.EqualTo([
             new VolumeChangeEntry(@"X:\repo\.git", VolumeEntryKind.Modified)
-        }), "The recovered drive's surviving repository is refreshed.");
+        ]), "The recovered drive's surviving repository is refreshed.");
 
         await harness.Scripted.WatchFor('X').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(60, 6, "after-recovery", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1003));
         Assert.That(await harness.ReadAsync(), Is.True);
@@ -223,7 +222,7 @@ public class IndexVolumeChangeSourceFaultTests
         }
 
         Assert.That(harness.Owner.Index.Search(new SearchQuery(".git", NameMatchMode.Exact))
-            .Select(entry => entry.Parent!.Value.Name), Is.EqualTo(new[] { "repo" }));
+            .Select(entry => entry.Parent!.Value.Name), Is.EqualTo(["repo"]));
         Assert.That(harness.Scripted.WatchFor('X'), Is.SameAs(originalWatch));
         Assert.That(harness.ReadinessOf('X'), Is.EqualTo(VolumeWatchState.CaughtUp));
         Assert.That(harness.Failures, Is.Empty);
@@ -232,7 +231,7 @@ public class IndexVolumeChangeSourceFaultTests
         await harness.Owner.Index.RescanAsync(['X'], CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
         await WaitUntilAsync(() => harness.ReadinessOf('X') == VolumeWatchState.CaughtUp);
         Assert.That(harness.Owner.Index.Search(new SearchQuery(".git", NameMatchMode.Exact))
-            .Select(entry => entry.Parent!.Value.Name), Is.EquivalentTo(new[] { "repo", "after-cancellation" }));
+            .Select(entry => entry.Parent!.Value.Name), Is.EquivalentTo(["repo", "after-cancellation"]));
     }
 
     [Test]

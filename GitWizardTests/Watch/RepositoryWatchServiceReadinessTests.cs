@@ -63,7 +63,7 @@ public class RepositoryWatchServiceReadinessTests
         source.SetVolume(VolumeWatchStatus.CaughtUp("Y", VolumeBlockOrigin.Cold));
         Assert.That(run.Ready, Has.Count.EqualTo(1));
         Assert.That(run.Ready[0].Mode, Is.EqualTo(WatchReadinessMode.JournalBacklog));
-        Assert.That(run.Ready[0].CaughtUpVolumes, Is.EquivalentTo(new[] { "X", "Y" }));
+        Assert.That(run.Ready[0].CaughtUpVolumes, Is.EquivalentTo(["X", "Y"]));
         Assert.That(run.Ready[0].ExcludedVolumes, Is.Empty);
         Assert.That(service.Readiness, Is.SameAs(run.Ready[0]));
 
@@ -85,7 +85,7 @@ public class RepositoryWatchServiceReadinessTests
         Assert.That(run.Ready, Is.Empty);
         source.SetVolume(VolumeWatchStatus.CaughtUp("X", VolumeBlockOrigin.Warm));
         Assert.That(run.Ready, Has.Count.EqualTo(1));
-        Assert.That(run.Ready[0].CaughtUpVolumes, Is.EqualTo(new[] { "X" }));
+        Assert.That(run.Ready[0].CaughtUpVolumes, Is.EqualTo(["X"]));
         Assert.That(run.Ready[0].ExcludedVolumes.Single().ExclusionReason, Is.EqualTo("Drive is Offline."));
     }
 
@@ -99,7 +99,7 @@ public class RepositoryWatchServiceReadinessTests
         await WaitUntilAsync(() => run.Ready.Count == 1);
         Assert.That(run.Snapshots.First().Volumes.Single().State, Is.EqualTo(VolumeWatchState.CaughtUp),
             "The snapshot read at subscribe time must be forwarded.");
-        Assert.That(run.Ready[0].CaughtUpVolumes, Is.EqualTo(new[] { "X" }));
+        Assert.That(run.Ready[0].CaughtUpVolumes, Is.EqualTo(["X"]));
     }
 
     [Test]
@@ -125,7 +125,7 @@ public class RepositoryWatchServiceReadinessTests
             }
         });
         await pump;
-        Assert.That(order, Is.EqualTo(new[] { "ready", "Changed" }).Or.EqualTo(new[] { "Changed", "ready" }));
+        Assert.That(order, Is.EqualTo(["ready", "Changed"]).Or.EqualTo(new[] { "Changed", "ready" }));
         Assert.That(service.Readiness, Is.Not.Null);
         // The fence is set on the pump after the startup flush and before the live loop; the
         // consumer may observe the replayed event first, so the order above is either, but the
@@ -209,7 +209,7 @@ public class RepositoryWatchServiceReadinessTests
         await foreach (var _ in service.RunAsync(cancellation.Token)) { }
         Assert.That(readiness, Is.Not.Null);
         Assert.That(readiness!.Mode, Is.EqualTo(WatchReadinessMode.PumpActive));
-        Assert.That(readiness.CaughtUpVolumes, Is.EqualTo(new[] { "C" }));
+        Assert.That(readiness.CaughtUpVolumes, Is.EqualTo(["C"]));
     }
 
     [Test]
@@ -301,6 +301,6 @@ public class RepositoryWatchServiceReadinessTests
         await WaitUntilAsync(() => run.Ready.Count == 1);
         Assert.That(run.Ready, Has.Count.EqualTo(1));
         Assert.That(run.Snapshots.Last().RecentTransitions.Select(t => t.State),
-            Is.EqualTo(new[] { "Faulted", "Recovering", "CatchingUp", "CaughtUp" }));
+            Is.EqualTo(["Faulted", "Recovering", "CatchingUp", "CaughtUp"]));
     }
 }

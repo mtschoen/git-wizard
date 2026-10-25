@@ -26,12 +26,12 @@ public class RepositoryWatchServiceMembershipTests
         var repositoryPath = Path.Combine(TempDirectory.SystemTempPath, "gw-membership", "repo");
         var svc = new RepositoryWatchService(
             new ScriptedVolumeChangeSource(
-                new[] { new VolumeChangeBatch(WatchPath.Parse(repositoryPath).Volume!, new[]
-                {
+                [ new VolumeChangeBatch(WatchPath.Parse(repositoryPath).Volume!,
+                [
                     new VolumeChangeEntry(Path.Combine(repositoryPath, ".git"), VolumeEntryKind.Created)
-                    }) }),
+                    ]) ]),
             trackedRoots: Array.Empty<string>(),
-            searchRoots: new[] { Path.GetPathRoot(repositoryPath)! },
+            searchRoots: [Path.GetPathRoot(repositoryPath)!],
             debounce: TimeSpan.FromMilliseconds(10));
 
         var events = await DrainAsync(svc);
@@ -45,21 +45,20 @@ public class RepositoryWatchServiceMembershipTests
         var repositoryPath = Path.Combine(TempDirectory.SystemTempPath, "gw-membership", "repo");
         var svc = new RepositoryWatchService(
             new ScriptedVolumeChangeSource(
-                new[] { new VolumeChangeBatch(WatchPath.Parse(repositoryPath).Volume!, new[]
-                {
+                [ new VolumeChangeBatch(WatchPath.Parse(repositoryPath).Volume!,
+                [
                     new VolumeChangeEntry(Path.Combine(repositoryPath, ".git"), VolumeEntryKind.Created)
-                    }) }),
+                    ]) ]),
             trackedRoots: Array.Empty<string>(),
-            searchRoots: new[] { Path.GetPathRoot(repositoryPath)! },
+            searchRoots: [Path.GetPathRoot(repositoryPath)!],
             debounce: TimeSpan.FromMilliseconds(10),
             includeTempDirectories: true);
 
         var events = await DrainAsync(svc);
 
-        Assert.That(events, Is.EqualTo(new[]
-        {
+        Assert.That(events, Is.EqualTo([
                 new RepositoryChangeEvent(repositoryPath, RepositoryChangeKind.Created),
-            }));
+            ]));
     }
 
     [Test]
@@ -68,16 +67,15 @@ public class RepositoryWatchServiceMembershipTests
         var trackedTempRepo = Path.Combine(TempDirectory.SystemTempPath, "gw-membership", "repo");
         var svc = new RepositoryWatchService(
             new ScriptedVolumeChangeSource(
-                new[]
-                {
-                    new VolumeChangeBatch(WatchPath.Parse(trackedTempRepo).Volume!, new[]
-                        {
+                [
+                    new VolumeChangeBatch(WatchPath.Parse(trackedTempRepo).Volume!,
+                        [
                             new VolumeChangeEntry(Path.Combine(trackedTempRepo, "file.txt"), VolumeEntryKind.Modified),
                             new VolumeChangeEntry(Path.Combine(trackedTempRepo, ".git"), VolumeEntryKind.Created),
-                        })
-                }),
-            trackedRoots: new[] { trackedTempRepo },
-            searchRoots: new[] { Path.GetPathRoot(trackedTempRepo)! },
+                        ])
+                ]),
+            trackedRoots: [trackedTempRepo],
+            searchRoots: [Path.GetPathRoot(trackedTempRepo)!],
             debounce: TimeSpan.FromMilliseconds(10));
 
         var events = await DrainAsync(svc);
@@ -91,18 +89,17 @@ public class RepositoryWatchServiceMembershipTests
         var ignoredTempSubtree = Path.Combine(TempDirectory.SystemTempPath, "gw-membership", "ignored");
         var svc = new RepositoryWatchService(
             new ScriptedVolumeChangeSource(
-                new[]
-                {
-                    new VolumeChangeBatch(WatchPath.Parse(ignoredTempSubtree).Volume!, new[]
-                        {
+                [
+                    new VolumeChangeBatch(WatchPath.Parse(ignoredTempSubtree).Volume!,
+                        [
                             new VolumeChangeEntry(Path.Combine(ignoredTempSubtree, "repo", ".git"), VolumeEntryKind.Created),
-                        })
-                }),
+                        ])
+                ]),
             trackedRoots: Array.Empty<string>(),
-            searchRoots: new[] { Path.GetPathRoot(ignoredTempSubtree)! },
+            searchRoots: [Path.GetPathRoot(ignoredTempSubtree)!],
             debounce: TimeSpan.FromMilliseconds(10),
             includeTempDirectories: true,
-            ignoredPaths: new[] { ignoredTempSubtree });
+            ignoredPaths: [ignoredTempSubtree]);
 
         var events = await DrainAsync(svc);
 
@@ -114,19 +111,17 @@ public class RepositoryWatchServiceMembershipTests
     {
         var batches = new[]
         {
-                new VolumeChangeBatch("C", new[]
-                {
+                new VolumeChangeBatch("C", [
                     new VolumeChangeEntry(@"C:\repo\newrepo\.git", VolumeEntryKind.Created)
-                }),
-                new VolumeChangeBatch("C", new[]
-                {
+                ]),
+                new VolumeChangeBatch("C", [
                     new VolumeChangeEntry(@"C:\repo\newrepo\a.txt", VolumeEntryKind.Modified)
-                }),
+                ]),
             };
         var svc = new RepositoryWatchService(
             new ScriptedVolumeChangeSource(batches),
             trackedRoots: Array.Empty<string>(),
-            searchRoots: new[] { @"C:\repo" },
+            searchRoots: [@"C:\repo"],
             debounce: TimeSpan.FromMilliseconds(10));
 
         var events = await DrainAsync(svc);
@@ -142,33 +137,29 @@ public class RepositoryWatchServiceMembershipTests
     {
         var batches = new[]
         {
-                new VolumeChangeBatch("C", new[]
-                {
+                new VolumeChangeBatch("C", [
                     new VolumeChangeEntry(@"C:\repo\gone\.git", VolumeEntryKind.Deleted)
-                }),
-                new VolumeChangeBatch("C", new[]
-                {
+                ]),
+                new VolumeChangeBatch("C", [
                     new VolumeChangeEntry(@"C:\repo\gone\.git", VolumeEntryKind.Created)
-                }),
-                new VolumeChangeBatch("C", new[]
-                {
+                ]),
+                new VolumeChangeBatch("C", [
                     new VolumeChangeEntry(@"C:\repo\gone\a.txt", VolumeEntryKind.Modified)
-                }),
+                ]),
             };
         var svc = new RepositoryWatchService(
             new ScriptedVolumeChangeSource(batches),
-            trackedRoots: new[] { @"C:\repo\gone" },
-            searchRoots: new[] { @"C:\repo" },
+            trackedRoots: [@"C:\repo\gone"],
+            searchRoots: [@"C:\repo"],
             debounce: TimeSpan.FromMilliseconds(10));
 
         var events = await DrainAsync(svc);
 
-        Assert.That(events, Is.EqualTo(new[]
-        {
+        Assert.That(events, Is.EqualTo([
                 new RepositoryChangeEvent(@"C:\repo\gone", RepositoryChangeKind.Deleted),
                 new RepositoryChangeEvent(@"C:\repo\gone", RepositoryChangeKind.Created),
                 new RepositoryChangeEvent(@"C:\repo\gone", RepositoryChangeKind.Changed),
-            }));
+            ]));
     }
 
     [Test]
@@ -176,55 +167,50 @@ public class RepositoryWatchServiceMembershipTests
     {
         var batches = new[]
         {
-                new VolumeChangeBatch("C", new[]
-                {
+                new VolumeChangeBatch("C", [
                     new VolumeChangeEntry(@"C:\repo\lifecycle\.git", VolumeEntryKind.Deleted),
                     new VolumeChangeEntry(@"C:\repo\lifecycle\.git", VolumeEntryKind.Created),
-                }),
-                new VolumeChangeBatch("C", new[]
-                {
+                ]),
+                new VolumeChangeBatch("C", [
                     new VolumeChangeEntry(@"C:\repo\lifecycle\file.txt", VolumeEntryKind.Modified)
-                }),
+                ]),
             };
         var svc = new RepositoryWatchService(
             new ScriptedVolumeChangeSource(batches),
-            trackedRoots: new[] { @"C:\repo\lifecycle" },
-            searchRoots: new[] { @"C:\repo" },
+            trackedRoots: [@"C:\repo\lifecycle"],
+            searchRoots: [@"C:\repo"],
             debounce: TimeSpan.FromMilliseconds(10));
 
         var events = await DrainAsync(svc);
 
-        Assert.That(events, Is.EqualTo(new[]
-        {
+        Assert.That(events, Is.EqualTo([
                 new RepositoryChangeEvent(@"C:\repo\lifecycle", RepositoryChangeKind.Deleted),
                 new RepositoryChangeEvent(@"C:\repo\lifecycle", RepositoryChangeKind.Created),
                 new RepositoryChangeEvent(@"C:\repo\lifecycle", RepositoryChangeKind.Changed),
-            }));
+            ]));
     }
 
     [Test]
     public async Task TrackedRootDeletedThenRecreatedAndModifiedInSameBatch_EmitsInOrder()
     {
-        var batch = new VolumeChangeBatch("C", new[]
-        {
+        var batch = new VolumeChangeBatch("C", [
                 new VolumeChangeEntry(@"C:\repo\lifecycle\.git", VolumeEntryKind.Deleted),
                 new VolumeChangeEntry(@"C:\repo\lifecycle\.git", VolumeEntryKind.Created),
                 new VolumeChangeEntry(@"C:\repo\lifecycle\file.txt", VolumeEntryKind.Modified),
-            });
+            ]);
         var svc = new RepositoryWatchService(
-            new ScriptedVolumeChangeSource(new[] { batch }),
-            trackedRoots: new[] { @"C:\repo\lifecycle" },
-            searchRoots: new[] { @"C:\repo" },
+            new ScriptedVolumeChangeSource([batch]),
+            trackedRoots: [@"C:\repo\lifecycle"],
+            searchRoots: [@"C:\repo"],
             debounce: TimeSpan.FromMilliseconds(10));
 
         var events = await DrainAsync(svc);
 
-        Assert.That(events, Is.EqualTo(new[]
-        {
+        Assert.That(events, Is.EqualTo([
                 new RepositoryChangeEvent(@"C:\repo\lifecycle", RepositoryChangeKind.Deleted),
                 new RepositoryChangeEvent(@"C:\repo\lifecycle", RepositoryChangeKind.Created),
                 new RepositoryChangeEvent(@"C:\repo\lifecycle", RepositoryChangeKind.Changed),
-            }));
+            ]));
     }
 
     [Test]
@@ -238,26 +224,24 @@ public class RepositoryWatchServiceMembershipTests
         try
         {
             var volume = WatchPath.Parse(repoPath).Volume!;
-            var batch = new VolumeChangeBatch(volume, new[]
-            {
+            var batch = new VolumeChangeBatch(volume, [
                     new VolumeChangeEntry(gitPath, VolumeEntryKind.Created),
                     new VolumeChangeEntry(repoPath, VolumeEntryKind.Deleted),
                     new VolumeChangeEntry(repoPath, VolumeEntryKind.MovedIn),
-                });
+                ]);
             var service = new RepositoryWatchService(
-                new ScriptedVolumeChangeSource(new[] { batch }),
+                new ScriptedVolumeChangeSource([batch]),
                 trackedRoots: Array.Empty<string>(),
-                searchRoots: new[] { searchRoot },
+                searchRoots: [searchRoot],
                 debounce: TimeSpan.FromMilliseconds(10));
 
             var events = await DrainAsync(service);
 
-            Assert.That(events, Is.EqualTo(new[]
-            {
+            Assert.That(events, Is.EqualTo([
                     new RepositoryChangeEvent(repoPath, RepositoryChangeKind.Created),
                     new RepositoryChangeEvent(repoPath, RepositoryChangeKind.Deleted),
                     new RepositoryChangeEvent(repoPath, RepositoryChangeKind.Created),
-                }));
+                ]));
         }
         finally
         {
@@ -278,32 +262,29 @@ public class RepositoryWatchServiceMembershipTests
             var volume = WatchPath.Parse(repoPath).Volume!;
             var batches = new[]
             {
-                    new VolumeChangeBatch(volume, new[]
-                    {
+                    new VolumeChangeBatch(volume, [
                         new VolumeChangeEntry(gitPath, VolumeEntryKind.Created),
                         new VolumeChangeEntry(repoPath, VolumeEntryKind.Deleted),
                         new VolumeChangeEntry(repoPath, VolumeEntryKind.MovedIn),
-                    }),
-                    new VolumeChangeBatch(volume, new[]
-                    {
+                    ]),
+                    new VolumeChangeBatch(volume, [
                         new VolumeChangeEntry(Path.Combine(repoPath, "file.txt"), VolumeEntryKind.Modified),
-                    }),
+                    ]),
                 };
             var service = new RepositoryWatchService(
                 new DelayedVolumeChangeSource(batches, TimeSpan.FromMilliseconds(60)),
                 trackedRoots: Array.Empty<string>(),
-                searchRoots: new[] { searchRoot },
+                searchRoots: [searchRoot],
                 debounce: TimeSpan.FromMilliseconds(10));
 
             var events = await DrainAsync(service);
 
-            Assert.That(events, Is.EqualTo(new[]
-            {
+            Assert.That(events, Is.EqualTo([
                     new RepositoryChangeEvent(repoPath, RepositoryChangeKind.Created),
                     new RepositoryChangeEvent(repoPath, RepositoryChangeKind.Deleted),
                     new RepositoryChangeEvent(repoPath, RepositoryChangeKind.Created),
                     new RepositoryChangeEvent(repoPath, RepositoryChangeKind.Changed),
-                }));
+                ]));
         }
         finally
         {
@@ -328,26 +309,24 @@ public class RepositoryWatchServiceMembershipTests
         try
         {
             var volume = WatchPath.Parse(upperPath).Volume!;
-            var batch = new VolumeChangeBatch(volume, new[]
-            {
+            var batch = new VolumeChangeBatch(volume, [
                     new VolumeChangeEntry(Path.Combine(lowerPath, ".git"), VolumeEntryKind.Created),
                     new VolumeChangeEntry(lowerPath, VolumeEntryKind.Deleted),
                     new VolumeChangeEntry(upperPath, VolumeEntryKind.MovedIn),
-                });
+                ]);
             var service = new RepositoryWatchService(
-                new ScriptedVolumeChangeSource(new[] { batch }),
+                new ScriptedVolumeChangeSource([batch]),
                 trackedRoots: Array.Empty<string>(),
-                searchRoots: new[] { searchRoot },
+                searchRoots: [searchRoot],
                 debounce: TimeSpan.FromMilliseconds(10));
 
             var events = await DrainAsync(service);
 
-            Assert.That(events, Is.EqualTo(new[]
-            {
+            Assert.That(events, Is.EqualTo([
                     new RepositoryChangeEvent(lowerPath, RepositoryChangeKind.Created),
                     new RepositoryChangeEvent(lowerPath, RepositoryChangeKind.Deleted),
                     new RepositoryChangeEvent(upperPath, RepositoryChangeKind.Created),
-                }));
+                ]));
         }
         finally
         {

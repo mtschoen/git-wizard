@@ -29,7 +29,7 @@ public class MftDriveStatusTests
     static async Task AssertStatusesSurviveOwnerDisposalAsync(MftIndexSession session)
     {
         var statuses = session.CaptureDriveStatuses();
-        Assert.That(statuses.Select(status => status.Drive), Is.EqualTo(new[] { "W", "X" }));
+        Assert.That(statuses.Select(status => status.Drive), Is.EqualTo(["W", "X"]));
         Assert.That(statuses[0].IdentityFailure, Is.EqualTo("identity denied"));
         Assert.That(statuses[0].IndexStatus, Is.Null);
         Assert.That(statuses[1].IdentityFailure, Is.Null);

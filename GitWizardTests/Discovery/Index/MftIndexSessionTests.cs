@@ -22,9 +22,9 @@ public class MftIndexSessionTests
         await using var session = await MftIndexSession.OpenAsync([broker.Drive('X'), broker.Drive('Y')],
             broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);
         Assert.That(broker.ConnectionCount, Is.EqualTo(1));
-        Assert.That(session.Drives, Is.EqualTo(new[] { "X", "Y" }));
+        Assert.That(session.Drives, Is.EqualTo(["X", "Y"]));
         Assert.That(session.Index.Drives.Select(drive => drive.State), Is.All.EqualTo(DriveState.Ready));
-        Assert.That(broker.ScannedDrives, Is.EquivalentTo(new[] { "X", "Y" }));
+        Assert.That(broker.ScannedDrives, Is.EquivalentTo(["X", "Y"]));
     }
 
     [Test]
@@ -158,7 +158,7 @@ public class MftIndexSessionTests
             [identityFailureSpec, "X:", "x:\\", "Y", @"\\server\share", "C:not-root", ""],
             drive => drive == 'W' ? throw new IOException("identity denied") : broker.Drive(drive.Letter),
             broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);
-        Assert.That(session.Drives, Is.EqualTo(new[] { "W", "X", "Y" }));
+        Assert.That(session.Drives, Is.EqualTo(["W", "X", "Y"]));
         Assert.That(session.ScanErrors["W"], Does.Contain("identity denied"));
         Assert.That(session.ScanErrors["X"], Does.Contain("volume denied"));
         Assert.That(session.ScanErrors.ContainsKey("Y"), Is.False);
@@ -173,7 +173,7 @@ public class MftIndexSessionTests
         {
             var session = await MftIndexSession.OpenAsync([broker.Drive('X'), broker.Drive('Y')],
                 broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);
-            Assert.That(session.ScanErrors.Keys, Is.EquivalentTo(new[] { "X", "Y" }));
+            Assert.That(session.ScanErrors.Keys, Is.EquivalentTo(["X", "Y"]));
             await session.DisposeAsync();
             await broker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
         }
@@ -210,7 +210,7 @@ public class MftIndexSessionTests
         await using var session = await MftIndexSession.OpenAsync([broker.Drive('X')],
             broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);
         var scan = broker.Scans.Single();
-        Assert.That(scan.RetainedFileNames, Is.EqualTo(new[] { ".git", "HEAD" }));
+        Assert.That(scan.RetainedFileNames, Is.EqualTo([".git", "HEAD"]));
         Assert.That(session.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Count, Is.EqualTo(2));
         Assert.That(session.Index.Search(new SearchQuery("HEAD", NameMatchMode.Exact)).Single().IsDirectory, Is.False);
         Assert.That(session.Index.Search(new SearchQuery("ordinary.txt", NameMatchMode.Exact)), Is.Empty);

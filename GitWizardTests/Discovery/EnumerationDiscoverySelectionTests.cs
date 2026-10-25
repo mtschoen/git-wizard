@@ -154,7 +154,7 @@ public class EnumerationDiscoverySelectionTests
         Assert.That(diagnostics.UnresolvedPathCount, Is.Zero);
         Assert.That(result.FailedSubtrees, Is.Empty);
         Assert.That(result.Paths,
-            Is.EqualTo(new[] { GitWizardApi.NormalizePath(Path.Combine(_tempDir, "repo")) }));
+            Is.EqualTo([GitWizardApi.NormalizePath(Path.Combine(_tempDir, "repo"))]));
     }
 
     int CountIndexScans(int headFileCount)

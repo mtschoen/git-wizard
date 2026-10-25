@@ -34,7 +34,7 @@ public class MftIndexDiagnosticsTests
             release.TrySetResult();
             await relay.DisposeAsync();
         }
-        Assert.That(messages.ToArray(), Is.EqualTo(new[] { "first", "second" }));
+        Assert.That(messages.ToArray(), Is.EqualTo(["first", "second"]));
     }
 
     [Test]

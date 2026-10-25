@@ -19,7 +19,7 @@ internal sealed class TempRepoFixture : IDisposable
 
     // Temp directories (upstream submodule sources) created alongside this fixture
     // that must also be deleted on dispose.
-    readonly List<TempDirectory> _extraCleanupDirs = new();
+    readonly List<TempDirectory> _extraCleanupDirs = [];
 
     TempRepoFixture(TempDirectory directory)
     {

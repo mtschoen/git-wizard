@@ -105,7 +105,7 @@ public class RepositoryDiscoveryCoordinatorCheckpointLossTests
         {
             Assert.That(_productions - productionsBeforeWatch, Is.EqualTo(expectedAdditionalProductions));
             Assert.That(source.Starts, Has.Count.EqualTo(1));
-            Assert.That(startup.WatchVolumes, Is.EquivalentTo(new[] { "X" }));
+            Assert.That(startup.WatchVolumes, Is.EquivalentTo(["X"]));
         });
     }
 }

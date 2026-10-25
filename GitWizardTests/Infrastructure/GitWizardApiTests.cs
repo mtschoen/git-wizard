@@ -229,7 +229,7 @@ public class GitWizardApiTests
     public void ExpandIgnoredPaths_ExpandsCollectionAndFiltersNulls()
     {
         var nonExistentPath = Path.Combine(_tempRoot!, "another-non-existent-dir");
-        var result = GitWizardApi.ExpandIgnoredPaths(new[] { nonExistentPath, "", "   " });
+        var result = GitWizardApi.ExpandIgnoredPaths([nonExistentPath, "", "   "]);
 
         Assert.That(result, Has.Count.EqualTo(1));
         Assert.That(result.Single(), Does.EndWith("another-non-existent-dir"));

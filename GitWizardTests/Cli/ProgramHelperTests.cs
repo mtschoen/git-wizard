@@ -245,7 +245,7 @@ public class ProgramHelperTests
         var rc = new RunConfiguration { PathsArgument = "path1,path2,path3" };
 
         var result = Program.ParseExplicitPaths(rc);
-        Assert.That(result, Is.EqualTo(new[] { "path1", "path2", "path3" }));
+        Assert.That(result, Is.EqualTo(["path1", "path2", "path3"]));
     }
 
     [Test]
@@ -254,7 +254,7 @@ public class ProgramHelperTests
         var rc = new RunConfiguration { PathsArgument = "  path1 , path2 , path3  " };
 
         var result = Program.ParseExplicitPaths(rc);
-        Assert.That(result, Is.EqualTo(new[] { "path1", "path2", "path3" }));
+        Assert.That(result, Is.EqualTo(["path1", "path2", "path3"]));
     }
 
     [Test]
@@ -263,7 +263,7 @@ public class ProgramHelperTests
         var rc = new RunConfiguration { PathsArgument = "path1,,path2,  ,path3" };
 
         var result = Program.ParseExplicitPaths(rc);
-        Assert.That(result, Is.EqualTo(new[] { "path1", "path2", "path3" }));
+        Assert.That(result, Is.EqualTo(["path1", "path2", "path3"]));
     }
 
     [Test]
@@ -275,7 +275,7 @@ public class ProgramHelperTests
         var rc = new RunConfiguration { PathsArgument = tempFile };
 
         var result = Program.ParseExplicitPaths(rc);
-        Assert.That(result, Is.EqualTo(new[] { "/repo/a", "/repo/b", "/repo/c" }));
+        Assert.That(result, Is.EqualTo(["/repo/a", "/repo/b", "/repo/c"]));
     }
 
     [Test]
@@ -287,7 +287,7 @@ public class ProgramHelperTests
         var rc = new RunConfiguration { PathsArgument = tempFile };
 
         var result = Program.ParseExplicitPaths(rc);
-        Assert.That(result, Is.EqualTo(new[] { "/repo/a", "/repo/b" }));
+        Assert.That(result, Is.EqualTo(["/repo/a", "/repo/b"]));
     }
 
     [Test]
@@ -296,7 +296,7 @@ public class ProgramHelperTests
         var rc = new RunConfiguration { PathsArgument = "/single/path" };
 
         var result = Program.ParseExplicitPaths(rc);
-        Assert.That(result, Is.EqualTo(new[] { "/single/path" }));
+        Assert.That(result, Is.EqualTo(["/single/path"]));
     }
 
     #endregion

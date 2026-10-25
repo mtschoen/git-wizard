@@ -38,7 +38,7 @@ public class FanotifyVolumeChangeSourceArmTests
         cts.Cancel();
 
         Assert.ThrowsAsync<OperationCanceledException>(() =>
-            source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, cts.Token));
+            source.ArmAndCatchUpAsync([ExistingDirectoryPath], cts.Token));
     }
 
     [Test]
@@ -65,7 +65,7 @@ public class FanotifyVolumeChangeSourceArmTests
         };
         var source = new FanotifyVolumeChangeSource(native);
 
-        var result = await source.ArmAndCatchUpAsync(new[] { "/", "/mnt/data" }, CancellationToken.None);
+        var result = await source.ArmAndCatchUpAsync(["/", "/mnt/data"], CancellationToken.None);
 
         Assert.Multiple(() =>
         {
@@ -87,7 +87,7 @@ public class FanotifyVolumeChangeSourceArmTests
         using var missing = new TempDirectory("gw-missing-", create: false);
         var missingPath = missing.Path;
 
-        var result = await source.ArmAndCatchUpAsync(new[] { "  ", missingPath }, CancellationToken.None);
+        var result = await source.ArmAndCatchUpAsync(["  ", missingPath], CancellationToken.None);
 
 
         Assert.Multiple(() =>
@@ -109,7 +109,7 @@ public class FanotifyVolumeChangeSourceArmTests
         native.MarkResults.Enqueue(new FanotifyNativeCallResult(-1, FanotifyError.OperationNotSupported));
         var source = new FanotifyVolumeChangeSource(native);
 
-        var result = await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+        var result = await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
         Assert.Multiple(() =>
         {
@@ -128,7 +128,7 @@ public class FanotifyVolumeChangeSourceArmTests
         };
         var source = new FanotifyVolumeChangeSource(native);
 
-        var result = await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+        var result = await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
         Assert.Multiple(() =>
         {
@@ -153,10 +153,10 @@ public class FanotifyVolumeChangeSourceArmTests
         };
 
         var source = new FanotifyVolumeChangeSource(native);
-        await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
         native.InitializeResult = new FanotifyNativeCallResult(102, 0);
-        await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
         Assert.Multiple(() =>
         {
@@ -186,9 +186,9 @@ public class FanotifyVolumeChangeSourceArmTests
         source.ReadinessChanged += snapshots.Add;
         Assert.That(source.Mode, Is.EqualTo(WatchReadinessMode.FilesystemMarks));
 
-        var result = await source.ArmAndCatchUpAsync(new[] { okPath, brokenPath }, CancellationToken.None);
+        var result = await source.ArmAndCatchUpAsync([okPath, brokenPath], CancellationToken.None);
         Assert.That(source.Readiness.IsSettled, Is.True);
-        Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo(new[] { okPath }));
+        Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo([okPath]));
         var excluded = source.Readiness.ExcludedVolumes.Single();
         Assert.That(excluded.Volume, Is.EqualTo(brokenPath));
         Assert.That(excluded.ExclusionReason, Is.EqualTo(result.Errors[brokenPath]));
@@ -215,7 +215,7 @@ public class FanotifyVolumeChangeSourceArmTests
         native.MarkResults.Enqueue(new FanotifyNativeCallResult(-1, FanotifyError.OperationNotSupported));
         var source = new FanotifyVolumeChangeSource(native);
 
-        await source.ArmAndCatchUpAsync(new[] { ExistingDirectoryPath }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
         var batches = new List<VolumeChangeBatch>();
         await foreach (var batch in source.WatchAsync(CancellationToken.None))

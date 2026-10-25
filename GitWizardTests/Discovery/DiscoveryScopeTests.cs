@@ -37,9 +37,9 @@ public class DiscoveryScopeTests
 
         var scope = DiscoveryScope.CreateExpanded(request, configuration.SearchPaths.ToArray(),
             request.RetainedRoots, [], Classify);
-        Assert.That(scope.RequestedNtfsDrives, Is.EquivalentTo(new[] { "C", "D", "E" }));
-        Assert.That(scope.RequestedNtfsDrives, Is.EqualTo(new[] { "C", "D", "E" }));
-        Assert.That(scope.RecursiveRoots, Is.EqualTo(new[] { @"Z:\shared" }));
+        Assert.That(scope.RequestedNtfsDrives, Is.EquivalentTo(["C", "D", "E"]));
+        Assert.That(scope.RequestedNtfsDrives, Is.EqualTo(["C", "D", "E"]));
+        Assert.That(scope.RecursiveRoots, Is.EqualTo([@"Z:\shared"]));
     }
 
     [TestCase(false)]
@@ -90,6 +90,6 @@ public class DiscoveryScopeTests
 
         Assert.That(scope.WatchExcludedRoots, Does.Contain(@"Z:\remote"));
         Assert.That(scope.WatchExcludedRoots, Does.Contain(@"U:\unknown"));
-        Assert.That(scope.RequestedNtfsDrives, Is.EquivalentTo(new[] { "C", "E" }));
+        Assert.That(scope.RequestedNtfsDrives, Is.EquivalentTo(["C", "E"]));
     }
 }

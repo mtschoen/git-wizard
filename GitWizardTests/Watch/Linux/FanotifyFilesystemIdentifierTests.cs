@@ -75,17 +75,16 @@ public class FanotifyFilesystemIdentifierTests
         _native.ReadQueue.Enqueue(CreateEvents(
             (FirstFilesystem, handle, "a.txt"), (SecondFilesystem, handle, "a.txt")));
         var source = new FanotifyVolumeChangeSource(_native);
-        await source.ArmAndCatchUpAsync(new[] { _firstRoot, _secondRoot }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([_firstRoot, _secondRoot], CancellationToken.None);
 
         var entries = await ReadEntriesAsync(source, 2);
 
         Assert.Multiple(() =>
         {
-            Assert.That(entries.Select(entry => entry.FullPath), Is.EqualTo(new[]
-            {
+            Assert.That(entries.Select(entry => entry.FullPath), Is.EqualTo([
                 Path.Combine("/first/dir", "a.txt"), Path.Combine("/second/dir", "a.txt")
-            }));
-            Assert.That(_native.OpenByHandleRoots, Is.EqualTo(new[] { _firstRoot, _secondRoot }));
+            ]));
+            Assert.That(_native.OpenByHandleRoots, Is.EqualTo([_firstRoot, _secondRoot]));
             Assert.That(_native.OpenByHandleCalls.Select(call => call.MountDescriptor),
                 Does.Not.Contain(FanotifyConstants.CurrentWorkingDirectory));
         });
@@ -101,17 +100,16 @@ public class FanotifyFilesystemIdentifierTests
         _native.ReadQueue.Enqueue(CreateEvents((SecondFilesystem, handle, "a.txt")));
         _native.ReadQueue.Enqueue(CreateEvents((SecondFilesystem, handle, "b.txt"), (FirstFilesystem, handle, "b.txt")));
         var source = new FanotifyVolumeChangeSource(_native);
-        await source.ArmAndCatchUpAsync(new[] { _firstRoot, _secondRoot }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([_firstRoot, _secondRoot], CancellationToken.None);
 
         var entries = await ReadEntriesAsync(source, 4);
 
         Assert.Multiple(() =>
         {
-            Assert.That(entries.Select(entry => entry.FullPath), Is.EqualTo(new[]
-            {
+            Assert.That(entries.Select(entry => entry.FullPath), Is.EqualTo([
                 Path.Combine("/first/dir", "a.txt"), Path.Combine("/second/dir", "a.txt"),
                 Path.Combine("/second/dir", "b.txt"), Path.Combine("/first/dir", "b.txt")
-            }));
+            ]));
             Assert.That(_native.OpenByHandleCalls, Has.Count.EqualTo(2), "The third read is served from the cache.");
         });
     }
@@ -124,13 +122,13 @@ public class FanotifyFilesystemIdentifierTests
         _native.ReadQueue.Enqueue(CreateEvents((99, handle, "stray.txt")));
         _native.ReadQueue.Enqueue(CreateEvents((FirstFilesystem, handle, "kept.txt")));
         var source = new FanotifyVolumeChangeSource(_native);
-        await source.ArmAndCatchUpAsync(new[] { _firstRoot }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([_firstRoot], CancellationToken.None);
 
         var entries = await ReadEntriesAsync(source, 1, timeoutSeconds: 1);
 
         Assert.Multiple(() =>
         {
-            Assert.That(entries.Select(entry => entry.FullPath), Is.EqualTo(new[] { Path.Combine("/first/dir", "kept.txt") }));
+            Assert.That(entries.Select(entry => entry.FullPath), Is.EqualTo([Path.Combine("/first/dir", "kept.txt")]));
             Assert.That(_native.OpenByHandleCalls, Has.Count.EqualTo(1));
         });
     }
@@ -144,7 +142,7 @@ public class FanotifyFilesystemIdentifierTests
         _native.ReadQueue.Enqueue(CreateEvents((FirstFilesystem, handle, "a.txt"), (SecondFilesystem, handle, "a.txt")));
         var source = new FanotifyVolumeChangeSource(_native);
 
-        var result = await source.ArmAndCatchUpAsync(new[] { _firstRoot, _secondRoot }, CancellationToken.None);
+        var result = await source.ArmAndCatchUpAsync([_firstRoot, _secondRoot], CancellationToken.None);
         var openAfterArming = _native.OpenMountDescriptors.ToList();
         var entries = await ReadEntriesAsync(source, 2);
 
@@ -164,11 +162,11 @@ public class FanotifyFilesystemIdentifierTests
         _native.UnopenableMountPaths.Add(_firstRoot);
         var source = new FanotifyVolumeChangeSource(_native);
 
-        var result = await source.ArmAndCatchUpAsync(new[] { _firstRoot, _secondRoot }, CancellationToken.None);
+        var result = await source.ArmAndCatchUpAsync([_firstRoot, _secondRoot], CancellationToken.None);
 
         Assert.Multiple(() =>
         {
-            Assert.That(result.Errors.Keys, Is.EquivalentTo(new[] { _firstRoot }));
+            Assert.That(result.Errors.Keys, Is.EquivalentTo([_firstRoot]));
             Assert.That(result.Errors[_firstRoot], Does.Contain("Could not open a descriptor"));
         });
     }
@@ -177,9 +175,9 @@ public class FanotifyFilesystemIdentifierTests
     public async Task ArmingAgain_ReopensEachRootAndHoldsNothing()
     {
         var source = new FanotifyVolumeChangeSource(_native);
-        await source.ArmAndCatchUpAsync(new[] { _firstRoot }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([_firstRoot], CancellationToken.None);
 
-        await source.ArmAndCatchUpAsync(new[] { _firstRoot }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([_firstRoot], CancellationToken.None);
 
         Assert.Multiple(() =>
         {
@@ -193,7 +191,7 @@ public class FanotifyFilesystemIdentifierTests
     public async Task EmptyOrFailedRearm_ReleasesPreviousOwnership(bool initializeFails)
     {
         await using var source = new FanotifyVolumeChangeSource(_native);
-        await source.ArmAndCatchUpAsync(new[] { _firstRoot }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([_firstRoot], CancellationToken.None);
         if (initializeFails)
         {
             _native.InitializeResult = new FanotifyNativeCallResult(-1, FanotifyError.NotPermitted);
@@ -225,7 +223,7 @@ public class FanotifyFilesystemIdentifierTests
         _native.MapHandleUnderRoot(FirstFilesystem, GetFullHandleBytes(directory), 100, "dir");
         _native.ReadQueue.Enqueue(CreateEvents((FirstFilesystem, directory, "before.txt")));
         var source = new FanotifyVolumeChangeSource(_native);
-        await source.ArmAndCatchUpAsync(new[] { _firstRoot, _siblingRoot }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([_firstRoot, _siblingRoot], CancellationToken.None);
         var delivered = (await ReadEntriesAsync(source, 1)).Select(entry => entry.FullPath).ToList();
 
         _native.GoneMountPaths.Add(_firstRoot);
@@ -234,11 +232,10 @@ public class FanotifyFilesystemIdentifierTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(delivered, Is.EqualTo(new[]
-            {
+            Assert.That(delivered, Is.EqualTo([
                 Path.Combine(_firstRoot, "dir", "before.txt"), Path.Combine(_siblingRoot, "dir", "after.txt")
-            }), "a handle seen before the detach resolves again through the surviving mount, not from the cache");
-            Assert.That(_native.OpenByHandleRoots, Is.EqualTo(new[] { _firstRoot, _siblingRoot }));
+            ]), "a handle seen before the detach resolves again through the surviving mount, not from the cache");
+            Assert.That(_native.OpenByHandleRoots, Is.EqualTo([_firstRoot, _siblingRoot]));
             Assert.That(_native.OpenMountDescriptors, Is.Empty);
         });
     }
@@ -250,7 +247,7 @@ public class FanotifyFilesystemIdentifierTests
         _native.MapHandleUnderRoot(FirstFilesystem, GetFullHandleBytes(directory), 100, "dir");
         _native.ReadQueue.Enqueue(CreateEvents((FirstFilesystem, directory, "before.txt")));
         var source = new FanotifyVolumeChangeSource(_native);
-        await source.ArmAndCatchUpAsync(new[] { _firstRoot }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([_firstRoot], CancellationToken.None);
         var delivered = (await ReadEntriesAsync(source, 1)).Select(entry => entry.FullPath).ToList();
 
         _native.GoneMountPaths.Add(_firstRoot);
@@ -262,10 +259,9 @@ public class FanotifyFilesystemIdentifierTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(delivered, Is.EqualTo(new[]
-            {
+            Assert.That(delivered, Is.EqualTo([
                 Path.Combine(_firstRoot, "dir", "before.txt"), Path.Combine(_firstRoot, "dir", "after.txt")
-            }));
+            ]));
             Assert.That(_native.OpenByHandleRoots, Has.Count.EqualTo(2), "the remounted filesystem resolves afresh");
             Assert.That(_native.OpenMountDescriptors, Is.Empty);
         });
@@ -281,7 +277,7 @@ public class FanotifyFilesystemIdentifierTests
         _native.ReadQueue.Enqueue(CreateEvents(
             (FirstFilesystem, firstHandle, "a.txt"), (SecondFilesystem, secondHandle, "a.txt")));
         var source = new FanotifyVolumeChangeSource(_native);
-        await source.ArmAndCatchUpAsync(new[] { _firstRoot, _secondRoot }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([_firstRoot, _secondRoot], CancellationToken.None);
         var delivered = (await ReadEntriesAsync(source, 2)).Select(entry => entry.FullPath).ToList();
         _native.GoneMountPaths.Add(_firstRoot);
         _native.ReadQueue.Enqueue(CreateEvents(
@@ -291,11 +287,10 @@ public class FanotifyFilesystemIdentifierTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(delivered, Is.EqualTo(new[]
-            {
+            Assert.That(delivered, Is.EqualTo([
                 Path.Combine("/first/dir", "a.txt"), Path.Combine("/second/dir", "a.txt"),
                 Path.Combine("/second/dir", "b.txt")
-            }));
+            ]));
             Assert.That(_native.OpenMountDescriptors, Is.Empty);
         });
     }
@@ -350,7 +345,7 @@ public class FanotifyFilesystemIdentifierTests
         _native.MapHandle(FirstFilesystem, GetFullHandleBytes(laterHandle), 400, "/later/dir");
         _native.ReadQueue.Enqueue(CreateEvents((FirstFilesystem, firstHandle, "a.txt")));
         var source = new FanotifyVolumeChangeSource(_native);
-        await source.ArmAndCatchUpAsync(new[] { _firstRoot, _siblingRoot, _secondRoot }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([_firstRoot, _siblingRoot, _secondRoot], CancellationToken.None);
         var delivered = (await ReadEntriesAsync(source, 1)).Select(entry => entry.FullPath).ToList();
 
         ApplyScenario(scenario);
@@ -440,7 +435,7 @@ public class FanotifyFilesystemIdentifierTests
         var unmappedHandle = new byte[] { 3, 3, 3, 3 };
         _native.ReadQueue.Enqueue(CreateEvents((FirstFilesystem, unmappedHandle, "gone.txt")));
         var source = new FanotifyVolumeChangeSource(_native);
-        await source.ArmAndCatchUpAsync(new[] { _firstRoot }, CancellationToken.None);
+        await source.ArmAndCatchUpAsync([_firstRoot], CancellationToken.None);
         _native.UnopenableMountPaths.Add(_firstRoot);
 
         var entries = await ReadEntriesAsync(source, 1, timeoutSeconds: 1);

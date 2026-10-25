@@ -71,7 +71,7 @@ public class IndexDiscoveryTests
         Assert.That(GitWizardApi.SelectGitEntries(index, false).Single().Parent!.Value.Name,
             Is.EqualTo("repository"));
         Assert.That(GitWizardApi.SelectGitEntries(index, true).Select(entry => entry.Parent!.Value.Name),
-            Is.EquivalentTo(new[] { "repository", "worktree" }));
+            Is.EquivalentTo(["repository", "worktree"]));
     }
 
     [Test]
@@ -139,7 +139,7 @@ public class IndexDiscoveryTests
         Assert.That(entries, Has.Count.EqualTo(2));
         var candidates = CandidateSelection.Paths(index, @"X:\", Array.Empty<string>(),
             includeTempDirectories: true);
-        Assert.That(candidates, Is.EqualTo(new[] { Path.Combine(files.TreePath, "validrepo") }));
+        Assert.That(candidates, Is.EqualTo([Path.Combine(files.TreePath, "validrepo")]));
     }
 
     static Task<FileIndex> OpenRowsAsync(PackedIndexFixture files, params SyntheticRow[] rows) =>

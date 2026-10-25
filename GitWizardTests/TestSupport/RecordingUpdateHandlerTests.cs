@@ -40,9 +40,9 @@ public class RecordingUpdateHandlerTests
         handler.OnRepositoryRefreshCompleted(parent);
         Assert.Multiple(() =>
         {
-            Assert.That(handler.ProgressStarts, Is.EqualTo(new[] { ("scan", 7) }));
-            Assert.That(handler.ProgressCounts, Is.EqualTo(new[] { 3 }));
-            Assert.That(handler.Messages, Is.EqualTo(new[] { null, "message" }));
+            Assert.That(handler.ProgressStarts, Is.EqualTo([("scan", 7)]));
+            Assert.That(handler.ProgressCounts, Is.EqualTo([3]));
+            Assert.That(handler.Messages, Is.EqualTo([null, "message"]));
             Assert.That(handler.RepositoriesCreated.Single(), Is.SameAs(parent));
             Assert.That(handler.SubmodulesCreated.Single(), Is.EqualTo((parent, child)));
             Assert.That(handler.WorktreesCreated.Single(), Is.SameAs(child));

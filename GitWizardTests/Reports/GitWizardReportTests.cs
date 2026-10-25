@@ -79,8 +79,8 @@ public class GitWizardReportTests
         var report = new GitWizardReport(config);
         Assert.Multiple(() =>
         {
-            Assert.That(report.SearchPaths, Is.EqualTo(new[] { "/search1", "/search2" }));
-            Assert.That(report.IgnoredPaths, Is.EqualTo(new[] { "/ignore1" }));
+            Assert.That(report.SearchPaths, Is.EqualTo(["/search1", "/search2"]));
+            Assert.That(report.IgnoredPaths, Is.EqualTo(["/ignore1"]));
         });
     }
 
@@ -102,8 +102,8 @@ public class GitWizardReportTests
         GitWizardLog.SilentMode = true;
         var config = new GitWizardConfiguration
         {
-            SearchPaths = new SortedSet<string>(),
-            IgnoredPaths = new SortedSet<string>()
+            SearchPaths = [],
+            IgnoredPaths = []
         };
         var options = new GitWizardReportOptions { NoMft = true };
         var report = await GitWizardReport.GenerateReportAsync(config, options: options);
@@ -177,7 +177,7 @@ public class GitWizardReportTests
         report.Repositories["/a"] = new GitWizardRepository("/a");
         report.Repositories["/b"] = new GitWizardRepository("/b");
         var keys = report.GetRepositoryPaths().ToList();
-        Assert.That(keys, Is.EqualTo(new[] { "/a", "/b" }));
+        Assert.That(keys, Is.EqualTo(["/a", "/b"]));
     }
 
 

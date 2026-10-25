@@ -71,13 +71,12 @@ public class StatusHeaderViewModelTests
         };
         header.ShowLiveMessage("Live watch active");
         header.ShowLiveMessage("Live watch active");
-        Assert.That(notifications, Is.EqualTo(new[] { nameof(StatusHeaderViewModel.HeaderText) }));
+        Assert.That(notifications, Is.EqualTo([nameof(StatusHeaderViewModel.HeaderText)]));
         header.ShowRefreshMessage("Refreshing...");
         header.ShowRefreshMessage("Refreshing...");
         Assert.That(header.HeaderText, Is.EqualTo("Refreshing..."));
-        Assert.That(notifications, Is.EqualTo(new[]
-        {
+        Assert.That(notifications, Is.EqualTo([
             nameof(StatusHeaderViewModel.HeaderText), nameof(StatusHeaderViewModel.HeaderText)
-        }));
+        ]));
     }
 }

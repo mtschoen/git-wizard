@@ -126,7 +126,7 @@ public class FanotifyInteropTests
             Assert.That(native.MarkCalls[1].DirectoryDescriptor, Is.EqualTo(
                 FanotifyConstants.CurrentWorkingDirectory));
             Assert.That(native.MarkCalls[1].Path, Is.EqualTo(ExistingDirectoryPath));
-            Assert.That(native.ClosedDescriptors, Is.EqualTo(new[] { 41 }));
+            Assert.That(native.ClosedDescriptors, Is.EqualTo([41]));
         });
     }
 
@@ -142,7 +142,7 @@ public class FanotifyInteropTests
         {
             Assert.That(result.Status, Is.EqualTo(FanotifyCapabilityStatus.Available));
             Assert.That(native.MarkCalls, Has.Count.EqualTo(2));
-            Assert.That(native.ClosedDescriptors, Is.EqualTo(new[] { 0 }));
+            Assert.That(native.ClosedDescriptors, Is.EqualTo([0]));
         });
     }
 
@@ -194,7 +194,7 @@ public class FanotifyInteropTests
             Assert.That(result.RequiresElevation, Is.EqualTo(expectedRequiresElevation));
             Assert.That(result.ErrorNumber, Is.EqualTo(errorNumber));
             Assert.That(native.MarkCalls, Has.Count.EqualTo(1));
-            Assert.That(native.ClosedDescriptors, Is.EqualTo(new[] { 7 }));
+            Assert.That(native.ClosedDescriptors, Is.EqualTo([7]));
         });
     }
 
@@ -226,7 +226,7 @@ public class FanotifyInteropTests
         {
             Assert.That(exception.NativeErrorCode, Is.EqualTo(28));
             Assert.That(native.MarkCalls, Has.Count.EqualTo(1));
-            Assert.That(native.ClosedDescriptors, Is.EqualTo(new[] { 9 }));
+            Assert.That(native.ClosedDescriptors, Is.EqualTo([9]));
         });
     }
 
@@ -245,7 +245,7 @@ public class FanotifyInteropTests
         {
             Assert.That(exception.NativeErrorCode, Is.EqualTo(5));
             Assert.That(native.MarkCalls, Has.Count.EqualTo(2));
-            Assert.That(native.ClosedDescriptors, Is.EqualTo(new[] { 11 }));
+            Assert.That(native.ClosedDescriptors, Is.EqualTo([11]));
         });
     }
 

@@ -54,7 +54,7 @@ public class JournalSettingsIntegrationTests
     [Test]
     public void LiveShowsEachDriveHintWithSuggestedSize()
     {
-        Assert.That(_main.LiveWatch.JournalWarnings.Select(warning => warning.DriveLetter), Is.EqualTo(new[] { "C", "D" }));
+        Assert.That(_main.LiveWatch.JournalWarnings.Select(warning => warning.DriveLetter), Is.EqualTo(["C", "D"]));
         Assert.That(HintText, Does.Contain("Hint on C:").And.Contain("Hint on D:"));
         Assert.That(HintText, Does.Contain("32 MB").And.Contain("64 MB")
             .And.Contain("130 MB").And.Contain("200 MB")

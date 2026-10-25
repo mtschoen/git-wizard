@@ -49,7 +49,7 @@ public class MainViewModelCompleteRefreshTests
         // the unsorted streaming list - a different row than the pre-refresh anchor.
         vm.RepositoryList.ClearRepositories();
         vm.Refresh.IsRefreshing = true;
-        vm.RepositoryList.AddRepositoriesBatch(new[] { Repo("C:/repos/other"), Repo("C:/repos/keep") }, streaming: true);
+        vm.RepositoryList.AddRepositoriesBatch([Repo("C:/repos/other"), Repo("C:/repos/keep")], streaming: true);
 
         Assert.That(vm.RepositoryList.Repositories[0].WorkingDirectory, Is.EqualTo("C:/repos/other"),
             "Pre-condition: the unsorted streaming list's top differs from the pre-refresh anchor.");
@@ -92,7 +92,7 @@ public class MainViewModelCompleteRefreshTests
         // (suppressed) swap behind the rebuild's already-queued one.
         vm.RepositoryList.ClearRepositories();
         vm.Refresh.IsRefreshing = true;
-        vm.RepositoryList.AddRepositoriesBatch(new[] { Repo("C:/repos/other"), Repo("C:/repos/keep") }, streaming: true);
+        vm.RepositoryList.AddRepositoriesBatch([Repo("C:/repos/other"), Repo("C:/repos/keep")], streaming: true);
         vm.Refresh.CompleteRefresh();
 
         Assert.That(dispatcher.QueuedCount, Is.EqualTo(2),

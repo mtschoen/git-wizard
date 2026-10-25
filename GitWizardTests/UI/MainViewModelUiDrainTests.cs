@@ -25,8 +25,11 @@ public class MainViewModelUiDrainTests
 
         await vm.DisposeAsync();
 
-        Assert.That(clock.CreatedTimerCount, Is.Zero);
-        Assert.That(dispatcher.QueuedCount, Is.Zero);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(clock.CreatedTimerCount, Is.Zero);
+            Assert.That(dispatcher.QueuedCount, Is.Zero);
+        }
     }
 
     [Test]
@@ -43,9 +46,12 @@ public class MainViewModelUiDrainTests
             }
 
             Assert.That(clock.CreatedTimerCount, Is.EqualTo(1), "One batching window covers the whole burst.");
-            Assert.That(clock.Timer!.Period, Is.EqualTo(Timeout.InfiniteTimeSpan), "The window is one-shot.");
-            Assert.That(dispatcher.QueuedCount, Is.Zero, "Nothing is posted before the window expires.");
-            Assert.That(vm.RepositoryList.Repositories, Is.Empty);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(clock.Timer!.Period, Is.EqualTo(Timeout.InfiniteTimeSpan), "The window is one-shot.");
+                Assert.That(dispatcher.QueuedCount, Is.Zero, "Nothing is posted before the window expires.");
+                Assert.That(vm.RepositoryList.Repositories, Is.Empty);
+            }
 
             clock.Timer.Fire();
 
@@ -103,9 +109,12 @@ public class MainViewModelUiDrainTests
             Assert.That(dispatcher.QueuedCount, Is.EqualTo(1));
             dispatcher.RunAll();
 
-            Assert.That(vm.Refresh.ProgressText, Is.EqualTo("Scanning 2 / 4"));
-            Assert.That(vm.Refresh.ProgressValue, Is.EqualTo(0.5));
-            Assert.That(vm.Refresh.IsProgressVisible, Is.True);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(vm.Refresh.ProgressText, Is.EqualTo("Scanning 2 / 4"));
+                Assert.That(vm.Refresh.ProgressValue, Is.EqualTo(0.5));
+                Assert.That(vm.Refresh.IsProgressVisible, Is.True);
+            }
         }
         finally
         {

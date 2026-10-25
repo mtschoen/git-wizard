@@ -18,35 +18,35 @@ public class MainWindowLiveTests
         var button = window.FindControl<Button>("LiveButton");
 
         Assert.That(button, Is.Not.Null);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(button.Content, Is.EqualTo("Live"));
             Assert.That(button.Classes, Does.Not.Contain("live"));
             Assert.That(button.IsEnabled, Is.True);
-        });
+        }
 
         viewModel.Refresh.IsRefreshing = true;
         Assert.That(button.IsEnabled, Is.False);
 
         viewModel.Refresh.IsRefreshing = false;
         viewModel.LiveWatch.IsLiveStarting = true;
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(button.Content, Is.EqualTo("Starting Live..."));
             Assert.That(button.Classes, Does.Contain("liveStarting"));
             Assert.That(button.Classes, Does.Not.Contain("live"));
             Assert.That(button.IsEnabled, Is.True);
-        });
+        }
 
         viewModel.LiveWatch.IsLiveStarting = false;
         viewModel.LiveWatch.IsLive = true;
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(button.Content, Is.EqualTo("Live"));
             Assert.That(button.Classes, Does.Contain("live"));
             Assert.That(button.Classes, Does.Not.Contain("liveStarting"));
             Assert.That(button.IsEnabled, Is.True);
-        });
+        }
     }
 
     [AvaloniaTest]
@@ -61,11 +61,11 @@ public class MainWindowLiveTests
         viewModel.LiveWatch.CapabilityProbe = () => new GitWizard.Watch.Linux.FanotifyCapabilityResult(
             GitWizard.Watch.Linux.FanotifyCapabilityStatus.UnsupportedKernel, 0);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(button.IsEnabled, Is.False);
             Assert.That(ToolTip.GetTip(button), Does.Contain("kernel 5.9"));
-        });
+        }
     }
 
     [AvaloniaTest]
@@ -85,13 +85,13 @@ public class MainWindowLiveTests
         viewModel.LiveWatch.LiveScanProgressValue = 0.3;
         viewModel.LiveWatch.IsLiveScanProgressIndeterminate = false;
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(panel.IsVisible, Is.True);
             Assert.That(bar!.Value, Is.EqualTo(0.3).Within(0.001));
             Assert.That(bar.IsIndeterminate, Is.False);
             Assert.That(text!.Text, Is.EqualTo("Scanning D: (2 of 5), 1.2M of 2.4M records"));
-        });
+        }
 
         viewModel.LiveWatch.IsLiveScanProgressVisible = false;
         Assert.That(panel.IsVisible, Is.False);
@@ -114,10 +114,13 @@ public class MainWindowLiveTests
         window.DataContext = null;
         window.DataContext = model;
         var text = window.FindControl<TextBlock>("LiveReadinessText")!;
-        Assert.That(window.FindControl<ItemsControl>("LiveVolumeList"), Is.Null);
-        Assert.That(text.TextWrapping, Is.EqualTo(TextWrapping.NoWrap));
-        Assert.That(text.TextTrimming, Is.EqualTo(TextTrimming.CharacterEllipsis));
-        Assert.That(ToolTip.GetTip(text), Is.EqualTo(model.LiveWatch.LiveReadinessTooltip));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(window.FindControl<ItemsControl>("LiveVolumeList"), Is.Null);
+            Assert.That(text.TextWrapping, Is.EqualTo(TextWrapping.NoWrap));
+            Assert.That(text.TextTrimming, Is.EqualTo(TextTrimming.CharacterEllipsis));
+            Assert.That(ToolTip.GetTip(text), Is.EqualTo(model.LiveWatch.LiveReadinessTooltip));
+        }
 
         foreach (var width in new[] { 1925d, 1100d, 1076d })
         {

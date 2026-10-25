@@ -16,8 +16,11 @@ public class MainViewModelProgressNotificationTests
         await using var viewModel = TestViewModels.Create(dispatcher: dispatcher);
         viewModel.Refresh.SendUpdateMessage("first");
         viewModel.Refresh.SendUpdateMessage("Scanning...");
-        Assert.That(dispatcher.QueuedCount, Is.EqualTo(1));
-        Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("GitWizard"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(dispatcher.QueuedCount, Is.EqualTo(1));
+            Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("GitWizard"));
+        }
         dispatcher.Drain();
         Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Scanning..."));
         viewModel.Refresh.SendUpdateMessage("second burst");
@@ -45,8 +48,11 @@ public class MainViewModelProgressNotificationTests
 
         vm.Refresh.StartProgress("scanning", 10);
 
-        Assert.That(vm.Refresh.IsProgressVisible, Is.True);
-        Assert.That(vm.Refresh.ProgressText, Does.Contain("scanning"));
-        Assert.That(vm.Refresh.IsScanning, Is.False, "StartProgress must disable the scanning indicator.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(vm.Refresh.IsProgressVisible, Is.True);
+            Assert.That(vm.Refresh.ProgressText, Does.Contain("scanning"));
+            Assert.That(vm.Refresh.IsScanning, Is.False, "StartProgress must disable the scanning indicator.");
+        }
     }
 }

@@ -28,13 +28,19 @@ public class MainViewModelPreparedSessionTests
         await using var viewModel = NewViewModel();
         await viewModel.PreparedDiscoveryIndex.SetAsync(first.Owner);
         await viewModel.PreparedDiscoveryIndex.SetAsync(first.Owner);
-        Assert.That(viewModel.PreparedDiscoveryIndex.Current, Is.SameAs(first.Owner));
-        Assert.That(first.ConnectionDisposals, Is.Zero);
-        Assert.That(first.Owner.IsDisposed, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.PreparedDiscoveryIndex.Current, Is.SameAs(first.Owner));
+            Assert.That(first.ConnectionDisposals, Is.Zero);
+            Assert.That(first.Owner.IsDisposed, Is.False);
+        }
         await viewModel.PreparedDiscoveryIndex.SetAsync(second.Owner);
-        Assert.That(first.ConnectionDisposals, Is.EqualTo(1));
-        Assert.That(viewModel.PreparedDiscoveryIndex.Current, Is.SameAs(second.Owner));
-        Assert.That(second.Owner.IsDisposed, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(first.ConnectionDisposals, Is.EqualTo(1));
+            Assert.That(viewModel.PreparedDiscoveryIndex.Current, Is.SameAs(second.Owner));
+            Assert.That(second.Owner.IsDisposed, Is.False);
+        }
     }
 
     [Test]
@@ -69,8 +75,11 @@ public class MainViewModelPreparedSessionTests
         try
         {
             Assert.That(owner, Is.SameAs(fixture.Owner));
-            Assert.That(owner!.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single().Parent!.Value.Name, Is.EqualTo("repo"));
-            Assert.That(fixture.ConnectionDisposals, Is.Zero);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(owner!.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single().Parent!.Value.Name, Is.EqualTo("repo"));
+                Assert.That(fixture.ConnectionDisposals, Is.Zero);
+            }
         }
         finally
         {
@@ -89,8 +98,11 @@ public class MainViewModelPreparedSessionTests
         await fixture.StartAsync();
         await using var viewModel = NewViewModel();
         await viewModel.PreparedDiscoveryIndex.SetAsync(fixture.Owner);
-        Assert.That(viewModel.PreparedDiscoveryIndex.Current!.Drives, Is.EqualTo(["X"]));
-        Assert.That(viewModel.PreparedDiscoveryIndex.Current.Index, Is.SameAs(fixture.Owner.Index));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.PreparedDiscoveryIndex.Current!.Drives, Is.EqualTo(["X"]));
+            Assert.That(viewModel.PreparedDiscoveryIndex.Current.Index, Is.SameAs(fixture.Owner.Index));
+        }
     }
 
     [Test]
@@ -104,12 +116,18 @@ public class MainViewModelPreparedSessionTests
         await using var viewModel = NewViewModel();
         await viewModel.PreparedDiscoveryIndex.SetAsync(fixture.Owner);
         await release(viewModel);
-        Assert.That(viewModel.PreparedDiscoveryIndex.Current, Is.Null);
-        Assert.That(fixture.Owner.IsDisposed, Is.True);
-        Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.PreparedDiscoveryIndex.Current, Is.Null);
+            Assert.That(fixture.Owner.IsDisposed, Is.True);
+            Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
+        }
         await viewModel.PreparedDiscoveryIndex.DisposeAsync();
-        Assert.That(viewModel.PreparedDiscoveryIndex.Current, Is.Null);
-        Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.PreparedDiscoveryIndex.Current, Is.Null);
+            Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
+        }
     }
 
     [Test]
@@ -162,8 +180,11 @@ public class MainViewModelPreparedSessionTests
             var starting = viewModel.LiveWatch.ToggleLiveAsync();
             await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
             await WaitUntilAsync(() => viewModel.LiveWatch.IsLive);
-            Assert.That(opens, Is.Zero);
-            Assert.That(viewModel.PreparedDiscoveryIndex.Current, Is.Null);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(opens, Is.Zero);
+                Assert.That(viewModel.PreparedDiscoveryIndex.Current, Is.Null);
+            }
             if (respawn)
             {
                 scripted.WatchFor('X').LoseChannel(new IOException("source died"));
@@ -176,9 +197,13 @@ public class MainViewModelPreparedSessionTests
                 Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
                 await viewModel.LiveWatch.ToggleLiveAsync();
             }
-            Assert.That(viewModel.LiveWatch.IsLive, Is.False);
-            Assert.That(opens, Is.EqualTo(1));
-            Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(viewModel.LiveWatch.IsLive, Is.False);
+                Assert.That(opens, Is.EqualTo(1));
+                Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
+            }
         }
         finally
         {

@@ -140,14 +140,20 @@ public class MainViewModelLiveReadinessTests
             var snapshotWithTransition = source.Readiness.WithTransition(transition);
 
             source.SetSnapshot(snapshotWithTransition);
-            Assert.That(viewModel.LiveWatch.LiveWatchEvents, Is.Empty, "History must not mutate before dispatch.");
-            Assert.That(cacheModel.LiveWatchEvents, Is.Empty);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(viewModel.LiveWatch.LiveWatchEvents, Is.Empty, "History must not mutate before dispatch.");
+                Assert.That(cacheModel.LiveWatchEvents, Is.Empty);
+            }
 
             dispatcher.Drain();
             Assert.That(viewModel.LiveWatch.LiveWatchEvents, Has.Count.EqualTo(1));
-            Assert.That(viewModel.LiveWatch.LiveWatchEvents[0].State, Is.EqualTo("Faulted"));
-            Assert.That(cacheModel.LiveWatchEvents, Has.Count.EqualTo(1));
-            Assert.That(viewModel.LiveWatch.LiveReadinessTooltip, Does.Contain("Recent watch events"));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(viewModel.LiveWatch.LiveWatchEvents[0].State, Is.EqualTo("Faulted"));
+                Assert.That(cacheModel.LiveWatchEvents, Has.Count.EqualTo(1));
+                Assert.That(viewModel.LiveWatch.LiveReadinessTooltip, Does.Contain("Recent watch events"));
+            }
             Assert.That(viewModel.LiveWatch.LiveReadinessTooltip, Does.Contain("X: Faulted: io error"));
         }
         finally
@@ -162,7 +168,10 @@ public class MainViewModelLiveReadinessTests
             }
         }
         dispatcher.Drain();
-        Assert.That(viewModel.LiveWatch.LiveWatchEvents, Is.Empty, "Stopping clears transition history.");
-        Assert.That(cacheModel.LiveWatchEvents, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.LiveWatch.LiveWatchEvents, Is.Empty, "Stopping clears transition history.");
+            Assert.That(cacheModel.LiveWatchEvents, Is.Empty);
+        }
     }
 }

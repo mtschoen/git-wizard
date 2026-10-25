@@ -45,11 +45,11 @@ public class MainViewModelGroupingTests
 
         var headers = viewModel.RepositoryList.Repositories.Where(n => n.IsGroupHeader).ToList();
         Assert.That(headers, Has.Count.EqualTo(1));
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(headers[0].GroupKey, Is.EqualTo("github.com/user/widget"));
             Assert.That(headers[0].Children, Has.Count.EqualTo(2));
-        });
+        }
     }
 
     [Test]
@@ -96,11 +96,11 @@ public class MainViewModelGroupingTests
         if (OperatingSystem.IsWindows())
         {
             var groupKeys = headers.Select(h => h.GroupKey).Order().ToList();
-            Assert.Multiple(() =>
+            using (Assert.EnterMultipleScope())
             {
                 Assert.That(groupKeys[0], Is.EqualTo("C:\\"));
                 Assert.That(groupKeys[1], Is.EqualTo("D:\\"));
-            });
+            }
         }
     }
 
@@ -148,11 +148,11 @@ public class MainViewModelGroupingTests
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.RemoteUrl);
 
         var header = viewModel.RepositoryList.Repositories.Single(n => n.IsGroupHeader);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(header.DisplayText, Does.Contain("(2)"));
             Assert.That(header.DisplayText, Does.Contain("github.com/u/x"));
-        });
+        }
     }
 
     [Test]
@@ -267,11 +267,11 @@ public class MainViewModelGroupingTests
         var remoteHeaders = viewModel.RepositoryList.Repositories.Where(n => n.IsGroupHeader).ToList();
 
         var expectedDriveCount = OperatingSystem.IsWindows() ? 2 : 1;
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(driveHeaders, Has.Count.EqualTo(expectedDriveCount));
             Assert.That(remoteHeaders, Has.Count.EqualTo(1));
-        });
+        }
     }
 
     [Test]
@@ -510,12 +510,18 @@ public class MainViewModelGroupingTests
         Assert.That(vm.RepositoryList.Repositories, Is.Not.Empty);
 
         var header = vm.RepositoryList.Repositories[0];
-        Assert.That(header.IsGroupHeader, Is.True);
-        Assert.That(header.Children, Has.Count.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(header.IsGroupHeader, Is.True);
+            Assert.That(header.Children, Has.Count.EqualTo(1));
+        }
 
         vm.RepositoryList.AddRepository(repo2, streaming: false);
-        Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1));
-        Assert.That(header.Children, Has.Count.EqualTo(2));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1));
+            Assert.That(header.Children, Has.Count.EqualTo(2));
+        }
     }
 
     [Test]
@@ -537,8 +543,11 @@ public class MainViewModelGroupingTests
 
         vm.RepositoryList.AddRepository(repo2, streaming: false);
         Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1));
-        Assert.That(vm.RepositoryList.Repositories[0].IsGroupHeader, Is.True);
-        Assert.That(vm.RepositoryList.Repositories[0].Children, Has.Count.EqualTo(2));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(vm.RepositoryList.Repositories[0].IsGroupHeader, Is.True);
+            Assert.That(vm.RepositoryList.Repositories[0].Children, Has.Count.EqualTo(2));
+        }
     }
 
     [Test]

@@ -26,8 +26,11 @@ public class MainViewModelCompositionTests
             .GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly)
             .Where(field => !AllowedShellFieldTypes.Contains(field.FieldType))
             .Select(field => field.Name).ToArray();
-        Assert.That(unexpected, Is.Empty);
-        Assert.That(typeof(MainViewModel).IsSealed, Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(unexpected, Is.Empty);
+            Assert.That(typeof(MainViewModel).IsSealed, Is.True);
+        }
     }
 
     [Test]
@@ -49,10 +52,10 @@ public class MainViewModelCompositionTests
     {
         var path = Path.Combine(SourceTree.RepositoryRoot, "GitWizardUI", "Views", "MainWindow.axaml");
         var text = File.ReadAllText(path);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(text, Does.Not.Contain("ReflectionBinding"));
             Assert.That(text, Does.Not.Contain("x:CompileBindings=\"False\""));
-        });
+        }
     }
 }

@@ -35,11 +35,14 @@ public class MainViewModelIndexCacheTests
         Assert.That(viewModel.IndexCache.Text, Does.Contain("InUse"));
         Assert.That(viewModel.IndexCache.Text, Does.Contain("Deleted"));
         Assert.That(viewModel.IndexCache.Text, Does.Not.Contain("Invalid"));
-        Assert.That(viewModel.IndexCache.Text, Does.Contain("incomplete"));
-        Assert.That(viewModel.IndexCache.IsIdle, Is.True);
-        Assert.That(File.Exists(files.OwnedPath), Is.True);
-        Assert.That(File.Exists(files.FreePath), Is.False);
-        Assert.That(File.Exists(files.FreePath + ".lock"), Is.True);
-        Assert.That(owner.Root('X').IsDirectory, Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.IndexCache.Text, Does.Contain("incomplete"));
+            Assert.That(viewModel.IndexCache.IsIdle, Is.True);
+            Assert.That(File.Exists(files.OwnedPath), Is.True);
+            Assert.That(File.Exists(files.FreePath), Is.False);
+            Assert.That(File.Exists(files.FreePath + ".lock"), Is.True);
+            Assert.That(owner.Root('X').IsDirectory, Is.True);
+        }
     }
 }

@@ -104,8 +104,11 @@ public class MainViewModelUpdateCompletedRepositoryTests
         var expectedPaths = streaming
             ? new[] { "C:/repos/zulu", "C:/repos/alpha" }
             : new[] { "C:/repos/alpha", "C:/repos/zulu" };
-        Assert.That(viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory), Is.EqualTo(expectedPaths));
-        Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Showing 2 of 2 repositories"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory), Is.EqualTo(expectedPaths));
+            Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Showing 2 of 2 repositories"));
+        }
     }
 
     [Test]

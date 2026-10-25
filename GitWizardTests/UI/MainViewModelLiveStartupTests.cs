@@ -60,8 +60,11 @@ public class MainViewModelLiveStartupTests
             source.FailDrive("X", "watch failed");
             Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Live watch active"), "Warnings must be posted to the UI.");
             dispatcher.Drain();
-            Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Live scan error on X: watch failed"));
-            Assert.That(viewModel.LiveWatch.IsLive, Is.True);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Live scan error on X: watch failed"));
+                Assert.That(viewModel.LiveWatch.IsLive, Is.True);
+            }
             source.FailDrive("X", "watch failed again");
             dispatcher.Drain();
             Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Live scan error on X: watch failed again"));
@@ -81,9 +84,12 @@ public class MainViewModelLiveStartupTests
             }
         }
         var completedSource = await sourceReady.Task;
-        Assert.That(completedSource.DiagnosticSubscribers, Is.Zero);
-        Assert.That(WatchSubscriptionProbe.ScanErrorsSubscribers(controller), Is.Zero,
-            "The view model must detach from the controller after shutdown.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(completedSource.DiagnosticSubscribers, Is.Zero);
+            Assert.That(WatchSubscriptionProbe.ScanErrorsSubscribers(controller), Is.Zero,
+                "The view model must detach from the controller after shutdown.");
+        }
     }
 
     [Test]
@@ -115,8 +121,11 @@ public class MainViewModelLiveStartupTests
         // elevated broker session), so it is asserted, not invoked.
         var prepare = viewModel.LiveWatch.PrepareWatchAsync;
 
-        Assert.That(prepare, Is.Not.Null);
-        Assert.That(viewModel.LiveWatch.PrepareWatchAsync, Is.SameAs(prepare));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(prepare, Is.Not.Null);
+            Assert.That(viewModel.LiveWatch.PrepareWatchAsync, Is.SameAs(prepare));
+        }
     }
 
     [Test]
@@ -136,13 +145,13 @@ public class MainViewModelLiveStartupTests
         var startTask = viewModel.LiveWatch.ToggleLiveAsync();
         await source.ArmStarted;
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(viewModel.LiveWatch.IsLiveStarting, Is.True);
             Assert.That(viewModel.LiveWatch.IsLive, Is.False);
             Assert.That(viewModel.LiveWatch.LiveButtonText, Is.EqualTo("Starting Live..."));
             Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Starting Live watch..."));
-        });
+        }
 
         await viewModel.LiveWatch.ToggleLiveAsync();
         await startTask;
@@ -165,11 +174,11 @@ public class MainViewModelLiveStartupTests
         await viewModel.LiveWatch.ToggleLiveAsync();
         await startTask;
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(viewModel.LiveWatch.IsLive, Is.False);
             Assert.That(source.DisposeCount, Is.EqualTo(1));
-        });
+        }
     }
 
     [Test]
@@ -182,11 +191,11 @@ public class MainViewModelLiveStartupTests
 
         await viewModel.LiveWatch.ToggleLiveAsync();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(viewModel.LiveWatch.IsLive, Is.False);
             Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain("declined UAC prompt"));
-        });
+        }
     }
 
     [Test]
@@ -327,12 +336,12 @@ public class MainViewModelLiveStartupTests
             var paths = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToList();
             return paths.Count == 1 && paths[0] == fixture.Path;
         });
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(viewModel.RepositoryList.Repositories.Single().WorkingDirectory, Is.EqualTo(fixture.Path));
             Assert.That(viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory),
                 Does.Not.Contain(oldPath));
-        });
+        }
     }
 
     [Test]
@@ -376,13 +385,13 @@ public class MainViewModelLiveStartupTests
         await WaitUntilAsync(() => viewModel.StatusHeader.HeaderText.Contains("could not start"));
         await startTask;
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(viewModel.LiveWatch.IsLive, Is.False);
             Assert.That(viewModel.LiveWatch.IsLiveStarting, Is.False);
             Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain("Live watch could not start: broker declined"));
             Assert.That(viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory),
                 Is.EqualTo(["/keep-me"]), "An unusable startup must not touch prior rows.");
-        });
+        }
     }
 }

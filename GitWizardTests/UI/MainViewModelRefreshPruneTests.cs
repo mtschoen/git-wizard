@@ -58,10 +58,13 @@ public class MainViewModelRefreshPruneTests
 
         viewModel.RepositoryList.PruneStalePrePopulatedRepos([], []);
 
-        Assert.That(viewModel.RepositoryList.RepositoryMap, Is.Empty);
-        Assert.That(viewModel.RepositoryList.AllRepositories, Is.Empty);
-        Assert.That(groupHeader.Children, Is.Empty,
-            "Grouped views must not retain a fresh replacement for a rejected path.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.RepositoryList.RepositoryMap, Is.Empty);
+            Assert.That(viewModel.RepositoryList.AllRepositories, Is.Empty);
+            Assert.That(groupHeader.Children, Is.Empty,
+                "Grouped views must not retain a fresh replacement for a rejected path.");
+        }
 
     }
 
@@ -85,11 +88,14 @@ public class MainViewModelRefreshPruneTests
             ["/repos/old-alpha", "/repos/alpha"],
             ["/repos/old-alpha"]);
 
-        Assert.That(viewModel.RepositoryList.RepositoryMap.ContainsKey("/repos/old-alpha"), Is.False);
-        Assert.That(viewModel.RepositoryList.AllRepositories.Select(node => node.WorkingDirectory),
-            Is.EqualTo(["/repos/alpha"]));
-        Assert.That(viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory),
-            Is.EqualTo(["/repos/alpha"]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.RepositoryList.RepositoryMap.ContainsKey("/repos/old-alpha"), Is.False);
+            Assert.That(viewModel.RepositoryList.AllRepositories.Select(node => node.WorkingDirectory),
+                Is.EqualTo(["/repos/alpha"]));
+            Assert.That(viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory),
+                Is.EqualTo(["/repos/alpha"]));
+        }
 
     }
 

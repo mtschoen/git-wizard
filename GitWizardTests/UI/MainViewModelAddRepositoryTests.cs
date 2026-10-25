@@ -27,12 +27,12 @@ public class MainViewModelAddRepositoryTests
 
         viewModel.Refresh.DrainUICommands();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(viewModel.Refresh.IsScanning, Is.False);
             Assert.That(viewModel.RepositoryList.AllRepositories, Has.Count.EqualTo(expectedCount));
             Assert.That(viewModel.RepositoryList.Repositories, Has.Count.EqualTo(expectedCount));
-        });
+        }
     }
 
     [Test]
@@ -43,8 +43,11 @@ public class MainViewModelAddRepositoryTests
 
         viewModel.RepositoryList.AddRepository(Repo("C:/repos/a"), streaming: false);
 
-        Assert.That(viewModel.Refresh.IsScanning, Is.True);
-        Assert.That(viewModel.RepositoryList.Repositories.Single().WorkingDirectory, Is.EqualTo("C:/repos/a"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.Refresh.IsScanning, Is.True);
+            Assert.That(viewModel.RepositoryList.Repositories.Single().WorkingDirectory, Is.EqualTo("C:/repos/a"));
+        }
     }
 
     [Test]
@@ -56,8 +59,11 @@ public class MainViewModelAddRepositoryTests
         vm.RepositoryList.AddRepository(Repo("C:/repos/beta"), streaming: false);
 
         Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(2));
-        Assert.That(vm.RepositoryList.Repositories[0].WorkingDirectory, Is.EqualTo("C:/repos/alpha"));
-        Assert.That(vm.RepositoryList.Repositories[1].WorkingDirectory, Is.EqualTo("C:/repos/beta"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(vm.RepositoryList.Repositories[0].WorkingDirectory, Is.EqualTo("C:/repos/alpha"));
+            Assert.That(vm.RepositoryList.Repositories[1].WorkingDirectory, Is.EqualTo("C:/repos/beta"));
+        }
     }
 
     [Test]

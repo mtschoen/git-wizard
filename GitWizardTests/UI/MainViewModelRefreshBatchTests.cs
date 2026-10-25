@@ -47,13 +47,16 @@ public class MainViewModelRefreshBatchTests
 
         // Sanity: the batch is still actually sorted.
         var actual = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray();
-        Assert.That(actual, Is.EqualTo(paths.OrderBy(p => p, PlatformComparer)));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(actual, Is.EqualTo(paths.OrderBy(p => p, PlatformComparer)));
 
-        // A positional insert shifts the ObservableCollection's own elements: a
-        // per-row insert into a growing, reverse-sorted list would land mid-list almost every
-        // time, while the bulk path only ever appends at the tail.
-        Assert.That(positionalInserts.Count, Is.Zero,
-            "PrePopulateFromReport must write the batch back with tail-only appends, not positional inserts.");
+            // A positional insert shifts the ObservableCollection's own elements: a
+            // per-row insert into a growing, reverse-sorted list would land mid-list almost every
+            // time, while the bulk path only ever appends at the tail.
+            Assert.That(positionalInserts.Count, Is.Zero,
+                "PrePopulateFromReport must write the batch back with tail-only appends, not positional inserts.");
+        }
     }
 
     // pr-crew review of PR #241/#243 (round 2): the binary search above still leaves the
@@ -119,10 +122,13 @@ public class MainViewModelRefreshBatchTests
 
         viewModel.Refresh.DrainUICommands();
 
-        Assert.That(positionalInserts.Count, Is.Zero,
-            "A drain with interleaved create/complete commands must append all creates with zero positional inserts.");
-        Assert.That(viewModel.RepositoryList.RepositoryMap, Has.Count.EqualTo(count),
-            "Every drained create must have produced exactly one map entry.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(positionalInserts.Count, Is.Zero,
+                    "A drain with interleaved create/complete commands must append all creates with zero positional inserts.");
+            Assert.That(viewModel.RepositoryList.RepositoryMap, Has.Count.EqualTo(count),
+                "Every drained create must have produced exactly one map entry.");
+        }
 
         viewModel.Refresh.CompleteRefresh();
 
@@ -175,12 +181,15 @@ public class MainViewModelRefreshBatchTests
             viewModel.Refresh.DrainUICommands();
         }
 
-        Assert.That(positionalInserts.Count, Is.Zero,
-            "All successive drains during a refresh must append in arrival order with zero positional inserts.");
-        Assert.That(resetCount, Is.Zero,
-            "Successive drains must not clear the collection or trigger Reset events.");
-        Assert.That(addCount, Is.EqualTo(batches * itemsPerBatch),
-            "Every repository must be added exactly once across all drains without rewriting accumulated rows.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(positionalInserts.Count, Is.Zero,
+                    "All successive drains during a refresh must append in arrival order with zero positional inserts.");
+            Assert.That(resetCount, Is.Zero,
+                "Successive drains must not clear the collection or trigger Reset events.");
+            Assert.That(addCount, Is.EqualTo(batches * itemsPerBatch),
+                "Every repository must be added exactly once across all drains without rewriting accumulated rows.");
+        }
 
         viewModel.Refresh.CompleteRefresh();
 
@@ -201,9 +210,12 @@ public class MainViewModelRefreshBatchTests
 
         Assert.That(viewModel.RepositoryList.Repositories.Count(n => n.WorkingDirectory == stalePath), Is.EqualTo(1),
             "A path repeated within one drained batch must produce exactly one display row.");
-        Assert.That(viewModel.RepositoryList.RepositoryMap[stalePath].Repository, Is.SameAs(fresh),
-            "The later occurrence within the batch must win.");
-        Assert.That(viewModel.RepositoryList.AllRepositories, Has.Count.EqualTo(2));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.RepositoryList.RepositoryMap[stalePath].Repository, Is.SameAs(fresh),
+                "The later occurrence within the batch must win.");
+            Assert.That(viewModel.RepositoryList.AllRepositories, Has.Count.EqualTo(2));
+        }
     }
 
     [Test]
@@ -228,13 +240,16 @@ public class MainViewModelRefreshBatchTests
         viewModel.RepositoryList.PrePopulateFromReport(new GitWizardConfiguration(), paths, report);
 
         var header = viewModel.RepositoryList.Repositories.Single(n => n.IsGroupHeader);
-        Assert.That(header.Children.Select(n => n.WorkingDirectory),
-            Is.EqualTo(paths.OrderBy(p => p, PlatformComparer)));
-        Assert.That(publication.PublishedHeaderChildCounts, Is.EqualTo([count]),
-            "The group header must be published once, already holding every child.");
-        Assert.That(publication.ChildMutationsAfterPublication, Is.Zero,
-            "Grouped pre-population must build a group's children once, not call AddToGroups per row.");
-        Assert.That(publication.PositionalInserts, Is.Zero);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(header.Children.Select(n => n.WorkingDirectory),
+                    Is.EqualTo(paths.OrderBy(p => p, PlatformComparer)));
+            Assert.That(publication.PublishedHeaderChildCounts, Is.EqualTo([count]),
+                "The group header must be published once, already holding every child.");
+            Assert.That(publication.ChildMutationsAfterPublication, Is.Zero,
+                "Grouped pre-population must build a group's children once, not call AddToGroups per row.");
+            Assert.That(publication.PositionalInserts, Is.Zero);
+        }
     }
 
     [Test]
@@ -318,21 +333,27 @@ public class MainViewModelRefreshBatchTests
 
         viewModel.Refresh.CompleteRefresh();
 
-        Assert.That(positionalInserts.Count, Is.Zero,
-            "Rebuilding at completion must replace the collection in a single step with zero positional inserts.");
-        Assert.That(completion.ReplacedCollectionRowCounts, Is.EqualTo([count]),
-            "Completion must publish exactly one replacement Repositories collection, already holding every row.");
-        Assert.That(completion.MutationsAfterReplacement, Is.Zero,
-            "The published collection must not be mutated incrementally after it replaces the drained one.");
-        Assert.That(drainedMutationsDuringCompletion, Is.Zero,
-            "Completion must not mutate the drained collection in place.");
-        Assert.That(viewModel.RepositoryList.Repositories, Is.Not.SameAs(drainedCollection));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(positionalInserts.Count, Is.Zero,
+                    "Rebuilding at completion must replace the collection in a single step with zero positional inserts.");
+            Assert.That(completion.ReplacedCollectionRowCounts, Is.EqualTo([count]),
+                "Completion must publish exactly one replacement Repositories collection, already holding every row.");
+            Assert.That(completion.MutationsAfterReplacement, Is.Zero,
+                "The published collection must not be mutated incrementally after it replaces the drained one.");
+            Assert.That(drainedMutationsDuringCompletion, Is.Zero,
+                "Completion must not mutate the drained collection in place.");
+            Assert.That(viewModel.RepositoryList.Repositories, Is.Not.SameAs(drainedCollection));
+        }
 
         var actual = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray();
-        Assert.That(actual, Is.EqualTo(allExpected.OrderBy(p => p, PlatformComparer)),
-            "After completion, the displayed collection must be correctly sorted, including mixed-case drive letters.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(actual, Is.EqualTo(allExpected.OrderBy(p => p, PlatformComparer)),
+                    "After completion, the displayed collection must be correctly sorted, including mixed-case drive letters.");
 
-        Assert.That(viewModel.RepositoryList.SelectedRepository?.WorkingDirectory, Is.EqualTo(repoToSelect.WorkingDirectory),
-            "Selection must be preserved across the end-of-refresh sorted rebuild.");
+            Assert.That(viewModel.RepositoryList.SelectedRepository?.WorkingDirectory, Is.EqualTo(repoToSelect.WorkingDirectory),
+                "Selection must be preserved across the end-of-refresh sorted rebuild.");
+        }
     }
 }

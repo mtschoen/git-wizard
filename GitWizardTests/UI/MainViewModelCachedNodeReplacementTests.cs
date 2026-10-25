@@ -78,10 +78,13 @@ public class MainViewModelCachedNodeReplacementTests
         // Every collection must point to the fresh node immediately, before the
         // end-of-refresh ApplyFilterAndGrouping rebuild.
         var freshNode = vm.RepositoryList.RepositoryMap["/repos/alpha"];
-        Assert.That(freshNode.Repository, Is.SameAs(freshRepo),
-            "RepositoryMap must hold the fresh scan node.");
-        Assert.That(vm.RepositoryList.Repositories[0], Is.SameAs(freshNode),
-            "The visible row must be replaced as soon as the fresh scan node arrives.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(freshNode.Repository, Is.SameAs(freshRepo),
+                    "RepositoryMap must hold the fresh scan node.");
+            Assert.That(vm.RepositoryList.Repositories[0], Is.SameAs(freshNode),
+                "The visible row must be replaced as soon as the fresh scan node arrives.");
+        }
 
         vm.RepositoryList.UpdateCompletedRepository(freshRepo, streaming: false);
 
@@ -152,10 +155,13 @@ public class MainViewModelCachedNodeReplacementTests
         vm.RepositoryList.AddRepository(freshAlpha2, streaming: false);
         vm.RepositoryList.AddRepository(freshBeta2, streaming: false);
 
-        Assert.That(vm.RepositoryList.AllRepositories, Has.Count.EqualTo(2),
-            "Two consecutive refreshes must not duplicate rows in AllRepositories.");
-        Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(2),
-            "Two consecutive refreshes must not duplicate rows in the visible collection.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(vm.RepositoryList.AllRepositories, Has.Count.EqualTo(2),
+                    "Two consecutive refreshes must not duplicate rows in AllRepositories.");
+            Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(2),
+                "Two consecutive refreshes must not duplicate rows in the visible collection.");
+        }
 
     }
 }

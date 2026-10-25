@@ -68,8 +68,11 @@ public class LiveTerminalJournalHintTests
         await _running.WaitAsync(TimeSpan.FromSeconds(5));
         _dispatcher.Drain();
 
-        Assert.That(_main.LiveWatch.IsLive, Is.False);
-        Assert.That(_main.StatusHeader.HeaderText, Does.Contain("Live watch stopped"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_main.LiveWatch.IsLive, Is.False);
+            Assert.That(_main.StatusHeader.HeaderText, Does.Contain("Live watch stopped"));
+        }
         var warning = _main.LiveWatch.JournalWarnings.Single();
         Assert.That(warning.Warning.Message, Does.Contain("Hint on C:").And.Contain("at least 136 MB"));
     }
@@ -88,8 +91,11 @@ public class LiveTerminalJournalHintTests
         await _running.WaitAsync(TimeSpan.FromSeconds(5));
         _dispatcher.Drain();
 
-        Assert.That(_main.LiveWatch.IsLive, Is.False);
-        Assert.That(_main.StatusHeader.HeaderText, Does.Contain("Live watch stopped"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_main.LiveWatch.IsLive, Is.False);
+            Assert.That(_main.StatusHeader.HeaderText, Does.Contain("Live watch stopped"));
+        }
         var warning = _main.LiveWatch.JournalWarnings.Single();
         Assert.That(warning.Warning.Message, Does.Contain("Hint on C:")
             .And.Contain("Live updates for this drive stopped"));
@@ -107,11 +113,17 @@ public class LiveTerminalJournalHintTests
         _source.FailDrive("D", "watch reached a position the journal no longer holds");
         _dispatcher.Drain();
 
-        Assert.That(_main.LiveWatch.IsLive, Is.True);
-        Assert.That(_running.IsCompleted, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_main.LiveWatch.IsLive, Is.True);
+            Assert.That(_running.IsCompleted, Is.False);
+        }
         var warning = _main.LiveWatch.JournalWarnings.Single();
-        Assert.That(warning.Warning.Message, Does.Contain("Hint on D:")
-            .And.Contain("The drive is being rescanned to catch up"));
-        Assert.That(_main.StatusHeader.HeaderText, Does.Contain("journal hints"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(warning.Warning.Message, Does.Contain("Hint on D:")
+                    .And.Contain("The drive is being rescanned to catch up"));
+            Assert.That(_main.StatusHeader.HeaderText, Does.Contain("journal hints"));
+        }
     }
 }

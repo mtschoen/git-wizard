@@ -29,14 +29,14 @@ public class ErrorLogViewModelTests
         log.AddError("boom", "/repos/alpha");
 
         var entry = log.Entries.Single();
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(entry.Message, Is.EqualTo("boom"));
             Assert.That(entry.RepositoryPath, Is.EqualTo("/repos/alpha"));
             Assert.That(entry.Timestamp, Is.GreaterThanOrEqualTo(before));
             Assert.That(entry.DisplayText, Does.Contain("/repos/alpha"));
             Assert.That(entry.DisplayText, Does.Contain("boom"));
-        });
+        }
     }
 
     [Test]
@@ -47,11 +47,11 @@ public class ErrorLogViewModelTests
         log.AddError("dialog failed");
 
         var displayText = log.Entries.Single().DisplayText;
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(displayText, Does.EndWith("dialog failed"));
             Assert.That(displayText, Does.Not.Contain("null"));
-        });
+        }
     }
 
     [Test]
@@ -83,11 +83,11 @@ public class ErrorLogViewModelTests
 
         log.AddError("one");
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(log.Count, Is.EqualTo(1));
             Assert.That(raisedProperties, Does.Contain(nameof(ErrorLogViewModel.Count)));
-        });
+        }
     }
 
     [Test]
@@ -99,8 +99,11 @@ public class ErrorLogViewModelTests
 
         log.Clear();
 
-        Assert.That(log.Entries, Is.Empty);
-        Assert.That(log.Count, Is.Zero);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(log.Entries, Is.Empty);
+            Assert.That(log.Count, Is.Zero);
+        }
     }
 
     [TestCase(null)]

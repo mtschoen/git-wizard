@@ -23,13 +23,13 @@ public class CancellationTokenSourceDisposalTests
         var cleanupTask = CancellationTokenSourceDisposal.CancelAndDisposeAsync(source);
         await callbackStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(cleanupTask.IsCompleted, Is.False,
                 "Cleanup must wait for an in-flight cancellation callback.");
             Assert.DoesNotThrow(() => _ = source.Token,
                 "The source must remain usable until cancellation callbacks finish.");
-        });
+        }
 
         releaseCallback.TrySetResult();
         await cleanupTask.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);

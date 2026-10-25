@@ -74,9 +74,12 @@ public class StatusHeaderViewModelTests
         Assert.That(notifications, Is.EqualTo([nameof(StatusHeaderViewModel.HeaderText)]));
         header.ShowRefreshMessage("Refreshing...");
         header.ShowRefreshMessage("Refreshing...");
-        Assert.That(header.HeaderText, Is.EqualTo("Refreshing..."));
-        Assert.That(notifications, Is.EqualTo([
-            nameof(StatusHeaderViewModel.HeaderText), nameof(StatusHeaderViewModel.HeaderText)
-        ]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(header.HeaderText, Is.EqualTo("Refreshing..."));
+            Assert.That(notifications, Is.EqualTo([
+                nameof(StatusHeaderViewModel.HeaderText), nameof(StatusHeaderViewModel.HeaderText)
+            ]));
+        }
     }
 }

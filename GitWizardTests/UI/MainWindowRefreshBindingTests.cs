@@ -40,13 +40,13 @@ public class MainWindowRefreshBindingTests
         viewModel.Refresh.StartProgress("Refreshing", 4);
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(panel.IsVisible, Is.True);
             Assert.That(panel.Children.OfType<ProgressBar>().Single().Value, Is.Zero);
             Assert.That(panel.Children.OfType<TextBlock>().Single().Text,
                 Is.EqualTo("Refreshing 0 / 4"));
             Assert.That(window.FindControl<StackPanel>("ScanningIndicator")!.IsVisible, Is.False);
-        });
+        }
     }
 }

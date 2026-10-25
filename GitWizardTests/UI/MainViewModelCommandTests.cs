@@ -29,9 +29,12 @@ public class MainViewModelCommandTests
         try
         {
             Assert.That(clock.Timer, Is.Not.Null);
-            Assert.That(node.JustCopied, Is.True);
-            Assert.That(clipboard.Writes, Does.Contain("C:/projects/widget"));
-            Assert.That(copy.IsCompleted, Is.False);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(node.JustCopied, Is.True);
+                Assert.That(clipboard.Writes, Does.Contain("C:/projects/widget"));
+                Assert.That(copy.IsCompleted, Is.False);
+            }
             clock.Timer!.Fire();
             await copy;
             Assert.That(node.JustCopied, Is.False);
@@ -52,11 +55,11 @@ public class MainViewModelCommandTests
 
         await vm.Commands.CopyToClipboardAsync(node);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(clipboard.Writes, Is.Empty);
             Assert.That(node.JustCopied, Is.False);
-        });
+        }
     }
 
     [Test]
@@ -190,12 +193,12 @@ public class MainViewModelCommandTests
         await viewModel.Commands.CleanDownstreamBranchesAsync(node);
 
         using var library = new Repository(fixture.Path);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(library.Branches["feature"], Is.Null, "The merged downstream branch must be deleted.");
             Assert.That(dialogs.AlertCalls.Any(a => a.Message.Contains("Deleted")), Is.True,
                 "A successful cleanup must report how many branches were deleted.");
-        });
+        }
     }
 
     [Test]

@@ -21,11 +21,11 @@ public class MainViewModelLiveCapabilityTests
     {
         var viewModel = NewViewModel();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(viewModel.LiveWatch.IsLive, Is.False);
             Assert.That(viewModel.LiveWatch.CanToggleLive, Is.True);
-        });
+        }
     }
 
     [Test]
@@ -37,16 +37,22 @@ public class MainViewModelLiveCapabilityTests
         viewModel.LiveWatch.PropertyChanged += (_, arguments) => changes.Add(arguments.PropertyName);
         viewModel.Refresh.IsRefreshing = true;
         viewModel.Refresh.IsRefreshing = true;
-        Assert.That(viewModel.LiveWatch.CanToggleLive, Is.False);
-        Assert.That(changes, Is.EqualTo([
-            nameof(LiveWatchViewModel.CanToggleLive), nameof(LiveWatchViewModel.LiveTooltip)
-        ]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.LiveWatch.CanToggleLive, Is.False);
+            Assert.That(changes, Is.EqualTo([
+                nameof(LiveWatchViewModel.CanToggleLive), nameof(LiveWatchViewModel.LiveTooltip)
+            ]));
+        }
         changes.Clear();
         viewModel.Refresh.IsRefreshing = false;
-        Assert.That(viewModel.LiveWatch.CanToggleLive, Is.True);
-        Assert.That(changes, Is.EqualTo([
-            nameof(LiveWatchViewModel.CanToggleLive), nameof(LiveWatchViewModel.LiveTooltip)
-        ]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.LiveWatch.CanToggleLive, Is.True);
+            Assert.That(changes, Is.EqualTo([
+                nameof(LiveWatchViewModel.CanToggleLive), nameof(LiveWatchViewModel.LiveTooltip)
+            ]));
+        }
         viewModel.LiveWatch.IsLive = true;
         viewModel.Refresh.IsRefreshing = true;
         Assert.That(viewModel.LiveWatch.CanToggleLive, Is.True, "Stopping remains available during refresh.");
@@ -61,12 +67,12 @@ public class MainViewModelLiveCapabilityTests
 
         await viewModel.LiveWatch.ToggleLiveAsync();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(viewModel.LiveWatch.IsLive, Is.False);
             Assert.That(viewModel.LiveWatch.IsLiveStarting, Is.False);
             Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Refreshing repositories..."));
-        });
+        }
     }
 
     [Test]
@@ -75,19 +81,19 @@ public class MainViewModelLiveCapabilityTests
         var viewModel = NewViewModel();
         viewModel.LiveWatch.CapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.UnsupportedKernel, 0);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(viewModel.LiveWatch.CanToggleLive, Is.False);
             Assert.That(viewModel.LiveWatch.LiveTooltip, Does.Contain("kernel 5.9"));
-        });
+        }
 
         await viewModel.LiveWatch.ToggleLiveAsync();
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(viewModel.LiveWatch.IsLive, Is.False);
             Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain("Live watch unavailable"));
             Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain("kernel 5.9"));
-        });
+        }
     }
 
     [Test]
@@ -96,19 +102,19 @@ public class MainViewModelLiveCapabilityTests
         var viewModel = NewViewModel();
         viewModel.LiveWatch.CapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.UnsupportedFileSystem, 0);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(viewModel.LiveWatch.CanToggleLive, Is.False);
             Assert.That(viewModel.LiveWatch.LiveTooltip, Does.Contain("unsupported on this filesystem"));
-        });
+        }
 
         await viewModel.LiveWatch.ToggleLiveAsync();
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(viewModel.LiveWatch.IsLive, Is.False);
             Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain("Live watch unavailable"));
             Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain("unsupported on this filesystem"));
-        });
+        }
     }
 
     [Test]
@@ -117,11 +123,11 @@ public class MainViewModelLiveCapabilityTests
         var viewModel = NewViewModel();
         viewModel.LiveWatch.CapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(viewModel.LiveWatch.CanToggleLive, Is.True);
             Assert.That(viewModel.LiveWatch.LiveTooltip, Is.EqualTo("Start or stop live repository monitoring (requires elevation when starting)"));
-        });
+        }
     }
 
     [Test]
@@ -130,10 +136,10 @@ public class MainViewModelLiveCapabilityTests
         var viewModel = NewViewModel();
         viewModel.LiveWatch.CapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.RequiresElevation, 1);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(viewModel.LiveWatch.CanToggleLive, Is.True);
             Assert.That(viewModel.LiveWatch.LiveTooltip, Is.EqualTo("Start or stop live repository monitoring (requires elevation when starting)"));
-        });
+        }
     }
 }

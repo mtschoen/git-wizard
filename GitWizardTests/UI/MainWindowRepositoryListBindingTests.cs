@@ -24,13 +24,13 @@ public class MainWindowRepositoryListBindingTests
         viewModel.RepositoryList.ApplyFilterAndGrouping();
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(viewModel.RepositoryList.Repositories, Is.Not.SameAs(previous));
             Assert.That(list.ItemsSource, Is.SameAs(viewModel.RepositoryList.Repositories));
             Assert.That(list.Items.Cast<RepositoryNodeViewModel>().Select(node => node.WorkingDirectory),
                 Is.EqualTo(["C:/repos/alpha"]));
-        });
+        }
     }
 
     [AvaloniaTest]

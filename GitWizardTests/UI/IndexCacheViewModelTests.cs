@@ -22,12 +22,18 @@ public class IndexCacheViewModelTests
         ]);
         var model = new IndexCacheViewModel(new StubUiDispatcher(), new StubUserDialogs(), new PreparedDiscoveryIndexStore(), () => attempts.Dequeue()(), NoClear);
         await model.RefreshAsync();
-        Assert.That(model.Text, Does.Contain("inspection failed"));
-        Assert.That(model.Snapshot, Is.Null);
-        Assert.That(model.IsIdle, Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(model.Text, Does.Contain("inspection failed"));
+            Assert.That(model.Snapshot, Is.Null);
+            Assert.That(model.IsIdle, Is.True);
+        }
         await model.RefreshAsync();
-        Assert.That(model.Snapshot, Is.SameAs(snapshot));
-        Assert.That(model.Text, Does.Contain("No cached blocks"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(model.Snapshot, Is.SameAs(snapshot));
+            Assert.That(model.Text, Does.Contain("No cached blocks"));
+        }
     }
 
     [Test]
@@ -94,8 +100,12 @@ public class IndexCacheViewModelTests
             release.TrySetResult();
             await first;
         }
-        Assert.That(model.IsIdle, Is.True);
-        Assert.That(model.Text, Does.StartWith("Index cache clear completed."));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(model.IsIdle, Is.True);
+            Assert.That(model.Text, Does.StartWith("Index cache clear completed."));
+        }
     }
 
     [TestCase(CachedBlockAvailability.Available)]
@@ -110,8 +120,11 @@ public class IndexCacheViewModelTests
             _ => [row]).Capture(files.DirectoryPath);
         var model = new IndexCacheViewModel(new StubUiDispatcher(), new StubUserDialogs(), new PreparedDiscoveryIndexStore(), () => snapshot, NoClear);
         await model.RefreshAsync();
-        Assert.That(model.Snapshot!.Inventory.Single().Availability, Is.EqualTo(availability));
-        Assert.That(model.Text, Does.Contain("age: 5m"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(model.Snapshot!.Inventory.Single().Availability, Is.EqualTo(availability));
+            Assert.That(model.Text, Does.Contain("age: 5m"));
+        }
         Assert.That(model.Text, Does.Contain("serial 00000001"));
     }
 
@@ -133,10 +146,13 @@ public class IndexCacheViewModelTests
             Is.EqualTo(CacheLocation.OwnedCanonical));
         var source = new IndexVolumeChangeSource(
             (_, _, _) => throw new AssertionException("Inspection must not open"), main.PreparedDiscoveryIndex.Take());
-        Assert.That(main.PreparedDiscoveryIndex.Current, Is.Null);
-        Assert.That(source.CaptureCacheStatus()!.Drives.Single().VolumeSerial, Is.EqualTo(1));
-        Assert.That(main.PreparedDiscoveryIndex.CaptureActiveCacheSessions(source)
-            .Single().Drives.Single().VolumeSerial, Is.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(main.PreparedDiscoveryIndex.Current, Is.Null);
+            Assert.That(source.CaptureCacheStatus()!.Drives.Single().VolumeSerial, Is.EqualTo(1));
+            Assert.That(main.PreparedDiscoveryIndex.CaptureActiveCacheSessions(source)
+                .Single().Drives.Single().VolumeSerial, Is.EqualTo(1));
+        }
 
         using var secondFiles = new PackedIndexFixture();
         var secondDrives = new[] { new IndexedDrive('Y', secondFiles.TreePath, 2, ProducerKind.Enumeration) };
@@ -149,17 +165,26 @@ public class IndexCacheViewModelTests
             new Dictionary<string, string>(), secondFiles.BlockDirectory);
         await main.PreparedDiscoveryIndex.SetAsync(secondSession);
         var captures = main.PreparedDiscoveryIndex.CaptureActiveCacheSessions(source);
-        Assert.That(captures.Select(capture => capture.Drives.Single().VolumeSerial),
-            Is.EqualTo(new uint?[] { 1, 2 }));
-        Assert.That(main.PreparedDiscoveryIndex.Current, Is.SameAs(secondSession));
-        Assert.That(secondSession.IsDisposed, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(captures.Select(capture => capture.Drives.Single().VolumeSerial),
+                    Is.EqualTo(new uint?[] { 1, 2 }));
+            Assert.That(main.PreparedDiscoveryIndex.Current, Is.SameAs(secondSession));
+            Assert.That(secondSession.IsDisposed, Is.False);
+        }
         await main.PreparedDiscoveryIndex.SetAsync(null);
-        Assert.That(secondSession.IsDisposed, Is.True);
-        Assert.That(main.PreparedDiscoveryIndex.CaptureActiveCacheSessions(source), Has.Count.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(secondSession.IsDisposed, Is.True);
+            Assert.That(main.PreparedDiscoveryIndex.CaptureActiveCacheSessions(source), Has.Count.EqualTo(1));
+        }
         await source.DisposeAsync();
-        Assert.That(source.CaptureCacheStatus(), Is.Null);
-        Assert.That(main.PreparedDiscoveryIndex.CaptureActiveCacheSessions(source), Is.Empty);
-        Assert.That(main.PreparedDiscoveryIndex.CaptureActiveCacheSessions(liveSource: null), Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(source.CaptureCacheStatus(), Is.Null);
+            Assert.That(main.PreparedDiscoveryIndex.CaptureActiveCacheSessions(source), Is.Empty);
+            Assert.That(main.PreparedDiscoveryIndex.CaptureActiveCacheSessions(liveSource: null), Is.Empty);
+        }
     }
 
     static MftIndexCacheMaintenanceResult NoClear() => new([], [], []);

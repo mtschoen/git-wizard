@@ -47,9 +47,12 @@ public class IndexCacheStatusWindowTests
             Assert.That(text, Does.Contain("Drive X: serial 0000002A"));
             Assert.That(text, Does.Contain("age: 2h"));
             Assert.That(text, Does.Contain("4096 bytes"));
-            Assert.That(text, Does.Contain("holder identity unavailable"));
-            Assert.That(offThread, Is.False);
-            Assert.That(window.FindControl<Button>("ClearIndexCacheButton"), Is.Null);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(text, Does.Contain("holder identity unavailable"));
+                Assert.That(offThread, Is.False);
+                Assert.That(window.FindControl<Button>("ClearIndexCacheButton"), Is.Null);
+            }
         }
         finally { window.Close(); }
     }
@@ -71,15 +74,21 @@ public class IndexCacheStatusWindowTests
                 VolumeWatchStatus.CatchingUp("X", VolumeBlockOrigin.Cold));
             mainModel.LiveWatch.LiveVolumes.Add(row);
             Dispatcher.UIThread.RunJobs();
-            Assert.That(list!.ItemsSource, Is.SameAs(panelModel.LiveVolumes));
-            Assert.That(panelModel.LiveVolumes.Single().DisplayText, Is.EqualTo("X: catching up (cold)"));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(list!.ItemsSource, Is.SameAs(panelModel.LiveVolumes));
+                Assert.That(panelModel.LiveVolumes.Single().DisplayText, Is.EqualTo("X: catching up (cold)"));
+            }
             row.Update(VolumeWatchStatus.Excluded("X", VolumeBlockOrigin.Cold, "watch died"));
             Dispatcher.UIThread.RunJobs();
-            Assert.That(panelModel.LiveVolumes.Single().DisplayText, Is.EqualTo("X: excluded (cold): watch died"));
-            Assert.That(panelModel.Text, Is.EqualTo(inspectionText));
-            Assert.That(panelModel.Snapshot, Is.Null);
-            Assert.That(list.GetVisualDescendants().OfType<TextBlock>().Select(control => control.Text),
-                Does.Contain("X: excluded (cold): watch died"));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(panelModel.LiveVolumes.Single().DisplayText, Is.EqualTo("X: excluded (cold): watch died"));
+                Assert.That(panelModel.Text, Is.EqualTo(inspectionText));
+                Assert.That(panelModel.Snapshot, Is.Null);
+                Assert.That(list.GetVisualDescendants().OfType<TextBlock>().Select(control => control.Text),
+                    Does.Contain("X: excluded (cold): watch died"));
+            }
             mainModel.LiveWatch.LiveVolumes.Clear();
             Dispatcher.UIThread.RunJobs();
             Assert.That(panelModel.LiveVolumes, Is.Empty);
@@ -110,15 +119,21 @@ public class IndexCacheStatusWindowTests
             Dispatcher.UIThread.RunJobs();
             var texts = eventList.GetVisualDescendants().OfType<TextBlock>().Select(control => control.Text).ToList();
             Assert.That(texts, Does.Contain("Faulted"));
-            Assert.That(texts, Does.Contain("Recovering"));
-            Assert.That(panelModel.Snapshot, Is.Null);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(texts, Does.Contain("Recovering"));
+                Assert.That(panelModel.Snapshot, Is.Null);
+            }
 
             mainModel.LiveWatch.LiveWatchEvents.RemoveAt(0);
             Dispatcher.UIThread.RunJobs();
             texts = eventList.GetVisualDescendants().OfType<TextBlock>().Select(control => control.Text).ToList();
             Assert.That(texts, Does.Not.Contain("Faulted"));
-            Assert.That(texts, Does.Contain("Recovering"));
-            Assert.That(panelModel.Snapshot, Is.Null);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(texts, Does.Contain("Recovering"));
+                Assert.That(panelModel.Snapshot, Is.Null);
+            }
         }
         finally { window.Close(); }
     }

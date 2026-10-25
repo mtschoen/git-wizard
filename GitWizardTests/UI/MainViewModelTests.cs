@@ -64,16 +64,22 @@ public class MainViewModelTests
         Assert.That(viewModel.Refresh.CanRefresh, Is.True);
         viewModel.Refresh.IsRefreshing = true;
         viewModel.Refresh.IsRefreshing = true;
-        Assert.That(viewModel.Refresh.CanRefresh, Is.False);
-        Assert.That(changes, Is.EqualTo([
-            nameof(RefreshCoordinator.IsRefreshing), nameof(RefreshCoordinator.CanRefresh)
-        ]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.Refresh.CanRefresh, Is.False);
+            Assert.That(changes, Is.EqualTo([
+                nameof(RefreshCoordinator.IsRefreshing), nameof(RefreshCoordinator.CanRefresh)
+            ]));
+        }
         changes.Clear();
         viewModel.Refresh.IsRefreshing = false;
-        Assert.That(viewModel.Refresh.CanRefresh, Is.True);
-        Assert.That(changes, Is.EqualTo([
-            nameof(RefreshCoordinator.IsRefreshing), nameof(RefreshCoordinator.CanRefresh)
-        ]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.Refresh.CanRefresh, Is.True);
+            Assert.That(changes, Is.EqualTo([
+                nameof(RefreshCoordinator.IsRefreshing), nameof(RefreshCoordinator.CanRefresh)
+            ]));
+        }
     }
 
     [Test]

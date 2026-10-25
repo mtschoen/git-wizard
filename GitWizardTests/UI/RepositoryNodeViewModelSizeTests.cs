@@ -98,8 +98,11 @@ public class RepositoryNodeViewModelSizeTests
         repository.SizeOnDisk = 1572864L;
         viewModel.RepositoryList.UpdateCompletedRepository(repository, streaming: false);
 
-        Assert.That(notifiedHeaders, Is.EquivalentTo(headers));
-        Assert.That(headers.Select(header => header.SizeText), Is.All.EqualTo("1.5 MB"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(notifiedHeaders, Is.EquivalentTo(headers));
+            Assert.That(headers.Select(header => header.SizeText), Is.All.EqualTo("1.5 MB"));
+        }
     }
 
     [Test]
@@ -108,10 +111,13 @@ public class RepositoryNodeViewModelSizeTests
         var repository = new GitWizardRepository(string.Empty);
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(repository));
 
-        Assert.That(document.RootElement.GetProperty(nameof(GitWizardRepository.SizeOnDisk)).ValueKind,
-            Is.EqualTo(JsonValueKind.Number));
-        Assert.That(repository.SizeOnDisk, Is.Zero);
-        Assert.That(document.RootElement.TryGetProperty("HasComputedSizeOnDisk", out _), Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(document.RootElement.GetProperty(nameof(GitWizardRepository.SizeOnDisk)).ValueKind,
+                    Is.EqualTo(JsonValueKind.Number));
+            Assert.That(repository.SizeOnDisk, Is.Zero);
+            Assert.That(document.RootElement.TryGetProperty("HasComputedSizeOnDisk", out _), Is.False);
+        }
     }
 
     [Test]
@@ -137,8 +143,11 @@ public class RepositoryNodeViewModelSizeTests
         }
         var allocatedAfter = GC.GetAllocatedBytesForCurrentThread();
 
-        Assert.That(lastText, Is.SameAs(initialText));
-        Assert.That(allocatedAfter - allocatedBefore, Is.Zero);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(lastText, Is.SameAs(initialText));
+            Assert.That(allocatedAfter - allocatedBefore, Is.Zero);
+        }
     }
 
     [Test]
@@ -155,8 +164,11 @@ public class RepositoryNodeViewModelSizeTests
         var text = header.SizeText;
         var allocatedAfter = GC.GetAllocatedBytesForCurrentThread();
 
-        Assert.That(text, Is.EqualTo("3.9 GB"));
-        Assert.That(allocatedAfter - allocatedBefore, Is.LessThan(1024));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(text, Is.EqualTo("3.9 GB"));
+            Assert.That(allocatedAfter - allocatedBefore, Is.LessThan(1024));
+        }
     }
 
     [Test]
@@ -194,8 +206,11 @@ public class RepositoryNodeViewModelSizeTests
         }
         var allocatedAfter = GC.GetAllocatedBytesForCurrentThread();
 
-        Assert.That(lastText, Is.Empty);
-        Assert.That(allocatedAfter - allocatedBefore, Is.Zero);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(lastText, Is.Empty);
+            Assert.That(allocatedAfter - allocatedBefore, Is.Zero);
+        }
     }
 
     [Test]
@@ -223,8 +238,11 @@ public class RepositoryNodeViewModelSizeTests
         }
         var allocatedAfter = GC.GetAllocatedBytesForCurrentThread();
 
-        Assert.That(header.SizeText, Is.EqualTo("2.0 GB"));
-        Assert.That(allocatedAfter - allocatedBefore, Is.LessThan(childCount * 1024));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(header.SizeText, Is.EqualTo("2.0 GB"));
+            Assert.That(allocatedAfter - allocatedBefore, Is.LessThan(childCount * 1024));
+        }
     }
 
     [Test]
@@ -253,8 +271,11 @@ public class RepositoryNodeViewModelSizeTests
         }
         var allocatedAfter = GC.GetAllocatedBytesForCurrentThread();
 
-        Assert.That(header.SizeText, Is.EqualTo("500.0 MB"));
-        Assert.That(allocatedAfter - allocatedBefore, Is.LessThan(repositoryCount * 1024));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(header.SizeText, Is.EqualTo("500.0 MB"));
+            Assert.That(allocatedAfter - allocatedBefore, Is.LessThan(repositoryCount * 1024));
+        }
     }
 
     [Test]

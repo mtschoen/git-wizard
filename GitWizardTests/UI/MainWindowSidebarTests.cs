@@ -46,12 +46,18 @@ public class MainWindowSidebarTests
             Assert.That(button!.Tag, Is.EqualTo(filter), $"{name} must carry its FilterType in Tag");
 
             Click(button);
-            Assert.That(viewModel.RepositoryList.ActiveFilter, Is.EqualTo(filter), $"{name} click must activate its filter");
-            Assert.That(button.Classes, Does.Contain("active"), $"{name} must show the active highlight");
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(viewModel.RepositoryList.ActiveFilter, Is.EqualTo(filter), $"{name} click must activate its filter");
+                Assert.That(button.Classes, Does.Contain("active"), $"{name} must show the active highlight");
+            }
 
             Click(button);
-            Assert.That(viewModel.RepositoryList.ActiveFilter, Is.EqualTo(FilterType.None), $"{name} re-click must clear the filter");
-            Assert.That(button.Classes, Does.Not.Contain("active"), $"{name} must drop the active highlight");
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(viewModel.RepositoryList.ActiveFilter, Is.EqualTo(FilterType.None), $"{name} re-click must clear the filter");
+                Assert.That(button.Classes, Does.Not.Contain("active"), $"{name} must drop the active highlight");
+            }
         }
     }
 
@@ -122,13 +128,13 @@ public class MainWindowSidebarTests
 
         Click(window.FindControl<Button>("RefreshButton")!);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(viewModel.Refresh.IsRefreshing, Is.True);
             Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Refreshing..."),
                 "A refresh already in progress must not be re-entered from the button.");
             Assert.That(headerText.Text, Is.EqualTo("Refreshing..."));
-        });
+        }
         viewModel.StatusHeader.ShowLiveMessage("Live watch active");
         Dispatcher.UIThread.RunJobs();
         Assert.That(headerText.Text, Is.EqualTo("Live watch active"));
@@ -146,12 +152,12 @@ public class MainWindowSidebarTests
 
         Click(button);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(viewModel.LiveWatch.IsLive, Is.False);
             Assert.That(viewModel.LiveWatch.IsLiveStarting, Is.False);
             Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("GitWizard"),
                 "Even a programmatic click must not re-enter ToggleLiveAsync mid-refresh.");
-        });
+        }
     }
 }

@@ -54,13 +54,13 @@ public class DesktopStartupTests
             var notices = 0;
             var result = OnOtherThread(() => Start(name, _ => { starts++; return 0; },
                 value => { message = value; notices++; }));
-            Assert.Multiple(() =>
+            using (Assert.EnterMultipleScope())
             {
                 Assert.That(result, Is.EqualTo(1));
                 Assert.That(message, Is.EqualTo("git-wizard is already running"));
                 Assert.That(starts, Is.Zero);
                 Assert.That(notices, Is.EqualTo(1));
-            });
+            }
         }
         finally
         {
@@ -129,12 +129,12 @@ public class DesktopStartupTests
             () => throw new AssertionException("Child evaluated mutex name"),
             _ => throw new AssertionException("Child started desktop"),
             _ => throw new AssertionException("Child displayed notice"));
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result, Is.EqualTo(expectedExitCode));
             Assert.That(brokerArguments, Is.SameAs(arguments));
             Assert.That(defenderCalls, Is.EqualTo(broker ? 0 : 1));
-        });
+        }
     }
 
     [Test]

@@ -33,11 +33,14 @@ public class MainViewModelPrePopulateTests
         var config = new GitWizardConfiguration { SearchPaths = ["/repos"] };
         vm.RepositoryList.PrePopulateFromReport(config, ["/repos/alpha", "/repos/beta"], report);
 
-        // Both repos should appear in the UI immediately.
-        Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(2),
-            "Pre-population should add cached repos to Repositories.");
-        Assert.That(vm.RepositoryList.AllRepositories, Has.Count.EqualTo(2),
-            "Pre-population should add cached repos to AllRepositories.");
+        using (Assert.EnterMultipleScope())
+        {
+            // Both repos should appear in the UI immediately.
+            Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(2),
+                "Pre-population should add cached repos to Repositories.");
+            Assert.That(vm.RepositoryList.AllRepositories, Has.Count.EqualTo(2),
+                "Pre-population should add cached repos to AllRepositories.");
+        }
 
     }
 
@@ -70,9 +73,12 @@ public class MainViewModelPrePopulateTests
         var config = new GitWizardConfiguration { SearchPaths = ["/repos"] };
         vm.RepositoryList.PrePopulateFromReport(config, ["/repos/alpha"], null);
 
-        Assert.That(vm.RepositoryList.Repositories, Is.Empty,
-            "Pre-population should be a no-op when no cached report exists.");
-        Assert.That(vm.RepositoryList.AllRepositories, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(vm.RepositoryList.Repositories, Is.Empty,
+                    "Pre-population should be a no-op when no cached report exists.");
+            Assert.That(vm.RepositoryList.AllRepositories, Is.Empty);
+        }
 
     }
 

@@ -20,12 +20,18 @@ public class RepositoryNodeViewModelTests
         node.Update();
 
         Assert.That(node.Status, Is.EqualTo(RefreshStatus.SubmoduleIssue));
-        Assert.That(node.Status, Is.Not.EqualTo(RefreshStatus.Timeout));
-        Assert.That(node.StatusIcon, Is.Not.Empty);
-        Assert.That(node.StatusColorHex, Is.Not.EqualTo("#808080"), "should not fall through to the default color");
-        Assert.That(node.StatusTooltip, Does.Contain("libfoo"));
-        Assert.That(node.StatusTooltip, Does.Not.Contain("Timed out"));
-        Assert.That(node.DisplayText, Does.Contain("submodule"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(node.Status, Is.Not.EqualTo(RefreshStatus.Timeout));
+            Assert.That(node.StatusIcon, Is.Not.Empty);
+            Assert.That(node.StatusColorHex, Is.Not.EqualTo("#808080"), "should not fall through to the default color");
+            Assert.That(node.StatusTooltip, Does.Contain("libfoo"));
+        }
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(node.StatusTooltip, Does.Not.Contain("Timed out"));
+            Assert.That(node.DisplayText, Does.Contain("submodule"));
+        }
     }
 
     [Test]
@@ -108,8 +114,11 @@ public class RepositoryNodeViewModelTests
         };
 
         node.DisplayText = "Custom text";
-        Assert.That(fired, Is.True);
-        Assert.That(node.DisplayText, Is.EqualTo("Custom text"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(fired, Is.True);
+            Assert.That(node.DisplayText, Is.EqualTo("Custom text"));
+        }
     }
 
     [Test]
@@ -125,10 +134,13 @@ public class RepositoryNodeViewModelTests
     {
         var node = RepositoryNodeViewModel.CreateGroupHeader("/srv/repos");
 
-        Assert.That(node.IsGroupHeader, Is.True);
-        Assert.That(node.GroupKey, Is.EqualTo("/srv/repos"));
-        Assert.That(node.IsNotGroupHeader, Is.False);
-        Assert.That(node.GroupHeaderFontWeight, Is.EqualTo("Bold"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(node.IsGroupHeader, Is.True);
+            Assert.That(node.GroupKey, Is.EqualTo("/srv/repos"));
+            Assert.That(node.IsNotGroupHeader, Is.False);
+            Assert.That(node.GroupHeaderFontWeight, Is.EqualTo("Bold"));
+        }
     }
 
     [Test]

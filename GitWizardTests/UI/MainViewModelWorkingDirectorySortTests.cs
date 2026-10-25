@@ -194,14 +194,17 @@ public class MainViewModelWorkingDirectorySortTests
         // insert, not an append at either end.
         viewModel.RepositoryList.AddRepository(Repo(@"C:\repos\r0099a"), streaming: false);
 
-        Assert.That(viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray(),
-            Is.EqualTo(paths.Append(@"C:\repos\r0099a").OrderBy(p => p, PlatformComparer)),
-            "A single isolated arrival must land at its sorted position.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray(),
+                    Is.EqualTo(paths.Append(@"C:\repos\r0099a").OrderBy(p => p, PlatformComparer)),
+                    "A single isolated arrival must land at its sorted position.");
 
-        // A single isolated arrival is exactly the case InsertRepositoryNode's own O(n) shift is
-        // acceptable for - it is not part of a batch this fix is meant to speed up - so exactly
-        // one positional insert is expected here (unlike the batch paths, which must stay at 0).
-        Assert.That(positionalInserts.Count, Is.EqualTo(1));
+            // A single isolated arrival is exactly the case InsertRepositoryNode's own O(n) shift is
+            // acceptable for - it is not part of a batch this fix is meant to speed up - so exactly
+            // one positional insert is expected here (unlike the batch paths, which must stay at 0).
+            Assert.That(positionalInserts.Count, Is.EqualTo(1));
+        }
     }
 
     // Guards against InsertRepositoryNode regressing to a linear scan. The comparer is a private
@@ -228,12 +231,15 @@ public class MainViewModelWorkingDirectorySortTests
         viewModel.RepositoryList.AddRepository(Repo(@"C:\repos\r0499a"), streaming: false);
         var searchReads = reads.IndexerReads;
 
-        Assert.That(viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray(),
-            Is.EqualTo(paths.Append(@"C:\repos\r0499a").OrderBy(p => p, PlatformComparer)));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToArray(),
+                    Is.EqualTo(paths.Append(@"C:\repos\r0499a").OrderBy(p => p, PlatformComparer)));
 
-        // Binary search over 1000 rows needs at most ceil(log2(1001)) = 10 reads; a linear scan
-        // needs about 500. 2 * 10 leaves headroom for incidental reads while ruling out a scan.
-        Assert.That(searchReads, Is.GreaterThan(0), "The counting list must observe the search.");
+            // Binary search over 1000 rows needs at most ceil(log2(1001)) = 10 reads; a linear scan
+            // needs about 500. 2 * 10 leaves headroom for incidental reads while ruling out a scan.
+            Assert.That(searchReads, Is.GreaterThan(0), "The counting list must observe the search.");
+        }
         Assert.That(searchReads, Is.LessThanOrEqualTo(2 * 10),
             "A single isolated arrival must use a binary search, not a linear scan.");
     }

@@ -70,12 +70,12 @@ public class MainViewModelGroupingInteractionTests
         // this test needs. The timeout only bounds a broken test instead of controlling progress.
         await swapCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(swapCount.Value, Is.EqualTo(1),
                 "Rapid keystrokes must coalesce into a single filter/grouping pass.");
             Assert.That(vm.RepositoryList.SearchText, Is.EqualTo("abc"));
-        });
+        }
     }
 
     // The sidebar buttons carry their FilterType/GroupMode in Tag and the code-behind routes a

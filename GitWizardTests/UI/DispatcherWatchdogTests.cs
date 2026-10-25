@@ -161,12 +161,15 @@ public class DispatcherWatchdogTests
         var invocation = dispatcher.InvokeAsync(() => clock.Advance(TimeSpan.FromMilliseconds(501)));
         Dispatcher.UIThread.RunJobs();
 
-        Assert.That(invocation.IsCompleted, Is.True);
-        Assert.That(observations, Is.EqualTo(new[]
+        using (Assert.EnterMultipleScope())
         {
+            Assert.That(invocation.IsCompleted, Is.True);
+            Assert.That(observations, Is.EqualTo(new[]
+            {
             new DispatcherWatchdogObservation(nameof(InvokeAsync_Action_UsesCallerMemberNameForObservation),
                 TimeSpan.FromMilliseconds(501), TimeSpan.FromMilliseconds(500))
         }));
+        }
     }
 
     [AvaloniaTest]

@@ -80,8 +80,11 @@ public class LiveWatchHistoryViewModelTests
         var newSessionEvent = new VolumeWatchTransition(secondSession, "X", 1, "Faulted", "new session", clock.Now);
         history.Apply([newSessionEvent]);
 
-        Assert.That(history.Events[^1].SessionId, Is.EqualTo(secondSession));
-        Assert.That(history.Events[^1].Version, Is.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(history.Events[^1].SessionId, Is.EqualTo(secondSession));
+            Assert.That(history.Events[^1].Version, Is.EqualTo(1));
+        }
     }
 
     [Test]
@@ -109,8 +112,11 @@ public class LiveWatchHistoryViewModelTests
         Assert.That(dispatched, Has.Count.EqualTo(1));
         dispatched[0]();
         dispatched.Clear();
-        Assert.That(history.Events, Is.Empty);
-        Assert.That(clock.Timer!.IsDisposed, Is.True, "Timer stops when empty.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(history.Events, Is.Empty);
+            Assert.That(clock.Timer!.IsDisposed, Is.True, "Timer stops when empty.");
+        }
 
         var nextTransition = new VolumeWatchTransition(session, "X", 2, "Recovering", null, clock.Now);
         history.Apply([nextTransition]);

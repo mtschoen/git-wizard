@@ -44,13 +44,13 @@ public class TaskFaultLoggingTests
         var fault = Task.FromException(new InvalidOperationException("clipboard exploded"));
         await fault.RunAndLogFaults("Copying the working directory");
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(outputs.Any(output => output.Contains("Copying the working directory failed.")),
                 Is.True, "The operation name must be logged as the exception's context.");
             Assert.That(outputs.Any(output => output.Contains("clipboard exploded")),
                 Is.True, "The exception message must reach the log.");
-        });
+        }
     }
 
     [Test]

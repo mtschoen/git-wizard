@@ -33,9 +33,12 @@ public class SettingsViewModelTests
         var vm = TestViewModels.CreateSettings(folderPicker: picker);
 
         Assert.That(vm, Is.Not.Null);
-        Assert.That(vm.ForkPath, Is.Empty);
-        Assert.That(vm.SearchPaths, Is.Not.Null);
-        Assert.That(vm.IgnoredPaths, Is.Not.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(vm.ForkPath, Is.Empty);
+            Assert.That(vm.SearchPaths, Is.Not.Null);
+            Assert.That(vm.IgnoredPaths, Is.Not.Null);
+        }
     }
 
     [Test]
@@ -73,9 +76,12 @@ public class SettingsViewModelTests
 
         vm.NewSearchPath = "/new/path";
 
-        Assert.That(vm.NewSearchPath, Is.EqualTo("/new/path"));
-        Assert.That(propertyChangedFired, Is.True);
-        Assert.That(changedName, Is.EqualTo("NewSearchPath"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(vm.NewSearchPath, Is.EqualTo("/new/path"));
+            Assert.That(propertyChangedFired, Is.True);
+            Assert.That(changedName, Is.EqualTo("NewSearchPath"));
+        }
     }
 
     [Test]
@@ -94,9 +100,12 @@ public class SettingsViewModelTests
 
         vm.NewIgnoredPath = "/ignored/new";
 
-        Assert.That(vm.NewIgnoredPath, Is.EqualTo("/ignored/new"));
-        Assert.That(propertyChangedFired, Is.True);
-        Assert.That(changedName, Is.EqualTo("NewIgnoredPath"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(vm.NewIgnoredPath, Is.EqualTo("/ignored/new"));
+            Assert.That(propertyChangedFired, Is.True);
+            Assert.That(changedName, Is.EqualTo("NewIgnoredPath"));
+        }
     }
 
     [Test]
@@ -113,8 +122,11 @@ public class SettingsViewModelTests
 
         vm.ForkPath = "/usr/local/bin/fork";
 
-        Assert.That(vm.ForkPath, Is.EqualTo("/usr/local/bin/fork"));
-        Assert.That(propertyChangedFired, Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(vm.ForkPath, Is.EqualTo("/usr/local/bin/fork"));
+            Assert.That(propertyChangedFired, Is.True);
+        }
     }
 
     [Test]
@@ -133,9 +145,12 @@ public class SettingsViewModelTests
 
         vm.SkipHiddenDirectories = false;
 
-        Assert.That(vm.SkipHiddenDirectories, Is.False);
-        Assert.That(propertyChangedFired, Is.True);
-        Assert.That(changedName, Is.EqualTo("SkipHiddenDirectories"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(vm.SkipHiddenDirectories, Is.False);
+            Assert.That(propertyChangedFired, Is.True);
+            Assert.That(changedName, Is.EqualTo("SkipHiddenDirectories"));
+        }
     }
 
     [Test]
@@ -149,8 +164,11 @@ public class SettingsViewModelTests
         vm.AddSearchPath();
 
         Assert.That(vm.SearchPaths, Has.Count.EqualTo(initialCount + 1));
-        Assert.That(vm.SearchPaths, Does.Contain("/added/path"));
-        Assert.That(vm.NewSearchPath, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(vm.SearchPaths, Does.Contain("/added/path"));
+            Assert.That(vm.NewSearchPath, Is.Empty);
+        }
     }
 
     [Test]
@@ -203,8 +221,11 @@ public class SettingsViewModelTests
         vm.AddIgnoredPath();
 
         Assert.That(vm.IgnoredPaths, Has.Count.EqualTo(initialCount + 1));
-        Assert.That(vm.IgnoredPaths, Does.Contain("/ignored/added"));
-        Assert.That(vm.NewIgnoredPath, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(vm.IgnoredPaths, Does.Contain("/ignored/added"));
+            Assert.That(vm.NewIgnoredPath, Is.Empty);
+        }
     }
 
     [Test]
@@ -342,8 +363,11 @@ public class SettingsViewModelTests
 
         Assert.That(vm.ForkPath, Is.EqualTo("/usr/local/bin/fork"));
         var loaded = GitWizardConfiguration.GetGlobalConfiguration();
-        Assert.That(loaded.SearchPaths, Does.Contain("/new/search"));
-        Assert.That(loaded.ForkPath, Is.EqualTo("/usr/local/bin/fork"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(loaded.SearchPaths, Does.Contain("/new/search"));
+            Assert.That(loaded.ForkPath, Is.EqualTo("/usr/local/bin/fork"));
+        }
     }
 
     [Test]
@@ -424,8 +448,11 @@ public class SettingsViewModelTests
         vm.ResetToDefaults();
 
         var defaults = GitWizardConfiguration.CreateDefaultConfiguration();
-        Assert.That(vm.SearchPaths, Is.EquivalentTo(defaults.SearchPaths));
-        Assert.That(vm.IgnoredPaths, Is.EquivalentTo(defaults.IgnoredPaths));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(vm.SearchPaths, Is.EquivalentTo(defaults.SearchPaths));
+            Assert.That(vm.IgnoredPaths, Is.EquivalentTo(defaults.IgnoredPaths));
+        }
     }
 
     [Test]
@@ -464,9 +491,12 @@ public class SettingsViewModelTests
 
         var reloaded = GitWizardConfiguration.GetGlobalConfiguration();
         var defaults = GitWizardConfiguration.CreateDefaultConfiguration();
-        Assert.That(reloaded.SearchPaths, Is.EquivalentTo(defaults.SearchPaths));
-        Assert.That(reloaded.IgnoredPaths, Is.EquivalentTo(defaults.IgnoredPaths));
-        Assert.That(reloaded.ForkPath, Is.Null.Or.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(reloaded.SearchPaths, Is.EquivalentTo(defaults.SearchPaths));
+            Assert.That(reloaded.IgnoredPaths, Is.EquivalentTo(defaults.IgnoredPaths));
+            Assert.That(reloaded.ForkPath, Is.Null.Or.Empty);
+        }
     }
 
     [Test]
@@ -486,8 +516,11 @@ public class SettingsViewModelTests
 
         vm.IncludeTempDirectories = true;
 
-        Assert.That(vm.IncludeTempDirectories, Is.True);
-        Assert.That(changedName, Is.EqualTo("IncludeTempDirectories"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(vm.IncludeTempDirectories, Is.True);
+            Assert.That(changedName, Is.EqualTo("IncludeTempDirectories"));
+        }
     }
 
     [Test]

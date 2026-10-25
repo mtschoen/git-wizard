@@ -31,21 +31,24 @@ public class RepositoryNodeViewModelSizeLayoutTests
             var previousBounds = sizeLabel.Bounds;
             var labelGrid = (Grid)sizeLabel.Parent!;
             var previousGridBounds = labelGrid.Bounds;
-            Assert.That(sizeLabel.Text, Is.Empty);
-            Assert.That(previousBounds.Width, Is.GreaterThan(0));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(sizeLabel.Text, Is.Empty);
+                Assert.That(previousBounds.Width, Is.GreaterThan(0));
+            }
 
             repository.SizeOnDisk = 1572864L;
             node.Update();
             Dispatcher.UIThread.RunJobs();
             host.UpdateLayout();
 
-            Assert.Multiple(() =>
+            using (Assert.EnterMultipleScope())
             {
                 Assert.That(sizeLabel.Text, Is.EqualTo("1.5 MB"));
                 Assert.That(sizeLabel.TextAlignment, Is.EqualTo(TextAlignment.Right));
                 Assert.That(sizeLabel.Bounds, Is.EqualTo(previousBounds));
                 Assert.That(labelGrid.Bounds, Is.EqualTo(previousGridBounds));
-            });
+            }
         }
         finally
         {

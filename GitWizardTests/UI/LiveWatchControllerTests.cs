@@ -40,14 +40,20 @@ public class LiveWatchControllerTests
             service = WatchSubscriptionProbe.Service(controller);
             Assert.That(WatchSubscriptionProbe.ScanErrorsSubscribers(service), Is.EqualTo(1));
             source.FailDrive("X", "watch failed");
-            Assert.That(controller.ScanErrors, Does.ContainKey("X").WithValue("watch failed"));
-            Assert.That(errorUpdates[^1], Does.ContainKey("X").WithValue("watch failed"));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(controller.ScanErrors, Does.ContainKey("X").WithValue("watch failed"));
+                Assert.That(errorUpdates[^1], Does.ContainKey("X").WithValue("watch failed"));
+            }
             source.Publish(new VolumeChangeBatch("Y",
                 [new VolumeChangeEntry(@"Y:\repo\file", VolumeEntryKind.Modified)]));
-            Assert.That((await changed.Task.WaitAsync(cancellation.Token)).RepoRoot, Is.EqualTo(@"Y:\repo"));
-            Assert.That(creations, Is.EqualTo(1));
-            Assert.That(stopped, Is.Empty);
-            Assert.That(running.IsCompleted, Is.False);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That((await changed.Task.WaitAsync(cancellation.Token)).RepoRoot, Is.EqualTo(@"Y:\repo"));
+                Assert.That(creations, Is.EqualTo(1));
+                Assert.That(stopped, Is.Empty);
+                Assert.That(running.IsCompleted, Is.False);
+            }
         }
         finally
         {
@@ -61,9 +67,12 @@ public class LiveWatchControllerTests
             }
         }
         var completedSource = await sourceReady.Task;
-        Assert.That(completedSource.DiagnosticSubscribers, Is.Zero);
-        Assert.That(WatchSubscriptionProbe.ScanErrorsSubscribers(service), Is.Zero,
-            "The controller must detach from the service after shutdown.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(completedSource.DiagnosticSubscribers, Is.Zero);
+            Assert.That(WatchSubscriptionProbe.ScanErrorsSubscribers(service), Is.Zero,
+                "The controller must detach from the service after shutdown.");
+        }
     }
 
     static LiveWatchController NewController(
@@ -114,8 +123,11 @@ public class LiveWatchControllerTests
             await startTask;
 
             Assert.That(events, Has.Count.EqualTo(2));
-            Assert.That(events[0], Is.EqualTo(new RepositoryChangeEvent(trackedRoot, RepositoryChangeKind.Changed)));
-            Assert.That(events[1], Is.EqualTo(new RepositoryChangeEvent(newRepository, RepositoryChangeKind.Created)));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(events[0], Is.EqualTo(new RepositoryChangeEvent(trackedRoot, RepositoryChangeKind.Changed)));
+                Assert.That(events[1], Is.EqualTo(new RepositoryChangeEvent(newRepository, RepositoryChangeKind.Created)));
+            }
         }
         finally
         {
@@ -151,8 +163,11 @@ public class LiveWatchControllerTests
         await WaitUntilAsync(() => stoppedReasons.Count >= 1);
         await startTask;
 
-        Assert.That(sourceFactoryCallCount, Is.EqualTo(1));
-        Assert.That(stoppedReasons, Is.EqualTo(["volume unmounted"]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(sourceFactoryCallCount, Is.EqualTo(1));
+            Assert.That(stoppedReasons, Is.EqualTo(["volume unmounted"]));
+        }
     }
 
     [Test]
@@ -187,10 +202,13 @@ public class LiveWatchControllerTests
         await cts.CancelAsync();
         await startTask;
 
-        Assert.That(sourceFactoryCallCount, Is.EqualTo(2));
-        Assert.That(stoppedReasons, Is.Empty);
-        Assert.That(firstSource.DisposeCount, Is.EqualTo(1),
-            "the dead source must be disposed before the elevated respawn");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(sourceFactoryCallCount, Is.EqualTo(2));
+            Assert.That(stoppedReasons, Is.Empty);
+            Assert.That(firstSource.DisposeCount, Is.EqualTo(1),
+                "the dead source must be disposed before the elevated respawn");
+        }
     }
 
     [Test]
@@ -289,9 +307,12 @@ public class LiveWatchControllerTests
         await controller.StopAsync();
         await startTask;
 
-        Assert.That(stoppedReasons, Is.Empty);
-        Assert.That(sourceFactoryCallCount, Is.EqualTo(1));
-        Assert.That(source.DisposeCount, Is.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(stoppedReasons, Is.Empty);
+            Assert.That(sourceFactoryCallCount, Is.EqualTo(1));
+            Assert.That(source.DisposeCount, Is.EqualTo(1));
+        }
     }
 
     // Critical 2 (TOCTOU): a StopAsync landing while an elevated respawn is mid-flight must win -
@@ -333,9 +354,12 @@ public class LiveWatchControllerTests
 
         await startTask;
 
-        Assert.That(sourceFactoryCallCount, Is.EqualTo(1),
-            "no new source may be created after a stop that raced an elevated respawn");
-        Assert.That(stoppedReasons, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(sourceFactoryCallCount, Is.EqualTo(1),
+                    "no new source may be created after a stop that raced an elevated respawn");
+            Assert.That(stoppedReasons, Is.Empty);
+        }
     }
 
     // Minor: StopAsync force-disposes the source without awaiting the in-flight run to unwind, so
@@ -602,19 +626,29 @@ public class LiveWatchControllerTests
             await source.Started.WaitAsync(cancellation.Token);
             service = WatchSubscriptionProbe.Service(controller);
             source.SetVolume(VolumeWatchStatus.CatchingUp("X", VolumeBlockOrigin.Cold));
-            Assert.That(ready, Is.Empty);
-            Assert.That(controller.Readiness, Is.Null);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(ready, Is.Empty);
+                Assert.That(controller.Readiness, Is.Null);
+            }
             source.SetVolume(VolumeWatchStatus.CaughtUp("X", VolumeBlockOrigin.Cold));
             await WaitUntilAsync(() => ready.Count == 1);
-            Assert.That(controller.Readiness, Is.SameAs(ready[0]));
-            Assert.That(snapshots[^1].CaughtUpVolumes, Is.EqualTo(["X"]));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(controller.Readiness, Is.SameAs(ready[0]));
+                Assert.That(snapshots[^1].CaughtUpVolumes, Is.EqualTo(["X"]));
+            }
         }
         finally
         {
             try { await controller.StopAsync(); } finally { await running; }
         }
-        Assert.That(source.ReadinessSubscribers, Is.Zero, "The service must detach from the source.");
-        Assert.That(WatchSubscriptionProbe.ReadySubscribers(service), Is.Zero, "The controller must detach from the service.");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(source.ReadinessSubscribers, Is.Zero, "The service must detach from the source.");
+            Assert.That(WatchSubscriptionProbe.ReadySubscribers(service), Is.Zero, "The controller must detach from the service.");
+        }
     }
 
     [Test]

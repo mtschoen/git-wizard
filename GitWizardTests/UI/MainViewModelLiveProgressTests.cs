@@ -39,11 +39,11 @@ public class MainViewModelLiveProgressTests
 
         // Arming runs inside the startup prepare, before the service subscribes scan progress,
         // so the starting state shows without progress.
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(viewModel.LiveWatch.IsLiveStarting, Is.True);
             Assert.That(viewModel.LiveWatch.IsLiveScanProgressVisible, Is.False);
-        });
+        }
 
         armGate.SetResult();
         await WaitUntilAsync(() => viewModel.LiveWatch.IsLive);
@@ -51,22 +51,22 @@ public class MainViewModelLiveProgressTests
         source.ReportScanProgress(new VolumeScanProgress("D", 2, 5, 1_200_000, 2_400_000));
         await WaitUntilAsync(() => viewModel.LiveWatch.IsLiveScanProgressVisible);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(viewModel.LiveWatch.LiveScanProgressText,
                 Is.EqualTo("Scanning D: (2 of 5), 1.2M of 2.4M records"));
             Assert.That(viewModel.LiveWatch.LiveScanProgressValue, Is.EqualTo(0.3).Within(0.001));
             Assert.That(viewModel.LiveWatch.IsLiveScanProgressIndeterminate, Is.False);
-        });
+        }
 
         await viewModel.LiveWatch.ToggleLiveAsync();
         await startTask;
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(viewModel.LiveWatch.IsLiveScanProgressVisible, Is.False);
             Assert.That(viewModel.LiveWatch.LiveScanProgressText, Is.Empty);
-        });
+        }
     }
 
     [Test]
@@ -89,13 +89,13 @@ public class MainViewModelLiveProgressTests
         armGate.SetResult();
         await startTask;
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(viewModel.LiveWatch.IsLive, Is.False);
             Assert.That(viewModel.LiveWatch.IsLiveStarting, Is.False);
             Assert.That(viewModel.LiveWatch.IsLiveScanProgressVisible, Is.False);
             Assert.That(viewModel.LiveWatch.LiveScanProgressText, Is.Empty);
             Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain("Live watch could not start: scan blew up"));
-        });
+        }
     }
 }

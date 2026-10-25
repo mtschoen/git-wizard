@@ -50,11 +50,11 @@ public class MainViewModelLiveEventTests
         await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Changed));
 
         var node = viewModel.RepositoryList.Repositories.Single();
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(node.Repository.HasPendingChanges, Is.True);
             Assert.That(node.DisplayText, Does.Contain("*"));
-        });
+        }
     }
 
     [Test]
@@ -84,12 +84,12 @@ public class MainViewModelLiveEventTests
         var expectedPaths = streaming
             ? new[] { laterPath, fixture.Path }
             : new[] { fixture.Path, laterPath };
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory), Is.EqualTo(expectedPaths));
             Assert.That(inserts.Count, Is.EqualTo(streaming ? 0 : 1));
             Assert.That(viewModel.Refresh.IsScanning, Is.True);
-        });
+        }
     }
 
     [Test]
@@ -123,8 +123,11 @@ public class MainViewModelLiveEventTests
 
         expire();
 
-        Assert.That(viewModel.LiveWatch.IsLive, Is.False);
-        Assert.That(viewModel.RepositoryList.Repositories, Has.Count.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.LiveWatch.IsLive, Is.False);
+            Assert.That(viewModel.RepositoryList.Repositories, Has.Count.EqualTo(1));
+        }
     }
 
     [Test]
@@ -291,12 +294,12 @@ public class MainViewModelLiveEventTests
         await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
 
         var paths = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToList();
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(paths, Does.Not.Contain("/old/path"));
             Assert.That(paths, Does.Contain(fixture.Path));
             Assert.That(viewModel.RepositoryList.Repositories, Has.Count.EqualTo(1));
-        });
+        }
     }
 
     [Test]

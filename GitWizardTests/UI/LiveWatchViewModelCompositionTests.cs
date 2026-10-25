@@ -23,7 +23,7 @@ public class LiveWatchViewModelCompositionTests
             shellNames.Add(arguments.PropertyName);
 
         viewModel.Refresh.IsRefreshing = true;
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(liveNames, Is.EqualTo([
                 nameof(LiveWatchViewModel.CanToggleLive),
@@ -31,7 +31,7 @@ public class LiveWatchViewModelCompositionTests
             ]));
             Assert.That(viewModel.LiveWatch.CanToggleLive, Is.False);
             Assert.That(shellNames, Is.Empty);
-        });
+        }
 
         await viewModel.LiveWatch.DisposeAsync();
         liveNames.Clear();
@@ -57,24 +57,24 @@ public class LiveWatchViewModelCompositionTests
         viewModel.Refresh.IsRefreshing = true;
         viewModel.Refresh.IsScanning = true;
         dispatcher.Drain();
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(inserts.Count, Is.Zero);
             Assert.That(streamedRows.Select(row => row.WorkingDirectory),
                 Is.EqualTo([laterPath, fixture.Path]));
             Assert.That(viewModel.Refresh.IsScanning, Is.True);
-        });
+        }
 
         viewModel.Refresh.CompleteRefresh();
         dispatcher.Drain();
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(viewModel.RepositoryList.Repositories, Is.Not.SameAs(streamedRows));
             Assert.That(viewModel.RepositoryList.Repositories.Select(row => row.WorkingDirectory),
                 Is.EqualTo([fixture.Path, laterPath]));
             Assert.That(viewModel.Refresh.IsRefreshing, Is.False);
             Assert.That(viewModel.Refresh.IsScanning, Is.False);
-        });
+        }
     }
 
     [Test]
@@ -86,8 +86,11 @@ public class LiveWatchViewModelCompositionTests
         var row = new LiveVolumeStatusViewModel(
             VolumeWatchStatus.CatchingUp("C", VolumeBlockOrigin.Cold));
         viewModel.LiveWatch.LiveVolumes.Add(row);
-        Assert.That(cache.LiveVolumes.Single(), Is.SameAs(row));
-        Assert.That(cache.LiveWatchEvents, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(cache.LiveVolumes.Single(), Is.SameAs(row));
+            Assert.That(cache.LiveWatchEvents, Is.Empty);
+        }
 
         var transition = new VolumeWatchTransition(Guid.NewGuid(), "C", 1,
             "Recovering", null, clock.GetUtcNow());
@@ -98,12 +101,12 @@ public class LiveWatchViewModelCompositionTests
 
         viewModel.LiveWatch.LiveVolumes.Clear();
         viewModel.LiveWatch.LiveWatchEvents.Clear();
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(cache.LiveVolumes, Is.Empty);
             Assert.That(cache.LiveWatchEvents, Is.Empty);
             Assert.That(cache.Snapshot, Is.Null);
             Assert.That(viewModel.LiveWatch.IsLive, Is.False);
-        });
+        }
     }
 }

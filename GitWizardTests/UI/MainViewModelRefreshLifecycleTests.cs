@@ -58,14 +58,14 @@ public class MainViewModelRefreshLifecycleTests
         await vm.Refresh.HardRefreshAsync();
 
         var cached = await GitWizardApi.GetCachedRepositoryPathsAsync();
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(vm.Refresh.IsRefreshing, Is.False);
             Assert.That(cached, Is.Not.Null, "An unusable rebuild must preserve the cached list.");
             Assert.That(cached, Does.Contain(cachedRepo).IgnoreCase);
             Assert.That(vm.StatusHeader.HeaderText, Does.Contain("discovery incomplete").IgnoreCase,
                 "The incomplete outcome must be visible, not silently swallowed.");
-        });
+        }
     }
 
     [Test]

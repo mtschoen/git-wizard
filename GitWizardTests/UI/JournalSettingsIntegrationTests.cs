@@ -54,8 +54,11 @@ public class JournalSettingsIntegrationTests
     [Test]
     public void LiveShowsEachDriveHintWithSuggestedSize()
     {
-        Assert.That(_main.LiveWatch.JournalWarnings.Select(warning => warning.DriveLetter), Is.EqualTo(["C", "D"]));
-        Assert.That(HintText, Does.Contain("Hint on C:").And.Contain("Hint on D:"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_main.LiveWatch.JournalWarnings.Select(warning => warning.DriveLetter), Is.EqualTo(["C", "D"]));
+            Assert.That(HintText, Does.Contain("Hint on C:").And.Contain("Hint on D:"));
+        }
         Assert.That(HintText, Does.Contain("32 MB").And.Contain("64 MB")
             .And.Contain("130 MB").And.Contain("200 MB")
             .And.Contain("full rescan was needed"));
@@ -66,12 +69,15 @@ public class JournalSettingsIntegrationTests
     {
         var warning = _settings.JournalWarnings[0];
         await _settings.EnlargeJournalAsync(warning);
-        Assert.That(_source.GrowCalls, Is.EqualTo(1));
-        Assert.That(_source.RequestedGrowthTarget?.MaximumSize, Is.EqualTo(warning.Warning.Loss.SizeThatWouldHaveRetained));
-        Assert.That(_source.RequestedGrowthTarget?.AllocationDelta, Is.EqualTo(warning.Warning.Loss.JournalSettings.AllocationDelta));
-        Assert.That(warning.StatusMessage, Is.EqualTo(
-            $"Before: {32 * 1024 * 1024:N0} bytes. After: {_source.Settings['C'].MaximumSize:N0} bytes."));
-        Assert.That(HintText, Does.Not.Contain("Hint on C:").And.Contain("Hint on D:"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_source.GrowCalls, Is.EqualTo(1));
+            Assert.That(_source.RequestedGrowthTarget?.MaximumSize, Is.EqualTo(warning.Warning.Loss.SizeThatWouldHaveRetained));
+            Assert.That(_source.RequestedGrowthTarget?.AllocationDelta, Is.EqualTo(warning.Warning.Loss.JournalSettings.AllocationDelta));
+            Assert.That(warning.StatusMessage, Is.EqualTo(
+                $"Before: {32 * 1024 * 1024:N0} bytes. After: {_source.Settings['C'].MaximumSize:N0} bytes."));
+            Assert.That(HintText, Does.Not.Contain("Hint on C:").And.Contain("Hint on D:"));
+        }
     }
 
     [Test]
@@ -84,8 +90,11 @@ public class JournalSettingsIntegrationTests
         try
         {
             await _settings.IgnoreJournalWarningAsync(_settings.JournalWarnings[1]);
-            Assert.That(_source.GrowCalls, Is.EqualTo(1));
-            Assert.That(_settings.JournalWarnings, Has.Count.EqualTo(2));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(_source.GrowCalls, Is.EqualTo(1));
+                Assert.That(_settings.JournalWarnings, Has.Count.EqualTo(2));
+            }
         }
         finally
         {
@@ -109,11 +118,17 @@ public class JournalSettingsIntegrationTests
         await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
         _dispatcher.Drain();
         Assert.That(_settings.JournalWarnings, Has.Count.EqualTo(1));
-        Assert.That(_settings.JournalWarnings[0].DriveLetter, Is.EqualTo("D"));
-        Assert.That(_settings.JournalWarnings[0].Warning.Message, Does.Contain("48 MB"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_settings.JournalWarnings[0].DriveLetter, Is.EqualTo("D"));
+            Assert.That(_settings.JournalWarnings[0].Warning.Message, Does.Contain("48 MB"));
+        }
         await _settings.EnlargeJournalAsync(oldWarning);
-        Assert.That(oldWarning.StatusMessage, Does.Contain("re-armed"));
-        Assert.That(_source.GrowCalls, Is.Zero);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(oldWarning.StatusMessage, Does.Contain("re-armed"));
+            Assert.That(_source.GrowCalls, Is.Zero);
+        }
     }
 
     [Test]
@@ -127,8 +142,11 @@ public class JournalSettingsIntegrationTests
         _running = _main.LiveWatch.ToggleLiveAsync();
         await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
         _dispatcher.Drain();
-        Assert.That(_main.StatusHeader.HeaderText, Is.EqualTo("Live watch active"));
-        Assert.That(_settings.JournalWarnings, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_main.StatusHeader.HeaderText, Is.EqualTo("Live watch active"));
+            Assert.That(_settings.JournalWarnings, Is.Empty);
+        }
     }
 
     [Test]
@@ -147,8 +165,12 @@ public class JournalSettingsIntegrationTests
         {
             GitWizardLog.LogMethod = previousLogger;
         }
-        Assert.That(messages, Has.Some.Contains("broker refused"));
-        Assert.That(warning.StatusMessage, Is.EqualTo("Failed: broker refused"));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(messages, Has.Some.Contains("broker refused"));
+            Assert.That(warning.StatusMessage, Is.EqualTo("Failed: broker refused"));
+        }
     }
 
     [TestCase(0)]
@@ -162,8 +184,11 @@ public class JournalSettingsIntegrationTests
             MaximumSize = suggestedSize + additionalBytes
         };
         await _settings.EnlargeJournalAsync(warning);
-        Assert.That(_source.GrowCalls, Is.Zero);
-        Assert.That(warning.StatusMessage, Does.Contain("Refusing to shrink or resize"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_source.GrowCalls, Is.Zero);
+            Assert.That(warning.StatusMessage, Does.Contain("Refusing to shrink or resize"));
+        }
     }
 
     [Test]
@@ -175,9 +200,12 @@ public class JournalSettingsIntegrationTests
         await _settings.SaveAsync();
         var saved = await GitWizardConfiguration.GetConfigurationAtPathAsync(GitWizardConfiguration.GetGlobalConfigurationPath());
         Assert.That(saved, Is.Not.Null);
-        Assert.That(saved!.IgnoredJournalWarnings, Is.EquivalentTo(new uint[] { 'C' }));
-        Assert.That(saved.ForkPath, Is.EqualTo("/custom/fork"));
-        Assert.That(HintText, Does.Not.Contain("Hint on C:").And.Contain("Hint on D:"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(saved!.IgnoredJournalWarnings, Is.EquivalentTo(new uint[] { 'C' }));
+            Assert.That(saved.ForkPath, Is.EqualTo("/custom/fork"));
+            Assert.That(HintText, Does.Not.Contain("Hint on C:").And.Contain("Hint on D:"));
+        }
     }
 
     [Test]
@@ -194,8 +222,11 @@ public class JournalSettingsIntegrationTests
         await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
         _dispatcher.Drain();
         Assert.That(_settings.JournalWarnings, Has.Count.EqualTo(1));
-        Assert.That(_settings.JournalWarnings[0].DriveLetter, Is.EqualTo("C"));
-        Assert.That(_settings.JournalWarnings[0].Warning.VolumeSerial, Is.EqualTo(999));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_settings.JournalWarnings[0].DriveLetter, Is.EqualTo("C"));
+            Assert.That(_settings.JournalWarnings[0].Warning.VolumeSerial, Is.EqualTo(999));
+        }
     }
 
     [Test]
@@ -206,9 +237,12 @@ public class JournalSettingsIntegrationTests
         Directory.CreateDirectory(configurationPath);
         var warning = _settings.JournalWarnings[0];
         await _settings.IgnoreJournalWarningAsync(warning);
-        Assert.That(_settings.JournalWarnings, Does.Contain(warning));
-        Assert.That((await GitWizardConfiguration.GetGlobalConfigurationAsync()).IgnoredJournalWarnings, Is.Empty);
-        Assert.That(warning.StatusMessage, Does.StartWith("Failed:"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_settings.JournalWarnings, Does.Contain(warning));
+            Assert.That((await GitWizardConfiguration.GetGlobalConfigurationAsync()).IgnoredJournalWarnings, Is.Empty);
+            Assert.That(warning.StatusMessage, Does.StartWith("Failed:"));
+        }
     }
 
     [Test]
@@ -218,8 +252,11 @@ public class JournalSettingsIntegrationTests
         await _main.LiveWatch.ToggleLiveAsync();
         await _running;
         await _settings.EnlargeJournalAsync(warning);
-        Assert.That(warning.StatusMessage, Does.StartWith("Failed: Start Live"));
-        Assert.That(_source.GrowCalls, Is.Zero);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(warning.StatusMessage, Does.StartWith("Failed: Start Live"));
+            Assert.That(_source.GrowCalls, Is.Zero);
+        }
     }
 
     [Test]
@@ -248,9 +285,12 @@ public class JournalSettingsIntegrationTests
         var service = new RepositoryWatchService(source, [@"C:\repository", @"D:\repository"], []);
         var lines = new List<string>();
         await Program.RunWatchLoopAsync(service, lines.Add, _ => Assert.Fail("Unexpected exit"), CancellationToken.None);
-        Assert.That(lines.Count(line => line.StartsWith("Hint on C:", StringComparison.Ordinal)), Is.EqualTo(1));
-        Assert.That(lines.Count(line => line.StartsWith("Hint on D:", StringComparison.Ordinal)), Is.EqualTo(1));
-        Assert.That(lines, Has.Some.Contains("130 MB"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(lines.Count(line => line.StartsWith("Hint on C:", StringComparison.Ordinal)), Is.EqualTo(1));
+            Assert.That(lines.Count(line => line.StartsWith("Hint on D:", StringComparison.Ordinal)), Is.EqualTo(1));
+            Assert.That(lines, Has.Some.Contains("130 MB"));
+        }
     }
 
     [Test]
@@ -268,8 +308,11 @@ public class JournalSettingsIntegrationTests
         Assert.That(_settings.JournalWarnings, Has.Count.EqualTo(1));
         Assert.That(_settings.JournalWarnings[0].HasGrowAction, Is.False);
         await _settings.EnlargeJournalAsync(_settings.JournalWarnings[0]);
-        Assert.That(_source.GrowCalls, Is.Zero);
-        Assert.That(_settings.JournalWarnings[0].Warning.Message, Does.Contain("journal was recreated"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_source.GrowCalls, Is.Zero);
+            Assert.That(_settings.JournalWarnings[0].Warning.Message, Does.Contain("journal was recreated"));
+        }
         Assert.That(_settings.JournalWarnings[0].Warning.Message, Does.Not.Contain("increase the journal size"));
     }
 
@@ -287,8 +330,11 @@ public class JournalSettingsIntegrationTests
         _dispatcher.Drain();
         var warning = _settings.JournalWarnings[0];
         await _settings.EnlargeJournalAsync(warning);
-        Assert.That(_source.GrowCalls, Is.Zero);
-        Assert.That(warning.StatusMessage, Does.Contain("no size that would have avoided the rescan"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_source.GrowCalls, Is.Zero);
+            Assert.That(warning.StatusMessage, Does.Contain("no size that would have avoided the rescan"));
+        }
     }
 
     [TestCase(true)]
@@ -307,8 +353,11 @@ public class JournalSettingsIntegrationTests
         var warning = _settings.JournalWarnings[0];
         Assert.That(warning.HasGrowAction, Is.False);
         await _settings.EnlargeJournalAsync(warning);
-        Assert.That(_source.GrowCalls, Is.Zero);
-        Assert.That(warning.StatusMessage, Does.Contain(missingSize ? "too large to represent" : "valid growth target"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_source.GrowCalls, Is.Zero);
+            Assert.That(warning.StatusMessage, Does.Contain(missingSize ? "too large to represent" : "valid growth target"));
+        }
     }
 
     [Test]
@@ -322,8 +371,11 @@ public class JournalSettingsIntegrationTests
         _running = _main.LiveWatch.ToggleLiveAsync();
         await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
         _dispatcher.Drain();
-        Assert.That(_main.LiveWatch.JournalWarnings, Is.Empty);
-        Assert.That(_main.StatusHeader.HeaderText, Is.EqualTo("Live watch active"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_main.LiveWatch.JournalWarnings, Is.Empty);
+            Assert.That(_main.StatusHeader.HeaderText, Is.EqualTo("Live watch active"));
+        }
     }
 
     [Test]
@@ -341,7 +393,10 @@ public class JournalSettingsIntegrationTests
         Assert.That(_settings.JournalWarnings, Has.Count.EqualTo(1));
         Assert.That(_settings.JournalWarnings[0].HasGrowAction, Is.False);
         await _settings.EnlargeJournalAsync(_settings.JournalWarnings[0]);
-        Assert.That(_source.GrowCalls, Is.Zero);
-        Assert.That(_settings.JournalWarnings[0].StatusMessage, Does.Contain("already at least as large"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_source.GrowCalls, Is.Zero);
+            Assert.That(_settings.JournalWarnings[0].StatusMessage, Does.Contain("already at least as large"));
+        }
     }
 }

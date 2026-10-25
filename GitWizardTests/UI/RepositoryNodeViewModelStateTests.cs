@@ -32,14 +32,14 @@ public class RepositoryNodeViewModelStateTests
             colors[status] = node.StatusColorHex;
         }
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(colors[RefreshStatus.Success], Is.EqualTo("#28A745"));
             Assert.That(colors[RefreshStatus.Timeout], Is.EqualTo("#FFA500"));
             Assert.That(colors[RefreshStatus.Error], Is.EqualTo("#DC3545"));
             Assert.That(colors[RefreshStatus.SubmoduleIssue], Is.EqualTo("#8E44AD"));
             Assert.That(colors[RefreshStatus.Refreshing], Is.EqualTo("#808080"));
-        });
+        }
     }
 
     [Test]
@@ -49,13 +49,13 @@ public class RepositoryNodeViewModelStateTests
         fixture.AddUntrackedFile("scratch.txt");
         var node = RefreshedNode(fixture);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(node.Repository.HasPendingChanges, Is.True);
             Assert.That(node.MatchesFilter(FilterType.PendingChanges), Is.True);
             Assert.That(node.DisplayText, Does.Contain("*"),
                 "A dirty working tree must decorate the row with the pending-changes marker.");
-        });
+        }
     }
 
     [Test]
@@ -64,12 +64,12 @@ public class RepositoryNodeViewModelStateTests
         using var fixture = TempRepoFixture.CreateWithInitialCommit(DateTimeOffset.Now.AddDays(-60));
         var node = RefreshedNode(fixture);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(node.MatchesFilter(FilterType.Stale), Is.True);
             Assert.That(node.DisplayText, Does.Contain("d)"),
                 "A stale repo (>30 days) must show its day count in the row label.");
-        });
+        }
     }
 
     [Test]
@@ -78,12 +78,12 @@ public class RepositoryNodeViewModelStateTests
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         var node = RefreshedNode(fixture);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(node.Repository.DaysSinceLastCommit, Is.Not.Null,
                 "A refreshed repo must have a known age; the stale predicate must distinguish it from an old age.");
             Assert.That(node.MatchesFilter(FilterType.Stale), Is.False);
-        });
+        }
     }
 
     [Test]
@@ -124,12 +124,12 @@ public class RepositoryNodeViewModelStateTests
         fixture.MergeBranchNoFastForward("feature");
         var node = RefreshedNode(fixture);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(node.MatchesFilter(FilterType.DownstreamBranches), Is.True);
             Assert.That(node.DisplayText, Does.Contain("branch"),
                 "A repo with a merged downstream branch must show the merged-branch count.");
-        });
+        }
     }
 
     [Test]
@@ -142,7 +142,7 @@ public class RepositoryNodeViewModelStateTests
         repo.Refresh(fetchRemotes: true);
         var node = new RepositoryNodeViewModel(repo);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(node.MatchesFilter(FilterType.BehindRemote), Is.True);
             Assert.That(node.DisplayText, Does.Contain("↓(1)"),
@@ -150,7 +150,7 @@ public class RepositoryNodeViewModelStateTests
             Assert.That(node.BehindRemoteTooltip, Does.Contain("1 commit behind"));
             Assert.That(node.BehindRemoteTooltip, Does.Contain("last fetch"),
                 "The tooltip must cite the fetch timestamp so a stale comparison is visible.");
-        });
+        }
     }
 
     [Test]
@@ -159,11 +159,11 @@ public class RepositoryNodeViewModelStateTests
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         var node = RefreshedNode(fixture);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(node.MatchesFilter(FilterType.BehindRemote), Is.False);
             Assert.That(node.BehindRemoteTooltip, Is.Null);
-        });
+        }
     }
 
     [Test]
@@ -172,12 +172,12 @@ public class RepositoryNodeViewModelStateTests
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         var node = RefreshedNode(fixture);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(node.MatchesFilter(FilterType.MyRepositories, "test@example.com"), Is.True,
                 "The repo's author email must satisfy the My-Repositories filter.");
             Assert.That(node.MatchesFilter(FilterType.MyRepositories, "someone-else@example.com"), Is.False);
-        });
+        }
     }
 
     [Test]
@@ -187,14 +187,14 @@ public class RepositoryNodeViewModelStateTests
         fixture.AddUninitializedSubmodule("sub");
         var node = RefreshedNode(fixture);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(node.MatchesFilter(FilterType.SubmoduleUninitialized), Is.True);
             Assert.That(node.MatchesFilter(FilterType.SubmoduleConfigIssue), Is.True);
             // A repo that HAS submodules but no expanded child nodes still evaluates the checkout
             // predicate (and finds nothing actionable without children).
             Assert.That(node.MatchesFilter(FilterType.SubmoduleCheckout), Is.False);
-        });
+        }
     }
 
     [Test]
@@ -205,9 +205,12 @@ public class RepositoryNodeViewModelStateTests
         var node = RefreshedNode(fixture);
         node.Status = RefreshStatus.SubmoduleIssue;
 
-        Assert.That(node.Repository.HasSubmoduleIssues, Is.True);
-        Assert.That(node.StatusTooltip, Does.StartWith("Submodule issues:"),
-            "With real submodule health entries the tooltip must enumerate them.");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(node.Repository.HasSubmoduleIssues, Is.True);
+            Assert.That(node.StatusTooltip, Does.StartWith("Submodule issues:"),
+                "With real submodule health entries the tooltip must enumerate them.");
+        }
     }
 
     [Test]
@@ -233,10 +236,10 @@ public class RepositoryNodeViewModelStateTests
         timeoutNode.Update();
         errorNode.Update();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(timeoutNode.Status, Is.EqualTo(RefreshStatus.Timeout));
             Assert.That(errorNode.Status, Is.EqualTo(RefreshStatus.Error));
-        });
+        }
     }
 }

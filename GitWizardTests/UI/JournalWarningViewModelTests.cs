@@ -14,10 +14,13 @@ public class JournalWarningViewModelTests
         var warning = new JournalWarning { DriveLetter = "C", VolumeSerial = 12345, Loss = loss };
         var viewModel = new JournalWarningViewModel(warning);
 
-        Assert.That(viewModel.DriveLetter, Is.EqualTo("C"));
-        Assert.That(viewModel.HasGrowAction, Is.True);
-        Assert.That(viewModel.StatusMessage, Is.Empty);
-        Assert.That(viewModel.Warning.Message, Does.Contain("Hint on C:"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.DriveLetter, Is.EqualTo("C"));
+            Assert.That(viewModel.HasGrowAction, Is.True);
+            Assert.That(viewModel.StatusMessage, Is.Empty);
+            Assert.That(viewModel.Warning.Message, Does.Contain("Hint on C:"));
+        }
     }
 
     [Test]
@@ -27,8 +30,11 @@ public class JournalWarningViewModelTests
         var warning = new JournalWarning { DriveLetter = "D", VolumeSerial = 67890, Loss = loss };
         var viewModel = new JournalWarningViewModel(warning);
 
-        Assert.That(viewModel.HasGrowAction, Is.False);
-        Assert.That(viewModel.Warning.Message, Does.Contain("journal was recreated"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.HasGrowAction, Is.False);
+            Assert.That(viewModel.Warning.Message, Does.Contain("journal was recreated"));
+        }
         Assert.That(viewModel.Warning.Message, Does.Not.Contain("increase the journal size"));
     }
 
@@ -57,7 +63,10 @@ public class JournalWarningViewModelTests
         {
             Loss = FakeJournalSettingsSource.TrimmedLoss('D', 30L * 1024 * 1024, 60L * 1024 * 1024, 10L * 1024 * 1024)
         });
-        Assert.That(recreated.GrowUnavailableReason, Is.Null);
-        Assert.That(changes, Does.Contain(nameof(JournalWarningViewModel.GrowUnavailableReason)));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(recreated.GrowUnavailableReason, Is.Null);
+            Assert.That(changes, Does.Contain(nameof(JournalWarningViewModel.GrowUnavailableReason)));
+        }
     }
 }

@@ -66,9 +66,12 @@ public class JournalSettingsWindowTests
             var buttons = window.GetVisualDescendants().OfType<Button>()
                 .Where(button => Equals(button.Content, "Enlarge")).ToArray();
             Assert.That(buttons, Has.Length.EqualTo(1));
-            Assert.That(buttons[0].IsVisible, Is.True);
-            Assert.That(buttons[0].IsEnabled, Is.False);
-            Assert.That(main.LiveWatch.JournalWarnings[0].GrowUnavailableReason, Does.Contain("journal was recreated"));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(buttons[0].IsVisible, Is.True);
+                Assert.That(buttons[0].IsEnabled, Is.False);
+                Assert.That(main.LiveWatch.JournalWarnings[0].GrowUnavailableReason, Does.Contain("journal was recreated"));
+            }
         }
         finally
         {
@@ -122,9 +125,12 @@ public class JournalSettingsWindowTests
             buttons[0].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-            Assert.That(source.GrowCalls, Is.EqualTo(1));
-            Assert.That(offThreadUpdates, Is.Zero);
-            Assert.That(warning.StatusMessage, Does.Contain("After:"));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(source.GrowCalls, Is.EqualTo(1));
+                Assert.That(offThreadUpdates, Is.Zero);
+                Assert.That(warning.StatusMessage, Does.Contain("After:"));
+            }
         }
         finally
         {

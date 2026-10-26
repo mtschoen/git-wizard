@@ -134,7 +134,7 @@ The bar is **0 findings**, not suppressions. Preserve `Directory.Build.props`
 analyzers/code style/warnings-as-errors and `.editorconfig`: UTF-8 no BOM, CRLF,
 four spaces, PascalCase members/types/const/static-readonly, `_camelCase` private
 and internal fields including mutable static, camelCase locals/parameters. Full
-words; no `m_`/`k_`/`s_`. Keep only RCS1161/RCS1168/RCS1238 enabled by default,
+words; no `m_`/`k_`/`s_`. Keep only RCS1001/RCS1003/RCS1161/RCS1168/RCS1238/RCS1249 enabled by default,
 plus AsyncFixer and CA2000/CA1849/CA2016.
 
 Run `dotnet format git-wizard.slnx --verify-no-changes`; use

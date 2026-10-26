@@ -21,7 +21,7 @@
 
   <ItemGroup>
     <!-- Roslynator rules are disabled by default. .editorconfig enables a curated,
-         explicitly pinned subset (RCS1161, RCS1168, RCS1238) so package upgrades
+         explicitly pinned subset (RCS1001, RCS1003, RCS1161, RCS1168, RCS1238, RCS1249) so package upgrades
          cannot add surprise build failures. TreatWarningsAsErrors gates that subset;
          all other RCS rules remain off. Pinned for reproducibility. -->
     <PackageReference Include="Roslynator.Analyzers" Version="4.15.0">

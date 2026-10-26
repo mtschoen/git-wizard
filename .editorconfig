@@ -159,6 +159,26 @@ dotnet_diagnostic.RCS1168.severity = warning
 # Keep three-way decisions readable instead of nesting conditional operators.
 dotnet_diagnostic.RCS1238.severity = warning
 
+# Promoted to warning (issue 382, owner ruling): multi-line braces and redundant null-forgiving
+# operators are held at zero findings; the build gates them via TreatWarningsAsErrors.
+dotnet_diagnostic.RCS1001.severity = warning
+dotnet_diagnostic.RCS1003.severity = warning
+dotnet_diagnostic.RCS1249.severity = warning
+
+# Promoted to warning (issue 382, owner ruling): jb-native inspections held at zero findings.
+# jb inspectcode honors resharper_*_highlighting here (not the .DotSettings severity), so the
+# InspectCode gate, which runs at --severity=WARNING, fails on any new finding.
+resharper_enforce_foreach_statement_braces_highlighting = warning
+resharper_enforce_for_statement_braces_highlighting = warning
+resharper_enforce_while_statement_braces_highlighting = warning
+resharper_enforce_using_statement_braces_highlighting = warning
+resharper_enforce_lock_statement_braces_highlighting = warning
+resharper_suggest_var_or_type_built_in_types_highlighting = warning
+resharper_suggest_var_or_type_simple_types_highlighting = warning
+resharper_suggest_var_or_type_elsewhere_highlighting = warning
+resharper_redundant_verbatim_string_prefix_highlighting = warning
+resharper_redundant_string_interpolation_highlighting = warning
+
 #### Async and disposal analysis ####
 
 # AsyncFixer contributes the redundant-async and fire-and-forget checks that the

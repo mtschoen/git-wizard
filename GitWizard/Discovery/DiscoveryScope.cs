@@ -18,23 +18,19 @@ public sealed class DiscoveryScope
 
     DiscoveryScope(
         DiscoveryRequest request,
-        IReadOnlyList<string> searchRoots,
-        IReadOnlyList<string> retainedRoots,
-        IReadOnlyList<string> ignoredRoots,
+        RootPaths rootPaths,
         IReadOnlyList<RootClassification> classifications,
         IReadOnlyList<string> requestedNtfsDrives,
-        IReadOnlyList<string> recursiveRoots,
-        IReadOnlyList<string> watchExcludedRoots,
         IReadOnlyDictionary<string, string> classificationErrors)
     {
         Request = request;
-        SearchRoots = Array.AsReadOnly<string>([.. searchRoots]);
-        RetainedRoots = Array.AsReadOnly<string>([.. retainedRoots]);
-        IgnoredRoots = Array.AsReadOnly<string>([.. ignoredRoots]);
+        SearchRoots = Array.AsReadOnly<string>([.. rootPaths.SearchRoots]);
+        RetainedRoots = Array.AsReadOnly<string>([.. rootPaths.RetainedRoots]);
+        IgnoredRoots = Array.AsReadOnly<string>([.. rootPaths.IgnoredRoots]);
         Classifications = Array.AsReadOnly<RootClassification>([.. classifications]);
         RequestedNtfsDrives = Array.AsReadOnly<string>([.. requestedNtfsDrives]);
-        RecursiveRoots = Array.AsReadOnly<string>([.. recursiveRoots]);
-        WatchExcludedRoots = Array.AsReadOnly<string>([.. watchExcludedRoots]);
+        RecursiveRoots = Array.AsReadOnly<string>([.. rootPaths.RecursiveRoots]);
+        WatchExcludedRoots = Array.AsReadOnly<string>([.. rootPaths.WatchExcludedRoots]);
         ClassificationErrors = new ReadOnlyDictionary<string, string>(
             new Dictionary<string, string>(classificationErrors));
     }
@@ -120,15 +116,18 @@ public sealed class DiscoveryScope
 
         return new DiscoveryScope(
             request,
-            searchRoots,
-            retainedRoots,
-            ignoredRoots,
+            new RootPaths(searchRoots, retainedRoots, ignoredRoots, recursiveRoots, watchExcludedRoots),
             classifications,
             sortedDrives,
-            recursiveRoots,
-            watchExcludedRoots,
             errors);
     }
+
+    sealed record RootPaths(
+        IReadOnlyList<string> SearchRoots,
+        IReadOnlyList<string> RetainedRoots,
+        IReadOnlyList<string> IgnoredRoots,
+        IReadOnlyList<string> RecursiveRoots,
+        IReadOnlyList<string> WatchExcludedRoots);
 
     static List<RootClassification> ClassifyRetainedRoots(
         DiscoveryRequest request,

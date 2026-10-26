@@ -63,15 +63,6 @@ public class TagInventoryReportTests
         repo.AddTag("archive/still-on-remote");
 
         // Mock remote tag fetcher returning only still-on-remote
-        Task<IReadOnlySet<string>> MockFetcher(string url)
-        {
-            IReadOnlySet<string> remoteTags = new HashSet<string>(StringComparer.Ordinal)
-            {
-                "archive/still-on-remote"
-            };
-            return Task.FromResult(remoteTags);
-        }
-
         var report = TagInventoryReport.Scan([repo.Path], matchPattern: "archive/*", remoteTagFetcher: MockFetcher);
 
         Assert.That(report.Repositories, Has.Count.EqualTo(1));
@@ -90,6 +81,16 @@ public class TagInventoryReportTests
         {
             Assert.That(presentTag.ExistsOnRemote, Is.True);
             Assert.That(presentTag.Remotes, Does.Contain("origin"));
+        }
+        return;
+
+        Task<IReadOnlySet<string>> MockFetcher(string _)
+        {
+            IReadOnlySet<string> remoteTags = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "archive/still-on-remote"
+            };
+            return Task.FromResult(remoteTags);
         }
     }
 

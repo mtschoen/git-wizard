@@ -142,7 +142,7 @@ sealed class TempRepoFixture : IDisposable
     /// <summary>
     /// Create an annotated local tag at HEAD.
     /// </summary>
-    public void AddAnnotatedTag(string tagName, string message)
+    void AddAnnotatedTag(string tagName, string message)
     {
         using var repository = new Repository(Path);
         repository.ApplyTag(tagName, Author, message);

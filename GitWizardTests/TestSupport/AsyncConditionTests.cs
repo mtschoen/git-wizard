@@ -9,7 +9,6 @@ public class AsyncConditionTests
 #pragma warning disable CA2201 // Simulate runtime NullReferenceException for diagnostic assertion
         var original = new NullReferenceException("source slot was null");
 #pragma warning restore CA2201
-        bool BrokenCondition() => throw original;
 
         var failure = Assert.ThrowsAsync<AssertionException>(async () =>
             await AsyncCondition.WaitUntilAsync(() => BrokenCondition()));
@@ -24,6 +23,9 @@ public class AsyncConditionTests
             Assert.That(failure.Message, Does.Contain("source slot was null"));
             Assert.That(failure.InnerException!.StackTrace, Does.Contain("BrokenCondition"));
         }
+        return;
+
+        bool BrokenCondition() => throw original;
     }
 
     [Test]

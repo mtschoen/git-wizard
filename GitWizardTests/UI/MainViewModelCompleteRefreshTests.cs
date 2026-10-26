@@ -33,8 +33,6 @@ public class MainViewModelCompleteRefreshTests
         // top of the displayed collection.
         string? capturedAnchor = null;
         string? restoredAnchor = null;
-        void CaptureAnchor() =>
-            capturedAnchor = vm.RepositoryList.Repositories.Count > 0 ? vm.RepositoryList.Repositories[0].WorkingDirectory : null;
         vm.RepositoryList.BeforeRepositoriesSwap = CaptureAnchor;
         vm.RepositoryList.AfterRepositoriesSwap = () => restoredAnchor = capturedAnchor;
 
@@ -60,6 +58,10 @@ public class MainViewModelCompleteRefreshTests
 
         Assert.That(restoredAnchor, Is.EqualTo("C:/repos/keep"),
             "The final rebuild must restore the pre-refresh anchor, not recapture it from the streaming list.");
+        return;
+
+        void CaptureAnchor() =>
+            capturedAnchor = vm.RepositoryList.Repositories.Count > 0 ? vm.RepositoryList.Repositories[0].WorkingDirectory : null;
     }
 
     // pr-crew round-9 review of PR #241/#243: the earlier fix suppressed the recapture with a

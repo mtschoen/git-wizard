@@ -31,14 +31,20 @@ public class FanotifyVolumeChangeSourceEventTests
 
         var native = new FakeFanotifyNative
         {
-            InitializeResult = new FanotifyNativeCallResult(7, 0)
+            InitializeResult = new FanotifyNativeCallResult(7, 0),
+            HandleToFdMap =
+            {
+                [new FileHandleKey(0L, GetFullHandleBytes(handleA))] = 100,
+                [new FileHandleKey(0L, GetFullHandleBytes(handleB))] = 101,
+                [new FileHandleKey(0L, GetFullHandleBytes(handleC))] = 102
+            },
+            FdToPathMap =
+            {
+                [100] = "/repo/dirA",
+                [101] = "/repo/dirB",
+                [102] = "/repo/dirC"
+            }
         };
-        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(handleA))] = 100;
-        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(handleB))] = 101;
-        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(handleC))] = 102;
-        native.FdToPathMap[100] = "/repo/dirA";
-        native.FdToPathMap[101] = "/repo/dirB";
-        native.FdToPathMap[102] = "/repo/dirC";
         native.ReadQueue.Enqueue(combinedBuffer);
 
         var source = new FanotifyVolumeChangeSource(native);
@@ -75,10 +81,10 @@ public class FanotifyVolumeChangeSourceEventTests
 
         var native = new FakeFanotifyNative
         {
-            InitializeResult = new FanotifyNativeCallResult(7, 0)
+            InitializeResult = new FanotifyNativeCallResult(7, 0),
+            HandleToFdMap = { [new FileHandleKey(0L, GetFullHandleBytes(handle))] = 200 },
+            FdToPathMap = { [200] = "/repo/dirA" }
         };
-        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(handle))] = 200;
-        native.FdToPathMap[200] = "/repo/dirA";
         native.ReadQueue.Enqueue(buffer);
 
         var source = new FanotifyVolumeChangeSource(native);
@@ -108,10 +114,10 @@ public class FanotifyVolumeChangeSourceEventTests
 
         var native = new FakeFanotifyNative
         {
-            InitializeResult = new FanotifyNativeCallResult(7, 0)
+            InitializeResult = new FanotifyNativeCallResult(7, 0),
+            HandleToFdMap = { [new FileHandleKey(0L, GetFullHandleBytes(handle))] = 201 },
+            FdToPathMap = { [201] = "/" }
         };
-        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(handle))] = 201;
-        native.FdToPathMap[201] = "/";
         native.ReadQueue.Enqueue(buffer);
 
         var source = new FanotifyVolumeChangeSource(native);
@@ -136,15 +142,15 @@ public class FanotifyVolumeChangeSourceEventTests
     [Test]
     public async Task WatchAsync_RootDirectoryParentWithFileName_FormatsPathCorrectly()
     {
-        var handle = new byte[] { 41, 42, 43, 44 };
+        var handle = ")*+,"u8.ToArray();
         var buffer = CreateSyntheticEventBuffer(FanotifyConstants.Create, handle, "test.txt");
 
         var native = new FakeFanotifyNative
         {
-            InitializeResult = new FanotifyNativeCallResult(7, 0)
+            InitializeResult = new FanotifyNativeCallResult(7, 0),
+            HandleToFdMap = { [new FileHandleKey(0L, GetFullHandleBytes(handle))] = 202 },
+            FdToPathMap = { [202] = "/" }
         };
-        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(handle))] = 202;
-        native.FdToPathMap[202] = "/";
         native.ReadQueue.Enqueue(buffer);
 
         var source = new FanotifyVolumeChangeSource(native);
@@ -169,15 +175,15 @@ public class FanotifyVolumeChangeSourceEventTests
     [Test]
     public async Task WatchAsync_EventUnderMarkedRoot_IsRoutedUnderSlash()
     {
-        var handle = new byte[] { 61, 62, 63, 64 };
+        var handle = "=>?@"u8.ToArray();
         var buffer = CreateSyntheticEventBuffer(FanotifyConstants.Create, handle, "repo.git");
 
         var native = new FakeFanotifyNative
         {
-            InitializeResult = new FanotifyNativeCallResult(7, 0)
+            InitializeResult = new FanotifyNativeCallResult(7, 0),
+            HandleToFdMap = { [new FileHandleKey(0L, GetFullHandleBytes(handle))] = 204 },
+            FdToPathMap = { [204] = ExistingDirectoryPath }
         };
-        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(handle))] = 204;
-        native.FdToPathMap[204] = ExistingDirectoryPath;
         native.ReadQueue.Enqueue(buffer);
 
         var source = new FanotifyVolumeChangeSource(native);
@@ -202,7 +208,7 @@ public class FanotifyVolumeChangeSourceEventTests
     public async Task WatchAsync_MalformedEvents_AreSkippedCleanly()
     {
         // 1. Info record where open_by_handle_at fails and readlink returns null
-        var handleUnresolved = new byte[] { 99, 99 };
+        var handleUnresolved = "cc"u8.ToArray();
         var unresolvedBuffer = CreateSyntheticEventBuffer(FanotifyConstants.Create, handleUnresolved, "unknown.txt");
 
         // 2. Event version != 3
@@ -227,7 +233,7 @@ public class FanotifyVolumeChangeSourceEventTests
         BitConverter.TryWriteBytes(incompleteInfo.AsSpan(26, 2), (ushort)12); // infoLen < 20
 
         // 5. Valid event that follows
-        var handleValid = new byte[] { 71, 72, 73, 74 };
+        var handleValid = "GHIJ"u8.ToArray();
         var validBuffer = CreateSyntheticEventBuffer(FanotifyConstants.Create, handleValid, "valid.txt");
 
 
@@ -235,10 +241,10 @@ public class FanotifyVolumeChangeSourceEventTests
 
         var native = new FakeFanotifyNative
         {
-            InitializeResult = new FanotifyNativeCallResult(7, 0)
+            InitializeResult = new FanotifyNativeCallResult(7, 0),
+            HandleToFdMap = { [new FileHandleKey(0L, GetFullHandleBytes(handleValid))] = 205 },
+            FdToPathMap = { [205] = "/repo/valid" }
         };
-        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(handleValid))] = 205;
-        native.FdToPathMap[205] = "/repo/valid";
         native.ReadQueue.Enqueue(combined);
 
         var source = new FanotifyVolumeChangeSource(native);
@@ -266,15 +272,15 @@ public class FanotifyVolumeChangeSourceEventTests
         var shortEvent = new byte[16];
         BitConverter.TryWriteBytes(shortEvent.AsSpan(0, 4), (uint)16);
 
-        var handleValid = new byte[] { 81, 82, 83, 84 };
+        var handleValid = "QRST"u8.ToArray();
         var validBuffer = CreateSyntheticEventBuffer(FanotifyConstants.Create, handleValid, "second.txt");
 
         var native = new FakeFanotifyNative
         {
-            InitializeResult = new FanotifyNativeCallResult(7, 0)
+            InitializeResult = new FanotifyNativeCallResult(7, 0),
+            HandleToFdMap = { [new FileHandleKey(0L, GetFullHandleBytes(handleValid))] = 206 },
+            FdToPathMap = { [206] = "/repo/second" }
         };
-        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(handleValid))] = 206;
-        native.FdToPathMap[206] = "/repo/second";
         native.ReadQueue.Enqueue(shortEvent);
         native.ReadQueue.Enqueue(validBuffer);
 
@@ -309,7 +315,7 @@ public class FanotifyVolumeChangeSourceEventTests
         BitConverter.TryWriteBytes(invalidHandleInfo.AsSpan(26, 2), (ushort)30);
         BitConverter.TryWriteBytes(invalidHandleInfo.AsSpan(36, 4), (uint)100); // handle_bytes = 100
 
-        var validHandle = new byte[] { 61, 62, 63, 64 };
+        var validHandle = "=>?@"u8.ToArray();
         var validBuffer = CreateSyntheticEventBuffer(FanotifyConstants.Create, validHandle, "ok.txt");
 
 
@@ -317,10 +323,10 @@ public class FanotifyVolumeChangeSourceEventTests
 
         var native = new FakeFanotifyNative
         {
-            InitializeResult = new FanotifyNativeCallResult(7, 0)
+            InitializeResult = new FanotifyNativeCallResult(7, 0),
+            HandleToFdMap = { [new FileHandleKey(0L, GetFullHandleBytes(validHandle))] = 207 },
+            FdToPathMap = { [207] = "/repo/ok" }
         };
-        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(validHandle))] = 207;
-        native.FdToPathMap[207] = "/repo/ok";
         native.ReadQueue.Enqueue(combined);
 
         var source = new FanotifyVolumeChangeSource(native);

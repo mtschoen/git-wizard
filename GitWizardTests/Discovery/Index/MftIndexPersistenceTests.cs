@@ -41,11 +41,6 @@ public class MftIndexPersistenceTests
         var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         await SeedAsync(files, drive, cache);
         var calls = 0;
-        Task<InProcessBrokerHandle> Unexpected(CancellationToken cancellationToken)
-        {
-            calls++;
-            throw new AssertionException("A warm open must not connect.");
-        }
         await using var session = await MftIndexSession.OpenAsync([drive], BrokerTestHarness.CreateSession(Unexpected),
             cache, intent, null, CancellationToken.None);
         using (Assert.EnterMultipleScope())
@@ -54,6 +49,13 @@ public class MftIndexPersistenceTests
             Assert.That(session.CaptureDriveStatuses().Single().IndexStatus!.Block?.Origin,
                 Is.EqualTo(BlockOrigin.WarmStartedFromCache));
             Assert.That(session.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)), Has.Count.EqualTo(1));
+        }
+        return;
+
+        Task<InProcessBrokerHandle> Unexpected(CancellationToken _)
+        {
+            calls++;
+            throw new AssertionException("A warm open must not connect.");
         }
     }
 

@@ -6,23 +6,15 @@ namespace GitWizardTests.Watch;
 // A scripted IVolumeChangeSource that spaces its batches apart in real time, used only to
 // exercise RepositoryWatchService's debounce-window flush (ScriptedVolumeChangeSource yields its
 // batches back-to-back, which never lets a debounce window elapse mid-stream).
-sealed class DelayedVolumeChangeSource : IVolumeChangeSource
+sealed class DelayedVolumeChangeSource(IReadOnlyList<VolumeChangeBatch> batches, TimeSpan delayBetweenBatches)
+    : IVolumeChangeSource
 {
-    readonly IReadOnlyList<VolumeChangeBatch> _batches;
-    readonly TimeSpan _delayBetweenBatches;
-
     // Explicit, empty-bodied implementation: this double never dies, so it never raises the
     // event, but a plain field-like `event` declaration that's never invoked triggers CS0067.
     event Action<string>? IVolumeChangeSource.SourceDied
     {
         add { }
         remove { }
-    }
-
-    public DelayedVolumeChangeSource(IReadOnlyList<VolumeChangeBatch> batches, TimeSpan delayBetweenBatches)
-    {
-        _batches = batches;
-        _delayBetweenBatches = delayBetweenBatches;
     }
 
     public Task<VolumeArmResult> ArmAndCatchUpAsync(
@@ -33,9 +25,9 @@ sealed class DelayedVolumeChangeSource : IVolumeChangeSource
     public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync(
         [EnumeratorCancellation] CancellationToken ct)
     {
-        foreach (var batch in _batches)
+        foreach (var batch in batches)
         {
-            await Task.Delay(_delayBetweenBatches, ct);
+            await Task.Delay(delayBetweenBatches, ct);
             yield return batch;
         }
     }

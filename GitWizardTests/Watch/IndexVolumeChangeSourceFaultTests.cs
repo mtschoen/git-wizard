@@ -44,7 +44,7 @@ public class IndexVolumeChangeSourceFaultTests
             ]), "The recovered drive's surviving repository is refreshed.");
         }
 
-        await harness.Scripted.WatchFor('X').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(60, 6, "after-recovery", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1003));
+        await harness.Scripted.WatchFor('X').PublishBatchAsync([PackedIndexFixture.Entry(60, 6, "after-recovery", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1003));
         Assert.That(await harness.ReadAsync(), Is.True);
         using (Assert.EnterMultipleScope())
         {
@@ -72,7 +72,7 @@ public class IndexVolumeChangeSourceFaultTests
 
         release.SetResult();
         await WaitUntilAsync(() => harness.ReadinessOf('X') == VolumeWatchState.CaughtUp);
-        await harness.Scripted.WatchFor('X').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(60, 6, "recovered", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1003));
+        await harness.Scripted.WatchFor('X').PublishBatchAsync([PackedIndexFixture.Entry(60, 6, "recovered", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1003));
         Assert.That(await harness.ReadAsync(), Is.True);
         Assert.That(harness.Deaths, Is.Empty);
     }
@@ -95,7 +95,7 @@ public class IndexVolumeChangeSourceFaultTests
                 "A lost channel is not recovered automatically.");
         }
 
-        await harness.Scripted.WatchFor('Y').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(50, 6, "survivor", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
+        await harness.Scripted.WatchFor('Y').PublishBatchAsync([PackedIndexFixture.Entry(50, 6, "survivor", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
         Assert.That(await harness.ReadAsync(), Is.True);
         Assert.That(harness.Current.Volume, Is.EqualTo("Y"));
 
@@ -179,7 +179,7 @@ public class IndexVolumeChangeSourceFaultTests
     {
         await using var harness = await FaultHarness.StartAsync('X', 'Y');
         harness.Owner.Index.Changed += _ => throw new InvalidOperationException("subscriber failed");
-        await harness.Scripted.WatchFor('X').PublishBatchAsync([IndexVolumeChangeSourceTests.Entry(50, 6, "changed", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
+        await harness.Scripted.WatchFor('X').PublishBatchAsync([PackedIndexFixture.Entry(50, 6, "changed", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
 
         Assert.That(await harness.ReadAsync(), Is.True);
         var exception = Assert.ThrowsAsync<InvalidOperationException>(async () => await harness.ReadAsync());
@@ -283,7 +283,7 @@ public class IndexVolumeChangeSourceFaultTests
             StartFailure = drive => drive == 'X' ? new IOException("start refused") : null
         };
         var index = await files.OpenMftIndexAsync(scripted, 'X', 'Y');
-        var owner = IndexVolumeChangeSourceTests.Owner(index, "X", "Y");
+        var owner = PackedIndexFixture.Owner(index, "X", "Y");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         var failures = new ConcurrentQueue<(string Drive, string Message)>();
         source.DriveFailed += (drive, message) => failures.Enqueue((drive, message));
@@ -314,7 +314,7 @@ public class IndexVolumeChangeSourceFaultTests
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
         var scripted = new ScriptedWatchSource();
-        var owner = IndexVolumeChangeSourceTests.Owner(await files.OpenMftIndexAsync(scripted, 'X'), "X");
+        var owner = PackedIndexFixture.Owner(await files.OpenMftIndexAsync(scripted, 'X'), "X");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         var failures = new List<string>();
         source.DriveFailed += (drive, _) => failures.Add(drive);
@@ -337,7 +337,6 @@ public class IndexVolumeChangeSourceFaultTests
 
     sealed class FaultHarness : IAsyncDisposable
     {
-        readonly PackedIndexFixture _files;
         readonly CancellationTokenSource _cancellation = new(TestTimeouts.HangGuard);
         readonly List<VolumeReadinessSnapshot> _snapshots = [];
         IAsyncEnumerator<VolumeChangeBatch>? _reader;
@@ -345,7 +344,7 @@ public class IndexVolumeChangeSourceFaultTests
         FaultHarness(PackedIndexFixture files, ScriptedWatchSource scripted, MftIndexSession owner,
             IndexVolumeChangeSource source)
         {
-            _files = files;
+            Files = files;
             Scripted = scripted;
             Owner = owner;
             Source = source;
@@ -373,9 +372,9 @@ public class IndexVolumeChangeSourceFaultTests
         }
 
         public ScriptedWatchSource Scripted { get; }
-        public PackedIndexFixture Files => _files;
+        public PackedIndexFixture Files { get; }
         public MftIndexSession Owner { get; }
-        public IndexVolumeChangeSource Source { get; }
+        IndexVolumeChangeSource Source { get; }
         readonly List<string> _deaths = [];
         readonly List<(string Drive, string Message)> _failures = [];
 
@@ -422,7 +421,7 @@ public class IndexVolumeChangeSourceFaultTests
                 files.BeforeProduceAsync = (_, token) => beforeRescan(token);
             }
 
-            var owner = IndexVolumeChangeSourceTests.Owner(index, names);
+            var owner = PackedIndexFixture.Owner(index, names);
             var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
             var harness = new FaultHarness(files, scripted, owner, source);
             await source.ArmAndCatchUpAsync(names, CancellationToken.None);
@@ -499,7 +498,7 @@ public class IndexVolumeChangeSourceFaultTests
             finally
             {
                 _cancellation.Dispose();
-                _files.Dispose();
+                Files.Dispose();
             }
         }
     }

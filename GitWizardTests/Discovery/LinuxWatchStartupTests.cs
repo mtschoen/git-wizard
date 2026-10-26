@@ -68,14 +68,6 @@ public class LinuxWatchStartupTests
         var searchRoot = CreateSearchRoot("repos");
         var repositoryPath = Path.Combine(searchRoot, "myrepo");
 
-        async Task<RecursiveDiscovery> Crawl(DiscoveryRequest request, string root, CancellationToken token)
-        {
-            Assert.That(marksInstalled.Task.IsCompletedSuccessfully, Is.True, "Marks must be installed before recursive crawl begins.");
-            crawlEntered.TrySetResult();
-            await finishCrawl.Task.WaitAsync(token);
-            return new RecursiveDiscovery([repositoryPath], [], new Dictionary<string, string>());
-        }
-
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {
             IsWindows = false,
@@ -132,6 +124,15 @@ public class LinuxWatchStartupTests
             Assert.That(inventoryBeforeStarted, Is.True, "InventoryReady must fire before Started.");
             Assert.That(enumerator.Current.RepoRoot, Is.EqualTo(repositoryPath));
             Assert.That(enumerator.Current.Kind, Is.EqualTo(RepositoryChangeKind.Changed));
+        }
+        return;
+
+        async Task<RecursiveDiscovery> Crawl(DiscoveryRequest _, string __, CancellationToken token)
+        {
+            Assert.That(marksInstalled.Task.IsCompletedSuccessfully, Is.True, "Marks must be installed before recursive crawl begins.");
+            crawlEntered.TrySetResult();
+            await finishCrawl.Task.WaitAsync(token);
+            return new RecursiveDiscovery([repositoryPath], [], new Dictionary<string, string>());
         }
     }
 
@@ -265,13 +266,6 @@ public class LinuxWatchStartupTests
         var source = new ScriptedLinuxVolumeSource();
         var crawlEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        async Task<RecursiveDiscovery> Crawl(DiscoveryRequest request, string root, CancellationToken token)
-        {
-            crawlEntered.TrySetResult();
-            await Task.Delay(Timeout.InfiniteTimeSpan, token);
-            return new RecursiveDiscovery([], [], new Dictionary<string, string>());
-        }
-
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {
             IsWindows = false,
@@ -295,5 +289,13 @@ public class LinuxWatchStartupTests
 
         Assert.CatchAsync<OperationCanceledException>(async () => await startupTask.WaitAsync(TestTimeouts.HangGuard));
         Assert.That(source.Disposed, Is.True, "Cancelled preparation must dispose source.");
+        return;
+
+        async Task<RecursiveDiscovery> Crawl(DiscoveryRequest _, string __, CancellationToken token)
+        {
+            crawlEntered.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            return new RecursiveDiscovery([], [], new Dictionary<string, string>());
+        }
     }
 }

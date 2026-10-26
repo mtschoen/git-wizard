@@ -43,13 +43,13 @@ public class ProgramLocalFilesEntryPointTests
     // read-only containing directory elsewhere. Returns the action that undoes it.
     static Action MakeUndeletable(string filePath, string directoryPath)
     {
-        if (OperatingSystem.IsWindows())
+        if (!OperatingSystem.IsWindows())
         {
-            File.SetAttributes(filePath, FileAttributes.ReadOnly);
-            return () => File.SetAttributes(filePath, FileAttributes.Normal);
+            return MakeDirectoryUndeletable(filePath, directoryPath);
         }
 
-        return MakeDirectoryUndeletable(filePath, directoryPath);
+        File.SetAttributes(filePath, FileAttributes.ReadOnly);
+        return () => File.SetAttributes(filePath, FileAttributes.Normal);
     }
 
     [UnsupportedOSPlatform("windows")]

@@ -135,14 +135,14 @@ public class RepositoryDiscoveryCoordinatorTests
         var configuration = new GitWizardConfiguration { SearchPaths = { broker.Drive('X').RootDirectory } };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, false, []);
 
-        var openedSession = session;
+        var sessionTask = Task.FromResult(session);
         var dependencies = new RepositoryDiscoveryDependencies
         {
             IsWindows = true,
             IsLinux = false,
             ClassifyRoot = root => new RootClassification(root, RootFileSystem.Ntfs, "X", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS crawler invoked"),
-            OpenIndexAsync = (_, _, _, _) => Task.FromResult(openedSession),
+            OpenIndexAsync = async (_, _, _, _) => await sessionTask,
             ReadListAsync = _ => Task.FromResult<string[]?>(null),
             WriteListAsync = (_, _) => Task.CompletedTask,
             CandidateExists = (_, _) => true,
@@ -171,14 +171,14 @@ public class RepositoryDiscoveryCoordinatorTests
         var configuration = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Rebuild, true, false, []);
 
-        var fileIndex = index;
+        var indexTask = Task.FromResult(index);
         var dependencies = new RepositoryDiscoveryDependencies
         {
             IsWindows = true,
             IsLinux = false,
             ClassifyRoot = root => new RootClassification(root, RootFileSystem.Ntfs, "X", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS crawler invoked"),
-            OpenIndexAsync = (_, _, _, _) => Task.FromResult(new MftIndexSession(fileIndex, null, ["X"], [], new Dictionary<string, string>())),
+            OpenIndexAsync = async (_, _, _, _) => new MftIndexSession(await indexTask, null, ["X"], [], new Dictionary<string, string>()),
             ReadListAsync = _ => Task.FromResult<string[]?>([@"C:\old"]),
             WriteListAsync = (_, _) => Task.CompletedTask,
             CandidateExists = (_, _) => true,

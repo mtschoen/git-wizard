@@ -121,7 +121,7 @@ public class IndexVolumeChangeSourceCompletionTests
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
         var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
-        var owner = IndexVolumeChangeSourceTests.Owner(
+        var owner = PackedIndexFixture.Owner(
             await files.OpenMftIndexAsync(scripted, 'X'), "X");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
@@ -147,7 +147,7 @@ public class IndexVolumeChangeSourceCompletionTests
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
         var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
-        var owner = IndexVolumeChangeSourceTests.Owner(
+        var owner = PackedIndexFixture.Owner(
             await files.OpenMftIndexAsync(scripted, 'X', 'Y'), "X", "Y");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
@@ -171,7 +171,7 @@ public class IndexVolumeChangeSourceCompletionTests
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
         var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
-        var owner = IndexVolumeChangeSourceTests.Owner(
+        var owner = PackedIndexFixture.Owner(
             await files.OpenMftIndexAsync(scripted, 'X'), "X");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
@@ -208,7 +208,7 @@ public class IndexVolumeChangeSourceCompletionTests
         using var files = new PackedIndexFixture();
         files.AddMarker("oldrepo");
         var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
-        var owner = IndexVolumeChangeSourceTests.Owner(await files.OpenMftIndexAsync(scripted, 'X'), "X");
+        var owner = PackedIndexFixture.Owner(await files.OpenMftIndexAsync(scripted, 'X'), "X");
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         files.BeforeProduceAsync = (_, token) => release.Task.WaitAsync(token);
 
@@ -301,7 +301,7 @@ public class IndexVolumeChangeSourceCompletionTests
         }
 
         public ScriptedWatchSource Scripted { get; } = new() { CatchUpOnStart = true };
-        public MftIndexSession Owner { get; private set; } = null!;
+        MftIndexSession Owner { get; set; } = null!;
         public IndexVolumeChangeSource Source { get; private set; } = null!;
         public Task SecondFaultInjected => _secondFaultInjected.Task;
         public bool CaughtUpPublishedAfterSecondFault => Volatile.Read(ref _caughtUpAfterSecondFault) != 0;
@@ -334,7 +334,7 @@ public class IndexVolumeChangeSourceCompletionTests
                 scenario._firstRescan.SetResult();
             }
 
-            scenario.Owner = IndexVolumeChangeSourceTests.Owner(index, drives.Select(drive => drive.ToString()).ToArray());
+            scenario.Owner = PackedIndexFixture.Owner(index, drives.Select(drive => drive.ToString()).ToArray());
             var owner = scenario.Owner;
             scenario.Source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner))
             {

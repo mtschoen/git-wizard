@@ -28,9 +28,9 @@ sealed class FakeFanotifyNative : IFanotifyNative
     public List<FanotifyMarkCall> MarkCalls { get; } = [];
     public List<int> ClosedDescriptors { get; } = [];
 
-    public int PollResult { get; set; } = 1;
-    public bool ReadReturnsZero { get; set; }
-    public bool ReadThrowsException { get; set; }
+    public int PollResult { get; init; } = 1;
+    public bool ReadReturnsZero { get; init; }
+    public bool ReadThrowsException { get; init; }
     public Queue<byte[]> ReadQueue { get; } = new();
 
     public Dictionary<FileHandleKey, int> HandleToFdMap { get; } = new();
@@ -74,12 +74,7 @@ sealed class FakeFanotifyNative : IFanotifyNative
             return 1;
         }
 
-        if (ReadQueue.Count > 0)
-        {
-            return 1;
-        }
-
-        return 0;
+        return ReadQueue.Count > 0 ? 1 : 0;
     }
 
     public int Read(int descriptor, byte[] buffer, int count)
@@ -181,17 +176,14 @@ sealed class FakeFanotifyNative : IFanotifyNative
 
     public string? ReadLink(string path)
     {
-        if (path.StartsWith("/proc/self/fd/", StringComparison.Ordinal)
-            && int.TryParse(path["/proc/self/fd/".Length..], out var fd))
+        if (!path.StartsWith("/proc/self/fd/", StringComparison.Ordinal)
+            || !int.TryParse(path["/proc/self/fd/".Length..], out var fd))
         {
-            if (_relativePathByDirectoryDescriptor.TryGetValue(fd, out var relativePath))
-            {
-                return Path.Combine(_rootByDirectoryDescriptor[fd], relativePath);
-            }
-
-            return FdToPathMap.TryGetValue(fd, out var resolved) ? resolved : null;
+            return null;
         }
 
-        return null;
+        return _relativePathByDirectoryDescriptor.TryGetValue(fd, out var relativePath)
+            ? Path.Combine(_rootByDirectoryDescriptor[fd], relativePath)
+            : FdToPathMap.GetValueOrDefault(fd);
     }
 }

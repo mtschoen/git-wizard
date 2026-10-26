@@ -34,8 +34,7 @@ public class RepositoryDiscoveryCoordinatorCheckpointLossTests
             Interlocked.Increment(ref _productions);
             return Task.CompletedTask;
         };
-        _windows = new ConcurrentDictionary<char, SyntheticJournalWindow>();
-        _windows['X'] = Healthy;
+        _windows = new ConcurrentDictionary<char, SyntheticJournalWindow> { ['X'] = Healthy };
         _scope = JournalIsolation.OverrideJournalWindow(
             drive => _windows.TryGetValue(drive.Letter, out var window) ? window : null);
     }

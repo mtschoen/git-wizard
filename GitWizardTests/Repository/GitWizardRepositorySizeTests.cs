@@ -1,4 +1,3 @@
-using System.Text;
 using GitWizard;
 using GitWizardTests.TestSupport;
 
@@ -19,8 +18,8 @@ public class GitWizardRepositorySizeTests
     {
         using var directory = new TempDirectory("gw-size-");
         var dir = directory.Path;
-        File.WriteAllBytes(Path.Combine(dir, "a.txt"), Encoding.UTF8.GetBytes("hello"));
-        File.WriteAllBytes(Path.Combine(dir, "b.txt"), Encoding.UTF8.GetBytes("world!"));
+        File.WriteAllBytes(Path.Combine(dir, "a.txt"), "hello"u8);
+        File.WriteAllBytes(Path.Combine(dir, "b.txt"), "world!"u8);
 
         var size = GitWizardRepository.ComputeDirectorySize(dir);
         Assert.That(size, Is.EqualTo(11));
@@ -33,8 +32,8 @@ public class GitWizardRepositorySizeTests
         var dir = directory.Path;
         var subDir = Path.Combine(dir, "sub");
         Directory.CreateDirectory(subDir);
-        File.WriteAllBytes(Path.Combine(dir, "root.txt"), Encoding.UTF8.GetBytes("root"));
-        File.WriteAllBytes(Path.Combine(subDir, "nested.txt"), Encoding.UTF8.GetBytes("nested"));
+        File.WriteAllBytes(Path.Combine(dir, "root.txt"), "root"u8);
+        File.WriteAllBytes(Path.Combine(subDir, "nested.txt"), "nested"u8);
 
         var size = GitWizardRepository.ComputeDirectorySize(dir);
         Assert.That(size, Is.EqualTo(10));

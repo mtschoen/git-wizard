@@ -4,6 +4,7 @@ using GitWizardTests.TestSupport;
 using MFTLib;
 using MFTLib.Index;
 using MFTLibTestExtensions;
+using static GitWizardTests.TestSupport.PackedIndexFixture;
 
 namespace GitWizardTests.Watch;
 
@@ -52,7 +53,7 @@ public class IndexVolumeChangeSourceTests
         await scripted.WatchFor('X').PublishBatchAsync([
             Entry(6, 5, "first", SyntheticJournalReason.RenameNewName, true),
             Entry(6, 5, "second", SyntheticJournalReason.RenameNewName, true)
-        ], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
+        ], new SyntheticJournalCursor(JournalIdentifier, 1002));
         var change = await observed.Task.WaitAsync(TestTimeouts.HangGuard);
         await index.StopWatchingAsync(['X'], CancellationToken.None);
         await TestContext.Out.WriteLineAsync($"Entry.Path = '{change.Entry.Path}'; Path = '{change.Path}'");
@@ -206,8 +207,8 @@ public class IndexVolumeChangeSourceTests
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
         var firstRead = reader.MoveNextAsync().AsTask();
         Assert.That(starts, Is.EquivalentTo([
-            new ScriptedWatchStart('X', new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, PackedIndexFixture.NextUsn)),
-            new ScriptedWatchStart('Y', new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, PackedIndexFixture.NextUsn))
+            new ScriptedWatchStart('X', new SyntheticJournalCursor(JournalIdentifier, NextUsn)),
+            new ScriptedWatchStart('Y', new SyntheticJournalCursor(JournalIdentifier, NextUsn))
         ]), "Arming must start the watch.");
         // Routed through IndexVolumeChangeSource, which rewrites every path back onto its own
         // configured drive letter (MFTLib #143), so these stay the pre-existing synthetic shape.
@@ -215,9 +216,9 @@ public class IndexVolumeChangeSourceTests
             Entry(50, 6, "file.txt", SyntheticJournalReason.FileCreate),
             Entry(50, 6, "renamed.txt", SyntheticJournalReason.RenameNewName),
             Entry(50, 6, "renamed.txt", SyntheticJournalReason.FileDelete)
-        ], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1004));
+        ], new SyntheticJournalCursor(JournalIdentifier, 1004));
         Assert.That(await firstRead, Is.True);
-        Assert.That(reader.Current, Is.EqualTo(new VolumeChangeBatch("X", reader.Current.Entries)));
+        Assert.That(reader.Current, Is.EqualTo(reader.Current with { Volume = "X" }));
         Assert.That(reader.Current.Entries, Is.EqualTo([
             new VolumeChangeEntry(@"X:\repo\file.txt", VolumeEntryKind.Created)
         ]));
@@ -230,7 +231,7 @@ public class IndexVolumeChangeSourceTests
         Assert.That(await reader.MoveNextAsync(), Is.True);
         Assert.That(reader.Current.Entries.Single(), Is.EqualTo(
             new VolumeChangeEntry(@"X:\repo\renamed.txt", VolumeEntryKind.Deleted)));
-        await scripted.WatchFor('Y').PublishBatchAsync([Entry(51, 6, "other.txt", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
+        await scripted.WatchFor('Y').PublishBatchAsync([Entry(51, 6, "other.txt", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(JournalIdentifier, 1002));
         Assert.That(await reader.MoveNextAsync(), Is.True);
         using (Assert.EnterMultipleScope())
         {
@@ -264,7 +265,7 @@ public class IndexVolumeChangeSourceTests
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
         var pending = reader.MoveNextAsync().AsTask();
         await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
-        await scripted.WatchFor('X').PublishBatchAsync([Entry(50, 6, "ordinary.txt", reason)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
+        await scripted.WatchFor('X').PublishBatchAsync([Entry(50, 6, "ordinary.txt", reason)], new SyntheticJournalCursor(JournalIdentifier, 1002));
         Assert.That(await pending, Is.True);
         using (Assert.EnterMultipleScope())
         {
@@ -349,9 +350,6 @@ public class IndexVolumeChangeSourceTests
             new VolumeScanProgress("Y", 2, 2, 600_000u, 1_200_000u)
         ]));
     }
-
-    internal static MftIndexSession Owner(FileIndex index, params string[] drives) =>
-        new(index, null, drives, [], new Dictionary<string, string>());
 
     [Test]
     public async Task CacheDeclinedDriveSurfacesCheckpointLossHint()
@@ -465,18 +463,4 @@ public class IndexVolumeChangeSourceTests
         Assert.That(warnings.Select(warning => warning.Loss),
             Is.EqualTo([liveLoss, liveLoss, recreationLoss2]));
     }
-
-
-    internal static SyntheticJournalRecord Entry(ulong record, ulong parent, string name, SyntheticJournalReason reason,
-        bool directory = false) => new SyntheticJournalRecord
-        {
-            RecordNumber = record,
-            ParentRecordNumber = parent,
-            SequenceNumber = 1,
-            FileName = name,
-            Reason = reason,
-            FileAttributes = directory ? FileAttributes.Directory : FileAttributes.Normal,
-            Timestamp = PackedIndexFixture.CompletionTimestamp,
-            Usn = 1001
-        };
 }

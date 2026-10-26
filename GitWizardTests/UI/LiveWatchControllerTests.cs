@@ -139,15 +139,9 @@ public class LiveWatchControllerTests
     {
         var source = new ScriptedVolumeChangeSource { KeepWatching = true, ReplayDeathToLateSubscribers = true };
         var sourceFactoryCallCount = 0;
-        Func<IVolumeChangeSource> factory = () =>
-        {
-            sourceFactoryCallCount++;
-            return source;
-        };
-
         var stoppedReasons = new List<string>();
         var controller = NewController(
-            factory,
+            Factory,
             trackedRoots: Array.Empty<string>(),
             searchRoots: Array.Empty<string>(),
             onEvent: _ => { },
@@ -168,6 +162,13 @@ public class LiveWatchControllerTests
             Assert.That(sourceFactoryCallCount, Is.EqualTo(1));
             Assert.That(stoppedReasons, Is.EqualTo(["volume unmounted"]));
         }
+        return;
+
+        IVolumeChangeSource Factory()
+        {
+            sourceFactoryCallCount++;
+            return source;
+        }
     }
 
     [Test]
@@ -177,15 +178,9 @@ public class LiveWatchControllerTests
         var secondSource = new ScriptedVolumeChangeSource(Array.Empty<VolumeChangeBatch>());
         var sources = new Queue<IVolumeChangeSource>([firstSource, secondSource]);
         var sourceFactoryCallCount = 0;
-        var factory = () =>
-        {
-            sourceFactoryCallCount++;
-            return sources.Dequeue();
-        };
-
         var stoppedReasons = new List<string>();
         var controller = NewController(
-            factory,
+            Factory,
             trackedRoots: Array.Empty<string>(),
             searchRoots: Array.Empty<string>(),
             onEvent: _ => { },
@@ -208,6 +203,13 @@ public class LiveWatchControllerTests
             Assert.That(stoppedReasons, Is.Empty);
             Assert.That(firstSource.DisposeCount, Is.EqualTo(1),
                 "the dead source must be disposed before the elevated respawn");
+        }
+        return;
+
+        IVolumeChangeSource Factory()
+        {
+            sourceFactoryCallCount++;
+            return sources.Dequeue();
         }
     }
 
@@ -285,15 +287,9 @@ public class LiveWatchControllerTests
     {
         var source = new ScriptedVolumeChangeSource { KeepWatching = true, ReplayDeathToLateSubscribers = true };
         var sourceFactoryCallCount = 0;
-        Func<IVolumeChangeSource> factory = () =>
-        {
-            sourceFactoryCallCount++;
-            return source;
-        };
-
         var stoppedReasons = new List<string>();
         var controller = NewController(
-            factory,
+            Factory,
             trackedRoots: Array.Empty<string>(),
             searchRoots: Array.Empty<string>(),
             onEvent: _ => { },
@@ -313,6 +309,13 @@ public class LiveWatchControllerTests
             Assert.That(sourceFactoryCallCount, Is.EqualTo(1));
             Assert.That(source.DisposeCount, Is.EqualTo(1));
         }
+        return;
+
+        IVolumeChangeSource Factory()
+        {
+            sourceFactoryCallCount++;
+            return source;
+        }
     }
 
     // Critical 2 (TOCTOU): a StopAsync landing while an elevated respawn is mid-flight must win -
@@ -327,15 +330,9 @@ public class LiveWatchControllerTests
         var secondSource = new ScriptedVolumeChangeSource { KeepWatching = true, ReplayDeathToLateSubscribers = true };
         var sources = new Queue<IVolumeChangeSource>([firstSource, secondSource]);
         var sourceFactoryCallCount = 0;
-        var factory = () =>
-        {
-            sourceFactoryCallCount++;
-            return sources.Dequeue();
-        };
-
         var stoppedReasons = new List<string>();
         var controller = NewController(
-            factory,
+            Factory,
             trackedRoots: Array.Empty<string>(),
             searchRoots: Array.Empty<string>(),
             onEvent: _ => { },
@@ -359,6 +356,13 @@ public class LiveWatchControllerTests
             Assert.That(sourceFactoryCallCount, Is.EqualTo(1),
                     "no new source may be created after a stop that raced an elevated respawn");
             Assert.That(stoppedReasons, Is.Empty);
+        }
+        return;
+
+        IVolumeChangeSource Factory()
+        {
+            sourceFactoryCallCount++;
+            return sources.Dequeue();
         }
     }
 

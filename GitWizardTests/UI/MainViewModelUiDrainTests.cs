@@ -190,7 +190,7 @@ public class MainViewModelUiDrainTests
         Assert.DoesNotThrow(() => vm.Refresh.OnRepositoryCreated(Repo("C:/repos/late")));
         Assert.That(clock.CreatedTimerCount, Is.Zero, "No window starts once disposal began.");
 
-        dispatcher.ReleaseInvokeAsync();
+        dispatcher.ReleaseInvoke();
         await disposal;
         vm.Refresh.DrainUICommands();
 
@@ -240,7 +240,7 @@ public class MainViewModelUiDrainTests
 
     // Reports it is off the UI thread and queues every Post, so a test controls when each posted
     // drain runs. InvokeAsync runs inline so DisposeAsync completes without a pump, unless
-    // HoldInvokeAsync parks it until ReleaseInvokeAsync so a test can act mid-disposal.
+    // HoldInvokeAsync parks it until ReleaseInvoke so a test can act mid-disposal.
     sealed class RecordingUiDispatcher : IUiDispatcher
     {
         readonly Queue<Action> _queued = new();
@@ -252,7 +252,7 @@ public class MainViewModelUiDrainTests
         public bool IsOnUiThread => true;
         public int QueuedCount => _queued.Count;
         public void Post(Action action, string callbackName = "") => _queued.Enqueue(action);
-        public void ReleaseInvokeAsync() => _invokeReleased.TrySetResult();
+        public void ReleaseInvoke() => _invokeReleased.TrySetResult();
 
         public async Task InvokeAsync(Action action, string callbackName = "")
         {

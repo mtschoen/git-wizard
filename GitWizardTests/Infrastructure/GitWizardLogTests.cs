@@ -392,8 +392,8 @@ public class GitWizardLogTests
         using var sandbox = new LocalFilesSandbox();
         var originalOut = Console.Out;
         var originalError = Console.Error;
-        using var stdout = new StringWriter();
-        using var stderr = new StringWriter();
+        await using var stdout = new StringWriter();
+        await using var stderr = new StringWriter();
         try
         {
             await File.WriteAllTextAsync(GitWizardApi.GetLogFolderPath(), "blocked");
@@ -507,32 +507,34 @@ public class GitWizardLogTests
         {
             Assert.That(record, Does.Contain(detail.GetType().FullName));
             Assert.That(record, Does.Contain(detail.Message));
-            if (detail.StackTrace != null)
+            if (detail.StackTrace == null)
             {
-                Assert.That(detail.StackTrace, Does.Contain(nameof(CaptureNestedException))
-                                .Or.Contain(nameof(CaptureDeepNestedException)));
-                Assert.That(record, Does.Contain(detail.StackTrace));
+                continue;
             }
+
+            Assert.That(detail.StackTrace, Does.Contain(nameof(CaptureNestedException))
+                            .Or.Contain(nameof(CaptureDeepNestedException)));
+            Assert.That(record, Does.Contain(detail.StackTrace));
         }
-        if (scenario == "never-thrown")
+        switch (scenario)
         {
-            Assert.That(exception.StackTrace, Is.Null);
-        }
-        else if (scenario == "deep-nested")
-        {
-            Assert.That(exception.StackTrace, Is.Not.Null);
-            Assert.That(exception.InnerException!.StackTrace, Is.Not.Null);
-            Assert.That(exception.InnerException!.InnerException!.StackTrace, Is.Not.Null);
-        }
-        else
-        {
-            Assert.That(first.StackTrace, Is.Not.Null);
-            Assert.That(first.InnerException!.StackTrace, Is.Not.Null);
-            if (scenario == "aggregate")
-            {
-                Assert.That(second.StackTrace, Is.Not.Null);
-                Assert.That(second.InnerException!.StackTrace, Is.Not.Null);
-            }
+            case "never-thrown":
+                Assert.That(exception.StackTrace, Is.Null);
+                break;
+            case "deep-nested":
+                Assert.That(exception.StackTrace, Is.Not.Null);
+                Assert.That(exception.InnerException!.StackTrace, Is.Not.Null);
+                Assert.That(exception.InnerException!.InnerException!.StackTrace, Is.Not.Null);
+                break;
+            default:
+                Assert.That(first.StackTrace, Is.Not.Null);
+                Assert.That(first.InnerException!.StackTrace, Is.Not.Null);
+                if (scenario == "aggregate")
+                {
+                    Assert.That(second.StackTrace, Is.Not.Null);
+                    Assert.That(second.InnerException!.StackTrace, Is.Not.Null);
+                }
+                break;
         }
     }
 

@@ -26,7 +26,7 @@ public class CandidateAdmissionPolicyTests
         public override string ToString() => Name;
     }
 
-    public static IEnumerable<AdmissionCase> Cases()
+    static IEnumerable<AdmissionCase> Cases()
     {
         yield return new AdmissionCase("ordinary repository", "repo", null, true, null, true);
         yield return new AdmissionCase("ignored root itself", "", "", false, null, false);
@@ -121,7 +121,7 @@ public class CandidateAdmissionPolicyTests
             request, [scopePath], [], ignoredPath is null ? [] : [ignoredPath],
             root => new RootClassification(root, RootFileSystem.Ntfs, "X", null));
         var replay = CandidateAdmissionPolicy.AdmitsInventoryCandidate(scope, repositoryPath);
-        var linuxRetainedRoots = (await LinuxRetainedRootAdmissionTests.InventoryAsync(
+        var linuxRetainedRoots = (await CandidateSelection.InventoryAsync(
                 scopePath, repositoryPath, ignoredPath, admissionCase.SkipHiddenDirectories, admissionCase.IncludeTemporary))
             .Any(path => SamePath(path, repositoryPath));
 
@@ -145,7 +145,7 @@ public class CandidateAdmissionPolicyTests
         public override string ToString() => Name;
     }
 
-    public static IEnumerable<SyntaxCase> SyntaxCases()
+    static IEnumerable<SyntaxCase> SyntaxCases()
     {
         yield return new SyntaxCase("Windows ignored volume root with trailing separator", "C:\\", @"C:\repos\repo", "C:\\", false, false);
         yield return new SyntaxCase("Windows ignored volume root with slash", "C:\\", @"C:\repos\repo", "C:/", false, false);

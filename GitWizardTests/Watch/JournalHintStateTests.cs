@@ -29,16 +29,9 @@ public class JournalHintStateTests
         JournalCheckpointLossCause.JournalAdvanced
     ];
 
-    static IEnumerable<TestCaseData> RecoverableLosses()
-    {
-        foreach (var detection in RecoverableDetections)
-        {
-            foreach (var cause in Causes)
-            {
-                yield return new TestCaseData(cause, detection).SetName($"{cause}_{detection}");
-            }
-        }
-    }
+    static IEnumerable<TestCaseData> RecoverableLosses() =>
+        RecoverableDetections.SelectMany(_ => Causes, (detection, cause) =>
+            new TestCaseData(cause, detection).SetName($"{cause}_{detection}"));
 
     static JournalCheckpointLoss CreateLoss(JournalCheckpointLossCause cause, JournalCheckpointLossDetection detection) =>
         SyntheticNotifications.CreateJournalCheckpointLoss('D', cause, detection,

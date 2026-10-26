@@ -17,10 +17,9 @@ sealed class CliDiscoveryFixture : IAsyncDisposable
     public StringWriter Stdout { get; } = new();
     public StringWriter Stderr { get; } = new();
     readonly LocalFilesSandbox _sandbox = new();
-    public string TempHome => _sandbox.Path;
-    public GitWizardConfiguration Configuration { get; set; }
-    public bool NoMft { get; set; }
-    public int ExitCode { get; private set; }
+    public GitWizardConfiguration Configuration { get; }
+    bool NoMft { get; }
+    int ExitCode { get; set; }
 
     public CliDiscoveryFixture(string command, bool noMft = false, params string[] extraArgs)
     {
@@ -57,11 +56,13 @@ sealed class CliDiscoveryFixture : IAsyncDisposable
                 _substMapped = true;
             }
 
-            if (Directory.Exists(@"Z:\") && !Directory.Exists(@"Z:\shared"))
+            if (!Directory.Exists(@"Z:\") || Directory.Exists(@"Z:\shared"))
             {
-                Directory.CreateDirectory(@"Z:\shared");
-                _createdZShared = true;
+                return;
             }
+
+            Directory.CreateDirectory(@"Z:\shared");
+            _createdZShared = true;
         }
         catch
         {
@@ -104,11 +105,10 @@ sealed class CliDiscoveryFixture : IAsyncDisposable
         argsList.AddRange(_extraArgs);
 
         var parseResult = CliParser.Parse(argsList.ToArray());
-        var runConfig = parseResult;
 
         var coordinator = new RepositoryDiscoveryCoordinator(Dependencies.BuildDependencies());
         ExitCode = await Program.RunCommandCoreAsync(
-            runConfig,
+            parseResult,
             Configuration,
             coordinator,
             Stdout,

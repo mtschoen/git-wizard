@@ -91,8 +91,8 @@ public class ProgramIndexCacheEntryPointTests
         try
         {
             using var files = new PackedIndexFixture();
-            using var output = new StringWriter();
-            using var error = new StringWriter();
+            await using var output = new StringWriter();
+            await using var error = new StringWriter();
             var snapshot = new MftIndexCacheInspection(new FrozenCacheClock(), true,
                 _ => throw new IOException("unreadable inventory")).Capture(files.DirectoryPath);
             Assert.That(await Program.WriteIndexCacheStatusAsync(snapshot, output, error), Is.EqualTo(1));

@@ -12,8 +12,6 @@ namespace GitWizardTests.Watch.Linux;
 [SupportedOSPlatform("linux")]
 sealed class TemporaryTmpfsMount : IDisposable
 {
-    bool _unmounted;
-
     TemporaryTmpfsMount(string path) => Path = path;
 
     public string Path { get; }
@@ -34,25 +32,8 @@ sealed class TemporaryTmpfsMount : IDisposable
         return null;
     }
 
-    /// <summary>Detaches the mount lazily, as a still-open descriptor would otherwise keep it busy.</summary>
-    public void DetachLazily()
-    {
-        var result = Run("umount", "-l", Path);
-        if (result.ExitCode != 0)
-        {
-            throw new InvalidOperationException($"Lazy unmount of {Path} failed: {result.Output.Trim()}");
-        }
-
-        _unmounted = true;
-    }
-
     public void Dispose()
     {
-        if (_unmounted)
-        {
-            return;
-        }
-
         var result = Run("umount", Path);
         if (result.ExitCode == 0)
         {

@@ -17,6 +17,16 @@ public class DiscoveryScopeTests
         };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Watch, false, false,
             [@"E:\retained", @"c:\retained"]);
+        var scope = DiscoveryScope.CreateExpanded(request, configuration.SearchPaths.ToArray(),
+            request.RetainedRoots, [], Classify);
+        Assert.That(scope.RequestedNtfsDrives, Is.EquivalentTo(["C", "D", "E"]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(scope.RequestedNtfsDrives, Is.EqualTo(["C", "D", "E"]));
+            Assert.That(scope.RecursiveRoots, Is.EqualTo([@"Z:\shared"]));
+        }
+        return;
+
         RootClassification Classify(string root)
         {
             if (root.StartsWith(@"Z:\", StringComparison.Ordinal))
@@ -34,15 +44,6 @@ public class DiscoveryScopeTests
             };
             return new RootClassification(root, RootFileSystem.Ntfs, drive, null);
         }
-
-        var scope = DiscoveryScope.CreateExpanded(request, configuration.SearchPaths.ToArray(),
-            request.RetainedRoots, [], Classify);
-        Assert.That(scope.RequestedNtfsDrives, Is.EquivalentTo(["C", "D", "E"]));
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(scope.RequestedNtfsDrives, Is.EqualTo(["C", "D", "E"]));
-            Assert.That(scope.RecursiveRoots, Is.EqualTo([@"Z:\shared"]));
-        }
     }
 
     [TestCase(false)]
@@ -54,9 +55,6 @@ public class DiscoveryScopeTests
             SearchPaths = { @"U:\unknown" }
         };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, noMft, []);
-        RootClassification Classify(string root) =>
-            new(root, RootFileSystem.Unknown, null, "access denied");
-
         var scope = DiscoveryScope.CreateExpanded(request, configuration.SearchPaths.ToArray(),
             request.RetainedRoots, [], Classify);
 
@@ -72,6 +70,10 @@ public class DiscoveryScopeTests
         {
             Assert.That(scope.RecursiveRoots, Does.Contain(@"U:\unknown"));
         }
+        return;
+
+        RootClassification Classify(string root) =>
+            new(root, RootFileSystem.Unknown, null, "access denied");
     }
 
     [Test]
@@ -82,15 +84,6 @@ public class DiscoveryScopeTests
             SearchPaths = { @"C:\ntfs", @"Z:\remote", @"U:\unknown" }
         };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Watch, false, true, [@"E:\retained"]);
-        RootClassification Classify(string root) => root switch
-        {
-            @"C:\ntfs" => new RootClassification(root, RootFileSystem.Ntfs, "C", null),
-            @"Z:\remote" => new RootClassification(root, RootFileSystem.Recursive, null, null),
-            @"U:\unknown" => new RootClassification(root, RootFileSystem.Unknown, null, "not available"),
-            @"E:\retained" => new RootClassification(root, RootFileSystem.Ntfs, "E", null),
-            _ => new RootClassification(root, RootFileSystem.Unknown, null, "unrecognized")
-        };
-
         var scope = DiscoveryScope.CreateExpanded(request, configuration.SearchPaths.ToArray(),
             request.RetainedRoots, [], Classify);
 
@@ -100,5 +93,15 @@ public class DiscoveryScopeTests
             Assert.That(scope.WatchExcludedRoots, Does.Contain(@"U:\unknown"));
             Assert.That(scope.RequestedNtfsDrives, Is.EquivalentTo(["C", "E"]));
         }
+        return;
+
+        RootClassification Classify(string root) => root switch
+        {
+            @"C:\ntfs" => new RootClassification(root, RootFileSystem.Ntfs, "C", null),
+            @"Z:\remote" => new RootClassification(root, RootFileSystem.Recursive, null, null),
+            @"U:\unknown" => new RootClassification(root, RootFileSystem.Unknown, null, "not available"),
+            @"E:\retained" => new RootClassification(root, RootFileSystem.Ntfs, "E", null),
+            _ => new RootClassification(root, RootFileSystem.Unknown, null, "unrecognized")
+        };
     }
 }

@@ -25,7 +25,7 @@ sealed class FakeJournalSettingsSource : IVolumeChangeSource, IUsnJournalGrower
     public Exception? GrowFailure { get; set; }
     public int GrowCalls { get; private set; }
     public UsnJournalSettings? RequestedGrowthTarget { get; private set; }
-    public bool CompleteAfterArm { get; set; }
+    public bool CompleteAfterArm { get; init; }
 
     public event Action<string>? SourceDied
     {

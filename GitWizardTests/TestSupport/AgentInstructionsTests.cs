@@ -6,6 +6,18 @@ using System.Xml.Linq;
 using GitWizard.CLI;
 using NUnit.Framework.Interfaces;
 
+static partial class AgentInstructionRegex
+{
+    [GeneratedRegex(@"\r?\n[\t ]*\r?\n")]
+    internal static partial Regex DocumentBlocks();
+
+    [GeneratedRegex(@"\]\((docs/[^)#]+\.md)(?:#[^)]*)?\)")]
+    internal static partial Regex DocumentationLinks();
+
+    [GeneratedRegex("--[a-z][a-z-]*")]
+    internal static partial Regex CommandLineFlags();
+}
+
 [NonParallelizable]
 public class AgentInstructionsTests
 {
@@ -18,7 +30,7 @@ public class AgentInstructionsTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(instructions.EnumerateRunes().Count(), Is.LessThan(15000));
-            foreach (var block in Regex.Split(instructions, @"\r?\n[\t ]*\r?\n"))
+            foreach (var block in AgentInstructionRegex.DocumentBlocks().Split(instructions))
             {
                 Assert.That(block.EnumerateRunes().Count(), Is.LessThan(3000), block);
             }
@@ -28,7 +40,7 @@ public class AgentInstructionsTests
     [Test]
     public void Instructions_LinkToExistingDocumentation()
     {
-        var links = Regex.Matches(Read("AGENTS.md"), @"\]\((docs/[^)#]+\.md)(?:#[^)]*)?\)");
+        var links = AgentInstructionRegex.DocumentationLinks().Matches(Read("AGENTS.md"));
         Assert.That(links, Is.Not.Empty);
         foreach (Match link in links)
         {
@@ -44,8 +56,8 @@ public class AgentInstructionsTests
         var documented = Read("docs/cli-options.md");
         var help = Capture(command.Length == 0 ? ["--help"] : [command, "--help"]);
         var parser = Read("git-wizard/CliParser.cs") + Read("git-wizard/CliParser.Subcommands.cs");
-        var flags = Regex.Matches(help, "--[a-z][a-z-]*")
-            .Concat(Regex.Matches(parser, "--[a-z][a-z-]*"))
+        var flags = AgentInstructionRegex.CommandLineFlags().Matches(help)
+            .Concat(AgentInstructionRegex.CommandLineFlags().Matches(parser))
             .Select(match => match.Value).Distinct();
         using (Assert.EnterMultipleScope())
         {

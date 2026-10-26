@@ -23,7 +23,7 @@ enum SyntheticDriveBehavior
 /// </summary>
 static class StatusSessions
 {
-    public static string ProducerFailureMessage(char drive) => $"Drive {drive} failure";
+    static string ProducerFailureMessage(char drive) => $"Drive {drive} failure";
 
     /// <summary>
     /// A discovery open callback over <paramref name="files" />; the fixture is a parameter so a test's

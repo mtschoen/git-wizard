@@ -302,8 +302,7 @@ public class GitWizardRepositoryInvalidUpstreamTests
         TempRepoFixture.RunGit(worktreePath, "-c", "user.email=test@example.com", "-c", "user.name=Test",
             "commit", "--allow-empty", "-m", "unpushed commit");
 
-        var worktreeRepo = new GitWizardRepository(worktreePath);
-        worktreeRepo.IsWorktree = true;
+        var worktreeRepo = new GitWizardRepository(worktreePath) { IsWorktree = true };
         worktreeRepo.Refresh(allBranches: true);
 
         var branch = worktreeRepo.Branches?.FirstOrDefault(b => b.Name == "wt-branch");

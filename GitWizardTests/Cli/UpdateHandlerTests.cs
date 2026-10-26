@@ -240,7 +240,7 @@ public class UpdateHandlerTests
     [Test]
     public async Task MultipleProgress_Updates_AreThreadSafe()
     {
-        using var writer = new ProgressLockWriter();
+        await using var writer = new ProgressLockWriter();
         var handler = new UpdateHandler(writer);
         var field = typeof(UpdateHandler).GetField("_progressLock",
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;

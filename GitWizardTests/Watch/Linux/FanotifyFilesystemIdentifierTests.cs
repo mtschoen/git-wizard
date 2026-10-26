@@ -27,10 +27,16 @@ public class FanotifyFilesystemIdentifierTests
         _firstRoot = Directory.CreateDirectory(Path.Combine(_temporaryRoot, "first")).FullName;
         _secondRoot = Directory.CreateDirectory(Path.Combine(_temporaryRoot, "second")).FullName;
         _siblingRoot = Directory.CreateDirectory(Path.Combine(_temporaryRoot, "sibling")).FullName;
-        _native = new FakeFanotifyNative { InitializeResult = new FanotifyNativeCallResult(7, 0) };
-        _native.FilesystemIdByMountPath[_firstRoot] = FirstFilesystem;
-        _native.FilesystemIdByMountPath[_secondRoot] = SecondFilesystem;
-        _native.FilesystemIdByMountPath[_siblingRoot] = FirstFilesystem;
+        _native = new FakeFanotifyNative
+        {
+            InitializeResult = new FanotifyNativeCallResult(7, 0),
+            FilesystemIdByMountPath =
+            {
+                [_firstRoot] = FirstFilesystem,
+                [_secondRoot] = SecondFilesystem,
+                [_siblingRoot] = FirstFilesystem
+            }
+        };
     }
 
     [TearDown]

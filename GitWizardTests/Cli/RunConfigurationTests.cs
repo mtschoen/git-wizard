@@ -186,11 +186,13 @@ sealed class RunConfigurationTests
         {
             Assert.That(actual, Is.EqualTo(value));
             Assert.That(parsed.HasParseError, Is.False);
-            if (argument == "--filter")
+            if (argument != "--filter")
             {
-                Assert.That(parsed.Json, Is.False);
-                Assert.That(parsed.RefreshReport, Is.True);
+                return;
             }
+
+            Assert.That(parsed.Json, Is.False);
+            Assert.That(parsed.RefreshReport, Is.True);
         }
     }
 

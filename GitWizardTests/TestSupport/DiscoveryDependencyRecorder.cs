@@ -9,7 +9,7 @@ sealed class DiscoveryDependencyRecorder : IDisposable
     public List<string> CrawledRoots { get; } = [];
     public Action<string>? CrawlGuard { get; set; }
     public PackedIndexFixture IndexFixture { get; } = new();
-    public bool IsWindows { get; set; } = true;
+    static bool IsWindows => true;
     public Func<IReadOnlyList<string>, CacheMode, IProgress<IndexScanProgress>?, CancellationToken, Task<MftIndexSession>>? CustomOpenIndexAsync { get; set; }
 
     public RepositoryDiscoveryDependencies BuildDependencies()
@@ -38,7 +38,7 @@ sealed class DiscoveryDependencyRecorder : IDisposable
 
     static DiagnosticVolumeChangeSource DefaultCreateLinuxSource() => new();
 
-    RootClassification DefaultClassify(string root)
+    static RootClassification DefaultClassify(string root)
     {
         if (root.StartsWith(@"Z:\", StringComparison.OrdinalIgnoreCase) ||
             root.Contains("shared", StringComparison.OrdinalIgnoreCase) ||

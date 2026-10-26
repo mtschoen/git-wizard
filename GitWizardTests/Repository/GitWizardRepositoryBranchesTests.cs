@@ -594,8 +594,7 @@ public class GitWizardRepositoryBranchesTests
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         var worktreePath = fixture.AddWorktree("wt-test");
 
-        var worktreeRepo = new GitWizardRepository(worktreePath);
-        worktreeRepo.IsWorktree = true;
+        var worktreeRepo = new GitWizardRepository(worktreePath) { IsWorktree = true };
         worktreeRepo.Refresh();
 
         Assert.That(worktreeRepo.Worktrees, Is.Null);
@@ -642,8 +641,7 @@ public class GitWizardRepositoryBranchesTests
     [Test]
     public void IsWorktree_CanBeSet()
     {
-        var repo = new GitWizardRepository("/some/path");
-        repo.IsWorktree = true;
+        var repo = new GitWizardRepository("/some/path") { IsWorktree = true };
         Assert.That(repo.IsWorktree, Is.True);
     }
 

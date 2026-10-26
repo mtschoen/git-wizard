@@ -20,11 +20,7 @@ public class MainViewModelLiveStartupTests
     static GitWizardRepository Repo(string workingDirectory, params string[] remotes)
     {
         var repository = new GitWizardRepository(workingDirectory);
-        foreach (var url in remotes)
-        {
-            repository.RemoteUrls.Add(url);
-        }
-
+        repository.RemoteUrls.AddRange(remotes);
         return repository;
     }
 

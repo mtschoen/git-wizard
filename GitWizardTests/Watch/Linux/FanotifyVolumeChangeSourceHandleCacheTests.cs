@@ -16,16 +16,16 @@ public class FanotifyVolumeChangeSourceHandleCacheTests
     [Test]
     public async Task WatchAsync_CachesDirectoryHandles_AndReusesWhenOpenFailsLater()
     {
-        var handle = new byte[] { 51, 52, 53, 54 };
+        var handle = "3456"u8.ToArray();
         var firstBuffer = CreateSyntheticEventBuffer(FanotifyConstants.Create, handle, "first.txt");
         var secondBuffer = CreateSyntheticEventBuffer(FanotifyConstants.Delete, handle, "second.txt");
 
         var native = new FakeFanotifyNative
         {
-            InitializeResult = new FanotifyNativeCallResult(7, 0)
+            InitializeResult = new FanotifyNativeCallResult(7, 0),
+            HandleToFdMap = { [new FileHandleKey(0L, GetFullHandleBytes(handle))] = 203 },
+            FdToPathMap = { [203] = "/repo/dirCache" }
         };
-        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(handle))] = 203;
-        native.FdToPathMap[203] = "/repo/dirCache";
         native.ReadQueue.Enqueue(firstBuffer);
         native.ReadQueue.Enqueue(secondBuffer);
 
@@ -67,14 +67,18 @@ public class FanotifyVolumeChangeSourceHandleCacheTests
 
         var native = new FakeFanotifyNative
         {
-            InitializeResult = new FanotifyNativeCallResult(7, 0)
+            InitializeResult = new FanotifyNativeCallResult(7, 0),
+            HandleToFdMap =
+            {
+                [new FileHandleKey(0L, GetFullHandleBytes(rootHandle))] = 300,
+                [new FileHandleKey(0L, GetFullHandleBytes(dirHandle))] = 301
+            },
+            FdToPathMap =
+            {
+                [300] = "/repo",
+                [301] = "/repo/olddir"
+            }
         };
-        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(rootHandle))] = 300;
-        native.FdToPathMap[300] = "/repo";
-
-        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(dirHandle))] = 301;
-        native.FdToPathMap[301] = "/repo/olddir";
-
         native.ReadQueue.Enqueue(initialFileBuffer);
         native.ReadQueue.Enqueue(movedFromBuffer);
         native.ReadQueue.Enqueue(movedToBuffer);
@@ -117,7 +121,7 @@ public class FanotifyVolumeChangeSourceHandleCacheTests
 
         try
         {
-            var handle = new byte[] { 41, 42, 43, 44 };
+            var handle = ")*+,"u8.ToArray();
             var native = new FakeFanotifyNative { InitializeResult = new FanotifyNativeCallResult(7, 0) };
             native.MapHandle(0L, GetFullHandleBytes(handle), 320, tempSub);
             native.ReadQueue.Enqueue(CreateSyntheticEventBuffer(FanotifyConstants.Create, handle, "once.txt"));
@@ -163,18 +167,17 @@ public class FanotifyVolumeChangeSourceHandleCacheTests
     [Test]
     public async Task WatchAsync_FileDeleteWithoutOnDirectory_DoesNotInvalidateParentDirectoryCache()
     {
-        var dirHandle = new byte[] { 42, 42, 42, 42 };
+        var dirHandle = "****"u8.ToArray();
         var createdFileBuffer = CreateSyntheticEventBuffer(FanotifyConstants.Create, dirHandle, "file1.txt");
         var deletedFileBuffer = CreateSyntheticEventBuffer(FanotifyConstants.Delete, dirHandle, "file1.txt");
         var modifiedFileBuffer = CreateSyntheticEventBuffer(FanotifyConstants.Modify, dirHandle, "file2.txt");
 
         var native = new FakeFanotifyNative
         {
-            InitializeResult = new FanotifyNativeCallResult(7, 0)
+            InitializeResult = new FanotifyNativeCallResult(7, 0),
+            HandleToFdMap = { [new FileHandleKey(0L, GetFullHandleBytes(dirHandle))] = 200 },
+            FdToPathMap = { [200] = "/repo/dir" }
         };
-        native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(dirHandle))] = 200;
-        native.FdToPathMap[200] = "/repo/dir";
-
         native.ReadQueue.Enqueue(createdFileBuffer);
         native.ReadQueue.Enqueue(deletedFileBuffer);
         native.ReadQueue.Enqueue(modifiedFileBuffer);
@@ -211,20 +214,26 @@ public class FanotifyVolumeChangeSourceHandleCacheTests
 
         try
         {
-            var handleUser = new byte[] { 91, 92, 93, 94 };
-            var handleOther = new byte[] { 95, 96, 97, 98 };
+            var handleUser = "[\\]^"u8.ToArray();
+            var handleOther = "_`ab"u8.ToArray();
 
             var bufferUser = CreateSyntheticEventBuffer(FanotifyConstants.Create, handleUser, "profile.txt");
             var bufferOther = CreateSyntheticEventBuffer(FanotifyConstants.Create, handleOther, "data.txt");
 
             var native = new FakeFanotifyNative
             {
-                InitializeResult = new FanotifyNativeCallResult(7, 0)
+                InitializeResult = new FanotifyNativeCallResult(7, 0),
+                HandleToFdMap =
+                {
+                    [new FileHandleKey(0L, GetFullHandleBytes(handleUser))] = 401,
+                    [new FileHandleKey(0L, GetFullHandleBytes(handleOther))] = 402
+                },
+                FdToPathMap =
+                {
+                    [401] = tempSub,
+                    [402] = tempBase + "less"
+                }
             };
-            native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(handleUser))] = 401;
-            native.HandleToFdMap[new FileHandleKey(0L, GetFullHandleBytes(handleOther))] = 402;
-            native.FdToPathMap[401] = tempSub;
-            native.FdToPathMap[402] = tempBase + "less";
             native.ReadQueue.Enqueue(bufferUser);
             native.ReadQueue.Enqueue(bufferOther);
 

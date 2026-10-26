@@ -5,7 +5,7 @@ namespace GitWizardTests.TestSupport;
 /// <summary>Runs the enumeration-backed discovery of one recursive root the way production does.</summary>
 static class EnumeratedDiscovery
 {
-    public static RecursiveDiscovery Run(
+    static RecursiveDiscovery Run(
         string rootPath, ICollection<string> ignoredPaths, bool? skipHiddenDirectories = null,
         bool? includeTempDirectories = null)
     {

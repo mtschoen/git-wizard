@@ -90,18 +90,18 @@ sealed class PackedIndexFixture : IDisposable
             rows.Add(DirectoryRow(row, Path.GetFileName(directory), parent, File.GetAttributes(directory) & FileAttributes.Hidden));
             WalkDirectory(directory, row, ref nextRow, rows);
         }
-        foreach (var file in Directory.EnumerateFiles(path).Where(file =>
+        var files = Directory.EnumerateFiles(path).Where(file =>
             string.Equals(Path.GetFileName(file), ".git", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(Path.GetFileName(file), "HEAD", StringComparison.OrdinalIgnoreCase)))
+            string.Equals(Path.GetFileName(file), "HEAD", StringComparison.OrdinalIgnoreCase)).ToArray();
+        var firstFileRow = nextRow;
+        rows.AddRange(files.Select((file, index) => new SyntheticRow(firstFileRow + (uint)index, Path.GetFileName(file), parent)
         {
-            rows.Add(new SyntheticRow(nextRow++, Path.GetFileName(file), parent)
-            {
-                Attributes = FileAttributes.Normal,
-                Size = null,
-                LastWriteTime = CompletionTimestamp,
-                SequenceNumber = 1
-            });
-        }
+            Attributes = FileAttributes.Normal,
+            Size = null,
+            LastWriteTime = CompletionTimestamp,
+            SequenceNumber = 1
+        }));
+        nextRow += (uint)files.Length;
     }
 
     static SyntheticRow DirectoryRow(uint row, string name, uint parent, FileAttributes extraAttributes = default)
@@ -114,6 +114,22 @@ sealed class PackedIndexFixture : IDisposable
             SequenceNumber = 1
         };
     }
+
+    public static GitWizard.MftIndexSession Owner(FileIndex index, params string[] drives) =>
+        new(index, null, drives, [], new Dictionary<string, string>());
+
+    public static SyntheticJournalRecord Entry(ulong record, ulong parent, string name, SyntheticJournalReason reason,
+        bool directory = false) => new()
+        {
+            RecordNumber = record,
+            ParentRecordNumber = parent,
+            SequenceNumber = 1,
+            FileName = name,
+            Reason = reason,
+            FileAttributes = directory ? FileAttributes.Directory : FileAttributes.Normal,
+            Timestamp = CompletionTimestamp,
+            Usn = 1001
+        };
 
     public void Dispose() => _directory.Dispose();
 }

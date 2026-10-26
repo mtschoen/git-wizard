@@ -51,14 +51,14 @@ static class WatchFailureAssertions
         {
             await using var source = new DiagnosticVolumeChangeSource();
             var service = new RepositoryWatchService(source, [], []);
-            if (scenario == "arm")
+            switch (scenario)
             {
-                source.Arming = () => throw new InvalidOperationException("arming failed");
-            }
-
-            if (scenario == "started")
-            {
-                service.Started += () => throw new InvalidOperationException("subscriber failed");
+                case "arm":
+                    source.Arming = () => throw new InvalidOperationException("arming failed");
+                    break;
+                case "started":
+                    service.Started += () => throw new InvalidOperationException("subscriber failed");
+                    break;
             }
 
             using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));

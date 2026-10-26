@@ -44,8 +44,8 @@ public class SweepCliTests
             IncludeTempDirectories = true
         };
         var runConfiguration = CliParser.Parse(["--sweep", "--no-mft"]);
-        using var stdout = new StringWriter();
-        using var stderr = new StringWriter();
+        await using var stdout = new StringWriter();
+        await using var stderr = new StringWriter();
 
         var exitCode = await Program.RunCommandCoreAsync(runConfiguration, configuration,
             stdout: stdout, stderr: stderr);

@@ -20,24 +20,21 @@ public class JournalWarningRefreshTests
 
     sealed class Harness : IAsyncDisposable
     {
-        readonly PackedIndexFixture _files = new();
-        readonly ScriptedWatchSource _scripted = new() { CatchUpOnStart = true };
         readonly ConcurrentQueue<JournalWarning> _warnings = new();
-        MftIndexSession? _owner;
 
         public IndexVolumeChangeSource? Source { get; private set; }
-        public MftIndexSession? Owner => _owner;
-        public PackedIndexFixture Files => _files;
-        public ScriptedWatchSource Scripted => _scripted;
+        public MftIndexSession? Owner { get; private set; }
+        public PackedIndexFixture Files { get; } = new();
+        public ScriptedWatchSource Scripted { get; } = new() { CatchUpOnStart = true };
         public JournalWarning[] Warnings => _warnings.ToArray();
 
         public async Task<VolumeArmResult> ArmAsync()
         {
-            _files.AddMarker("repo");
-            var index = await _files.OpenMftIndexAsync(_scripted, 'X');
-            _owner = new MftIndexSession(index, null, ["X"], [new IndexedDrive('X', _files.TreePath, 12345u)],
+            Files.AddMarker("repo");
+            var index = await Files.OpenMftIndexAsync(Scripted, 'X');
+            Owner = new MftIndexSession(index, null, ["X"], [new IndexedDrive('X', Files.TreePath, 12345u)],
                 new Dictionary<string, string>());
-            Source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(_owner));
+            Source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(Owner));
             Source.JournalWarningDetected += _warnings.Enqueue;
             return await Source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         }
@@ -55,12 +52,12 @@ public class JournalWarningRefreshTests
                 await Source.DisposeAsync();
             }
 
-            if (_owner is not null)
+            if (Owner is not null)
             {
-                await _owner.DisposeAsync();
+                await Owner.DisposeAsync();
             }
 
-            _files.Dispose();
+            Files.Dispose();
         }
     }
 

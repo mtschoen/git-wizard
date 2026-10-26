@@ -115,10 +115,7 @@ public class SettingsViewModelTests
         var vm = TestViewModels.CreateSettings(folderPicker: picker);
         var propertyChangedFired = false;
 
-        vm.PropertyChanged += (_, _) =>
-        {
-            propertyChangedFired = true;
-        };
+        vm.PropertyChanged += (_, _) => propertyChangedFired = true;
 
         vm.ForkPath = "/usr/local/bin/fork";
 

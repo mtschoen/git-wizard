@@ -67,4 +67,9 @@ public static class TestUtilities
             }
         }
     }
+
+    public static bool IsBrokerConnectionFailure(string error) =>
+        error.Contains("never connected", StringComparison.OrdinalIgnoreCase) ||
+        error.Contains("Failed to launch the elevated broker", StringComparison.OrdinalIgnoreCase) ||
+        (error.Contains("timed out", StringComparison.OrdinalIgnoreCase) && error.Contains("to connect", StringComparison.OrdinalIgnoreCase));
 }

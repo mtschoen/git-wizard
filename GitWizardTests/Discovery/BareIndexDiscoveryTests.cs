@@ -64,7 +64,7 @@ public class BareIndexDiscoveryTests
             (worktreePath, RepositoryCandidateKind.GitFile)
                 ]));
             Assert.That(candidates.Any(item => item.Path.Contains("/.git/", StringComparison.OrdinalIgnoreCase) ||
-                                               item.Path.Contains("\\.git\\", StringComparison.OrdinalIgnoreCase)), Is.False);
+                                               item.Path.Contains(@"\.git\", StringComparison.OrdinalIgnoreCase)), Is.False);
         }
     }
 

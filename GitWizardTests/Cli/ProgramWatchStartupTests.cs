@@ -252,8 +252,8 @@ public class ProgramWatchStartupTests
         var config = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
         var runConfig = CliParser.Parse(["--watch"]);
 
-        using var stdout = new StringWriter();
-        using var stderr = new StringWriter();
+        await using var stdout = new StringWriter();
+        await using var stderr = new StringWriter();
         var exitCode = await Program.RunWatchAsync(runConfig, config, coordinator, stdout, stderr, CancellationToken.None);
 
         using (Assert.EnterMultipleScope())
@@ -321,8 +321,8 @@ public class ProgramWatchStartupTests
         var config = new GitWizardConfiguration { SearchPaths = { files.TreePath }, IncludeTempDirectories = true };
         var runConfig = CliParser.Parse(["--watch"]);
 
-        using var stdout = new StringWriter();
-        using var stderr = new StringWriter();
+        await using var stdout = new StringWriter();
+        await using var stderr = new StringWriter();
         var exitCode = await Program.RunWatchAsync(runConfig, config, coordinator, stdout, stderr, CancellationToken.None);
         var cached = await GitWizardApi.GetCachedRepositoryPathsAsync();
 

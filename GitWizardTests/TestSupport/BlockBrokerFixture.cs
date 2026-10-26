@@ -61,7 +61,7 @@ sealed class BlockBrokerFixture : IAsyncDisposable
 
     public SyntheticJournalRecord[] WatchEntries { get; set; } = [];
     public SyntheticScanRecord[] AdditionalScanRecords { get; set; } = [];
-    public string? FailedDrive { get; set; }
+    public string? FailedDrive { get; init; }
     public Action? ScanReceived { get; set; }
 
     /// <summary>The parse progress every scan reports before it yields records, as (records parsed, expected total).</summary>
@@ -82,7 +82,7 @@ sealed class BlockBrokerFixture : IAsyncDisposable
     public Func<CancellationToken, Task>? MidScanAsync { get; set; }
 
     /// <summary>Ends the client process from inside the host's scan, as a broker crash would.</summary>
-    public bool DisconnectOnScan { get; set; }
+    public bool DisconnectOnScan { get; init; }
 
     /// <summary>Every scan any process of this fixture served, in order, as the client requested it.</summary>
     public IReadOnlyList<InProcessBrokerScan> Scans

@@ -40,16 +40,19 @@ public class RefreshPhaseObservationAndCancellationTests
                 var capturedPath = path;
                 repository.PhaseObserverForTesting = phaseIndex =>
                 {
-                    if (phaseIndex == 0)
+                    switch (phaseIndex)
                     {
-                        // Deliberate scheduling nudge so workers spend time in phase 0 rather than
-                        // completing instantly, widening any thread-pool scheduling contention.
-                        using var delayEvt = new ManualResetEventSlim(false);
-                        delayEvt.Wait(5);
-                    }
-                    else if (phaseIndex == 1)
-                    {
-                        reachedPhase1.Add(capturedPath);
+                        case 0:
+                            {
+                                // Deliberate scheduling nudge so workers spend time in phase 0 rather than
+                                // completing instantly, widening any thread-pool scheduling contention.
+                                using var delayEvt = new ManualResetEventSlim(false);
+                                delayEvt.Wait(5);
+                                break;
+                            }
+                        case 1:
+                            reachedPhase1.Add(capturedPath);
+                            break;
                     }
                 };
                 report.Repositories[path] = repository;
@@ -155,13 +158,14 @@ public class RefreshPhaseObservationAndCancellationTests
 
             var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
             var report = new GitWizardReport(configuration);
-            var repository = new GitWizardRepository(fixture.Path);
-
-            repository.PhaseObserverForTesting = _ =>
+            var repository = new GitWizardRepository(fixture.Path)
             {
-                // Give the 1ms timer time to expire
-                using var delayEvt = new ManualResetEventSlim(false);
-                delayEvt.Wait(10);
+                PhaseObserverForTesting = _ =>
+                {
+                    // Give the 1ms timer time to expire
+                    using var delayEvt = new ManualResetEventSlim(false);
+                    delayEvt.Wait(10);
+                }
             };
 
             report.Repositories[fixture.Path] = repository;

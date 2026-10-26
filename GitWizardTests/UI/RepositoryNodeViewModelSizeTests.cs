@@ -309,8 +309,7 @@ public class RepositoryNodeViewModelSizeTests
 
     static RepositoryNodeViewModel CreateMeasuredNode(long size)
     {
-        var repository = new GitWizardRepository(string.Empty);
-        repository.SizeOnDisk = size;
+        var repository = new GitWizardRepository(string.Empty) { SizeOnDisk = size };
         return new RepositoryNodeViewModel(repository);
     }
 }

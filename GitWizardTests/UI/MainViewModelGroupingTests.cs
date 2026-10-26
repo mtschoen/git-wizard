@@ -22,11 +22,7 @@ public class MainViewModelGroupingTests
     static GitWizardRepository Repo(string workingDirectory, params string[] remotes)
     {
         var repository = new GitWizardRepository(workingDirectory);
-        foreach (var url in remotes)
-        {
-            repository.RemoteUrls.Add(url);
-        }
-
+        repository.RemoteUrls.AddRange(remotes);
         return repository;
     }
 
@@ -83,9 +79,9 @@ public class MainViewModelGroupingTests
     public void GroupByDrive_GroupsRepositoriesByDriveRoot()
     {
         var viewModel = NewViewModel();
-        viewModel.RepositoryList.AddRepository(Repo("C:\\repos\\alpha"), streaming: false);
-        viewModel.RepositoryList.AddRepository(Repo("C:\\repos\\beta"), streaming: false);
-        viewModel.RepositoryList.AddRepository(Repo("D:\\projects\\gamma"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo(@"C:\repos\alpha"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo(@"C:\repos\beta"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo(@"D:\projects\gamma"), streaming: false);
 
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
 
@@ -93,14 +89,16 @@ public class MainViewModelGroupingTests
         var expectedCount = OperatingSystem.IsWindows() ? 2 : 1;
         Assert.That(headers, Has.Count.EqualTo(expectedCount));
 
-        if (OperatingSystem.IsWindows())
+        if (!OperatingSystem.IsWindows())
         {
-            var groupKeys = headers.Select(h => h.GroupKey).Order().ToList();
-            using (Assert.EnterMultipleScope())
-            {
-                Assert.That(groupKeys[0], Is.EqualTo("C:\\"));
-                Assert.That(groupKeys[1], Is.EqualTo("D:\\"));
-            }
+            return;
+        }
+
+        var groupKeys = headers.Select(h => h.GroupKey).Order().ToList();
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(groupKeys[0], Is.EqualTo("C:\\"));
+            Assert.That(groupKeys[1], Is.EqualTo("D:\\"));
         }
     }
 
@@ -108,7 +106,7 @@ public class MainViewModelGroupingTests
     public void GroupByDrive_SingleDrive_ShowsSingleGroup()
     {
         var viewModel = NewViewModel();
-        viewModel.RepositoryList.AddRepository(Repo("C:\\repos\\one"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo(@"C:\repos\one"), streaming: false);
 
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
 
@@ -328,9 +326,9 @@ public class MainViewModelGroupingTests
     public void SearchText_CombinedWithGrouping_FiltersGroupedRepos()
     {
         var viewModel = NewViewModel();
-        viewModel.RepositoryList.AddRepository(Repo("C:\\alpha\\r1"), streaming: false);
-        viewModel.RepositoryList.AddRepository(Repo("C:\\beta\\r2"), streaming: false);
-        viewModel.RepositoryList.AddRepository(Repo("C:\\alpha\\r3"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo(@"C:\alpha\r1"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo(@"C:\beta\r2"), streaming: false);
+        viewModel.RepositoryList.AddRepository(Repo(@"C:\alpha\r3"), streaming: false);
 
         viewModel.RepositoryList.SetSearchText("alpha");
         viewModel.RepositoryList.ToggleGroupMode(GroupMode.Drive);
@@ -359,8 +357,8 @@ public class MainViewModelGroupingTests
         }
         else
         {
-            viewModel.RepositoryList.AddRepository(Repo("C:\\repos\\alpha"), streaming: false);
-            viewModel.RepositoryList.AddRepository(Repo("C:\\repos\\beta"), streaming: false);
+            viewModel.RepositoryList.AddRepository(Repo(@"C:\repos\alpha"), streaming: false);
+            viewModel.RepositoryList.AddRepository(Repo(@"C:\repos\beta"), streaming: false);
         }
         viewModel.RepositoryList.ToggleGroupMode(mode);
 
@@ -460,8 +458,8 @@ public class MainViewModelGroupingTests
         }
         else
         {
-            viewModel.RepositoryList.AddRepository(Repo("C:\\repos\\alpha"), streaming: false);
-            viewModel.RepositoryList.AddRepository(Repo("C:\\repos\\beta"), streaming: false);
+            viewModel.RepositoryList.AddRepository(Repo(@"C:\repos\alpha"), streaming: false);
+            viewModel.RepositoryList.AddRepository(Repo(@"C:\repos\beta"), streaming: false);
         }
         viewModel.RepositoryList.ToggleGroupMode(mode);
         var header = viewModel.RepositoryList.Repositories.Single(n => n.IsGroupHeader);

@@ -65,8 +65,8 @@ public class ReportCliOutputTests
             SearchPaths = { repository.Path },
             IncludeTempDirectories = true
         };
-        using var stdout = new StringWriter();
-        using var stderr = new StringWriter();
+        await using var stdout = new StringWriter();
+        await using var stderr = new StringWriter();
         var exitCode = await Program.RunCommandCoreAsync(
             CliParser.Parse(["--no-mft", "--rebuild-report", "--no-local-commit-count"]),
             configuration, stdout: stdout, stderr: stderr);
@@ -109,8 +109,8 @@ public class ReportCliOutputTests
             SearchPaths = { repository.Path },
             IncludeTempDirectories = true
         };
-        using var stdout = new StringWriter();
-        using var stderr = new StringWriter();
+        await using var stdout = new StringWriter();
+        await using var stderr = new StringWriter();
 
         var exitCode = await Program.RunCommandCoreAsync(runConfiguration, configuration,
             stdout: suppliedWriters ? stdout : null, stderr: suppliedWriters ? stderr : null);
@@ -135,11 +135,13 @@ public class ReportCliOutputTests
             Assert.That(repositories.GetProperty(GitWizardApi.NormalizePath(repository.Path))
                 .GetProperty("HasPendingChanges").GetBoolean(), Is.True);
             Assert.That(diagnostics, Does.Contain("Scanning repositories"));
-            if (suppliedWriters)
+            if (!suppliedWriters)
             {
-                Assert.That(_consoleOut.ToString(), Is.Empty);
-                Assert.That(_consoleError.ToString(), Is.Empty);
+                return;
             }
+
+            Assert.That(_consoleOut.ToString(), Is.Empty);
+            Assert.That(_consoleError.ToString(), Is.Empty);
         });
     }
 
@@ -151,7 +153,7 @@ public class ReportCliOutputTests
         handler.OnSubmoduleCreated(new GitWizardRepository("parent"), new GitWizardRepository("child"));
         await using var report = new GitWizardReport();
         report.Run = handler.CaptureRun();
-        using var stdout = new StringWriter();
+        await using var stdout = new StringWriter();
         Program.OutputReport(report, new RunConfiguration { Json = json }, stdout);
         var output = stdout.ToString();
         if (json)
@@ -210,7 +212,7 @@ public class ReportCliOutputTests
         };
         var arguments = new[] { "--no-mft", "--no-refresh", "--no-local-commit-count" };
 
-        using (var missStdout = new StringWriter())
+        await using (var missStdout = new StringWriter())
         {
             var missExitCode = await Program.RunCommandCoreAsync(
                 CliParser.Parse(arguments), configuration, stdout: missStdout, stderr: TextWriter.Null);
@@ -221,7 +223,7 @@ public class ReportCliOutputTests
             }
         }
 
-        using (var hitStdout = new StringWriter())
+        await using (var hitStdout = new StringWriter())
         {
             var hitExitCode = await Program.RunCommandCoreAsync(
                 CliParser.Parse(arguments), configuration, stdout: hitStdout, stderr: TextWriter.Null);
@@ -241,8 +243,8 @@ public class ReportCliOutputTests
             SearchPaths = { Path.Combine(_temporaryHome, "missing") }
         };
         var runConfiguration = CliParser.Parse(["--rebuild-report", "--no-mft"]);
-        using var stdout = new StringWriter();
-        using var stderr = new StringWriter();
+        await using var stdout = new StringWriter();
+        await using var stderr = new StringWriter();
 
         var exitCode = await Program.RunCommandCoreAsync(runConfiguration, configuration, stdout: stdout, stderr: stderr);
 
@@ -280,8 +282,8 @@ public class ReportCliOutputTests
         Action<string?> originalSink = laterMessages.Add;
         var originalTypedSink = GitWizardLog.TypedLogMethod;
         GitWizardLog.LogMethod = originalSink;
-        using (var stdout = outcome == "exception" ? new FailingReportWriter() : new StringWriter())
-        using (var stderr = new StringWriter())
+        await using (var stdout = outcome == "exception" ? new FailingReportWriter() : new StringWriter())
+        await using (var stderr = new StringWriter())
         {
             var reportTask = directReport
                 ? Program.RunDefaultReportCoreAsync(runConfiguration, configuration, stdout: stdout, stderr: stderr)
@@ -343,8 +345,8 @@ public class ReportCliOutputTests
                 SearchPaths = { repository.Path },
                 IncludeTempDirectories = true
             };
-            using var stdout = new StringWriter();
-            using var stderr = new StringWriter();
+            await using var stdout = new StringWriter();
+            await using var stderr = new StringWriter();
 
             Action<string?> originalSink = _consoleOut.WriteLine;
             GitWizardLog.LogMethod = originalSink;
@@ -432,8 +434,8 @@ public class ReportCliOutputTests
             : """{"SchemaVersion":"2.1","Repositories":{}}""";
         await File.WriteAllTextAsync(cachePath, original);
         TestUtilities.ResetStaticCaches();
-        using var stdout = new StringWriter();
-        using var stderr = new StringWriter();
+        await using var stdout = new StringWriter();
+        await using var stderr = new StringWriter();
         var parsed = CliParser.Parse(["--no-refresh", "--json"]);
         Assert.That(parsed.HasParseError, Is.False);
         var exitCode = await Program.RunCommandCoreAsync(parsed, new GitWizardConfiguration(),
@@ -462,8 +464,8 @@ public class ReportCliOutputTests
             string.Join(",", first.Path, second.Path), "--filter",
             GitWizardApi.NormalizePath(first.Path), "--save-path", destination]);
         Assert.That(parsed.HasParseError, Is.False);
-        using var stdout = new StringWriter();
-        using var stderr = new StringWriter();
+        await using var stdout = new StringWriter();
+        await using var stderr = new StringWriter();
         await Program.RunCommandCoreAsync(parsed, new GitWizardConfiguration(), stdout: stdout, stderr: stderr);
         using var output = JsonDocument.Parse(stdout.ToString());
         using var saved = JsonDocument.Parse(await File.ReadAllTextAsync(destination));

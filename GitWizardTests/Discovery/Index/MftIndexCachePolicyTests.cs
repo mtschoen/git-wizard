@@ -34,14 +34,6 @@ public class MftIndexCachePolicyTests
             calls++;
             return Task.CompletedTask;
         };
-        FileIndexOptions Options(uint version, bool snapshot) => new()
-        {
-            Drives = [new IndexedDrive('X', files.TreePath, 1)],
-            CacheDirectory = path,
-            CacheTag = new CacheTag(SyntheticCacheTag.GetFourCharacterCode(MftIndexCachePolicy.CacheTag), version),
-            CacheMode = snapshot ? CacheMode.ExistingOnly : CacheMode.Persistent,
-            MftSource = SyntheticIndexSource.Create(files.Producer)
-        };
         var version = SyntheticCacheTag.GetVersion(MftIndexCachePolicy.CacheTag);
         await using (var first = await FileIndex.OpenAsync(Options(1, false), CancellationToken.None))
         {
@@ -65,5 +57,15 @@ public class MftIndexCachePolicyTests
             Assert.That(CacheDirectory.InspectCached(path).Single().CacheTag,
                 Is.EqualTo(MftIndexCachePolicy.CacheTag));
         }
+        return;
+
+        FileIndexOptions Options(uint cacheTagVersion, bool snapshot) => new()
+        {
+            Drives = [new IndexedDrive('X', files.TreePath, 1)],
+            CacheDirectory = path,
+            CacheTag = new CacheTag(SyntheticCacheTag.GetFourCharacterCode(MftIndexCachePolicy.CacheTag), cacheTagVersion),
+            CacheMode = snapshot ? CacheMode.ExistingOnly : CacheMode.Persistent,
+            MftSource = SyntheticIndexSource.Create(files.Producer)
+        };
     }
 }

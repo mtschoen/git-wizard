@@ -127,8 +127,8 @@ public class ReportPublicationTests
             SearchPaths = { files.TreePath, dRoot }
         };
 
-        using var stdout = new StringWriter();
-        using var stderr = new StringWriter();
+        await using var stdout = new StringWriter();
+        await using var stderr = new StringWriter();
 
         var exitCode = await Program.RunDefaultReportCoreAsync(
             runConfig,
@@ -191,8 +191,8 @@ public class ReportPublicationTests
             SearchPaths = { files.TreePath, dRoot }
         };
 
-        using var stdout = new StringWriter();
-        using var stderr = new StringWriter();
+        await using var stdout = new StringWriter();
+        await using var stderr = new StringWriter();
 
         var exitCode = await Program.RunDefaultReportCoreAsync(
             runConfig,
@@ -250,8 +250,8 @@ public class ReportPublicationTests
         var runConfig = CliParser.Parse(["--paths", tempDir, "--save-path", customSavePath]);
         var gitWizardConfig = new GitWizardConfiguration();
 
-        using var stdout = new StringWriter();
-        using var stderr = new StringWriter();
+        await using var stdout = new StringWriter();
+        await using var stderr = new StringWriter();
 
         var exitCode = await Program.RunDefaultReportCoreAsync(
             runConfig,

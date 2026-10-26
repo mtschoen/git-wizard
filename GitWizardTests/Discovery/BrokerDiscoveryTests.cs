@@ -224,18 +224,18 @@ public class BrokerDiscoveryTests
     {
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(ElevationCoverageTests.IsBrokerConnectionFailure(
+            Assert.That(TestUtilities.IsBrokerConnectionFailure(
                     "Timed out waiting 30s for the elevated broker to connect to pipe 'mftlib-broker-1'. The broker process was launched, but never connected (headless session, unserviced UAC prompt, or broker crash before connect)."), Is.True);
-            Assert.That(ElevationCoverageTests.IsBrokerConnectionFailure(
+            Assert.That(TestUtilities.IsBrokerConnectionFailure(
                 "Failed to launch the elevated broker (the UAC prompt was declined?)"), Is.True);
-            Assert.That(ElevationCoverageTests.IsBrokerConnectionFailure(
+            Assert.That(TestUtilities.IsBrokerConnectionFailure(
                 "Timed out waiting for broker to connect"), Is.True);
 
-            Assert.That(ElevationCoverageTests.IsBrokerConnectionFailure(
+            Assert.That(TestUtilities.IsBrokerConnectionFailure(
                 "Broker disconnected before block scan and catch-up completed."), Is.False);
-            Assert.That(ElevationCoverageTests.IsBrokerConnectionFailure(
+            Assert.That(TestUtilities.IsBrokerConnectionFailure(
                 "Truncated broker frame on pipe"), Is.False);
-            Assert.That(ElevationCoverageTests.IsBrokerConnectionFailure(
+            Assert.That(TestUtilities.IsBrokerConnectionFailure(
                 "The broker control connection is no longer usable."), Is.False);
         }
     }

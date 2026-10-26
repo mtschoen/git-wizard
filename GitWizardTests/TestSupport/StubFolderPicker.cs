@@ -4,8 +4,8 @@ namespace GitWizardTests;
 
 public sealed class StubFolderPicker : IFolderPicker
 {
-    public string? NextResult { get; set; }
-    public int PickCount { get; private set; }
+    public string? NextResult { get; init; }
+    int PickCount { get; set; }
 
     public Task<string?> PickFolderAsync()
     {

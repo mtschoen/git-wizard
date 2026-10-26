@@ -71,7 +71,7 @@ public class TaskFaultLoggingTests
     }
 
     [Test]
-    public async Task RunAndLogFaults_FaultedTask_DoesNotRethrow()
+    public void RunAndLogFaults_FaultedTask_DoesNotRethrow()
     {
         GitWizardLog.LogMethod = _ => { };
 

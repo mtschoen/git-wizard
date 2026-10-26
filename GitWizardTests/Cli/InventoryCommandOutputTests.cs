@@ -38,18 +38,16 @@ public class InventoryCommandOutputTests
     string CreateRepository(string name)
     {
         var path = Path.Combine(_temporaryHome, "repositories", name);
-        using (var repository = new Repository(Repository.Init(path)))
+        using var repository = new Repository(Repository.Init(path));
+        if (repository.Head.FriendlyName != "main")
         {
-            if (repository.Head.FriendlyName != "main")
-            {
-                repository.Refs.UpdateTarget("HEAD", "refs/heads/main");
-            }
-
-            var signature = new Signature("Test", "test@example.invalid", new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero));
-            repository.Commit("initial", signature, signature, new CommitOptions { AllowEmptyCommit = true });
-            repository.ApplyTag("v1");
-            repository.CreateBranch("feature");
+            repository.Refs.UpdateTarget("HEAD", "refs/heads/main");
         }
+
+        var signature = new Signature("Test", "test@example.invalid", new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero));
+        repository.Commit("initial", signature, signature, new CommitOptions { AllowEmptyCommit = true });
+        repository.ApplyTag("v1");
+        repository.CreateBranch("feature");
 
         return path;
     }
@@ -73,8 +71,8 @@ public class InventoryCommandOutputTests
             arguments.AddRange(["--save-path", savePath]);
         }
 
-        using var stdout = new StringWriter();
-        using var stderr = new StringWriter();
+        await using var stdout = new StringWriter();
+        await using var stderr = new StringWriter();
         var exitCode = await Program.RunCommandCoreAsync(
             CliParser.Parse(arguments.ToArray()), new GitWizardConfiguration(), stdout: stdout, stderr: stderr);
         return (exitCode, stdout.ToString());

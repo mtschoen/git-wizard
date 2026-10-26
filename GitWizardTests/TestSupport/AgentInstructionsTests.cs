@@ -112,13 +112,12 @@ public class AgentInstructionsTests
     static string[] MissingTestClasses(string text, IEnumerable<string> fixtureNames)
     {
         var known = fixtureNames.ToHashSet(StringComparer.Ordinal);
-        return Regex.Matches(text, @"\b[A-Z][A-Za-z0-9]*Tests?\b", RegexOptions.None,
+        return [.. Regex.Matches(text, @"\b[A-Z][A-Za-z0-9]*Tests?\b", RegexOptions.None,
                 TimeSpan.FromSeconds(1))
             .Select(match => match.Value)
             .Where(name => name is not "GitWizardTests" and not "VSTest" && !known.Contains(name))
             .Distinct(StringComparer.Ordinal)
-            .Order(StringComparer.Ordinal)
-            .ToArray();
+            .Order(StringComparer.Ordinal)];
     }
 
     static string Capture(string[] arguments)

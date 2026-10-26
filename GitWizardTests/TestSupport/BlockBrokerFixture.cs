@@ -91,12 +91,12 @@ sealed class BlockBrokerFixture : IAsyncDisposable
         {
             lock (_processes)
             {
-                return _processes.SelectMany(handle => handle.Scans).ToArray();
+                return (InProcessBrokerScan[])[.. _processes.SelectMany(handle => handle.Scans)];
             }
         }
     }
 
-    public IReadOnlyList<string> ScannedDrives => Scans.Select(scan => scan.Drive.ToString()).ToArray();
+    public IReadOnlyList<string> ScannedDrives => (string[])[.. Scans.Select(scan => scan.Drive.ToString())];
 
     /// <summary>How many records the scans handed to the block writer so far.</summary>
     public int RecordsYielded => Volatile.Read(ref _recordsYielded);
@@ -231,7 +231,7 @@ sealed class BlockBrokerFixture : IAsyncDisposable
             InProcessBrokerHandle[] processes;
             lock (_processes)
             {
-                processes = _processes.ToArray();
+                processes = [.. _processes];
             }
 
             foreach (var handle in processes)

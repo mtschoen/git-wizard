@@ -20,7 +20,7 @@ public sealed class MftDiscoveryResult(bool success, MftIndexSession? indexSessi
     /// <summary>Per-drive outcomes captured at construction; unaffected by later owner transfer or disposal.</summary>
     [JsonIgnore]
     public IReadOnlyList<MftDriveStatus> DriveStatuses { get; } =
-        Array.AsReadOnly((driveStatuses ?? indexSession?.CaptureDriveStatuses() ?? []).ToArray());
+        Array.AsReadOnly<MftDriveStatus>([.. driveStatuses ?? indexSession?.CaptureDriveStatuses() ?? []]);
 
     public MftIndexSession? DetachIndexSession() => Interlocked.Exchange(ref _indexSession, null);
 

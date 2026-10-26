@@ -46,8 +46,8 @@ public static class MftIndexCacheMaintenance
         }
 
         return new MftIndexCacheMaintenanceResult(
-            Array.AsReadOnly(deletions.OrderBy(row => row.File.Path, StringComparer.Ordinal).ToArray()),
-            Array.AsReadOnly(inventory.OrderBy(row => row.File.Path, StringComparer.Ordinal).ToArray()),
+            Array.AsReadOnly<CachedBlockDeletionResult>([.. deletions.OrderBy(row => row.File.Path, StringComparer.Ordinal)]),
+            Array.AsReadOnly<CachedBlockStatus>([.. inventory.OrderBy(row => row.File.Path, StringComparer.Ordinal)]),
             errors.AsReadOnly());
     }
 

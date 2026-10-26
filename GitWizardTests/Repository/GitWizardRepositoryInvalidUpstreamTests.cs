@@ -259,7 +259,7 @@ public class GitWizardRepositoryInvalidUpstreamTests
         var defaultName = repo.DefaultBranch;
         var defaultBranch = repo.Branches?.FirstOrDefault(b => b.Name == defaultName);
         var urlBranch = repo.Branches?.FirstOrDefault(b => b.Name == "url-remote");
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repo.AheadOfRemoteCount, Is.GreaterThan(0),
                 "The checked-out default branch is ahead of its real upstream.");
@@ -269,7 +269,7 @@ public class GitWizardRepositoryInvalidUpstreamTests
             Assert.That(urlBranch, Is.Not.Null);
             Assert.That(urlBranch!.HasUpstream, Is.False);
             Assert.That(DiagnosticsFor("url-remote"), Is.EqualTo(1));
-        });
+        }
     }
 
     [Test]

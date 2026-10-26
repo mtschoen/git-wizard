@@ -91,7 +91,7 @@ public partial class RepositoryDiscoveryCoordinator
             }
 
             var watchVolumes = accumulator.ObservedDrives.Count > 0
-                ? scope.RequestedNtfsDrives.Where(accumulator.ObservedDrives.Contains).ToArray()
+                ? (string[])[.. scope.RequestedNtfsDrives.Where(accumulator.ObservedDrives.Contains)]
                 : scope.RequestedNtfsDrives;
             var result = new WatchStartupResult(inventory, armResult, source, watchVolumes, scope, startupBatches);
             source = null;

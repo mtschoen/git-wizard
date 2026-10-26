@@ -93,14 +93,14 @@ public class RepositoryNodeViewModelStateTests
         fixture.DetachHead();
         var node = RefreshedNode(fixture);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(node.HasMatchingBranch, Is.True);
             Assert.That(node.MatchingBranchName, Is.AnyOf("main", "master"));
             Assert.That(node.MatchesFilter(FilterType.DetachedHead), Is.True);
             Assert.That(node.DisplayText, Does.Contain(node.MatchingBranchName),
                 "A detached HEAD with a known branch must show that branch in the row label.");
-        });
+        }
 
         // CheckoutMatchingBranch re-checks out the matched branch tip; it must run without throwing.
         Assert.DoesNotThrow(node.CheckoutMatchingBranch);

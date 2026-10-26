@@ -367,22 +367,22 @@ public class MainViewModelGroupingTests
         Assert.That(header.IsExpanded, Is.False);
 
         viewModel.RepositoryList.ToggleGroupExpand(header);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(header.IsExpanded, Is.True);
             Assert.That(viewModel.RepositoryList.Repositories, Has.Count.EqualTo(collapsedCount + 2),
                 "Expanding inserts the two children after the header.");
             Assert.That(viewModel.RepositoryList.Repositories[1].IsGroupHeader, Is.False);
             Assert.That(viewModel.RepositoryList.Repositories[2].IsGroupHeader, Is.False);
-        });
+        }
 
         viewModel.RepositoryList.ToggleGroupExpand(header);
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(header.IsExpanded, Is.False);
             Assert.That(viewModel.RepositoryList.Repositories, Has.Count.EqualTo(collapsedCount),
                 "Collapsing removes the children again.");
-        });
+        }
     }
 
     [Test]

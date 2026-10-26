@@ -161,6 +161,17 @@ public class IndexChangeMappingTests
     }
 
 
+    static void AssertSyntheticResult(FilterResult syntheticResult, FileChange earlierChange)
+    {
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(syntheticResult.Changed, Is.EquivalentTo([@"T:\old", @"T:\current"]));
+            Assert.That(syntheticResult.Created, Is.Empty);
+            Assert.That(syntheticResult.Deleted, Is.Empty);
+            Assert.That(earlierChange.Path, Is.EqualTo(@"T:\old\file.txt"));
+        }
+    }
+
     [TestCase(false, false, true, TestName = "Synthetic_ModifiedRename")]
     [TestCase(true, false, true, TestName = "PR319_RealMft_FileRenameDeleteRecreate")]
     [TestCase(true, true, true, TestName = "PR319_RealMft_DirectoryRenameDeleteRecreate")]
@@ -184,11 +195,8 @@ public class IndexChangeMappingTests
             var syntheticFilter = new RepositoryChangeFilter([@"T:\old", @"T:\current"]);
             var earlierResult = syntheticFilter.Classify(earlierEntries);
             Assert.That(earlierResult.Changed, Is.EqualTo([@"T:\old"]));
-            var syntheticResult = syntheticFilter.Classify(batch.SelectMany(IndexChangeMapping.Map).ToArray());
-            Assert.That(syntheticResult.Changed, Is.EquivalentTo([@"T:\old", @"T:\current"]));
-            Assert.That(syntheticResult.Created, Is.Empty);
-            Assert.That(syntheticResult.Deleted, Is.Empty);
-            Assert.That(earlierChange.Path, Is.EqualTo(@"T:\old\file.txt"));
+            var syntheticResult = syntheticFilter.Classify((VolumeChangeEntry[])[.. batch.SelectMany(IndexChangeMapping.Map)]);
+            AssertSyntheticResult(syntheticResult, earlierChange);
             return;
         }
 
@@ -223,8 +231,9 @@ public class IndexChangeMappingTests
         Assert.That(changes, Has.Count.EqualTo(3));
         var renameChange = changes[0];
         Assert.That(renameChange.Kind, Is.EqualTo(FileChangeKind.Renamed));
-        Assert.That(renameChange.Entry.IsDeleted, Is.True, "The earlier rename entry is superseded.");
-        Assert.Throws<InvalidOperationException>(() => _ = renameChange.Entry.IsDirectory);
+        var renamedEntry = renameChange.Entry;
+        Assert.That(renamedEntry.IsDeleted, Is.True, "The earlier rename entry is superseded.");
+        Assert.Throws<InvalidOperationException>(() => _ = renamedEntry.IsDirectory);
 
         if (!hasPreviousPath)
         {

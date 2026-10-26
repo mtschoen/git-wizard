@@ -11,9 +11,8 @@ public static partial class GitWizardApi
     internal static IReadOnlyList<FileEntry> SelectGitEntries(
         FileIndex index, bool includeGitFiles, CancellationToken cancellationToken = default)
     {
-        return index.Search(new SearchQuery(GitEntryName, NameMatchMode.Exact), cancellationToken)
-            .Where(entry => !entry.IsDeleted && (includeGitFiles || (TryReadIsDirectory(entry, out var isDirectory) && isDirectory)))
-            .ToArray();
+        return (FileEntry[])[.. index.Search(new SearchQuery(GitEntryName, NameMatchMode.Exact), cancellationToken)
+            .Where(entry => !entry.IsDeleted && (includeGitFiles || (TryReadIsDirectory(entry, out var isDirectory) && isDirectory)))];
     }
 
     /// <summary>
@@ -52,7 +51,7 @@ public static partial class GitWizardApi
         FileIndex index, string name, CandidateSelectionDiagnostics? diagnostics, CancellationToken cancellationToken)
     {
         diagnostics?.RecordIndexScan();
-        return index.Search(new SearchQuery(name, NameMatchMode.Exact), cancellationToken).ToArray();
+        return (FileEntry[])[.. index.Search(new SearchQuery(name, NameMatchMode.Exact), cancellationToken)];
     }
 
     internal readonly record struct CandidateScope(
@@ -72,9 +71,8 @@ public static partial class GitWizardApi
 
         var policy = CandidateAdmissionPolicy.ForScope(scope) with
         {
-            IgnoredRoots = scope.IgnoredRoots
-                .Select(ignoredRoot => TranslateToRealRoot(index, WatchPath.Parse(ignoredRoot)))
-                .ToArray()
+            IgnoredRoots = (WatchPath[])[.. scope.IgnoredRoots
+                .Select(ignoredRoot => TranslateToRealRoot(index, WatchPath.Parse(ignoredRoot)))]
         };
         return roots.ConvertAll(item =>
         {

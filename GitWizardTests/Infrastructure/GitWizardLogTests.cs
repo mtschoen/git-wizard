@@ -479,62 +479,88 @@ public class GitWizardLogTests
         GitWizardLog.Log(after);
         await CompleteFileWriterAsync();
         var content = await ReadLogFilesAsync();
-        var start = content.IndexOf(before, StringComparison.Ordinal);
-        var end = content.IndexOf(after, StringComparison.Ordinal);
-        Assert.That(start, Is.GreaterThanOrEqualTo(0), "Ordinary leading marker missing.");
-        Assert.That(end, Is.GreaterThan(start), "Ordinary trailing marker missing or reordered.");
-        var record = content[(start + before.Length)..end];
-        Assert.That(record, Does.Contain(exception.ToString()));
-        Assert.That(record, Does.Not.Contain(suppressed));
-        if (context == null)
-        {
-            Assert.That(record, Does.Not.Contain("Exception follows:"));
-        }
-        else
-        {
-            var header = record.IndexOf($"{context} Exception follows:", StringComparison.Ordinal);
-            Assert.That(header, Is.GreaterThanOrEqualTo(0));
-            Assert.That(record.IndexOf(exception.Message, StringComparison.Ordinal), Is.GreaterThan(header));
-        }
-        Exception[] details = scenario switch
-        {
-            "aggregate" => [exception, first, first.InnerException!, second, second.InnerException!],
-            "never-thrown" => [exception],
-            "deep-nested" => [exception, exception.InnerException!, exception.InnerException!.InnerException!],
-            _ => [first, first.InnerException!]
-        };
-        foreach (var detail in details)
-        {
-            Assert.That(record, Does.Contain(detail.GetType().FullName));
-            Assert.That(record, Does.Contain(detail.Message));
-            if (detail.StackTrace == null)
-            {
-                continue;
-            }
+        new LogRecordContext(content, before, after, exception, first, second, scenario, context, suppressed).Validate();
+    }
 
-            Assert.That(detail.StackTrace, Does.Contain(nameof(CaptureNestedException))
-                            .Or.Contain(nameof(CaptureDeepNestedException)));
-            Assert.That(record, Does.Contain(detail.StackTrace));
-        }
-        switch (scenario)
+    sealed record LogRecordContext(
+        string Content,
+        string Before,
+        string After,
+        Exception Exception,
+        Exception First,
+        Exception Second,
+        string Scenario,
+        string? Context,
+        string? Suppressed)
+    {
+        public void Validate()
         {
-            case "never-thrown":
-                Assert.That(exception.StackTrace, Is.Null);
-                break;
-            case "deep-nested":
-                Assert.That(exception.StackTrace, Is.Not.Null);
-                Assert.That(exception.InnerException!.StackTrace, Is.Not.Null);
-                Assert.That(exception.InnerException!.InnerException!.StackTrace, Is.Not.Null);
-                break;
-            default:
-                Assert.That(first.StackTrace, Is.Not.Null);
-                Assert.That(first.InnerException!.StackTrace, Is.Not.Null);
-                if (scenario == "aggregate")
+            var start = Content.IndexOf(Before, StringComparison.Ordinal);
+            var end = Content.IndexOf(After, StringComparison.Ordinal);
+            Assert.That(start, Is.GreaterThanOrEqualTo(0), "Ordinary leading marker missing.");
+            var recordStart = start + Before.Length;
+            Assert.That(end, Is.GreaterThan(start), "Ordinary trailing marker missing or reordered.");
+            var record = Content[recordStart..end];
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(record, Does.Contain(Exception.ToString()));
+                Assert.That(record, Does.Not.Contain(Suppressed));
+            }
+            if (Context == null)
+            {
+                Assert.That(record, Does.Not.Contain("Exception follows:"));
+            }
+            else
+            {
+                var header = record.IndexOf($"{Context} Exception follows:", StringComparison.Ordinal);
+                Assert.That(header, Is.GreaterThanOrEqualTo(0));
+                var exceptionMessageIndex = record.IndexOf(Exception.Message, StringComparison.Ordinal);
+                Assert.That(exceptionMessageIndex, Is.GreaterThan(header));
+            }
+            Exception[] details = Scenario switch
+            {
+                "aggregate" => [Exception, First, First.InnerException!, Second, Second.InnerException!],
+                "never-thrown" => [Exception],
+                "deep-nested" => [Exception, Exception.InnerException!, Exception.InnerException!.InnerException!],
+                _ => [First, First.InnerException!]
+            };
+            foreach (var detail in details)
+            {
+                Assert.That(record, Does.Contain(detail.GetType().FullName));
+                Assert.That(record, Does.Contain(detail.Message));
+                if (detail.StackTrace == null)
                 {
-                    Assert.That(second.StackTrace, Is.Not.Null);
-                    Assert.That(second.InnerException!.StackTrace, Is.Not.Null);
+                    continue;
                 }
-                break;
+
+                using (Assert.EnterMultipleScope())
+                {
+                    Assert.That(detail.StackTrace, Does.Contain(nameof(CaptureNestedException))
+                        .Or.Contain(nameof(CaptureDeepNestedException)));
+                    Assert.That(record, Does.Contain(detail.StackTrace));
+                }
+            }
+            switch (Scenario)
+            {
+                case "never-thrown":
+                    Assert.That(Exception.StackTrace, Is.Null);
+                    break;
+                case "deep-nested":
+                    Assert.That(Exception.StackTrace, Is.Not.Null);
+                    Assert.That(Exception.InnerException!.StackTrace, Is.Not.Null);
+                    Assert.That(Exception.InnerException!.InnerException!.StackTrace, Is.Not.Null);
+                    break;
+                default:
+                    Assert.That(First.StackTrace, Is.Not.Null);
+                    Assert.That(First.InnerException!.StackTrace, Is.Not.Null);
+                    if (Scenario == "aggregate")
+                    {
+                        Assert.That(Second.StackTrace, Is.Not.Null);
+                        var innerSecond = Second.InnerException;
+                        Assert.That(innerSecond!.StackTrace, Is.Not.Null);
+                    }
+                    break;
+            }
         }
     }
 
@@ -558,9 +584,12 @@ public class GitWizardLogTests
         var header = content.IndexOf($"{context} Exception follows:", StringComparison.Ordinal);
         var end = content.IndexOf(marker, StringComparison.Ordinal);
         Assert.That(end, Is.GreaterThanOrEqualTo(0), "Intervening ordinary marker missing.");
-        Assert.That(header, Is.GreaterThanOrEqualTo(0), "Exception context missing.");
-        Assert.That(end, Is.GreaterThan(header));
-        Assert.That(content[header..end], Does.Contain(exception.ToString()));
+        var exceptionContextFound = header >= 0;
+        Assert.That(exceptionContextFound, Is.True, "Exception context missing.");
+        var recordEndsAfterHeader = end > header;
+        Assert.That(recordEndsAfterHeader, Is.True);
+        var exceptionRecord = content[header..end];
+        Assert.That(exceptionRecord, Does.Contain(exception.ToString()));
     }
 
     [Test]

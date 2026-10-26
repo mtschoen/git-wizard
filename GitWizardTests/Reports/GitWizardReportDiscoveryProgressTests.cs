@@ -42,7 +42,7 @@ public class GitWizardReportDiscoveryProgressTests
     public async Task GetRepositoryPaths_ParallelProgress_ReachesTotal()
     {
         GitWizardLog.SilentMode = true;
-        var configuration = new GitWizardConfiguration { SearchPaths = new SortedSet<string>(_searchPaths) };
+        var configuration = new GitWizardConfiguration { SearchPaths = [.. _searchPaths] };
         var report = new GitWizardReport(configuration);
         var handler = new RecordingUpdateHandler();
         var discoveredPaths = new SortedSet<string>();

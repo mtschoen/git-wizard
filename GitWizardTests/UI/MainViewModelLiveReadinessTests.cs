@@ -55,43 +55,7 @@ public class MainViewModelLiveReadinessTests
             dispatcher.Drain();
             Assert.That(viewModel.LiveWatch.IsLive, Is.True, "Started still drives IsLive.");
             tooltipNotifications.Value = 0;
-            source.SetVolume(VolumeWatchStatus.CatchingUp("X", VolumeBlockOrigin.Cold));
-            Assert.That(viewModel.LiveWatch.LiveVolumes, Is.Empty, "Readiness must be posted, not applied inline.");
-            Assert.That(viewModel.LiveWatch.LiveReadinessTooltip, Is.Empty);
-            Assert.That(cacheModel.LiveVolumes, Is.Empty);
-            Assert.That(tooltipNotifications.Value, Is.Zero);
-
-            dispatcher.Drain();
-            Assert.That(viewModel.LiveWatch.LiveVolumes.Single().DisplayText, Is.EqualTo("X: catching up (cold)"));
-            Assert.That(viewModel.LiveWatch.LiveReadinessText, Is.EqualTo("Catching up: X"));
-            Assert.That(viewModel.LiveWatch.LiveReadinessTooltip, Is.EqualTo("X: catching up (cold)"));
-            Assert.That(cacheModel.LiveVolumes.Single(), Is.SameAs(viewModel.LiveWatch.LiveVolumes.Single()));
-            Assert.That(tooltipNotifications.Value, Is.GreaterThan(0));
-            var notificationsAfterCatchingUp = tooltipNotifications.Value;
-
-            source.SetVolume(VolumeWatchStatus.CaughtUp("X", VolumeBlockOrigin.Cold));
-            dispatcher.Drain();
-            Assert.That(viewModel.LiveWatch.LiveVolumes.Single().DisplayText, Is.EqualTo("X: caught up (cold)"));
-            Assert.That(viewModel.LiveWatch.LiveReadinessText, Is.EqualTo("Ready (journal): X"));
-            Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Live watch active"));
-            Assert.That(viewModel.LiveWatch.LiveReadinessTooltip, Is.EqualTo("X: caught up (cold)"));
-            Assert.That(cacheModel.LiveVolumes.Single().DisplayText, Is.EqualTo("X: caught up (cold)"));
-            Assert.That(tooltipNotifications.Value, Is.GreaterThan(notificationsAfterCatchingUp));
-
-            source.SetVolume(VolumeWatchStatus.Excluded("X", VolumeBlockOrigin.Cold, "watch died"));
-            dispatcher.Drain();
-            Assert.That(viewModel.LiveWatch.LiveVolumes.Single().DisplayText, Is.EqualTo("X: excluded (cold): watch died"));
-            Assert.That(viewModel.LiveWatch.LiveReadinessTooltip, Is.EqualTo("X: excluded (cold): watch died"));
-            Assert.That(cacheModel.LiveVolumes.Single().DisplayText, Is.EqualTo("X: excluded (cold): watch died"));
-            Assert.That(viewModel.LiveWatch.LiveReadinessText, Is.EqualTo("No caught-up volumes (journal); excluded: X"));
-
-            source.SetVolume(VolumeWatchStatus.CaughtUp("Y", VolumeBlockOrigin.Warm));
-            dispatcher.Drain();
-            Assert.That(viewModel.LiveWatch.LiveReadinessTooltip, Is.EqualTo(
-                "X: excluded (cold): watch died" + Environment.NewLine + "Y: caught up (warm)"));
-            Assert.That(viewModel.LiveWatch.LiveReadinessText, Is.EqualTo("Ready (journal): Y; excluded: X"));
-            Assert.That(cacheModel.LiveVolumes.Select(row => row.DisplayText), Is.EqualTo(
-                ["X: excluded (cold): watch died", "Y: caught up (warm)"]));
+            ApplyReadinessTransitions(source, dispatcher, viewModel, cacheModel, tooltipNotifications);
         }
         finally
         {
@@ -105,10 +69,75 @@ public class MainViewModelLiveReadinessTests
             }
         }
         dispatcher.Drain();
-        Assert.That(viewModel.LiveWatch.LiveVolumes, Is.Empty, "Stopping clears per-drive state.");
-        Assert.That(viewModel.LiveWatch.LiveReadinessText, Is.Empty);
-        Assert.That(viewModel.LiveWatch.LiveReadinessTooltip, Is.Empty);
-        Assert.That(cacheModel.LiveVolumes, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.LiveWatch.LiveVolumes, Is.Empty, "Stopping clears per-drive state.");
+            Assert.That(viewModel.LiveWatch.LiveReadinessText, Is.Empty);
+            Assert.That(viewModel.LiveWatch.LiveReadinessTooltip, Is.Empty);
+            Assert.That(cacheModel.LiveVolumes, Is.Empty);
+        }
+
+    }
+
+    static void ApplyReadinessTransitions(
+        ReadinessVolumeChangeSource source,
+        QueuedUiDispatcher dispatcher,
+        MainViewModel viewModel,
+        IndexCacheViewModel cacheModel,
+        StrongBox<int> tooltipNotifications)
+    {
+        source.SetVolume(VolumeWatchStatus.CatchingUp("X", VolumeBlockOrigin.Cold));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.LiveWatch.LiveVolumes, Is.Empty, "Readiness must be posted, not applied inline.");
+            Assert.That(viewModel.LiveWatch.LiveReadinessTooltip, Is.Empty);
+            Assert.That(cacheModel.LiveVolumes, Is.Empty);
+            Assert.That(tooltipNotifications.Value, Is.Zero);
+        }
+
+        dispatcher.Drain();
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.LiveWatch.LiveVolumes.Single().DisplayText, Is.EqualTo("X: catching up (cold)"));
+            Assert.That(viewModel.LiveWatch.LiveReadinessText, Is.EqualTo("Catching up: X"));
+            Assert.That(viewModel.LiveWatch.LiveReadinessTooltip, Is.EqualTo("X: catching up (cold)"));
+            Assert.That(cacheModel.LiveVolumes.Single(), Is.SameAs(viewModel.LiveWatch.LiveVolumes.Single()));
+            Assert.That(tooltipNotifications.Value, Is.GreaterThan(0));
+        }
+        var notificationsAfterCatchingUp = tooltipNotifications.Value;
+
+        source.SetVolume(VolumeWatchStatus.CaughtUp("X", VolumeBlockOrigin.Cold));
+        dispatcher.Drain();
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.LiveWatch.LiveVolumes.Single().DisplayText, Is.EqualTo("X: caught up (cold)"));
+            Assert.That(viewModel.LiveWatch.LiveReadinessText, Is.EqualTo("Ready (journal): X"));
+            Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Live watch active"));
+            Assert.That(viewModel.LiveWatch.LiveReadinessTooltip, Is.EqualTo("X: caught up (cold)"));
+            Assert.That(cacheModel.LiveVolumes.Single().DisplayText, Is.EqualTo("X: caught up (cold)"));
+            Assert.That(tooltipNotifications.Value, Is.GreaterThan(notificationsAfterCatchingUp));
+        }
+
+        source.SetVolume(VolumeWatchStatus.Excluded("X", VolumeBlockOrigin.Cold, "watch died"));
+        dispatcher.Drain();
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.LiveWatch.LiveVolumes.Single().DisplayText, Is.EqualTo("X: excluded (cold): watch died"));
+            Assert.That(viewModel.LiveWatch.LiveReadinessTooltip, Is.EqualTo("X: excluded (cold): watch died"));
+            Assert.That(cacheModel.LiveVolumes.Single().DisplayText, Is.EqualTo("X: excluded (cold): watch died"));
+            Assert.That(viewModel.LiveWatch.LiveReadinessText, Is.EqualTo("No caught-up volumes (journal); excluded: X"));
+        }
+
+        source.SetVolume(VolumeWatchStatus.CaughtUp("Y", VolumeBlockOrigin.Warm));
+        dispatcher.Drain();
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.LiveWatch.LiveReadinessTooltip, Is.EqualTo(
+                "X: excluded (cold): watch died" + Environment.NewLine + "Y: caught up (warm)"));
+            Assert.That(viewModel.LiveWatch.LiveReadinessText, Is.EqualTo("Ready (journal): Y; excluded: X"));
+            Assert.That(cacheModel.LiveVolumes.Select(row => row.DisplayText), Is.EqualTo(
+                ["X: excluded (cold): watch died", "Y: caught up (warm)"]));
+        }
     }
 
     [Test]

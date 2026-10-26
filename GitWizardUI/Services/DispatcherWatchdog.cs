@@ -78,7 +78,9 @@ public sealed class DispatcherWatchdog
     {
         var elapsed = _timeProvider.GetElapsedTime(startTimestamp);
         if (elapsed > _warningThreshold)
+        {
             _onSlowCallback(new DispatcherWatchdogObservation(callbackName, elapsed, _warningThreshold));
+        }
     }
 
     static void WriteDefaultWarning(DispatcherWatchdogObservation observation) =>

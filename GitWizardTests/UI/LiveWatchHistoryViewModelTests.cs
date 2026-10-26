@@ -98,9 +98,10 @@ public class LiveWatchHistoryViewModelTests
 
         history.Apply([transition]);
         Assert.That(clock.Timer, Is.Not.Null);
+        var timer = clock.Timer;
         Assert.That(history.Events, Has.Count.EqualTo(1));
 
-        clock.Timer!.Fire();
+        timer!.Fire();
         Assert.That(dispatched, Has.Count.EqualTo(1));
 
         dispatched[0]();

@@ -76,7 +76,8 @@ public class RepositoryWatchServiceReadinessTests
         // Later recovery or fault changes per-drive state without a second marker.
         source.SetVolume(VolumeWatchStatus.Excluded("Y", VolumeBlockOrigin.Cold, "Y faulted later"));
         Assert.That(run.Ready, Has.Count.EqualTo(1));
-        Assert.That(run.Snapshots[^1].TryGet("Y", out var y) && y.State == VolumeWatchState.Excluded, Is.True);
+        var latestSnapshot = run.Snapshots[^1];
+        Assert.That(latestSnapshot.TryGet("Y", out var y) && y.State == VolumeWatchState.Excluded, Is.True);
     }
 
     [Test]

@@ -25,11 +25,11 @@ public class GitWizardConfiguration
         WriteIndented = true
     };
 
-    public SortedSet<string> SearchPaths { get; set; } = new();
-    public SortedSet<string> IgnoredPaths { get; init; } = new();
+    public SortedSet<string> SearchPaths { get; set; } = [];
+    public SortedSet<string> IgnoredPaths { get; init; } = [];
 
     [JsonPropertyName("ignoredJournalWarnings")]
-    public SortedSet<uint> IgnoredJournalWarnings { get; init; } = new();
+    public SortedSet<uint> IgnoredJournalWarnings { get; init; } = [];
 
     /// <summary>
     /// Whether to skip directories whose last path segment starts with '.' during

@@ -159,10 +159,14 @@ public class IndexVolumeChangeSourceCompletionTests
             SyntheticNotifications.CreateWatchFault(WatchFaultKind.Drive, 'X', new IOException("X recovering"))));
         source.ApplyWatchState(SyntheticNotifications.CreateWatchStateChange('Y', watchY with { State = WatchState.Recovering, StateVersion = versionY + 1 },
             SyntheticNotifications.CreateWatchFault(WatchFaultKind.Drive, 'Y', new IOException("Y recovering"))));
-        Assert.That(source.Readiness.TryGet("X", out var statusX), Is.True);
-        Assert.That(statusX!.WatchStateVersion, Is.EqualTo(versionX + 100));
-        Assert.That(source.Readiness.TryGet("Y", out var statusY), Is.True);
-        Assert.That(statusY!.WatchStateVersion, Is.EqualTo(versionY + 1));
+        var foundX = source.Readiness.TryGet("X", out var statusX);
+        Assert.That(foundX, Is.True);
+        var statusXVersion = statusX!.WatchStateVersion;
+        Assert.That(statusXVersion, Is.EqualTo(versionX + 100));
+        var foundY = source.Readiness.TryGet("Y", out var statusY);
+        Assert.That(foundY, Is.True);
+        var statusYVersion = statusY!.WatchStateVersion;
+        Assert.That(statusYVersion, Is.EqualTo(versionY + 1));
     }
 
     [Test]
@@ -185,8 +189,10 @@ public class IndexVolumeChangeSourceCompletionTests
         // Deliver older event: should be ignored
         source.ApplyWatchState(SyntheticNotifications.CreateWatchStateChange('X', watch with { State = WatchState.CaughtUp, StateVersion = intermediateVersion - 1 }, null));
         Assert.That(source.Readiness.RecentTransitions, Has.Count.EqualTo(countBefore));
-        Assert.That(source.Readiness.TryGet("X", out var status), Is.True);
-        Assert.That(status!.WatchStateVersion, Is.EqualTo(intermediateVersion));
+        var foundStatus = source.Readiness.TryGet("X", out var status);
+        Assert.That(foundStatus, Is.True);
+        var statusVersion = status!.WatchStateVersion;
+        Assert.That(statusVersion, Is.EqualTo(intermediateVersion));
 
         // Deliver strictly newer event: should be accepted
         var newerVersion = intermediateVersion + 1;
@@ -232,11 +238,14 @@ public class IndexVolumeChangeSourceCompletionTests
         release.SetResult();
 
         // The reconciliation batch is delivered
-        Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
-        Assert.That(reader.Current.Entries, Does.Contain(new VolumeChangeEntry(@"X:\newrepo\.git", VolumeEntryKind.Created)));
+        var reconciled = await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard);
+        Assert.That(reconciled, Is.True);
+        var reconciliationEntries = reader.Current.Entries;
+        Assert.That(reconciliationEntries, Does.Contain(new VolumeChangeEntry(@"X:\newrepo\.git", VolumeEntryKind.Created)));
 
         // The source still reads CatchingUp at next, not CaughtUp at the older version
-        Assert.That(source.Readiness.TryGet("X", out var status), Is.True);
+        var foundStatus = source.Readiness.TryGet("X", out var status);
+        Assert.That(foundStatus, Is.True);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(status!.State, Is.EqualTo(VolumeWatchState.CatchingUp));
@@ -314,7 +323,7 @@ public class IndexVolumeChangeSourceCompletionTests
             {
                 lock (_violations)
                 {
-                    return _violations.ToArray();
+                    return [.. _violations];
                 }
             }
         }
@@ -334,7 +343,7 @@ public class IndexVolumeChangeSourceCompletionTests
                 scenario._firstRescan.SetResult();
             }
 
-            scenario.Owner = PackedIndexFixture.Owner(index, drives.Select(drive => drive.ToString()).ToArray());
+            scenario.Owner = PackedIndexFixture.Owner(index, [.. drives.Select(drive => drive.ToString())]);
             var owner = scenario.Owner;
             scenario.Source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner))
             {

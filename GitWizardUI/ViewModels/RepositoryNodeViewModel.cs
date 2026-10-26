@@ -11,7 +11,7 @@ public sealed partial class RepositoryNodeViewModel : INotifyPropertyChanged
     string? _cachedSizeText;
 
     public GitWizardRepository Repository { get; }
-    public ObservableCollection<RepositoryNodeViewModel> Children { get; } = new();
+    public ObservableCollection<RepositoryNodeViewModel> Children { get; } = [];
 
     /// <summary>
     /// True if this node is a group header (drive or remote URL group), not a real repository.

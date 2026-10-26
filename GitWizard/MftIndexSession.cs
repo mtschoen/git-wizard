@@ -29,8 +29,8 @@ public sealed partial class MftIndexSession : IAsyncDisposable
     {
         Index = index;
         _connectionOwner = connectionOwner;
-        Drives = Array.AsReadOnly(drives.ToArray());
-        IndexedDrives = Array.AsReadOnly(indexedDrives.ToArray());
+        Drives = Array.AsReadOnly<string>([.. drives]);
+        IndexedDrives = Array.AsReadOnly<IndexedDrive>([.. indexedDrives]);
         ScanErrors = new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(
             new Dictionary<string, string>(scanErrors, StringComparer.OrdinalIgnoreCase));
         _cacheDirectory = cacheDirectory;
@@ -69,7 +69,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
                 progress, diagnostics), cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             var session = new MftIndexSession(index, brokerSession,
-                drives.Select(drive => drive.Drive.ToString()).ToArray(), drives,
+                (string[])[.. drives.Select(drive => drive.Drive.ToString())], drives,
                 CollectScanErrors(index), cacheDirectory)
             {
                 BrokerSession = brokerSession,
@@ -170,9 +170,9 @@ public sealed partial class MftIndexSession : IAsyncDisposable
     {
         var indexed = Index.Drives.ToDictionary(status =>
             status.Drive.ToString(), StringComparer.OrdinalIgnoreCase);
-        return Array.AsReadOnly(Drives.Select(drive => new MftDriveStatus(drive,
+        return Array.AsReadOnly<MftDriveStatus>([.. Drives.Select(drive => new MftDriveStatus(drive,
             indexed.TryGetValue(drive, out var status) ? status with { } : null,
-            _identityFailures.GetValueOrDefault(drive))).ToArray());
+            _identityFailures.GetValueOrDefault(drive)))]);
     }
 
     public ValueTask DisposeAsync()

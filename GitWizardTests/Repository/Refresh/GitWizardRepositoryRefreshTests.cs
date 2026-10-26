@@ -341,7 +341,7 @@ public class GitWizardRepositoryRefreshTests
         var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repository.CurrentBranch, Is.AnyOf("main", "master"));
             Assert.That(repository.DefaultBranch, Is.AnyOf("main", "master"));
@@ -353,7 +353,7 @@ public class GitWizardRepositoryRefreshTests
             Assert.That(repository.LastCommitDate, Is.Not.Null);
             Assert.That(repository.IsRefreshing, Is.False);
             Assert.That(repository.SizeOnDisk, Is.GreaterThan(0L));
-        });
+        }
     }
 
     [Test]

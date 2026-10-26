@@ -30,7 +30,7 @@ public class RepositoryWatchServiceMembershipTests
                 [
                     new VolumeChangeEntry(Path.Combine(repositoryPath, ".git"), VolumeEntryKind.Created)
                     ]) ]),
-            trackedRoots: Array.Empty<string>(),
+            trackedRoots: [],
             searchRoots: [Path.GetPathRoot(repositoryPath)!],
             debounce: TimeSpan.FromMilliseconds(10));
 
@@ -49,7 +49,7 @@ public class RepositoryWatchServiceMembershipTests
                 [
                     new VolumeChangeEntry(Path.Combine(repositoryPath, ".git"), VolumeEntryKind.Created)
                     ]) ]),
-            trackedRoots: Array.Empty<string>(),
+            trackedRoots: [],
             searchRoots: [Path.GetPathRoot(repositoryPath)!],
             debounce: TimeSpan.FromMilliseconds(10),
             includeTempDirectories: true);
@@ -95,7 +95,7 @@ public class RepositoryWatchServiceMembershipTests
                             new VolumeChangeEntry(Path.Combine(ignoredTempSubtree, "repo", ".git"), VolumeEntryKind.Created),
                         ])
                 ]),
-            trackedRoots: Array.Empty<string>(),
+            trackedRoots: [],
             searchRoots: [Path.GetPathRoot(ignoredTempSubtree)!],
             debounce: TimeSpan.FromMilliseconds(10),
             includeTempDirectories: true,
@@ -120,7 +120,7 @@ public class RepositoryWatchServiceMembershipTests
             };
         var svc = new RepositoryWatchService(
             new ScriptedVolumeChangeSource(batches),
-            trackedRoots: Array.Empty<string>(),
+            trackedRoots: [],
             searchRoots: [@"C:\repo"],
             debounce: TimeSpan.FromMilliseconds(10));
 
@@ -231,7 +231,7 @@ public class RepositoryWatchServiceMembershipTests
                 ]);
             var service = new RepositoryWatchService(
                 new ScriptedVolumeChangeSource([batch]),
-                trackedRoots: Array.Empty<string>(),
+                trackedRoots: [],
                 searchRoots: [searchRoot],
                 debounce: TimeSpan.FromMilliseconds(10));
 
@@ -273,7 +273,7 @@ public class RepositoryWatchServiceMembershipTests
                 };
             var service = new RepositoryWatchService(
                 new DelayedVolumeChangeSource(batches, TimeSpan.FromMilliseconds(60)),
-                trackedRoots: Array.Empty<string>(),
+                trackedRoots: [],
                 searchRoots: [searchRoot],
                 debounce: TimeSpan.FromMilliseconds(10));
 
@@ -316,7 +316,7 @@ public class RepositoryWatchServiceMembershipTests
                 ]);
             var service = new RepositoryWatchService(
                 new ScriptedVolumeChangeSource([batch]),
-                trackedRoots: Array.Empty<string>(),
+                trackedRoots: [],
                 searchRoots: [searchRoot],
                 debounce: TimeSpan.FromMilliseconds(10));
 

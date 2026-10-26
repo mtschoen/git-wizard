@@ -54,15 +54,15 @@ sealed class PackedIndexFixture : IDisposable
 
     public Task<FileIndex> OpenIndexAsync(params char[] drives) => FileIndex.OpenAsync(new FileIndexOptions
     {
-        Drives = (drives.Length == 0 ? ['X'] : drives)
-            .Select(letter => new IndexedDrive(letter, TreePath, 1, ProducerKind.Enumeration)).ToArray(),
+        Drives = (IndexedDrive[])[.. (drives.Length == 0 ? ['X'] : drives)
+            .Select(letter => new IndexedDrive(letter, TreePath, 1, ProducerKind.Enumeration))],
         CacheMode = CacheMode.Disabled
     }, CancellationToken.None);
 
     public Task<FileIndex> OpenMftIndexAsync(ScriptedWatchSource source, params char[] drives) =>
         FileIndex.OpenAsync(new FileIndexOptions
         {
-            Drives = drives.Select(letter => new IndexedDrive(letter, TreePath, 1)).ToArray(),
+            Drives = (IndexedDrive[])[.. drives.Select(letter => new IndexedDrive(letter, TreePath, 1))],
             CacheMode = CacheMode.Disabled,
             MftSource = SyntheticIndexSource.Create(Producer, source)
         }, CancellationToken.None);

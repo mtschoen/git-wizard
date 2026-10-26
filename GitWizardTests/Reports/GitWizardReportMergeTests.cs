@@ -26,7 +26,8 @@ public class GitWizardReportMergeTests
             new List<string> { repo.Path });
 
         Assert.That(File.Exists(savePath), Is.True);
-        Assert.That(merged.Repositories.ContainsKey(repo.Path), Is.True);
+        var mergedContainsRepository = merged.Repositories.ContainsKey(repo.Path);
+        Assert.That(mergedContainsRepository, Is.True);
 
         var onDisk = JsonSerializer.Deserialize<GitWizardReport>(File.ReadAllText(savePath));
         Assert.That(onDisk!.Repositories.ContainsKey(repo.Path), Is.True);
@@ -174,7 +175,8 @@ public class GitWizardReportMergeTests
         GitWizardReport.MergeIntoFile(savePath, configuration, new List<string>());
         var onDisk = JsonNode.Parse(File.ReadAllText(savePath))!.AsObject();
         Assert.That(onDisk.ContainsKey("Repositories"), Is.True);
-        Assert.That(onDisk["Repositories"], Is.InstanceOf<JsonObject>());
+        var repositoriesNode = onDisk["Repositories"];
+        Assert.That(repositoriesNode, Is.InstanceOf<JsonObject>());
     }
 
     [Test]

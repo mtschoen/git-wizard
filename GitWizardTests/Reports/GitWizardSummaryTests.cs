@@ -41,9 +41,12 @@ public class GitWizardSummaryTests
         var summary = GitWizardSummary.FromReport(report);
 
         Assert.That(summary.TotalRepositories, Is.EqualTo(1));
-        Assert.That(summary.MergedBranches, Is.EqualTo(1));
-        Assert.That(summary.NeedingAttention, Has.Count.EqualTo(1));
-        Assert.That(summary.NeedingAttention[0].Reasons, Contains.Item("merged-branches"));
+        var mergedBranchCount = summary.MergedBranches;
+        Assert.That(mergedBranchCount, Is.EqualTo(1));
+        var attentionCount = summary.NeedingAttention.Count;
+        Assert.That(attentionCount, Is.EqualTo(1));
+        var attention = summary.NeedingAttention[0];
+        Assert.That(attention.Reasons, Contains.Item("merged-branches"));
     }
 
     [Test]
@@ -63,8 +66,10 @@ public class GitWizardSummaryTests
         var summary = GitWizardSummary.FromReport(report);
 
         Assert.That(summary.BehindRemote, Is.EqualTo(1));
-        Assert.That(summary.NeedingAttention, Has.Count.EqualTo(1));
-        Assert.That(summary.NeedingAttention[0].Reasons, Contains.Item("behind-remote"));
+        var attentionCount = summary.NeedingAttention.Count;
+        Assert.That(attentionCount, Is.EqualTo(1));
+        var attention = summary.NeedingAttention[0];
+        Assert.That(attention.Reasons, Contains.Item("behind-remote"));
     }
 
     [Test]
@@ -95,14 +100,17 @@ public class GitWizardSummaryTests
 
         Assert.That(summary.Dirty, Is.EqualTo(1));
         // A throwaway local repo has no remote, so every commit also counts as unpushed.
-        Assert.That(summary.Unpushed, Is.EqualTo(1));
-        Assert.That(summary.NeedingAttention, Has.Count.EqualTo(1));
+        var unpushedCount = summary.Unpushed;
+        Assert.That(unpushedCount, Is.EqualTo(1));
+        var attentionCount = summary.NeedingAttention.Count;
+        Assert.That(attentionCount, Is.EqualTo(1));
+        var attention = summary.NeedingAttention[0];
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(summary.NeedingAttention[0].Path, Is.EqualTo(fixture.Path));
-            Assert.That(summary.NeedingAttention[0].Reasons, Does.Contain("dirty"));
+            Assert.That(attention.Path, Is.EqualTo(fixture.Path));
+            Assert.That(attention.Reasons, Does.Contain("dirty"));
         }
-        Assert.That(summary.NeedingAttention[0].Reasons, Does.Contain("unpushed"));
+        Assert.That(attention.Reasons, Does.Contain("unpushed"));
     }
 
     [Test]

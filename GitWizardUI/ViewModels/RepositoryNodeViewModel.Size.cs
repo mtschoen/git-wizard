@@ -8,7 +8,7 @@ public partial class RepositoryNodeViewModel
     readonly record struct ChildState(RefreshStatus Status, long? MeasuredSize);
 
     readonly Dictionary<RepositoryNodeViewModel, ChildState> _childStates = new();
-    readonly List<RepositoryNodeViewModel> _parentHeaders = new();
+    readonly List<RepositoryNodeViewModel> _parentHeaders = [];
 
     int _errorCount;
     int _warningCount;

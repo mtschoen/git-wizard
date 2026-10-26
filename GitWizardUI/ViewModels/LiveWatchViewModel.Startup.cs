@@ -102,7 +102,7 @@ public sealed partial class LiveWatchViewModel
     async Task ApplyLiveStartupInventoryAsync(DiscoveryInventory inventory)
     {
         var membership = RepositoryDiscoveryCoordinator.ReconcilePaths(
-            _repositoryList.AllRepositories.Select(node => node.WorkingDirectory).ToArray(), inventory);
+            (string[])[.. _repositoryList.AllRepositories.Select(node => node.WorkingDirectory)], inventory);
         var membershipSet = new HashSet<string>(membership, StringComparer.OrdinalIgnoreCase);
 
         List<string> addedPaths = [];
@@ -118,7 +118,7 @@ public sealed partial class LiveWatchViewModel
             }
 
             var currentSet = new HashSet<string>(current, StringComparer.OrdinalIgnoreCase);
-            addedPaths = membership.Where(path => !currentSet.Contains(path)).ToList();
+            addedPaths = [.. membership.Where(path => !currentSet.Contains(path))];
         }).ConfigureAwait(false);
 
         foreach (var path in addedPaths)

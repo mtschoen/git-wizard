@@ -213,10 +213,11 @@ public class RefreshPhaseObservationAndCancellationTests
         repository.Refresh(handler, cancellationToken: cancellationTokenSource.Token);
 
         Assert.That(handler.SubmodulesCreated, Has.Length.EqualTo(1),
-                "Expected the submodule-created callback to fire from inside the RefreshSubmodules loop before cancellation stopped further work.");
+            "Expected the submodule-created callback to fire from inside the RefreshSubmodules loop before cancellation stopped further work.");
+        var submodulesCreated = handler.SubmodulesCreated;
         Assert.That(observedPhases, Does.Contain(0), "Expected the submodule refresh phase to be entered.");
 
-        var submodule = handler.SubmodulesCreated.SingleOrDefault().Submodule;
+        var submodule = submodulesCreated.SingleOrDefault().Submodule;
         Assert.That(submodule, Is.Not.Null, "Expected the created submodule repository to be captured by the handler.");
         using (Assert.EnterMultipleScope())
         {
@@ -259,10 +260,11 @@ public class RefreshPhaseObservationAndCancellationTests
         repository.Refresh(handler, cancellationToken: cancellationTokenSource.Token);
 
         Assert.That(handler.WorktreesCreated, Has.Length.EqualTo(1),
-                "Expected the worktree-created callback to fire from inside the RefreshWorktrees loop before cancellation stopped further work.");
+            "Expected the worktree-created callback to fire from inside the RefreshWorktrees loop before cancellation stopped further work.");
+        var worktreesCreated = handler.WorktreesCreated;
         Assert.That(observedPhases, Does.Contain(2), "Expected the worktree refresh phase to be entered.");
 
-        var worktree = handler.WorktreesCreated.SingleOrDefault();
+        var worktree = worktreesCreated.SingleOrDefault();
         Assert.That(worktree, Is.Not.Null, "Expected the created worktree repository to be captured by the handler.");
         using (Assert.EnterMultipleScope())
         {

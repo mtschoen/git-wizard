@@ -73,8 +73,12 @@ public class IndexVolumeChangeSourceFaultTests
         release.SetResult();
         await WaitUntilAsync(() => harness.ReadinessOf('X') == VolumeWatchState.CaughtUp);
         await harness.Scripted.WatchFor('X').PublishBatchAsync([PackedIndexFixture.Entry(60, 6, "recovered", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1003));
-        Assert.That(await harness.ReadAsync(), Is.True);
-        Assert.That(harness.Deaths, Is.Empty);
+        var recovered = await harness.ReadAsync();
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(recovered, Is.True);
+            Assert.That(harness.Deaths, Is.Empty);
+        }
     }
 
     [TestCase("channel", "channel lost")]
@@ -96,13 +100,17 @@ public class IndexVolumeChangeSourceFaultTests
         }
 
         await harness.Scripted.WatchFor('Y').PublishBatchAsync([PackedIndexFixture.Entry(50, 6, "survivor", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
-        Assert.That(await harness.ReadAsync(), Is.True);
-        Assert.That(harness.Current.Volume, Is.EqualTo("Y"));
+        var survivor = await harness.ReadAsync();
+        Assert.That(survivor, Is.True);
+        var current = harness.Current;
+        Assert.That(current.Volume, Is.EqualTo("Y"));
 
         harness.Inject(kind, 'Y');
-        Assert.That(await harness.ReadAsync(), Is.False);
-        Assert.That(harness.Deaths, Has.Length.EqualTo(1));
-        Assert.That(harness.Deaths.Single(), Does.Contain(message));
+        var terminal = await harness.ReadAsync();
+        Assert.That(terminal, Is.False);
+        var deaths = harness.Deaths;
+        Assert.That(deaths, Has.Length.EqualTo(1));
+        Assert.That(deaths.Single(), Does.Contain(message));
     }
 
     [Test]
@@ -297,9 +305,13 @@ public class IndexVolumeChangeSourceFaultTests
             Assert.That(result.Errors.ContainsKey("Y"), Is.False);
             Assert.That(failures.Any(failure => failure.Drive == "X" && failure.Message.Contains("start refused")), Is.True);
         }
-        Assert.That(source.Readiness.TryGet("X", out var failed), Is.True);
-        Assert.That(failed!.State, Is.EqualTo(VolumeWatchState.Excluded));
-        Assert.That(source.Readiness.TryGet("Y", out var healthy), Is.True);
+
+        var foundFailed = source.Readiness.TryGet("X", out var failed);
+        Assert.That(foundFailed, Is.True);
+        var failedState = failed!.State;
+        Assert.That(failedState, Is.EqualTo(VolumeWatchState.Excluded));
+        var foundHealthy = source.Readiness.TryGet("Y", out var healthy);
+        Assert.That(foundHealthy, Is.True);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(healthy!.State, Is.EqualTo(VolumeWatchState.CaughtUp));
@@ -331,8 +343,11 @@ public class IndexVolumeChangeSourceFaultTests
             Assert.That(result.Errors, Is.Empty);
             Assert.That(failures, Is.Empty);
         }
-        Assert.That(source.Readiness.TryGet("X", out var status), Is.True);
-        Assert.That(status!.State, Is.EqualTo(VolumeWatchState.CaughtUp));
+
+        var foundStatus = source.Readiness.TryGet("X", out var status);
+        Assert.That(foundStatus, Is.True);
+        var caughtUp = status!.State;
+        Assert.That(caughtUp, Is.EqualTo(VolumeWatchState.CaughtUp));
     }
 
     sealed class FaultHarness : IAsyncDisposable
@@ -384,7 +399,7 @@ public class IndexVolumeChangeSourceFaultTests
             {
                 lock (_deaths)
                 {
-                    return _deaths.ToArray();
+                    return [.. _deaths];
                 }
             }
         }
@@ -395,7 +410,7 @@ public class IndexVolumeChangeSourceFaultTests
             {
                 lock (_failures)
                 {
-                    return _failures.ToArray();
+                    return [.. _failures];
                 }
             }
         }
@@ -470,10 +485,10 @@ public class IndexVolumeChangeSourceFaultTests
         {
             lock (_snapshots)
             {
-                return _snapshots.Select(snapshot => snapshot.TryGet(drive.ToString(), out var status)
+                return [.. _snapshots.Select(snapshot => snapshot.TryGet(drive.ToString(), out var status)
                         ? status.State
                         : (VolumeWatchState?)null)
-                    .OfType<VolumeWatchState>().ToArray();
+                    .OfType<VolumeWatchState>()];
             }
         }
 

@@ -49,7 +49,7 @@ public class ProgramWatchStartupTests
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled"),
             OpenIndexAsync = async (drives, _, _, _) =>
             {
-                var index = await files.OpenIndexAsync(drives.Select(d => d[0]).ToArray()).ConfigureAwait(false);
+                var index = await files.OpenIndexAsync([.. drives.Select(d => d[0])]).ConfigureAwait(false);
                 var indexed = drives.Select(d => new IndexedDrive(d[0], files.TreePath, 1)).ToList();
                 return new MftIndexSession(index, new CountingOwner(), drives, indexed, new Dictionary<string, string>());
             },
@@ -70,7 +70,7 @@ public class ProgramWatchStartupTests
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Watch, false, false, retainedRoots);
 
         await using var startup = await coordinator.PrepareWatchAsync(request, null, CancellationToken.None);
-        return startup.Inventory.Paths.ToList();
+        return [.. startup.Inventory.Paths];
     }
 
     [Test]
@@ -127,8 +127,8 @@ public class ProgramWatchStartupTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(paths, Is.EquivalentTo(new[] { existing, fresh }).IgnoreCase);
-            Assert.That(cached, Is.EquivalentTo(new[] { existing, fresh }).IgnoreCase);
+            Assert.That(paths, Is.EquivalentTo([existing, fresh]).IgnoreCase);
+            Assert.That(cached, Is.EquivalentTo([existing, fresh]).IgnoreCase);
         }
     }
 
@@ -169,8 +169,8 @@ public class ProgramWatchStartupTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(paths, Is.EquivalentTo(new[] { normalized }));
-            Assert.That(cached, Is.EquivalentTo(new[] { normalized }));
+            Assert.That(paths, Is.EquivalentTo([normalized]));
+            Assert.That(cached, Is.EquivalentTo([normalized]));
         }
     }
 
@@ -240,7 +240,7 @@ public class ProgramWatchStartupTests
         {
             Assert.That(startup.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Partial));
             Assert.That(startup.Source, Is.Not.Null);
-            Assert.That(startup.WatchVolumes, Is.EquivalentTo(new[] { "C" }));
+            Assert.That(startup.WatchVolumes, Is.EquivalentTo(["C"]));
         }
     }
 
@@ -326,14 +326,14 @@ public class ProgramWatchStartupTests
         var exitCode = await Program.RunWatchAsync(runConfig, config, coordinator, stdout, stderr, CancellationToken.None);
         var cached = await GitWizardApi.GetCachedRepositoryPathsAsync();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
-            Assert.That(requestedDrives, Is.EquivalentTo(new[] { "C", "E" }),
+            Assert.That(requestedDrives, Is.EquivalentTo(["C", "E"]),
                 "The retained root's drive must join the selected set, not just the search roots' drives.");
             Assert.That(exitCode, Is.EqualTo(1), "An unusable discovery exits nonzero.");
             Assert.That(cached, Is.Not.Null, "An unusable discovery preserves the previous repository list.");
             Assert.That(cached, Does.Contain(normalizedRetained).IgnoreCase);
-        });
+        }
     }
 
     [Test]

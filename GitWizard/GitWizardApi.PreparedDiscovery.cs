@@ -76,14 +76,13 @@ public static partial class GitWizardApi
             }
 
             var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, false, []);
-            var scope = DiscoveryScope.CreateExpanded(request, expandedRoots.ToArray(), [], expandedIgnoredPaths.ToArray(),
+            var scope = DiscoveryScope.CreateExpanded(request, (string[])[.. expandedRoots], [], (string[])[.. expandedIgnoredPaths],
                 r => new RootClassification(r, RootFileSystem.Ntfs, WatchPath.Parse(r).Volume, null));
             var repoCandidates = SelectRepositoryCandidates(owner.Index, scope);
-            var candidates = repoCandidates
+            var candidates = (string[])[.. repoCandidates
                 .Where(c => composition.CandidateExists(c.Path, c.Kind))
                 .Select(c => c.Path)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
+                .Distinct(StringComparer.OrdinalIgnoreCase)];
             foreach (var candidate in candidates)
             {
                 paths.Add(candidate);

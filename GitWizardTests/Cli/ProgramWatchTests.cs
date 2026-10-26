@@ -30,7 +30,7 @@ public class ProgramWatchTests
             _ => { },
             CancellationToken.None);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(exitCode, Is.Zero);
             Assert.That(capturedStartInfo, Is.Not.Null);
@@ -44,7 +44,7 @@ public class ProgramWatchTests
                 "--config-path",
                 "test.json"
             ]));
-        });
+        }
     }
 
     [Test]
@@ -60,12 +60,12 @@ public class ProgramWatchTests
             loggedErrors.Add,
             CancellationToken.None);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(exitCode, Is.EqualTo(1));
             Assert.That(loggedErrors, Has.Count.EqualTo(1));
             Assert.That(loggedErrors[0], Does.Contain("Cannot determine the current executable path"));
-        });
+        }
     }
 
     [Test]
@@ -81,12 +81,12 @@ public class ProgramWatchTests
             loggedErrors.Add,
             CancellationToken.None);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(exitCode, Is.EqualTo(1));
             Assert.That(loggedErrors, Has.Count.EqualTo(1));
             Assert.That(loggedErrors[0], Does.Contain("Failed to start pkexec process"));
-        });
+        }
     }
 
     [Test]
@@ -102,11 +102,11 @@ public class ProgramWatchTests
             loggedErrors.Add,
             CancellationToken.None);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(exitCode, Is.EqualTo(1));
             Assert.That(loggedErrors, Has.Count.EqualTo(1));
             Assert.That(loggedErrors[0], Does.Contain("Could not start pkexec: pkexec failed to launch"));
-        });
+        }
     }
 }

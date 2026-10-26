@@ -43,7 +43,7 @@ public sealed partial class LiveWatchController
         {
             lock (_gate)
             {
-                return _service?.ScanWarnings ?? Array.Empty<JournalWarning>();
+                return _service?.ScanWarnings ?? [];
             }
         }
     }

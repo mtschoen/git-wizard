@@ -27,7 +27,7 @@ sealed class UpdateHandler : IUpdateHandler
                 Created = _created,
                 Refreshed = _refreshed,
                 Skipped = _skipped,
-                Warnings = _warnings.ToArray()
+                Warnings = [.. _warnings]
             };
         }
     }

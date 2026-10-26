@@ -37,11 +37,11 @@ public sealed class IndexCacheViewModel : INotifyPropertyChanged
         LiveVolumes = liveWatch != null
             ? new ReadOnlyObservableCollection<LiveVolumeStatusViewModel>(liveWatch.LiveVolumes)
             : new ReadOnlyObservableCollection<LiveVolumeStatusViewModel>(
-                new ObservableCollection<LiveVolumeStatusViewModel>());
+                []);
         LiveWatchEvents = liveWatch != null
             ? new ReadOnlyObservableCollection<VolumeWatchTransition>(liveWatch.LiveWatchEvents)
             : new ReadOnlyObservableCollection<VolumeWatchTransition>(
-                new ObservableCollection<VolumeWatchTransition>());
+                []);
     }
 
     public Task RefreshAsync() => RunExclusiveAsync(async () =>

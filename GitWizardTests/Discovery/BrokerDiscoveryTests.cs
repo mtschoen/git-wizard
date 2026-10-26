@@ -137,9 +137,13 @@ public class BrokerDiscoveryTests
                 },
                 _ => true));
         Assert.That(result.Success, Is.False);
-        Assert.That(result.DetachIndexSession(), Is.Null);
-        Assert.That(calls, Is.Zero);
-        Assert.That(paths, Is.Empty);
+        var detached = result.DetachIndexSession();
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(detached, Is.Null);
+            Assert.That(calls, Is.Zero);
+            Assert.That(paths, Is.Empty);
+        }
     }
 
     [Test]

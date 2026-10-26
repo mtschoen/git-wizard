@@ -125,9 +125,10 @@ public class MainViewModelRefreshPruneTests
 
         Assert.That(vm.RepositoryList.RepositoryMap.ContainsKey("/repos/beta"), Is.False,
             "A deleted pre-populated repo must be removed from RepositoryMap.");
-        Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1),
+        var remainingRepositories = vm.RepositoryList.Repositories;
+        Assert.That(remainingRepositories, Has.Count.EqualTo(1),
             "A deleted pre-populated repo must be pruned from the visible collection.");
-        Assert.That(vm.RepositoryList.Repositories[0].WorkingDirectory, Is.EqualTo("/repos/alpha"),
+        Assert.That(remainingRepositories[0].WorkingDirectory, Is.EqualTo("/repos/alpha"),
             "The visible collection must only contain the fresh repo.");
 
     }

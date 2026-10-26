@@ -127,8 +127,12 @@ static class WatchFailureAssertions
         source.Arming = null;
         source.ArmErrors.Clear();
         await using var restarted = service.RunAsync(cancellation.Token).GetAsyncEnumerator();
-        Assert.That(await restarted.MoveNextAsync(), Is.False);
-        Assert.That(service.ScanErrors, Is.Empty, "A new run must not retain the previous run's errors.");
+        var restartedHasEntries = await restarted.MoveNextAsync();
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(restartedHasEntries, Is.False);
+            Assert.That(service.ScanErrors, Is.Empty, "A new run must not retain the previous run's errors.");
+        }
     }
 
     public static async Task VerifyQueryableIndexAsync()
@@ -178,8 +182,10 @@ static class WatchFailureAssertions
                     FileAttributes = FileAttributes.Normal,
                     Timestamp = PackedIndexFixture.CompletionTimestamp, Usn = 1001
                 }], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
-            Assert.That(await pending, Is.True);
-            Assert.That(reader.Current.RepoRoot, Is.EqualTo(@"Y:\repo"));
+            var pendingResult = await pending;
+            Assert.That(pendingResult, Is.True);
+            var current = reader.Current;
+            Assert.That(current.RepoRoot, Is.EqualTo(@"Y:\repo"));
             pending = reader.MoveNextAsync().AsTask();
             scripted.WatchFor('Y').LoseChannel(new IOException("Y watch failed"));
             Assert.That(await pending, Is.False);

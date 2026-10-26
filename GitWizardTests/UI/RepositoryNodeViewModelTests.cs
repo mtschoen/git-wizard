@@ -226,9 +226,7 @@ public class RepositoryNodeViewModelTests
     {
         var repo = new GitWizardRepository("/repo")
         {
-            Branches = Enumerable.Range(1, count)
-                .Select(i => new BranchInfo { Name = $"merged{i}", IsMerged = true })
-                .ToList()
+            Branches = [.. Enumerable.Range(1, count).Select(i => new BranchInfo { Name = $"merged{i}", IsMerged = true })]
         };
         var node = new RepositoryNodeViewModel(repo);
         node.UpdateDisplayText();
@@ -302,7 +300,7 @@ public class RepositoryNodeViewModelTests
     {
         var repo = new GitWizardRepository("/repo")
         {
-            Branches = new List<BranchInfo> { new() { Name = "feature", IsMerged = false } }
+            Branches = [new BranchInfo { Name = "feature", IsMerged = false }]
         };
         var node = new RepositoryNodeViewModel(repo);
         Assert.That(node.MatchesFilter(FilterType.DownstreamBranches), Is.False);

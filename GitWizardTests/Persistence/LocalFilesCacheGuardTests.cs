@@ -122,8 +122,12 @@ public class LocalFilesCacheGuardTests
             Directory.Delete(root, recursive: true);
         }
 
-        Assert.That(GitWizardApi.TryDeleteAllLocalFiles(out var refusal), Is.True);
-        Assert.That(refusal, Is.Null);
+        var deleted = GitWizardApi.TryDeleteAllLocalFiles(out var refusal);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(deleted, Is.True);
+            Assert.That(refusal, Is.Null);
+        }
     }
 
     [Test]

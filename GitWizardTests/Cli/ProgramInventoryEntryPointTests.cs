@@ -199,7 +199,7 @@ public class ProgramInventoryEntryPointTests
 
         using var document = JsonDocument.Parse(result.StandardOutput);
         var repository = document.RootElement.GetProperty("Repositories")[0];
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.ExitCode, Is.Zero);
             Assert.That(result.StandardError, Is.Empty);
@@ -210,7 +210,7 @@ public class ProgramInventoryEntryPointTests
             var tags = repository.GetProperty("Tags");
             Assert.That(tags.GetArrayLength(), Is.EqualTo(1));
             Assert.That(tags[0].GetProperty("Name").GetString(), Is.EqualTo("archive/v1"));
-        });
+        }
     }
 
     [TestCase("--print-minified")]
@@ -242,7 +242,7 @@ public class ProgramInventoryEntryPointTests
 
         using var document = JsonDocument.Parse(result.StandardOutput);
         var repository = document.RootElement.GetProperty("Repositories")[0];
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.ExitCode, Is.Zero);
             Assert.That(result.StandardError, Is.Empty);
@@ -254,7 +254,7 @@ public class ProgramInventoryEntryPointTests
             Assert.That(branches.GetArrayLength(), Is.EqualTo(1));
             Assert.That(branches[0].GetProperty("Name").GetString(), Is.EqualTo("feature-test"));
             Assert.That(branches[0].GetProperty("UniqueCommitCount").GetInt32(), Is.EqualTo(1));
-        });
+        }
     }
 
     [TestCase("--print-minified")]
@@ -322,7 +322,7 @@ public class ProgramInventoryEntryPointTests
             arguments.Add("--minified");
         }
 
-        var result = await RunCliAsync(arguments.ToArray());
+        var result = await RunCliAsync([.. arguments]);
         using var document = JsonDocument.Parse(result.StandardOutput);
         using (Assert.EnterMultipleScope())
         {

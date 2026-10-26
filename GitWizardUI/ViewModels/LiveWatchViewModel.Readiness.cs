@@ -26,7 +26,7 @@ public sealed partial class LiveWatchViewModel
 
     public ObservableCollection<VolumeWatchTransition> LiveWatchEvents => LiveWatchHistory.Events;
 
-    public ObservableCollection<LiveVolumeStatusViewModel> LiveVolumes { get; } = new();
+    public ObservableCollection<LiveVolumeStatusViewModel> LiveVolumes { get; } = [];
 
     public string LiveReadinessTooltip
     {

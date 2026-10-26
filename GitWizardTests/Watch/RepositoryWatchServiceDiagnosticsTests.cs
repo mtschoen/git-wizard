@@ -48,8 +48,10 @@ public class RepositoryWatchServiceDiagnosticsTests
                 ((IDictionary<string, string>)service.ScanErrors).Add("Z", "mutation"));
             source.Publish(new VolumeChangeBatch("Y",
                 [new VolumeChangeEntry(@"Y:\repo\file", VolumeEntryKind.Modified)]));
-            Assert.That(await pending, Is.True);
-            Assert.That(reader.Current.RepoRoot, Is.EqualTo(@"Y:\repo"));
+            var pendingResult = await pending;
+            Assert.That(pendingResult, Is.True);
+            var current = reader.Current;
+            Assert.That(current.RepoRoot, Is.EqualTo(@"Y:\repo"));
         }
         finally
         {
@@ -186,10 +188,7 @@ public class RepositoryWatchServiceDiagnosticsTests
         {
             await Task.WhenAll(publisherTask, source.Started).WaitAsync(TimeSpan.FromSeconds(5));
 
-            Assert.That(service.ScanWarnings, Has.Count.EqualTo(1));
-            var warning = service.ScanWarnings.Single();
-            Assert.That(warning.DriveLetter, Is.EqualTo("C").IgnoreCase);
-            Assert.That(warning.WatchState, Is.EqualTo(refreshedWarning.WatchState));
+            AssertRefreshedWarning(service.ScanWarnings, refreshedWarning);
         }
         finally
         {
@@ -204,15 +203,26 @@ public class RepositoryWatchServiceDiagnosticsTests
         }
     }
 
+    static void AssertRefreshedWarning(IReadOnlyCollection<JournalWarning> warnings, JournalWarning refreshedWarning)
+    {
+        Assert.That(warnings, Has.Count.EqualTo(1));
+        var warning = warnings.Single();
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(warning.DriveLetter, Is.EqualTo("C").IgnoreCase);
+            Assert.That(warning.WatchState, Is.EqualTo(refreshedWarning.WatchState));
+        }
+    }
+
     [Test]
     public async Task ArmErrors_AreExposedAsScanErrorsAfterRun()
     {
         var errors = new Dictionary<string, string> { ["D"] = "drive not ready" };
         var svc = new RepositoryWatchService(
             new ScriptedVolumeChangeSource(
-                Array.Empty<VolumeChangeBatch>(), errors),
-            trackedRoots: Array.Empty<string>(),
-            searchRoots: Array.Empty<string>(),
+                [], errors),
+            trackedRoots: [],
+            searchRoots: [],
             debounce: TimeSpan.FromMilliseconds(10));
 
         await DrainAsync(svc);
@@ -224,9 +234,9 @@ public class RepositoryWatchServiceDiagnosticsTests
     public async Task NoArmErrors_ScanErrorsIsEmptyAfterRun()
     {
         var svc = new RepositoryWatchService(
-            new ScriptedVolumeChangeSource(Array.Empty<VolumeChangeBatch>()),
-            trackedRoots: Array.Empty<string>(),
-            searchRoots: Array.Empty<string>(),
+            new ScriptedVolumeChangeSource([]),
+            trackedRoots: [],
+            searchRoots: [],
             debounce: TimeSpan.FromMilliseconds(10));
 
         await DrainAsync(svc);
@@ -240,8 +250,8 @@ public class RepositoryWatchServiceDiagnosticsTests
         var source = new ScriptedVolumeChangeSource { KeepWatching = true };
         var svc = new RepositoryWatchService(
             source,
-            trackedRoots: Array.Empty<string>(),
-            searchRoots: Array.Empty<string>(),
+            trackedRoots: [],
+            searchRoots: [],
             debounce: TimeSpan.FromMilliseconds(10));
 
         string? reason = null;
@@ -268,8 +278,8 @@ public class RepositoryWatchServiceDiagnosticsTests
         var source = new ScriptedVolumeChangeSource { KeepWatching = true };
         var svc = new RepositoryWatchService(
             source,
-            trackedRoots: Array.Empty<string>(),
-            searchRoots: Array.Empty<string>(),
+            trackedRoots: [],
+            searchRoots: [],
             debounce: TimeSpan.FromMilliseconds(10));
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));

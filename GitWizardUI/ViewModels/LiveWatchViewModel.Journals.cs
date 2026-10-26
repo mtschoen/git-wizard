@@ -9,7 +9,7 @@ namespace GitWizardUI.ViewModels;
 
 public sealed partial class LiveWatchViewModel
 {
-    public ObservableCollection<JournalWarningViewModel> JournalWarnings { get; } = new();
+    public ObservableCollection<JournalWarningViewModel> JournalWarnings { get; } = [];
     int _journalGrowInProgress;
 
     public async Task<JournalResizeResult> EnlargeJournalAsync(JournalWarning warning)

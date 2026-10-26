@@ -63,7 +63,7 @@ public sealed record DiscoveryRequest(
     bool NoMft,
     IReadOnlyList<string> RetainedRoots)
 {
-    public IReadOnlyList<string> RetainedRoots { get; } = Array.AsReadOnly(RetainedRoots.ToArray());
+    public IReadOnlyList<string> RetainedRoots { get; } = Array.AsReadOnly<string>([.. RetainedRoots]);
 }
 
 public sealed record RootObservation(
@@ -83,25 +83,25 @@ public sealed record DiscoveryInventory
     public required IReadOnlyList<string> Paths
     {
         get;
-        init => field = Array.AsReadOnly(value.ToArray());
+        init => field = Array.AsReadOnly<string>([.. value]);
     } = [];
 
     public required IReadOnlyList<string> RequestedNtfsDrives
     {
         get;
-        init => field = Array.AsReadOnly(value.ToArray());
+        init => field = Array.AsReadOnly<string>([.. value]);
     } = [];
 
     public required IReadOnlyList<RootObservation> Observations
     {
         get;
-        init => field = Array.AsReadOnly(value.ToArray());
+        init => field = Array.AsReadOnly<RootObservation>([.. value]);
     } = [];
 
     public required IReadOnlyList<MftDriveStatus> DriveStatuses
     {
         get;
-        init => field = Array.AsReadOnly(value.ToArray());
+        init => field = Array.AsReadOnly<MftDriveStatus>([.. value]);
     } = [];
 
     public required IReadOnlyDictionary<string, string> Errors
@@ -113,7 +113,7 @@ public sealed record DiscoveryInventory
     public required IReadOnlyList<string> WatchExcludedRoots
     {
         get;
-        init => field = Array.AsReadOnly(value.ToArray());
+        init => field = Array.AsReadOnly<string>([.. value]);
     } = [];
 
     [JsonIgnore]
@@ -126,9 +126,9 @@ public sealed record RecursiveDiscovery(
     IReadOnlyList<string> FailedSubtrees,
     IReadOnlyDictionary<string, string> Errors)
 {
-    public IReadOnlyList<string> Paths { get; } = Array.AsReadOnly(Paths.ToArray());
+    public IReadOnlyList<string> Paths { get; } = Array.AsReadOnly<string>([.. Paths]);
 
-    public IReadOnlyList<string> FailedSubtrees { get; } = Array.AsReadOnly(FailedSubtrees.ToArray());
+    public IReadOnlyList<string> FailedSubtrees { get; } = Array.AsReadOnly<string>([.. FailedSubtrees]);
 
     public IReadOnlyDictionary<string, string> Errors { get; } = new ReadOnlyDictionary<string, string>(
         new Dictionary<string, string>(Errors));

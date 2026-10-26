@@ -17,7 +17,7 @@ public class DiscoveryScopeTests
         };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Watch, false, false,
             [@"E:\retained", @"c:\retained"]);
-        var scope = DiscoveryScope.CreateExpanded(request, configuration.SearchPaths.ToArray(),
+        var scope = DiscoveryScope.CreateExpanded(request, (string[])[.. configuration.SearchPaths],
             request.RetainedRoots, [], Classify);
         Assert.That(scope.RequestedNtfsDrives, Is.EquivalentTo(["C", "D", "E"]));
         using (Assert.EnterMultipleScope())
@@ -55,7 +55,7 @@ public class DiscoveryScopeTests
             SearchPaths = { @"U:\unknown" }
         };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, noMft, []);
-        var scope = DiscoveryScope.CreateExpanded(request, configuration.SearchPaths.ToArray(),
+        var scope = DiscoveryScope.CreateExpanded(request, (string[])[.. configuration.SearchPaths],
             request.RetainedRoots, [], Classify);
 
         if (!noMft)
@@ -84,7 +84,7 @@ public class DiscoveryScopeTests
             SearchPaths = { @"C:\ntfs", @"Z:\remote", @"U:\unknown" }
         };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Watch, false, true, [@"E:\retained"]);
-        var scope = DiscoveryScope.CreateExpanded(request, configuration.SearchPaths.ToArray(),
+        var scope = DiscoveryScope.CreateExpanded(request, (string[])[.. configuration.SearchPaths],
             request.RetainedRoots, [], Classify);
 
         Assert.That(scope.WatchExcludedRoots, Does.Contain(@"Z:\remote"));

@@ -272,7 +272,7 @@ public sealed partial class RepositoryWatchService
         }
         else
         {
-            volumes = trackedByVolume.Keys.Union(searchByVolume.Keys, StringComparer.OrdinalIgnoreCase).ToArray();
+            volumes = (string[])[.. trackedByVolume.Keys.Union(searchByVolume.Keys, StringComparer.OrdinalIgnoreCase)];
             var armResult = await _source.ArmAndCatchUpAsync(volumes, ct).ConfigureAwait(false);
             SetArmResult(armResult);
         }
@@ -283,7 +283,7 @@ public sealed partial class RepositoryWatchService
             armErrors = _scanErrors;
         }
 
-        SetPumpVolumes(volumes.Where(volume => !armErrors.ContainsKey(volume)).ToArray());
+        SetPumpVolumes((string[])[.. volumes.Where(volume => !armErrors.ContainsKey(volume))]);
 
         return volumes.ToDictionary(
             volume => volume,

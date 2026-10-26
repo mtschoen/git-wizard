@@ -93,8 +93,11 @@ public class IndexVolumeChangeSourceTests
         {
             string[] volumes = invalidSpec is null ? [@"x:\", "X:"] : [@"x:\", "X:", invalidSpec];
             var result = await source.ArmAndCatchUpAsync(volumes, CancellationToken.None);
-            Assert.That(result.Errors["Z"], Is.EqualTo("scan denied"));
-            Assert.That(owner.IsDisposed, Is.False);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(result.Errors["Z"], Is.EqualTo("scan denied"));
+                Assert.That(owner.IsDisposed, Is.False);
+            }
             using (Assert.EnterMultipleScope())
             {
                 Assert.That(owner.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single().Parent!.Value.Name, Is.EqualTo("repo"));
@@ -136,7 +139,8 @@ public class IndexVolumeChangeSourceTests
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Assert.That(oldOwner.IsDisposed, Is.True);
-                Assert.That(drives, Is.EqualTo([requested]));
+                var expectedDrives = (string[])[requested];
+                Assert.That(drives, Is.EqualTo(expectedDrives));
                 opens++;
                 return Task.FromResult(fresh);
             }, oldOwner))
@@ -165,9 +169,12 @@ public class IndexVolumeChangeSourceTests
         var deaths = new List<string>();
         failedSource.SourceDied += deaths.Add;
         await using var reader = failedSource.WatchAsync(CancellationToken.None).GetAsyncEnumerator();
-        Assert.That(await reader.MoveNextAsync(), Is.False, "A wholly failed open must stop cleanly.");
-        Assert.That(deaths, Has.Count.EqualTo(1));
-        Assert.That(deaths[0], Is.EqualTo("No requested drives could be watched."));
+        var failedRead = await reader.MoveNextAsync();
+        Assert.That(failedRead, Is.False, "A wholly failed open must stop cleanly.");
+        var deathCount = deaths.Count;
+        Assert.That(deathCount, Is.EqualTo(1));
+        var death = deaths[0];
+        Assert.That(death, Is.EqualTo("No requested drives could be watched."));
     }
 
     [Test]
@@ -217,19 +224,25 @@ public class IndexVolumeChangeSourceTests
             Entry(50, 6, "renamed.txt", SyntheticJournalReason.RenameNewName),
             Entry(50, 6, "renamed.txt", SyntheticJournalReason.FileDelete)
         ], new SyntheticJournalCursor(JournalIdentifier, 1004));
-        Assert.That(await firstRead, Is.True);
-        Assert.That(reader.Current, Is.EqualTo(reader.Current with { Volume = "X" }));
-        Assert.That(reader.Current.Entries, Is.EqualTo([
+        var firstReadResult = await firstRead;
+        Assert.That(firstReadResult, Is.True);
+        var firstBatch = reader.Current;
+        Assert.That(firstBatch, Is.EqualTo(firstBatch with { Volume = "X" }));
+        var firstEntries = reader.Current.Entries;
+        Assert.That(firstEntries, Is.EqualTo([
             new VolumeChangeEntry(@"X:\repo\file.txt", VolumeEntryKind.Created)
         ]));
-        Assert.That(await reader.MoveNextAsync(), Is.True);
-
-        Assert.That(reader.Current.Entries, Is.EqualTo([
-                new VolumeChangeEntry(@"X:\repo\file.txt", VolumeEntryKind.Deleted),
+        var secondRead = await reader.MoveNextAsync();
+        Assert.That(secondRead, Is.True);
+        var secondEntries = reader.Current.Entries;
+        Assert.That(secondEntries, Is.EqualTo([
+            new VolumeChangeEntry(@"X:\repo\file.txt", VolumeEntryKind.Deleted),
             new VolumeChangeEntry(@"X:\repo\renamed.txt", VolumeEntryKind.Created)
         ]));
-        Assert.That(await reader.MoveNextAsync(), Is.True);
-        Assert.That(reader.Current.Entries.Single(), Is.EqualTo(
+        var thirdRead = await reader.MoveNextAsync();
+        Assert.That(thirdRead, Is.True);
+        var thirdEntries = reader.Current.Entries;
+        Assert.That(thirdEntries.Single(), Is.EqualTo(
             new VolumeChangeEntry(@"X:\repo\renamed.txt", VolumeEntryKind.Deleted)));
         await scripted.WatchFor('Y').PublishBatchAsync([Entry(51, 6, "other.txt", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(JournalIdentifier, 1002));
         Assert.That(await reader.MoveNextAsync(), Is.True);
@@ -306,16 +319,21 @@ public class IndexVolumeChangeSourceTests
                 if (disposeSource)
                 {
                     await source.DisposeAsync();
-                    Assert.That(await pending, Is.False);
-                    Assert.That(owner.IsDisposed, Is.True);
+                    var pendingResult = await pending;
+                    Assert.That(pendingResult, Is.False);
+                    var disposed = owner.IsDisposed;
+                    Assert.That(disposed, Is.True);
                 }
                 else
                 {
                     await cancellation.CancelAsync();
                     Assert.CatchAsync<OperationCanceledException>(async () => await pending);
                 }
-                Assert.That(await scripted.WatchFor('X').ReadEnded.WaitAsync(TestTimeouts.HangGuard), Is.True);
-                Assert.That(deaths, Is.Zero);
+
+                var readEnded = await scripted.WatchFor('X').ReadEnded.WaitAsync(TestTimeouts.HangGuard);
+                Assert.That(readEnded, Is.True);
+                var deathCount = deaths;
+                Assert.That(deathCount, Is.Zero);
                 await source.DisposeAsync();
                 Assert.That(owner.IsDisposed, Is.True);
             }
@@ -444,13 +462,13 @@ public class IndexVolumeChangeSourceTests
         var terminal = status with { Watch = status.Watch with { State = WatchState.Faulted, IsRecoveryStopped = true, StateVersion = status.Watch.StateVersion + 1 } };
         source.ProcessFaultedDrive(terminal, owner, new GitWizardConfiguration());
         source.ProcessFaultedDrive(terminal, owner, new GitWizardConfiguration());
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(warnings, Has.Count.EqualTo(2));
             Assert.That(warnings[^1].Loss, Is.SameAs(liveLoss));
             Assert.That(warnings[^1].IsRecoveryStopped, Is.True);
             Assert.That(warnings[^1].Message, Does.Contain("Automatic recovery stopped"));
-        });
+        }
 
         // Two successive journal recreations produce distinct report instances with identical
         // record fields. ProcessFaultedDrive uses object identity to treat the second as a new episode.

@@ -21,7 +21,7 @@ public sealed partial class IndexVolumeChangeSource
         {
             lock (_publishedWarningsLock)
             {
-                return _publishedWarnings.Values.Select(published => published.Warning).ToArray();
+                return (JournalWarning[])[.. _publishedWarnings.Values.Select(published => published.Warning)];
             }
         }
     }

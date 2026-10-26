@@ -104,7 +104,7 @@ sealed class CliDiscoveryFixture : IAsyncDisposable
 
         argsList.AddRange(_extraArgs);
 
-        var parseResult = CliParser.Parse(argsList.ToArray());
+        var parseResult = CliParser.Parse([.. argsList]);
 
         var coordinator = new RepositoryDiscoveryCoordinator(Dependencies.BuildDependencies());
         ExitCode = await Program.RunCommandCoreAsync(

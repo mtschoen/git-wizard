@@ -71,6 +71,6 @@ static class StatusSessions
             .ToDictionary(status => status.Drive.ToString(),
                 status => status.Failure?.Message ?? $"Drive is {status.State}.");
         return new MftIndexSession(index, new CountingOwner(),
-            drives.Select(item => item.Letter.ToString()).ToArray(), indexedDrives, scanErrors);
+            (string[])[.. drives.Select(item => item.Letter.ToString())], indexedDrives, scanErrors);
     }
 }

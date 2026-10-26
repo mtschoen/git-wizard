@@ -87,7 +87,7 @@ public class ProgramWatchOutputFormattingTests
         string[] snapshot;
         lock (sink)
         {
-            snapshot = lines.ToArray();
+            snapshot = [.. lines];
         }
 
         Assert.That(snapshot, Has.All.StartsWith(stamp));

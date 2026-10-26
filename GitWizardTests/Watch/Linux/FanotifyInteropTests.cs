@@ -102,7 +102,7 @@ public class FanotifyInteropTests
 
         var result = probe.Probe(ExistingDirectoryPath);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.Status, Is.EqualTo(FanotifyCapabilityStatus.Available));
             Assert.That(result.IsSupported, Is.True);
@@ -127,7 +127,7 @@ public class FanotifyInteropTests
                 FanotifyConstants.CurrentWorkingDirectory));
             Assert.That(native.MarkCalls[1].Path, Is.EqualTo(ExistingDirectoryPath));
             Assert.That(native.ClosedDescriptors, Is.EqualTo([41]));
-        });
+        }
     }
 
     [Test]

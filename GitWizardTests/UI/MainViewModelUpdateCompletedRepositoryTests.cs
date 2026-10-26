@@ -144,13 +144,13 @@ public class MainViewModelUpdateCompletedRepositoryTests
         repo.RefreshError = "Something went wrong";
         vm.RepositoryList.UpdateCompletedRepository(repo, streaming: false);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(vm.ErrorLog.Count, Is.EqualTo(1));
             var entry = vm.ErrorLog.Entries.Single();
             Assert.That(entry.Message, Is.EqualTo("Something went wrong"));
             Assert.That(entry.RepositoryPath, Is.EqualTo("C:/repos/alpha"));
-        });
+        }
     }
 
     [Test]

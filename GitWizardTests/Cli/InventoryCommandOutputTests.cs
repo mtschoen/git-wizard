@@ -74,7 +74,7 @@ public class InventoryCommandOutputTests
         await using var stdout = new StringWriter();
         await using var stderr = new StringWriter();
         var exitCode = await Program.RunCommandCoreAsync(
-            CliParser.Parse(arguments.ToArray()), new GitWizardConfiguration(), stdout: stdout, stderr: stderr);
+            CliParser.Parse([.. arguments]), new GitWizardConfiguration(), stdout: stdout, stderr: stderr);
         return (exitCode, stdout.ToString());
     }
 
@@ -141,12 +141,12 @@ public class InventoryCommandOutputTests
 
         var (exitCode, output) = await RunAsync(command, minified: false, filter: null, savePath);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(exitCode, Is.Zero);
-            Assert.That(File.ReadAllText(savePath), Is.EqualTo(ExpectedGoldenJson(command, false, [_alphaPath, _betaPath])));
-            Assert.That(output.TrimEnd(), Is.EqualTo(File.ReadAllText(savePath)));
-        });
+            Assert.That(await File.ReadAllTextAsync(savePath), Is.EqualTo(ExpectedGoldenJson(command, false, [_alphaPath, _betaPath])));
+            Assert.That(output.TrimEnd(), Is.EqualTo(await File.ReadAllTextAsync(savePath)));
+        }
     }
 
     [TestCase(null, "/work/alpha", true)]

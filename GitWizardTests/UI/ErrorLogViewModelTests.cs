@@ -64,14 +64,14 @@ public class ErrorLogViewModelTests
             log.AddError($"error-{i}");
         }
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(log.Entries, Has.Count.EqualTo(ErrorLogViewModel.MaxEntries));
             Assert.That(log.Entries[0].Message, Is.EqualTo($"error-{ErrorLogViewModel.MaxEntries + 9}"),
                 "Newest entry must survive trimming.");
             Assert.That(log.Entries.Select(e => e.Message), Does.Not.Contain("error-0"),
                 "Oldest entries beyond the cap must be dropped.");
-        });
+        }
     }
 
     [Test]
@@ -117,15 +117,18 @@ public class ErrorLogViewModelTests
 
         log.PostError(dispatcher, "refresh failed", repositoryPath);
 
-        Assert.That(log.Entries, Is.Empty);
-        Assert.That(raisedProperties, Is.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(log.Entries, Is.Empty);
+            Assert.That(raisedProperties, Is.Empty);
+        }
         dispatcher.Drain();
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(log.Count, Is.EqualTo(1));
             Assert.That(log.Entries.Single().Message, Is.EqualTo("refresh failed"));
             Assert.That(log.Entries.Single().RepositoryPath, Is.EqualTo(repositoryPath));
             Assert.That(raisedProperties, Does.Contain(nameof(ErrorLogViewModel.Count)));
-        });
+        }
     }
 }

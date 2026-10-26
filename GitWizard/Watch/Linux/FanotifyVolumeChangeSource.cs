@@ -100,7 +100,7 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
         var errors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (volumes.Count == 0)
         {
-            return new VolumeArmResult(errors, Array.Empty<JournalWarning>());
+            return new VolumeArmResult(errors, []);
         }
 
         var initializeResult = _native.Initialize(
@@ -116,14 +116,14 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
                 PublishVolumeState(VolumeWatchStatus.Excluded(volume, VolumeBlockOrigin.Unknown, message));
             }
 
-            return new VolumeArmResult(errors, Array.Empty<JournalWarning>());
+            return new VolumeArmResult(errors, []);
         }
 
         _descriptor = new SafeUnixFileDescriptor(initializeResult.Value, _native);
 
         var watched = MarkVolumes(volumes, errors, _descriptor.Value);
-        _watchedVolumes = watched.OrderByDescending(volume => volume.Length).ToList();
-        return new VolumeArmResult(errors, Array.Empty<JournalWarning>());
+        _watchedVolumes = [.. watched.OrderByDescending(volume => volume.Length)];
+        return new VolumeArmResult(errors, []);
     }
 
     List<string> MarkVolumes(IReadOnlyCollection<string> volumes, Dictionary<string, string> errors, int descriptor)

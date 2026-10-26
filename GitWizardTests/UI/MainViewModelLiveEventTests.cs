@@ -212,7 +212,7 @@ public class MainViewModelLiveEventTests
             dispatcher.Drain();
 
             var paths = viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToList();
-            Assert.That(paths, Is.EquivalentTo(new[] { "/old", fixture.Path }),
+            Assert.That(paths, Is.EquivalentTo(["/old", fixture.Path]),
                 "A pending delete from a terminated run must not correlate a later creation and remove the healthy old row.");
         }
         finally

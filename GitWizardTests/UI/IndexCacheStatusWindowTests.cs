@@ -127,7 +127,7 @@ public class IndexCacheStatusWindowTests
 
             mainModel.LiveWatch.LiveWatchEvents.RemoveAt(0);
             Dispatcher.UIThread.RunJobs();
-            texts = eventList.GetVisualDescendants().OfType<TextBlock>().Select(control => control.Text).ToList();
+            texts = [.. eventList.GetVisualDescendants().OfType<TextBlock>().Select(control => control.Text)];
             Assert.That(texts, Does.Not.Contain("Faulted"));
             using (Assert.EnterMultipleScope())
             {

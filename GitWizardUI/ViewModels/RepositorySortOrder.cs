@@ -19,20 +19,13 @@ static class RepositorySortOrder
     {
         return mode switch
         {
-            SortMode.WorkingDirectory => repositories
-                .OrderBy(r => r.WorkingDirectory, WorkingDirectoryComparer)
-                .ToList(),
-            SortMode.RecentlyUsed => repositories
-                .OrderByDescending(r => r.Repository.LastCommitDate ?? DateTimeOffset.MinValue)
-                .ToList(),
-            SortMode.RemoteUrl => repositories
+            SortMode.WorkingDirectory => [.. repositories.OrderBy(r => r.WorkingDirectory, WorkingDirectoryComparer)],
+            SortMode.RecentlyUsed => [.. repositories.OrderByDescending(r => r.Repository.LastCommitDate ?? DateTimeOffset.MinValue)],
+            SortMode.RemoteUrl => [.. repositories
                 .OrderBy(r => r.Repository.RemoteUrls.Count > 0
                     ? RepositoryGroupKeys.NormalizeRemoteUrl(r.Repository.RemoteUrls[0])
-                    : "\uffff") // sort no-remote to end
-                .ToList(),
-            SortMode.SizeOnDisk => repositories
-                .OrderByDescending(r => r.Repository.SizeOnDisk)
-                .ToList(),
+                    : "\uffff")], // sort no-remote to end
+            SortMode.SizeOnDisk => [.. repositories.OrderByDescending(r => r.Repository.SizeOnDisk)],
             _ => repositories,
         };
     }
@@ -90,7 +83,7 @@ static class RepositorySortOrder
     // preserved among any equal-path entries, same as the per-row path.
     internal static List<RepositoryNodeViewModel> SortBatchForDisplay(List<RepositoryNodeViewModel> batch, SortMode mode) =>
         mode == SortMode.WorkingDirectory
-            ? batch.OrderBy(node => node.WorkingDirectory, Comparer<string>.Create(CompareWorkingDirectory)).ToList()
+            ? [.. batch.OrderBy(node => node.WorkingDirectory, Comparer<string>.Create(CompareWorkingDirectory))]
             : batch;
 
     // Merges a batch of nodes into an already populated collection in sorted order. Used outside

@@ -81,7 +81,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
 
             var armFinished = _armFinished =
                 new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            return _arming = ArmCoreAsync(volumes.ToArray(), armFinished, ct);
+            return _arming = ArmCoreAsync((string[])[.. volumes], armFinished, ct);
         }
     }
 

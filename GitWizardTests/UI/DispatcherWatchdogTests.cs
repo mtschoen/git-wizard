@@ -17,11 +17,11 @@ public class DispatcherWatchdogTests
 
         inspected();
 
-        Assert.That(observations, Is.EqualTo(new[]
-        {
+        Assert.That(observations, Is.EqualTo(
+        [
             new DispatcherWatchdogObservation("refresh", TimeSpan.FromMilliseconds(501),
                 TimeSpan.FromMilliseconds(500))
-        }));
+        ]));
     }
 
     [Test]
@@ -36,12 +36,16 @@ public class DispatcherWatchdogTests
             return 42;
         });
 
-        Assert.That(inspected(), Is.EqualTo(42));
-        Assert.That(observations, Is.EqualTo(new[]
+        var result = inspected();
+        using (Assert.EnterMultipleScope())
         {
-            new DispatcherWatchdogObservation("refresh", TimeSpan.FromMilliseconds(501),
+            Assert.That(result, Is.EqualTo(42));
+            Assert.That(observations, Is.EqualTo(
+            [
+                new DispatcherWatchdogObservation("refresh", TimeSpan.FromMilliseconds(501),
                 TimeSpan.FromMilliseconds(500))
-        }));
+            ]));
+        }
     }
 
     [Test]
@@ -69,8 +73,12 @@ public class DispatcherWatchdogTests
             return 42;
         });
 
-        Assert.That(inspected(), Is.EqualTo(42));
-        Assert.That(observations, Is.Empty);
+        var result = inspected();
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Is.EqualTo(42));
+            Assert.That(observations, Is.Empty);
+        }
     }
 
     [Test]
@@ -86,11 +94,11 @@ public class DispatcherWatchdogTests
         });
 
         Assert.Throws<InvalidOperationException>(() => inspected());
-        Assert.That(observations, Is.EqualTo(new[]
-        {
+        Assert.That(observations, Is.EqualTo(
+        [
             new DispatcherWatchdogObservation("refresh", TimeSpan.FromMilliseconds(600),
                 TimeSpan.FromMilliseconds(500))
-        }));
+        ]));
     }
 
     [Test]
@@ -106,11 +114,11 @@ public class DispatcherWatchdogTests
         });
 
         Assert.Throws<InvalidOperationException>(() => inspected());
-        Assert.That(observations, Is.EqualTo(new[]
-        {
+        Assert.That(observations, Is.EqualTo(
+        [
             new DispatcherWatchdogObservation("refresh", TimeSpan.FromMilliseconds(600),
                 TimeSpan.FromMilliseconds(500))
-        }));
+        ]));
     }
 
     [Test]
@@ -143,11 +151,11 @@ public class DispatcherWatchdogTests
         dispatcher.Post(() => clock.Advance(TimeSpan.FromMilliseconds(501)));
         Dispatcher.UIThread.RunJobs();
 
-        Assert.That(observations, Is.EqualTo(new[]
-        {
+        Assert.That(observations, Is.EqualTo(
+        [
             new DispatcherWatchdogObservation(nameof(Post_UsesCallerMemberNameForObservation),
                 TimeSpan.FromMilliseconds(501), TimeSpan.FromMilliseconds(500))
-        }));
+        ]));
     }
 
     [AvaloniaTest]
@@ -164,11 +172,11 @@ public class DispatcherWatchdogTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(invocation.IsCompleted, Is.True);
-            Assert.That(observations, Is.EqualTo(new[]
-            {
+            Assert.That(observations, Is.EqualTo(
+            [
             new DispatcherWatchdogObservation(nameof(InvokeAsync_Action_UsesCallerMemberNameForObservation),
                 TimeSpan.FromMilliseconds(501), TimeSpan.FromMilliseconds(500))
-        }));
+        ]));
         }
     }
 
@@ -189,11 +197,11 @@ public class DispatcherWatchdogTests
         });
         Dispatcher.UIThread.RunJobs();
 
-        Assert.That(observations, Is.EqualTo(new[]
-        {
+        Assert.That(observations, Is.EqualTo(
+        [
             new DispatcherWatchdogObservation(nameof(InvokeAsync_FuncTask_MeasuresOnlySynchronousSegment),
                 TimeSpan.FromMilliseconds(600), TimeSpan.FromMilliseconds(500))
-        }));
+        ]));
 
         release.SetResult();
         Dispatcher.UIThread.RunJobs();

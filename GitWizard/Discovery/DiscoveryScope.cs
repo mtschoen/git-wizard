@@ -28,13 +28,13 @@ public sealed class DiscoveryScope
         IReadOnlyDictionary<string, string> classificationErrors)
     {
         Request = request;
-        SearchRoots = Array.AsReadOnly(searchRoots.ToArray());
-        RetainedRoots = Array.AsReadOnly(retainedRoots.ToArray());
-        IgnoredRoots = Array.AsReadOnly(ignoredRoots.ToArray());
-        Classifications = Array.AsReadOnly(classifications.ToArray());
-        RequestedNtfsDrives = Array.AsReadOnly(requestedNtfsDrives.ToArray());
-        RecursiveRoots = Array.AsReadOnly(recursiveRoots.ToArray());
-        WatchExcludedRoots = Array.AsReadOnly(watchExcludedRoots.ToArray());
+        SearchRoots = Array.AsReadOnly<string>([.. searchRoots]);
+        RetainedRoots = Array.AsReadOnly<string>([.. retainedRoots]);
+        IgnoredRoots = Array.AsReadOnly<string>([.. ignoredRoots]);
+        Classifications = Array.AsReadOnly<RootClassification>([.. classifications]);
+        RequestedNtfsDrives = Array.AsReadOnly<string>([.. requestedNtfsDrives]);
+        RecursiveRoots = Array.AsReadOnly<string>([.. recursiveRoots]);
+        WatchExcludedRoots = Array.AsReadOnly<string>([.. watchExcludedRoots]);
         ClassificationErrors = new ReadOnlyDictionary<string, string>(
             new Dictionary<string, string>(classificationErrors));
     }

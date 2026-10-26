@@ -35,7 +35,7 @@ public class RepositoryWatchServicePathShapeTests
         var svc = new RepositoryWatchService(
             new ScriptedVolumeChangeSource(batches),
             trackedRoots: ["/repo/A", "/repo/a"],
-            searchRoots: Array.Empty<string>(),
+            searchRoots: [],
             debounce: TimeSpan.FromMilliseconds(10));
 
         var events = await DrainAsync(svc);
@@ -60,7 +60,7 @@ public class RepositoryWatchServicePathShapeTests
             };
         var svc = new RepositoryWatchService(
             new ScriptedVolumeChangeSource(batches),
-            trackedRoots: Array.Empty<string>(),
+            trackedRoots: [],
             searchRoots: [@"C:\repo"]);
 
 
@@ -85,7 +85,7 @@ public class RepositoryWatchServicePathShapeTests
             ]);
         var service = new RepositoryWatchService(
             new ScriptedVolumeChangeSource([batch]),
-            trackedRoots: Array.Empty<string>(),
+            trackedRoots: [],
             searchRoots: [@"\\Server\Share\Repos"],
             debounce: TimeSpan.FromMilliseconds(10));
 
@@ -106,7 +106,7 @@ public class RepositoryWatchServicePathShapeTests
         var service = new RepositoryWatchService(
             new ScriptedVolumeChangeSource([batch]),
             trackedRoots: [repositoryRoot],
-            searchRoots: Array.Empty<string>(),
+            searchRoots: [],
             debounce: TimeSpan.FromMilliseconds(10));
 
         var events = await DrainAsync(service);
@@ -127,7 +127,7 @@ public class RepositoryWatchServicePathShapeTests
         var service = new RepositoryWatchService(
             new ScriptedVolumeChangeSource([batch]),
             trackedRoots: [repositoryRoot],
-            searchRoots: Array.Empty<string>(),
+            searchRoots: [],
             debounce: TimeSpan.FromMilliseconds(10));
 
         var events = await DrainAsync(service);
@@ -147,7 +147,7 @@ public class RepositoryWatchServicePathShapeTests
         var svc = new RepositoryWatchService(
             new ScriptedVolumeChangeSource([batch]),
             trackedRoots: ["/repo/a"],
-            searchRoots: Array.Empty<string>(),
+            searchRoots: [],
             debounce: TimeSpan.FromMilliseconds(10));
 
         var events = await DrainAsync(svc);
@@ -161,9 +161,9 @@ public class RepositoryWatchServicePathShapeTests
     public async Task RootWithoutDriveLetter_IsIgnoredWhenGroupingByVolume()
     {
         var svc = new RepositoryWatchService(
-            new ScriptedVolumeChangeSource(Array.Empty<VolumeChangeBatch>()),
+            new ScriptedVolumeChangeSource([]),
             trackedRoots: ["relative-repo"],
-            searchRoots: Array.Empty<string>(),
+            searchRoots: [],
             debounce: TimeSpan.FromMilliseconds(10));
 
         var events = await DrainAsync(svc);

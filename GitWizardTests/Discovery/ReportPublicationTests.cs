@@ -100,7 +100,7 @@ public class ReportPublicationTests
         byte[]? priorSaveBytes = null;
         if (seedSavePath)
         {
-            priorSaveBytes = """{"seeded": true}"""u8.ToArray();
+            priorSaveBytes = [.. """{"seeded": true}"""u8];
             await File.WriteAllBytesAsync(customSavePath, priorSaveBytes);
         }
 
@@ -120,7 +120,7 @@ public class ReportPublicationTests
             args.Add("--silent");
         }
 
-        var runConfig = CliParser.Parse(args.ToArray());
+        var runConfig = CliParser.Parse([.. args]);
         Assert.That(runConfig.HasParseError, Is.False);
         var gitWizardConfig = new GitWizardConfiguration
         {
@@ -138,13 +138,13 @@ public class ReportPublicationTests
             stderr);
 
         var output = stdout.ToString();
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(exitCode, Is.EqualTo(3));
-            Assert.That(File.ReadAllBytes(cachedReportPath), Is.EqualTo(priorBytes));
+            Assert.That(await File.ReadAllBytesAsync(cachedReportPath), Is.EqualTo(priorBytes));
             if (seedSavePath)
             {
-                Assert.That(File.ReadAllBytes(customSavePath), Is.EqualTo(priorSaveBytes));
+                Assert.That(await File.ReadAllBytesAsync(customSavePath), Is.EqualTo(priorSaveBytes));
             }
             else
             {
@@ -170,7 +170,7 @@ public class ReportPublicationTests
                 Assert.That(output, Does.Not.Contain("\"Repositories\""));
                 Assert.That(stderr.ToString(), Does.Not.Contain("Discovery error"));
             }
-        });
+        }
     }
 
     [Test]
@@ -291,12 +291,12 @@ public class ReportPublicationTests
             }
         };
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.Throws<InvalidOperationException>(() => incompleteReport.Save(tempFile));
             Assert.ThrowsAsync<InvalidOperationException>(async () => await incompleteReport.SaveAsync(tempFile));
             Assert.Throws<InvalidOperationException>(() => incompleteReport.SaveAtomic(tempFile));
-        });
+        }
 
         var completeReport = new GitWizardReport
         {

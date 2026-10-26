@@ -6,9 +6,7 @@ namespace GitWizardTests.UI;
 // Covers StatusHeaderViewModel.cs: header precedence and component notifications.
 public class StatusHeaderViewModelTests
 {
-    static RepositoryNodeViewModel[] Rows(int count) => Enumerable.Range(0, count)
-        .Select(number => new RepositoryNodeViewModel(new GitWizardRepository($"/header/repository-{number}")))
-        .ToArray();
+    static RepositoryNodeViewModel[] Rows(int count) => [.. Enumerable.Range(0, count).Select(number => new RepositoryNodeViewModel(new GitWizardRepository($"/header/repository-{number}")))];
 
     [Test]
     public void ShowFilterInfo_NoFilterNoGroup_PrefersLastRefreshMessage()

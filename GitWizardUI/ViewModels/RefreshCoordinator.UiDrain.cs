@@ -249,12 +249,12 @@ public sealed partial class RefreshCoordinator
         {
             if (command is { Type: RepositoryUICommandType.RepositoryCreated or RepositoryUICommandType.WorktreeCreated, Repository: not null })
             {
-                pendingRepositoryBatch ??= new List<GitWizardRepository>();
+                pendingRepositoryBatch ??= [];
                 pendingRepositoryBatch.Add(command.Repository);
                 continue;
             }
 
-            stagedCommands ??= new List<RepositoryUICommand>();
+            stagedCommands ??= [];
             stagedCommands.Add(command);
         }
 

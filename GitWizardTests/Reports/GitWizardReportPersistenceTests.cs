@@ -208,7 +208,7 @@ public class GitWizardReportPersistenceTests
         var jsonText = File.ReadAllText(path);
         var root = JsonNode.Parse(jsonText)!.AsObject();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That((string?)root["SchemaVersion"], Is.EqualTo(GitWizardReport.CurrentSchemaVersion));
             var repos = root["Repositories"]!.AsObject();
@@ -217,7 +217,7 @@ public class GitWizardReportPersistenceTests
             var files = Directory.GetFiles(dir);
             Assert.That(files, Has.Length.EqualTo(1));
             Assert.That(files[0], Is.EqualTo(path));
-        });
+        }
     }
 
     [Test]

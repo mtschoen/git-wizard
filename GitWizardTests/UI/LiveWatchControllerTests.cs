@@ -142,8 +142,8 @@ public class LiveWatchControllerTests
         var stoppedReasons = new List<string>();
         var controller = NewController(
             Factory,
-            trackedRoots: Array.Empty<string>(),
-            searchRoots: Array.Empty<string>(),
+            trackedRoots: [],
+            searchRoots: [],
             onEvent: _ => { },
             onStopped: stoppedReasons.Add,
             isElevated: () => false);
@@ -175,14 +175,14 @@ public class LiveWatchControllerTests
     public async Task SourceDies_Elevated_RespawnsWithoutCallingOnStopped()
     {
         var firstSource = new ScriptedVolumeChangeSource { KeepWatching = true, ReplayDeathToLateSubscribers = true };
-        var secondSource = new ScriptedVolumeChangeSource(Array.Empty<VolumeChangeBatch>());
+        var secondSource = new ScriptedVolumeChangeSource([]);
         var sources = new Queue<IVolumeChangeSource>([firstSource, secondSource]);
         var sourceFactoryCallCount = 0;
         var stoppedReasons = new List<string>();
         var controller = NewController(
             Factory,
-            trackedRoots: Array.Empty<string>(),
-            searchRoots: Array.Empty<string>(),
+            trackedRoots: [],
+            searchRoots: [],
             onEvent: _ => { },
             onStopped: stoppedReasons.Add,
             isElevated: () => true);
@@ -225,8 +225,8 @@ public class LiveWatchControllerTests
         var stoppedReasons = new List<string>();
         var controller = NewController(
             () => sources[sourceFactoryCallCount++],
-            trackedRoots: Array.Empty<string>(),
-            searchRoots: Array.Empty<string>(),
+            trackedRoots: [],
+            searchRoots: [],
             onEvent: _ => { },
             onStopped: stoppedReasons.Add,
             isElevated: () => true);
@@ -251,11 +251,14 @@ public class LiveWatchControllerTests
             // aggregation only means a failing run reports its first violated assertion
             // rather than every violated one.
             Assert.That(sourceFactoryCallCount, Is.EqualTo(4));
-            Assert.That(stoppedReasons, Is.EqualTo(["journal invalidated #4"]));
-            Assert.That(sources.Take(4).Select(source => source.DisposeCount),
-                Is.EqualTo([1, 1, 1, 1]));
-            Assert.That(sources[4].IsArmed, Is.False);
-            Assert.That(sources[4].DisposeCount, Is.Zero);
+            var stoppedReasonSnapshot = stoppedReasons.ToArray();
+            Assert.That(stoppedReasonSnapshot, Is.EqualTo(["journal invalidated #4"]));
+            var disposeCounts = sources.Take(4).Select(source => source.DisposeCount).ToArray();
+            Assert.That(disposeCounts, Is.EqualTo([1, 1, 1, 1]));
+            var fifthSource = sources[4];
+            Assert.That(fifthSource.IsArmed, Is.False);
+            var fifthSourceDisposeCount = fifthSource.DisposeCount;
+            Assert.That(fifthSourceDisposeCount, Is.Zero);
         }
         finally
         {
@@ -290,8 +293,8 @@ public class LiveWatchControllerTests
         var stoppedReasons = new List<string>();
         var controller = NewController(
             Factory,
-            trackedRoots: Array.Empty<string>(),
-            searchRoots: Array.Empty<string>(),
+            trackedRoots: [],
+            searchRoots: [],
             onEvent: _ => { },
             onStopped: stoppedReasons.Add,
             isElevated: () => true);
@@ -333,8 +336,8 @@ public class LiveWatchControllerTests
         var stoppedReasons = new List<string>();
         var controller = NewController(
             Factory,
-            trackedRoots: Array.Empty<string>(),
-            searchRoots: Array.Empty<string>(),
+            trackedRoots: [],
+            searchRoots: [],
             onEvent: _ => { },
             onStopped: stoppedReasons.Add,
             isElevated: () => true);
@@ -375,8 +378,8 @@ public class LiveWatchControllerTests
         var source = new DisposeToUnblockSource();
         var controller = NewController(
             () => source,
-            trackedRoots: Array.Empty<string>(),
-            searchRoots: Array.Empty<string>(),
+            trackedRoots: [],
+            searchRoots: [],
             onEvent: _ => { },
             onStopped: _ => { },
             isElevated: () => false);
@@ -396,8 +399,8 @@ public class LiveWatchControllerTests
     {
         var controller = NewController(
             () => new ScriptedVolumeChangeSource { KeepWatching = true, ReplayDeathToLateSubscribers = true },
-            trackedRoots: Array.Empty<string>(),
-            searchRoots: Array.Empty<string>(),
+            trackedRoots: [],
+            searchRoots: [],
             onEvent: _ => { },
             onStopped: _ => { },
             isElevated: () => false);
@@ -409,12 +412,12 @@ public class LiveWatchControllerTests
     public async Task ScanErrors_ReadsThroughToUnderlyingService()
     {
         var errors = new Dictionary<string, string> { ["D"] = "drive not ready" };
-        var source = new ScriptedVolumeChangeSource(Array.Empty<VolumeChangeBatch>(), errors);
+        var source = new ScriptedVolumeChangeSource([], errors);
 
         var controller = NewController(
             () => source,
-            trackedRoots: Array.Empty<string>(),
-            searchRoots: Array.Empty<string>(),
+            trackedRoots: [],
+            searchRoots: [],
             onEvent: _ => { },
             onStopped: _ => { },
             isElevated: () => false);
@@ -464,7 +467,7 @@ public class LiveWatchControllerTests
         var controller = NewController(
             () => source,
             trackedRoots: [@"C:\repo"],
-            searchRoots: Array.Empty<string>(),
+            searchRoots: [],
             onEvent: _ => { },
             onStopped: _ => { },
             isElevated: () => false);
@@ -495,7 +498,7 @@ public class LiveWatchControllerTests
         var events = new List<RepositoryChangeEvent>();
         var controller = NewController(
             () => source,
-            trackedRoots: Array.Empty<string>(),
+            trackedRoots: [],
             searchRoots: [Path.GetPathRoot(repositoryPath)!],
             onEvent: events.Add,
             onStopped: _ => { },
@@ -518,7 +521,7 @@ public class LiveWatchControllerTests
         var events = new List<RepositoryChangeEvent>();
         var controller = NewController(
             () => source,
-            trackedRoots: Array.Empty<string>(),
+            trackedRoots: [],
             searchRoots: [Path.GetPathRoot(repositoryPath)!],
             onEvent: events.Add,
             onStopped: _ => { },
@@ -544,7 +547,7 @@ public class LiveWatchControllerTests
         var events = new List<RepositoryChangeEvent>();
         var controller = NewController(
             () => source,
-            trackedRoots: Array.Empty<string>(),
+            trackedRoots: [],
             searchRoots: [Path.GetPathRoot(ignoredTempSubtree)!],
             onEvent: events.Add,
             onStopped: _ => { },
@@ -581,7 +584,7 @@ public class LiveWatchControllerTests
             var events = new List<RepositoryChangeEvent>();
             var controller = NewController(
                 () => source,
-                trackedRoots: Array.Empty<string>(),
+                trackedRoots: [],
                 searchRoots: [searchRoot],
                 onEvent: events.Add,
                 onStopped: _ => { },

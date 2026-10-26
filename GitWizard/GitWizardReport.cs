@@ -44,8 +44,8 @@ public partial class GitWizardReport : IAsyncDisposable
     /// </summary>
     public string? BranchScope { get; set; }
 
-    public SortedSet<string> SearchPaths { get; set; } = new();
-    public SortedSet<string> IgnoredPaths { get; set; } = new();
+    public SortedSet<string> SearchPaths { get; set; } = [];
+    public SortedSet<string> IgnoredPaths { get; set; } = [];
 
     /// <summary>
     /// Whether this report's scan should skip directories whose last path segment
@@ -62,7 +62,7 @@ public partial class GitWizardReport : IAsyncDisposable
     public bool? IncludeTempDirectories { get; set; }
 
     public SortedDictionary<string, GitWizardRepository> Repositories { get; set; } = new();
-    public HashSet<string> DeletedPaths { get; private set; } = new();
+    public HashSet<string> DeletedPaths { get; private set; } = [];
 
     /// <summary>
     /// Cached paths whose directory exists but no longer resolves to a valid git repository
@@ -70,7 +70,7 @@ public partial class GitWizardReport : IAsyncDisposable
     /// from <see cref="Repositories"/>, distinct from <see cref="DeletedPaths"/> (missing
     /// directory, which may just be a transiently-unmounted drive).
     /// </summary>
-    public HashSet<string> NonRepositoryPaths { get; private set; } = new();
+    public HashSet<string> NonRepositoryPaths { get; private set; } = [];
 
     /// <summary>Immutable inventory from the discovery pass, or null if explicit paths were used or report was deserialized.</summary>
     [JsonIgnore]
@@ -290,7 +290,7 @@ public partial class GitWizardReport : IAsyncDisposable
                 }
             }
 
-            NonRepositoryPaths = new HashSet<string>(stalePaths);
+            NonRepositoryPaths = [.. stalePaths];
 
             foreach (var stale in NonRepositoryPaths)
             {
@@ -323,7 +323,7 @@ public partial class GitWizardReport : IAsyncDisposable
             }
         }
 
-        DeletedPaths = new HashSet<string>(deletedPaths);
+        DeletedPaths = [.. deletedPaths];
 
         // Locked for the same reason as PruneNonRepositoryPaths: this Remove races the
         // dictionary against RefreshSingleRepository's lock (Repositories) add-if-missing

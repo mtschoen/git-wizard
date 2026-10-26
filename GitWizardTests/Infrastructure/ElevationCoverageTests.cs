@@ -97,7 +97,8 @@ public class ElevationCoverageTests
             });
 
         Assert.That(result.Success, Is.False);
-        Assert.That(receivedBrokerArguments, Has.Count.EqualTo(1));
+        var brokerArgumentCount = receivedBrokerArguments.Count;
+        Assert.That(brokerArgumentCount, Is.EqualTo(1));
         using (Assert.EnterMultipleScope())
         {
             Assert.That(receivedBrokerArguments.Single(), Does.StartWith("--broker --pipe "));
@@ -122,7 +123,8 @@ public class ElevationCoverageTests
             connectTimeout: TimeSpan.FromMilliseconds(50));
 
         Assert.That(result.Success, Is.False);
-        Assert.That(receivedBrokerArguments, Has.Count.EqualTo(1));
+        var brokerArgumentCount = receivedBrokerArguments.Count;
+        Assert.That(brokerArgumentCount, Is.EqualTo(1));
         using (Assert.EnterMultipleScope())
         {
             Assert.That(receivedBrokerArguments.Single(), Does.StartWith("--broker --pipe "));

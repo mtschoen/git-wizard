@@ -26,7 +26,7 @@ public class JournalWarningRefreshTests
         public MftIndexSession? Owner { get; private set; }
         public PackedIndexFixture Files { get; } = new();
         public ScriptedWatchSource Scripted { get; } = new() { CatchUpOnStart = true };
-        public JournalWarning[] Warnings => _warnings.ToArray();
+        public JournalWarning[] Warnings => [.. _warnings];
 
         public async Task<VolumeArmResult> ArmAsync()
         {

@@ -38,14 +38,14 @@ public sealed class MftIndexCacheInspection
             }
         }
         var active = _isWindows
-            ? (sessions ?? []).Where(session => SameDirectory(session.CacheDirectory, directory))
-                .Select(session => session with { Drives = Array.AsReadOnly(session.Drives.ToArray()) }).ToArray()
+            ? (MftActiveCacheSession[])[.. (sessions ?? []).Where(session => SameDirectory(session.CacheDirectory, directory))
+                .Select(session => session with { Drives = Array.AsReadOnly<MftActiveCacheDrive>([.. session.Drives]) })]
             : [];
         return new MftIndexCacheSnapshot
         {
             IsApplicable = _isWindows,
             CacheDirectory = directory,
-            DirectoryScanFileNames = Array.AsReadOnly(MftIndexCachePolicy.DirectoryScanFileNames.ToArray()),
+            DirectoryScanFileNames = Array.AsReadOnly<string>([.. MftIndexCachePolicy.DirectoryScanFileNames]),
             RequestedCacheTag = MftIndexCachePolicy.CacheTag,
             ObservedAt = _clock.GetUtcNow(),
             Inventory = Array.AsReadOnly(inventory),

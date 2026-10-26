@@ -136,12 +136,13 @@ public class GitWizardRepositoryTests
         repository.Refresh();
 
         Assert.That(repository.HasSubmoduleIssues, Is.True);
-        Assert.That(repository.SubmoduleHealth, Does.ContainKey("external/libfoo"));
+        var submoduleHealth = repository.SubmoduleHealth;
+        Assert.That(submoduleHealth, Does.ContainKey("external/libfoo"));
+        var health = submoduleHealth["external/libfoo"];
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(repository.SubmoduleHealth["external/libfoo"].Status,
-                    Is.EqualTo(SubmoduleHealthStatus.MissingFromIndex));
-            Assert.That(repository.SubmoduleHealth["external/libfoo"].Issues, Is.Not.Empty);
+            Assert.That(health.Status, Is.EqualTo(SubmoduleHealthStatus.MissingFromIndex));
+            Assert.That(health.Issues, Is.Not.Empty);
         }
     }
 
@@ -156,8 +157,8 @@ public class GitWizardRepositoryTests
         repository.Refresh();
 
         Assert.That(repository.HasSubmoduleIssues, Is.True);
-        Assert.That(repository.SubmoduleHealth["orphan/libbar"].Status,
-            Is.EqualTo(SubmoduleHealthStatus.MissingFromGitmodules));
+        var health = repository.SubmoduleHealth["orphan/libbar"];
+        Assert.That(health.Status, Is.EqualTo(SubmoduleHealthStatus.MissingFromGitmodules));
     }
 
     [Test]
@@ -171,8 +172,8 @@ public class GitWizardRepositoryTests
         repository.Refresh();
 
         Assert.That(repository.HasSubmoduleIssues, Is.True);
-        Assert.That(repository.SubmoduleHealth["external/libfoo"].Status,
-            Is.EqualTo(SubmoduleHealthStatus.Uninitialized));
+        var health = repository.SubmoduleHealth["external/libfoo"];
+        Assert.That(health.Status, Is.EqualTo(SubmoduleHealthStatus.Uninitialized));
     }
 
     [Test]
@@ -187,9 +188,12 @@ public class GitWizardRepositoryTests
 
         Assert.That(repository.HasSubmoduleIssues, Is.True);
         var health = repository.SubmoduleHealth["external/libfoo"];
-        Assert.That(health.Status, Is.EqualTo(SubmoduleHealthStatus.WrongRef));
-        Assert.That(health.ExpectedCommitSha, Is.Not.Null);
-        Assert.That(health.ActualCommitSha, Is.Not.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(health.Status, Is.EqualTo(SubmoduleHealthStatus.WrongRef));
+            Assert.That(health.ExpectedCommitSha, Is.Not.Null);
+            Assert.That(health.ActualCommitSha, Is.Not.Null);
+        }
         Assert.That(health.ActualCommitSha, Is.Not.EqualTo(health.ExpectedCommitSha));
     }
 
@@ -218,7 +222,7 @@ public class GitWizardRepositoryTests
         var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repository.HasSubmoduleIssues, Is.True);
             Assert.That(repository.SubmoduleHealth, Does.ContainKey("external/libfoo"));
@@ -231,7 +235,7 @@ public class GitWizardRepositoryTests
             Assert.That(health.ActualCommitSha, Is.Not.Null);
             Assert.That(health.ActualCommitSha, Is.EqualTo(health.GitLinkSha));
             Assert.That(health.Issues, Is.Not.Empty);
-        });
+        }
     }
 
     [Test]
@@ -243,14 +247,14 @@ public class GitWizardRepositoryTests
         var repository = new GitWizardRepository(fixture.Path);
         repository.Refresh();
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repository.HasSubmoduleIssues, Is.True);
             Assert.That(repository.SubmoduleHealth, Does.ContainKey("external/libfoo"));
             var health = repository.SubmoduleHealth["external/libfoo"];
             Assert.That(health.Status, Is.EqualTo(SubmoduleHealthStatus.StaleUpstream));
             Assert.That(health.BehindUpstreamCount, Is.EqualTo(3));
-        });
+        }
     }
 
     [Test]

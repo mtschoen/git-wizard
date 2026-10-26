@@ -30,7 +30,7 @@ sealed class DiagnosticVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDi
             HandoffBarrier?.SignalAndWait(TimeSpan.FromSeconds(5));
             lock (_warningLock)
             {
-                return CurrentWarnings.ToArray();
+                return (JournalWarning[])[.. CurrentWarnings];
             }
         }
     }

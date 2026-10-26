@@ -62,7 +62,7 @@ public static partial class Program
     {
         Outcome = DiscoveryOutcome.CompleteNonempty,
         Route = DiscoveryRoute.RecursiveOnly,
-        Paths = explicitPaths.ToArray(),
+        Paths = (string[])[.. explicitPaths],
         RequestedNtfsDrives = [],
         Observations = [],
         DriveStatuses = [],

@@ -97,7 +97,7 @@ public class CliDiscoveryRoutingTests
 
         var indexFixture = fixture.Dependencies.IndexFixture;
         fixture.Dependencies.CustomOpenIndexAsync = (drives, _, _, _) => StatusSessions.OpenAsync(
-            indexFixture, drives.Select(drive => (drive[0], SyntheticDriveBehavior.ProducerFails)).ToArray());
+            indexFixture, [.. drives.Select(drive => (drive[0], SyntheticDriveBehavior.ProducerFails))]);
 
         var exitCode = await fixture.RunAsync();
 
@@ -117,7 +117,7 @@ public class CliDiscoveryRoutingTests
 
         var indexFixture = fixture.Dependencies.IndexFixture;
         fixture.Dependencies.CustomOpenIndexAsync = (drives, _, _, _) => StatusSessions.OpenAsync(
-            indexFixture, drives.Select(drive => (drive[0], SyntheticDriveBehavior.ProducerFails)).ToArray());
+            indexFixture, [.. drives.Select(drive => (drive[0], SyntheticDriveBehavior.ProducerFails))]);
 
         var exitCode = await fixture.RunAsync();
 
@@ -138,7 +138,7 @@ public class CliDiscoveryRoutingTests
 
         var indexFixture = fixture.Dependencies.IndexFixture;
         fixture.Dependencies.CustomOpenIndexAsync = (drives, _, _, _) => StatusSessions.OpenAsync(
-            indexFixture, drives.Select(drive => (drive[0], SyntheticDriveBehavior.ProducerFails)).ToArray());
+            indexFixture, [.. drives.Select(drive => (drive[0], SyntheticDriveBehavior.ProducerFails))]);
 
         var exitCode = await fixture.RunAsync();
 

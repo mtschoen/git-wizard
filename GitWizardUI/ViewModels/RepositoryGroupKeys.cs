@@ -15,7 +15,7 @@ static class RepositoryGroupKeys
             {
                 if (!groups.TryGetValue(key, out var list))
                 {
-                    list = new List<RepositoryNodeViewModel>();
+                    list = [];
                     groups[key] = list;
                 }
 
@@ -34,20 +34,20 @@ static class RepositoryGroupKeys
                 var path = repository.WorkingDirectory;
                 if (string.IsNullOrEmpty(path))
                 {
-                    return new List<string> { "(unknown)" };
+                    return ["(unknown)"];
                 }
 
                 var root = Path.GetPathRoot(path);
-                return new List<string> { string.IsNullOrEmpty(root) ? "(unknown)" : NormalizeDriveGroupKey(root) };
+                return [string.IsNullOrEmpty(root) ? "(unknown)" : NormalizeDriveGroupKey(root)];
             case GroupMode.RemoteUrl:
                 var urls = repository.Repository.RemoteUrls;
                 // Normalize remote URLs for grouping (strip .git suffix, normalize casing).
                 return urls.Count == 0
-                    ? new List<string> { "(no remote)" }
-                    : urls.Select(NormalizeRemoteUrl).Distinct().ToList();
+                    ? ["(no remote)"]
+                    : [.. urls.Select(NormalizeRemoteUrl).Distinct()];
             case GroupMode.None:
             default:
-                return new List<string> { "(unknown)" };
+                return ["(unknown)"];
         }
     }
 

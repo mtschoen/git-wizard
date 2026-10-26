@@ -23,7 +23,7 @@ readonly partial record struct CandidateAdmissionPolicy(
         Create(scope.IgnoredRoots, scope.Request.Configuration);
 
     public static CandidateAdmissionPolicy Create(IEnumerable<string> ignoredRoots, GitWizardConfiguration configuration) =>
-        new(ignoredRoots.Select(WatchPath.Parse).ToArray(),
+        new((WatchPath[])[.. ignoredRoots.Select(WatchPath.Parse)],
             configuration.IncludeTempDirectories == true,
             configuration.SkipHiddenDirectories == true);
 

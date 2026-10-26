@@ -148,13 +148,13 @@ public class MainViewModelAddRepositoryTests
         // With Drive grouping, the repo goes into a group header, not directly into Repositories as a plain node.
         // The group header itself should be in Repositories (or in pending groups if minGroupSize not met).
         // For Drive mode, minGroupSize=1, so the header appears immediately.
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1));
             Assert.That(vm.RepositoryList.Repositories[0].IsGroupHeader, Is.True,
                 "With Drive grouping active, a group header must be added rather than the raw repo.");
             Assert.That(vm.RepositoryList.Repositories[0].Children, Has.Count.EqualTo(1));
-        });
+        }
     }
 
     [Test]
@@ -166,12 +166,12 @@ public class MainViewModelAddRepositoryTests
         vm.RepositoryList.AddRepository(Repo("C:/repos/alpha"), streaming: false);
         vm.RepositoryList.AddRepository(Repo("C:/repos/beta"), streaming: false);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(vm.RepositoryList.Repositories, Has.Count.EqualTo(1),
                 "Both repos share the same drive group, so only one header should exist.");
             Assert.That(vm.RepositoryList.Repositories[0].Children, Has.Count.EqualTo(2));
-        });
+        }
     }
 
     [Test]

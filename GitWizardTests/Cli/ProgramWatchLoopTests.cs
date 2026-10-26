@@ -68,11 +68,11 @@ public class ProgramWatchLoopTests
         {
             Assert.That(WatchSubscriptionProbe.ScanErrorsSubscribers(service), Is.EqualTo(1));
             source.FailDrive("X", "watch failed");
-            Assert.That(lines, Is.EqualTo(new[]
-            {
+            Assert.That(lines, Is.EqualTo(
+            [
                 "ready: mode=pump caught-up=X,Y excluded=-",
                 "scan error on X: watch failed"
-            }));
+            ]));
             source.FailDrive("x", "watch failed");
             source.FailDrive("X", "watch failed again");
             source.Publish(new VolumeChangeBatch("Y",
@@ -81,13 +81,13 @@ public class ProgramWatchLoopTests
             using (Assert.EnterMultipleScope())
             {
                 Assert.That(running.IsCompleted, Is.False);
-                Assert.That(lines, Is.EqualTo(new[]
-                {
+                Assert.That(lines, Is.EqualTo(
+                [
                 "ready: mode=pump caught-up=X,Y excluded=-",
                 "scan error on X: watch failed",
                 "scan error on X: watch failed again",
                 @"changed: Y:\repo"
-            }));
+            ]));
             }
         }
         finally
@@ -142,13 +142,13 @@ public class ProgramWatchLoopTests
         const string stamp = "2026-10-01T00:00:00.000Z ";
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(lines.Where(line => line.StartsWith(stamp + "drive:", StringComparison.Ordinal)), Is.EqualTo(new[]
-                {
+            Assert.That(lines.Where(line => line.StartsWith(stamp + "drive:", StringComparison.Ordinal)), Is.EqualTo(
+                [
             stamp + "drive: X state=caught-up origin=warm",
             stamp + "drive: Y state=caught-up origin=warm",
             stamp + "drive: X state=catching-up origin=cold",
             stamp + "drive: X state=caught-up origin=cold"
-        }));
+        ]));
             Assert.That(lines, Has.None.Contain("error").IgnoreCase.Or.Contain("Hint on"),
                 "A drive MFTLib recovers is not an error and leaves no error line behind.");
         }
@@ -159,17 +159,17 @@ public class ProgramWatchLoopTests
     public async Task RunWatchLoopAsync_PrintsScanErrorsThenChangedCreatedDeletedLines()
     {
         var errors = new Dictionary<string, string> { ["D"] = "drive not ready" };
-        var batch = new VolumeChangeBatch("C", new[]
-        {
+        var batch = new VolumeChangeBatch("C",
+        [
             new VolumeChangeEntry(@"C:\repo\a\file.txt", VolumeEntryKind.Modified),
             new VolumeChangeEntry(@"C:\repo\b\newrepo\.git", VolumeEntryKind.Created),
             new VolumeChangeEntry(@"C:\repo\gone\.git", VolumeEntryKind.Deleted),
-        });
-        var source = new ScriptedVolumeChangeSource(new[] { batch }, errors);
+        ]);
+        var source = new ScriptedVolumeChangeSource([batch], errors);
         var service = new RepositoryWatchService(
             source,
-            trackedRoots: new[] { @"C:\repo\a", @"C:\repo\gone" },
-            searchRoots: new[] { @"C:\repo\b" },
+            trackedRoots: [@"C:\repo\a", @"C:\repo\gone"],
+            searchRoots: [@"C:\repo\b"],
             debounce: TimeSpan.FromMilliseconds(10));
 
         var lines = new List<string>();
@@ -179,14 +179,14 @@ public class ProgramWatchLoopTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(stopped, Is.False);
-            Assert.That(lines, Is.EqualTo(new[]
-            {
+            Assert.That(lines, Is.EqualTo(
+            [
             "scan error on D: drive not ready",
             "ready: mode=pump caught-up=C excluded=-",
             @"changed: C:\repo\a",
             @"created: C:\repo\b\newrepo",
             @"deleted: C:\repo\gone",
-        }));
+        ]));
         }
     }
 
@@ -205,8 +205,8 @@ public class ProgramWatchLoopTests
         ]);
         var service = new RepositoryWatchService(
             source,
-            trackedRoots: Array.Empty<string>(),
-            searchRoots: Array.Empty<string>(),
+            trackedRoots: [],
+            searchRoots: [],
             debounce: TimeSpan.FromMilliseconds(10));
 
         var lines = new List<string>();
@@ -216,7 +216,7 @@ public class ProgramWatchLoopTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(stopped, Is.False);
-            Assert.That(lines, Is.EqualTo(new[] { "ready: mode=pump caught-up=- excluded=-" }));
+            Assert.That(lines, Is.EqualTo(["ready: mode=pump caught-up=- excluded=-"]));
         }
     }
 
@@ -226,8 +226,8 @@ public class ProgramWatchLoopTests
         var source = new ScriptedVolumeChangeSource { KeepWatching = true };
         var service = new RepositoryWatchService(
             source,
-            trackedRoots: Array.Empty<string>(),
-            searchRoots: Array.Empty<string>(),
+            trackedRoots: [],
+            searchRoots: [],
             debounce: TimeSpan.FromMilliseconds(10));
 
         var lines = new List<string>();
@@ -250,8 +250,8 @@ public class ProgramWatchLoopTests
         var source = new ScriptedVolumeChangeSource { ArmFailure = new InvalidOperationException("The operation was canceled by the user.") };
         var service = new RepositoryWatchService(
             source,
-            trackedRoots: new[] { @"C:\repo\a" },
-            searchRoots: Array.Empty<string>(),
+            trackedRoots: [@"C:\repo\a"],
+            searchRoots: [],
             debounce: TimeSpan.FromMilliseconds(10));
 
         var lines = new List<string>();
@@ -264,22 +264,22 @@ public class ProgramWatchLoopTests
         {
             Assert.That(lines, Does.Contain(
                     "Could not start the journal broker: The operation was canceled by the user."));
-            Assert.That(exitCodes, Is.EqualTo(new[] { 1 }));
+            Assert.That(exitCodes, Is.EqualTo([1]));
         }
     }
 
     [Test]
     public async Task RunWatchLoopAsync_MidLoopInvalidOperationException_PrintsBrokerDiedAndReturnsTrue()
     {
-        var batch = new VolumeChangeBatch("C", new[]
-        {
+        var batch = new VolumeChangeBatch("C",
+        [
             new VolumeChangeEntry(@"C:\repo\a\file.txt", VolumeEntryKind.Modified),
-        });
+        ]);
         var source = new ThrowingWatchVolumeChangeSource(batch, "pipe broken unexpectedly");
         var service = new RepositoryWatchService(
             source,
-            trackedRoots: new[] { @"C:\repo\a" },
-            searchRoots: Array.Empty<string>(),
+            trackedRoots: [@"C:\repo\a"],
+            searchRoots: [],
             debounce: TimeSpan.FromMilliseconds(10));
 
         var lines = new List<string>();
@@ -456,12 +456,12 @@ public class ProgramWatchLoopTests
         {
             var volume = WatchPath.Parse(repoPath).Volume!;
             var batch = new VolumeChangeBatch(volume,
-                new[] { new VolumeChangeEntry(repoPath, VolumeEntryKind.MovedIn) });
-            var source = new ScriptedVolumeChangeSource(new[] { batch });
+                [new VolumeChangeEntry(repoPath, VolumeEntryKind.MovedIn)]);
+            var source = new ScriptedVolumeChangeSource([batch]);
             var service = new RepositoryWatchService(
                 source,
-                trackedRoots: Array.Empty<string>(),
-                searchRoots: new[] { searchRoot },
+                trackedRoots: [],
+                searchRoots: [searchRoot],
                 debounce: TimeSpan.FromMilliseconds(10));
 
             var lines = new List<string>();
@@ -471,7 +471,7 @@ public class ProgramWatchLoopTests
             using (Assert.EnterMultipleScope())
             {
                 Assert.That(stopped, Is.False);
-                Assert.That(lines, Is.EqualTo(new[] { $"ready: mode=pump caught-up={volume} excluded=-", $"created: {repoPath}" }));
+                Assert.That(lines, Is.EqualTo([$"ready: mode=pump caught-up={volume} excluded=-", $"created: {repoPath}"]));
             }
         }
         finally

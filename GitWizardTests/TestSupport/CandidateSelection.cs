@@ -18,7 +18,7 @@ static class CandidateSelection
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, false, []);
         var scope = DiscoveryScope.CreateExpanded(
             request, [root], [], ignoredPaths, _ => new RootClassification(root, RootFileSystem.Ntfs, "X", null));
-        return GitWizardApi.SelectRepositoryCandidates(index, scope).Select(candidate => candidate.Path).ToArray();
+        return [.. GitWizardApi.SelectRepositoryCandidates(index, scope).Select(candidate => candidate.Path)];
     }
 
     public static async Task<IReadOnlyList<string>> InventoryAsync(

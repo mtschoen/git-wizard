@@ -13,7 +13,7 @@ public sealed class BranchInventoryReport
 
     public string SchemaVersion { get; set; } = CurrentSchemaVersion;
     public string? BaseBranch { get; set; }
-    public List<RepositoryBranchItem> Repositories { get; set; } = new();
+    public List<RepositoryBranchItem> Repositories { get; set; } = [];
 
     /// <summary>
     /// Inspect each repository for local branches, comparing against the specified base branch
@@ -233,7 +233,7 @@ public sealed class RepositoryBranchItem
 {
     public string Path { get; set; } = string.Empty;
     public string? DefaultBranch { get; set; }
-    public List<BranchInventoryInfo> Branches { get; set; } = new();
+    public List<BranchInventoryInfo> Branches { get; set; } = [];
     [UsedImplicitly]
     public string? Error { get; set; }
 }

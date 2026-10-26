@@ -61,7 +61,7 @@ public class FanotifyVolumeChangeSourceEventTests
             }
         }
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             var entries = batches.SelectMany(b => b.Entries).ToList();
             Assert.That(entries, Has.Count.EqualTo(5));
@@ -70,7 +70,7 @@ public class FanotifyVolumeChangeSourceEventTests
             Assert.That(entries[2], Is.EqualTo(new VolumeChangeEntry("/repo/dirB/moved_from.txt", VolumeEntryKind.Deleted)));
             Assert.That(entries[3], Is.EqualTo(new VolumeChangeEntry("/repo/dirB/moved_to.txt", VolumeEntryKind.Created)));
             Assert.That(entries[4], Is.EqualTo(new VolumeChangeEntry("/repo/dirC/modified.txt", VolumeEntryKind.Modified)));
-        });
+        }
     }
 
     [Test]
@@ -98,12 +98,12 @@ public class FanotifyVolumeChangeSourceEventTests
             break;
         }
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             var entries = batches.SelectMany(b => b.Entries).ToList();
             Assert.That(entries, Has.Count.EqualTo(1));
             Assert.That(entries[0], Is.EqualTo(new VolumeChangeEntry("/repo/dirA", VolumeEntryKind.Modified)));
-        });
+        }
     }
 
     [Test]
@@ -131,12 +131,12 @@ public class FanotifyVolumeChangeSourceEventTests
             break;
         }
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             var entries = batches.SelectMany(b => b.Entries).ToList();
             Assert.That(entries, Has.Count.EqualTo(1));
             Assert.That(entries[0], Is.EqualTo(new VolumeChangeEntry("/", VolumeEntryKind.Modified)));
-        });
+        }
     }
 
     [Test]
@@ -164,12 +164,12 @@ public class FanotifyVolumeChangeSourceEventTests
             break;
         }
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             var entries = batches.SelectMany(b => b.Entries).ToList();
             Assert.That(entries, Has.Count.EqualTo(1));
             Assert.That(entries[0], Is.EqualTo(new VolumeChangeEntry("/test.txt", VolumeEntryKind.Created)));
-        });
+        }
     }
 
     [Test]
@@ -197,11 +197,11 @@ public class FanotifyVolumeChangeSourceEventTests
             break;
         }
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(batches, Has.Count.EqualTo(1));
             Assert.That(batches[0].Volume, Is.EqualTo("/"));
-        });
+        }
     }
 
     [Test]
@@ -258,12 +258,12 @@ public class FanotifyVolumeChangeSourceEventTests
             break;
         }
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             var entries = batches.SelectMany(b => b.Entries).ToList();
             Assert.That(entries, Has.Count.EqualTo(1));
             Assert.That(entries[0].FullPath, Is.EqualTo("/repo/valid/valid.txt"));
-        });
+        }
     }
 
     [Test]
@@ -295,12 +295,12 @@ public class FanotifyVolumeChangeSourceEventTests
             break;
         }
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             var entries = batches.SelectMany(b => b.Entries).ToList();
             Assert.That(entries, Has.Count.EqualTo(1));
             Assert.That(entries[0].FullPath, Is.EqualTo("/repo/second/second.txt"));
-        });
+        }
     }
 
     [Test]
@@ -340,12 +340,12 @@ public class FanotifyVolumeChangeSourceEventTests
             break;
         }
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             var entries = batches.SelectMany(b => b.Entries).ToList();
             Assert.That(entries, Has.Count.EqualTo(1));
             Assert.That(entries[0].FullPath, Is.EqualTo("/repo/ok/ok.txt"));
-        });
+        }
     }
 
     [Test]

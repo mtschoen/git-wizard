@@ -89,7 +89,7 @@ public class ProgramLocalFilesEntryPointTests
             arguments.Add("--clear-cache");
         }
 
-        var result = await RunCliAsync(arguments.ToArray());
+        var result = await RunCliAsync([.. arguments]);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(result.ExitCode, Is.EqualTo(1));

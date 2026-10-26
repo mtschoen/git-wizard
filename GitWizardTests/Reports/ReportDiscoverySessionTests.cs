@@ -38,8 +38,12 @@ public class ReportDiscoverySessionTests
         try
         {
             await report.SetDiscoveryIndexAsync(fixture.Owner);
-            Assert.That(report.DetachDiscoveryIndex(), Is.SameAs(fixture.Owner));
-            Assert.That(report.DiscoveryIndex, Is.Null);
+            var detached = report.DetachDiscoveryIndex();
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(detached, Is.SameAs(fixture.Owner));
+                Assert.That(report.DiscoveryIndex, Is.Null);
+            }
             Assert.That(report.DetachDiscoveryIndex(), Is.Null);
         }
         finally

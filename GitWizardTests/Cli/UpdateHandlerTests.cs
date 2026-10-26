@@ -199,7 +199,7 @@ public class UpdateHandlerTests
         handler.OnRepositoryCreated(parent);
         handler.OnRepositoryCreated(child);
         var run = handler.CaptureRun();
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(run.Created, Is.EqualTo(2));
             Assert.That(run.Refreshed, Is.Zero);
@@ -208,7 +208,7 @@ public class UpdateHandlerTests
             Assert.That(run.Warnings[0], Does.StartWith(warning));
             Assert.That(_capturedOut.ToString(), Is.Empty);
             Assert.That(_capturedError.ToString(), Is.Empty);
-        });
+        }
     }
 
     [Test]

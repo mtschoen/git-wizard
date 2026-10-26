@@ -28,7 +28,7 @@ public partial class GitWizardRepository
     public bool IsRefreshing { get; private set; }
     public bool LocalOnlyCommits { get; internal set; }
     public int LocalCommitCount { get; private set; }
-    public List<string> RemoteUrls { get; private set; } = new();
+    public List<string> RemoteUrls { get; private set; } = [];
     public DateTimeOffset? LastCommitDate { get; internal set; }
     public double RefreshTimeSeconds { get; set; }
 
@@ -370,7 +370,7 @@ public partial class GitWizardRepository
     {
         try
         {
-            RecentCommits = new List<GitWizardCommitInfo>();
+            RecentCommits = [];
             foreach (var commit in repository.Commits.Take(10))
             {
                 RecentCommits.Add(new GitWizardCommitInfo

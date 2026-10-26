@@ -27,11 +27,10 @@ static class FakeLiveStartup
 
         var paths = inventoryPaths ?? request.RetainedRoots;
         var searchRoots = request.Configuration.SearchPaths.ToArray();
-        var volumes = watchVolumes ?? paths.Concat(searchRoots)
+        var volumes = watchVolumes ?? (string[])[.. paths.Concat(searchRoots)
             .Select(root => WatchPath.Parse(root).Volume)
             .OfType<string>()
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+            .Distinct(StringComparer.OrdinalIgnoreCase)];
 
         VolumeArmResult armResult;
         try
@@ -48,7 +47,7 @@ static class FakeLiveStartup
             request,
             searchRoots,
             request.RetainedRoots,
-            request.Configuration.IgnoredPaths.ToArray(),
+            (string[])[.. request.Configuration.IgnoredPaths],
             root => new RootClassification(root, RootFileSystem.Ntfs, WatchPath.Parse(root).Volume, null));
 
         var inventory = new DiscoveryInventory
@@ -90,7 +89,7 @@ static class FakeLiveStartup
             configuration.IgnoredPaths.Add(ignoredPath);
         }
 
-        var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Watch, false, false, trackedRoots.ToArray());
+        var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Watch, false, false, (string[])[.. trackedRoots]);
         return (_, cancellationToken) => FromSourceArmedAsync(sourceFactory(), request, cancellationToken);
     }
     /// <summary>

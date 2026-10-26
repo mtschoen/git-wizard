@@ -75,14 +75,15 @@ public class DesktopStartupTests
         var result = Start(name, arguments =>
         {
             Assert.That(arguments, Is.Empty);
-            Assert.That(OnOtherThread(() => Start(name,
-                _ => throw new AssertionException("Second desktop started"), _ => { })),
-                Is.EqualTo(1));
+            var secondStart = OnOtherThread(() => Start(name,
+                _ => throw new AssertionException("Second desktop started"), _ => { }));
+            Assert.That(secondStart, Is.EqualTo(1));
             return 7;
         }, _ => throw new AssertionException("Unexpected notice"));
         Assert.That(result, Is.EqualTo(7));
-        Assert.That(OnOtherThread(() => Start(name, _ => 8,
-            _ => throw new AssertionException("Mutex leaked"))), Is.EqualTo(8));
+        var finalStart = OnOtherThread(() => Start(name, _ => 8,
+            _ => throw new AssertionException("Mutex leaked")));
+        Assert.That(finalStart, Is.EqualTo(8));
     }
 
     [Test]
@@ -106,11 +107,14 @@ public class DesktopStartupTests
     {
         var name = UniqueName();
         using var retainedHandle = DesktopInstance.CreateMutex(name);
-        Assert.That(AcquireOnOtherThread(retainedHandle), Is.Zero);
+        var abandonedOwner = AcquireOnOtherThread(retainedHandle);
+        Assert.That(abandonedOwner, Is.Zero);
         // The exited thread deliberately did not release; retain the kernel object.
-        Assert.That(Start(name, _ => 9,
-            _ => throw new AssertionException("Abandoned owner rejected")), Is.EqualTo(9));
-        Assert.That(OnOtherThread(() => Start(name, _ => 0, _ => { })), Is.Zero);
+        var started = Start(name, _ => 9,
+            _ => throw new AssertionException("Abandoned owner rejected"));
+        Assert.That(started, Is.EqualTo(9));
+        var nextStart = OnOtherThread(() => Start(name, _ => 0, _ => { }));
+        Assert.That(nextStart, Is.Zero);
     }
 
     [TestCase(false, true, 0)]

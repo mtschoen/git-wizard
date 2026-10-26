@@ -55,6 +55,7 @@ public class MainViewModelClipboardTests
         try
         {
             Assert.That(clock.Timer, Is.Not.Null, "The indicator must use the injected clock.");
+            var timer = clock.Timer;
             Assert.That(node.JustCopied, Is.True);
 
             using (Assert.EnterMultipleScope())
@@ -63,7 +64,7 @@ public class MainViewModelClipboardTests
                 Assert.That(clock.Timer.Period, Is.EqualTo(Timeout.InfiniteTimeSpan));
                 Assert.That(copy.IsCompleted, Is.False);
             }
-            clock.Timer.Fire();
+            timer!.Fire();
             await copy;
             using (Assert.EnterMultipleScope())
             {

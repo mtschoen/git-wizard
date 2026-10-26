@@ -261,9 +261,9 @@ public sealed partial class RefreshCoordinator : IUpdateHandler, INotifyProperty
             publishable = report.DiscoveryInventory is not { CanPublishFullInventory: false };
 
             // Capture deleted and stale non-repo paths for cache cleanup on main thread
-            deletedPaths = new HashSet<string>(report.DeletedPaths);
-            nonRepositoryPaths = new HashSet<string>(report.NonRepositoryPaths);
-            freshPaths = new HashSet<string>(report.Repositories.Keys);
+            deletedPaths = [.. report.DeletedPaths];
+            nonRepositoryPaths = [.. report.NonRepositoryPaths];
+            freshPaths = [.. report.Repositories.Keys];
 
             // Detect renamed repos: find errored repos whose remote URLs
             // match a newly discovered (non-error) repo at a different path

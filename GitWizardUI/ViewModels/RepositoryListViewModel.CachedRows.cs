@@ -44,7 +44,7 @@ public sealed partial class RepositoryListViewModel
             var node = new RepositoryNodeViewModel(repo);
             RepositoryMap[path] = node;
             AllRepositories.Add(node);
-            _prePopulatedNodes ??= new HashSet<RepositoryNodeViewModel>();
+            _prePopulatedNodes ??= [];
             _prePopulatedNodes.Add(node);
 
             if (!node.MatchesFilter(ActiveFilter, MainViewModel.GlobalUserEmail))
@@ -60,7 +60,7 @@ public sealed partial class RepositoryListViewModel
 
             if (ActiveGroupMode == GroupMode.None)
             {
-                ungroupedBatch ??= new List<RepositoryNodeViewModel>();
+                ungroupedBatch ??= [];
                 ungroupedBatch.Add(node);
             }
             else
@@ -70,7 +70,7 @@ public sealed partial class RepositoryListViewModel
                     groupedBatches ??= new Dictionary<string, List<RepositoryNodeViewModel>>();
                     if (!groupedBatches.TryGetValue(key, out var bucket))
                     {
-                        bucket = new List<RepositoryNodeViewModel>();
+                        bucket = [];
                         groupedBatches[key] = bucket;
                     }
 

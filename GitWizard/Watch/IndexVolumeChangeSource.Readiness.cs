@@ -78,7 +78,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeReadiness
     // drive is excluded, never relabeled healthy on the strength of DriveState alone.
     void ExcludeDrivesWithFailedWatch(MftIndexSession owner, IEnumerable<char> drives)
     {
-        var driveSet = drives as ICollection<char> ?? drives.ToHashSet();
+        var driveSet = drives as ICollection<char> ?? (HashSet<char>)[.. drives];
         foreach (var status in owner.CaptureDriveStatuses())
         {
             if (status.IndexStatus is not { } index)

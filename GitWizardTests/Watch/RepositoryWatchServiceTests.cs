@@ -100,7 +100,7 @@ public class RepositoryWatchServiceTests
                 [
                     new VolumeChangeEntry(@"C:\repo\newrepo\.git", VolumeEntryKind.Created)
                     ]) ]),
-            trackedRoots: Array.Empty<string>(),
+            trackedRoots: [],
             searchRoots: [@"C:\repo"],
             debounce: TimeSpan.FromMilliseconds(10));
 
@@ -133,9 +133,9 @@ public class RepositoryWatchServiceTests
     public async Task NoDebounceSpecified_UsesDefaultAndCompletesOnEmptyStream()
     {
         var svc = new RepositoryWatchService(
-            new ScriptedVolumeChangeSource(Array.Empty<VolumeChangeBatch>()),
-            trackedRoots: Array.Empty<string>(),
-            searchRoots: Array.Empty<string>());
+            new ScriptedVolumeChangeSource([]),
+            trackedRoots: [],
+            searchRoots: []);
 
 
         var events = await DrainAsync(svc);
@@ -152,7 +152,7 @@ public class RepositoryWatchServiceTests
         var svc = new RepositoryWatchService(
             new ScriptedVolumeChangeSource([batch]),
             trackedRoots: [@"C:\repo\a"],
-            searchRoots: Array.Empty<string>(),
+            searchRoots: [],
             debounce: TimeSpan.FromMilliseconds(10));
 
         var events = await DrainAsync(svc);
@@ -175,8 +175,8 @@ public class RepositoryWatchServiceTests
         var hasEvent = await enumerator.MoveNextAsync();
 
         Assert.That(hasEvent, Is.True);
-        Assert.That(enumerator.Current,
-            Is.EqualTo(new RepositoryChangeEvent(@"C:\repo\a", RepositoryChangeKind.Changed)));
+        var current = enumerator.Current;
+        Assert.That(current, Is.EqualTo(new RepositoryChangeEvent(@"C:\repo\a", RepositoryChangeKind.Changed)));
         await cts.CancelAsync();
     }
 

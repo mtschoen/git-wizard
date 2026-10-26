@@ -61,7 +61,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         RepositoryChangeEvent[] observed;
         lock (events)
         {
-            observed = events.ToArray();
+            observed = [.. events];
         }
 
         Assert.That(observed, Does.Contain(new RepositoryChangeEvent(@"X:\newrepo", RepositoryChangeKind.Created)));
@@ -143,12 +143,17 @@ public class IndexVolumeChangeSourceRecoveryTests
         files.AddMarker("newrepo");
         release.SetResult();
 
-        Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
-        Assert.That(reader.Current.Entries, Is.EqualTo([
-                new VolumeChangeEntry(@"X:\newrepo\.git", VolumeEntryKind.Created)
+        var reconciled = await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard);
+        Assert.That(reconciled, Is.True);
+        var reconciliationEntries = reader.Current.Entries;
+        Assert.That(reconciliationEntries, Is.EqualTo([
+            new VolumeChangeEntry(@"X:\newrepo\.git", VolumeEntryKind.Created)
         ]), "The reconciliation read the block before the deletion, so it is delivered first.");
-        Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
-        Assert.That(reader.Current.Entries, Is.EqualTo([
+
+        var deleted = await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard);
+        Assert.That(deleted, Is.True);
+        var deletionEntries = reader.Current.Entries;
+        Assert.That(deletionEntries, Is.EqualTo([
             new VolumeChangeEntry(@"X:\newrepo\.git", VolumeEntryKind.Deleted)
         ]));
     }
@@ -184,8 +189,10 @@ public class IndexVolumeChangeSourceRecoveryTests
                                    published.State == VolumeWatchState.CatchingUp);
 
         Assert.That(arming.IsCompleted, Is.False, "The arm follows the recovery the fault started.");
-        Assert.That(source.Readiness.TryGet("X", out var recovering), Is.True);
-        Assert.That(recovering!.State, Is.EqualTo(VolumeWatchState.CatchingUp));
+        var foundRecovering = source.Readiness.TryGet("X", out var recovering);
+        Assert.That(foundRecovering, Is.True);
+        var recoveringState = recovering!.State;
+        Assert.That(recoveringState, Is.EqualTo(VolumeWatchState.CatchingUp));
 
         var releaseIssued = new TaskCompletionSource();
         var completedBeforeRelease = arming.ContinueWith(_ => !releaseIssued.Task.IsCompleted,
@@ -200,8 +207,11 @@ public class IndexVolumeChangeSourceRecoveryTests
             Assert.That(result.Errors, Is.Empty);
             Assert.That(owner.Index.Drives.Single().Watch.State, Is.EqualTo(WatchState.CaughtUp));
         }
-        Assert.That(source.Readiness.TryGet("X", out var recovered), Is.True);
-        Assert.That(recovered!.State, Is.EqualTo(VolumeWatchState.CaughtUp));
+
+        var foundRecovered = source.Readiness.TryGet("X", out var recovered);
+        Assert.That(foundRecovered, Is.True);
+        var recoveredState = recovered!.State;
+        Assert.That(recoveredState, Is.EqualTo(VolumeWatchState.CaughtUp));
         return;
 
         async Task StartupCatchUpSettled(char drive)
@@ -252,10 +262,14 @@ public class IndexVolumeChangeSourceRecoveryTests
 
         Assert.That(pathsRead.Select(Path.GetFileName), Is.EqualTo([".git", ".git"]),
             "The failure occurs after one marker has already been materialized.");
-        Assert.That(source.CompleteStartupBuffer(), Is.Empty, "A partial inventory must never become repository events.");
-        Assert.That(source.Readiness.TryGet("X", out var readiness), Is.True);
-        Assert.That(readiness!.State, Is.EqualTo(VolumeWatchState.Excluded));
-        Assert.That(readiness.ExclusionReason, Is.EqualTo(failure.Message));
+        var buffered = source.CompleteStartupBuffer();
+        Assert.That(buffered, Is.Empty, "A partial inventory must never become repository events.");
+        var foundReadiness = source.Readiness.TryGet("X", out var readiness);
+        Assert.That(foundReadiness, Is.True);
+        var readinessState = readiness!.State;
+        Assert.That(readinessState, Is.EqualTo(VolumeWatchState.Excluded));
+        var exclusionReason = readiness.ExclusionReason;
+        Assert.That(exclusionReason, Is.EqualTo(failure.Message));
         return;
 
         void FailLastPath(FileEntry entry)
@@ -293,9 +307,12 @@ public class IndexVolumeChangeSourceRecoveryTests
         await WaitForRecoveredWorkAsync(source, owner.Index);
 
         Assert.That(pathsRead, Has.Count.EqualTo(2));
-        Assert.That(source.CompleteStartupBuffer(), Is.Empty);
-        Assert.That(source.Readiness.TryGet("X", out var readiness), Is.True);
-        Assert.That(readiness!.State, Is.EqualTo(VolumeWatchState.CatchingUp),
+        var buffered = source.CompleteStartupBuffer();
+        Assert.That(buffered, Is.Empty);
+        var foundReadiness = source.Readiness.TryGet("X", out var readiness);
+        Assert.That(foundReadiness, Is.True);
+        var readinessState = readiness!.State;
+        Assert.That(readinessState, Is.EqualTo(VolumeWatchState.CatchingUp),
             "Disposal must reach the declined-capture handler, not publish CaughtUp or fail the stream.");
 
         // A later Live event proves disposal was handled as a declined read rather than a stream failure.
@@ -306,8 +323,10 @@ public class IndexVolumeChangeSourceRecoveryTests
             PackedIndexFixture.Entry(marker.RecordKey.RecordNumber, marker.Parent!.Value.RecordKey.RecordNumber,
                 ".git", SyntheticJournalReason.FileDelete, directory: true)
         ], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
-        Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
-        Assert.That(reader.Current.Entries.Single().Kind, Is.EqualTo(VolumeEntryKind.Deleted));
+        var delivered = await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard);
+        Assert.That(delivered, Is.True);
+        var deletedEntry = reader.Current.Entries.Single();
+        Assert.That(deletedEntry.Kind, Is.EqualTo(VolumeEntryKind.Deleted));
     }
 
     [Test]
@@ -341,28 +360,39 @@ public class IndexVolumeChangeSourceRecoveryTests
             ], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1003));
             Assert.That(SpinWait.SpinUntil(() => owner.Index.Search(
                 new SearchQuery("replacement", NameMatchMode.Exact)).Count == 1, TestTimeouts.HangGuard), Is.True);
-            Assert.That(entry.IsDeleted, Is.True);
+            var deleted = entry.IsDeleted;
+            Assert.That(deleted, Is.True);
             Assert.Throws<InvalidOperationException>(() => _ = entry.Path,
                 "The selected handle must be superseded before the production path read.");
         };
         await using var reader = source.WatchAsync(CancellationToken.None).GetAsyncEnumerator();
         release.SetResult();
 
-        Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
-        Assert.That(reader.Current.Entries, Is.EquivalentTo([
+        var reconciled = await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard);
+        Assert.That(reconciled, Is.True);
+        var reconciliationEntries = reader.Current.Entries;
+        Assert.That(reconciliationEntries, Is.EquivalentTo([
             new VolumeChangeEntry(@"X:\supersededrepo\.git", VolumeEntryKind.Deleted),
-                new VolumeChangeEntry(@"X:\newrepo\.git", VolumeEntryKind.Created)
+            new VolumeChangeEntry(@"X:\newrepo\.git", VolumeEntryKind.Created)
         ]));
         await WaitForRecoveredWorkAsync(source, owner.Index);
-        Assert.That(source.Readiness.TryGet("X", out var readiness), Is.True);
-        Assert.That(readiness!.State, Is.EqualTo(VolumeWatchState.CaughtUp));
-        Assert.That(reuseDelivered, Is.Not.Null);
-        await reuseDelivered!.WaitAsync(TestTimeouts.HangGuard);
-        Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
-        Assert.That(reader.Current.Entries.Single(), Is.EqualTo(
+        var foundReadiness = source.Readiness.TryGet("X", out var readiness);
+        Assert.That(foundReadiness, Is.True);
+        var readinessState = readiness!.State;
+        Assert.That(readinessState, Is.EqualTo(VolumeWatchState.CaughtUp));
+        var reuseTask = reuseDelivered;
+        Assert.That(reuseTask, Is.Not.Null);
+        await reuseTask!.WaitAsync(TestTimeouts.HangGuard);
+        var reusedDeletion = await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard);
+        Assert.That(reusedDeletion, Is.True);
+        var reusedDeletionEntry = reader.Current.Entries.Single();
+        Assert.That(reusedDeletionEntry, Is.EqualTo(
             new VolumeChangeEntry(@"X:\supersededrepo\.git", VolumeEntryKind.Deleted)));
-        Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
-        Assert.That(reader.Current.Entries.Single(), Is.EqualTo(
+
+        var replacement = await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard);
+        Assert.That(replacement, Is.True);
+        var replacementEntry = reader.Current.Entries.Single();
+        Assert.That(replacementEntry, Is.EqualTo(
             new VolumeChangeEntry(@"X:\supersededrepo\replacement", VolumeEntryKind.Created)));
 
         var marker = owner.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single();
@@ -370,8 +400,10 @@ public class IndexVolumeChangeSourceRecoveryTests
             PackedIndexFixture.Entry(marker.RecordKey.RecordNumber, marker.Parent!.Value.RecordKey.RecordNumber,
                 ".git", SyntheticJournalReason.FileDelete, directory: true) with { Usn = 1004 }
         ], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1005));
-        Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
-        Assert.That(reader.Current.Entries.Single(), Is.EqualTo(
+        var finalDelivery = await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard);
+        Assert.That(finalDelivery, Is.True);
+        var finalEntry = reader.Current.Entries.Single();
+        Assert.That(finalEntry, Is.EqualTo(
             new VolumeChangeEntry(@"X:\newrepo\.git", VolumeEntryKind.Deleted)));
     }
 

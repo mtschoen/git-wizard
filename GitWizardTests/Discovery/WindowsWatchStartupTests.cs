@@ -61,7 +61,7 @@ public class WindowsWatchStartupTests
             Assert.That(startup.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.CompleteNonempty));
             Assert.That(startup.Inventory.Paths, Does.Contain(Path.Combine(files.TreePath, "repo")));
             Assert.That(startup.Source, Is.Not.Null);
-            Assert.That(startup.WatchVolumes, Is.EquivalentTo(new[] { "X" }));
+            Assert.That(startup.WatchVolumes, Is.EquivalentTo(["X"]));
             Assert.That(listWrites, Is.Not.Empty);
         }
     }
@@ -174,7 +174,7 @@ public class WindowsWatchStartupTests
 
         await using var startup = await coordinator.PrepareWatchAsync(request, null, cts.Token);
 
-        Assert.That(armedDrives, Is.EquivalentTo(new[] { "E", "X" }));
+        Assert.That(armedDrives, Is.EquivalentTo(["E", "X"]));
     }
 
     [Test]
@@ -213,8 +213,8 @@ public class WindowsWatchStartupTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(openedDrives, Is.EquivalentTo(new[] { "X" }), "Z: must not be sent to MFT opener.");
-            Assert.That(startup.Inventory.WatchExcludedRoots, Is.EquivalentTo(new[] { nonNtfsDir }).IgnoreCase);
+            Assert.That(openedDrives, Is.EquivalentTo(["X"]), "Z: must not be sent to MFT opener.");
+            Assert.That(startup.Inventory.WatchExcludedRoots, Is.EquivalentTo([nonNtfsDir]).IgnoreCase);
         }
     }
 
@@ -463,7 +463,7 @@ public class WindowsWatchStartupTests
     static Task<FileIndex> OpenDefaultIndexAsync(string treePath) =>
         FileIndex.OpenAsync(new FileIndexOptions
         {
-            Drives = new[] { new IndexedDrive('X', treePath, 1, ProducerKind.Enumeration) },
+            Drives = [new IndexedDrive('X', treePath, 1, ProducerKind.Enumeration)],
             CacheMode = CacheMode.Disabled
         }, CancellationToken.None);
 

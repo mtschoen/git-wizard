@@ -75,14 +75,14 @@ public class GitWizardRepositoryRemoteDivergenceTests
         repo.Refresh(fetchRemotes: true);
 
         var after = DateTimeOffset.Now;
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(repo.BehindRemoteCount, Is.EqualTo(1));
             Assert.That(repo.AheadOfRemoteCount, Is.Zero);
             Assert.That(repo.LastFetchTime, Is.Not.Null);
             Assert.That(repo.LastFetchTime!.Value, Is.InRange(before, after),
                 "LastFetchTime must reflect when this refresh's fetch ran.");
-        });
+        }
     }
 
     [Test]

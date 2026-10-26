@@ -11,7 +11,7 @@ public sealed class LiveWatchHistoryViewModel : IDisposable
     ITimer? _timer;
     int _timerGeneration;
     bool _disposed;
-    public ObservableCollection<VolumeWatchTransition> Events { get; } = new();
+    public ObservableCollection<VolumeWatchTransition> Events { get; } = [];
     public event Action? Changed;
 
     public LiveWatchHistoryViewModel(Action<Action> post, TimeProvider? timeProvider = null)

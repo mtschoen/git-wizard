@@ -10,7 +10,7 @@ public class GitWizardSummary
     public int Stale { get; set; }
     public int MergedBranches { get; set; }
     public int BehindRemote { get; set; }
-    public List<AttentionItem> NeedingAttention { get; set; } = new();
+    public List<AttentionItem> NeedingAttention { get; set; } = [];
 
     public static GitWizardSummary FromReport(GitWizardReport report)
     {
@@ -72,5 +72,5 @@ public class GitWizardSummary
 public class AttentionItem
 {
     public string Path { get; set; } = string.Empty;
-    public List<string> Reasons { get; set; } = new();
+    public List<string> Reasons { get; set; } = [];
 }

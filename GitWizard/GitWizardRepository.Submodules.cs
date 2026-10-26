@@ -23,7 +23,7 @@ public class SubmoduleHealthInfo
     public string? ActualCommitSha { get; set; }
     public SubmoduleHealthStatus Status { get; set; }
     [UsedImplicitly]
-    public List<string> Issues { get; set; } = new();
+    public List<string> Issues { get; set; } = [];
 
     /// <summary>How many commits the superproject-recorded gitlink SHA is behind the tip of the submodule's default branch. Non-zero when the gitlink pointer is stale relative to the submodule's upstream (git-wizard#80).</summary>
     public int BehindUpstreamCount { get; set; }

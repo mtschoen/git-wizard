@@ -548,13 +548,13 @@ public class GitWizardRepositoryBranchesTests
         var oneAhead = repo.Branches!.FirstOrDefault(b => b.Name == "one-ahead");
         var twoAhead = repo.Branches!.FirstOrDefault(b => b.Name == "two-ahead");
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(oneAhead, Is.Not.Null);
             Assert.That(oneAhead!.AheadOfDefault, Is.EqualTo(1));
             Assert.That(twoAhead, Is.Not.Null);
             Assert.That(twoAhead!.AheadOfDefault, Is.EqualTo(2));
-        });
+        }
     }
 
     [Test]

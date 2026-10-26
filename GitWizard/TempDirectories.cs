@@ -64,19 +64,16 @@ static class TempDirectories
             candidates.AddRange(EnumerateProfileTempDirectories($"{volume}:{Path.DirectorySeparatorChar}"));
         }
 
-        return candidates
+        return (string[])[.. candidates
             .Where(candidate => Path.IsPathFullyQualified(candidate) && Directory.Exists(candidate) && IsTempPath(candidate))
-            .Distinct(WatchPath.StringComparer)
-            .ToArray();
+            .Distinct(WatchPath.StringComparer)];
     }
 
     static string[] EnumerateProfileTempDirectories(string driveRoot)
     {
         try
         {
-            return Directory.EnumerateDirectories(Path.Combine(driveRoot, "Users"))
-                .Select(profile => Path.Combine(profile, "AppData", "Local", "Temp"))
-                .ToArray();
+            return [.. Directory.EnumerateDirectories(Path.Combine(driveRoot, "Users")).Select(profile => Path.Combine(profile, "AppData", "Local", "Temp"))];
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
@@ -121,6 +118,6 @@ static class TempDirectories
         var roots = ReadTempEnvironmentVariables().Select(WatchPath.Parse).ToList();
 
         roots.Add(WatchPath.Parse("/tmp"));
-        return roots.ToArray();
+        return [.. roots];
     }
 }

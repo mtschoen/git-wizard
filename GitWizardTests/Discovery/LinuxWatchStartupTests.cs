@@ -95,8 +95,11 @@ public class LinuxWatchStartupTests
 
         finishCrawl.TrySetResult();
         await using var startup = await startupTask.WaitAsync(TestTimeouts.HangGuard);
-        Assert.That(startup.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.CompleteNonempty));
-        Assert.That(startup.Inventory.Paths, Is.EquivalentTo([repositoryPath]));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(startup.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.CompleteNonempty));
+            Assert.That(startup.Inventory.Paths, Is.EquivalentTo([repositoryPath]));
+        }
 
         var inventoryFired = false;
         var startedFired = false;
@@ -178,7 +181,8 @@ public class LinuxWatchStartupTests
 
         var diedReason = await stoppedReason.Task.WaitAsync(TestTimeouts.HangGuard);
         Assert.That(diedReason, Does.Contain("overflow"));
-        Assert.That(await pending.WaitAsync(TestTimeouts.HangGuard), Is.False);
+        var pendingResult = await pending.WaitAsync(TestTimeouts.HangGuard);
+        Assert.That(pendingResult, Is.False);
     }
 
     [Test]

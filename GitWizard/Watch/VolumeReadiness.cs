@@ -44,10 +44,10 @@ public sealed record VolumeReadinessSnapshot
     VolumeReadinessSnapshot(IReadOnlyList<VolumeWatchStatus> volumes, IReadOnlyList<VolumeWatchTransition>? recentTransitions = null)
     {
         ArgumentNullException.ThrowIfNull(volumes);
-        Volumes = Array.AsReadOnly(volumes.ToArray());
+        Volumes = Array.AsReadOnly<VolumeWatchStatus>([.. volumes]);
         RecentTransitions = recentTransitions is null
             ? Array.Empty<VolumeWatchTransition>()
-            : Array.AsReadOnly(recentTransitions.ToArray());
+            : Array.AsReadOnly<VolumeWatchTransition>([.. recentTransitions]);
     }
 
     public IReadOnlyList<VolumeWatchStatus> Volumes { get; }
@@ -59,10 +59,10 @@ public sealed record VolumeReadinessSnapshot
     public bool HasCaughtUpVolume => Volumes.Any(volume => volume.State == VolumeWatchState.CaughtUp);
 
     public IReadOnlyList<string> CaughtUpVolumes =>
-        Volumes.Where(volume => volume.State == VolumeWatchState.CaughtUp).Select(volume => volume.Volume).ToArray();
+        (string[])[.. Volumes.Where(volume => volume.State == VolumeWatchState.CaughtUp).Select(volume => volume.Volume)];
 
     public IReadOnlyList<VolumeWatchStatus> ExcludedVolumes =>
-        Volumes.Where(volume => volume.State == VolumeWatchState.Excluded).ToArray();
+        (VolumeWatchStatus[])[.. Volumes.Where(volume => volume.State == VolumeWatchState.Excluded)];
 
     public bool TryGet(string volume, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out VolumeWatchStatus? status)
     {
@@ -74,17 +74,16 @@ public sealed record VolumeReadinessSnapshot
     public VolumeReadinessSnapshot With(VolumeWatchStatus status)
     {
         ArgumentNullException.ThrowIfNull(status);
-        var volumes = Volumes.Where(existing => !string.Equals(existing.Volume, status.Volume, StringComparison.OrdinalIgnoreCase))
+        var volumes = (VolumeWatchStatus[])[.. Volumes.Where(existing => !string.Equals(existing.Volume, status.Volume, StringComparison.OrdinalIgnoreCase))
             .Append(status)
-            .OrderBy(existing => existing.Volume, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+            .OrderBy(existing => existing.Volume, StringComparer.OrdinalIgnoreCase)];
         return new VolumeReadinessSnapshot(volumes, RecentTransitions);
     }
 
     public VolumeReadinessSnapshot WithTransition(VolumeWatchTransition transition)
     {
         ArgumentNullException.ThrowIfNull(transition);
-        return new VolumeReadinessSnapshot(Volumes, RecentTransitions.Append(transition).TakeLast(64).ToArray());
+        return new VolumeReadinessSnapshot(Volumes, (VolumeWatchTransition[])[.. RecentTransitions.Append(transition).TakeLast(64)]);
     }
 }
 

@@ -37,7 +37,7 @@ public sealed class WatchStartupResult : IAsyncDisposable
         Inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
         ArmResult = armResult ?? throw new ArgumentNullException(nameof(armResult));
         _source = source;
-        WatchVolumes = Array.AsReadOnly(watchVolumes.ToArray());
+        WatchVolumes = Array.AsReadOnly<string>([.. watchVolumes]);
         SearchRoots = scope.SearchRoots;
         IgnoredRoots = scope.IgnoredRoots;
         IncludeTempDirectories = scope.Request.Configuration.IncludeTempDirectories ?? false;

@@ -79,7 +79,7 @@ public class VolumeChangeSourceFactoryTests
     [Test]
     public async Task Create_WithOverride_ReturnsConfiguredSource()
     {
-        var fakeSource = new ScriptedVolumeChangeSource(Array.Empty<VolumeChangeBatch>());
+        var fakeSource = new ScriptedVolumeChangeSource([]);
         VolumeChangeSourceFactory._sourceFactoryOverride = () => fakeSource;
 
         await using var source = VolumeChangeSourceFactory.Create();

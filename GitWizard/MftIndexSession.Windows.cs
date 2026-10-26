@@ -91,7 +91,7 @@ public sealed partial class MftIndexSession
                 errors[error.Key] = error.Value;
             }
 
-            session.Drives = Array.AsReadOnly(requested.Select(drive => drive.ToString()).ToArray());
+            session.Drives = Array.AsReadOnly<string>([.. requested.Select(drive => drive.ToString())]);
             session.ScanErrors = new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(errors);
             return session;
         }

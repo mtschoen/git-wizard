@@ -133,8 +133,8 @@ public class BranchInventoryReportTests
         Assert.That(report.Repositories, Has.Count.EqualTo(1));
         var item = report.Repositories[0];
         Assert.That(item.Error, Is.Null);
-        Assert.That(item.Branches.Select(branch => branch.Name),
-            Is.EqualTo(["a-affected", "z-healthy"]));
+        var branchNames = item.Branches.Select(branch => branch.Name);
+        Assert.That(branchNames, Is.EqualTo(["a-affected", "z-healthy"]));
         var affected = item.Branches[0];
         using (Assert.EnterMultipleScope())
         {

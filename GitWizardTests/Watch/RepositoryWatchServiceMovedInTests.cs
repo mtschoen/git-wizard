@@ -72,7 +72,7 @@ public class RepositoryWatchServiceMovedInTests
                 [new VolumeChangeEntry(repoPath, VolumeEntryKind.MovedIn)]);
             var svc = new RepositoryWatchService(
                 new ScriptedVolumeChangeSource([batch]),
-                trackedRoots: Array.Empty<string>(),
+                trackedRoots: [],
                 searchRoots: [searchRoot],
                 debounce: TimeSpan.FromMilliseconds(10));
 
@@ -102,7 +102,7 @@ public class RepositoryWatchServiceMovedInTests
                 [new VolumeChangeEntry(plainPath, VolumeEntryKind.MovedIn)]);
             var svc = new RepositoryWatchService(
                 new ScriptedVolumeChangeSource([batch]),
-                trackedRoots: Array.Empty<string>(),
+                trackedRoots: [],
                 searchRoots: [searchRoot],
                 debounce: TimeSpan.FromMilliseconds(10));
 
@@ -132,7 +132,7 @@ public class RepositoryWatchServiceMovedInTests
                 [new VolumeChangeEntry(worktreePath, VolumeEntryKind.MovedIn)]);
             var svc = new RepositoryWatchService(
                 new ScriptedVolumeChangeSource([batch]),
-                trackedRoots: Array.Empty<string>(),
+                trackedRoots: [],
                 searchRoots: [searchRoot],
                 debounce: TimeSpan.FromMilliseconds(10));
 
@@ -163,7 +163,7 @@ public class RepositoryWatchServiceMovedInTests
                 [new VolumeChangeEntry(repoPath, VolumeEntryKind.MovedIn)]);
             var svc = new RepositoryWatchService(
                 new ScriptedVolumeChangeSource([batch]),
-                trackedRoots: Array.Empty<string>(),
+                trackedRoots: [],
                 searchRoots: [searchRoot],
                 debounce: TimeSpan.FromMilliseconds(10),
                 ignoredPaths: [ignoredRoot]);
@@ -193,7 +193,7 @@ public class RepositoryWatchServiceMovedInTests
                 [new VolumeChangeEntry(gitPath, VolumeEntryKind.MovedIn)]);
             var svc = new RepositoryWatchService(
                 new ScriptedVolumeChangeSource([batch]),
-                trackedRoots: Array.Empty<string>(),
+                trackedRoots: [],
                 searchRoots: [searchRoot],
                 debounce: TimeSpan.FromMilliseconds(10));
 
@@ -224,7 +224,7 @@ public class RepositoryWatchServiceMovedInTests
                 [new VolumeChangeEntry(repoPath, VolumeEntryKind.MovedIn)]);
             var svc = new RepositoryWatchService(
                 new ScriptedVolumeChangeSource([batch]),
-                trackedRoots: Array.Empty<string>(),
+                trackedRoots: [],
                 searchRoots: [searchRoot],
                 debounce: TimeSpan.FromMilliseconds(10),
                 ignoredPaths: [ignoredRoot]);

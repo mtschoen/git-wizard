@@ -168,11 +168,13 @@ dotnet_diagnostic.RCS1249.severity = warning
 # Promoted to warning (issue 382, owner ruling): jb-native inspections held at zero findings.
 # jb inspectcode honors resharper_*_highlighting here (not the .DotSettings severity), so the
 # InspectCode gate, which runs at --severity=WARNING, fails on any new finding.
+resharper_enforce_if_statement_braces_highlighting = warning
 resharper_enforce_foreach_statement_braces_highlighting = warning
 resharper_enforce_for_statement_braces_highlighting = warning
 resharper_enforce_while_statement_braces_highlighting = warning
 resharper_enforce_using_statement_braces_highlighting = warning
 resharper_enforce_lock_statement_braces_highlighting = warning
+resharper_use_collection_expression_highlighting = warning
 resharper_suggest_var_or_type_built_in_types_highlighting = warning
 resharper_suggest_var_or_type_simple_types_highlighting = warning
 resharper_suggest_var_or_type_elsewhere_highlighting = warning
@@ -201,3 +203,6 @@ dotnet_diagnostic.CA1861.severity = none
 # throwaway reports and fakes whose lifetime is the test itself, so the rule reports
 # hundreds of sites here that say nothing about the shipped code.
 dotnet_diagnostic.CA2000.severity = none
+# NUnit multiple-assert scope rules are test-only and held at zero; the build gates them.
+dotnet_diagnostic.NUnit2045.severity = warning
+dotnet_diagnostic.NUnit2056.severity = warning

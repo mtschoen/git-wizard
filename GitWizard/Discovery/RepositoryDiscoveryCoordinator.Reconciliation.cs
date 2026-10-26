@@ -28,20 +28,20 @@ public partial class RepositoryDiscoveryCoordinator(RepositoryDiscoveryDependenc
     {
         if (inventory.Outcome == DiscoveryOutcome.Unusable)
         {
-            return previous.ToArray();
+            return (string[])[.. previous];
         }
 
         if (inventory.CanPublishFullInventory &&
             inventory.Observations.All(item => item.Source != DiscoverySource.Snapshot))
         {
-            return inventory.Paths.ToArray();
+            return (string[])[.. inventory.Paths];
         }
 
         var retained = previous.Where(path =>
             inventory.Observations.Any(item => !item.Complete && Contains(item, path)) ||
             !inventory.Observations.Any(item => item.Complete && item.Source != DiscoverySource.Snapshot && Contains(item, path)));
 
-        return retained.Concat(inventory.Paths).Distinct(WatchPath.StringComparer).ToArray();
+        return (string[])[.. retained.Concat(inventory.Paths).Distinct(WatchPath.StringComparer)];
     }
 
     async Task PersistAsync(

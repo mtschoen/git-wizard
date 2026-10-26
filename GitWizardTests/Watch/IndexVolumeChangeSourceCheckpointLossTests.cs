@@ -58,7 +58,7 @@ public class IndexVolumeChangeSourceCheckpointLossTests
                 recovering.State == VolumeWatchState.CatchingUp &&
                 warnings.Any(warning => warning.Loss.DetectedDuring == JournalCheckpointLossDetection.LiveWatch));
 
-            Assert.Multiple(() =>
+            using (Assert.EnterMultipleScope())
             {
                 Assert.That(source.Readiness.TryGet("X", out var recovering), Is.True);
                 Assert.That(recovering!.State, Is.EqualTo(VolumeWatchState.CatchingUp));
@@ -66,11 +66,13 @@ public class IndexVolumeChangeSourceCheckpointLossTests
                 Assert.That(healthy!.State, Is.EqualTo(VolumeWatchState.CaughtUp));
                 Assert.That(warnings.Select(warning => warning.Loss.DetectedDuring),
                     Is.EqualTo([JournalCheckpointLossDetection.LiveWatch]));
-            });
+            }
 
             await scripted.WatchFor('Y').PublishBatchAsync([PackedIndexFixture.Entry(50, 6, "while-x-recovers", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
-            Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
-            Assert.That(reader.Current.Volume, Is.EqualTo("Y"));
+            var delivered = await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard);
+            Assert.That(delivered, Is.True);
+            var current = reader.Current;
+            Assert.That(current.Volume, Is.EqualTo("Y"));
 
             // The recovery rescan reads a journal that holds its new cursor.
             windows['X'] = Healthy;
@@ -79,19 +81,14 @@ public class IndexVolumeChangeSourceCheckpointLossTests
                                        caughtUp.State == VolumeWatchState.CaughtUp);
             await scripted.WatchFor('X').PublishBatchAsync([PackedIndexFixture.Entry(51, 6, "after-recovery", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1003));
 
-            Assert.That(await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard), Is.True);
-            Assert.That(reader.Current.Volume, Is.EqualTo("X"));
-            Assert.That(scripted.Starts.Count(start => start.Drive == 'X'), Is.EqualTo(2));
-
+            var recovered = await reader.MoveNextAsync().AsTask().WaitAsync(TestTimeouts.HangGuard);
+            Assert.That(recovered, Is.True);
+            var recoveredBatch = reader.Current;
+            Assert.That(recoveredBatch.Volume, Is.EqualTo("X"));
+            var recoveryStartCount = scripted.Starts.Count(start => start.Drive == 'X');
+            Assert.That(recoveryStartCount, Is.EqualTo(2));
             // The hint the consumers hold follows the drive to the end of the same episode.
-            await WaitUntilAsync(() => warnings.Last().WatchState == WatchState.CaughtUp);
-            var finalWarnings = warnings.ToArray();
-            Assert.Multiple(() =>
-            {
-                Assert.That(finalWarnings.Select(warning => warning.Loss).Distinct().Count(), Is.EqualTo(1));
-                Assert.That(finalWarnings[^1].Message, Does.Contain("was rescanned and the watch has caught up"));
-                Assert.That(finalWarnings[^1].Message, Does.Not.Contain("is being rescanned"));
-            });
+            await VerifyFinalWarningsAsync(warnings);
         }
         finally
         {
@@ -102,6 +99,18 @@ public class IndexVolumeChangeSourceCheckpointLossTests
 
             await source.DisposeAsync();
             await owner.DisposeAsync();
+        }
+    }
+
+    static async Task VerifyFinalWarningsAsync(ConcurrentQueue<JournalWarning> warnings)
+    {
+        await WaitUntilAsync(() => warnings.Last().WatchState == WatchState.CaughtUp);
+        var finalWarnings = warnings.ToArray();
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(finalWarnings.Select(warning => warning.Loss).Distinct().Count(), Is.EqualTo(1));
+            Assert.That(finalWarnings[^1].Message, Does.Contain("was rescanned and the watch has caught up"));
+            Assert.That(finalWarnings[^1].Message, Does.Not.Contain("is being rescanned"));
         }
     }
 }

@@ -14,14 +14,14 @@ sealed class RecordingUpdateHandler : IUpdateHandler
     readonly ConcurrentQueue<(GitWizardRepository Parent, string Path)> _uninitializedSubmodulesCreated = new();
     readonly ConcurrentQueue<GitWizardRepository> _refreshCompleted = new();
 
-    public (string Description, int Total)[] ProgressStarts => _progressStarts.ToArray();
-    public int[] ProgressCounts => _progressCounts.ToArray();
-    public string?[] Messages => _messages.ToArray();
-    public GitWizardRepository[] RepositoriesCreated => _repositoriesCreated.ToArray();
-    public (GitWizardRepository Parent, GitWizardRepository Submodule)[] SubmodulesCreated => _submodulesCreated.ToArray();
-    public GitWizardRepository[] WorktreesCreated => _worktreesCreated.ToArray();
-    public (GitWizardRepository Parent, string Path)[] UninitializedSubmodulesCreated => _uninitializedSubmodulesCreated.ToArray();
-    public GitWizardRepository[] RefreshCompleted => _refreshCompleted.ToArray();
+    public (string Description, int Total)[] ProgressStarts => [.. _progressStarts];
+    public int[] ProgressCounts => [.. _progressCounts];
+    public string?[] Messages => [.. _messages];
+    public GitWizardRepository[] RepositoriesCreated => [.. _repositoriesCreated];
+    public (GitWizardRepository Parent, GitWizardRepository Submodule)[] SubmodulesCreated => [.. _submodulesCreated];
+    public GitWizardRepository[] WorktreesCreated => [.. _worktreesCreated];
+    public (GitWizardRepository Parent, string Path)[] UninitializedSubmodulesCreated => [.. _uninitializedSubmodulesCreated];
+    public GitWizardRepository[] RefreshCompleted => [.. _refreshCompleted];
 
     public Action<string, int>? StartingProgress { get; init; }
     public Action<int>? UpdatingProgress { get; init; }

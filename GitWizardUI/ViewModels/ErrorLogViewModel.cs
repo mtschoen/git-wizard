@@ -15,7 +15,7 @@ public sealed class ErrorLogViewModel : INotifyPropertyChanged
     /// <summary>Oldest entries are dropped once the log holds this many.</summary>
     public const int MaxEntries = 300;
 
-    public ObservableCollection<ErrorLogEntry> Entries { get; } = new();
+    public ObservableCollection<ErrorLogEntry> Entries { get; } = [];
 
     public int Count => Entries.Count;
 

@@ -135,7 +135,8 @@ analyzers/code style/warnings-as-errors and `.editorconfig`: UTF-8 no BOM, CRLF,
 four spaces, PascalCase members/types/const/static-readonly, `_camelCase` private
 and internal fields including mutable static, camelCase locals/parameters. Full
 words; no `m_`/`k_`/`s_`. Keep only RCS1001/RCS1003/RCS1161/RCS1168/RCS1238/RCS1249 enabled by default,
-plus AsyncFixer and CA2000/CA1849/CA2016.
+plus AsyncFixer and CA2000/CA1849/CA2016. InspectCode enforces UseCollectionExpression and
+EnforceIfStatementBraces; tests gate NUnit2045/NUnit2056.
 
 Run `dotnet format git-wizard.slnx --verify-no-changes`; use
 `dotnet format git-wizard.slnx` to apply fixes. Naming is a separate rename,

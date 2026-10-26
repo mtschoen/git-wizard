@@ -281,13 +281,13 @@ public class RepositoryDiscoveryCoordinatorTests
             OpenIndexAsync = StatusSessions.Opener(files,
                 ('C', SyntheticDriveBehavior.Ready), ('D', SyntheticDriveBehavior.Offline)),
             ReadListAsync = _ => Task.FromResult<string[]?>([@"C:\repos\gone", @"D:\repos\keep"]),
-            WriteListAsync = (paths, _) => { writtenPaths.Add(paths.ToArray()); return Task.CompletedTask; },
+            WriteListAsync = (paths, _) => { writtenPaths.Add([.. paths]); return Task.CompletedTask; },
             CandidateExists = (_, _) => true,
             CreateLinuxSource = () => throw new PlatformNotSupportedException()
         };
 
         var coordinator = new RepositoryDiscoveryCoordinator(dependencies);
-        var scope = DiscoveryScope.CreateExpanded(request, configuration.SearchPaths.ToArray(),
+        var scope = DiscoveryScope.CreateExpanded(request, (string[])[.. configuration.SearchPaths],
             request.RetainedRoots, [], dependencies.ClassifyRoot);
         await using var result = await coordinator.DiscoverScopeAsync(request, scope, null, null, CancellationToken.None);
 
@@ -322,7 +322,7 @@ public class RepositoryDiscoveryCoordinatorTests
         };
 
         var coordinator = new RepositoryDiscoveryCoordinator(dependencies);
-        var scope = DiscoveryScope.CreateExpanded(request, configuration.SearchPaths.ToArray(),
+        var scope = DiscoveryScope.CreateExpanded(request, (string[])[.. configuration.SearchPaths],
             request.RetainedRoots, [], dependencies.ClassifyRoot);
         await using var result = await coordinator.DiscoverScopeAsync(request, scope, null, null, CancellationToken.None);
 
@@ -350,7 +350,7 @@ public class RepositoryDiscoveryCoordinatorTests
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS crawler invoked"),
             OpenIndexAsync = StatusSessions.Opener(files, ('X', SyntheticDriveBehavior.Ready)),
             ReadListAsync = _ => Task.FromResult<string[]?>([@"C:\repos\old"]),
-            WriteListAsync = (paths, _) => { writtenPaths.Add(paths.ToArray()); return Task.CompletedTask; },
+            WriteListAsync = (paths, _) => { writtenPaths.Add([.. paths]); return Task.CompletedTask; },
             CandidateExists = (_, _) => true,
             CreateLinuxSource = () => throw new PlatformNotSupportedException()
         };

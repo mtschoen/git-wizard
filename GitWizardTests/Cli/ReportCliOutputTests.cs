@@ -102,7 +102,7 @@ public class ReportCliOutputTests
             arguments.Add("--minified");
         }
 
-        var runConfiguration = CliParser.Parse(arguments.ToArray());
+        var runConfiguration = CliParser.Parse([.. arguments]);
         Assert.That(runConfiguration.HasParseError, Is.False);
         var configuration = new GitWizardConfiguration
         {
@@ -121,7 +121,7 @@ public class ReportCliOutputTests
         using var savedDocument = JsonDocument.Parse(await File.ReadAllTextAsync(GitWizardReport.GetCachedReportPath()));
 
         var run = document.RootElement.GetProperty("run");
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(exitCode, Is.EqualTo(1));
             Assert.That(document.RootElement.GetProperty("SchemaVersion").GetString(), Is.EqualTo("2.1"));
@@ -142,7 +142,7 @@ public class ReportCliOutputTests
 
             Assert.That(_consoleOut.ToString(), Is.Empty);
             Assert.That(_consoleError.ToString(), Is.Empty);
-        });
+        }
     }
 
     [TestCase(false)]
@@ -189,7 +189,7 @@ public class ReportCliOutputTests
             GitWizardLog.Log("visible error", GitWizardLog.LogType.Error);
             GitWizardLog.LogException(new InvalidOperationException("visible exception"), "visible context");
         }
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             var warnings = handler.CaptureRun().Warnings;
             Assert.That(warnings, Has.Some.Contains("visible warning"));
@@ -198,7 +198,7 @@ public class ReportCliOutputTests
             Assert.That(warnings, Has.Some.Contains("visible exception"));
             Assert.That(stderr.ToString(), Is.Empty);
             Assert.That(stdout.ToString(), Is.Empty);
-        });
+        }
     }
 
     [Test]
@@ -442,16 +442,16 @@ public class ReportCliOutputTests
             stdout: stdout, stderr: stderr);
         using var document = JsonDocument.Parse(stdout.ToString());
         var run = document.RootElement.GetProperty("run");
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(exitCode, Is.Zero);
             Assert.That(run.GetProperty("created").GetInt32(), Is.EqualTo(hasRun ? 7 : 0));
             Assert.That(run.GetProperty("refreshed").GetInt32(), Is.EqualTo(hasRun ? 6 : 0));
             Assert.That(run.GetProperty("skipped").GetInt32(), Is.EqualTo(hasRun ? 1 : 0));
             Assert.That(run.GetProperty("warnings").GetArrayLength(), Is.EqualTo(hasRun ? 1 : 0));
-            Assert.That(File.ReadAllText(cachePath), Is.EqualTo(original));
+            Assert.That(await File.ReadAllTextAsync(cachePath), Is.EqualTo(original));
             Assert.That(stderr.ToString(), Is.Empty);
-        });
+        }
     }
 
     [Test]

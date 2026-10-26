@@ -47,7 +47,7 @@ public class FanotifyVolumeChangeSourceArmTests
         var native = new FakeFanotifyNative();
         var source = new FanotifyVolumeChangeSource(native);
 
-        var result = await source.ArmAndCatchUpAsync(Array.Empty<string>(), CancellationToken.None);
+        var result = await source.ArmAndCatchUpAsync([], CancellationToken.None);
 
         using (Assert.EnterMultipleScope())
         {
@@ -67,13 +67,13 @@ public class FanotifyVolumeChangeSourceArmTests
 
         var result = await source.ArmAndCatchUpAsync(["/", "/mnt/data"], CancellationToken.None);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.Errors, Has.Count.EqualTo(2));
             Assert.That(result.Errors["/"], Does.Contain("fanotify_init failed"));
             Assert.That(result.Errors["/mnt/data"], Does.Contain("fanotify_init failed"));
             Assert.That(native.MarkCalls, Is.Empty);
-        });
+        }
     }
 
     [Test]
@@ -90,13 +90,13 @@ public class FanotifyVolumeChangeSourceArmTests
         var result = await source.ArmAndCatchUpAsync(["  ", missingPath], CancellationToken.None);
 
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.Errors, Has.Count.EqualTo(2));
             Assert.That(result.Errors["  "], Does.Contain("whitespace"));
             Assert.That(result.Errors[missingPath], Does.Contain("does not exist"));
             Assert.That(native.MarkCalls, Is.Empty);
-        });
+        }
     }
 
     [Test]
@@ -111,12 +111,12 @@ public class FanotifyVolumeChangeSourceArmTests
 
         var result = await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.Errors, Has.Count.EqualTo(1));
             Assert.That(result.Errors[ExistingDirectoryPath], Does.Contain("fanotify_mark failed"));
             Assert.That(native.MarkCalls, Has.Count.EqualTo(1));
-        });
+        }
     }
 
     [Test]
@@ -130,7 +130,7 @@ public class FanotifyVolumeChangeSourceArmTests
 
         var result = await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.Errors, Is.Empty);
             Assert.That(native.InitializeFlags, Is.EqualTo(
@@ -141,7 +141,7 @@ public class FanotifyVolumeChangeSourceArmTests
             Assert.That(native.MarkCalls[0].Path, Is.EqualTo(ExistingDirectoryPath));
             Assert.That(native.MarkCalls[0].Flags, Is.EqualTo(
                 FanotifyConstants.MarkAdd | FanotifyConstants.MarkFilesystem));
-        });
+        }
     }
 
     [Test]

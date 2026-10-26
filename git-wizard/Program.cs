@@ -251,17 +251,15 @@ public static partial class Program
         // If it's a file, read lines from it
         if (File.Exists(argument))
         {
-            return File.ReadLines(argument)
+            return [.. File.ReadLines(argument)
                 .Where(line => !string.IsNullOrWhiteSpace(line))
-                .Select(line => line.Trim())
-                .ToArray();
+                .Select(line => line.Trim())];
         }
 
         // Otherwise treat as comma-separated
-        return argument.Split(',')
+        return [.. argument.Split(',')
             .Where(p => !string.IsNullOrWhiteSpace(p))
-            .Select(p => p.Trim())
-            .ToArray();
+            .Select(p => p.Trim())];
     }
 
     internal static bool EnsureUsableSearchPaths(GitWizardConfiguration configuration, Action<int>? exit = null)

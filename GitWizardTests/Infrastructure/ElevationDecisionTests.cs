@@ -41,7 +41,8 @@ public class ElevationDecisionTests
         var result = WindowsDefender.AddExclusions(fake);
 
         Assert.That(result, Is.True);
-        Assert.That(fake.RunElevatedCalls, Has.Count.EqualTo(1));
+        var elevatedCallCount = fake.RunElevatedCalls.Count;
+        Assert.That(elevatedCallCount, Is.EqualTo(1));
         using (Assert.EnterMultipleScope())
         {
             Assert.That(fake.RunElevatedCalls[0].Arguments, Is.EqualTo(["--elevated-defender"]));

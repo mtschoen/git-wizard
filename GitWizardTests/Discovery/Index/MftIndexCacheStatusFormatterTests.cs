@@ -81,7 +81,7 @@ public class MftIndexCacheStatusFormatterTests
         var active = new MftActiveCacheSession(directory,
             [new MftActiveCacheDrive(new MftDriveStatus("X", status, null), 1)]);
         var snapshot = new MftIndexCacheInspection(new FrozenCacheClock(), true,
-            _ => Array.Empty<CachedBlockStatus>()).Capture(files.DirectoryPath, [active]);
+            _ => []).Capture(files.DirectoryPath, [active]);
         var text = MftIndexCacheStatusFormatter.Format(snapshot);
         Assert.That(text, Does.Contain(refused ? "Open/rescan failure: InUse" : "State: Ready"));
         if (!refused)

@@ -59,7 +59,7 @@ public sealed partial class RepositoryListViewModel
             {
                 foreach (var key in RepositoryGroupKeys.GetGroupKeys(node, ActiveGroupMode))
                 {
-                    MergeGroupBatch(key, new List<RepositoryNodeViewModel> { node }, sort: false);
+                    MergeGroupBatch(key, [node], sort: false);
                 }
             }
             else
@@ -282,7 +282,7 @@ public sealed partial class RepositoryListViewModel
 
             if (ActiveGroupMode == GroupMode.None)
             {
-                ungroupedBatch ??= new List<RepositoryNodeViewModel>();
+                ungroupedBatch ??= [];
                 ungroupedBatch.Add(node);
             }
             else
@@ -292,7 +292,7 @@ public sealed partial class RepositoryListViewModel
                     groupedBatches ??= new Dictionary<string, List<RepositoryNodeViewModel>>();
                     if (!groupedBatches.TryGetValue(key, out var bucket))
                     {
-                        bucket = new List<RepositoryNodeViewModel>();
+                        bucket = [];
                         groupedBatches[key] = bucket;
                     }
 

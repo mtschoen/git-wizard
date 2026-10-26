@@ -11,7 +11,7 @@ public sealed class RepositorySweepReport
     public const string CurrentSchemaVersion = "1.0";
 
     public string SchemaVersion { get; set; } = CurrentSchemaVersion;
-    public List<RepositorySweepItem> Repositories { get; set; } = new();
+    public List<RepositorySweepItem> Repositories { get; set; } = [];
 
     /// <summary>
     /// Inspect each repository independently, preserving failures as data so one unreadable
@@ -105,8 +105,8 @@ public sealed class RepositorySweepReport
 public sealed class RepositorySweepItem
 {
     public string Path { get; set; } = string.Empty;
-    public List<string> DirtyTrackedFiles { get; set; } = new();
-    public List<UnpushedBranchInfo> UnpushedBranches { get; set; } = new();
+    public List<string> DirtyTrackedFiles { get; set; } = [];
+    public List<UnpushedBranchInfo> UnpushedBranches { get; set; } = [];
     public int StashCount { get; set; }
     public string? Error { get; set; }
 }

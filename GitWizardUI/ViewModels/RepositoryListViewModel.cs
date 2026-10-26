@@ -12,7 +12,7 @@ public sealed partial class RepositoryListViewModel : INotifyPropertyChanged, ID
     readonly StatusHeaderViewModel _statusHeader;
     readonly ErrorLogViewModel _errorLog;
 
-    internal List<RepositoryNodeViewModel> AllRepositories { get; } = new();
+    internal List<RepositoryNodeViewModel> AllRepositories { get; } = [];
     internal ConcurrentDictionary<string, RepositoryNodeViewModel> RepositoryMap { get; } = new();
     Dictionary<string, RepositoryNodeViewModel> PendingGroups { get; } = new();
 
@@ -51,7 +51,7 @@ public sealed partial class RepositoryListViewModel : INotifyPropertyChanged, ID
             field = value;
             OnPropertyChanged();
         }
-    } = new();
+    } = [];
 
     public RepositoryNodeViewModel? SelectedRepository
     {
@@ -221,11 +221,11 @@ public sealed partial class RepositoryListViewModel : INotifyPropertyChanged, ID
 
         var filtered = _activeFilter == FilterType.None
             ? AllRepositories
-            : AllRepositories.Where(r => r.MatchesFilter(_activeFilter, MainViewModel.GlobalUserEmail)).ToList();
+            : [.. AllRepositories.Where(r => r.MatchesFilter(_activeFilter, MainViewModel.GlobalUserEmail))];
 
         if (!string.IsNullOrWhiteSpace(_searchText))
         {
-            filtered = filtered.Where(r => r.WorkingDirectory.Contains(_searchText, StringComparison.OrdinalIgnoreCase)).ToList();
+            filtered = [.. filtered.Where(r => r.WorkingDirectory.Contains(_searchText, StringComparison.OrdinalIgnoreCase))];
         }
 
         var sorted = RepositorySortOrder.ApplySort(filtered, _activeSortMode);

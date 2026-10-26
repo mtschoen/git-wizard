@@ -11,8 +11,8 @@ public sealed partial class SettingsViewModel : INotifyPropertyChanged
     readonly IFolderPicker _folderPicker;
     readonly GitWizardConfiguration _configuration;
 
-    public ObservableCollection<string> SearchPaths { get; } = new();
-    public ObservableCollection<string> IgnoredPaths { get; } = new();
+    public ObservableCollection<string> SearchPaths { get; } = [];
+    public ObservableCollection<string> IgnoredPaths { get; } = [];
 
     public string NewSearchPath
     {
@@ -89,7 +89,7 @@ public sealed partial class SettingsViewModel : INotifyPropertyChanged
         _journalDispatcher = dispatcher;
         _configuration = GitWizardConfiguration.GetGlobalConfiguration();
 
-        JournalWarnings = liveWatch?.JournalWarnings ?? new ObservableCollection<JournalWarningViewModel>();
+        JournalWarnings = liveWatch?.JournalWarnings ?? [];
 
         foreach (var path in _configuration.SearchPaths)
         {

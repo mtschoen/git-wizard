@@ -16,7 +16,7 @@ public sealed class TagInventoryReport
 
     public string SchemaVersion { get; set; } = CurrentSchemaVersion;
     public string MatchPattern { get; set; } = "*";
-    public List<RepositoryTagItem> Repositories { get; set; } = new();
+    public List<RepositoryTagItem> Repositories { get; set; } = [];
 
     /// <summary>
     /// Scan repositories for tags matching the pattern and report whether they exist on remotes.
@@ -272,7 +272,7 @@ public sealed class TagInventoryReport
 public sealed class RepositoryTagItem
 {
     public string Path { get; set; } = string.Empty;
-    public List<TagInfo> Tags { get; set; } = new();
+    public List<TagInfo> Tags { get; set; } = [];
     [UsedImplicitly]
     public string? Error { get; set; }
 }
@@ -286,5 +286,5 @@ public sealed class TagInfo
     public string Name { get; set; } = string.Empty;
     public string CommitSha { get; set; } = string.Empty;
     public bool ExistsOnRemote { get; set; }
-    public List<string> Remotes { get; set; } = new();
+    public List<string> Remotes { get; set; } = [];
 }

@@ -43,10 +43,9 @@ public class FanotifyFilesystemIdentifierTests
     public void DeleteTemporaryRoot() => Directory.Delete(_temporaryRoot, true);
 
     static byte[] CreateEvents(params (long FilesystemId, byte[] Handle, string Name)[] events) =>
-        CombineBuffers(events
+        CombineBuffers([.. events
             .Select(item => CreateSyntheticEventBuffer(
-                FanotifyConstants.Create, item.Handle, item.Name, filesystemId: item.FilesystemId))
-            .ToArray());
+                FanotifyConstants.Create, item.Handle, item.Name, filesystemId: item.FilesystemId))]);
 
     static async Task<List<VolumeChangeEntry>> ReadEntriesAsync(
         FanotifyVolumeChangeSource source, int expectedCount, int timeoutSeconds = 5)
@@ -170,11 +169,11 @@ public class FanotifyFilesystemIdentifierTests
 
         var result = await source.ArmAndCatchUpAsync([_firstRoot, _secondRoot], CancellationToken.None);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(result.Errors.Keys, Is.EquivalentTo([_firstRoot]));
             Assert.That(result.Errors[_firstRoot], Does.Contain("Could not open a descriptor"));
-        });
+        }
     }
 
     [Test]

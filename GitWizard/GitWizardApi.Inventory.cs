@@ -125,7 +125,7 @@ public static partial class GitWizardApi
             CollectCloneAndDescendants(path, allClones);
         }
 
-        return allClones.OrderBy(p => p, StringComparer.Ordinal).ToList();
+        return (List<string>)[.. allClones.OrderBy(p => p, StringComparer.Ordinal)];
     }
 
     static void CollectCloneAndDescendants(string repositoryPath, HashSet<string> allClones)

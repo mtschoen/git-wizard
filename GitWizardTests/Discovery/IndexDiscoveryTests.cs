@@ -161,7 +161,7 @@ public class IndexDiscoveryTests
         await using var index = await OpenRowsAsync(files, [.. rows]);
         var entries = GitWizardApi.SelectGitEntries(index, includeGitFiles: true);
         Assert.That(entries, Has.Count.EqualTo(2));
-        var candidates = CandidateSelection.Paths(index, @"X:\", Array.Empty<string>(),
+        var candidates = CandidateSelection.Paths(index, @"X:\", [],
             includeTempDirectories: true);
         Assert.That(candidates, Is.EqualTo([Path.Combine(files.TreePath, "validrepo")]));
     }

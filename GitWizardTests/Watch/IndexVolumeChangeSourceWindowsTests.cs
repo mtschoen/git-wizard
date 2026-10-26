@@ -49,7 +49,8 @@ public class IndexVolumeChangeSourceWindowsTests
         Assert.That(arm.Errors, Does.Not.ContainKey(drive));
         var before = source.QueryUsnJournalSettings(drive[0]);
         Assert.That(before.MaximumSize, Is.Positive);
-        Assert.That(before.AllocationDelta, Is.Positive);
+        var allocationDelta = before.AllocationDelta;
+        Assert.That(allocationDelta, Is.Positive);
         if (before.MaximumSize >= 1024L * 1024 * 1024)
         {
             Assert.Inconclusive("Journal maximum is already at or above 1 GB");
@@ -62,11 +63,14 @@ public class IndexVolumeChangeSourceWindowsTests
             drive[0], new UsnJournalSettings { MaximumSize = requested, AllocationDelta = before.AllocationDelta }, cancellation.Token);
 
         Assert.That(after.MaximumSize, Is.GreaterThanOrEqualTo(requested));
-        Assert.That(source.QueryUsnJournalSettings(drive[0]).MaximumSize, Is.EqualTo(after.MaximumSize));
+        var queriedAfterGrowth = source.QueryUsnJournalSettings(drive[0]);
+        Assert.That(queriedAfterGrowth.MaximumSize, Is.EqualTo(after.MaximumSize));
         Assert.ThrowsAsync<InvalidOperationException>(() => source.GrowUsnJournalAsync(
             drive[0], before, cancellation.Token));
-        Assert.That(source.QueryUsnJournalSettings(drive[0]).MaximumSize, Is.EqualTo(after.MaximumSize));
-        Assert.That(launches, Is.EqualTo(1));
+        var afterRejectedShrink = source.QueryUsnJournalSettings(drive[0]);
+        Assert.That(afterRejectedShrink.MaximumSize, Is.EqualTo(after.MaximumSize));
+        var launchCount = launches;
+        Assert.That(launchCount, Is.EqualTo(1));
     }
 
     [Test]
@@ -88,8 +92,9 @@ public class IndexVolumeChangeSourceWindowsTests
         var armResult = await source.ArmAndCatchUpAsync([drive], armCancellation.Token);
 
         Assert.That(armResult.Errors, Does.Not.ContainKey(drive));
-        Assert.That(session, Is.Not.Null);
-        var status = session!.Index.Drives.Single(candidate =>
+        var capturedSession = session;
+        Assert.That(capturedSession, Is.Not.Null);
+        var status = capturedSession!.Index.Drives.Single(candidate =>
             char.ToUpperInvariant(candidate.Drive.Letter).ToString() == drive);
         using (Assert.EnterMultipleScope())
         {

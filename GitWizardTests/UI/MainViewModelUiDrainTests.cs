@@ -195,7 +195,8 @@ public class MainViewModelUiDrainTests
         vm.Refresh.DrainUICommands();
 
         Assert.That(vm.RepositoryList.Repositories, Is.Empty, "A late command must not be applied.");
-        Assert.That(await vm.Refresh.WaitForUICommandsToDrainAsync(), Is.False, "The queue holds nothing to wait for.");
+        var drained = await vm.Refresh.WaitForUICommandsToDrainAsync();
+        Assert.That(drained, Is.False, "The queue holds nothing to wait for.");
     }
 
     // The refresh's wait on the queue ends on disposal instead of polling a queue no drain empties.

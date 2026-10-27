@@ -92,7 +92,7 @@ sealed record RunConfiguration
     public bool PruneStashes { get; init; }
 
     /// <summary>
-    /// Prune command: delete eligible branches and stashes (otherwise a dry run).
+    /// Prune command: delete eligible branches (otherwise a dry run). Merged stashes are only reported.
     /// </summary>
     public bool PruneApply { get; init; }
 

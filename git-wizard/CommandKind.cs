@@ -63,7 +63,7 @@ enum CommandKind
     DbSize = 10,
 
     /// <summary>
-    /// Output the prune JSON contract, deleting merged branches and stashes only with --apply.
+    /// Output the prune JSON contract, deleting merged branches only with --apply; merged stashes are reported, never dropped.
     /// </summary>
     Prune = 11
 }

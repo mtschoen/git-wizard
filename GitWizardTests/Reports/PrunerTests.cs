@@ -69,6 +69,7 @@ public class PrunerTests
         scenario.AddWorktree("in-worktree");
         scenario.Checkout("checked-out");
         var mergedSha = scenario.Sha("merged");
+        var scenarioPath = scenario.Path;
         using var hints = new StringWriter();
 
         var options = new PruneOptions(Stashes: false, Apply: true)
@@ -78,10 +79,10 @@ public class PrunerTests
                 {
                     if (candidate.Name == "merged")
                     {
-                        scenario.Git("update-ref", "refs/heads/merged", unmergedSha);
+                        TempRepoFixture.RunGit(scenarioPath, "update-ref", "refs/heads/merged", unmergedSha);
                     }
                 }
-            : null
+                : null
         };
         var report = Pruner.Run([scenario.Path], options, hints);
 
@@ -123,7 +124,7 @@ public class PrunerTests
         scenario.Git("stash", "push", "-q", "-m", "unmerged");
         StashLandedEdit(scenario, "third.txt", "third");
         var stashes = scenario.StashShas();
-        string? concurrentStashSha = null;
+        var scenarioPath = scenario.Path;
         using var hints = new StringWriter();
 
         var options = new PruneOptions(Branches: false, Apply: true)
@@ -133,12 +134,11 @@ public class PrunerTests
                 {
                     if (candidate.Name == "stash@{0}")
                     {
-                        scenario.Write("base.txt", "concurrent unmerged stash");
-                        scenario.Git("stash", "push", "-q", "-m", "concurrent-unmerged");
-                        concurrentStashSha = scenario.Sha("stash@{0}");
+                        File.WriteAllText(Path.Combine(scenarioPath, "base.txt"), "concurrent unmerged stash");
+                        TempRepoFixture.RunGit(scenarioPath, "stash", "push", "-q", "-m", "concurrent-unmerged");
                     }
                 }
-            : null
+                : null
         };
         var report = Pruner.Run([scenario.Path], options, hints);
 
@@ -150,7 +150,8 @@ public class PrunerTests
                     PruneCandidate.Skipped, PruneCandidate.Skipped, PruneCandidate.Deleted
                 ]));
                 Assert.That(Find(report, "stash@{0}").SkipReason, Is.EqualTo(PruneSkipReasons.StashMoved));
-                Assert.That(scenario.StashShas(), Is.EqualTo([concurrentStashSha!, stashes[0], stashes[1]]));
+                Assert.That(scenario.StashShas(), Has.Count.EqualTo(3));
+                Assert.That(scenario.StashShas()[1..], Is.EqualTo([stashes[0], stashes[1]]));
                 Assert.That(scenario.StashMessages()[0], Does.Contain("concurrent-unmerged"));
             }
             else

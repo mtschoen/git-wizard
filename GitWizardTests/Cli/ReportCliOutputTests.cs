@@ -3,9 +3,11 @@ using System.Text.Json;
 using GitWizard;
 using GitWizard.CLI;
 using GitWizardTests.TestSupport;
+using MFTLib.Index;
 
 namespace GitWizardTests;
 
+// Report entry-path output contracts share one isolated console/log fixture.
 [NonParallelizable]
 public class ReportCliOutputTests
 {
@@ -478,6 +480,50 @@ public class ReportCliOutputTests
             Assert.That(JsonElement.DeepEquals(output.RootElement.GetProperty("run"), saved.RootElement.GetProperty("run")), Is.True);
             Assert.That(JsonElement.DeepEquals(output.RootElement.GetProperty("run"), cached.RootElement.GetProperty("run")), Is.True);
             Assert.That(stdout.ToString().TrimEnd(), Does.Not.Contain('\n'));
+        }
+    }
+
+    [TestCase(CachedBlockDeletionOutcome.Deleted)]
+    [TestCase(CachedBlockDeletionOutcome.InUse)]
+    [TestCase(CachedBlockDeletionOutcome.Failed)]
+    public async Task DefaultReport_CachedPaths_ReclaimsOnlyLegacyBlocks(CachedBlockDeletionOutcome outcome)
+    {
+        using var cache = new IndexCacheFixture(_temporaryHome);
+        cache.SeedLegacyAndUnknownLayout();
+        using var repository = TempRepoFixture.CreateWithInitialCommit();
+        var repositoryPath = GitWizardApi.NormalizePath(repository.Path);
+        await GitWizardApi.SaveCachedRepositoryPathsAsync([repositoryPath]);
+        var configuration = new GitWizardConfiguration
+        {
+            SearchPaths = { repository.Path },
+            IncludeTempDirectories = true
+        };
+        GitWizardLog.TypedLogMethod = null;
+        await using var stdout = new StringWriter();
+        await using var stderr = new StringWriter();
+        using var legacyLock = cache.ApplyLegacyOutcome(outcome);
+        try
+        {
+            var exitCode = await Program.RunCommandCoreAsync(
+                CliParser.Parse(["--json", "--no-local-commit-count"]), configuration,
+                IndexCacheFixture.CreateCachedOnlyCoordinator(), stdout, stderr);
+
+            cache.AssertAfterAutomaticMaintenance(outcome, stderr.ToString());
+            using var document = JsonDocument.Parse(stdout.ToString());
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(exitCode, Is.Zero, "Maintenance must not change a clean report's exit code.");
+                Assert.That(document.RootElement.GetProperty("SchemaVersion").GetString(), Is.EqualTo("2.1"));
+                Assert.That(document.RootElement.GetProperty("Repositories").TryGetProperty(repositoryPath, out _), Is.True);
+                Assert.That(document.RootElement.GetProperty("run").GetProperty("warnings").GetArrayLength(), Is.Zero);
+                Assert.That(stdout.ToString(), Does.Not.Contain("Legacy index cache cleanup incomplete"));
+                Assert.That(_consoleOut.ToString(), Is.Empty);
+                Assert.That(_consoleError.ToString(), Is.Empty);
+            }
+        }
+        finally
+        {
+            cache.RestoreLegacyAttributes();
         }
     }
 }

@@ -61,11 +61,14 @@ public class MftIndexCacheMaintenanceTests
         Assert.That(MftIndexCacheMaintenance.Clear(files.Home).Deletions, Is.Empty);
     }
 
-    [Test]
-    public void AbsentCacheDoesNotCreateAnIndexDirectory()
+    [TestCase(false)]
+    [TestCase(true)]
+    public void AbsentCacheDoesNotCreateAnIndexDirectory(bool legacyOnly)
     {
         using var files = new PackedIndexFixture();
-        var result = MftIndexCacheMaintenance.Clear(files.DirectoryPath);
+        var result = legacyOnly
+            ? MftIndexCacheMaintenance.ClearLegacy(files.DirectoryPath)
+            : MftIndexCacheMaintenance.Clear(files.DirectoryPath);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(result.Succeeded, Is.True);

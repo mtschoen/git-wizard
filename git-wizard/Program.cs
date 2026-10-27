@@ -100,6 +100,10 @@ public static partial class Program
         try
         {
             GitWizardLog.LogMethod = stderr.WriteLine;
+            if (OperatingSystem.IsWindows())
+            {
+                MftIndexCacheMaintenance.ClearLegacy(GitWizardApi.GetLocalFilesPath());
+            }
             switch (runConfiguration.Command)
             {
                 case CommandKind.Sweep:

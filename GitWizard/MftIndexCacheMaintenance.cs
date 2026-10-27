@@ -6,18 +6,33 @@ namespace GitWizard;
 public static class MftIndexCacheMaintenance
 {
     // Earlier releases named the cache directory "v1-<64 hex SHA-256 digits>" after the scan shape.
-    // Nothing writes such a directory now; Clear still lists them so Clear reclaims their blocks.
+    // Automatic maintenance selects these directories; explicit Clear also selects current blocks.
     const string LegacyDirectoryPrefix = "v1-";
     const int LegacyDirectoryNameLength = 67;
     static readonly SearchValues<char> HexDigits = SearchValues.Create("0123456789ABCDEF");
 
-    public static MftIndexCacheMaintenanceResult Clear(string localFilesPath)
+    public static MftIndexCacheMaintenanceResult Clear(string localFilesPath) =>
+        ClearCore(localFilesPath, includeCurrent: true);
+
+    public static MftIndexCacheMaintenanceResult ClearLegacy(string localFilesPath)
+    {
+        var result = ClearCore(localFilesPath, includeCurrent: false);
+        if (!result.Succeeded)
+        {
+            GitWizardLog.Log($"Legacy index cache cleanup incomplete:{Environment.NewLine}{result.ToClearText()}",
+                GitWizardLog.LogType.Warning);
+        }
+
+        return result;
+    }
+
+    static MftIndexCacheMaintenanceResult ClearCore(string localFilesPath, bool includeCurrent)
     {
         ArgumentException.ThrowIfNullOrEmpty(localFilesPath);
         var errors = new List<string>();
         var deletions = new List<CachedBlockDeletionResult>();
         var inventory = new List<CachedBlockStatus>();
-        foreach (var directory in GetCacheDirectories(localFilesPath, errors))
+        foreach (var directory in GetCacheDirectories(localFilesPath, errors, includeCurrent))
         {
             try
             {
@@ -51,13 +66,14 @@ public static class MftIndexCacheMaintenance
             errors.AsReadOnly());
     }
 
-    static string[] GetCacheDirectories(string localFilesPath, List<string> errors)
+    static string[] GetCacheDirectories(string localFilesPath, List<string> errors, bool includeCurrent)
     {
         var root = MftIndexCachePolicy.GetCacheRoot(localFilesPath);
-        var directories = new HashSet<string>(StringComparer.Ordinal)
+        var directories = new HashSet<string>(StringComparer.Ordinal);
+        if (includeCurrent)
         {
-            MftIndexCachePolicy.GetCacheDirectory(localFilesPath)
-        };
+            directories.Add(MftIndexCachePolicy.GetCacheDirectory(localFilesPath));
+        }
 
         try
         {

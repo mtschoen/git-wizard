@@ -232,38 +232,26 @@ public sealed partial class RefreshCoordinator : IUpdateHandler, INotifyProperty
     // Run the CPU-bound git scan on the thread pool; returns the deleted, renamed-old, and stale
     // non-repo paths, the set of healthy repo paths discovered by the scan, and whether the
     // discovery inventory may publish a full inventory (false for partial/unusable outcomes).
-    async Task<(HashSet<string> DeletedPaths, HashSet<string> RenamedOldPaths, HashSet<string> NonRepositoryPaths, HashSet<string> FreshPaths, bool Publishable)> RunRefreshScanAsync(
-        GitWizardConfiguration configuration, string[]? repositoryPaths, bool fetchRemotes, bool rebuild = false)
-    {
-        var deletedPaths = new HashSet<string>();
-        var renamedOldPaths = new HashSet<string>();
-        var nonRepositoryPaths = new HashSet<string>();
-        var freshPaths = new HashSet<string>();
-        var publishable = true;
-
-        await Task.Run(async () =>
+    Task<(HashSet<string> DeletedPaths, HashSet<string> RenamedOldPaths, HashSet<string> NonRepositoryPaths, HashSet<string> FreshPaths, bool Publishable)> RunRefreshScanAsync(
+        GitWizardConfiguration configuration, string[]? repositoryPaths, bool fetchRemotes, bool rebuild = false) =>
+        Task.Run(async () =>
         {
+            ClearLegacyIndexCacheIfWindows();
+
             _stopwatch.Restart();
-            await using var report = await GitWizardReport.GenerateReportAsync(configuration, repositoryPaths, this,
-                new GitWizardReportOptions
-                {
-                    FetchRemotes = fetchRemotes,
-                    DeepRefresh = fetchRemotes,
-                    NoMft = NoMftRequested,
-                    RetainDiscoveryIndex = true,
-                    DiscoveryPurpose = rebuild ? DiscoveryPurpose.Rebuild : DiscoveryPurpose.Ordinary,
-                    DiscoveryCoordinator = DiscoveryCoordinator
-                }).ConfigureAwait(false);
+            await using var report = await GitWizardReport.GenerateReportAsync(
+                configuration, repositoryPaths, this, CreateReportOptions(fetchRemotes, rebuild)).ConfigureAwait(false);
             _stopwatch.Stop();
 
             await _preparedDiscoveryIndex.SetAsync(report.DetachDiscoveryIndex()).ConfigureAwait(false);
 
-            publishable = report.DiscoveryInventory is not { CanPublishFullInventory: false };
+            var publishable = report.DiscoveryInventory is not { CanPublishFullInventory: false };
 
             // Capture deleted and stale non-repo paths for cache cleanup on main thread
-            deletedPaths = [.. report.DeletedPaths];
-            nonRepositoryPaths = [.. report.NonRepositoryPaths];
-            freshPaths = [.. report.Repositories.Keys];
+            HashSet<string> deletedPaths = [.. report.DeletedPaths];
+            HashSet<string> nonRepositoryPaths = [.. report.NonRepositoryPaths];
+            HashSet<string> freshPaths = [.. report.Repositories.Keys];
+            var renamedOldPaths = new HashSet<string>();
 
             // Detect renamed repos: find errored repos whose remote URLs
             // match a newly discovered (non-error) repo at a different path
@@ -315,10 +303,34 @@ public sealed partial class RefreshCoordinator : IUpdateHandler, INotifyProperty
             {
                 await GitWizardApi.SaveCachedRepositoryPathsAsync(report.GetRepositoryPaths()).ConfigureAwait(false);
             }
-        }).ConfigureAwait(false);
 
-        return (deletedPaths, renamedOldPaths, nonRepositoryPaths, freshPaths, publishable);
+            return (deletedPaths, renamedOldPaths, nonRepositoryPaths, freshPaths, publishable);
+        });
+
+    void ClearLegacyIndexCacheIfWindows()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var result = MftIndexCacheMaintenance.ClearLegacy(GitWizardApi.GetLocalFilesPath());
+        if (!result.Succeeded)
+        {
+            _errorLog.PostError(_ui, $"Legacy index cache cleanup incomplete:{Environment.NewLine}{result.ToClearText()}");
+        }
     }
+
+    GitWizardReportOptions CreateReportOptions(bool fetchRemotes, bool rebuild) =>
+        new()
+        {
+            FetchRemotes = fetchRemotes,
+            DeepRefresh = fetchRemotes,
+            NoMft = NoMftRequested,
+            RetainDiscoveryIndex = true,
+            DiscoveryPurpose = rebuild ? DiscoveryPurpose.Rebuild : DiscoveryPurpose.Ordinary,
+            DiscoveryCoordinator = DiscoveryCoordinator
+        };
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

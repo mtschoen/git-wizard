@@ -104,7 +104,7 @@ public class BranchInventoryReportTests
         var report = BranchInventoryReport.Scan([repo.Path], baseBranchName: "main");
 
         var json = JsonSerializer.Serialize(report);
-        Assert.That(json, Does.Contain("\"SchemaVersion\":\"1.0\""));
+        Assert.That(json, Does.Contain("\"SchemaVersion\":\"1.1\""));
         Assert.That(json, Does.Contain("\"BaseBranch\":\"main\""));
         Assert.That(json, Does.Contain("feature-a"));
     }

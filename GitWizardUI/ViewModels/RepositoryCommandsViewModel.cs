@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using GitWizard;
 using GitWizardUI.ViewModels.Services;
 
@@ -189,6 +190,13 @@ public sealed class RepositoryCommandsViewModel
         });
     }
 
+    /// <summary>
+    /// The row's Clean button: runs a full-tier <see cref="Pruner"/> dry run for the repository off
+    /// the UI thread (this includes the slow patch-id and squash tiers that refresh skips), asks
+    /// for confirmation listing every would-delete branch and manual-drop stash, then deletes the
+    /// confirmed branches, logs each branch restore command and stash manual-drop command, and
+    /// refreshes the repository.
+    /// </summary>
     public async Task CleanDownstreamBranchesAsync(RepositoryNodeViewModel? node)
     {
         if (node?.IsGroupHeader != false)
@@ -196,120 +204,117 @@ public sealed class RepositoryCommandsViewModel
             return;
         }
 
-        var downstream = node.Repository.Branches?.Where(branch => branch.IsMerged).ToList();
-        if (downstream == null || downstream.Count == 0)
+        var workingDirectory = node.WorkingDirectory;
+        if (string.IsNullOrEmpty(workingDirectory) || !Directory.Exists(workingDirectory))
+        {
+            await _ui.InvokeAsync(() => _dialogs.ShowAlertAsync("Error", "Invalid repository path"));
+            return;
+        }
+
+        using var dryRunHints = new StringWriter();
+        var dryRun = await Task.Run(() => Pruner.Run([workingDirectory], new PruneOptions(), dryRunHints));
+        if (await ReportPruneErrorsAsync(dryRun, workingDirectory))
         {
             return;
         }
 
-        var branchNames = string.Join(", ", downstream.Select(branch => $"'{branch.Name}'"));
-        var message = $"Delete {downstream.Count} downstream branch(es)?\n\n{branchNames}";
-
-        await _ui.InvokeAsync(async () =>
+        var candidates = dryRun.Candidates
+            .Where(candidate => candidate.Action is PruneCandidate.WouldDelete or PruneCandidate.ManualDrop)
+            .ToList();
+        var skippedCount = dryRun.Candidates.Count - candidates.Count;
+        if (!candidates.Any(candidate => candidate.Action == PruneCandidate.WouldDelete))
         {
-            await _dialogs.ShowAlertAsync(
-                "Delete Downstream Branches",
-                message + "\n\nClick OK to proceed with deletion.",
-                "Delete");
+            LogHints(dryRunHints);
+            await _ui.InvokeAsync(() => _dialogs.ShowAlertAsync("Nothing to Clean",
+                $"No merged branches in {workingDirectory} ({skippedCount} skipped)."));
+            return;
+        }
 
-            var workingDirectory = node.WorkingDirectory;
-            if (string.IsNullOrEmpty(workingDirectory) || !Directory.Exists(workingDirectory))
-            {
-                await _dialogs.ShowAlertAsync("Error", "Invalid repository path");
-                return;
-            }
+        var confirmed = false;
+        await _ui.InvokeAsync(async () => confirmed = await _dialogs.ConfirmAsync(
+            "Clean Repository", DescribeCleanCandidates(workingDirectory, candidates, skippedCount), "Delete", "Cancel"));
+        if (!confirmed)
+        {
+            return;
+        }
 
-            var (success, failed) = await DeleteBranchesAsync(workingDirectory, downstream);
-            await ReportDownstreamDeletionResultAsync(node, downstream, success, failed);
-        });
+        await ApplyCleanAsync(node, workingDirectory, candidates);
     }
 
-    static async Task<(bool Success, List<string> Failed)> DeleteBranchesAsync(string workingDirectory, List<BranchInfo> downstream)
+    async Task ApplyCleanAsync(RepositoryNodeViewModel node, string workingDirectory, List<PruneCandidate> confirmed)
     {
-        var success = true;
-        var failed = new List<string>();
+        var options = new PruneOptions(Apply: true, OnlyShas: confirmed.Select(candidate => candidate.Sha).ToHashSet(StringComparer.Ordinal));
+        using var restoreHints = new StringWriter();
+        var applied = await Task.Run(() => Pruner.Run([workingDirectory], options, restoreHints));
+        LogHints(restoreHints);
 
-        foreach (var branch in downstream)
+        await Task.Run(() => node.Repository.Refresh(_updateHandler));
+        _ui.Post(node.Update);
+        if (await ReportPruneErrorsAsync(applied, workingDirectory))
         {
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = "git",
-                Arguments = $"branch -d \"{branch.Name}\"",
-                WorkingDirectory = workingDirectory,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            try
-            {
-                using var process = Process.Start(startInfo);
-                if (process != null)
-                {
-                    using var exitTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-                    var timedOut = false;
-                    try
-                    {
-                        await process.WaitForExitAsync(exitTimeout.Token);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        timedOut = true;
-                    }
-
-                    if (timedOut)
-                    {
-                        process.Kill();
-                        failed.Add(branch.Name);
-                        success = false;
-                    }
-                    else if (process.ExitCode != 0)
-                    {
-                        var error = await process.StandardError.ReadToEndAsync();
-                        if (!string.IsNullOrEmpty(error) && !error.Contains("not fully merged"))
-                        {
-                            GitWizardLog.Log($"git branch -d {branch.Name}: {error}", GitWizardLog.LogType.Warning);
-                        }
-                        if (process.ExitCode != 0)
-                        {
-                            failed.Add(branch.Name);
-                            success = false;
-                        }
-                    }
-                }
-            }
-            catch (Exception exception)
-            {
-                GitWizardLog.LogException(exception, $"Exception deleting branch {branch.Name} in {workingDirectory}");
-                failed.Add(branch.Name);
-                success = false;
-            }
+            return;
         }
 
-        return (success, failed);
+        var deleted = applied.Candidates.Count(candidate => candidate.Action == PruneCandidate.Deleted);
+        var failed = applied.Candidates
+            .Where(candidate => candidate.Action == PruneCandidate.Skipped && confirmed.Any(c => c.Sha == candidate.Sha))
+            .Select(candidate => $"{candidate.Name} ({candidate.SkipReason})")
+            .ToList();
+        if (failed.Count > 0)
+        {
+            _errorLog.PostError(_ui, $"Could not delete: {string.Join(", ", failed)}", workingDirectory);
+        }
+
+        var summary = failed.Count == 0
+            ? $"Deleted {deleted} item(s). Restore and manual stash drop commands are in the log."
+            : $"Deleted {deleted} item(s). Could not delete: {string.Join(", ", failed)}";
+        await _ui.InvokeAsync(() => _dialogs.ShowAlertAsync("Done", summary));
     }
 
-    async Task ReportDownstreamDeletionResultAsync(RepositoryNodeViewModel node, List<BranchInfo> downstream,
-        bool success, List<string> failed)
+    static void LogHints(StringWriter hints)
     {
-        if (success)
+        foreach (var hint in hints.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
-            var deletedCount = downstream.Count;
-            node.Repository.Branches?.RemoveAll(branch => branch.IsMerged);
-            node.UpdateDisplayText();
-            await _dialogs.ShowAlertAsync("Done", $"Deleted {deletedCount} branch(es)");
+            GitWizardLog.Log(hint);
         }
-        else if (failed.Count > 0)
+    }
+
+    async Task<bool> ReportPruneErrorsAsync(PruneReport report, string workingDirectory)
+    {
+        if (report.Errors.Count == 0)
         {
-            // Remove successfully deleted branches from Branches so UI doesn't show stale data
-            node.Repository.Branches?.RemoveAll(branch => branch.IsMerged && !failed.Contains(branch.Name));
-            var failedList = string.Join(", ", failed);
-            _errorLog.PostError(_ui, $"Could not delete downstream branch(es): {failedList}", node.WorkingDirectory);
-            await _dialogs.ShowAlertAsync(
-                "Partial Success",
-                $"Could not delete: {failedList}\n\nThese branches may not be fully merged or are protected.");
+            return false;
         }
+
+        var message = string.Join("\n", report.Errors.Select(error => error.Error));
+        _errorLog.PostError(_ui, $"Could not clean: {message}", workingDirectory);
+        await _ui.InvokeAsync(() => _dialogs.ShowAlertAsync("Clean Failed", message));
+        return true;
+    }
+
+    internal static string DescribeCleanCandidates(string workingDirectory, List<PruneCandidate> candidates, int skippedCount)
+    {
+        var builder = new StringBuilder();
+        builder.Append("Clean ").Append(candidates.Count).Append(" item(s) in ").Append(workingDirectory)
+            .AppendLine(" (merged branches are deleted; merged stashes are logged for manual drop)?")
+            .AppendLine();
+        foreach (var candidate in candidates)
+        {
+            builder.Append(candidate.Kind).Append(' ').Append(candidate.Name).Append(" (").Append(candidate.MergedBy).Append(')');
+            if (!string.IsNullOrEmpty(candidate.Message))
+            {
+                builder.Append(" \"").Append(candidate.Message).Append('"');
+            }
+
+            builder.AppendLine();
+        }
+
+        if (skippedCount > 0)
+        {
+            builder.AppendLine().Append(skippedCount).Append(" other branch(es)/stash(es) skipped (not merged, checked out, or the base branch).");
+        }
+
+        return builder.ToString();
     }
 
     // Marshal alerts to the UI thread and record dialog failures without propagating them.

@@ -51,6 +51,7 @@ public class AgentInstructionsTests
     [TestCase("")]
     [TestCase("tags")]
     [TestCase("branches")]
+    [TestCase("prune")]
     public void DocumentedFlags_CoverParserAndHelp(string command)
     {
         var documented = Read("docs/cli-options.md");

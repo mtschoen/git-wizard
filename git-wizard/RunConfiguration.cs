@@ -76,6 +76,32 @@ sealed record RunConfiguration
     public bool NotMergedOnly { get; init; }
 
     /// <summary>
+    /// Branches command: keep only unmerged branches with commits on no remote-tracking ref, and
+    /// only unmerged stashes.
+    /// </summary>
+    public bool LocalOnly { get; init; }
+
+    /// <summary>
+    /// Prune command: consider local branches.
+    /// </summary>
+    public bool PruneBranches { get; init; }
+
+    /// <summary>
+    /// Prune command: consider stashes.
+    /// </summary>
+    public bool PruneStashes { get; init; }
+
+    /// <summary>
+    /// Prune command: delete eligible branches and stashes (otherwise a dry run).
+    /// </summary>
+    public bool PruneApply { get; init; }
+
+    /// <summary>
+    /// Prune command: base branch to compare against (null means each repository's default).
+    /// </summary>
+    public string? PruneBaseBranch { get; init; }
+
+    /// <summary>
     /// Refresh the report based on the latest state (otherwise just print out the cached report).
     /// </summary>
     public bool RefreshReport { get; init; } = true;

@@ -37,6 +37,7 @@ public partial class GitWizardRepository
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            GitCli.ClearRepositoryEnvironment(psi);
 
             var errorBuilder = new System.Text.StringBuilder();
             using var process = System.Diagnostics.Process.Start(psi);
@@ -152,19 +153,23 @@ public partial class GitWizardRepository
     /// Populate <see cref="Branches"/> with local branches' divergence from the
     /// default branch. Default population is "actionable" only (drops the
     /// default branch and any branch sitting exactly at its tip); pass
-    /// <paramref name="allBranches"/> to emit the full inventory.
+    /// <paramref name="allBranches"/> to emit the full inventory. Merge state comes from the
+    /// cheap <see cref="MergeDetector.DetectCheap"/> tiers against
+    /// <paramref name="baseBranch"/> (remote default first), which also feeds
+    /// <see cref="LocalOnlyBranchCount"/>.
     /// </summary>
-    void CollectBranches(Repository repository, bool allBranches)
+    void CollectBranches(Repository repository, bool allBranches, Branch? baseBranch)
     {
         Branches = null;
+        LocalOnlyBranchCount = 0;
+        OldestLocalOnlyBranchDate = null;
         var defaultBranch = ResolveDefaultBranch(repository);
         DefaultBranch = defaultBranch?.FriendlyName;
-        if (defaultBranch?.Tip == null)
+        var comparisonBranch = defaultBranch?.Tip != null ? defaultBranch : baseBranch;
+        if (comparisonBranch?.Tip == null && _localOnlyTipShas == null)
         {
             return;
         }
-
-        var defaultTip = defaultBranch.Tip;
 
         var collected = new List<BranchInfo>();
         foreach (var branch in repository.Branches)
@@ -176,31 +181,46 @@ public partial class GitWizardRepository
                     continue;
                 }
 
-                var divergence = repository.ObjectDatabase.CalculateHistoryDivergence(branch.Tip, defaultTip);
-                var ahead = divergence.AheadBy ?? 0;
-                var behind = divergence.BehindBy ?? 0;
-                var isMerged = ahead == 0;
-                var isDefault = branch.FriendlyName == defaultBranch.FriendlyName;
+                var ahead = 0;
+                var behind = 0;
+                var listed = false;
+                if (comparisonBranch?.Tip is { } comparisonTip)
+                {
+                    var divergence = repository.ObjectDatabase.CalculateHistoryDivergence(branch.Tip, comparisonTip);
+                    ahead = divergence.AheadBy ?? 0;
+                    behind = divergence.BehindBy ?? 0;
 
-                // "Boring": the default branch itself, or a branch identical to it.
-                var boring = isDefault || (ahead == 0 && behind == 0);
-                if (!allBranches && boring)
+                    // "Boring": the comparison branch itself, or a branch identical to it.
+                    var boring = BaseBranchResolver.IsBaseOrCounterpart(branch, comparisonBranch) || (ahead == 0 && behind == 0);
+                    listed = allBranches || !boring;
+                }
+
+                var localOnly = _localOnlyTipShas?.Contains(branch.Tip.Sha) == true;
+                if (!listed && !localOnly)
                 {
                     continue;
                 }
 
-                var hasUpstream = ResolveTrackedBranch(repository, branch) != null;
-
-                collected.Add(new BranchInfo
+                var mergedBy = DetectMergedOnRefresh(repository, branch, baseBranch);
+                if (localOnly && mergedBy == null)
                 {
-                    Name = branch.FriendlyName,
-                    IsMerged = isMerged,
-                    MergedInto = isMerged && !isDefault ? defaultBranch.FriendlyName : null,
-                    AheadOfDefault = ahead,
-                    BehindDefault = behind,
-                    LastCommitDate = branch.Tip.Author.When,
-                    HasUpstream = hasUpstream,
-                });
+                    CountLocalOnlyBranch(branch.Tip.Author.When);
+                }
+
+                if (listed)
+                {
+                    collected.Add(new BranchInfo
+                    {
+                        Name = branch.FriendlyName,
+                        IsMerged = mergedBy != null,
+                        MergedBy = mergedBy,
+                        MergedInto = mergedBy != null ? baseBranch?.FriendlyName : null,
+                        AheadOfDefault = ahead,
+                        BehindDefault = behind,
+                        LastCommitDate = branch.Tip.Author.When,
+                        HasUpstream = ResolveTrackedBranch(repository, branch) != null,
+                    });
+                }
             }
             catch (Exception exception)
             {
@@ -209,6 +229,20 @@ public partial class GitWizardRepository
         }
 
         Branches = collected.Count > 0 ? collected : null;
+    }
+
+    static string? DetectMergedOnRefresh(Repository repository, Branch branch, Branch? baseBranch) =>
+        baseBranch?.Tip is { } baseTip && !BaseBranchResolver.IsBaseOrCounterpart(branch, baseBranch)
+            ? MergeDetector.DetectCheap(repository, branch.Tip, baseTip)
+            : null;
+
+    void CountLocalOnlyBranch(DateTimeOffset lastCommitDate)
+    {
+        LocalOnlyBranchCount++;
+        if (OldestLocalOnlyBranchDate == null || lastCommitDate < OldestLocalOnlyBranchDate)
+        {
+            OldestLocalOnlyBranchDate = lastCommitDate;
+        }
     }
 
     /// <summary>
@@ -285,6 +319,7 @@ public partial class GitWizardRepository
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            GitCli.ClearRepositoryEnvironment(psi);
 
             var errorBuilder = new System.Text.StringBuilder();
             using var process = System.Diagnostics.Process.Start(psi);

@@ -8,12 +8,13 @@ Scan, organize, and manage all the git repositories on your machine. Find duplic
 
 - **Fast repository discovery** - uses NTFS MFT parsing on Windows for near-instant scanning across all drives
 - **Status at a glance** - see pending changes, unpushed commits, and errors per repo
-- **Filter** by pending changes, detached heads, submodule issues, or repos you've committed to
+- **Filter** by pending changes, detached heads, submodule issues, repos you've committed to, merged ("downstream") branches, unmerged local-only commits, or stashes
 - **Group** by drive or remote URL to find duplicate clones; drives group by letter regardless of path case
-- **Sort** by path, last commit date, remote URL, or size on disk. Working Directory sorts paths in ascending order (case-insensitive on Windows, ordinal elsewhere), including within groups, and keeps arriving refresh and Live rows in path order
+- **Sort** by path, last commit date, remote URL, size on disk, prunable count (merged branches plus merged stashes), or stale branches (oldest unmerged local-only branch first). Working Directory sorts paths in ascending order (case-insensitive on Windows, ordinal elsewhere), including within groups, and keeps arriving refresh and Live rows in path order
 - **Repository sizes** appear beside every row after measurement, with totals on group headers
 - **Search** to quickly find repos by path
 - **Deep refresh** per repo with remote fetch and index update
+- **Clean** per repo - rows show a badge such as `3 merged · 2 stashes · 1 local-only` (refresh checks ancestry and identical content only); Clean runs the full check, including squash and rebase merges, confirms and deletes merged branches, logs a restore command for each deleted branch, and reports merged stashes (stashes are report-only) with manual verify-and-drop commands in the log
 - **Live mode** - opt-in repository monitoring (Windows USN journal, Linux fanotify with kernel 5.9+) updates changed, created, deleted, and renamed repositories after one elevation prompt
 - **Cross-platform desktop** - Avalonia app runs natively on Windows, macOS, and Linux; library and CLI run everywhere
 
@@ -263,6 +264,14 @@ git-wizard tags -m 'archive/*'
 
 # Inventory local branches divergent from default or base branch, with unique-commit counts
 git-wizard branches --not-merged main
+
+# List unmerged, unpushed feature branches and stashes relative to each repo's base branch
+# (for a complete pre-wipe audit including dirty files and repos with no remote, use git-wizard --sweep)
+git-wizard branches --local-only
+
+# List branches and stashes whose changes are already in the default branch (dry run), then delete merged branches (stashes are report-only)
+git-wizard prune
+git-wizard prune --apply
 ```
 
 #### Example: Reap tag fleet-wide and prove nothing is left

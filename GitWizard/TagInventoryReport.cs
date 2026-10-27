@@ -172,6 +172,7 @@ public sealed class TagInventoryReport
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            GitCli.ClearRepositoryEnvironment(processStartInfo);
             processStartInfo.ArgumentList.Add("ls-remote");
             processStartInfo.ArgumentList.Add("--tags");
             processStartInfo.ArgumentList.Add(remoteUrl);

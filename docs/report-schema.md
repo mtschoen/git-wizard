@@ -80,6 +80,10 @@ merge of disjoint updates must serialize their writes externally.
 | `DefaultBranch` | `string` | yes | The repo's default branch name (e.g. `main`); the divergence baseline for `Branches` |
 | `MatchingBranchName` | `string` | yes | When HEAD is detached, a local branch whose tip matches HEAD (offer to check out); else null |
 | `Branches` | `BranchInfo[]` | yes | Local branches and their divergence from `DefaultBranch`. Filtered to "actionable" branches unless `BranchScope` is `"all"`. Null when none qualify. |
+| `StashCount` | `int` | no | Number of stashes. 0 on a linked worktree (stashes are shared with, and counted on, the main checkout). |
+| `MergedStashCount` | `int` | no | Stashes whose every change is already on the base branch (content tier), so safe to drop. |
+| `LocalOnlyBranchCount` | `int` | no | Local branches with commits on no remote-tracking ref that are not merged into the base branch. 0 when local-commit counting was skipped (`--no-local-commit-count`). |
+| `OldestLocalOnlyBranchDate` | `string` (ISO 8601) | yes | Tip author date of the oldest branch counted in `LocalOnlyBranchCount`. |
 | `BehindRemoteCount` | `int` | no | Commits on the checked-out branch's **upstream remote-tracking branch** not reachable from the checked-out branch - how far behind the remote this checkout is. 0 when there is no upstream or HEAD is detached. See disambiguation note below. |
 | `AheadOfRemoteCount` | `int` | no | Commits on the checked-out branch not reachable from its upstream - unpushed commits on the branch actually checked out (narrower than `LocalOnlyCommits`, which sums across *all* local branches). 0 when there is no upstream or HEAD is detached. |
 | `LastFetchTime` | `string` (ISO 8601) | yes | When GitWizard itself last completed a `fetchRemotes` refresh for this repository. Null if GitWizard has never fetched it - in that case `BehindRemoteCount`/`AheadOfRemoteCount` reflect whatever remote-tracking state happens to be cached locally (possibly from a manual `git fetch`, possibly stale) rather than a comparison GitWizard can vouch for. |
@@ -116,8 +120,9 @@ A local branch's relationship to the repository's default branch. By default the
 | Field | Type | Description |
 |-------|------|-------------|
 | `Name` | `string` | Branch short name (e.g. `feature/x`) |
-| `IsMerged` | `bool` | True when fully merged into the default branch (`AheadOfDefault == 0`) - safe to delete |
-| `MergedInto` | `string` | Default branch name when merged (safe to delete), else null |
+| `IsMerged` | `bool` | True when `MergedBy` is set - the branch's work is already on the base branch, safe to delete |
+| `MergedBy` | `string` | `ancestor` or `content` when refresh proved the branch merged into the base branch (`origin`'s default first, then local `main`/`master`/`develop`), else null. Refresh runs only these cheap tiers; `prune` and the UI's Clean button also catch rebase (`patch-id`) and squash merges. Absent on reports written before this field existed. |
+| `MergedInto` | `string` | Base branch name when merged (e.g. `origin/main`; safe to delete), else null |
 | `AheadOfDefault` | `int` | Commits on this branch not reachable from the default branch |
 | `BehindDefault` | `int` | Commits in the default branch not reachable from this branch |
 | `LastCommitDate` | `string` (ISO 8601) | Author timestamp of the branch tip; null if the branch has no commits |
@@ -253,9 +258,45 @@ The automation-focused sweep is a separate contract from the cached report above
 | `Remotes` | `string[]` | Remote names that still hold this tag |
 | `Error` | `string` | Optional repository error if repository could not be inspected |
 
+## Prune output (`prune`)
+
+`git-wizard prune` uses the same base-branch resolution and merge tiers as `branches`. It is a dry run unless `--apply` is passed. `--branches` / `--stashes` limit it to one kind; neither means both. Stashes are report-only in both dry-run and `--apply` modes and are never dropped automatically. Linked worktrees are handled once with their main checkout.
+
+```json
+{
+  "SchemaVersion": "1.0",
+  "Applied": false,
+  "Candidates": [
+    {
+      "Repository": "/work/repo-a",
+      "Kind": "branch",
+      "Name": "feature/landed",
+      "Sha": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+      "MergedBy": "squash",
+      "Action": "would-delete"
+    }
+  ],
+  "Errors": []
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `SchemaVersion` | `string` | Contract version, currently `"1.0"` |
+| `Applied` | `bool` | True when `--apply` was passed |
+| `Kind` | `string` | `branch` or `stash` |
+| `Name` | `string` | Branch name, or `stash@{n}` |
+| `MergedBy` | `string` | Tier from the branch inventory; null when unmerged |
+| `Action` | `string` | `would-delete`, `deleted`, `manual-drop` (merged stashes, which are report-only) or `skipped` |
+| `SkipReason` | `string` | `not-merged`, `base-branch`, `checked-out`, `checked-out-in-worktree`, `worktree-list-failed`, `symbolic-ref`, `delete-failed` or `not-confirmed` (library callers that restrict a run to confirmed SHAs, such as the UI's Clean button; the CLI never emits it) |
+| `Message` | `string` | Stash message (stashes only) |
+| `Errors` | `object[]` | Repositories that could not be inspected (`Repository`, `Error`) |
+
+Immediately before deleting a branch, `prune --apply` re-reads the main checkout's `HEAD` and `git worktree list --porcelain` and skips the branch (`checked-out`) if any checkout or worktree now has it checked out, then deletes with `git update-ref --no-deref -d refs/heads/<name> <sha>` (matching the inspected tip SHA without dereferencing symbolic refs) followed by best-effort cleanup of `branch.<name>.*` config. Symbolic refs under `refs/heads/*` are skipped during inventory (`symbolic-ref`). Each branch deletion prints a restore command (`git -C '<repo>' branch '<name>' <sha>`) to stderr. Merged stashes are report-only and never dropped automatically; in both dry-run and `--apply`, they report `manual-drop` and print `git -C '<repo>' stash list --format='%H %gd' | grep '^<sha> '` followed by `git -C '<repo>' stash drop <stash@{n}>` to stderr.
+
 ## Branch inventory output (`branches`)
 
-`git-wizard branches` inspects every clone for local branches, comparing against the specified base branch (`--not-merged <base>` / `--not <base>`) or each repository's default branch. It calculates upstream tracking divergence and a `UniqueCommitCount` that proves zero data loss before branch deletion.
+`git-wizard branches` inspects every clone for local branches and stashes, comparing against the specified base branch (`--not-merged <base>` / `--not <base>`) or each repository's default branch. The default prefers `refs/remotes/origin/HEAD`, then `origin/main`, `origin/master`, `origin/develop`, then local main/master/develop, then the checked-out branch, so a stale local `main` is not the comparison point; the local counterpart of a remote base is omitted unless it has unpushed commits (`UniqueCommitCount > 0`). It calculates upstream tracking divergence and a `UniqueCommitCount` that proves zero data loss before branch deletion. `--local-only` keeps branches with `UniqueCommitCount > 0` and `MergedBy` null, and only unmerged stashes. Schema 1.1 added `MergedBy` and `Stashes`.
 
 Upstream tracking is resolved only when the branch's configured remote exactly
 matches a configured remote name. URL-valued remotes, missing remote names, and
@@ -267,7 +308,7 @@ tracking branch reference is absent locally, upstream divergence counts are zero
 
 ```json
 {
-  "SchemaVersion": "1.0",
+  "SchemaVersion": "1.1",
   "BaseBranch": "main",
   "Repositories": [
     {
@@ -277,6 +318,7 @@ tracking branch reference is absent locally, upstream divergence counts are zero
         {
           "Name": "feature/unpushed",
           "IsMerged": false,
+          "MergedBy": null,
           "AheadOfBase": 2,
           "BehindBase": 0,
           "HasUpstream": false,
@@ -284,6 +326,15 @@ tracking branch reference is absent locally, upstream divergence counts are zero
           "BehindUpstream": 0,
           "UniqueCommitCount": 2,
           "LastCommitDate": "2026-08-24T00:00:00+00:00"
+        }
+      ],
+      "Stashes": [
+        {
+          "Index": 0,
+          "Message": "On main: wip",
+          "Sha": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+          "IsMerged": false,
+          "MergedBy": null
         }
       ]
     }
@@ -293,14 +344,15 @@ tracking branch reference is absent locally, upstream divergence counts are zero
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `SchemaVersion` | `string` | Contract version, currently `"1.0"` |
+| `SchemaVersion` | `string` | Contract version, currently `"1.1"` |
 | `BaseBranch` | `string` | Base branch specified on CLI (null if using default branch per repository) |
 | `Repositories` | `RepositoryBranchItem[]` | Repositories holding local branches |
 | `Path` | `string` | Absolute path to repository |
 | `DefaultBranch` | `string` | The repository's default branch name |
 | `Branches` | `BranchInventoryInfo[]` | Local branches in this repository |
 | `Name` | `string` | Local branch name |
-| `IsMerged` | `bool` | Whether the branch is merged into the base branch (`AheadOfBase == 0`) |
+| `IsMerged` | `bool` | Whether `MergedBy` is set |
+| `MergedBy` | `string` | First tier proving the branch is in the base: `ancestor` (`AheadOfBase == 0`), `patch-id` (every commit has a patch-equivalent on the base: rebase merge), `squash` (the branch's combined diff matches one base commit: squash merge), `content` (every path the branch changed is identical on the base); null when unmerged. The squash tier writes an unreferenced synthetic commit that `git gc` removes. |
 | `AheadOfBase` | `int` | Commits on this branch not reachable from the base branch |
 | `BehindBase` | `int` | Commits in the base branch not reachable from this branch |
 | `HasUpstream` | `bool` | Whether this branch tracks an upstream remote branch |
@@ -309,4 +361,5 @@ tracking branch reference is absent locally, upstream divergence counts are zero
 | `BehindUpstream` | `int` | Commits behind upstream branch |
 | `UniqueCommitCount` | `int` | Count of commits reachable only from this branch and not on base branch or any remote branch. When 0, the branch is safe to delete with zero data loss. |
 | `LastCommitDate` | `string` (ISO 8601) | Timestamp of the branch tip commit |
+| `Stashes` | `StashInventoryInfo[]` | Stashes, newest first (`Index`, `Message`, `Sha`, `IsMerged`, `MergedBy`); `MergedBy` is `content` when every path the stash changes (working tree, differing staged versions and untracked files) is identical on the base |
 | `Error` | `string` | Optional repository error if repository could not be inspected |

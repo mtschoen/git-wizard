@@ -7,8 +7,19 @@ static class CliProcess
     internal static Task<(int ExitCode, string StandardOutput, string StandardError)> RunCliAsync(params string[] args) =>
         RunCliInHomeAsync(Environment.GetEnvironmentVariable("GITWIZARD_HOME"), args);
 
-    internal static async Task<(int ExitCode, string StandardOutput, string StandardError)> RunCliInHomeAsync(
+    internal static Task<(int ExitCode, string StandardOutput, string StandardError)> RunCliWithEnvironmentAsync(
+        IReadOnlyDictionary<string, string?> environment,
+        params string[] args) =>
+        RunCliCoreAsync(Environment.GetEnvironmentVariable("GITWIZARD_HOME"), environment, args);
+
+    internal static Task<(int ExitCode, string StandardOutput, string StandardError)> RunCliInHomeAsync(
         string? home,
+        params string[] args) =>
+        RunCliCoreAsync(home, null, args);
+
+    static async Task<(int ExitCode, string StandardOutput, string StandardError)> RunCliCoreAsync(
+        string? home,
+        IReadOnlyDictionary<string, string?>? environment,
         params string[] args)
     {
         var executablePath = GetCliExecutablePath();
@@ -22,6 +33,21 @@ static class CliProcess
         if (!string.IsNullOrEmpty(home))
         {
             startInfo.Environment["GITWIZARD_HOME"] = home;
+        }
+
+        if (environment != null)
+        {
+            foreach (var (key, value) in environment)
+            {
+                if (value == null)
+                {
+                    startInfo.Environment.Remove(key);
+                }
+                else
+                {
+                    startInfo.Environment[key] = value;
+                }
+            }
         }
 
         foreach (var arg in args)

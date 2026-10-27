@@ -43,6 +43,28 @@ public partial class GitWizardRepository
     public string? DefaultBranch { get; private set; }
     public List<BranchInfo>? Branches { get; set; }
 
+    /// <summary>Number of stashes. Always 0 on a linked worktree, whose stashes belong to the main checkout's row.</summary>
+    public int StashCount { get; set; }
+
+    /// <summary>Stashes whose every change is already on the base branch (content tier), so safe to drop.</summary>
+    public int MergedStashCount { get; set; }
+
+    /// <summary>
+    /// Local branches with commits on no remote-tracking ref that are not merged into the base.
+    /// 0 when the refresh skipped local-commit counting.
+    /// </summary>
+    public int LocalOnlyBranchCount { get; set; }
+
+    /// <summary>Tip author date of the oldest branch counted in <see cref="LocalOnlyBranchCount"/>; null when there is none.</summary>
+    public DateTimeOffset? OldestLocalOnlyBranchDate { get; set; }
+
+    /// <summary>
+    /// Tips of local branches that have commits on no remote-tracking ref, collected by
+    /// <see cref="RefreshLocalOnlyCommits"/> for the branch phase. Null when that phase was
+    /// skipped. A field, so it is never serialized.
+    /// </summary>
+    HashSet<string>? _localOnlyTipShas;
+
     /// <summary>Commits on the current branch's upstream not reachable from the current branch - i.e. how far behind the remote this checkout is. 0 when there is no upstream. See <see cref="BranchInfo.BehindDefault"/> for the unrelated local-default comparison.</summary>
     public int BehindRemoteCount { get; internal set; }
 
@@ -213,6 +235,7 @@ public partial class GitWizardRepository
         Step(() => RefreshHeadInfo(repository));
         Step(() => RefreshPendingChangesStatus(repository, deepRefresh));
         Step(() => RefreshRemoteUrls(repository));
+        _localOnlyTipShas = null;
         if (computeLocalCommitCount)
         {
             Step(() => RefreshLocalOnlyCommits(repository));
@@ -287,67 +310,6 @@ public partial class GitWizardRepository
     {
         RemoteUrls.Clear();
         RemoteUrls.AddRange(repository.Network.Remotes.Select(r => r.Url).Where(url => !string.IsNullOrEmpty(url)));
-    }
-
-    /// <summary>
-    /// Count commits reachable from any LOCAL branch but not from any
-    /// remote-tracking branch - genuinely unpushed commits, counted once
-    /// across all local branches. The old per-branch approach counted an
-    /// untracked branch's ENTIRE history as unpushed, so already-pushed
-    /// mainline commits were multiply-counted and the total could exceed
-    /// the repo's commit count. With no remotes, nothing is excluded and
-    /// every local commit counts (a brand-new repo is all-local).
-    /// </summary>
-    /// <param name="repository">The repository to scan.</param>
-    internal void RefreshLocalOnlyCommits(Repository repository)
-    {
-        LocalOnlyCommits = false;
-        LocalCommitCount = 0;
-
-        try
-        {
-            var localTips = repository.Branches
-                .Where(branch => !branch.IsRemote)
-                .Select(branch => branch.Tip)
-                .Where(tip => tip != null)
-                .ToList();
-
-            if (localTips.Count == 0)
-            {
-                return;
-            }
-
-            var filter = new CommitFilter { IncludeReachableFrom = localTips };
-
-            var remoteTips = repository.Branches
-                .Where(branch => branch.IsRemote)
-                .Select(branch => branch.Tip)
-                .Where(tip => tip != null)
-                .ToList();
-            if (remoteTips.Count > 0)
-            {
-                filter.ExcludeReachableFrom = remoteTips;
-            }
-
-            LocalCommitCount = repository.Commits.QueryBy(filter).Count();
-            LocalOnlyCommits = LocalCommitCount > 0;
-        }
-        catch (Exception exception)
-        {
-            GitWizardLog.LogException(exception, $"Exception counting local-only commits for {WorkingDirectory}");
-        }
-    }
-
-    internal void RefreshBranchDivergence(Repository repository, bool allBranches)
-    {
-        try
-        {
-            CollectBranches(repository, allBranches);
-        }
-        catch (Exception exception)
-        {
-            GitWizardLog.LogException(exception, $"Exception collecting branches for {WorkingDirectory}");
-        }
     }
 
     // Cache author emails for "My Repositories" filter

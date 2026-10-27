@@ -220,9 +220,9 @@ public class RepositoryNodeViewModelTests
         Assert.That(node.DisplayText, Does.Contain("(2)"));
     }
 
-    [TestCase(1, "[1 branch]")]
-    [TestCase(2, "[2 branches]")]
-    public void Update_DisplayText_WhenMergedBranches(int count, string expected)
+    [TestCase(1, "1 merged")]
+    [TestCase(2, "2 merged")]
+    public void Update_PruneBadge_WhenMergedBranches(int count, string expected)
     {
         var repo = new GitWizardRepository("/repo")
         {
@@ -230,7 +230,12 @@ public class RepositoryNodeViewModelTests
         };
         var node = new RepositoryNodeViewModel(repo);
         node.UpdateDisplayText();
-        Assert.That(node.DisplayText, Does.Contain(expected));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(node.PruneBadgeText, Is.EqualTo(expected));
+            Assert.That(node.HasPruneBadge, Is.True);
+            Assert.That(node.DisplayText, Does.Not.Contain("merged"), "The merged count moved from the label to the badge.");
+        }
     }
 
     [Test]

@@ -90,8 +90,8 @@ public class InventoryCommandOutputTests
                 ? $"{{\"SchemaVersion\":\"1.0\",\"MatchPattern\":\"*\",\"Repositories\":[{string.Join(",", items)}]}}"
                 : $"{{\n  \"SchemaVersion\": \"1.0\",\n  \"MatchPattern\": \"*\",\n  \"Repositories\": [\n{string.Join(",\n", items)}\n  ]\n}}".ReplaceLineEndings(),
             _ => minified
-                ? $"{{\"SchemaVersion\":\"1.0\",\"Repositories\":[{string.Join(",", items)}]}}"
-                : $"{{\n  \"SchemaVersion\": \"1.0\",\n  \"Repositories\": [\n{string.Join(",\n", items)}\n  ]\n}}".ReplaceLineEndings()
+                ? $"{{\"SchemaVersion\":\"1.1\",\"Repositories\":[{string.Join(",", items)}]}}"
+                : $"{{\n  \"SchemaVersion\": \"1.1\",\n  \"Repositories\": [\n{string.Join(",\n", items)}\n  ]\n}}".ReplaceLineEndings()
         };
     }
 
@@ -111,8 +111,8 @@ public class InventoryCommandOutputTests
                 ? $"{{\"Path\":{jsonPath},\"Tags\":[{{\"Name\":\"v1\",\"CommitSha\":\"ee7e7ed97cd4a41ba4011da4b6d5038d2681f7de\",\"ExistsOnRemote\":false,\"Remotes\":[]}}]}}"
                 : $"    {{\n      \"Path\": {jsonPath},\n      \"Tags\": [\n        {{\n          \"Name\": \"v1\",\n          \"CommitSha\": \"ee7e7ed97cd4a41ba4011da4b6d5038d2681f7de\",\n          \"ExistsOnRemote\": false,\n          \"Remotes\": []\n        }}\n      ]\n    }}".ReplaceLineEndings(),
             _ => minified
-                ? $"{{\"Path\":{jsonPath},\"DefaultBranch\":\"main\",\"Branches\":[{{\"Name\":\"feature\",\"IsMerged\":true,\"AheadOfBase\":0,\"BehindBase\":0,\"HasUpstream\":false,\"AheadOfUpstream\":0,\"BehindUpstream\":0,\"UniqueCommitCount\":0,\"LastCommitDate\":\"2026-01-02T03:04:05+00:00\"}}]}}"
-                : $"    {{\n      \"Path\": {jsonPath},\n      \"DefaultBranch\": \"main\",\n      \"Branches\": [\n        {{\n          \"Name\": \"feature\",\n          \"IsMerged\": true,\n          \"AheadOfBase\": 0,\n          \"BehindBase\": 0,\n          \"HasUpstream\": false,\n          \"AheadOfUpstream\": 0,\n          \"BehindUpstream\": 0,\n          \"UniqueCommitCount\": 0,\n          \"LastCommitDate\": \"2026-01-02T03:04:05+00:00\"\n        }}\n      ]\n    }}".ReplaceLineEndings()
+                ? $"{{\"Path\":{jsonPath},\"DefaultBranch\":\"main\",\"Branches\":[{{\"Name\":\"feature\",\"IsMerged\":true,\"MergedBy\":\"ancestor\",\"AheadOfBase\":0,\"BehindBase\":0,\"HasUpstream\":false,\"AheadOfUpstream\":0,\"BehindUpstream\":0,\"UniqueCommitCount\":0,\"LastCommitDate\":\"2026-01-02T03:04:05+00:00\"}}],\"Stashes\":[]}}"
+                : $"    {{\n      \"Path\": {jsonPath},\n      \"DefaultBranch\": \"main\",\n      \"Branches\": [\n        {{\n          \"Name\": \"feature\",\n          \"IsMerged\": true,\n          \"MergedBy\": \"ancestor\",\n          \"AheadOfBase\": 0,\n          \"BehindBase\": 0,\n          \"HasUpstream\": false,\n          \"AheadOfUpstream\": 0,\n          \"BehindUpstream\": 0,\n          \"UniqueCommitCount\": 0,\n          \"LastCommitDate\": \"2026-01-02T03:04:05+00:00\"\n        }}\n      ],\n      \"Stashes\": []\n    }}".ReplaceLineEndings()
         };
     }
 

@@ -408,9 +408,12 @@ sealed class TempRepoFixture : IDisposable
         return upstream.Path.Replace('\\', '/');
     }
 
-    internal static void RunGit(string workingDirectory, params string[] arguments)
+    internal static void RunGit(string workingDirectory, params string[] arguments) =>
+        RunProcess("git", workingDirectory, arguments);
+
+    internal static void RunProcess(string fileName, string workingDirectory, params string[] arguments)
     {
-        var startInfo = new ProcessStartInfo("git")
+        var startInfo = new ProcessStartInfo(fileName)
         {
             WorkingDirectory = workingDirectory,
             RedirectStandardOutput = true,
@@ -423,7 +426,7 @@ sealed class TempRepoFixture : IDisposable
         }
 
         using var process = Process.Start(startInfo)
-                            ?? throw new InvalidOperationException("Failed to start git");
+                            ?? throw new InvalidOperationException($"Failed to start {fileName}");
         var standardErrorBuilder = new System.Text.StringBuilder();
         process.ErrorDataReceived += (_, e) =>
         {
@@ -438,7 +441,7 @@ sealed class TempRepoFixture : IDisposable
         if (process.ExitCode != 0)
         {
             throw new InvalidOperationException(
-                $"git {string.Join(' ', arguments)} failed (exit {process.ExitCode}): {standardErrorBuilder}");
+                $"{fileName} {string.Join(' ', arguments)} failed (exit {process.ExitCode}): {standardErrorBuilder}");
         }
     }
 

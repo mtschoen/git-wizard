@@ -247,7 +247,7 @@ public class ProgramInventoryEntryPointTests
             Assert.That(result.ExitCode, Is.Zero);
             Assert.That(result.StandardError, Is.Empty);
             Assert.That(result.StandardOutput.TrimEnd(), Does.Contain(Environment.NewLine));
-            Assert.That(document.RootElement.GetProperty("SchemaVersion").GetString(), Is.EqualTo("1.0"));
+            Assert.That(document.RootElement.GetProperty("SchemaVersion").GetString(), Is.EqualTo("1.1"));
             Assert.That(document.RootElement.GetProperty("BaseBranch").GetString(), Is.EqualTo("main"));
             Assert.That(repository.GetProperty("Path").GetString(), Is.EqualTo(GitWizardApi.NormalizePath(fixture.Path)));
             var branches = repository.GetProperty("Branches");

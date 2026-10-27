@@ -60,5 +60,10 @@ enum CommandKind
     /// <summary>
     /// Show the size of the GitWizard local files folder and exit.
     /// </summary>
-    DbSize = 10
+    DbSize = 10,
+
+    /// <summary>
+    /// Output the prune JSON contract, deleting merged branches and stashes only with --apply.
+    /// </summary>
+    Prune = 11
 }

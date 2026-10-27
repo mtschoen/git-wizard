@@ -4,14 +4,16 @@ namespace GitWizard;
 
 /// <summary>
 /// Finds local branches and stashes whose work is already on the base branch and, when asked,
-/// deletes them. Dry run by default; every deletion prints a restore command.
+/// deletes eligible branches. Dry run by default; every branch deletion prints a restore command,
+/// and every merged stash prints a manual verify-and-drop command.
 /// </summary>
 public static class Pruner
 {
     /// <summary>
     /// Consider every repository in <paramref name="repositoryPaths"/> once per shared git
     /// directory (linked worktrees share branches and stashes with their main checkout).
-    /// Restore commands for deletions are written to <paramref name="restoreHints"/>.
+    /// Restore commands for deleted branches and manual drop commands for merged stashes are
+    /// written to <paramref name="restoreHints"/>.
     /// </summary>
     public static PruneReport Run(IEnumerable<string> repositoryPaths, PruneOptions options, TextWriter restoreHints)
     {
@@ -112,25 +114,27 @@ public static class Pruner
     {
         var repository = context.Repository;
         var worktreeBranches = WorktreeBranches(repository);
-        var headName = repository.Head.Reference is SymbolicReference ? repository.Head.CanonicalName : null;
+        var headName = CurrentHeadCanonicalName(repository);
         var candidates = new List<PruneCandidate>();
         var localBranches = repository.Branches
-            .Where(branch => branch is { IsRemote: false, Tip: not null })
+            .Where(branch => !branch.IsRemote && (branch.Tip != null || branch.Reference is SymbolicReference))
             .OrderBy(branch => branch.FriendlyName, StringComparer.Ordinal)
             .ToList();
 
         foreach (var branch in localBranches)
         {
-            var excluded = context.IsExcluded(branch.Tip.Sha);
-            var mergedBy = !excluded && context.BaseBranch?.Tip is { } baseTip && !BaseBranchResolver.IsBaseOrCounterpart(branch, context.BaseBranch)
-                ? MergeDetector.Detect(repository, branch.Tip, baseTip)
+            var isSymbolicRef = branch.Reference is SymbolicReference;
+            var tipSha = branch.Tip?.Sha ?? string.Empty;
+            var excluded = !isSymbolicRef && context.IsExcluded(tipSha);
+            var mergedBy = !isSymbolicRef && !excluded && branch.Tip is { } branchTip && context.BaseBranch?.Tip is { } baseTip && !BaseBranchResolver.IsBaseOrCounterpart(branch, context.BaseBranch)
+                ? MergeDetector.Detect(repository, branchTip, baseTip)
                 : null;
             var candidate = new PruneCandidate
             {
                 Repository = context.Path,
                 Kind = PruneCandidate.BranchKind,
                 Name = branch.FriendlyName,
-                Sha = branch.Tip.Sha,
+                Sha = tipSha,
                 MergedBy = mergedBy,
                 SkipReason = excluded
                     ? PruneSkipReasons.NotConfirmed
@@ -143,8 +147,16 @@ public static class Pruner
         return candidates;
     }
 
+    static string? CurrentHeadCanonicalName(Repository repository) =>
+        repository.Head.Reference is SymbolicReference ? repository.Head.CanonicalName : null;
+
     static string? BranchSkipReason(Branch branch, Branch? baseBranch, string? headName, HashSet<string>? worktreeBranches, string? mergedBy)
     {
+        if (branch.Reference is SymbolicReference)
+        {
+            return PruneSkipReasons.SymbolicRef;
+        }
+
         if (BaseBranchResolver.IsBaseOrCounterpart(branch, baseBranch))
         {
             return PruneSkipReasons.BaseBranch;
@@ -183,12 +195,18 @@ public static class Pruner
             })
             .ToList();
 
-        // Dropping stash@{n} renumbers every later entry, so drop from the highest index down.
-        for (var index = candidates.Count - 1; index >= 0; index--)
+        var quotedPath = ShellQuote(context.Path);
+        foreach (var candidate in candidates)
         {
-            var candidate = candidates[index];
-            var stashIndex = index;
-            Decide(candidate, context, () => DropStash(context, candidate, stashIndex));
+            if (candidate.SkipReason != null)
+            {
+                candidate.Action = PruneCandidate.Skipped;
+                continue;
+            }
+
+            candidate.Action = PruneCandidate.ManualDrop;
+            context.RestoreHints.WriteLine(
+                $"Merged {candidate.Name} ({candidate.Sha}); check with: git -C {quotedPath} stash list --format='%H %gd' | grep '^{candidate.Sha} ' then drop with: git -C {quotedPath} stash drop {candidate.Name}");
         }
 
         return candidates;
@@ -225,7 +243,21 @@ public static class Pruner
 
     static string? DeleteBranch(RepositoryContext context, PruneCandidate candidate)
     {
-        if (!GitCli.Run(context.Repository, "update-ref", "-d", $"refs/heads/{candidate.Name}", candidate.Sha).Succeeded)
+        var canonicalName = $"refs/heads/{candidate.Name}";
+        var headName = CurrentHeadCanonicalName(context.Repository);
+        var worktreeBranches = WorktreeBranches(context.Repository);
+        if (string.Equals(canonicalName, headName, StringComparison.Ordinal)
+            || worktreeBranches?.Contains(canonicalName) == true)
+        {
+            return PruneSkipReasons.CheckedOut;
+        }
+
+        if (worktreeBranches == null)
+        {
+            return PruneSkipReasons.WorktreeListFailed;
+        }
+
+        if (!GitCli.Run(context.Repository, "update-ref", "--no-deref", "-d", canonicalName, candidate.Sha).Succeeded)
         {
             return PruneSkipReasons.DeleteFailed;
         }
@@ -235,45 +267,10 @@ public static class Pruner
         return null;
     }
 
-    // Restore hints are meant to be pasted into a POSIX shell; branch names, paths and stash
-    // messages may contain $, backticks or quotes, so each is single-quoted.
+    // Restore hints are meant to be pasted into a POSIX shell; branch names and paths
+    // may contain $, backticks or quotes, so each is single-quoted.
     internal static string ShellQuote(string? value) =>
         "'" + (value ?? string.Empty).Replace("'", "'\\''", StringComparison.Ordinal) + "'";
-
-    static string? DropStash(RepositoryContext context, PruneCandidate candidate, int stashIndex)
-    {
-        var reference = $"stash@{{{stashIndex}}}";
-        var drop = GitCli.Run(context.Repository, "stash", "drop", reference);
-        if (!drop.Succeeded)
-        {
-            return PruneSkipReasons.DeleteFailed;
-        }
-
-        var droppedSha = ParseDroppedStashSha(drop.Output);
-        if (droppedSha != null && !string.Equals(droppedSha, candidate.Sha, StringComparison.Ordinal))
-        {
-            var message = context.Repository.Lookup<Commit>(droppedSha)?.MessageShort ?? candidate.Message ?? string.Empty;
-            GitCli.Run(context.Repository, "stash", "store", "-m", message, droppedSha);
-            GitWizardLog.Log($"{reference} in {context.Path} moved to {droppedSha}; restored it without dropping {candidate.Sha}", GitWizardLog.LogType.Warning);
-            return PruneSkipReasons.StashMoved;
-        }
-
-        context.RestoreHints.WriteLine($"Dropped {reference}; restore with: git -C {ShellQuote(context.Path)} stash store -m {ShellQuote(candidate.Message)} {candidate.Sha}");
-        return null;
-    }
-
-    static string? ParseDroppedStashSha(string output)
-    {
-        var closeParen = output.LastIndexOf(')');
-        var openParen = closeParen > 0 ? output.LastIndexOf('(', closeParen - 1) : -1;
-        if (openParen < 0)
-        {
-            return null;
-        }
-
-        var sha = output[(openParen + 1)..closeParen].Trim();
-        return sha.Length >= 40 ? sha : null;
-    }
 
     /// <summary>
     /// Canonical refs of branches checked out in any worktree of the repository, or null when git

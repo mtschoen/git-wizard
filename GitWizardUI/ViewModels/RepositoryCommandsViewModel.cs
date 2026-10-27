@@ -193,8 +193,9 @@ public sealed class RepositoryCommandsViewModel
     /// <summary>
     /// The row's Clean button: runs a full-tier <see cref="Pruner"/> dry run for the repository off
     /// the UI thread (this includes the slow patch-id and squash tiers that refresh skips), asks
-    /// for confirmation listing every would-delete branch and stash, then deletes exactly those,
-    /// logs each restore command and refreshes the repository.
+    /// for confirmation listing every would-delete branch and manual-drop stash, then deletes the
+    /// confirmed branches, logs each branch restore command and stash manual-drop command, and
+    /// refreshes the repository.
     /// </summary>
     public async Task CleanDownstreamBranchesAsync(RepositoryNodeViewModel? node)
     {
@@ -210,18 +211,22 @@ public sealed class RepositoryCommandsViewModel
             return;
         }
 
-        var dryRun = await Task.Run(() => Pruner.Run([workingDirectory], new PruneOptions(), TextWriter.Null));
+        using var dryRunHints = new StringWriter();
+        var dryRun = await Task.Run(() => Pruner.Run([workingDirectory], new PruneOptions(), dryRunHints));
         if (await ReportPruneErrorsAsync(dryRun, workingDirectory))
         {
             return;
         }
 
-        var candidates = dryRun.Candidates.Where(candidate => candidate.Action == PruneCandidate.WouldDelete).ToList();
+        var candidates = dryRun.Candidates
+            .Where(candidate => candidate.Action is PruneCandidate.WouldDelete or PruneCandidate.ManualDrop)
+            .ToList();
         var skippedCount = dryRun.Candidates.Count - candidates.Count;
-        if (candidates.Count == 0)
+        if (!candidates.Any(candidate => candidate.Action == PruneCandidate.WouldDelete))
         {
+            LogHints(dryRunHints);
             await _ui.InvokeAsync(() => _dialogs.ShowAlertAsync("Nothing to Clean",
-                $"No merged branches or stashes in {workingDirectory} ({skippedCount} skipped)."));
+                $"No merged branches in {workingDirectory} ({skippedCount} skipped)."));
             return;
         }
 
@@ -241,10 +246,7 @@ public sealed class RepositoryCommandsViewModel
         var options = new PruneOptions(Apply: true, OnlyShas: confirmed.Select(candidate => candidate.Sha).ToHashSet(StringComparer.Ordinal));
         using var restoreHints = new StringWriter();
         var applied = await Task.Run(() => Pruner.Run([workingDirectory], options, restoreHints));
-        foreach (var hint in restoreHints.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            GitWizardLog.Log(hint);
-        }
+        LogHints(restoreHints);
 
         await Task.Run(() => node.Repository.Refresh(_updateHandler));
         _ui.Post(node.Update);
@@ -264,9 +266,17 @@ public sealed class RepositoryCommandsViewModel
         }
 
         var summary = failed.Count == 0
-            ? $"Deleted {deleted} item(s). Restore commands are in the log."
+            ? $"Deleted {deleted} item(s). Restore and manual stash drop commands are in the log."
             : $"Deleted {deleted} item(s). Could not delete: {string.Join(", ", failed)}";
         await _ui.InvokeAsync(() => _dialogs.ShowAlertAsync("Done", summary));
+    }
+
+    static void LogHints(StringWriter hints)
+    {
+        foreach (var hint in hints.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            GitWizardLog.Log(hint);
+        }
     }
 
     async Task<bool> ReportPruneErrorsAsync(PruneReport report, string workingDirectory)
@@ -285,7 +295,9 @@ public sealed class RepositoryCommandsViewModel
     internal static string DescribeCleanCandidates(string workingDirectory, List<PruneCandidate> candidates, int skippedCount)
     {
         var builder = new StringBuilder();
-        builder.Append("Delete ").Append(candidates.Count).Append(" item(s) from ").Append(workingDirectory).AppendLine("?").AppendLine();
+        builder.Append("Clean ").Append(candidates.Count).Append(" item(s) in ").Append(workingDirectory)
+            .AppendLine(" (merged branches are deleted; merged stashes are logged for manual drop)?")
+            .AppendLine();
         foreach (var candidate in candidates)
         {
             builder.Append(candidate.Kind).Append(' ').Append(candidate.Name).Append(" (").Append(candidate.MergedBy).Append(')');

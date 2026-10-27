@@ -13,7 +13,7 @@ public sealed class PruneReport
 
     public string SchemaVersion { get; set; } = CurrentSchemaVersion;
 
-    /// <summary>False for a dry run (nothing deleted); true when deletions were attempted.</summary>
+    /// <summary>False for a dry run (nothing deleted); true when branch deletions were attempted.</summary>
     public bool Applied { get; set; }
 
     public List<PruneCandidate> Candidates { get; set; } = new();
@@ -32,6 +32,7 @@ public sealed class PruneCandidate
     public const string StashKind = "stash";
     public const string WouldDelete = "would-delete";
     public const string Deleted = "deleted";
+    public const string ManualDrop = "manual-drop";
     public const string Skipped = "skipped";
 
     public string Repository { get; set; } = string.Empty;
@@ -39,7 +40,7 @@ public sealed class PruneCandidate
     /// <summary><see cref="BranchKind"/> or <see cref="StashKind"/>.</summary>
     public string Kind { get; set; } = BranchKind;
 
-    /// <summary>Branch name, or <c>stash@{n}</c> as listed before any drop in this run.</summary>
+    /// <summary>Branch name, or <c>stash@{n}</c>.</summary>
     public string Name { get; set; } = string.Empty;
 
     public string Sha { get; set; } = string.Empty;
@@ -47,7 +48,7 @@ public sealed class PruneCandidate
     /// <summary>The <see cref="GitWizard.MergedBy"/> tier, or null when not merged.</summary>
     public string? MergedBy { get; set; }
 
-    /// <summary><see cref="WouldDelete"/>, <see cref="Deleted"/> or <see cref="Skipped"/>.</summary>
+    /// <summary><see cref="WouldDelete"/>, <see cref="Deleted"/>, <see cref="ManualDrop"/> or <see cref="Skipped"/>.</summary>
     public string Action { get; set; } = Skipped;
 
     /// <summary>Why the candidate was skipped (see <see cref="PruneSkipReasons"/>); null otherwise.</summary>
@@ -80,17 +81,17 @@ public static class PruneSkipReasons
     public const string CheckedOut = "checked-out";
     public const string CheckedOutInWorktree = "checked-out-in-worktree";
     public const string WorktreeListFailed = "worktree-list-failed";
-    public const string StashMoved = "stash-moved";
+    public const string SymbolicRef = "symbolic-ref";
     public const string DeleteFailed = "delete-failed";
     public const string NotConfirmed = "not-confirmed";
 }
 
 /// <summary>
-/// What a prune run considers and whether it deletes.
+/// What a prune run considers and whether it deletes eligible branches.
 /// </summary>
 /// <param name="Branches">Consider local branches.</param>
-/// <param name="Stashes">Consider stashes.</param>
-/// <param name="Apply">Delete eligible candidates; false is a dry run.</param>
+/// <param name="Stashes">Consider stashes (report-only; stashes are never dropped automatically).</param>
+/// <param name="Apply">Delete eligible branches; false is a dry run.</param>
 /// <param name="BaseBranchName">Explicit base branch; null resolves each repository's default.</param>
 /// <param name="OnlyShas">
 /// When set, only branches and stashes whose SHA is listed are eligible; every other one is

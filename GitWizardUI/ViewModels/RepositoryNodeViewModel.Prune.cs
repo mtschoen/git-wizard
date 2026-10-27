@@ -5,7 +5,7 @@ public partial class RepositoryNodeViewModel
     /// <summary>Local branches the last refresh found merged into the base (cheap tiers only).</summary>
     public int MergedBranchCount => Repository.Branches?.Count(branch => branch.IsMerged) ?? 0;
 
-    /// <summary>Merged branches plus merged stashes: what the Clean button could remove.</summary>
+    /// <summary>Merged branches plus merged stashes: what the Clean button can delete or report for manual drop.</summary>
     public int PrunableCount => MergedBranchCount + Repository.MergedStashCount;
 
     /// <summary>

@@ -175,26 +175,44 @@ public class RepositoryPruneViewModelTests
     public async Task Clean_Confirmed_DeletesEveryListedCandidateIncludingSquashMerges()
     {
         using var scenario = CleanScenario();
+        var stashSha = scenario.StashShas().Single();
         var node = RefreshedNode(scenario);
         var dialogs = new StubUserDialogs { NextConfirmResult = true };
-        await using var viewModel = TestViewModels.Create(dialogs: dialogs);
-
-        await viewModel.Commands.CleanDownstreamBranchesAsync(node);
-
-        var confirm = dialogs.ConfirmCalls.Single().Message;
-        using (Assert.EnterMultipleScope())
+        var logged = new List<string?>();
+        var previousLogMethod = GitWizardLog.LogMethod;
+        var previousSilentMode = GitWizardLog.SilentMode;
+        GitWizardLog.SilentMode = false;
+        GitWizardLog.LogMethod = logged.Add;
+        try
         {
-            Assert.That(confirm, Does.Contain("branch squashed (squash)"));
-            Assert.That(confirm, Does.Contain("branch ancestor (ancestor)"));
-            Assert.That(confirm, Does.Contain("stash stash@{0} (content)"));
-            Assert.That(confirm, Does.Not.Contain("unmerged"));
-            Assert.That(confirm, Does.Contain("2 other branch(es)/stash(es) skipped"), "unmerged and the checked-out main");
-            Assert.That(scenario.HasBranch("squashed"), Is.False);
-            Assert.That(scenario.HasBranch("ancestor"), Is.False);
-            Assert.That(scenario.HasBranch("unmerged"), Is.True);
-            Assert.That(scenario.StashShas(), Is.Empty);
-            Assert.That(dialogs.AlertCalls.Single().Message, Does.StartWith("Deleted 3 item(s)"));
-            Assert.That(node.Repository.StashCount, Is.Zero, "The repository is refreshed after cleaning.");
+            await using var viewModel = TestViewModels.Create(dialogs: dialogs);
+
+            await viewModel.Commands.CleanDownstreamBranchesAsync(node);
+
+            var confirm = dialogs.ConfirmCalls.Single().Message;
+            var quotedPath = Pruner.ShellQuote(scenario.Path);
+            var logText = string.Join("\n", logged);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(confirm, Does.Contain("branch squashed (squash)"));
+                Assert.That(confirm, Does.Contain("branch ancestor (ancestor)"));
+                Assert.That(confirm, Does.Contain("stash stash@{0} (content)"));
+                Assert.That(confirm, Does.Not.Contain("unmerged"));
+                Assert.That(confirm, Does.Contain("2 other branch(es)/stash(es) skipped"), "unmerged and the checked-out main");
+                Assert.That(scenario.HasBranch("squashed"), Is.False);
+                Assert.That(scenario.HasBranch("ancestor"), Is.False);
+                Assert.That(scenario.HasBranch("unmerged"), Is.True);
+                Assert.That(scenario.StashShas(), Is.EqualTo([stashSha]));
+                Assert.That(dialogs.AlertCalls.Single().Message, Does.StartWith("Deleted 2 item(s)"));
+                Assert.That(node.Repository.StashCount, Is.EqualTo(1), "The stash remains in place and the repository is refreshed.");
+                Assert.That(logText, Does.Contain($"git -C {quotedPath} stash list --format='%H %gd' | grep '^{stashSha} '")
+                    .And.Contain($"git -C {quotedPath} stash drop stash@{{0}}"));
+            }
+        }
+        finally
+        {
+            GitWizardLog.LogMethod = previousLogMethod;
+            GitWizardLog.SilentMode = previousSilentMode;
         }
     }
 

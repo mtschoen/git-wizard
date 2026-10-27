@@ -260,7 +260,7 @@ The automation-focused sweep is a separate contract from the cached report above
 
 ## Prune output (`prune`)
 
-`git-wizard prune` uses the same base-branch resolution and merge tiers as `branches`. It is a dry run unless `--apply` is passed. `--branches` / `--stashes` limit it to one kind; neither means both. Linked worktrees are handled once with their main checkout.
+`git-wizard prune` uses the same base-branch resolution and merge tiers as `branches`. It is a dry run unless `--apply` is passed. `--branches` / `--stashes` limit it to one kind; neither means both. Stashes are report-only in both dry-run and `--apply` modes and are never dropped automatically. Linked worktrees are handled once with their main checkout.
 
 ```json
 {
@@ -285,14 +285,14 @@ The automation-focused sweep is a separate contract from the cached report above
 | `SchemaVersion` | `string` | Contract version, currently `"1.0"` |
 | `Applied` | `bool` | True when `--apply` was passed |
 | `Kind` | `string` | `branch` or `stash` |
-| `Name` | `string` | Branch name, or `stash@{n}` as numbered before any drop |
+| `Name` | `string` | Branch name, or `stash@{n}` |
 | `MergedBy` | `string` | Tier from the branch inventory; null when unmerged |
-| `Action` | `string` | `would-delete`, `deleted` or `skipped` |
-| `SkipReason` | `string` | `not-merged`, `base-branch`, `checked-out`, `checked-out-in-worktree`, `worktree-list-failed`, `stash-moved`, `delete-failed` or `not-confirmed` (library callers that restrict a run to confirmed SHAs, such as the UI's Clean button; the CLI never emits it) |
+| `Action` | `string` | `would-delete`, `deleted`, `manual-drop` (merged stashes, which are report-only) or `skipped` |
+| `SkipReason` | `string` | `not-merged`, `base-branch`, `checked-out`, `checked-out-in-worktree`, `worktree-list-failed`, `symbolic-ref`, `delete-failed` or `not-confirmed` (library callers that restrict a run to confirmed SHAs, such as the UI's Clean button; the CLI never emits it) |
 | `Message` | `string` | Stash message (stashes only) |
 | `Errors` | `object[]` | Repositories that could not be inspected (`Repository`, `Error`) |
 
-Branches are deleted with `git update-ref -d refs/heads/<name> <sha>` (matching the inspected tip SHA) followed by best-effort cleanup of `branch.<name>.*` config; stashes are dropped with `git stash drop`, highest index first, and immediately restored with `git stash store` if the dropped SHA differs from the listed SHA. Each deletion prints a restore command (`git -C <repo> branch <name> <sha>` or `git -C <repo> stash store -m "<msg>" <sha>`) to stderr.
+Immediately before deleting a branch, `prune --apply` re-reads the main checkout's `HEAD` and `git worktree list --porcelain` and skips the branch (`checked-out`) if any checkout or worktree now has it checked out, then deletes with `git update-ref --no-deref -d refs/heads/<name> <sha>` (matching the inspected tip SHA without dereferencing symbolic refs) followed by best-effort cleanup of `branch.<name>.*` config. Symbolic refs under `refs/heads/*` are skipped during inventory (`symbolic-ref`). Each branch deletion prints a restore command (`git -C '<repo>' branch '<name>' <sha>`) to stderr. Merged stashes are report-only and never dropped automatically; in both dry-run and `--apply`, they report `manual-drop` and print `git -C '<repo>' stash list --format='%H %gd' | grep '^<sha> '` followed by `git -C '<repo>' stash drop <stash@{n}>` to stderr.
 
 ## Branch inventory output (`branches`)
 

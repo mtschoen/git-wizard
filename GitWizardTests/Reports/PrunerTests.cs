@@ -82,7 +82,7 @@ public class PrunerTests
                         TempRepoFixture.RunGit(scenarioPath, "update-ref", "refs/heads/merged", unmergedSha);
                     }
                 }
-                : null
+            : null
         };
         var report = Pruner.Run([scenario.Path], options, hints);
 
@@ -138,7 +138,7 @@ public class PrunerTests
                         TempRepoFixture.RunGit(scenarioPath, "stash", "push", "-q", "-m", "concurrent-unmerged");
                     }
                 }
-                : null
+            : null
         };
         var report = Pruner.Run([scenario.Path], options, hints);
 

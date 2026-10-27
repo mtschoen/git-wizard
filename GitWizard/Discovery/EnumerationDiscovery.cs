@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using GitWizard.Watch;
 using MFTLib.Index;
 
@@ -11,9 +12,6 @@ namespace GitWizard.Discovery;
 /// </summary>
 static class EnumerationDiscovery
 {
-    // Enumeration drives take a caller-assigned key that only labels the single drive of this index.
-    const char FallbackDriveLetter = 'L';
-
     public static async Task<RecursiveDiscovery> DiscoverAsync(
         DiscoveryRequest request, string expandedRoot, CancellationToken cancellationToken,
         CandidateSelectionDiagnostics? diagnostics = null)
@@ -54,15 +52,15 @@ static class EnumerationDiscovery
 
         await using (index.ConfigureAwait(false))
         {
-            var status = index.Drives.Single();
-            if (status.State != DriveState.Ready)
+            var status = index.Status;
+            if (status.State != RootState.Ready)
             {
                 return Failed(paths, failedSubtrees, errors, expandedRoot,
                     status.Failure?.Message ?? $"Drive is {status.State}.");
             }
 
             diagnostics ??= new CandidateSelectionDiagnostics();
-            paths.AddRange(GitWizardApi.SelectRepositoryCandidates(index, scope, diagnostics, cancellationToken)
+            paths.AddRange(GitWizardApi.SelectRepositoryCandidates(new FileIndexSet([index]), scope, diagnostics, cancellationToken)
                 .Where(IsConfirmed)
                 .Select(candidate => GitWizardApi.NormalizePath(candidate.Path)));
 
@@ -97,7 +95,7 @@ static class EnumerationDiscovery
         GitWizardConfiguration configuration, string root, IReadOnlyList<string> ignoredPaths) =>
         new()
         {
-            Drives = [new IndexedDrive(DriveLetterFor(root), root, 0, ProducerKind.Enumeration)],
+            Root = IndexedRoot.FromDirectory(root),
             CacheMode = CacheMode.Disabled,
             RetainedFileNames = MftIndexCachePolicy.DirectoryScanFileNames,
             DirectoryWalk = CreateDirectoryWalk(configuration, root, ignoredPaths)
@@ -115,42 +113,16 @@ static class EnumerationDiscovery
 
         return new DirectoryWalkOptions
         {
-            PrunedDirectoryNames = GitDirectoryNameSpellings,
+            PrunedDirectoryNamePatterns = [GitDirectoryNamePattern],
             PruneDotDirectories = skipHidden,
             PrunedDirectoryAttributes = skipHidden ? FileAttributes.Hidden : 0,
             PrunedDirectoryPaths = prunedPaths
         };
     }
 
-    // The pinned walk compares pruned names ordinally on Unix and offers no case-insensitive hook, so every
-    // casing of the three-letter name is listed and a mixed-case metadata tree is never entered.
-    static readonly string[] GitDirectoryNameSpellings = CreateCaseSpellings(GitWizardApi.GitEntryName);
-
-    static string[] CreateCaseSpellings(string name)
-    {
-        var letterIndexes = Enumerable.Range(0, name.Length).Where(index => char.IsAsciiLetter(name[index])).ToArray();
-        var spellings = new string[1 << letterIndexes.Length];
-        for (var mask = 0; mask < spellings.Length; mask++)
-        {
-            var characters = name.ToCharArray();
-            for (var bit = 0; bit < letterIndexes.Length; bit++)
-            {
-                if ((mask & (1 << bit)) != 0)
-                {
-                    characters[letterIndexes[bit]] = char.ToUpperInvariant(characters[letterIndexes[bit]]);
-                }
-            }
-
-            spellings[mask] = new string(characters);
-        }
-
-        return spellings;
-    }
-
-    static char DriveLetterFor(string root) =>
-        WatchPath.Parse(root) is { IsWindows: true, Volume: { Length: 1 } volume } && char.IsAsciiLetter(volume[0])
-            ? volume[0]
-            : FallbackDriveLetter;
+    // The walk matches patterns against directory names, so one case-insensitive pattern prunes every casing of .git.
+    static readonly Regex GitDirectoryNamePattern = new(
+        $"^{Regex.Escape(GitWizardApi.GitEntryName)}$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     static RecursiveDiscovery Failed(
         List<string> paths, List<string> failedSubtrees, Dictionary<string, string> errors, string root, string message)

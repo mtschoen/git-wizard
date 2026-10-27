@@ -84,7 +84,7 @@ public class ReportDiscoverySessionTests
             Paths = [],
             RequestedNtfsDrives = [],
             Observations = [],
-            DriveStatuses = [],
+            RootStatuses = [],
             Errors = new Dictionary<string, string>(),
             WatchExcludedRoots = []
         };
@@ -104,7 +104,7 @@ public class ReportDiscoverySessionTests
         await report.DisposeAsync();
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(owner!.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single().Parent!.Value.Name, Is.EqualTo("repo"));
+            Assert.That(owner!.IndexSet.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single().Parent!.Value.Name, Is.EqualTo("repo"));
             Assert.That(fixture.ConnectionDisposals, Is.Zero);
         }
         await owner.DisposeAsync();

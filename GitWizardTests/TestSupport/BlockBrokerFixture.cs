@@ -36,15 +36,15 @@ sealed class BlockBrokerFixture : IAsyncDisposable
         _volumes = new ScriptedBrokerVolumes
         {
             QueryJournalCursor = QueryCursor,
-            ScanDrive = ScanDrive,
+            ScanVolume = ScanVolume,
             ReadJournal = ReadJournal,
-            WatchDrive = WatchDriveAsync,
+            WatchVolume = WatchDriveAsync,
             GrowUsnJournal = GrowJournal
         };
     }
 
     public string CacheDirectory => _files.BlockDirectory;
-    public IndexedDrive Drive(char letter) => new(letter, _files.TreePath, 1);
+    public IndexedRoot Drive(char letter) => SyntheticIndexedRoot.Create(new VolumeKey(letter), _files.TreePath, 1);
     public int ConnectionCount { get; private set; }
 
     /// <summary>Answers the host's grow requests; unset refuses the grow, as a host without a source does.</summary>
@@ -96,7 +96,7 @@ sealed class BlockBrokerFixture : IAsyncDisposable
         }
     }
 
-    public IReadOnlyList<string> ScannedDrives => (string[])[.. Scans.Select(scan => scan.Drive.ToString())];
+    public IReadOnlyList<string> ScannedDrives => (string[])[.. Scans.Select(scan => scan.Volume.ToString())];
 
     /// <summary>How many records the scans handed to the block writer so far.</summary>
     public int RecordsYielded => Volatile.Read(ref _recordsYielded);
@@ -137,7 +137,7 @@ sealed class BlockBrokerFixture : IAsyncDisposable
         await handle.Ended.ConfigureAwait(false);
     }
 
-    IEnumerable<IReadOnlyList<SyntheticScanRecord>> ScanDrive(ScriptedScan scan)
+    IEnumerable<IReadOnlyList<SyntheticScanRecord>> ScanVolume(ScriptedScan scan)
     {
         ScanReceived?.Invoke();
         scan.CancellationToken.ThrowIfCancellationRequested();
@@ -149,7 +149,7 @@ sealed class BlockBrokerFixture : IAsyncDisposable
             Shutdown.Wait(TestTimeouts.BrokerHangGuard, CancellationToken.None);
             throw new IOException("The broker host crashed during the scan.");
         }
-        if (_scanError != null && (FailedDrive == null || FailedDrive == scan.Drive.ToString()))
+        if (_scanError != null && (FailedDrive == null || FailedDrive == scan.Volume.ToString()))
         {
             throw new IOException(_scanError);
         }
@@ -195,14 +195,14 @@ sealed class BlockBrokerFixture : IAsyncDisposable
 
     // The journal's tip: the first query of a drive arms its scan at Cursor, and the catch-up
     // entries, when any, are then journaled between Cursor and CaughtUpCursor.
-    SyntheticJournalCursor QueryCursor(DriveKey drive) =>
+    SyntheticJournalCursor QueryCursor(VolumeKey drive) =>
         _armedDrives.TryAdd(drive.ToString(), true) || _catchUpEntries.Length == 0 ? Cursor : CaughtUpCursor;
 
-    (IReadOnlyList<SyntheticJournalRecord> Entries, SyntheticJournalCursor Updated) ReadJournal(DriveKey drive, SyntheticJournalCursor since,
+    (IReadOnlyList<SyntheticJournalRecord> Entries, SyntheticJournalCursor Updated) ReadJournal(VolumeKey drive, SyntheticJournalCursor since,
         int maximumBufferReads) =>
         since == Cursor && _catchUpEntries.Length > 0 ? (_catchUpEntries, CaughtUpCursor) : ([], since);
 
-    async IAsyncEnumerable<(IReadOnlyList<SyntheticJournalRecord> Entries, SyntheticJournalCursor Cursor)> WatchDriveAsync(DriveKey drive,
+    async IAsyncEnumerable<(IReadOnlyList<SyntheticJournalRecord> Entries, SyntheticJournalCursor Cursor)> WatchDriveAsync(VolumeKey drive,
         SyntheticJournalCursor since, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         _watchStarted.TrySetResult((drive.ToString(), since));
@@ -220,7 +220,7 @@ sealed class BlockBrokerFixture : IAsyncDisposable
         await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
     }
 
-    UsnJournalSettings GrowJournal(DriveKey drive, UsnJournalSettings target) =>
+    UsnJournalSettings GrowJournal(VolumeKey drive, UsnJournalSettings target) =>
         GrowUsnJournal?.Invoke(drive.ToString(), target.MaximumSize, target.AllocationDelta)
         ?? throw new InvalidOperationException("The fixture has no grow handler.");
 

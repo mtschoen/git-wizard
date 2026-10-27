@@ -47,7 +47,7 @@ public class ProgramIndexCacheEntryPointTests
                 Assert.That(File.Exists(files.FreePath), Is.False);
                 Assert.That(File.Exists(files.OwnedPath + ".lock"), Is.True);
                 Assert.That(File.Exists(files.FreePath + ".lock"), Is.True);
-                Assert.That(owner.Root('X').IsDirectory, Is.True);
+                Assert.That(owner.Root().IsDirectory, Is.True);
             }
         }
         var retry = await RunCliAsync("--clear-index-cache");
@@ -155,7 +155,7 @@ public class ProgramIndexCacheEntryPointTests
                 using (Assert.EnterMultipleScope())
                 {
                     Assert.That(held.StandardOutput, Does.Not.Contain("this session owns the cache"));
-                    Assert.That(owner.Root('X').IsDirectory, Is.True);
+                    Assert.That(owner.Root().IsDirectory, Is.True);
                 }
             }
             var canonical = await File.ReadAllBytesAsync(files.OwnedPath);

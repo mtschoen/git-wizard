@@ -23,7 +23,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
     bool _disposed;
     bool _watchClaimed;
     bool _watchStarted;
-    FileIndex? _watchedIndex;
+    IReadOnlyList<FileIndex> _watchedIndices = [];
     int _deathReported;
 
     public event Action<string>? SourceDied;
@@ -48,7 +48,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         Session = preparedIndex;
     }
 
-    public UsnJournalSettings QueryUsnJournalSettings(DriveKey drive)
+    public UsnJournalSettings QueryUsnJournalSettings(VolumeKey volume)
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -56,16 +56,18 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         }
 
         var owner = Session ?? throw new InvalidOperationException("No index session available.");
-        return owner.Index.QueryUsnJournalSettings(drive);
+        var index = owner.IndexFor(volume)
+            ?? throw new InvalidOperationException($"No index holds drive {volume}.");
+        return index.QueryUsnJournalSettings();
     }
 
-    public Task<UsnJournalSettings> GrowUsnJournalAsync(DriveKey drive, UsnJournalSettings target, CancellationToken cancellationToken)
+    public Task<UsnJournalSettings> GrowUsnJournalAsync(VolumeKey volume, UsnJournalSettings target, CancellationToken cancellationToken)
     {
         // The session launches the broker on first use, so a grow never needs a connected process up front.
         var owner = Session ?? throw new InvalidOperationException("No index session available.");
         var brokerSession = owner.BrokerSession
             ?? throw new InvalidOperationException("The index session has no broker session.");
-        return brokerSession.GrowUsnJournalAsync(drive, target, cancellationToken);
+        return brokerSession.GrowUsnJournalAsync(volume, target, cancellationToken);
     }
 
     public Task<VolumeArmResult> ArmAndCatchUpAsync(IReadOnlyCollection<string> volumes, CancellationToken ct)
@@ -93,14 +95,10 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var requestedKeys = volumes
-                .Select(value => DriveKey.TryParse(value, out var drive) ? (DriveKey?)drive : null)
-                .OfType<DriveKey>().Distinct().ToArray();
+            var requestedKeys = RootKeyProjection.ParseRootKeys(volumes);
             var requested = requestedKeys.Select(drive => drive.ToString()).ToArray();
             if (Session?.IsDisposed != false || Session.IsFaulted ||
-                !requestedKeys.ToHashSet().SetEquals(Session.Drives
-                    .Select(value => DriveKey.TryParse(value, out var drive) ? (DriveKey?)drive : null)
-                    .OfType<DriveKey>()))
+                !requestedKeys.ToHashSet().SetEquals(RootKeyProjection.ParseRootKeys(Session.Drives)))
             {
                 var prepared = Session;
                 Session = null;
@@ -117,7 +115,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
             var warnings = new List<JournalWarning>();
             var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync(cancellationToken).ConfigureAwait(false);
 
-            foreach (var drive in Session.Index.Drives)
+            foreach (var drive in Session.Indices.Select(index => index.Status))
             {
                 ProcessArmedDrive(drive, configuration, errors, warnings, cancellationToken);
             }
@@ -165,9 +163,9 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
 
         foreach (var drive in catchUpDrives)
         {
-            var driveStatus = owner.CaptureDriveStatuses().FirstOrDefault(status =>
+            var driveStatus = owner.CaptureRootStatuses().FirstOrDefault(status =>
                 string.Equals(status.Drive, drive.ToString(), StringComparison.OrdinalIgnoreCase));
-            if (driveStatus?.IndexStatus is not { State: DriveState.Failed or DriveState.Offline } failed)
+            if (driveStatus?.IndexStatus is not { State: RootState.Failed or RootState.Offline } failed)
             {
                 continue;
             }
@@ -189,7 +187,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
     static Dictionary<string, string> CollectArmedDriveErrors(MftIndexSession owner)
     {
         var errors = new Dictionary<string, string>(owner.ScanErrors, StringComparer.OrdinalIgnoreCase);
-        foreach (var status in owner.CaptureDriveStatuses())
+        foreach (var status in owner.CaptureRootStatuses())
         {
             if (status.IdentityFailure is not null)
             {
@@ -199,7 +197,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
             {
                 errors[status.Drive] = message;
             }
-            else if (status.IndexStatus?.State is DriveState.Failed or DriveState.Offline)
+            else if (status.IndexStatus?.State is RootState.Failed or RootState.Offline)
             {
                 errors[status.Drive] = $"Drive is {status.IndexStatus.State}.";
             }
@@ -273,22 +271,27 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
 
     Task StartWatch(MftIndexSession owner, CancellationToken cancellationToken)
     {
-        var index = owner.Index;
-        index.Changed += OnChanged;
-        index.WatchFaulted += OnWatchFaulted;
-        index.WatchStateChanged += ApplyWatchState;
-        _watchedIndex = index;
-        SeedWatchStates(index);
-        // Starting means the library pump was scheduled, not that catch-up has drained.
-        return StartWatchAndSignalAsync(index, cancellationToken);
+        var indices = owner.Indices;
+        foreach (var index in indices)
+        {
+            index.Changed += OnChanged;
+            index.WatchFaulted += OnWatchFaulted;
+            index.WatchStateChanged += ApplyWatchState;
+        }
+
+        _watchedIndices = indices;
+        SeedWatchStates(indices);
+        // Starting means the library pumps were scheduled, not that catch-up has drained.
+        return StartWatchAndSignalAsync(indices, cancellationToken);
     }
 
-    async Task StartWatchAndSignalAsync(FileIndex index, CancellationToken cancellationToken)
+    async Task StartWatchAndSignalAsync(IReadOnlyList<FileIndex> indices, CancellationToken cancellationToken)
     {
-        var results = await index.StartWatchingAsync(index.Drives.Select(status => status.Drive), cancellationToken).ConfigureAwait(false);
-        foreach (var result in results.Where(result => result.Outcome == DriveOperationOutcome.Failed))
+        var results = await Task.WhenAll(indices.Select(index => index.StartWatchingAsync(cancellationToken)))
+            .ConfigureAwait(false);
+        foreach (var result in results.Where(result => result.Outcome == RootOperationOutcome.Failed))
         {
-            RecordStartupDriveFailure(result.Drive.Letter, result.Failure?.Message ?? "The drive watch could not start.");
+            RecordStartupDriveFailure(result.Root.VolumeLetter(), result.Failure?.Message ?? "The drive watch could not start.");
         }
 
         _pumpStarted.TrySetResult();
@@ -304,10 +307,10 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
 
     void DeliverChange(FileChange change)
     {
-        // FileEntry.Drive is the stable drive key MFTLib assigns, unlike change.Path,
+        // FileEntry.Root is the stable root key MFTLib assigns, unlike change.Path,
         // which renders the drive's real indexed root directory and only reads back as a
         // "<letter>:\" volume when that root directory happens to be the drive root (MFTLib #143).
-        var letter = change.Entry.Drive.Letter;
+        var letter = change.Entry.Root.VolumeLetter();
         var rewritten = _driveRealRoots.TryGetValue(letter, out var realRoot)
             ? change with
             {
@@ -366,7 +369,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
             _output.Writer.TryComplete(fault.Exception);
             return;
         }
-        var drive = fault.Drive.Letter;
+        var drive = fault.Volume.Letter;
         if (fault.IsRecovering)
         {
             try

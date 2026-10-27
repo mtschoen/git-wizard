@@ -114,7 +114,7 @@ public class IndexCacheViewModelTests
     public async Task ModelPublishesInventoryOutcomes(CachedBlockAvailability availability)
     {
         using var files = new PackedIndexFixture();
-        var row = SyntheticNotifications.CreateCachedBlockStatus(SyntheticNotifications.CreateCachedBlockFile('X', 1, "fixture", 42,
+        var row = SyntheticNotifications.CreateCachedBlockStatus(SyntheticNotifications.CreateCachedBlockFile(new VolumeKey('X'), 1, "fixture", 42,
             FrozenCacheClock.Now.UtcDateTime.AddMinutes(-5)), availability, null, null, null);
         var snapshot = new MftIndexCacheInspection(new FrozenCacheClock(), true,
             _ => [row]).Capture(files.DirectoryPath);
@@ -132,13 +132,13 @@ public class IndexCacheViewModelTests
     public async Task PreparedOwnerCaptureFollowsTransferAndDisposal()
     {
         using var files = new PackedIndexFixture();
-        var drives = new[] { new IndexedDrive('X', files.TreePath, 1, ProducerKind.Enumeration) };
+        var drive = SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1, ProducerKind.Enumeration);
         var index = await FileIndex.OpenAsync(new FileIndexOptions
         {
-            Drives = drives,
+            Root = drive,
             CacheDirectory = files.BlockDirectory
         }, CancellationToken.None);
-        var session = new MftIndexSession(index, null, ["X"], drives,
+        var session = new MftIndexSession([index], null, ["X"], [drive],
             new Dictionary<string, string>(), files.BlockDirectory);
         await using var main = TestViewModels.Create();
         await main.PreparedDiscoveryIndex.SetAsync(session);
@@ -155,13 +155,13 @@ public class IndexCacheViewModelTests
         }
 
         using var secondFiles = new PackedIndexFixture();
-        var secondDrives = new[] { new IndexedDrive('Y', secondFiles.TreePath, 2, ProducerKind.Enumeration) };
+        var secondDrive = SyntheticIndexedRoot.Create(new VolumeKey('Y'), secondFiles.TreePath, 2, ProducerKind.Enumeration);
         var secondIndex = await FileIndex.OpenAsync(new FileIndexOptions
         {
-            Drives = secondDrives,
+            Root = secondDrive,
             CacheDirectory = secondFiles.BlockDirectory
         }, CancellationToken.None);
-        var secondSession = new MftIndexSession(secondIndex, null, ["Y"], secondDrives,
+        var secondSession = new MftIndexSession([secondIndex], null, ["Y"], [secondDrive],
             new Dictionary<string, string>(), secondFiles.BlockDirectory);
         await main.PreparedDiscoveryIndex.SetAsync(secondSession);
         var captures = main.PreparedDiscoveryIndex.CaptureActiveCacheSessions(source);

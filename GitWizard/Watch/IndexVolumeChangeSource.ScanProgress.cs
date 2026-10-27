@@ -26,7 +26,7 @@ public sealed partial class IndexVolumeChangeSource
     {
         public void Report(IndexScanProgress value)
         {
-            var letter = value.Drive.ToString();
+            var letter = value.Root.ToString();
             var ordinal = 0;
             for (var i = 0; i < requestedDrives.Count; i++)
             {

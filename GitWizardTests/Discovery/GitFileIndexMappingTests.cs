@@ -1,5 +1,6 @@
 using GitWizard;
 using GitWizardTests.TestSupport;
+using MFTLib.Index;
 
 namespace GitWizardTests;
 
@@ -12,7 +13,7 @@ public class GitFileIndexMappingTests
         fixture.AddMarker("repo");
         fixture.AddMarker("worktree", false);
         await using var index = await fixture.OpenIndexAsync();
-        var entries = GitWizardApi.SelectGitEntries(index, true);
+        var entries = GitWizardApi.SelectGitEntries(new FileIndexSet([index]), true);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(entries.Select(entry => entry.Parent!.Value.Name), Is.EquivalentTo(["repo", "worktree"]));
@@ -27,7 +28,7 @@ public class GitFileIndexMappingTests
         fixture.AddMarker("repo");
         fixture.AddMarker("worktree", false);
         await using var index = await fixture.OpenIndexAsync();
-        var entries = GitWizardApi.SelectGitEntries(index, false);
+        var entries = GitWizardApi.SelectGitEntries(new FileIndexSet([index]), false);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(entries.Single().Parent!.Value.Name, Is.EqualTo("repo"));
@@ -43,7 +44,7 @@ public class GitFileIndexMappingTests
         fixture.AddMarker("upper", markerName: ".GIT");
         await File.WriteAllTextAsync(Path.Combine(fixture.TreePath, "gitconfig"), "content");
         await using var index = await fixture.OpenIndexAsync();
-        Assert.That(GitWizardApi.SelectGitEntries(index, true).Select(entry => entry.Parent!.Value.Name),
+        Assert.That(GitWizardApi.SelectGitEntries(new FileIndexSet([index]), true).Select(entry => entry.Parent!.Value.Name),
             Is.EquivalentTo(["repo", "upper"]));
     }
 
@@ -54,7 +55,7 @@ public class GitFileIndexMappingTests
         fixture.AddMarker(Path.Combine("worktree"), false);
         await using var index = await fixture.OpenIndexAsync();
         const string root = "X:/worktree";
-        var entries = GitWizardApi.SelectGitEntries(index, true);
+        var entries = GitWizardApi.SelectGitEntries(new FileIndexSet([index]), true);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(entries.Single().Name, Is.EqualTo(".git"));
@@ -71,7 +72,7 @@ public class GitFileIndexMappingTests
         fixture.AddMarker(Path.Combine("worktree"), false);
         await using var index = await fixture.OpenIndexAsync();
         const string root = "X:/other";
-        var entries = GitWizardApi.SelectGitEntries(index, true);
+        var entries = GitWizardApi.SelectGitEntries(new FileIndexSet([index]), true);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(entries.Single().Name, Is.EqualTo(".git"));
@@ -88,7 +89,7 @@ public class GitFileIndexMappingTests
         fixture.AddMarker(Path.Combine("scope", "ignored", "worktree"), false);
         await using var index = await fixture.OpenIndexAsync();
         const string root = "X:/scope";
-        var entries = GitWizardApi.SelectGitEntries(index, true);
+        var entries = GitWizardApi.SelectGitEntries(new FileIndexSet([index]), true);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(entries.Single().Name, Is.EqualTo(".git"));
@@ -110,7 +111,7 @@ public class GitFileIndexMappingTests
         fixture.AddMarker(Path.Combine("scope", ".hidden", "worktree"), false);
         await using var index = await fixture.OpenIndexAsync();
         const string root = "X:/scope";
-        var entries = GitWizardApi.SelectGitEntries(index, true);
+        var entries = GitWizardApi.SelectGitEntries(new FileIndexSet([index]), true);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(entries.Single().Name, Is.EqualTo(".git"));
@@ -127,7 +128,7 @@ public class GitFileIndexMappingTests
         fixture.AddMarker(Path.Combine("scope", ".hidden", "worktree"), false);
         await using var index = await fixture.OpenIndexAsync();
         const string root = "X:/scope";
-        var entries = GitWizardApi.SelectGitEntries(index, true);
+        var entries = GitWizardApi.SelectGitEntries(new FileIndexSet([index]), true);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(entries.Single().Name, Is.EqualTo(".git"));
@@ -144,7 +145,7 @@ public class GitFileIndexMappingTests
         var marker = fixture.AddMarker("worktree", false);
         await using var index = await fixture.OpenIndexAsync();
         const string root = "X:/worktree";
-        var entries = GitWizardApi.SelectGitEntries(index, true);
+        var entries = GitWizardApi.SelectGitEntries(new FileIndexSet([index]), true);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(entries.Single().Name, Is.EqualTo(".git"));
@@ -169,7 +170,7 @@ public class GitFileIndexMappingTests
         fixture.AddMarker(Path.Combine("worktree"), false);
         await using var index = await fixture.OpenIndexAsync();
         const string root = "X:/";
-        var entries = GitWizardApi.SelectGitEntries(index, true);
+        var entries = GitWizardApi.SelectGitEntries(new FileIndexSet([index]), true);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(entries.Single().Name, Is.EqualTo(".git"));
@@ -186,7 +187,7 @@ public class GitFileIndexMappingTests
         fixture.AddMarker("outer");
         fixture.AddMarker(Path.Combine("outer", "vendor", "worktree"), false);
         await using var index = await fixture.OpenIndexAsync();
-        var entries = GitWizardApi.SelectGitEntries(index, true);
+        var entries = GitWizardApi.SelectGitEntries(new FileIndexSet([index]), true);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(entries.Select(entry => entry.Parent!.Value.Name), Is.EquivalentTo(["outer", "worktree"]));

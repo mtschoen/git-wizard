@@ -34,22 +34,27 @@ public sealed partial class IndexVolumeChangeSource
         // Never await a pump while holding the lock that publishes lifecycle tasks.
         await Task.Yield();
         await StopWatchStateWorkAsync().ConfigureAwait(false);
-        var index = _watchedIndex;
-        if (index is null)
+        var indices = _watchedIndices;
+        if (indices.Count == 0)
         {
             return;
         }
 
-        index.Changed -= OnChanged;
-        index.WatchFaulted -= OnWatchFaulted;
-        index.WatchStateChanged -= ApplyWatchState;
+        foreach (var index in indices)
+        {
+            index.Changed -= OnChanged;
+            index.WatchFaulted -= OnWatchFaulted;
+            index.WatchStateChanged -= ApplyWatchState;
+        }
+
         try
         {
             // A drive's outstanding fault comes back here once more; WatchFaulted already reported it.
-            var results = await index.StopWatchingAsync(index.Drives.Select(status => status.Drive), CancellationToken.None).ConfigureAwait(false);
-            foreach (var result in results.Where(result => result.Outcome == DriveOperationOutcome.Failed))
+            var results = await Task.WhenAll(indices.Select(index => index.StopWatchingAsync(CancellationToken.None)))
+                .ConfigureAwait(false);
+            foreach (var result in results.Where(result => result.Outcome == RootOperationOutcome.Failed))
             {
-                GitWizardLog.Log($"Live watch on {result.Drive} stopped after a fault: " +
+                GitWizardLog.Log($"Live watch on {result.Root} stopped after a fault: " +
                                  result.Failure?.Message, GitWizardLog.LogType.Verbose);
             }
         }

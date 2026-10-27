@@ -14,7 +14,7 @@ public sealed record MftIndexCacheMaintenanceResult(
     {
         var lines = new List<string>();
         lines.AddRange(Deletions.Select(row => $"{Identity(row.File)}: {row.Outcome}" +
-            (row.FailureReason is null ? string.Empty : $" - {row.FailureReason}")));
+            (row.FailureMessage is null ? string.Empty : $" - {row.FailureMessage}")));
 
         lines.Add("Cache inspection (point in time):");
         lines.AddRange(Inventory.Select(row => $"{Identity(row.File)}: {row.Availability}" +
@@ -31,5 +31,5 @@ public sealed record MftIndexCacheMaintenanceResult(
     }
 
     static string Identity(CachedBlockFile file) =>
-        $"{file.Drive}: ({file.VolumeSerial:X8}) [{file.Path}]";
+        $"{file.Root}: ({file.VolumeSerial:X8}) [{file.Path}]";
 }

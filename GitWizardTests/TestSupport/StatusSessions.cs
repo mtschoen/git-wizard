@@ -58,19 +58,18 @@ static class StatusSessions
             ? throw new IOException(ProducerFailureMessage(drive.ToString()[0]))
             : Task.CompletedTask;
         var absentRoot = Path.Combine(files.DirectoryPath, "absent");
-        var indexedDrives = drives.Select(item => new IndexedDrive(item.Letter,
-            item.Behavior == SyntheticDriveBehavior.Offline ? absentRoot : files.TreePath, 1)).ToArray();
-        var index = await FileIndex.OpenAsync(new FileIndexOptions
+        var indexedDrives = drives.Select(item => SyntheticIndexedRoot.Create(new VolumeKey(item.Letter), item.Behavior == SyntheticDriveBehavior.Offline ? absentRoot : files.TreePath, 1)).ToArray();
+        var indices = await Task.WhenAll(indexedDrives.Select(root => FileIndex.OpenAsync(new FileIndexOptions
         {
-            Drives = indexedDrives,
+            Root = root,
             CacheMode = CacheMode.Disabled,
             MftSource = SyntheticIndexSource.Create(files.Producer, watchSource)
-        }, CancellationToken.None).ConfigureAwait(false);
-        var scanErrors = index.Drives
-            .Where(status => status.State is DriveState.Failed or DriveState.Offline)
-            .ToDictionary(status => status.Drive.ToString(),
+        }, CancellationToken.None))).ConfigureAwait(false);
+        var scanErrors = indices.Select(index => index.Status)
+            .Where(status => status.State is RootState.Failed or RootState.Offline)
+            .ToDictionary(status => status.Root.ToString(),
                 status => status.Failure?.Message ?? $"Drive is {status.State}.");
-        return new MftIndexSession(index, new CountingOwner(),
+        return new MftIndexSession(indices, new CountingOwner(),
             (string[])[.. drives.Select(item => item.Letter.ToString())], indexedDrives, scanErrors);
     }
 }

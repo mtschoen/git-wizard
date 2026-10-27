@@ -29,7 +29,7 @@ public sealed class MftIndexCacheInspection
         {
             try
             {
-                inventory = [.. _inspect(directory).OrderBy(row => row.File.Drive.Letter).ThenBy(row => row.File.VolumeSerial)];
+                inventory = [.. _inspect(directory).OrderBy(row => row.File.Root).ThenBy(row => row.File.VolumeSerial)];
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
@@ -39,7 +39,7 @@ public sealed class MftIndexCacheInspection
         }
         var active = _isWindows
             ? (MftActiveCacheSession[])[.. (sessions ?? []).Where(session => SameDirectory(session.CacheDirectory, directory))
-                .Select(session => session with { Drives = Array.AsReadOnly<MftActiveCacheDrive>([.. session.Drives]) })]
+                .Select(session => session with { Drives = Array.AsReadOnly<MftActiveCacheRoot>([.. session.Drives]) })]
             : [];
         return new MftIndexCacheSnapshot
         {

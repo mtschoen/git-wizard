@@ -31,14 +31,14 @@ public sealed partial class MftIndexSession
         Func<string, bool> brokerLauncher, CacheMode cacheMode, TimeSpan? connectTimeout,
         IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken)
     {
-        return OpenSelectedVolumesAsync(drives, IndexedDrive.FromWindowsVolume,
+        return OpenSelectedVolumesAsync(drives, IndexedRoot.FromWindowsDrive,
             new BrokerSession(brokerLauncher, connectTimeout),
             new CacheSelection(MftIndexCachePolicy.GetCacheDirectory(GitWizardApi.GetLocalFilesPath()), cacheMode),
             progress, cancellationToken);
     }
 
     internal static Task<MftIndexSession> OpenSelectedVolumesAsync(IReadOnlyList<string> drives,
-        Func<DriveKey, IndexedDrive> acquireIdentity,
+        Func<VolumeKey, IndexedRoot> acquireIdentity,
         BrokerSession brokerSession,
         string cacheDirectory, IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken) =>
         OpenSelectedVolumesAsync(drives, acquireIdentity, brokerSession,
@@ -47,16 +47,12 @@ public sealed partial class MftIndexSession
     internal readonly record struct CacheSelection(string Directory, CacheMode CacheMode);
 
     internal static async Task<MftIndexSession> OpenSelectedVolumesAsync(IReadOnlyList<string> drives,
-        Func<DriveKey, IndexedDrive> acquireIdentity,
+        Func<VolumeKey, IndexedRoot> acquireIdentity,
         BrokerSession brokerSession,
         CacheSelection cache, IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken)
     {
-        var requested = drives
-            .Select(value => DriveKey.TryParse(value, out var drive) ? (DriveKey?)drive : null)
-            .OfType<DriveKey>()
-            .Distinct()
-            .ToArray();
-        var identities = new List<IndexedDrive>();
+        var requested = RootKeyProjection.ParseRootKeys(drives);
+        var identities = new List<IndexedRoot>();
         var errors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         try
         {
@@ -65,7 +61,7 @@ public sealed partial class MftIndexSession
                 cancellationToken.ThrowIfCancellationRequested();
                 try
                 {
-                    identities.Add(acquireIdentity(drive));
+                    identities.Add(acquireIdentity(new VolumeKey(drive.VolumeLetter())));
                 }
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
                 {

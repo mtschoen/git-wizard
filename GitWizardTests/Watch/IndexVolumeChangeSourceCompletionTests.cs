@@ -60,7 +60,7 @@ public class IndexVolumeChangeSourceCompletionTests
         await using var scenario = await Scenario.CreateAsync(['X'], faultDuringFirstReconciliation: "drive",
             faultAfterStartup: false);
         await scenario.Source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
-        scenario.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
+        scenario.Scripted.WatchFor('X').FailVolume(new IOException("X failed"));
 
         await scenario.SecondFaultInjected.WaitAsync(TestTimeouts.HangGuard);
         var productionsBefore = scenario.ProductionsAtSecondFault;
@@ -88,7 +88,7 @@ public class IndexVolumeChangeSourceCompletionTests
         await using var scenario = await Scenario.CreateAsync(['X', 'Y'], faultDuringFirstReconciliation: "channel",
             faultAfterStartup: false);
         await scenario.Source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
-        scenario.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
+        scenario.Scripted.WatchFor('X').FailVolume(new IOException("X failed"));
 
         await scenario.SecondFaultInjected.WaitAsync(TestTimeouts.HangGuard);
         await WaitUntilAsync(() => scenario.ReadinessOf('X') == VolumeWatchState.Excluded);
@@ -108,7 +108,7 @@ public class IndexVolumeChangeSourceCompletionTests
         await using var scenario = await Scenario.CreateAsync(['X', 'Y'], faultDuringFirstReconciliation: null,
             faultAfterStartup: false, faultOnRecoveredCaughtUp: kind);
         await scenario.Source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
-        scenario.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
+        scenario.Scripted.WatchFor('X').FailVolume(new IOException("X failed"));
 
         await scenario.SecondFaultInjected.WaitAsync(TestTimeouts.HangGuard);
         await WaitUntilAsync(() => scenario.ReadinessOf('X') == expected);
@@ -125,9 +125,9 @@ public class IndexVolumeChangeSourceCompletionTests
             await files.OpenMftIndexAsync(scripted, 'X'), "X");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
-        var version = owner.Index.Drives.Single().Watch.StateVersion + 10;
-        var fault = SyntheticNotifications.CreateWatchFault(WatchFaultKind.Drive, 'X', new IOException("recovering"));
-        var watch = owner.Index.Drives.Single().Watch;
+        var version = owner.Indices.Single().Status.Watch.StateVersion + 10;
+        var fault = SyntheticNotifications.CreateWatchFault(WatchFaultKind.Volume, 'X', new IOException("recovering"));
+        var watch = owner.Indices.Single().Status.Watch;
         source.ApplyWatchState(SyntheticNotifications.CreateWatchStateChange('X', watch with { State = WatchState.Recovering, StateVersion = version }, fault));
         source.ApplyWatchState(SyntheticNotifications.CreateWatchStateChange('X', watch with { State = WatchState.CaughtUp, StateVersion = version - 1 }, null));
         source.ApplyWatchState(SyntheticNotifications.CreateWatchStateChange('X', watch with { State = WatchState.CaughtUp, StateVersion = version }, null));
@@ -148,17 +148,17 @@ public class IndexVolumeChangeSourceCompletionTests
         files.AddMarker("repo");
         var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var owner = PackedIndexFixture.Owner(
-            await files.OpenMftIndexAsync(scripted, 'X', 'Y'), "X", "Y");
+            await files.OpenMftIndicesAsync(scripted, 'X', 'Y'), "X", "Y");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
-        var versionX = owner.Index.Drives.Single(d => d.Drive == 'X').Watch.StateVersion;
-        var versionY = owner.Index.Drives.Single(d => d.Drive == 'Y').Watch.StateVersion;
-        var watchX = owner.Index.Drives.Single(drive => drive.Drive == 'X').Watch;
-        var watchY = owner.Index.Drives.Single(drive => drive.Drive == 'Y').Watch;
+        var versionX = owner.Indices.Select(owned => owned.Status).Single(d => d.Root == new VolumeKey('X')).Watch.StateVersion;
+        var versionY = owner.Indices.Select(owned => owned.Status).Single(d => d.Root == new VolumeKey('Y')).Watch.StateVersion;
+        var watchX = owner.Indices.Select(owned => owned.Status).Single(drive => drive.Root == new VolumeKey('X')).Watch;
+        var watchY = owner.Indices.Select(owned => owned.Status).Single(drive => drive.Root == new VolumeKey('Y')).Watch;
         source.ApplyWatchState(SyntheticNotifications.CreateWatchStateChange('X', watchX with { State = WatchState.Recovering, StateVersion = versionX + 100 },
-            SyntheticNotifications.CreateWatchFault(WatchFaultKind.Drive, 'X', new IOException("X recovering"))));
+            SyntheticNotifications.CreateWatchFault(WatchFaultKind.Volume, 'X', new IOException("X recovering"))));
         source.ApplyWatchState(SyntheticNotifications.CreateWatchStateChange('Y', watchY with { State = WatchState.Recovering, StateVersion = versionY + 1 },
-            SyntheticNotifications.CreateWatchFault(WatchFaultKind.Drive, 'Y', new IOException("Y recovering"))));
+            SyntheticNotifications.CreateWatchFault(WatchFaultKind.Volume, 'Y', new IOException("Y recovering"))));
         var foundX = source.Readiness.TryGet("X", out var statusX);
         Assert.That(foundX, Is.True);
         var statusXVersion = statusX!.WatchStateVersion;
@@ -179,11 +179,11 @@ public class IndexVolumeChangeSourceCompletionTests
             await files.OpenMftIndexAsync(scripted, 'X'), "X");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
-        var initialVersion = owner.Index.Drives.Single().Watch.StateVersion;
+        var initialVersion = owner.Indices.Single().Status.Watch.StateVersion;
         var intermediateVersion = initialVersion + 5;
-        var watch = owner.Index.Drives.Single().Watch;
+        var watch = owner.Indices.Single().Status.Watch;
         source.ApplyWatchState(SyntheticNotifications.CreateWatchStateChange('X', watch with { State = WatchState.Recovering, StateVersion = intermediateVersion },
-            SyntheticNotifications.CreateWatchFault(WatchFaultKind.Drive, 'X', new IOException("recovering"))));
+            SyntheticNotifications.CreateWatchFault(WatchFaultKind.Volume, 'X', new IOException("recovering"))));
         var countBefore = source.Readiness.RecentTransitions.Count;
 
         // Deliver older event: should be ignored
@@ -222,18 +222,18 @@ public class IndexVolumeChangeSourceCompletionTests
         var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         source.ReconciliationCapturedForTest = drive =>
         {
-            next = owner.Index.Drives.Single(item => item.Drive == drive).Watch.StateVersion + 1;
-            var watch = owner.Index.Drives.Single(item => item.Drive == drive).Watch;
+            next = owner.Indices.Select(owned => owned.Status).Single(item => item.Root == new VolumeKey(drive)).Watch.StateVersion + 1;
+            var watch = owner.Indices.Select(owned => owned.Status).Single(item => item.Root == new VolumeKey(drive)).Watch;
             source.ApplyWatchState(SyntheticNotifications.CreateWatchStateChange(drive, watch with { State = WatchState.Recovering, StateVersion = next },
-                SyntheticNotifications.CreateWatchFault(WatchFaultKind.Drive, drive, new IOException("newer recovery"))));
+                SyntheticNotifications.CreateWatchFault(WatchFaultKind.Volume, drive, new IOException("newer recovery"))));
         };
         await using var sourceLifetime = source;
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         using var cancellation = new CancellationTokenSource(TestTimeouts.HangGuard);
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
 
-        scripted.WatchFor('X').FailDrive(new IOException("X failed"));
-        await WaitUntilAsync(() => owner.Index.Drives.Single().Watch.State == WatchState.Recovering);
+        scripted.WatchFor('X').FailVolume(new IOException("X failed"));
+        await WaitUntilAsync(() => owner.Indices.Single().Status.Watch.State == WatchState.Recovering);
         files.AddMarker("newrepo");
         release.SetResult();
 
@@ -253,7 +253,7 @@ public class IndexVolumeChangeSourceCompletionTests
         }
 
         // Submit CaughtUp at next + 1 and wait for that exact published version
-        source.ApplyWatchState(SyntheticNotifications.CreateWatchStateChange('X', owner.Index.Drives.Single().Watch with { State = WatchState.CaughtUp, StateVersion = next + 1 }, null));
+        source.ApplyWatchState(SyntheticNotifications.CreateWatchStateChange('X', owner.Indices.Single().Status.Watch with { State = WatchState.CaughtUp, StateVersion = next + 1 }, null));
         await WaitUntilAsync(() => source.Readiness.TryGet("X", out var s) && s.WatchStateVersion == next + 1 &&
             s.State == VolumeWatchState.CaughtUp);
         Assert.That(source.Readiness.TryGet("X", out var caughtUp), Is.True);
@@ -333,7 +333,7 @@ public class IndexVolumeChangeSourceCompletionTests
         {
             var scenario = new Scenario();
             scenario._files.AddMarker("repo");
-            var index = await scenario._files.OpenMftIndexAsync(scenario.Scripted, drives);
+            var index = await scenario._files.OpenMftIndicesAsync(scenario.Scripted, drives);
             scenario._files.BeforeProduceAsync = (_, token) =>
                 (Interlocked.Increment(ref scenario._productions) == 1 ? scenario._firstRescan : scenario._heldRescan)
                 .Task.WaitAsync(token);
@@ -367,7 +367,7 @@ public class IndexVolumeChangeSourceCompletionTests
                 return Task.CompletedTask;
             }
 
-            Scripted.WatchFor(drive).FailDrive(new IOException($"{drive} failed after its first catch-up"));
+            Scripted.WatchFor(drive).FailVolume(new IOException($"{drive} failed after its first catch-up"));
             return ReleaseFirstRescanWhenRecoveringAsync(drive);
         }
 
@@ -394,7 +394,7 @@ public class IndexVolumeChangeSourceCompletionTests
             switch (kind)
             {
                 case "drive":
-                    Scripted.WatchFor(drive).FailDrive(new IOException($"{drive} failed again"));
+                    Scripted.WatchFor(drive).FailVolume(new IOException($"{drive} failed again"));
                     break;
                 case "apply":
                     Scripted.WatchFor(drive).FailApply(new IOException($"{drive} apply failed"));
@@ -407,7 +407,7 @@ public class IndexVolumeChangeSourceCompletionTests
             Assert.That(SpinWait.SpinUntil(() => StateOf(drive) == settled, TestTimeouts.HangGuard), Is.True);
             if (awaitSourceApplied)
             {
-                var settledVersion = Owner.Index.Drives.First(status => status.Drive == drive).Watch.StateVersion;
+                var settledVersion = Owner.Indices.Select(owned => owned.Status).First(status => status.Root == new VolumeKey(drive)).Watch.StateVersion;
                 Assert.That(SpinWait.SpinUntil(() => SourceHasApplied(drive, settledVersion), TestTimeouts.HangGuard),
                     Is.True, "The source applied the settled state's event.");
             }
@@ -456,7 +456,7 @@ public class IndexVolumeChangeSourceCompletionTests
         public void ReleaseHeldRescan() => _heldRescan.TrySetResult();
 
         public WatchState? StateOf(char drive) =>
-            Owner.Index.Drives.FirstOrDefault(status => status.Drive == drive)?.Watch.State;
+            Owner.Indices.Select(owned => owned.Status).FirstOrDefault(status => status.Root == new VolumeKey(drive))?.Watch.State;
 
         public VolumeWatchState? ReadinessOf(char drive) =>
             Source.Readiness.TryGet(drive.ToString(), out var status) ? status.State : null;

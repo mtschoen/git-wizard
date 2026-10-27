@@ -14,11 +14,11 @@ public class MftIndexCacheMaintenanceTests
         using var files = new IndexCacheFixture();
         var older = Path.Combine(MftIndexCachePolicy.GetCacheRoot(files.Home), "v1-" + new string('A', 64));
         Directory.CreateDirectory(older);
-        var olderBlock = SyntheticBlock.CachedPath(older, 'Y', 1);
+        var olderBlock = SyntheticBlock.CachedPath(older, new VolumeKey('Y'), 1);
         await File.WriteAllTextAsync(olderBlock, "legacy hashed-directory block");
         var unknown = Path.Combine(MftIndexCachePolicy.GetCacheRoot(files.Home), "unrecognized");
         Directory.CreateDirectory(unknown);
-        var unknownBlock = SyntheticBlock.CachedPath(unknown, 'Z', 1);
+        var unknownBlock = SyntheticBlock.CachedPath(unknown, new VolumeKey('Z'), 1);
         await File.WriteAllTextAsync(unknownBlock, "keep unknown layout");
         await using (var owner = await files.OpenOwnerAsync())
         {
@@ -29,7 +29,7 @@ public class MftIndexCacheMaintenanceTests
                 Assert.That(result.Errors, Is.Empty);
                 Assert.That(result.Deletions.Single(row => row.File.Path == files.OwnedPath).Outcome,
                     Is.EqualTo(CachedBlockDeletionOutcome.InUse));
-                Assert.That(result.Deletions.Where(row => row.File.Drive == 'Y')
+                Assert.That(result.Deletions.Where(row => row.File.Root == new VolumeKey('Y'))
                     .All(row => row.Outcome == CachedBlockDeletionOutcome.Deleted), Is.True);
                 Assert.That(result.Deletions, Has.Count.EqualTo(3));
                 Assert.That(File.Exists(files.OwnedPath), Is.True);
@@ -47,8 +47,8 @@ public class MftIndexCacheMaintenanceTests
             using (Assert.EnterMultipleScope())
             {
                 Assert.That(result.Inventory.Single().Availability, Is.EqualTo(CachedBlockAvailability.InUse));
-                Assert.That(owner.Drives.Single().State, Is.EqualTo(DriveState.Ready));
-                Assert.That(owner.Root('X').IsDirectory, Is.True);
+                Assert.That(owner.Status.State, Is.EqualTo(RootState.Ready));
+                Assert.That(owner.Root().IsDirectory, Is.True);
             }
         }
         var retry = MftIndexCacheMaintenance.Clear(files.Home);
@@ -126,7 +126,7 @@ public class MftIndexCacheMaintenanceTests
             {
                 Assert.That(result.Succeeded, Is.False);
                 Assert.That(result.Deletions.Single().Outcome, Is.EqualTo(CachedBlockDeletionOutcome.Failed));
-                Assert.That(result.Deletions.Single().FailureReason, Is.Not.Null.And.Not.Empty);
+                Assert.That(result.Deletions.Single().FailureMessage, Is.Not.Null.And.Not.Empty);
                 Assert.That(result.Inventory.Single().File.Path, Is.EqualTo(files.FreePath));
             }
         }

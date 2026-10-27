@@ -24,7 +24,7 @@ public class IndexVolumeChangeSourceFaultTests
         await using var harness = await FaultHarness.StartAsync('X', 'Y');
         harness.Inject(kind, 'X');
 
-        await WaitUntilAsync(() => harness.Scripted.Watches.Count(watch => watch.Drive == 'X') == 2);
+        await WaitUntilAsync(() => harness.Scripted.Watches.Count(watch => watch.Volume == 'X') == 2);
         await WaitUntilAsync(() => harness.ReadinessOf('X') == VolumeWatchState.CaughtUp &&
                                    harness.StatusOf('X').Watch.State == WatchState.CaughtUp);
         using (Assert.EnterMultipleScope())
@@ -59,7 +59,7 @@ public class IndexVolumeChangeSourceFaultTests
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var harness = await FaultHarness.StartAsync(['X'],
             token => release.Task.WaitAsync(token));
-        harness.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
+        harness.Scripted.WatchFor('X').FailVolume(new IOException("X failed"));
 
         await WaitUntilAsync(() => harness.StatusOf('X').Watch.State == WatchState.Recovering &&
                                    harness.ReadinessOf('X') == VolumeWatchState.CatchingUp);
@@ -95,7 +95,7 @@ public class IndexVolumeChangeSourceFaultTests
             Assert.That(harness.Failures.Single().Drive, Is.EqualTo("X"));
             Assert.That(harness.Failures.Single().Message, Does.Contain(message));
             Assert.That(harness.Deaths, Is.Empty);
-            Assert.That(harness.Scripted.Starts.Count(start => start.Drive == 'X'), Is.EqualTo(1),
+            Assert.That(harness.Scripted.Starts.Count(start => start.Volume == 'X'), Is.EqualTo(1),
                 "A lost channel is not recovered automatically.");
         }
 
@@ -118,7 +118,7 @@ public class IndexVolumeChangeSourceFaultTests
     {
         await using var harness = await FaultHarness.StartAsync('X');
         harness.Scripted.StartFailure = _ => new IOException("restart refused");
-        harness.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
+        harness.Scripted.WatchFor('X').FailVolume(new IOException("X failed"));
 
         Assert.That(await harness.ReadAsync(), Is.False);
         await WaitUntilAsync(() => harness.ReadinessOf('X') == VolumeWatchState.Excluded);
@@ -136,7 +136,7 @@ public class IndexVolumeChangeSourceFaultTests
         await using var harness = await FaultHarness.StartAsync('X', 'Y');
         harness.Scripted.StartFailure = drive => drive == 'X' ? new IOException("restart refused") : null;
 
-        await harness.Owner.Index.RescanAsync(['X'], CancellationToken.None);
+        await harness.Owner.IndexFor(new VolumeKey('X'))!.RescanAsync(CancellationToken.None);
 
         await WaitUntilAsync(() => harness.Failures.Length == 1 &&
                                    harness.ReadinessOf('X') == VolumeWatchState.Excluded);
@@ -156,7 +156,7 @@ public class IndexVolumeChangeSourceFaultTests
         harness.Files.CatchUpLoss = _ => !recovers || Interlocked.Exchange(ref lossPending, 0) == 1
             ? SyntheticCheckpointLoss.WithJournalPositions(SyntheticNotifications.CreateJournalCheckpointLoss('X', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.ScanCatchUp, new UsnJournalSettings { MaximumSize = 1024, AllocationDelta = 64 }), 1000, 2000, 3000)
             : null;
-        harness.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
+        harness.Scripted.WatchFor('X').FailVolume(new IOException("X failed"));
 
         if (recovers)
         {
@@ -186,7 +186,7 @@ public class IndexVolumeChangeSourceFaultTests
     public async Task SubscriberFault_ReachesTheReaderAsAnError()
     {
         await using var harness = await FaultHarness.StartAsync('X', 'Y');
-        harness.Owner.Index.Changed += _ => throw new InvalidOperationException("subscriber failed");
+        harness.Owner.IndexFor(new VolumeKey('X'))!.Changed += _ => throw new InvalidOperationException("subscriber failed");
         await harness.Scripted.WatchFor('X').PublishBatchAsync([PackedIndexFixture.Entry(50, 6, "changed", SyntheticJournalReason.FileCreate)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
 
         Assert.That(await harness.ReadAsync(), Is.True);
@@ -199,7 +199,7 @@ public class IndexVolumeChangeSourceFaultTests
         }
     }
 
-    [TestCase(WatchFaultKind.Drive, false, true)]
+    [TestCase(WatchFaultKind.Volume, false, true)]
     [TestCase(WatchFaultKind.Apply, false, true)]
     [TestCase(WatchFaultKind.CatchUpLost, false, true)]
     [TestCase(WatchFaultKind.CatchUpLost, true, false)]
@@ -224,7 +224,7 @@ public class IndexVolumeChangeSourceFaultTests
             token => release.Task.WaitAsync(token));
         try
         {
-            harness.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
+            harness.Scripted.WatchFor('X').FailVolume(new IOException("X failed"));
             await WaitUntilAsync(() => harness.StatusOf('X').Watch.State == WatchState.Recovering);
         }
         finally
@@ -255,7 +255,7 @@ public class IndexVolumeChangeSourceFaultTests
         var cancellationToken = cancellation.Token;
         try
         {
-            var rescan = harness.Owner.Index.RescanAsync(['X'], cancellationToken);
+            var rescan = harness.Owner.IndexFor(new VolumeKey('X'))!.RescanAsync(cancellationToken);
             Assert.That(async () => await rescan.WaitAsync(TestTimeouts.HangGuard),
                 Throws.InstanceOf<OperationCanceledException>());
         }
@@ -266,7 +266,7 @@ public class IndexVolumeChangeSourceFaultTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(harness.Owner.Index.Search(new SearchQuery(".git", NameMatchMode.Exact))
+            Assert.That(harness.Owner.IndexSet.Search(new SearchQuery(".git", NameMatchMode.Exact))
                     .Select(entry => entry.Parent!.Value.Name), Is.EqualTo(["repo"]));
             Assert.That(harness.Scripted.WatchFor('X'), Is.SameAs(originalWatch));
             Assert.That(harness.ReadinessOf('X'), Is.EqualTo(VolumeWatchState.CaughtUp));
@@ -274,9 +274,9 @@ public class IndexVolumeChangeSourceFaultTests
             Assert.That(harness.Deaths, Is.Empty);
         }
 
-        await harness.Owner.Index.RescanAsync(['X'], CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
+        await harness.Owner.IndexFor(new VolumeKey('X'))!.RescanAsync(CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
         await WaitUntilAsync(() => harness.ReadinessOf('X') == VolumeWatchState.CaughtUp);
-        Assert.That(harness.Owner.Index.Search(new SearchQuery(".git", NameMatchMode.Exact))
+        Assert.That(harness.Owner.IndexSet.Search(new SearchQuery(".git", NameMatchMode.Exact))
             .Select(entry => entry.Parent!.Value.Name), Is.EquivalentTo(["repo", "after-cancellation"]));
     }
 
@@ -290,8 +290,8 @@ public class IndexVolumeChangeSourceFaultTests
             CatchUpOnStart = true,
             StartFailure = drive => drive == 'X' ? new IOException("start refused") : null
         };
-        var index = await files.OpenMftIndexAsync(scripted, 'X', 'Y');
-        var owner = PackedIndexFixture.Owner(index, "X", "Y");
+        var indices = await files.OpenMftIndicesAsync(scripted, 'X', 'Y');
+        var owner = PackedIndexFixture.Owner(indices, "X", "Y");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         var failures = new ConcurrentQueue<(string Drive, string Message)>();
         source.DriveFailed += (drive, message) => failures.Enqueue((drive, message));
@@ -315,8 +315,8 @@ public class IndexVolumeChangeSourceFaultTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(healthy!.State, Is.EqualTo(VolumeWatchState.CaughtUp));
-            Assert.That(index.Drives.Select(drive => drive.State), Is.All.EqualTo(DriveState.Ready));
-            Assert.That(index.Search(new SearchQuery(".git", NameMatchMode.Exact)).ToArray(), Has.Length.EqualTo(2));
+            Assert.That(indices.Select(index => index.Status.State), Is.All.EqualTo(RootState.Ready));
+            Assert.That(owner.IndexSet.Search(new SearchQuery(".git", NameMatchMode.Exact)).ToArray(), Has.Length.EqualTo(2));
         }
     }
 
@@ -333,7 +333,7 @@ public class IndexVolumeChangeSourceFaultTests
 
         var arming = source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
-        scripted.WatchFor('X').FailDrive(new IOException("X failed during catch-up"));
+        scripted.WatchFor('X').FailVolume(new IOException("X failed during catch-up"));
         await scripted.WaitForStartAsync('X', 2, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
         await scripted.WatchFor('X').PublishCaughtUpAsync();
 
@@ -430,7 +430,7 @@ public class IndexVolumeChangeSourceFaultTests
             files.AddMarker("repo");
             var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
             var names = drives.Select(drive => drive.ToString()).ToArray();
-            var index = await files.OpenMftIndexAsync(scripted, drives);
+            var index = await files.OpenMftIndicesAsync(scripted, drives);
             if (beforeRescan is not null)
             {
                 files.BeforeProduceAsync = (_, token) => beforeRescan(token);
@@ -450,7 +450,7 @@ public class IndexVolumeChangeSourceFaultTests
             switch (kind)
             {
                 case "drive":
-                    Scripted.WatchFor(drive).FailDrive(new IOException($"{drive} failed"));
+                    Scripted.WatchFor(drive).FailVolume(new IOException($"{drive} failed"));
                     break;
                 case "apply":
                     Scripted.WatchFor(drive).FailApply(new IOException($"{drive} apply failed"));
@@ -476,7 +476,7 @@ public class IndexVolumeChangeSourceFaultTests
             return PendingRead.WaitAsync(TestTimeouts.HangGuard);
         }
 
-        public DriveStatus StatusOf(char drive) => Owner.Index.Drives.Single(status => status.Drive == drive);
+        public RootStatus StatusOf(char drive) => Owner.Indices.Select(owned => owned.Status).Single(status => status.Root == new VolumeKey(drive));
 
         public VolumeWatchState? ReadinessOf(char drive) =>
             Source.Readiness.TryGet(drive.ToString(), out var status) ? status.State : null;

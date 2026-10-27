@@ -13,12 +13,12 @@ sealed class IndexCacheFixture : IDisposable
     readonly PackedIndexFixture _files = new();
     public string Home { get; }
     public string Cache { get; }
-    public string OwnedPath => SyntheticBlock.CachedPath(Cache, 'X', 1);
-    public string FreePath => SyntheticBlock.CachedPath(Cache, 'Y', 1);
+    public string OwnedPath => SyntheticBlock.CachedPath(Cache, new VolumeKey('X'), 1);
+    public string FreePath => SyntheticBlock.CachedPath(Cache, new VolumeKey('Y'), 1);
     public string LegacyDirectory => Path.Combine(MftIndexCachePolicy.GetCacheRoot(Home), "v1-" + new string('A', 64));
-    public string LegacyPath => SyntheticBlock.CachedPath(LegacyDirectory, 'Y', 1);
+    public string LegacyPath => SyntheticBlock.CachedPath(LegacyDirectory, new VolumeKey('Y'), 1);
     public string UnknownDirectory => Path.Combine(MftIndexCachePolicy.GetCacheRoot(Home), "unrecognized");
-    public string UnknownPath => SyntheticBlock.CachedPath(UnknownDirectory, 'Z', 1);
+    public string UnknownPath => SyntheticBlock.CachedPath(UnknownDirectory, new VolumeKey('Z'), 1);
 
     public IndexCacheFixture(string? home = null)
     {
@@ -31,7 +31,7 @@ sealed class IndexCacheFixture : IDisposable
 
     public Task<FileIndex> OpenOwnerAsync() => FileIndex.OpenAsync(new FileIndexOptions
     {
-        Drives = [new IndexedDrive('X', _files.TreePath, 1, ProducerKind.Enumeration)],
+        Root = SyntheticIndexedRoot.Create(new VolumeKey('X'), _files.TreePath, 1, ProducerKind.Enumeration),
         CacheDirectory = Cache
     }, CancellationToken.None);
 

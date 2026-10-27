@@ -11,11 +11,10 @@ public sealed partial class MftIndexSession
                 return null;
             }
 
-            var identities = IndexedDrives.ToDictionary(
-                drive => drive.Drive.Letter);
-            var rows = CaptureDriveStatuses().Select(drive => new MftActiveCacheDrive(
-                drive, drive.Drive.Length > 0 && identities.TryGetValue(
-                    char.ToUpperInvariant(drive.Drive[0]), out var identity)
+            var identities = IndexedRoots.ToDictionary(root => root.Root);
+            var rows = CaptureRootStatuses().Select(drive => new MftActiveCacheRoot(
+                drive, RootKeyProjection.ParseRootKeys([drive.Drive]) is [var root] &&
+                    identities.TryGetValue(root, out var identity)
                     ? identity.VolumeSerial : null)).ToArray();
             return new MftActiveCacheSession(_cacheDirectory, Array.AsReadOnly(rows));
         }

@@ -22,7 +22,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         files.AddMarker("oldrepo");
         files.AddMarker("keptrepo");
         var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
-        var owner = PackedIndexFixture.Owner(await files.OpenMftIndexAsync(scripted, 'X', 'Y'), "X", "Y");
+        var owner = PackedIndexFixture.Owner(await files.OpenMftIndicesAsync(scripted, 'X', 'Y'), "X", "Y");
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         files.BeforeProduceAsync = (_, token) => release.Task.WaitAsync(token);
         var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
@@ -43,8 +43,8 @@ public class IndexVolumeChangeSourceRecoveryTests
                 recoveredCaughtUp.TrySetResult();
             }
         };
-        scripted.WatchFor('X').FailDrive(new IOException("X failed"));
-        await WaitUntilAsync(() => owner.Index.Drives.Single(drive => drive.Drive == 'X').Watch.State ==
+        scripted.WatchFor('X').FailVolume(new IOException("X failed"));
+        await WaitUntilAsync(() => owner.Indices.Select(owned => owned.Status).Single(drive => drive.Root == new VolumeKey('X')).Watch.State ==
                                    WatchState.Recovering);
         Directory.Delete(Path.Combine(files.TreePath, "oldrepo"), recursive: true);
         files.AddMarker("newrepo");
@@ -98,8 +98,8 @@ public class IndexVolumeChangeSourceRecoveryTests
             }
         };
 
-        scripted.WatchFor('X').FailDrive(new IOException("X failed"));
-        await WaitUntilAsync(() => owner.Index.Drives.Single().Watch.State == WatchState.Recovering);
+        scripted.WatchFor('X').FailVolume(new IOException("X failed"));
+        await WaitUntilAsync(() => owner.Indices.Single().Status.Watch.State == WatchState.Recovering);
         Directory.Delete(Path.Combine(files.TreePath, "oldrepo"), recursive: true);
         files.AddMarker("newrepo");
         release.SetResult();
@@ -129,17 +129,17 @@ public class IndexVolumeChangeSourceRecoveryTests
             // The recovered block has newrepo; the journal now deletes it. MFTLib applies the
             // batch to the block before it raises Changed, so waiting for the block here
             // means the deletion's delivery is racing the reconciliation.
-            var marker = owner.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single();
+            var marker = owner.IndexSet.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single();
             _ = scripted.WatchFor('X').QueueBatchAsync([PackedIndexFixture.Entry(marker.RecordKey.RecordNumber, marker.Parent!.Value.RecordKey.RecordNumber,
                     ".git", SyntheticJournalReason.FileDelete, directory: true)], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1003));
-            Assert.That(SpinWait.SpinUntil(() => owner.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Count == 0, TestTimeouts.HangGuard), Is.True);
+            Assert.That(SpinWait.SpinUntil(() => owner.IndexSet.Search(new SearchQuery(".git", NameMatchMode.Exact)).Count == 0, TestTimeouts.HangGuard), Is.True);
         };
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         using var cancellation = new CancellationTokenSource(TestTimeouts.HangGuard);
         await using var reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
 
-        scripted.WatchFor('X').FailDrive(new IOException("X failed"));
-        await WaitUntilAsync(() => owner.Index.Drives.Single().Watch.State == WatchState.Recovering);
+        scripted.WatchFor('X').FailVolume(new IOException("X failed"));
+        await WaitUntilAsync(() => owner.Indices.Single().Status.Watch.State == WatchState.Recovering);
         files.AddMarker("newrepo");
         release.SetResult();
 
@@ -205,7 +205,7 @@ public class IndexVolumeChangeSourceRecoveryTests
             Assert.That(await completedBeforeRelease.WaitAsync(TestTimeouts.HangGuard), Is.False,
                     "The arm must not complete before the recovery finishes.");
             Assert.That(result.Errors, Is.Empty);
-            Assert.That(owner.Index.Drives.Single().Watch.State, Is.EqualTo(WatchState.CaughtUp));
+            Assert.That(owner.Indices.Single().Status.Watch.State, Is.EqualTo(WatchState.CaughtUp));
         }
 
         var foundRecovered = source.Readiness.TryGet("X", out var recovered);
@@ -217,8 +217,8 @@ public class IndexVolumeChangeSourceRecoveryTests
         async Task StartupCatchUpSettled(char drive)
         {
             // The drive faults after its first catch-up settled and before the arm reports it.
-            scripted.WatchFor(drive).FailDrive(new IOException("X failed after catching up"));
-            await WaitUntilAsync(() => owner.Index.Drives.Single().Watch.State == WatchState.Recovering);
+            scripted.WatchFor(drive).FailVolume(new IOException("X failed after catching up"));
+            await WaitUntilAsync(() => owner.Indices.Single().Status.Watch.State == WatchState.Recovering);
             // The index reports Recovering before it delivers the state to the source, so the arm
             // could still read the readiness of the superseded catch-up. Hold the arm until the
             // source has published the recovery, which is what this test asserts it follows.
@@ -254,11 +254,11 @@ public class IndexVolumeChangeSourceRecoveryTests
             source.RepositoryMarkerReadingForTest = FailLastPath;
         }
 
-        scripted.WatchFor('X').FailDrive(new IOException("X failed"));
+        scripted.WatchFor('X').FailVolume(new IOException("X failed"));
         await scanStarted.WaitAsync(TestTimeouts.HangGuard);
         source.RepositoryMarkerReadingForTest = failBaseline ? null : FailLastPath;
         release.SetResult();
-        await WaitForRecoveredWorkAsync(source, owner.Index);
+        await WaitForRecoveredWorkAsync(source, owner.Indices.Single());
 
         Assert.That(pathsRead.Select(Path.GetFileName), Is.EqualTo([".git", ".git"]),
             "The failure occurs after one marker has already been materialized.");
@@ -295,7 +295,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         source.StartStartupBuffering();
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var scanStarted = HoldRecoveryScan(files, release.Task);
-        scripted.WatchFor('X').FailDrive(new IOException("X failed"));
+        scripted.WatchFor('X').FailVolume(new IOException("X failed"));
         await scanStarted.WaitAsync(TestTimeouts.HangGuard);
         var pathsRead = new List<string>();
         source.RepositoryMarkerReadingForTest = entry =>
@@ -304,7 +304,7 @@ public class IndexVolumeChangeSourceRecoveryTests
             ObjectDisposedException.ThrowIf(entry.Parent!.Value.Name == "lastrepo", typeof(FileEntry));
         };
         release.SetResult();
-        await WaitForRecoveredWorkAsync(source, owner.Index);
+        await WaitForRecoveredWorkAsync(source, owner.Indices.Single());
 
         Assert.That(pathsRead, Has.Count.EqualTo(2));
         var buffered = source.CompleteStartupBuffer();
@@ -318,7 +318,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         // A later Live event proves disposal was handled as a declined read rather than a stream failure.
         source.RepositoryMarkerReadingForTest = null;
         await using var reader = source.WatchAsync(CancellationToken.None).GetAsyncEnumerator();
-        var marker = owner.Index.Search(new SearchQuery(".git", NameMatchMode.Exact))[0];
+        var marker = owner.IndexSet.Search(new SearchQuery(".git", NameMatchMode.Exact))[0];
         await scripted.WatchFor('X').PublishBatchAsync([
             PackedIndexFixture.Entry(marker.RecordKey.RecordNumber, marker.Parent!.Value.RecordKey.RecordNumber,
                 ".git", SyntheticJournalReason.FileDelete, directory: true)
@@ -340,7 +340,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var scanStarted = HoldRecoveryScan(files, release.Task);
-        scripted.WatchFor('X').FailDrive(new IOException("X failed"));
+        scripted.WatchFor('X').FailVolume(new IOException("X failed"));
         await scanStarted.WaitAsync(TestTimeouts.HangGuard);
         files.AddMarker("newrepo");
         Task? reuseDelivered = null;
@@ -358,7 +358,7 @@ public class IndexVolumeChangeSourceRecoveryTests
                 deletion with { SequenceNumber = 2, FileName = "replacement", Reason = SyntheticJournalReason.FileCreate,
                     Usn = 1002 }
             ], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1003));
-            Assert.That(SpinWait.SpinUntil(() => owner.Index.Search(
+            Assert.That(SpinWait.SpinUntil(() => owner.IndexSet.Search(
                 new SearchQuery("replacement", NameMatchMode.Exact)).Count == 1, TestTimeouts.HangGuard), Is.True);
             var deleted = entry.IsDeleted;
             Assert.That(deleted, Is.True);
@@ -375,7 +375,7 @@ public class IndexVolumeChangeSourceRecoveryTests
             new VolumeChangeEntry(@"X:\supersededrepo\.git", VolumeEntryKind.Deleted),
             new VolumeChangeEntry(@"X:\newrepo\.git", VolumeEntryKind.Created)
         ]));
-        await WaitForRecoveredWorkAsync(source, owner.Index);
+        await WaitForRecoveredWorkAsync(source, owner.Indices.Single());
         var foundReadiness = source.Readiness.TryGet("X", out var readiness);
         Assert.That(foundReadiness, Is.True);
         var readinessState = readiness!.State;
@@ -395,7 +395,7 @@ public class IndexVolumeChangeSourceRecoveryTests
         Assert.That(replacementEntry, Is.EqualTo(
             new VolumeChangeEntry(@"X:\supersededrepo\replacement", VolumeEntryKind.Created)));
 
-        var marker = owner.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single();
+        var marker = owner.IndexSet.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single();
         await scripted.WatchFor('X').PublishBatchAsync([
             PackedIndexFixture.Entry(marker.RecordKey.RecordNumber, marker.Parent!.Value.RecordKey.RecordNumber,
                 ".git", SyntheticJournalReason.FileDelete, directory: true) with { Usn = 1004 }
@@ -420,9 +420,9 @@ public class IndexVolumeChangeSourceRecoveryTests
 
     static async Task WaitForRecoveredWorkAsync(IndexVolumeChangeSource source, FileIndex index)
     {
-        await WaitUntilAsync(() => index.Drives.Single().Watch.State == WatchState.CaughtUp &&
+        await WaitUntilAsync(() => index.Status.Watch.State == WatchState.CaughtUp &&
             source.Readiness.TryGet("X", out var status) &&
-            (status.State == VolumeWatchState.Excluded || status.WatchStateVersion == index.Drives.Single().Watch.StateVersion));
+            (status.State == VolumeWatchState.Excluded || status.WatchStateVersion == index.Status.Watch.StateVersion));
         await source.WaitForCatchUpWorkForTestAsync().WaitAsync(TestTimeouts.HangGuard);
     }
 

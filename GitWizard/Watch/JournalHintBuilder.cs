@@ -17,7 +17,7 @@ static class JournalHintBuilder
 
             JournalCheckpointLossCause.JournalAdvanced => BuildAdvancedHint(loss, watchState, recoveryStopped),
 
-            _ => $"Hint on {loss.Drive}: Checkpoint loss detected."
+            _ => $"Hint on {loss.Volume}: Checkpoint loss detected."
         };
     }
 
@@ -26,15 +26,15 @@ static class JournalHintBuilder
         return loss.DetectedDuring switch
         {
             JournalCheckpointLossDetection.LiveWatch =>
-                $"Hint on {loss.Drive}: The change journal was recreated, so the position " +
+                $"Hint on {loss.Volume}: The change journal was recreated, so the position " +
                 "the watch had reached no longer refers to anything and live updates for this " +
                 $"drive stopped.{BuildRecoveryClause(watchState, recoveryStopped)} No journal size change is needed.",
             JournalCheckpointLossDetection.ScanCatchUp =>
-                $"Hint on {loss.Drive}: The change journal was recreated while the drive " +
+                $"Hint on {loss.Volume}: The change journal was recreated while the drive " +
                 $"was being scanned, so the scan could not catch up.{BuildRecoveryClause(watchState, recoveryStopped)} " +
                 "No journal size change is needed.",
-            JournalCheckpointLossDetection.DriveOpening =>
-                $"Hint on {loss.Drive}: The change journal was recreated, so the saved " +
+            JournalCheckpointLossDetection.RootOpening =>
+                $"Hint on {loss.Volume}: The change journal was recreated, so the saved " +
                 "position no longer refers to anything and a full rescan was needed. " +
                 "Nothing needs changing.",
             _ => throw new ArgumentOutOfRangeException(nameof(loss), loss.DetectedDuring, "Unknown checkpoint loss detection phase.")
@@ -46,15 +46,15 @@ static class JournalHintBuilder
         return loss.DetectedDuring switch
         {
             JournalCheckpointLossDetection.LiveWatch =>
-                $"Hint on {loss.Drive}: The change journal moved while the watch was running, " +
+                $"Hint on {loss.Volume}: The change journal moved while the watch was running, " +
                 $"so live updates for this drive stopped.{BuildRecoveryClause(watchState, recoveryStopped)} " +
                 "No journal size change is needed.",
             JournalCheckpointLossDetection.ScanCatchUp =>
-                $"Hint on {loss.Drive}: The change journal moved while the drive was being " +
+                $"Hint on {loss.Volume}: The change journal moved while the drive was being " +
                 $"scanned, so the scan could not catch up.{BuildRecoveryClause(watchState, recoveryStopped)} " +
                 "No journal size change is needed.",
-            JournalCheckpointLossDetection.DriveOpening =>
-                $"Hint on {loss.Drive}: The change journal moved while the index was closed, " +
+            JournalCheckpointLossDetection.RootOpening =>
+                $"Hint on {loss.Volume}: The change journal moved while the index was closed, " +
                 "so the saved journal position could not be resumed. A full open rescans the drive; " +
                 "a snapshot open keeps the cached index until the next full open. Nothing needs changing.",
             _ => throw new ArgumentOutOfRangeException(nameof(loss), loss.DetectedDuring, "Unknown checkpoint loss detection phase.")
@@ -66,11 +66,11 @@ static class JournalHintBuilder
         var rescan = BuildRescanClause(loss, watchState, recoveryStopped);
         if (loss.SizeThatWouldHaveRetained is not { } suggestedSize)
         {
-            return $"Hint on {loss.Drive}: {rescan}The size that would have avoided this " +
+            return $"Hint on {loss.Volume}: {rescan}The size that would have avoided this " +
                    "rescan is too large to represent, so no new size is suggested.";
         }
 
-        return $"Hint on {loss.Drive}: {rescan}To prevent this, increase the journal size: " +
+        return $"Hint on {loss.Volume}: {rescan}To prevent this, increase the journal size: " +
                $"a journal of at least {ByteSizeFormatter.Format(suggestedSize)} would have avoided " +
                $"this rescan (it was {ByteSizeFormatter.Format(loss.JournalSettings.MaximumSize)} when this was detected).";
     }
@@ -93,7 +93,7 @@ static class JournalHintBuilder
             case JournalCheckpointLossDetection.ScanCatchUp:
                 return "The change journal moved past the position recorded before the drive's scan " +
                        $"while the scan ran, so the scan could not catch up.{BuildRecoveryClause(watchState, recoveryStopped)} ";
-            case JournalCheckpointLossDetection.DriveOpening:
+            case JournalCheckpointLossDetection.RootOpening:
                 return loss.BytesBehind is { } bytesBehind
                     ? $"The last saved position was {ByteSizeFormatter.Format(bytesBehind)} older than " +
                       "the change journal still holds, so a full rescan was needed. "

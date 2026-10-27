@@ -21,7 +21,7 @@ The packed-index port changes how repositories are found; report schema remains 
 Git metadata ownership and the fields below are unchanged. Git repository inspection still
 supplies status, branches, remotes, and commits.
 
-`DiscoveryIndex` is non-serialized, borrowed `FileIndex` query access while the report owns its
+`DiscoveryIndex` is non-serialized, borrowed `FileIndexSet` query access while the report owns its
 `MftIndexSession`. Neither `DiscoveryIndex` nor that resource owner is ever serialized. The
 single owner can transfer from discovery result to report to view model to
 `IndexVolumeChangeSource`, which disposes it when finished. Detaching clears the previous

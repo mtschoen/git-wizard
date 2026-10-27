@@ -94,11 +94,11 @@ public class IndexVolumeChangeSourceWindowsTests
         Assert.That(armResult.Errors, Does.Not.ContainKey(drive));
         var capturedSession = session;
         Assert.That(capturedSession, Is.Not.Null);
-        var status = capturedSession!.Index.Drives.Single(candidate =>
-            char.ToUpperInvariant(candidate.Drive.Letter).ToString() == drive);
+        var status = capturedSession!.Indices.Select(owned => owned.Status).Single(candidate =>
+            candidate.Root.ToString() == drive);
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(status.State, Is.EqualTo(DriveState.Ready));
+            Assert.That(status.State, Is.EqualTo(RootState.Ready));
             Assert.That(status.Watch.IsSupported, Is.True);
             Assert.That(status.Block!.LiveRowCount, Is.GreaterThan(0u));
             Assert.That(status.Watch.FailureMessage, Is.Null);

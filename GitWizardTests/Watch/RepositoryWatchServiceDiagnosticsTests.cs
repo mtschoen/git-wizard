@@ -166,7 +166,7 @@ public class RepositoryWatchServiceDiagnosticsTests
                 Paths = [@"C:\repo"],
                 RequestedNtfsDrives = ["C"],
                 Observations = [],
-                DriveStatuses = [],
+                RootStatuses = [],
                 Errors = new Dictionary<string, string>(),
                 WatchExcludedRoots = []
             };

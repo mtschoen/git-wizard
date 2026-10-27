@@ -42,7 +42,7 @@ public class MainViewModelIndexCacheTests
             Assert.That(File.Exists(files.OwnedPath), Is.True);
             Assert.That(File.Exists(files.FreePath), Is.False);
             Assert.That(File.Exists(files.FreePath + ".lock"), Is.True);
-            Assert.That(owner.Root('X').IsDirectory, Is.True);
+            Assert.That(owner.Root().IsDirectory, Is.True);
         }
     }
 }

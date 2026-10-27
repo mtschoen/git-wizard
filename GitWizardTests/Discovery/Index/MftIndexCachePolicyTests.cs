@@ -37,18 +37,18 @@ public class MftIndexCachePolicyTests
         var version = SyntheticCacheTag.GetVersion(MftIndexCachePolicy.CacheTag);
         await using (var first = await FileIndex.OpenAsync(Options(1, false), CancellationToken.None))
         {
-            Assert.That(first.Drives.Single().Block?.Origin, Is.EqualTo(BlockOrigin.ProducedByScan));
+            Assert.That(first.Status.Block?.Origin, Is.EqualTo(BlockOrigin.ProducedByScan));
         }
 
         await using (var declined = await FileIndex.OpenAsync(Options(version, true), CancellationToken.None))
         {
-            Assert.That(declined.Drives.Single().Failure?.Kind, Is.EqualTo(DriveFailureKind.CacheIdentityMismatch));
+            Assert.That(declined.Status.Failure?.Kind, Is.EqualTo(RootFailureKind.CacheIdentityMismatch));
         }
 
         Assert.That(calls, Is.EqualTo(1));
         await using (var second = await FileIndex.OpenAsync(Options(version, false), CancellationToken.None))
         {
-            Assert.That(second.Drives.Single().Block?.Origin, Is.EqualTo(BlockOrigin.ProducedByScan));
+            Assert.That(second.Status.Block?.Origin, Is.EqualTo(BlockOrigin.ProducedByScan));
         }
 
         using (Assert.EnterMultipleScope())
@@ -61,7 +61,7 @@ public class MftIndexCachePolicyTests
 
         FileIndexOptions Options(uint cacheTagVersion, bool snapshot) => new()
         {
-            Drives = [new IndexedDrive('X', files.TreePath, 1)],
+            Root = SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1),
             CacheDirectory = path,
             CacheTag = new CacheTag(SyntheticCacheTag.GetFourCharacterCode(MftIndexCachePolicy.CacheTag), cacheTagVersion),
             CacheMode = snapshot ? CacheMode.ExistingOnly : CacheMode.Persistent,

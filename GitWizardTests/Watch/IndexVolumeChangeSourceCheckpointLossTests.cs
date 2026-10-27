@@ -34,8 +34,8 @@ public class IndexVolumeChangeSourceCheckpointLossTests
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
         var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
-        var owner = new MftIndexSession(await files.OpenMftIndexAsync(scripted, 'X', 'Y'), null, ["X", "Y"],
-            [new IndexedDrive('X', files.TreePath, 1), new IndexedDrive('Y', files.TreePath, 1)],
+        var owner = new MftIndexSession(await files.OpenMftIndicesAsync(scripted, 'X', 'Y'), null, ["X", "Y"],
+            [SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1), SyntheticIndexedRoot.Create(new VolumeKey('Y'), files.TreePath, 1)],
             new Dictionary<string, string>());
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         files.BeforeProduceAsync = (_, token) => release.Task.WaitAsync(token);
@@ -50,9 +50,9 @@ public class IndexVolumeChangeSourceCheckpointLossTests
             reader = source.WatchAsync(cancellation.Token).GetAsyncEnumerator();
 
             windows['X'] = Lost;
-            scripted.WatchFor('X').FailDrive(new IOException("X journal moved on"));
+            scripted.WatchFor('X').FailVolume(new IOException("X journal moved on"));
             await WaitUntilAsync(() =>
-                owner.Index.Drives.Single(drive => drive.Drive == 'X').Watch.State ==
+                owner.Indices.Select(owned => owned.Status).Single(drive => drive.Root == new VolumeKey('X')).Watch.State ==
                 WatchState.Recovering &&
                 source.Readiness.TryGet("X", out var recovering) &&
                 recovering.State == VolumeWatchState.CatchingUp &&
@@ -85,7 +85,7 @@ public class IndexVolumeChangeSourceCheckpointLossTests
             Assert.That(recovered, Is.True);
             var recoveredBatch = reader.Current;
             Assert.That(recoveredBatch.Volume, Is.EqualTo("X"));
-            var recoveryStartCount = scripted.Starts.Count(start => start.Drive == 'X');
+            var recoveryStartCount = scripted.Starts.Count(start => start.Volume == 'X');
             Assert.That(recoveryStartCount, Is.EqualTo(2));
             // The hint the consumers hold follows the drive to the end of the same episode.
             await VerifyFinalWarningsAsync(warnings);

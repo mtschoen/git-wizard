@@ -1,5 +1,6 @@
 using GitWizard;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests.TestSupport;
 
@@ -58,9 +59,9 @@ sealed class DiscoveryDependencyRecorder : IDisposable
     {
         OpenedDriveSets.Add(drives);
         var driveChars = drives.Select(d => d[0]).ToArray();
-        var index = await IndexFixture.OpenIndexAsync(driveChars).ConfigureAwait(false);
-        var indexedDrives = drives.Select(d => new IndexedDrive(d[0], IndexFixture.TreePath, 1)).ToList();
-        return new MftIndexSession(index, new CountingOwner(), drives, indexedDrives, new Dictionary<string, string>());
+        var indices = await IndexFixture.OpenIndicesAsync(driveChars).ConfigureAwait(false);
+        var indexedDrives = drives.Select(d => SyntheticIndexedRoot.Create(new VolumeKey(d[0]), IndexFixture.TreePath, 1)).ToList();
+        return new MftIndexSession(indices, new CountingOwner(), drives, indexedDrives, new Dictionary<string, string>());
     }
 
     public void Dispose()

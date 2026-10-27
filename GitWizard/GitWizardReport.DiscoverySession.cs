@@ -10,7 +10,7 @@ public partial class GitWizardReport
 
     /// <summary>Borrowed query access, valid while the report owns the discovery session.</summary>
     [JsonIgnore]
-    public FileIndex? DiscoveryIndex => _discoveryIndex?.Index;
+    public FileIndexSet? DiscoveryIndex => _discoveryIndex?.IndexSet;
 
     public MftIndexSession? DetachDiscoveryIndex() => Interlocked.Exchange(ref _discoveryIndex, null);
 

@@ -9,7 +9,7 @@ namespace GitWizardTests.Watch;
 [TestFixture]
 public class JournalHintBuilderTests
 {
-    [TestCase(JournalCheckpointLossDetection.DriveOpening)]
+    [TestCase(JournalCheckpointLossDetection.RootOpening)]
     [TestCase(JournalCheckpointLossDetection.LiveWatch)]
     [TestCase(JournalCheckpointLossDetection.ScanCatchUp)]
     public async Task CheckpointTrimmed_AfterJournalGrowth_ShowsMaximumAtDetection(
@@ -28,7 +28,7 @@ public class JournalHintBuilderTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(source.QueryUsnJournalSettings(loss.Drive).MaximumSize,
+            Assert.That(source.QueryUsnJournalSettings(loss.Volume).MaximumSize,
                     Is.GreaterThan(loss.JournalSettings.MaximumSize));
             Assert.That(hint, Does.StartWith("Hint on D:"));
         }
@@ -54,7 +54,7 @@ public class JournalHintBuilderTests
     [Test]
     public void CheckpointTrimmed_WithoutSize_ReportsLossWithoutSizeOrGrowOffer()
     {
-        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('E', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.DriveOpening, new UsnJournalSettings { MaximumSize = 8L * 1024 * 1024, AllocationDelta = 64 }) with { BytesBehind = 4_000_000, SizeThatWouldHaveRetained = null };
+        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('E', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.RootOpening, new UsnJournalSettings { MaximumSize = 8L * 1024 * 1024, AllocationDelta = 64 }) with { BytesBehind = 4_000_000, SizeThatWouldHaveRetained = null };
 
         var hint = JournalHintBuilder.BuildHint(loss, WatchState.Recovering, false);
 
@@ -68,7 +68,7 @@ public class JournalHintBuilderTests
     [Test]
     public void CheckpointTrimmed_IncludesBytesBehind()
     {
-        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('E', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.DriveOpening, new UsnJournalSettings { MaximumSize = 8L * 1024 * 1024, AllocationDelta = 64 }) with { BytesBehind = 4_000_000, SizeThatWouldHaveRetained = 9_000_000 };
+        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('E', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.RootOpening, new UsnJournalSettings { MaximumSize = 8L * 1024 * 1024, AllocationDelta = 64 }) with { BytesBehind = 4_000_000, SizeThatWouldHaveRetained = 9_000_000 };
 
         var hint = JournalHintBuilder.BuildHint(loss, WatchState.Recovering, false);
 
@@ -166,7 +166,7 @@ public class JournalHintBuilderTests
     [Test]
     public void JournalAdvanced_DriveOpening_ExplainsRescanWithNoSizeOffered()
     {
-        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('F', JournalCheckpointLossCause.JournalAdvanced, JournalCheckpointLossDetection.DriveOpening, new UsnJournalSettings { MaximumSize = 8L * 1024 * 1024, AllocationDelta = 64 });
+        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('F', JournalCheckpointLossCause.JournalAdvanced, JournalCheckpointLossDetection.RootOpening, new UsnJournalSettings { MaximumSize = 8L * 1024 * 1024, AllocationDelta = 64 });
 
         var hint = JournalHintBuilder.BuildHint(loss, WatchState.Recovering, false);
 

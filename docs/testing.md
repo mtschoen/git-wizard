@@ -105,7 +105,7 @@ Central test scaffolding lives in `GitWizardTests/TestSupport/`:
 - `TestViewModels`: Centralized factory methods for `MainViewModel` and `SettingsViewModel` with defaults to prevent scattered stub construction.
 - `ScriptedVolumeChangeSource`: Unified `IVolumeChangeSource` and `IVolumeScanProgress` double for scripted batch delivery, arm gates, failure simulation, and late subscriber death replay.
 - `FakeFanotifyNative` / `FanotifyMarkCall`: Rich in-memory Linux fanotify native mock supporting initialization, descriptor maps, directory opening, marks, read/poll, and handle resolution.
-- `DriveStatuses`: Consistent factory for synthetic `DriveStatus` instances with independent `watchSupported` policy.
+- `RootStatuses`: Consistent factory for synthetic `RootStatus` instances with independent `watchSupported` policy.
 - `TestTimeouts`: Canonical timeouts exposed as get-only properties (`HangGuard` at 10s, `BrokerHangGuard` at 30s, `ShortHangGuard` at 5s).
 - `AsyncCondition`: Deterministic condition poller (`WaitUntilAsync`) reporting poll count, elapsed time, and expression details upon timeout or predicate failure.
 

@@ -32,7 +32,7 @@ public class JournalWarningRefreshTests
         {
             Files.AddMarker("repo");
             var index = await Files.OpenMftIndexAsync(Scripted, 'X');
-            Owner = new MftIndexSession(index, null, ["X"], [new IndexedDrive('X', Files.TreePath, 12345u)],
+            Owner = new MftIndexSession([index], null, ["X"], [SyntheticIndexedRoot.Create(new VolumeKey('X'), Files.TreePath, 12345u)],
                 new Dictionary<string, string>());
             Source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(Owner));
             Source.JournalWarningDetected += _warnings.Enqueue;
@@ -66,7 +66,7 @@ public class JournalWarningRefreshTests
     {
         await using var harness = await StartedHarness(recovers: true);
 
-        harness.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
+        harness.Scripted.WatchFor('X').FailVolume(new IOException("X failed"));
 
         await WaitUntilAsync(() => harness.Warnings.Any(warning => warning.WatchState == WatchState.CaughtUp));
         var warnings = harness.Warnings;
@@ -85,7 +85,7 @@ public class JournalWarningRefreshTests
     {
         await using var harness = await StartedHarness(recovers: true);
 
-        harness.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
+        harness.Scripted.WatchFor('X').FailVolume(new IOException("X failed"));
 
         // Read the snapshot, never the event stream: a subscriber that arrives now sees the end state.
         await WaitUntilAsync(() => harness.Source!.CurrentJournalWarnings.Any(warning => warning.WatchState == WatchState.CaughtUp));
@@ -98,7 +98,7 @@ public class JournalWarningRefreshTests
     {
         await using var harness = await StartedHarness(recovers: false);
 
-        harness.Scripted.WatchFor('X').FailDrive(new IOException("X failed"));
+        harness.Scripted.WatchFor('X').FailVolume(new IOException("X failed"));
 
         await WaitUntilAsync(() => harness.Warnings.Any(warning => warning.IsRecoveryStopped));
         var warnings = harness.Warnings;
@@ -134,7 +134,7 @@ public class JournalWarningRefreshTests
         await harness.ArmAsync();
         var source = harness.Source!;
         var loss = Harness.ScanCatchUpLoss();
-        var drive = harness.Owner!.Index.Drives.Single();
+        var drive = harness.Owner!.Indices.Single().Status;
         var recovering = drive.Watch with { CheckpointLoss = loss, State = WatchState.Recovering, StateVersion = drive.Watch.StateVersion + 1 };
         source.ProcessFaultedDrive(drive with { Watch = recovering }, harness.Owner, new GitWizardConfiguration());
         var dismissed = new GitWizardConfiguration { IgnoredJournalWarnings = [12345u] };

@@ -63,11 +63,11 @@ public static partial class GitWizardApi
         }
 
         MftIndexSession? owner = null;
-        IReadOnlyList<MftDriveStatus>? openedStatuses = null;
+        IReadOnlyList<MftRootStatus>? openedStatuses = null;
         try
         {
             owner = await composition.OpenIndex(drives).ConfigureAwait(false);
-            openedStatuses = owner.CaptureDriveStatuses();
+            openedStatuses = owner.CaptureRootStatuses();
             foreach (var error in owner.ScanErrors)
             {
                 var message = $"MFT scan error on {error.Key}: {error.Value}";
@@ -78,7 +78,7 @@ public static partial class GitWizardApi
             var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, false, []);
             var scope = DiscoveryScope.CreateExpanded(request, (string[])[.. expandedRoots], [], (string[])[.. expandedIgnoredPaths],
                 r => new RootClassification(r, RootFileSystem.Ntfs, WatchPath.Parse(r).Volume, null));
-            var repoCandidates = SelectRepositoryCandidates(owner.Index, scope);
+            var repoCandidates = SelectRepositoryCandidates(owner.IndexSet, scope);
             var candidates = (string[])[.. repoCandidates
                 .Where(c => composition.CandidateExists(c.Path, c.Kind))
                 .Select(c => c.Path)
@@ -92,7 +92,7 @@ public static partial class GitWizardApi
             if (candidates.Length == 0)
             {
                 return new MftDiscoveryResult(false, scanErrors: owner.ScanErrors,
-                    driveStatuses: owner.CaptureDriveStatuses());
+                    driveStatuses: owner.CaptureRootStatuses());
             }
 
             var result = new MftDiscoveryResult(true, owner);

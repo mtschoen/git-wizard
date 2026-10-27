@@ -31,10 +31,10 @@ sealed class PackedIndexFixture : IDisposable
     public SyntheticMftProducer Producer { get; }
 
     /// <summary>Awaited before every production; a test sets it to hold a scan. The producer's own property is init-only, so it forwards here.</summary>
-    public Func<DriveKey, CancellationToken, Task>? BeforeProduceAsync { get; set; }
+    public Func<RootKey, CancellationToken, Task>? BeforeProduceAsync { get; set; }
 
     /// <summary>Answers each catch-up with a loss or null; a test sets it to fault a scan.</summary>
-    public Func<DriveKey, JournalCheckpointLoss?>? CatchUpLoss { get; set; }
+    public Func<RootKey, JournalCheckpointLoss?>? CatchUpLoss { get; set; }
 
     public string AddMarker(string repository, bool isDirectory = true, string markerName = ".git")
     {
@@ -52,20 +52,29 @@ sealed class PackedIndexFixture : IDisposable
         return path;
     }
 
-    public Task<FileIndex> OpenIndexAsync(params char[] drives) => FileIndex.OpenAsync(new FileIndexOptions
+    /// <summary>Opens one enumeration-backed index over the fixture tree for <paramref name="drive" />.</summary>
+    public Task<FileIndex> OpenIndexAsync(char drive = 'X') => FileIndex.OpenAsync(new FileIndexOptions
     {
-        Drives = (IndexedDrive[])[.. (drives.Length == 0 ? ['X'] : drives)
-            .Select(letter => new IndexedDrive(letter, TreePath, 1, ProducerKind.Enumeration))],
+        Root = SyntheticIndexedRoot.Create(new VolumeKey(drive), TreePath, 1, ProducerKind.Enumeration),
         CacheMode = CacheMode.Disabled
     }, CancellationToken.None);
 
-    public Task<FileIndex> OpenMftIndexAsync(ScriptedWatchSource source, params char[] drives) =>
+    /// <summary>Opens one enumeration-backed index per drive, in the order given.</summary>
+    public Task<FileIndex[]> OpenIndicesAsync(params char[] drives) =>
+        Task.WhenAll(drives.Select(drive => OpenIndexAsync(drive)));
+
+    /// <summary>Opens one synthetic-producer index over the fixture tree for <paramref name="drive" />.</summary>
+    public Task<FileIndex> OpenMftIndexAsync(ScriptedWatchSource source, char drive) =>
         FileIndex.OpenAsync(new FileIndexOptions
         {
-            Drives = (IndexedDrive[])[.. drives.Select(letter => new IndexedDrive(letter, TreePath, 1))],
+            Root = SyntheticIndexedRoot.Create(new VolumeKey(drive), TreePath, 1),
             CacheMode = CacheMode.Disabled,
             MftSource = SyntheticIndexSource.Create(Producer, source)
         }, CancellationToken.None);
+
+    /// <summary>Opens one synthetic-producer index per drive, in the order given, all sharing <paramref name="source" />.</summary>
+    public Task<FileIndex[]> OpenMftIndicesAsync(ScriptedWatchSource source, params char[] drives) =>
+        Task.WhenAll(drives.Select(drive => OpenMftIndexAsync(source, drive)));
 
     public const ulong JournalIdentifier = 100;
     public const long NextUsn = 1000;
@@ -116,7 +125,10 @@ sealed class PackedIndexFixture : IDisposable
     }
 
     public static GitWizard.MftIndexSession Owner(FileIndex index, params string[] drives) =>
-        new(index, null, drives, [], new Dictionary<string, string>());
+        new([index], null, drives, [], new Dictionary<string, string>());
+
+    public static GitWizard.MftIndexSession Owner(IReadOnlyList<FileIndex> indices, params string[] drives) =>
+        new(indices, null, drives, [], new Dictionary<string, string>());
 
     public static SyntheticJournalRecord Entry(ulong record, ulong parent, string name, SyntheticJournalReason reason,
         bool directory = false) => new()

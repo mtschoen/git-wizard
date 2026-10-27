@@ -300,11 +300,11 @@ public class ProgramWatchLoopTests
         using var files = new PackedIndexFixture();
         await using var failedIndex = await FileIndex.OpenAsync(new FileIndexOptions
         {
-            Drives = [new IndexedDrive('X', files.TreePath, 1)],
+            Root = SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1),
             CacheMode = CacheMode.Disabled,
             MftSource = SyntheticIndexSource.Create(new SyntheticMftProducer(_ => throw new IOException("cannot scan X")))
         }, CancellationToken.None);
-        var owner = new MftIndexSession(failedIndex, null, ["X"], [], new Dictionary<string, string>());
+        var owner = new MftIndexSession([failedIndex], null, ["X"], [], new Dictionary<string, string>());
         var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         var service = new RepositoryWatchService(
             source,

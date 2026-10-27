@@ -10,7 +10,7 @@ public sealed partial class IndexVolumeChangeSource
     readonly Dictionary<char, string> _startupErrors = [];
 
     internal MftIndexSession? Session { get; private set; }
-    internal FileIndex? Index => Session?.Index;
+    internal FileIndexSet? IndexSet => Session?.IndexSet;
 
     public static IndexVolumeChangeSource CreatePrepared(MftIndexSession owner)
     {
@@ -48,16 +48,18 @@ public sealed partial class IndexVolumeChangeSource
         var upper = char.ToUpperInvariant(drive);
         try
         {
-            var results = await owner.Index.WaitForCatchUpAsync([upper], token).ConfigureAwait(false);
-            switch (results)
+            var index = owner.IndexFor(new VolumeKey(upper))
+                ?? throw new InvalidOperationException($"No index holds drive {upper}.");
+            var result = await index.WaitForCatchUpAsync(token).ConfigureAwait(false);
+            switch (result)
             {
-                case [{ Outcome: DriveOperationOutcome.Succeeded }]:
+                case { Outcome: RootOperationOutcome.Succeeded }:
                     if (StartupCatchUpSettledForTest is not null)
                     {
                         await StartupCatchUpSettledForTest(upper).ConfigureAwait(false);
                     }
                     break;
-                case [{ Outcome: DriveOperationOutcome.Failed, Failure: var failure }]:
+                case { Outcome: RootOperationOutcome.Failed, Failure: var failure }:
                     GitWizardLog.Log($"Live watch on {upper}: catch-up wait ended without catching up: " +
                         failure?.Message, GitWizardLog.LogType.Verbose);
                     break;

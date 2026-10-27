@@ -15,7 +15,7 @@ sealed class BareLayoutIndex
     public bool Contains(FileEntry directory) => _directories.Contains(directory);
 
     public static BareLayoutIndex Build(
-        FileIndex index, CandidateSelectionDiagnostics? diagnostics, CancellationToken cancellationToken)
+        FileIndexSet index, CandidateSelectionDiagnostics? diagnostics, CancellationToken cancellationToken)
     {
         var withObjects = ParentsOfDirectoriesNamed(index, "objects", diagnostics, cancellationToken);
         var withRefs = ParentsOfDirectoriesNamed(index, "refs", diagnostics, cancellationToken);
@@ -24,7 +24,7 @@ sealed class BareLayoutIndex
     }
 
     static HashSet<FileEntry> ParentsOfDirectoriesNamed(
-        FileIndex index, string name, CandidateSelectionDiagnostics? diagnostics, CancellationToken cancellationToken)
+        FileIndexSet index, string name, CandidateSelectionDiagnostics? diagnostics, CancellationToken cancellationToken)
     {
         var parents = new HashSet<FileEntry>();
         foreach (var entry in GitWizardApi.ScanByName(index, name, diagnostics, cancellationToken))

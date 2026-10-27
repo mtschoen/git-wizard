@@ -16,8 +16,8 @@ sealed class FakeJournalSettingsSource : IVolumeChangeSource, IUsnJournalGrower
     };
     public List<JournalCheckpointLoss> CheckpointLosses { get; } =
     [
-        SyntheticNotifications.CreateJournalCheckpointLoss('C', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.DriveOpening, new UsnJournalSettings { MaximumSize = 32L * 1024 * 1024, AllocationDelta = 8 * 1024 * 1024 }) with { BytesBehind = 32L * 1024 * 1024, SizeThatWouldHaveRetained = 130L * 1024 * 1024 },
-        SyntheticNotifications.CreateJournalCheckpointLoss('D', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.DriveOpening, new UsnJournalSettings { MaximumSize = 64L * 1024 * 1024, AllocationDelta = 8 * 1024 * 1024 }) with { BytesBehind = 64L * 1024 * 1024, SizeThatWouldHaveRetained = 200L * 1024 * 1024 }
+        SyntheticNotifications.CreateJournalCheckpointLoss('C', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.RootOpening, new UsnJournalSettings { MaximumSize = 32L * 1024 * 1024, AllocationDelta = 8 * 1024 * 1024 }) with { BytesBehind = 32L * 1024 * 1024, SizeThatWouldHaveRetained = 130L * 1024 * 1024 },
+        SyntheticNotifications.CreateJournalCheckpointLoss('D', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.RootOpening, new UsnJournalSettings { MaximumSize = 64L * 1024 * 1024, AllocationDelta = 8 * 1024 * 1024 }) with { BytesBehind = 64L * 1024 * 1024, SizeThatWouldHaveRetained = 200L * 1024 * 1024 }
     ];
     public Task Started => _changes.Started;
     public TaskCompletionSource GrowEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -38,8 +38,8 @@ sealed class FakeJournalSettingsSource : IVolumeChangeSource, IUsnJournalGrower
         var warnings = CheckpointLosses
             .Select(loss => new JournalWarning
             {
-                DriveLetter = loss.Drive.ToString(),
-                VolumeSerial = VolumeSerials[loss.Drive.Letter],
+                DriveLetter = loss.Volume.ToString(),
+                VolumeSerial = VolumeSerials[loss.Volume.Letter],
                 Loss = loss
             }).ToArray();
         if (CompleteAfterArm)
@@ -51,10 +51,10 @@ sealed class FakeJournalSettingsSource : IVolumeChangeSource, IUsnJournalGrower
     }
 
     public IAsyncEnumerable<VolumeChangeBatch> WatchAsync(CancellationToken ct) => _changes.WatchAsync(ct);
-    public UsnJournalSettings QueryUsnJournalSettings(DriveKey drive) => Settings[drive.Letter];
+    public UsnJournalSettings QueryUsnJournalSettings(VolumeKey volume) => Settings[volume.Letter];
 
     public async Task<UsnJournalSettings> GrowUsnJournalAsync(
-        DriveKey drive, UsnJournalSettings target, CancellationToken cancellationToken)
+        VolumeKey volume, UsnJournalSettings target, CancellationToken cancellationToken)
     {
         GrowCalls++;
         RequestedGrowthTarget = target;
@@ -70,7 +70,7 @@ sealed class FakeJournalSettingsSource : IVolumeChangeSource, IUsnJournalGrower
         }
 
         var result = new UsnJournalSettings { MaximumSize = target.MaximumSize + target.AllocationDelta, AllocationDelta = target.AllocationDelta };
-        Settings[drive.Letter] = result;
+        Settings[volume.Letter] = result;
         return result;
     }
 
@@ -78,9 +78,9 @@ sealed class FakeJournalSettingsSource : IVolumeChangeSource, IUsnJournalGrower
 
     public static JournalCheckpointLoss TrimmedLoss(char driveLetter, long maximumSize, long suggestedSize,
         long allocationDelta = 8 * 1024 * 1024,
-        JournalCheckpointLossDetection detectedDuring = JournalCheckpointLossDetection.DriveOpening) => SyntheticNotifications.CreateJournalCheckpointLoss(driveLetter, JournalCheckpointLossCause.CheckpointTrimmed, detectedDuring, new UsnJournalSettings { MaximumSize = maximumSize, AllocationDelta = allocationDelta }) with { BytesBehind = maximumSize, SizeThatWouldHaveRetained = suggestedSize };
+        JournalCheckpointLossDetection detectedDuring = JournalCheckpointLossDetection.RootOpening) => SyntheticNotifications.CreateJournalCheckpointLoss(driveLetter, JournalCheckpointLossCause.CheckpointTrimmed, detectedDuring, new UsnJournalSettings { MaximumSize = maximumSize, AllocationDelta = allocationDelta }) with { BytesBehind = maximumSize, SizeThatWouldHaveRetained = suggestedSize };
 
     public static JournalCheckpointLoss RecreatedLoss(char driveLetter, long maximumSize,
         long allocationDelta = 8 * 1024 * 1024,
-        JournalCheckpointLossDetection detectedDuring = JournalCheckpointLossDetection.DriveOpening) => SyntheticNotifications.CreateJournalCheckpointLoss(driveLetter, JournalCheckpointLossCause.JournalRecreated, detectedDuring, new UsnJournalSettings { MaximumSize = maximumSize, AllocationDelta = allocationDelta });
+        JournalCheckpointLossDetection detectedDuring = JournalCheckpointLossDetection.RootOpening) => SyntheticNotifications.CreateJournalCheckpointLoss(driveLetter, JournalCheckpointLossCause.JournalRecreated, detectedDuring, new UsnJournalSettings { MaximumSize = maximumSize, AllocationDelta = allocationDelta });
 }

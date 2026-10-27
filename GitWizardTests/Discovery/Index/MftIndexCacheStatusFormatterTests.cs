@@ -44,11 +44,11 @@ public class MftIndexCacheStatusFormatterTests
         var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         await using var index = await FileIndex.OpenAsync(new FileIndexOptions
         {
-            Drives = [new IndexedDrive('X', files.TreePath, 1, ProducerKind.Enumeration)],
+            Root = SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1, ProducerKind.Enumeration),
             CacheDirectory = cache
         }, CancellationToken.None);
         var active = new MftActiveCacheSession(sameDirectory ? cache : files.BlockDirectory,
-            [new MftActiveCacheDrive(new MftDriveStatus("X", index.Drives.Single(), null), serial)]);
+            [new MftActiveCacheRoot(new MftRootStatus("X", index.Status, null), serial)]);
         var service = new MftIndexCacheInspection(new FrozenCacheClock(), true,
             MftIndexCacheInspection.InspectDirectory);
         var text = MftIndexCacheStatusFormatter.Format(service.Capture(files.DirectoryPath, [active]));
@@ -69,17 +69,17 @@ public class MftIndexCacheStatusFormatterTests
     {
         using var files = new PackedIndexFixture();
         await using var index = await files.OpenIndexAsync();
-        var drive = index.Drives.Single();
+        var drive = index.Status;
         var status = drive with
         {
-            State = refused ? DriveState.Failed : DriveState.Ready,
-            Failure = refused ? SyntheticNotifications.CreateDriveFailure(DriveFailureKind.InUse, "In-use index refusal") : null,
+            State = refused ? RootState.Failed : RootState.Ready,
+            Failure = refused ? SyntheticNotifications.CreateRootFailure(RootFailureKind.InUse, "In-use index refusal") : null,
             Block = refused ? null : drive.Block! with { CacheLocation = null },
             Watch = drive.Watch with { FailureMessage = refused ? null : "watch stopped" }
         };
         var directory = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         var active = new MftActiveCacheSession(directory,
-            [new MftActiveCacheDrive(new MftDriveStatus("X", status, null), 1)]);
+            [new MftActiveCacheRoot(new MftRootStatus("X", status, null), 1)]);
         var snapshot = new MftIndexCacheInspection(new FrozenCacheClock(), true,
             _ => []).Capture(files.DirectoryPath, [active]);
         var text = MftIndexCacheStatusFormatter.Format(snapshot);

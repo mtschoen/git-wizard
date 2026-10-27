@@ -65,7 +65,7 @@ public static class MftIndexCacheStatusFormatter
     {
         var owned = snapshot.Sessions.SelectMany(session => session.Drives).Any(active =>
             active.VolumeSerial == row.File.VolumeSerial &&
-            active.Drive.IndexStatus?.Drive == row.File.Drive &&
+            active.Drive.IndexStatus?.Root == row.File.Root &&
             active.Drive.IndexStatus.Block?.CacheLocation == CacheLocation.OwnedCanonical);
         var availability = row.Availability.ToString();
         if (row.Availability == CachedBlockAvailability.InUse)
@@ -73,14 +73,14 @@ public static class MftIndexCacheStatusFormatter
             availability = owned ? "InUse; this session owns the cache" : "in use; holder identity unavailable";
         }
 
-        lines.Add($"Drive {row.File.Drive}: serial {row.File.VolumeSerial:X8}; {availability}");
+        lines.Add($"Drive {row.File.Root}: serial {row.File.VolumeSerial:X8}; {availability}");
         lines.Add($"  Size: {row.File.Size.ToString(CultureInfo.InvariantCulture)} bytes");
         lines.Add($"  Directory-entry last-write UTC: {row.File.LastWriteTime:O}; age: {Age(row.File.LastWriteTime, snapshot.ObservedAt)}");
         lines.Add($"  Validation: {row.Validation?.ToString() ?? "unavailable"}; producer: {row.ProducerKind?.ToString() ?? "unavailable"}");
         lines.Add($"  Cache tag: stored {row.CacheTag?.ToString() ?? "unavailable"}; requested {snapshot.RequestedCacheTag}");
     }
 
-    static void AddSession(List<string> lines, MftActiveCacheDrive row)
+    static void AddSession(List<string> lines, MftActiveCacheRoot row)
     {
         lines.Add($"Active session drive {row.Drive.Drive}: serial {row.VolumeSerial?.ToString("X8", CultureInfo.InvariantCulture) ?? "unavailable"}");
         if (row.Drive.IndexStatus is not { } status)

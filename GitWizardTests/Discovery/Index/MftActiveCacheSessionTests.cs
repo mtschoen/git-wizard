@@ -2,6 +2,7 @@ using GitWizard;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
 using MFTLib.Index;
+using MFTLibTestExtensions;
 
 namespace GitWizardTests;
 
@@ -11,13 +12,13 @@ public class MftActiveCacheSessionTests
     public async Task CaptureUsesIdentityAndDoesNotTransferOwner()
     {
         using var files = new PackedIndexFixture();
-        var drives = new[] { new IndexedDrive('X', files.TreePath, 42, ProducerKind.Enumeration) };
+        var drive = SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 42, ProducerKind.Enumeration);
         var index = await FileIndex.OpenAsync(new FileIndexOptions
         {
-            Drives = drives,
+            Root = drive,
             CacheDirectory = files.BlockDirectory
         }, CancellationToken.None);
-        var session = new MftIndexSession(index, null, ["X"], drives,
+        var session = new MftIndexSession([index], null, ["X"], [drive],
             new Dictionary<string, string>(), files.BlockDirectory);
         var source = new IndexVolumeChangeSource(
             (_, _, _) => throw new AssertionException("Inventory opened a session"), session);
@@ -29,7 +30,7 @@ public class MftActiveCacheSessionTests
             Assert.That(captured.Drives.Single().VolumeSerial, Is.EqualTo(42));
             Assert.That(captured.Drives.Single().Drive.IndexStatus!.Block?.CacheLocation,
                 Is.EqualTo(CacheLocation.OwnedCanonical));
-            Assert.That(index.Root('X').IsDirectory, Is.True);
+            Assert.That(index.Root().IsDirectory, Is.True);
         }
         await source.DisposeAsync();
         using (Assert.EnterMultipleScope())

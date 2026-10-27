@@ -1,5 +1,5 @@
 namespace GitWizard;
 
-public sealed record MftActiveCacheDrive(MftDriveStatus Drive, uint? VolumeSerial);
+public sealed record MftActiveCacheRoot(MftRootStatus Drive, uint? VolumeSerial);
 public sealed record MftActiveCacheSession(
-    string CacheDirectory, IReadOnlyList<MftActiveCacheDrive> Drives);
+    string CacheDirectory, IReadOnlyList<MftActiveCacheRoot> Drives);

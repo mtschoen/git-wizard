@@ -73,7 +73,7 @@ public sealed class DiscoveryScope
     {
         var classifications = new List<RootClassification>();
         var errors = new Dictionary<string, string>(initialErrors ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
-        var requestedNtfsDrives = new HashSet<DriveKey>();
+        var requestedNtfsDrives = new HashSet<RootKey>();
         var recursiveRoots = new List<string>();
         var watchExcludedRoots = new List<string>();
 
@@ -111,7 +111,7 @@ public sealed class DiscoveryScope
         // Retained roots are exact roots; classify them for NTFS journal watch inclusion
         classifications.AddRange(ClassifyRetainedRoots(request, retainedRoots, classify, requestedNtfsDrives, watchExcludedRoots, errors));
 
-        var sortedDrives = requestedNtfsDrives.OrderBy(drive => drive.Letter)
+        var sortedDrives = requestedNtfsDrives.Order()
             .Select(drive => drive.ToString()).ToArray();
 
         return new DiscoveryScope(
@@ -133,7 +133,7 @@ public sealed class DiscoveryScope
         DiscoveryRequest request,
         IReadOnlyList<string> retainedRoots,
         Func<string, RootClassification> classify,
-        HashSet<DriveKey> requestedNtfsDrives,
+        HashSet<RootKey> requestedNtfsDrives,
         List<string> watchExcludedRoots,
         Dictionary<string, string> errors)
     {
@@ -160,13 +160,10 @@ public sealed class DiscoveryScope
         return classifications;
     }
 
-    static void AddNtfsDrive(RootClassification classification, string root, HashSet<DriveKey> requestedNtfsDrives)
+    static void AddNtfsDrive(RootClassification classification, string root, HashSet<RootKey> requestedNtfsDrives)
     {
         var pathOrDrive = (classification.NtfsDrive ?? root).Trim();
         var volume = WatchPath.Parse(pathOrDrive).Volume ?? pathOrDrive;
-        if (DriveKey.TryParse(volume, out var drive))
-        {
-            requestedNtfsDrives.Add(drive);
-        }
+        requestedNtfsDrives.UnionWith(RootKeyProjection.ParseRootKeys([volume]));
     }
 }

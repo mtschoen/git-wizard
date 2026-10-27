@@ -12,8 +12,8 @@ namespace GitWizardTests.Watch;
 public class IndexVolumeChangeSourceReadinessTests
 {
 
-    static MftIndexSession Owner(FileIndex index, params string[] drives) =>
-        new(index, null, drives, [], new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+    static MftIndexSession Owner(IReadOnlyList<FileIndex> indices, params string[] drives) =>
+        new(indices, null, drives, [], new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
 
     [Test]
     public async Task ReadinessFollowsPerDriveCatchUpMarkers()
@@ -21,7 +21,7 @@ public class IndexVolumeChangeSourceReadinessTests
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
         var scripted = new ScriptedWatchSource();
-        var owner = Owner(await files.OpenMftIndexAsync(scripted, 'X', 'Y'), "X", "Y");
+        var owner = Owner(await files.OpenMftIndicesAsync(scripted, 'X', 'Y'), "X", "Y");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         var snapshots = new List<VolumeReadinessSnapshot>();
         source.ReadinessChanged += snapshots.Add;
@@ -83,8 +83,8 @@ public class IndexVolumeChangeSourceReadinessTests
                 new UsnJournalSettings { MaximumSize = 1024, AllocationDelta = 64 }), 1000, 2000, 3000);
         files.CatchUpLoss = _ => Interlocked.Exchange(ref lossPending, 0) == 1 ? retained : null;
         var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
-        var owner = new MftIndexSession(await files.OpenMftIndexAsync(scripted, 'X'), null, ["X"],
-            [new IndexedDrive('X', files.TreePath, 12345u)], new Dictionary<string, string>());
+        var owner = new MftIndexSession([await files.OpenMftIndexAsync(scripted, 'X')], null, ["X"],
+            [SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 12345u)], new Dictionary<string, string>());
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         var result = await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         // The returned retained-loss hint describes the drive after catch-up, not before watching started.
@@ -111,11 +111,11 @@ public class IndexVolumeChangeSourceReadinessTests
         using var files = new PackedIndexFixture();
         await using var failedIndex = await FileIndex.OpenAsync(new FileIndexOptions
         {
-            Drives = [new IndexedDrive('X', files.TreePath, 1)],
+            Root = SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1),
             CacheMode = CacheMode.Disabled,
             MftSource = SyntheticIndexSource.Create(new SyntheticMftProducer(_ => throw new IOException("cannot scan X")))
         }, CancellationToken.None);
-        var owner = Owner(failedIndex, "X");
+        var owner = Owner([failedIndex], "X");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         var status = source.Readiness.Volumes.Single();
@@ -134,7 +134,7 @@ public class IndexVolumeChangeSourceReadinessTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
-        var owner = Owner(await files.OpenIndexAsync('X'), "X");
+        var owner = Owner([await files.OpenIndexAsync()], "X");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         var status = source.Readiness.Volumes.Single();
@@ -151,7 +151,7 @@ public class IndexVolumeChangeSourceReadinessTests
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
         var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
-        var owner = Owner(await files.OpenMftIndexAsync(scripted, 'X', 'Y'), "X", "Y");
+        var owner = Owner(await files.OpenMftIndicesAsync(scripted, 'X', 'Y'), "X", "Y");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
         Assert.That(source.Readiness.CaughtUpVolumes, Is.EquivalentTo(["X", "Y"]));
@@ -175,7 +175,7 @@ public class IndexVolumeChangeSourceReadinessTests
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
         var scripted = new ScriptedWatchSource();
-        var owner = Owner(await files.OpenMftIndexAsync(scripted, 'X', 'Y'), "X", "Y");
+        var owner = Owner(await files.OpenMftIndicesAsync(scripted, 'X', 'Y'), "X", "Y");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         var snapshots = new List<VolumeReadinessSnapshot>();
         var lockObj = new object();

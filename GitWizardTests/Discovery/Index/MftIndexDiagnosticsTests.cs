@@ -51,13 +51,13 @@ public class MftIndexDiagnosticsTests
         using var files = new PackedIndexFixture();
         var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         Directory.CreateDirectory(cache);
-        var retired = SyntheticBlock.CachedPath(cache, 'X', 1) + ".retired-test";
+        var retired = SyntheticBlock.CachedPath(cache, new VolumeKey('X'), 1) + ".retired-test";
         await File.WriteAllTextAsync(retired, "retired sentinel");
         var messages = new ConcurrentQueue<string>();
         var relay = new MftIndexDiagnostics(messages.Enqueue);
         await using (await FileIndex.OpenAsync(new FileIndexOptions
         {
-            Drives = [new IndexedDrive('X', files.TreePath, 1)],
+            Root = SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1),
             CacheDirectory = cache,
             CacheTag = MftIndexCachePolicy.CacheTag,
             MftSource = SyntheticIndexSource.Create(files.Producer),
@@ -78,7 +78,7 @@ public class MftIndexDiagnosticsTests
         await using var broker = new BlockBrokerFixture();
         var cache = MftIndexCachePolicy.GetCacheDirectory(broker.CacheDirectory);
         Directory.CreateDirectory(cache);
-        var retired = SyntheticBlock.CachedPath(cache, 'X', 1) + ".retired-test";
+        var retired = SyntheticBlock.CachedPath(cache, new VolumeKey('X'), 1) + ".retired-test";
         await File.WriteAllTextAsync(retired, "retired sentinel");
         var messages = new ConcurrentQueue<string>();
         var previousMethod = GitWizardLog.LogMethod;

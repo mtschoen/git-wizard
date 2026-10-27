@@ -26,13 +26,13 @@ public sealed partial class IndexVolumeChangeSource
         }
     }
 
-    internal void ProcessArmedDrive(DriveStatus drive, GitWizardConfiguration configuration,
+    internal void ProcessArmedDrive(RootStatus drive, GitWizardConfiguration configuration,
         Dictionary<string, string> errors, List<JournalWarning> warnings, CancellationToken cancellationToken)
     {
         var owner = Session ?? throw new InvalidOperationException("No index session available.");
-        if (drive.State is DriveState.Failed or DriveState.Offline)
+        if (drive.State is RootState.Failed or RootState.Offline)
         {
-            errors[drive.Drive.ToString()] = drive.Failure?.Message ?? $"Drive is {drive.State}.";
+            errors[drive.Root.ToString()] = drive.Failure?.Message ?? $"Drive is {drive.State}.";
             // A cache-declined drive keeps its CheckpointLoss so the hint can explain the
             // discarded checkpoint even though the drive is not being watched.
             AddJournalWarning(drive, owner, configuration, warnings);
@@ -44,12 +44,13 @@ public sealed partial class IndexVolumeChangeSource
             return;
         }
 
-        var letter = drive.Drive.Letter;
+        var letter = drive.Root.VolumeLetter();
         AddUsableDrive(letter);
         // Cache the drive's real indexed root directory so OnChanged can rewrite a live
         // change's path back onto this drive's own "<letter>:\" form, regardless of
-        // whether IndexedDrive.RootDirectory is the drive root (MFTLib #143).
-        _driveRealRoots[letter] = owner.Index.Root(drive.Drive, cancellationToken).Path;
+        // whether IndexedRoot.RootDirectory is the drive root (MFTLib #143).
+        _driveRealRoots[letter] = (owner.IndexFor(drive.Root)
+            ?? throw new InvalidOperationException($"No index holds root {drive.Root}.")).Root(cancellationToken).Path;
 
         AddJournalWarning(drive, owner, configuration, warnings);
     }
@@ -60,8 +61,7 @@ public sealed partial class IndexVolumeChangeSource
     void RaiseFaultJournalWarning(char driveLetter)
     {
         var owner = Session;
-        var drive = owner?.Index.Drives.FirstOrDefault(candidate =>
-            candidate.Drive.Letter == driveLetter);
+        var drive = owner?.IndexFor(new VolumeKey(driveLetter))?.Status;
         if (owner is null || drive is null)
         {
             return;
@@ -77,14 +77,14 @@ public sealed partial class IndexVolumeChangeSource
     // unrelated fault leaves it, and this event, untouched. A retained report instance already
     // raised for the drive is not raised again; distinct report instances (such as successive
     // journal recreations with identical fields) represent new loss episodes and are raised.
-    internal void ProcessFaultedDrive(DriveStatus drive, MftIndexSession owner, GitWizardConfiguration configuration)
+    internal void ProcessFaultedDrive(RootStatus drive, MftIndexSession owner, GitWizardConfiguration configuration)
     {
         if (drive.Watch.CheckpointLoss is not { DetectedDuring: JournalCheckpointLossDetection.LiveWatch or JournalCheckpointLossDetection.ScanCatchUp })
         {
             return;
         }
 
-        var letter = drive.Drive.Letter;
+        var letter = drive.Root.VolumeLetter();
         if (_raisedFaultLosses.TryGetValue(letter, out var raised) && ReferenceEquals(raised, drive.Watch.CheckpointLoss))
         {
             // The same episode: only the drive's recovery state can have moved on.
@@ -113,7 +113,7 @@ public sealed partial class IndexVolumeChangeSource
     // never keeps describing a recovery that has since finished or stopped. The loss instance is
     // the episode: a state change carrying another loss is a new episode for the fault path, an
     // episode the user dismissed stays dismissed, and a stale version never overwrites a newer one.
-    internal void RefreshJournalWarning(char letter, DriveWatchStatus watch, GitWizardConfiguration configuration)
+    internal void RefreshJournalWarning(char letter, RootWatchStatus watch, GitWizardConfiguration configuration)
     {
         lock (_publishedWarningsLock)
         {
@@ -150,9 +150,9 @@ public sealed partial class IndexVolumeChangeSource
         lock (_publishedWarningsLock)
         {
             _publishedWarnings.Clear();
-            foreach (var drive in owner.Index.Drives)
+            foreach (var drive in owner.Indices.Select(index => index.Status))
             {
-                var isFailed = drive.State is DriveState.Failed or DriveState.Offline;
+                var isFailed = drive.State is RootState.Failed or RootState.Offline;
                 if (!isFailed && !drive.Watch.IsSupported)
                 {
                     continue;
@@ -164,14 +164,14 @@ public sealed partial class IndexVolumeChangeSource
                 }
 
                 warnings.Add(warning);
-                _publishedWarnings[drive.Drive.Letter] = new PublishedWarning(warning, drive.Watch.StateVersion);
+                _publishedWarnings[drive.Root.VolumeLetter()] = new PublishedWarning(warning, drive.Watch.StateVersion);
             }
         }
         return warnings;
     }
 
     // Called with a state change the source accepted; a drive without a published warning is untouched.
-    void RefreshJournalWarningForState(char driveLetter, DriveWatchStatus watch)
+    void RefreshJournalWarningForState(char driveLetter, RootWatchStatus watch)
     {
         var letter = char.ToUpperInvariant(driveLetter);
         lock (_publishedWarningsLock)
@@ -184,7 +184,7 @@ public sealed partial class IndexVolumeChangeSource
         RefreshJournalWarning(letter, watch, GitWizardConfiguration.GetGlobalConfiguration());
     }
 
-    static void AddJournalWarning(DriveStatus drive, MftIndexSession owner,
+    static void AddJournalWarning(RootStatus drive, MftIndexSession owner,
         GitWizardConfiguration configuration, List<JournalWarning> warnings)
     {
         if (BuildJournalWarning(drive, owner, configuration) is { } warning)
@@ -193,11 +193,11 @@ public sealed partial class IndexVolumeChangeSource
         }
     }
 
-    static JournalWarning? BuildJournalWarning(DriveStatus drive, MftIndexSession owner,
+    static JournalWarning? BuildJournalWarning(RootStatus drive, MftIndexSession owner,
         GitWizardConfiguration configuration)
     {
-        var indexedDrive = owner.IndexedDrives.FirstOrDefault(candidate =>
-            candidate.Drive == drive.Drive);
+        var indexedDrive = owner.IndexedRoots.FirstOrDefault(candidate =>
+            candidate.Root == drive.Root);
         if (indexedDrive is null || configuration.IgnoredJournalWarnings.Contains(indexedDrive.VolumeSerial))
         {
             return null;
@@ -210,7 +210,7 @@ public sealed partial class IndexVolumeChangeSource
 
         return new JournalWarning
         {
-            DriveLetter = drive.Drive.ToString(),
+            DriveLetter = drive.Root.ToString(),
             VolumeSerial = indexedDrive.VolumeSerial,
             Loss = loss,
             WatchState = drive.Watch.State,

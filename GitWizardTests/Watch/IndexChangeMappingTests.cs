@@ -25,7 +25,7 @@ public class IndexChangeMappingTests
         await File.WriteAllTextAsync(Path.Combine(treeDirectory, "current", "file.txt"), "content");
         _index = await FileIndex.OpenAsync(new FileIndexOptions
         {
-            Drives = [new IndexedDrive('T', treeDirectory, 1, ProducerKind.Enumeration)],
+            Root = SyntheticIndexedRoot.Create(new VolumeKey('T'), treeDirectory, 1, ProducerKind.Enumeration),
             CacheMode = CacheMode.Disabled
         }, CancellationToken.None);
     }
@@ -212,7 +212,7 @@ public class IndexChangeMappingTests
                 changes.Add(change);
             }
         };
-        await index.StartWatchingAsync(['X'], CancellationToken.None);
+        await index.StartWatchingAsync(CancellationToken.None);
         await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
 
         var targetName = isDirectory ? "current" : ".git";
@@ -251,7 +251,7 @@ public class IndexChangeMappingTests
         expected.Add(new VolumeChangeEntry(renameChange.Path, VolumeEntryKind.MovedIn));
         Assert.That(mappedEntries, Is.EqualTo(expected));
 
-        var root = index.Root('X').Path;
+        var root = index.Root().Path;
         var discoveryFilter = new RepositoryChangeFilter([], [root], includeTempDirectories: true);
         Assert.That(discoveryFilter.Classify(mappedEntries).MovedInCandidates, Is.EqualTo([renameChange.Path]),
             "An unknown type must reach probing rather than silently discard an untracked directory.");

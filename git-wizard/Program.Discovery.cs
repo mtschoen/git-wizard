@@ -65,7 +65,7 @@ public static partial class Program
         Paths = (string[])[.. explicitPaths],
         RequestedNtfsDrives = [],
         Observations = [],
-        DriveStatuses = [],
+        RootStatuses = [],
         Errors = new Dictionary<string, string>(),
         WatchExcludedRoots = []
     };

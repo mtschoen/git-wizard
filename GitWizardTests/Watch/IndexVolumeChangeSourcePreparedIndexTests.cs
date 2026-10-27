@@ -104,7 +104,7 @@ public class IndexVolumeChangeSourcePreparedIndexTests
             // Routed through IndexVolumeChangeSource, which rewrites this back onto its own
             // configured drive letter (MFTLib #143), so this stays the pre-existing synthetic shape.
             Assert.That(reader.Current.Entries.Single().FullPath, Is.EqualTo(@"X:\code\repo\child"));
-            Assert.That(owner.Index.Search(new SearchQuery("child", NameMatchMode.Exact)).Single().Parent!.Value.Name, Is.EqualTo("repo"));
+            Assert.That(owner.IndexSet.Search(new SearchQuery("child", NameMatchMode.Exact)).Single().Parent!.Value.Name, Is.EqualTo("repo"));
             Assert.That(broker.ConnectionCount, Is.EqualTo(1));
         }
         var started = await broker.WatchStarted.WaitAsync(timeout.Token);

@@ -9,7 +9,7 @@ public static partial class GitWizardApi
     internal const string GitEntryName = ".git";
 
     internal static IReadOnlyList<FileEntry> SelectGitEntries(
-        FileIndex index, bool includeGitFiles, CancellationToken cancellationToken = default)
+        FileIndexSet index, bool includeGitFiles, CancellationToken cancellationToken = default)
     {
         return (FileEntry[])[.. index.Search(new SearchQuery(GitEntryName, NameMatchMode.Exact), cancellationToken)
             .Where(entry => !entry.IsDeleted && (includeGitFiles || (TryReadIsDirectory(entry, out var isDirectory) && isDirectory)))];
@@ -19,11 +19,11 @@ public static partial class GitWizardApi
     /// Selects ordinary, gitfile, and bare repository candidates from the index matching the discovery scope.
     /// </summary>
     public static IReadOnlyList<RepositoryCandidate> SelectRepositoryCandidates(
-        FileIndex index, DiscoveryScope scope, CancellationToken cancellationToken = default) =>
+        FileIndexSet index, DiscoveryScope scope, CancellationToken cancellationToken = default) =>
         SelectRepositoryCandidates(index, scope, null, cancellationToken);
 
     internal static IReadOnlyList<RepositoryCandidate> SelectRepositoryCandidates(
-        FileIndex index, DiscoveryScope scope, CandidateSelectionDiagnostics? diagnostics,
+        FileIndexSet index, DiscoveryScope scope, CandidateSelectionDiagnostics? diagnostics,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -48,7 +48,7 @@ public static partial class GitWizardApi
     // Every index scan the selection starts goes through here so a test can count them. The result is
     // materialized because each candidate scope reads it again.
     internal static IReadOnlyList<FileEntry> ScanByName(
-        FileIndex index, string name, CandidateSelectionDiagnostics? diagnostics, CancellationToken cancellationToken)
+        FileIndexSet index, string name, CandidateSelectionDiagnostics? diagnostics, CancellationToken cancellationToken)
     {
         diagnostics?.RecordIndexScan();
         return (FileEntry[])[.. index.Search(new SearchQuery(name, NameMatchMode.Exact), cancellationToken)];
@@ -61,7 +61,7 @@ public static partial class GitWizardApi
         CandidateAdmissionPolicy Policy,
         WatchPath ConfiguredRoot);
 
-    static List<CandidateScope> BuildCandidateScopes(FileIndex index, DiscoveryScope scope)
+    static List<CandidateScope> BuildCandidateScopes(FileIndexSet index, DiscoveryScope scope)
     {
         var roots = scope.SearchRoots.Select(root => (Root: root, IsExact: false)).ToList();
         roots.AddRange(scope.RetainedRoots
@@ -241,9 +241,19 @@ public static partial class GitWizardApi
     /// whose drive is not part of <paramref name="index" /> (the caller's own scope filtering then
     /// naturally excludes it).
     /// </summary>
-    static WatchPath TranslateToRealRoot(FileIndex index, WatchPath path)
+    static WatchPath TranslateToRealRoot(FileIndexSet index, WatchPath path)
     {
         if (!path.IsWindows || path.Volume is not { Length: 1 } volume || !char.IsAsciiLetter(volume[0]))
+        {
+            return path;
+        }
+
+        // Not every configured search root's drive is necessarily part of this set (a denied or failed
+        // drive is reported through ScanErrors and never opened), so a drive without an index is treated
+        // like one the set has no entries for: the caller's own scope filtering excludes it naturally.
+        RootKey root = new VolumeKey(char.ToUpperInvariant(volume[0]));
+        var owner = index.Indices.FirstOrDefault(candidate => candidate.Status.Root == root);
+        if (owner is null)
         {
             return path;
         }
@@ -251,15 +261,12 @@ public static partial class GitWizardApi
         string realRoot;
         try
         {
-            realRoot = index.Root(char.ToUpperInvariant(volume[0])).Path;
+            realRoot = owner.Root().Path;
         }
         catch (Exception exception) when (
             exception is InvalidOperationException or InvalidDataException or ArgumentException)
         {
-            // Not every configured search root's drive is necessarily part of this index (a
-            // denied or failed drive is reported through ScanErrors and never opened), so a
-            // drive FileIndex.Root rejects is treated the same as one it silently has no
-            // entries for: the caller's own scope filtering excludes it naturally.
+            // An index that never produced a block has no root entry to read.
             return path;
         }
         var realRootPath = WatchPath.Parse(realRoot);

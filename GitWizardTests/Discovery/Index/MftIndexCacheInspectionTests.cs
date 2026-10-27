@@ -29,7 +29,7 @@ public class MftIndexCacheInspectionTests
     static Task<FileIndex> Open(PackedIndexFixture files, string cache, bool cacheOnly = false) =>
         FileIndex.OpenAsync(new FileIndexOptions
         {
-            Drives = [new IndexedDrive('X', files.TreePath, 1, ProducerKind.Enumeration)],
+            Root = SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1, ProducerKind.Enumeration),
             CacheDirectory = cache,
             CacheMode = cacheOnly ? CacheMode.ExistingOnly : CacheMode.Persistent
         }, CancellationToken.None);
@@ -102,7 +102,7 @@ public class MftIndexCacheInspectionTests
         var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         await using (var seed = await Open(files, cache))
         {
-            Assert.That(seed.Drives.Single().Block?.CacheLocation, Is.EqualTo(CacheLocation.OwnedCanonical));
+            Assert.That(seed.Status.Block?.CacheLocation, Is.EqualTo(CacheLocation.OwnedCanonical));
         }
 
         var file = CacheDirectory.InspectCached(cache).Single().File;
@@ -122,8 +122,8 @@ public class MftIndexCacheInspectionTests
             await using var refused = await Open(files, cache, cacheOnly: true);
             using (Assert.EnterMultipleScope())
             {
-                Assert.That(refused.Drives.Single().Failure?.Kind, Is.EqualTo(DriveFailureKind.InUse));
-                Assert.That(owner.Root('X').IsDirectory, Is.True);
+                Assert.That(refused.Status.Failure?.Kind, Is.EqualTo(RootFailureKind.InUse));
+                Assert.That(owner.Root().IsDirectory, Is.True);
             }
         }
         Assert.That(await File.ReadAllBytesAsync(file.Path), Is.EqualTo(before));
@@ -142,13 +142,13 @@ public class MftIndexCacheInspectionTests
         using var files = new PackedIndexFixture();
         var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         var stored = new CacheTag("OLDT", 7);
-        SyntheticBlock.WriteCached(cache, 'X', 1, new SyntheticBlockOptions { CacheTag = stored },
+        SyntheticBlock.WriteCached(cache, new VolumeKey('X'), 1, new SyntheticBlockOptions { CacheTag = stored },
             [new SyntheticRow(5, "root", 5) { IsDirectory = true }]);
-        await File.WriteAllTextAsync(SyntheticBlock.CachedPath(cache, 'Y', 1), "invalid block fixture");
+        await File.WriteAllTextAsync(SyntheticBlock.CachedPath(cache, new VolumeKey('Y'), 1), "invalid block fixture");
 
         var snapshot = Create().Capture(files.DirectoryPath);
 
-        var available = snapshot.Inventory.Single(row => row.File.Drive == 'X');
+        var available = snapshot.Inventory.Single(row => row.File.Root == new VolumeKey('X'));
         using (Assert.EnterMultipleScope())
         {
             Assert.That(available.Availability, Is.EqualTo(CachedBlockAvailability.Available));
@@ -169,13 +169,13 @@ public class MftIndexCacheInspectionTests
         using var files = new PackedIndexFixture();
         var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         var index = await Open(files, cache);
-        var ui = new MftIndexSession(index, null, ["X"],
-        [new IndexedDrive('X', files.TreePath, 1)], new Dictionary<string, string>(), cache);
+        var ui = new MftIndexSession([index], null, ["X"],
+        [SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1)], new Dictionary<string, string>(), cache);
         await using var cli = await Open(files, cache);
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(cli.Drives.Single().Block?.CacheLocation, Is.EqualTo(CacheLocation.PrivateFallback));
-            Assert.That(cli.Drives.Single().Block?.Origin, Is.EqualTo(BlockOrigin.ProducedByScan));
+            Assert.That(cli.Status.Block?.CacheLocation, Is.EqualTo(CacheLocation.PrivateFallback));
+            Assert.That(cli.Status.Block?.Origin, Is.EqualTo(BlockOrigin.ProducedByScan));
         }
         var snapshot = Create().Capture(files.DirectoryPath, [ui.CaptureCacheStatus()!]);
         using (Assert.EnterMultipleScope())
@@ -186,14 +186,14 @@ public class MftIndexCacheInspectionTests
         await using var refused = await Open(files, cache, cacheOnly: true);
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(refused.Drives.Single().State, Is.EqualTo(DriveState.Failed));
-            Assert.That(refused.Drives.Single().Failure?.Kind, Is.EqualTo(DriveFailureKind.InUse));
-            Assert.That(cli.Root('X').IsDirectory, Is.True);
-            Assert.That(index.Root('X').IsDirectory, Is.True);
+            Assert.That(refused.Status.State, Is.EqualTo(RootState.Failed));
+            Assert.That(refused.Status.Failure?.Kind, Is.EqualTo(RootFailureKind.InUse));
+            Assert.That(cli.Root().IsDirectory, Is.True);
+            Assert.That(index.Root().IsDirectory, Is.True);
         }
         await ui.DisposeAsync();
-        Assert.That(cli.Drives.Single().Block?.CacheLocation, Is.EqualTo(CacheLocation.PrivateFallback));
-        await cli.RescanAsync(['X'], CancellationToken.None);
-        Assert.That(cli.Drives.Single().Block?.CacheLocation, Is.EqualTo(CacheLocation.OwnedCanonical));
+        Assert.That(cli.Status.Block?.CacheLocation, Is.EqualTo(CacheLocation.PrivateFallback));
+        await cli.RescanAsync(CancellationToken.None);
+        Assert.That(cli.Status.Block?.CacheLocation, Is.EqualTo(CacheLocation.OwnedCanonical));
     }
 }

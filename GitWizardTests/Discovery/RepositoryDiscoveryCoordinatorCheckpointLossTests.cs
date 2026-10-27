@@ -48,7 +48,7 @@ public class RepositoryDiscoveryCoordinatorCheckpointLossTests
 
     FileIndexOptions Options(bool cacheOnly, ScriptedWatchSource? source = null) => new()
     {
-        Drives = [new IndexedDrive('X', _files.TreePath, 1)],
+        Root = SyntheticIndexedRoot.Create(new VolumeKey('X'), _files.TreePath, 1),
         CacheDirectory = _files.BlockDirectory,
         CacheMode = cacheOnly ? CacheMode.ExistingOnly : CacheMode.Persistent,
         MftSource = SyntheticIndexSource.Create(_files.Producer, source)
@@ -63,8 +63,8 @@ public class RepositoryDiscoveryCoordinatorCheckpointLossTests
     async Task<MftIndexSession> OpenSessionAsync(bool cacheOnly, ScriptedWatchSource source)
     {
         var index = await FileIndex.OpenAsync(Options(cacheOnly, source), CancellationToken.None);
-        return new MftIndexSession(index, new CountingOwner(), ["X"],
-            [new IndexedDrive('X', _files.TreePath, 1)], new Dictionary<string, string>());
+        return new MftIndexSession([index], new CountingOwner(), ["X"],
+            [SyntheticIndexedRoot.Create(new VolumeKey('X'), _files.TreePath, 1)], new Dictionary<string, string>());
     }
 
     RepositoryDiscoveryCoordinator CreateCoordinator() => new(new RepositoryDiscoveryDependencies
@@ -94,8 +94,8 @@ public class RepositoryDiscoveryCoordinatorCheckpointLossTests
         var session = await OpenSessionAsync(cacheOnly, source);
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(session.Index.Drives.Single().Watch.CheckpointLoss, Is.Not.Null);
-            Assert.That(session.Index.Drives.Single().Block?.Origin, Is.EqualTo(expectedInitialOrigin));
+            Assert.That(session.Indices.Single().Status.Watch.CheckpointLoss, Is.Not.Null);
+            Assert.That(session.Indices.Single().Status.Block?.Origin, Is.EqualTo(expectedInitialOrigin));
         }
         var productionsBeforeWatch = _productions;
         using var cancellation = new CancellationTokenSource(TestTimeouts.HangGuard);

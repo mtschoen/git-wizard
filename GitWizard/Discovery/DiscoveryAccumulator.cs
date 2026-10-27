@@ -22,9 +22,9 @@ sealed class DiscoveryAccumulator
     public List<RootObservation> Observations { get; } = [];
     public HashSet<string> RescannedDrives { get; } = new(StringComparer.OrdinalIgnoreCase);
     public HashSet<string> ObservedDrives { get; } = new(StringComparer.OrdinalIgnoreCase);
-    IReadOnlyList<MftDriveStatus> FinalStatuses { get; set; } = [];
+    IReadOnlyList<MftRootStatus> FinalStatuses { get; set; } = [];
 
-    public void RecordDriveStatuses(IReadOnlyList<MftDriveStatus> statuses)
+    public void RecordDriveStatuses(IReadOnlyList<MftRootStatus> statuses)
     {
         FinalStatuses = statuses;
         foreach (var status in statuses)
@@ -128,7 +128,7 @@ sealed class DiscoveryAccumulator
             Paths = finalPaths,
             RequestedNtfsDrives = requestedNtfsDrives,
             Observations = Observations,
-            DriveStatuses = FinalStatuses,
+            RootStatuses = FinalStatuses,
             Errors = Errors,
             WatchExcludedRoots = Scope.WatchExcludedRoots
         };
@@ -151,11 +151,11 @@ sealed class DiscoveryAccumulator
         return Observations.Any(item => item.Complete) ? DiscoveryOutcome.Partial : DiscoveryOutcome.Unusable;
     }
 
-    static bool IsFailed(DriveStatus indexStatus) =>
-        indexStatus.State is DriveState.Failed or DriveState.Offline ||
+    static bool IsFailed(RootStatus indexStatus) =>
+        indexStatus.State is RootState.Failed or RootState.Offline ||
         indexStatus.Failure is not null;
 
-    static string GetIndexStatusFailureMessage(DriveStatus indexStatus)
+    static string GetIndexStatusFailureMessage(RootStatus indexStatus)
     {
         return indexStatus.Failure?.Message ?? $"Drive is {indexStatus.State}.";
     }

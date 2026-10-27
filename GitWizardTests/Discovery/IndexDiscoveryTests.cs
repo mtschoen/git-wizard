@@ -14,7 +14,7 @@ public class IndexDiscoveryTests
         using var files = new PackedIndexFixture();
         files.AddMarker("repository");
         await using var index = await files.OpenIndexAsync();
-        var markers = GitWizardApi.SelectGitEntries(index, includeGitFiles: false);
+        var markers = GitWizardApi.SelectGitEntries(new FileIndexSet([index]), includeGitFiles: false);
         Assert.That(markers, Has.Count.EqualTo(1));
         using (Assert.EnterMultipleScope())
         {
@@ -31,7 +31,7 @@ public class IndexDiscoveryTests
         using var files = new PackedIndexFixture();
         files.AddMarker("worktree", isDirectory: false);
         await using var index = await files.OpenIndexAsync();
-        var markers = GitWizardApi.SelectGitEntries(index, includeGitFiles: true);
+        var markers = GitWizardApi.SelectGitEntries(new FileIndexSet([index]), includeGitFiles: true);
         Assert.That(markers, Has.Count.EqualTo(1));
         using (Assert.EnterMultipleScope())
         {
@@ -49,7 +49,7 @@ public class IndexDiscoveryTests
         files.AddMarker("worktree", isDirectory: false);
         await using var index = await files.OpenIndexAsync();
         Assert.That(index.Search(new SearchQuery(".git", NameMatchMode.Exact)), Has.Count.EqualTo(2));
-        var markers = GitWizardApi.SelectGitEntries(index, includeGitFiles: false);
+        var markers = GitWizardApi.SelectGitEntries(new FileIndexSet([index]), includeGitFiles: false);
         Assert.That(markers, Has.Count.EqualTo(1));
         using (Assert.EnterMultipleScope())
         {
@@ -64,7 +64,7 @@ public class IndexDiscoveryTests
         using var files = new PackedIndexFixture();
         files.AddMarker("repository", markerName: ".GIT");
         await using var index = await files.OpenIndexAsync();
-        var markers = GitWizardApi.SelectGitEntries(index, includeGitFiles: false);
+        var markers = GitWizardApi.SelectGitEntries(new FileIndexSet([index]), includeGitFiles: false);
         Assert.That(markers, Has.Count.EqualTo(1));
         using (Assert.EnterMultipleScope())
         {
@@ -82,9 +82,9 @@ public class IndexDiscoveryTests
         await using var index = await files.OpenIndexAsync();
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(GitWizardApi.SelectGitEntries(index, false).Single().Parent!.Value.Name,
+            Assert.That(GitWizardApi.SelectGitEntries(new FileIndexSet([index]), false).Single().Parent!.Value.Name,
                     Is.EqualTo("repository"));
-            Assert.That(GitWizardApi.SelectGitEntries(index, true).Select(entry => entry.Parent!.Value.Name),
+            Assert.That(GitWizardApi.SelectGitEntries(new FileIndexSet([index]), true).Select(entry => entry.Parent!.Value.Name),
                 Is.EquivalentTo(["repository", "worktree"]));
         }
     }
@@ -102,7 +102,7 @@ public class IndexDiscoveryTests
             Assert.That(index.Search(new SearchQuery("ordinary", NameMatchMode.Exact)).Single().IsDirectory, Is.False);
             Assert.That(index.Search(new SearchQuery("freed", NameMatchMode.Exact)), Is.Empty);
             Assert.That(index.Search(new SearchQuery(".git", NameMatchMode.Exact)), Is.Empty);
-            Assert.That(GitWizardApi.SelectGitEntries(index, true), Is.Empty);
+            Assert.That(GitWizardApi.SelectGitEntries(new FileIndexSet([index]), true), Is.Empty);
         }
     }
 
@@ -159,7 +159,7 @@ public class IndexDiscoveryTests
 
         rows.Add(Directory(8 + depth, ".git", 7 + depth));
         await using var index = await OpenRowsAsync(files, [.. rows]);
-        var entries = GitWizardApi.SelectGitEntries(index, includeGitFiles: true);
+        var entries = GitWizardApi.SelectGitEntries(new FileIndexSet([index]), includeGitFiles: true);
         Assert.That(entries, Has.Count.EqualTo(2));
         var candidates = CandidateSelection.Paths(index, @"X:\", [],
             includeTempDirectories: true);

@@ -9,6 +9,7 @@ using GitWizardTests.TestSupport;
 using GitWizardUI.Services;
 using GitWizardUI.ViewModels;
 using GitWizardUI.Views;
+using MFTLib.Index;
 using MFTLibTestExtensions;
 
 namespace GitWizardTests.UI;
@@ -20,9 +21,9 @@ public class IndexCacheStatusWindowTests
     {
         using var files = new PackedIndexFixture();
         var row = SyntheticNotifications.CreateCachedBlockStatus(
-            SyntheticNotifications.CreateCachedBlockFile('X', 42, "synthetic", 4096,
+            SyntheticNotifications.CreateCachedBlockFile(new VolumeKey('X'), 42, "synthetic", 4096,
                 FrozenCacheClock.Now.UtcDateTime.AddHours(-2)),
-            MFTLib.Index.CachedBlockAvailability.InUse, null, null, null);
+            CachedBlockAvailability.InUse, null, null, null);
         var snapshot = new MftIndexCacheInspection(new FrozenCacheClock(), true,
             _ => [row]).Capture(files.DirectoryPath);
         var model = new IndexCacheViewModel(new AvaloniaUiDispatcher(), new StubUserDialogs(), new PreparedDiscoveryIndexStore(), () => snapshot, NoClear);

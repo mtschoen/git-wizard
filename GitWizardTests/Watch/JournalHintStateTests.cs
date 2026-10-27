@@ -105,7 +105,7 @@ public class JournalHintStateTests
     {
         foreach (var cause in Causes)
         {
-            var loss = CreateLoss(cause, JournalCheckpointLossDetection.DriveOpening);
+            var loss = CreateLoss(cause, JournalCheckpointLossDetection.RootOpening);
             var recovering = JournalHintBuilder.BuildHint(loss, WatchState.Recovering, false);
 
             using (Assert.EnterMultipleScope())

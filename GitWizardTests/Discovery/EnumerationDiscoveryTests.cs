@@ -41,8 +41,8 @@ public class EnumerationDiscoveryTests
             Assert.That(options.RetainedFileNames, Is.EqualTo([".git", "HEAD"]));
             Assert.That(options.CacheMode, Is.EqualTo(CacheMode.Disabled));
             Assert.That(options.CacheDirectory, Is.Null);
-            Assert.That(options.Drives.Single().Producer, Is.EqualTo(ProducerKind.Enumeration));
-            Assert.That(options.Drives.Single().RootDirectory, Is.EqualTo(_root));
+            Assert.That(options.Root!.Producer, Is.EqualTo(ProducerKind.Enumeration));
+            Assert.That(options.Root!.RootDirectory, Is.EqualTo(_root));
         }
     }
 
@@ -51,9 +51,14 @@ public class EnumerationDiscoveryTests
     {
         var walk = EnumerationDiscovery.CreateDirectoryWalk(new GitWizardConfiguration(), _root, []);
 
-        Assert.That(walk.PrunedDirectoryNames, Is.EquivalentTo([
-            ".git", ".Git", ".gIt", ".giT", ".GIt", ".GiT", ".gIT", ".GIT"
-        ]));
+        var pattern = walk.PrunedDirectoryNamePatterns.Single();
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(walk.PrunedDirectoryNames, Is.Empty);
+            Assert.That(new[] { ".git", ".Git", ".gIt", ".giT", ".GIt", ".GiT", ".gIT", ".GIT" }.Select(name => pattern.IsMatch(name)),
+                Is.All.True);
+            Assert.That(new[] { ".github", "git", "x.git", ".git.bak" }.Select(name => pattern.IsMatch(name)), Is.All.False);
+        }
     }
 
     [TestCase(true)]

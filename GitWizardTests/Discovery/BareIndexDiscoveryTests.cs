@@ -1,5 +1,6 @@
 using GitWizard;
 using GitWizardTests.TestSupport;
+using MFTLib.Index;
 
 namespace GitWizardTests.Discovery;
 
@@ -54,7 +55,7 @@ public class BareIndexDiscoveryTests
         var treePath = files.TreePath;
         var scope = DiscoveryScope.CreateExpanded(request, [treePath], [], [], _ => new RootClassification(treePath, RootFileSystem.Ntfs, "X", null));
 
-        var candidates = GitWizardApi.SelectRepositoryCandidates(index, scope, CancellationToken.None);
+        var candidates = GitWizardApi.SelectRepositoryCandidates(new FileIndexSet([index]), scope, CancellationToken.None);
 
         using (Assert.EnterMultipleScope())
         {

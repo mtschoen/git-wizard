@@ -52,7 +52,7 @@ public class DiscoveryIndexLifetimeTests
             Paths = [@"C:\repo"],
             RequestedNtfsDrives = ["X"],
             Observations = [new RootObservation(@"C:\repo", false, true, DiscoverySource.Scan, DateTime.UtcNow, null)],
-            DriveStatuses = fixture.Owner.CaptureDriveStatuses(),
+            RootStatuses = fixture.Owner.CaptureRootStatuses(),
             Errors = new Dictionary<string, string>(),
             WatchExcludedRoots = []
         };
@@ -60,7 +60,7 @@ public class DiscoveryIndexLifetimeTests
         var result = new RepositoryDiscoveryResult(inventory, fixture.Owner);
         await result.DisposeAsync();
 
-        Assert.That(result.Inventory.DriveStatuses, Is.Not.Empty);
-        Assert.That(result.Inventory.DriveStatuses.Single().Drive, Is.EqualTo("X"));
+        Assert.That(result.Inventory.RootStatuses, Is.Not.Empty);
+        Assert.That(result.Inventory.RootStatuses.Single().Drive, Is.EqualTo("X"));
     }
 }

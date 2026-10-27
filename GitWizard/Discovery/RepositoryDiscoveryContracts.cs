@@ -98,10 +98,10 @@ public sealed record DiscoveryInventory
         init => field = Array.AsReadOnly<RootObservation>([.. value]);
     } = [];
 
-    public required IReadOnlyList<MftDriveStatus> DriveStatuses
+    public required IReadOnlyList<MftRootStatus> RootStatuses
     {
         get;
-        init => field = Array.AsReadOnly<MftDriveStatus>([.. value]);
+        init => field = Array.AsReadOnly<MftRootStatus>([.. value]);
     } = [];
 
     public required IReadOnlyDictionary<string, string> Errors

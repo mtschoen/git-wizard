@@ -77,7 +77,7 @@ public static partial class WindowsRootClassifier
 
         try
         {
-            _ = IndexedDrive.FromWindowsVolume(selectedDrive[0]);
+            _ = IndexedRoot.FromWindowsDrive(new VolumeKey(selectedDrive[0]));
             return new RootClassification(root, RootFileSystem.Ntfs, selectedDrive, null);
         }
         catch (Exception ex)

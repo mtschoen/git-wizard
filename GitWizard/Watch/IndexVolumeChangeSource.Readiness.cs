@@ -39,7 +39,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeReadiness
         }
     }
 
-    static VolumeBlockOrigin OriginOf(DriveStatus? status) => status?.Block?.Origin switch
+    static VolumeBlockOrigin OriginOf(RootStatus? status) => status?.Block?.Origin switch
     {
         BlockOrigin.WarmStartedFromCache => VolumeBlockOrigin.Warm,
         BlockOrigin.ProducedByScan => VolumeBlockOrigin.Cold,
@@ -47,14 +47,14 @@ public sealed partial class IndexVolumeChangeSource : IVolumeReadiness
     };
 
     static VolumeBlockOrigin CurrentOrigin(MftIndexSession owner, char drive) =>
-        OriginOf(owner.CaptureDriveStatuses().FirstOrDefault(status =>
+        OriginOf(owner.CaptureRootStatuses().FirstOrDefault(status =>
             string.Equals(status.Drive, drive.ToString(), StringComparison.OrdinalIgnoreCase))?.IndexStatus);
 
     // Called once per arm, after ProcessArmedDrive decided _usableDrives and before the pump
     // starts, so every requested drive has a state before any catch-up marker can arrive.
     void PublishArmedDrives(MftIndexSession owner, IReadOnlyList<string> requested, Dictionary<string, string> errors)
     {
-        var statuses = owner.CaptureDriveStatuses()
+        var statuses = owner.CaptureRootStatuses()
             .ToDictionary(status => status.Drive, StringComparer.OrdinalIgnoreCase);
         foreach (var drive in requested)
         {
@@ -74,12 +74,12 @@ public sealed partial class IndexVolumeChangeSource : IVolumeReadiness
         }
     }
 
-    // A block can stay queryable (DriveState.Ready) while its watch is refused or failed; that
-    // drive is excluded, never relabeled healthy on the strength of DriveState alone.
+    // A block can stay queryable (RootState.Ready) while its watch is refused or failed; that
+    // drive is excluded, never relabeled healthy on the strength of RootState alone.
     void ExcludeDrivesWithFailedWatch(MftIndexSession owner, IEnumerable<char> drives)
     {
         var driveSet = drives as ICollection<char> ?? (HashSet<char>)[.. drives];
-        foreach (var status in owner.CaptureDriveStatuses())
+        foreach (var status in owner.CaptureRootStatuses())
         {
             if (status.IndexStatus is not { } index)
             {

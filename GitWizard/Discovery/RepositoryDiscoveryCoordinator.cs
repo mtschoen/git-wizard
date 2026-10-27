@@ -56,8 +56,8 @@ public partial class RepositoryDiscoveryCoordinator
 
             if (session is not null)
             {
-                accumulator.RecordDriveStatuses(session.CaptureDriveStatuses());
-                AddIndexedCandidates(session.Index, accumulator, cancellationToken);
+                accumulator.RecordDriveStatuses(session.CaptureRootStatuses());
+                AddIndexedCandidates(session.IndexSet, accumulator, cancellationToken);
             }
 
             if (!request.NoMft)
@@ -98,7 +98,7 @@ public partial class RepositoryDiscoveryCoordinator
             Paths = previousList,
             RequestedNtfsDrives = scope.RequestedNtfsDrives,
             Observations = listObservations,
-            DriveStatuses = [],
+            RootStatuses = [],
             Errors = new Dictionary<string, string>(),
             WatchExcludedRoots = scope.WatchExcludedRoots
         };
@@ -162,11 +162,9 @@ public partial class RepositoryDiscoveryCoordinator
 
         if (!prepared.IsDisposed && !prepared.IsFaulted)
         {
-            var available = prepared.Drives
-                .Select(value => DriveKey.TryParse(value, out var drive) ? (DriveKey?)drive : null)
-                .OfType<DriveKey>().ToHashSet();
-            if (scope.RequestedNtfsDrives.All(value =>
-                DriveKey.TryParse(value, out var drive) && available.Contains(drive)))
+            var available = RootKeyProjection.ParseRootKeys(prepared.Drives).ToHashSet();
+            var requested = RootKeyProjection.ParseRootKeys(scope.RequestedNtfsDrives);
+            if (requested.Length == scope.RequestedNtfsDrives.Count && requested.All(available.Contains))
             {
                 return prepared;
             }
@@ -183,7 +181,7 @@ public partial class RepositoryDiscoveryCoordinator
         IProgress<WatchStartupProgress>? progress,
         CancellationToken cancellationToken)
     {
-        var drivesNeedingScan = session.CaptureDriveStatuses()
+        var drivesNeedingScan = session.CaptureRootStatuses()
             .Where(driveStatus => NeedsScan(purpose, driveStatus))
             .Select(driveStatus => driveStatus.Drive)
             .ToArray();
@@ -197,20 +195,22 @@ public partial class RepositoryDiscoveryCoordinator
             return;
         }
 
-        var results = await session.Index.RescanAsync(drivesNeedingScan.Select(drive => (DriveKey)drive[0]),
-            cancellationToken).ConfigureAwait(false);
+        var rootsNeedingScan = RootKeyProjection.ParseRootKeys(drivesNeedingScan).ToHashSet();
+        var results = await Task.WhenAll(session.Indices
+            .Where(index => rootsNeedingScan.Contains(index.Status.Root))
+            .Select(index => index.RescanAsync(cancellationToken))).ConfigureAwait(false);
         foreach (var result in results)
         {
-            var drive = result.Drive.ToString();
+            var drive = result.Root.ToString();
             switch (result.Outcome)
             {
-                case DriveOperationOutcome.Succeeded:
+                case RootOperationOutcome.Succeeded:
                     accumulator.RescannedDrives.Add(drive);
                     break;
-                case DriveOperationOutcome.Failed:
+                case RootOperationOutcome.Failed:
                     accumulator.Errors[drive] = result.Failure?.Message ?? "The drive rescan failed.";
                     break;
-                case DriveOperationOutcome.NotApplicable:
+                case RootOperationOutcome.NotApplicable:
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(session), result.Outcome, "Unknown rescan outcome.");
@@ -218,7 +218,7 @@ public partial class RepositoryDiscoveryCoordinator
         }
     }
 
-    void AddIndexedCandidates(FileIndex index, DiscoveryAccumulator accumulator, CancellationToken cancellationToken)
+    void AddIndexedCandidates(FileIndexSet index, DiscoveryAccumulator accumulator, CancellationToken cancellationToken)
     {
         if (accumulator.ObservedDrives.Count == 0)
         {
@@ -258,10 +258,10 @@ public partial class RepositoryDiscoveryCoordinator
         };
     }
 
-    static bool NeedsScan(DiscoveryPurpose purpose, MftDriveStatus drive)
+    static bool NeedsScan(DiscoveryPurpose purpose, MftRootStatus drive)
     {
-        if (drive.IndexStatus is not { } status || status.State == DriveState.Offline ||
-            status.Failure?.Kind == DriveFailureKind.InUse)
+        if (drive.IndexStatus is not { } status || status.State == RootState.Offline ||
+            status.Failure?.Kind == RootFailureKind.InUse)
         {
             return false;
         }
@@ -271,7 +271,7 @@ public partial class RepositoryDiscoveryCoordinator
             return true;
         }
 
-        if (status.Failure?.Kind is DriveFailureKind.CacheDeclined or DriveFailureKind.CacheIdentityMismatch)
+        if (status.Failure?.Kind is RootFailureKind.CacheDeclined or RootFailureKind.CacheIdentityMismatch)
         {
             return true;
         }
@@ -281,9 +281,9 @@ public partial class RepositoryDiscoveryCoordinator
     }
 
     // CheckpointLoss is a standing report. An ordinary open that met an unresumable block already
-    // cold-scanned it and keeps the DriveOpening report as the explanation; only a cache-only open
+    // cold-scanned it and keeps the RootOpening report as the explanation; only a cache-only open
     // adopts the unresumable block itself (WarmStartedFromCache), which a watch must replace first.
-    static bool IsResolvedByOpeningScan(JournalCheckpointLoss loss, DriveStatus status) =>
-        loss.DetectedDuring == JournalCheckpointLossDetection.DriveOpening &&
+    static bool IsResolvedByOpeningScan(JournalCheckpointLoss loss, RootStatus status) =>
+        loss.DetectedDuring == JournalCheckpointLossDetection.RootOpening &&
         status.Block?.Origin == BlockOrigin.ProducedByScan;
 }

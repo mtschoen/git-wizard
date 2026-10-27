@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using MFTLib;
 using MFTLib.Index;
 
@@ -16,27 +17,33 @@ public sealed partial class MftIndexSession : IAsyncDisposable
         new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
 
-    public FileIndex Index { get; }
+    /// <summary>One index per opened root, in requested order.</summary>
+    public IReadOnlyList<FileIndex> Indices { get; }
+
+    /// <summary>Answers cross-root queries over <see cref="Indices" />.</summary>
+    public FileIndexSet IndexSet { get; }
+
     public IReadOnlyList<string> Drives { get; private set; }
-    public IReadOnlyList<IndexedDrive> IndexedDrives { get; }
+    public IReadOnlyList<IndexedRoot> IndexedRoots { get; }
     public IReadOnlyDictionary<string, string> ScanErrors { get; private set; }
     public bool IsFaulted => BrokerSession?.Ended.IsCompleted == true;
     public bool IsDisposed => Volatile.Read(ref _disposed) != 0;
 
-    internal MftIndexSession(FileIndex index, IAsyncDisposable? connectionOwner,
-        IReadOnlyList<string> drives, IReadOnlyList<IndexedDrive> indexedDrives,
+    internal MftIndexSession(IReadOnlyList<FileIndex> indices, IAsyncDisposable? connectionOwner,
+        IReadOnlyList<string> drives, IReadOnlyList<IndexedRoot> indexedRoots,
         IReadOnlyDictionary<string, string> scanErrors, string? cacheDirectory = null)
     {
-        Index = index;
+        Indices = Array.AsReadOnly<FileIndex>([.. indices]);
+        IndexSet = new FileIndexSet(Indices);
         _connectionOwner = connectionOwner;
         Drives = Array.AsReadOnly<string>([.. drives]);
-        IndexedDrives = Array.AsReadOnly<IndexedDrive>([.. indexedDrives]);
+        IndexedRoots = Array.AsReadOnly<IndexedRoot>([.. indexedRoots]);
         ScanErrors = new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(
             new Dictionary<string, string>(scanErrors, StringComparer.OrdinalIgnoreCase));
         _cacheDirectory = cacheDirectory;
     }
 
-    internal static Task<MftIndexSession> OpenAsync(IReadOnlyList<IndexedDrive> drives,
+    internal static Task<MftIndexSession> OpenAsync(IReadOnlyList<IndexedRoot> drives,
         BrokerSession brokerSession,
         string cacheDirectory, IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken) =>
         OpenAsync(drives, brokerSession, cacheDirectory, CacheMode.Persistent, progress, cancellationToken);
@@ -48,7 +55,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
     /// <param name="cacheMode">Persistent scans a drive without a usable cached block; ExistingOnly refuses it.</param>
     /// <param name="progress">Receives scan progress.</param>
     /// <param name="cancellationToken">Cancels opening.</param>
-    internal static async Task<MftIndexSession> OpenAsync(IReadOnlyList<IndexedDrive> drives,
+    internal static async Task<MftIndexSession> OpenAsync(IReadOnlyList<IndexedRoot> drives,
         BrokerSession brokerSession,
         string cacheDirectory, CacheMode cacheMode, IProgress<IndexScanProgress>? progress,
         CancellationToken cancellationToken)
@@ -60,23 +67,24 @@ public sealed partial class MftIndexSession : IAsyncDisposable
 
         MftIndexDiagnostics? diagnostics = null;
         var transferred = false;
-        FileIndex? index = null;
+        FileIndex[] indices = [];
         try
         {
             diagnostics = MftIndexDiagnostics.CreateForGitWizardLog();
             cancellationToken.ThrowIfCancellationRequested();
-            index = await FileIndex.OpenAsync(CreateIndexOptions(drives, brokerSession, cacheDirectory, cacheMode,
-                progress, diagnostics), cancellationToken).ConfigureAwait(false);
+            var openDiagnostics = diagnostics;
+            indices = await OpenIndicesAsync(drives, root => FileIndex.OpenAsync(CreateIndexOptions(root,
+                brokerSession, cacheDirectory, cacheMode, progress, openDiagnostics), cancellationToken)).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            var session = new MftIndexSession(index, brokerSession,
-                (string[])[.. drives.Select(drive => drive.Drive.ToString())], drives,
-                CollectScanErrors(index), cacheDirectory)
+            var session = new MftIndexSession(indices, brokerSession,
+                (string[])[.. drives.Select(root => root.Root.ToString())], drives,
+                CollectScanErrors(indices), cacheDirectory)
             {
                 BrokerSession = brokerSession,
                 _diagnostics = diagnostics
             };
             transferred = true;
-            index = null;
+            indices = [];
             diagnostics = null;
             return session;
         }
@@ -86,17 +94,59 @@ public sealed partial class MftIndexSession : IAsyncDisposable
             {
                 if (!transferred)
                 {
-                    await DisposeResourcesAsync(index, brokerSession, null).ConfigureAwait(false);
+                    await DisposeResourcesAsync(indices, brokerSession, null).ConfigureAwait(false);
                 }
             }
             finally
             {
-                await DisposeResourcesAsync(null, null, diagnostics).ConfigureAwait(false);
+                await DisposeResourcesAsync([], null, diagnostics).ConfigureAwait(false);
             }
         }
     }
 
-    static FileIndexOptions CreateIndexOptions(IReadOnlyList<IndexedDrive> drives, BrokerSession brokerSession,
+    // Every root opens concurrently; if any open throws, the roots that did open are disposed before it propagates.
+    internal static async Task<FileIndex[]> OpenIndicesAsync(IReadOnlyList<IndexedRoot> roots,
+        Func<IndexedRoot, Task<FileIndex>> openIndex)
+    {
+        var opens = new List<Task<FileIndex>>();
+        try
+        {
+            // A root whose open throws before returning a task must not strand the opens already started.
+            foreach (var root in roots)
+            {
+                opens.Add(openIndex(root));
+            }
+
+            return await Task.WhenAll(opens).ConfigureAwait(false);
+        }
+        catch
+        {
+            await DisposeResourcesAsync(await CompletedIndicesAsync(opens).ConfigureAwait(false), null, null)
+                .ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    static async Task<FileIndex[]> CompletedIndicesAsync(IReadOnlyList<Task<FileIndex>> opens)
+    {
+        var completed = new List<FileIndex>();
+        foreach (var open in opens)
+        {
+            try
+            {
+                completed.Add(await open.ConfigureAwait(false));
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                // The failed open is already propagating from the caller; only the ones that succeeded are collected.
+                GitWizardLog.Log($"Index open failed: {exception.Message}", GitWizardLog.LogType.Verbose);
+            }
+        }
+
+        return [.. completed];
+    }
+
+    static FileIndexOptions CreateIndexOptions(IndexedRoot root, BrokerSession brokerSession,
         string cacheDirectory, CacheMode cacheMode, IProgress<IndexScanProgress>? progress,
         MftIndexDiagnostics diagnostics)
     {
@@ -104,7 +154,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
         // while a later watch or explicit rescan connects through the same owned session.
         return new FileIndexOptions
         {
-            Drives = drives,
+            Root = root,
             CacheDirectory = cacheDirectory,
             CacheTag = MftIndexCachePolicy.CacheTag,
             CacheMode = cacheMode,
@@ -115,14 +165,14 @@ public sealed partial class MftIndexSession : IAsyncDisposable
         };
     }
 
-    static Dictionary<string, string> CollectScanErrors(FileIndex index)
+    static Dictionary<string, string> CollectScanErrors(IEnumerable<FileIndex> indices)
     {
         var errors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var drive in index.Drives)
+        foreach (var status in indices.Select(index => index.Status))
         {
-            if (drive.State is DriveState.Failed or DriveState.Offline)
+            if (status.State is RootState.Failed or RootState.Offline)
             {
-                errors[drive.Drive.ToString()] = drive.Failure?.Message ?? $"Drive is {drive.State}.";
+                errors[status.Root.ToString()] = status.Failure?.Message ?? $"Drive is {status.State}.";
             }
         }
         return errors;
@@ -133,15 +183,12 @@ public sealed partial class MftIndexSession : IAsyncDisposable
     /// still relayed and no watch uses the broker; then the broker; then the relay drains. A failure in
     /// one step never skips the later ones.
     /// </summary>
-    static async Task DisposeResourcesAsync(FileIndex? index, IAsyncDisposable? connection,
+    static async Task DisposeResourcesAsync(IReadOnlyList<FileIndex> indices, IAsyncDisposable? connection,
         MftIndexDiagnostics? diagnostics)
     {
         try
         {
-            if (index != null)
-            {
-                await index.DisposeAsync().ConfigureAwait(false);
-            }
+            await DisposeIndicesAsync(indices).ConfigureAwait(false);
         }
         finally
         {
@@ -162,15 +209,41 @@ public sealed partial class MftIndexSession : IAsyncDisposable
         }
     }
 
+    static async Task DisposeIndicesAsync(IReadOnlyList<FileIndex> indices)
+    {
+        List<Exception>? failures = null;
+        foreach (var index in indices)
+        {
+            try
+            {
+                await index.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                (failures ??= []).Add(exception);
+            }
+        }
+
+        if (failures is { Count: 1 })
+        {
+            ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        }
+
+        if (failures is not null)
+        {
+            throw new AggregateException(failures);
+        }
+    }
+
     /// <summary>
     /// Captures each requested drive's current index status, in requested order. Every call returns
     /// a new read-only list; a drive whose identity failed carries that reason instead of a status.
     /// </summary>
-    public IReadOnlyList<MftDriveStatus> CaptureDriveStatuses()
+    public IReadOnlyList<MftRootStatus> CaptureRootStatuses()
     {
-        var indexed = Index.Drives.ToDictionary(status =>
-            status.Drive.ToString(), StringComparer.OrdinalIgnoreCase);
-        return Array.AsReadOnly<MftDriveStatus>([.. Drives.Select(drive => new MftDriveStatus(drive,
+        var indexed = Indices.Select(index => index.Status).ToDictionary(status =>
+            status.Root.ToString(), StringComparer.OrdinalIgnoreCase);
+        return Array.AsReadOnly<MftRootStatus>([.. Drives.Select(drive => new MftRootStatus(drive,
             indexed.TryGetValue(drive, out var status) ? status with { } : null,
             _identityFailures.GetValueOrDefault(drive)))]);
     }
@@ -185,9 +258,12 @@ public sealed partial class MftIndexSession : IAsyncDisposable
 
     internal BrokerSession? BrokerSession { get; init; }
 
+    /// <summary>Finds the index that holds <paramref name="root" />, or null when that root was never opened.</summary>
+    internal FileIndex? IndexFor(RootKey root) => Indices.FirstOrDefault(index => index.Status.Root == root);
+
     Task DisposeCoreAsync()
     {
         Volatile.Write(ref _disposed, 1);
-        return DisposeResourcesAsync(Index, _connectionOwner, _diagnostics);
+        return DisposeResourcesAsync(Indices, _connectionOwner, _diagnostics);
     }
 }

@@ -49,9 +49,9 @@ public class ProgramWatchStartupTests
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled"),
             OpenIndexAsync = async (drives, _, _, _) =>
             {
-                var index = await files.OpenIndexAsync([.. drives.Select(d => d[0])]).ConfigureAwait(false);
-                var indexed = drives.Select(d => new IndexedDrive(d[0], files.TreePath, 1)).ToList();
-                return new MftIndexSession(index, new CountingOwner(), drives, indexed, new Dictionary<string, string>());
+                var indices = await files.OpenIndicesAsync([.. drives.Select(d => d[0])]).ConfigureAwait(false);
+                var indexed = drives.Select(d => SyntheticIndexedRoot.Create(new VolumeKey(d[0]), files.TreePath, 1)).ToList();
+                return new MftIndexSession(indices, new CountingOwner(), drives, indexed, new Dictionary<string, string>());
             },
             ReadListAsync = GitWizardApi.GetCachedRepositoryPathsAsync,
             WriteListAsync = GitWizardApi.SaveCachedRepositoryPathsAsync,
@@ -106,7 +106,7 @@ public class ProgramWatchStartupTests
 
         var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var index = await files.OpenMftIndexAsync(scripted, 'C');
-        var session = new MftIndexSession(index, new CountingOwner(), ["C"], [new IndexedDrive('C', files.TreePath, 1)], new Dictionary<string, string>());
+        var session = new MftIndexSession([index], new CountingOwner(), ["C"], [SyntheticIndexedRoot.Create(new VolumeKey('C'), files.TreePath, 1)], new Dictionary<string, string>());
 
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {

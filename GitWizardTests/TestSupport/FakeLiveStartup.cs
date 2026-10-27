@@ -57,7 +57,7 @@ static class FakeLiveStartup
             Paths = paths,
             RequestedNtfsDrives = volumes,
             Observations = [],
-            DriveStatuses = [],
+            RootStatuses = [],
             Errors = new Dictionary<string, string>(),
             WatchExcludedRoots = []
         };
@@ -113,7 +113,7 @@ static class FakeLiveStartup
             Paths = [],
             RequestedNtfsDrives = [],
             Observations = [],
-            DriveStatuses = [],
+            RootStatuses = [],
             Errors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { [drive] = error },
             WatchExcludedRoots = []
         };

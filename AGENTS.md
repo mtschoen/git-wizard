@@ -72,7 +72,7 @@ Do not cite source line numbers in prose.
 
 Central test scaffolding lives in `GitWizardTests/TestSupport/` (`TempDirectory`, `LocalFilesSandbox`,
 `RecordingUpdateHandler`, `QueuedUiDispatcher`, `ThreadedUiDispatcher`, `TestViewModels`,
-`ScriptedVolumeChangeSource`, `FakeFanotifyNative`, `DriveStatuses`, `TestTimeouts`, `AsyncCondition`);
+`ScriptedVolumeChangeSource`, `FakeFanotifyNative`, `RootStatuses`, `TestTimeouts`, `AsyncCondition`);
 detailed doubles and fixtures are inventoried in [testing reference](docs/testing.md).
 
 Regression checks for test scaffolding:

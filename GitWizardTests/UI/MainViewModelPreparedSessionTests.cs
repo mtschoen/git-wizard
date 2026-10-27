@@ -77,7 +77,7 @@ public class MainViewModelPreparedSessionTests
             Assert.That(owner, Is.SameAs(fixture.Owner));
             using (Assert.EnterMultipleScope())
             {
-                Assert.That(owner!.Index.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single().Parent!.Value.Name, Is.EqualTo("repo"));
+                Assert.That(owner!.IndexSet.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single().Parent!.Value.Name, Is.EqualTo("repo"));
                 Assert.That(fixture.ConnectionDisposals, Is.Zero);
             }
         }
@@ -101,7 +101,7 @@ public class MainViewModelPreparedSessionTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(viewModel.PreparedDiscoveryIndex.Current!.Drives, Is.EqualTo(["X"]));
-            Assert.That(viewModel.PreparedDiscoveryIndex.Current.Index, Is.SameAs(fixture.Owner.Index));
+            Assert.That(viewModel.PreparedDiscoveryIndex.Current.IndexSet, Is.SameAs(fixture.Owner.IndexSet));
         }
     }
 

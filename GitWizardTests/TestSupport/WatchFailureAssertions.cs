@@ -140,8 +140,9 @@ static class WatchFailureAssertions
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
         var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
-        var index = await files.OpenMftIndexAsync(scripted, 'X', 'Y');
-        var owner = new MftIndexSession(index, null, ["X", "Y"], [], new Dictionary<string, string>());
+        var indices = await files.OpenMftIndicesAsync(scripted, 'X', 'Y');
+        var set = new FileIndexSet(indices);
+        var owner = new MftIndexSession(indices, null, ["X", "Y"], [], new Dictionary<string, string>());
         var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         try
         {
@@ -166,9 +167,9 @@ static class WatchFailureAssertions
             using (Assert.EnterMultipleScope())
             {
                 Assert.That(service.ScanErrors["X"], Is.EqualTo("X watch failed"));
-                Assert.That(index.Drives.Single(drive => drive.Drive == 'X').State, Is.EqualTo(DriveState.Ready));
+                Assert.That(indices[1].Status.State, Is.EqualTo(RootState.Ready));
             }
-            var markers = index.Search(new SearchQuery(".git", NameMatchMode.Exact)).ToArray();
+            var markers = set.Search(new SearchQuery(".git", NameMatchMode.Exact)).ToArray();
             Assert.That(markers, Has.Length.EqualTo(2), "Both the failed and healthy drive remain queryable.");
             using (Assert.EnterMultipleScope())
             {

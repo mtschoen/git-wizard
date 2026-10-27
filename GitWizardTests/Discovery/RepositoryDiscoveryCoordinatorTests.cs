@@ -9,7 +9,7 @@ public class RepositoryDiscoveryCoordinatorTests
 {
 
     static Func<IReadOnlyList<string>, CacheMode, IProgress<IndexScanProgress>?, CancellationToken,
-        Task<MftIndexSession>> OpenWithBroker(BlockBrokerFixture broker, IndexedDrive drive, string cache) =>
+        Task<MftIndexSession>> OpenWithBroker(BlockBrokerFixture broker, IndexedRoot drive, string cache) =>
         (_, cacheMode, _, token) => MftIndexSession.OpenAsync([drive], broker.CreateSession(), cache, cacheMode, null, token);
 
     static Func<IReadOnlyList<string>, CacheMode, IProgress<IndexScanProgress>?, CancellationToken,
@@ -113,23 +113,23 @@ public class RepositoryDiscoveryCoordinatorTests
             await using var seedBroker = broker.CreateSession();
             await using var seed = await FileIndex.OpenAsync(new FileIndexOptions
             {
-                Drives = [broker.Drive('X')],
+                Root = broker.Drive('X'),
                 CacheDirectory = cache,
                 CacheTag = MftIndexCachePolicy.CacheTag,
                 MftSource = seedBroker.CreateIndexSource()
             }, CancellationToken.None);
-            Assert.That(seed.Drives.Single().Block?.Origin, Is.EqualTo(BlockOrigin.ProducedByScan));
+            Assert.That(seed.Status.Block?.Origin, Is.EqualTo(BlockOrigin.ProducedByScan));
         }
 
         await using var session = await MftIndexSession.OpenAsync([broker.Drive('X')], broker.CreateSession(),
             cache, CacheMode.ExistingOnly, null, CancellationToken.None);
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(session.CaptureDriveStatuses().Single().IndexStatus!.State, Is.EqualTo(DriveState.Failed));
-            Assert.That(session.CaptureDriveStatuses().Single().IndexStatus!.Failure?.Kind,
+            Assert.That(session.CaptureRootStatuses().Single().IndexStatus!.State, Is.EqualTo(RootState.Failed));
+            Assert.That(session.CaptureRootStatuses().Single().IndexStatus!.Failure?.Kind,
                 Is.EqualTo(seedDifferentRetention
-                    ? DriveFailureKind.CacheIdentityMismatch
-                    : DriveFailureKind.CacheDeclined));
+                    ? RootFailureKind.CacheIdentityMismatch
+                    : RootFailureKind.CacheDeclined));
         }
 
         var configuration = new GitWizardConfiguration { SearchPaths = { broker.Drive('X').RootDirectory } };
@@ -178,7 +178,7 @@ public class RepositoryDiscoveryCoordinatorTests
             IsLinux = false,
             ClassifyRoot = root => new RootClassification(root, RootFileSystem.Ntfs, "X", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS crawler invoked"),
-            OpenIndexAsync = async (_, _, _, _) => new MftIndexSession(await indexTask, null, ["X"], [], new Dictionary<string, string>()),
+            OpenIndexAsync = async (_, _, _, _) => new MftIndexSession([await indexTask], null, ["X"], [], new Dictionary<string, string>()),
             ReadListAsync = _ => Task.FromResult<string[]?>([@"C:\old"]),
             WriteListAsync = (_, _) => Task.CompletedTask,
             CandidateExists = (_, _) => true,

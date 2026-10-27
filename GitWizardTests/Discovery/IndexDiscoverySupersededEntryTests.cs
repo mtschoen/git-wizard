@@ -1,6 +1,7 @@
 using GitWizard;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
+using MFTLib.Index;
 using MFTLibTestExtensions;
 
 namespace GitWizardTests;
@@ -20,9 +21,9 @@ public class IndexDiscoverySupersededEntryTests
         files.AddMarker("repository");
         var scripted = new ScriptedWatchSource();
         await using var index = await files.OpenMftIndexAsync(scripted, 'X');
-        await index.StartWatchingAsync(['X'], CancellationToken.None);
+        await index.StartWatchingAsync(CancellationToken.None);
         await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
-        var marker = GitWizardApi.SelectGitEntries(index, includeGitFiles: false).Single();
+        var marker = GitWizardApi.SelectGitEntries(new FileIndexSet([index]), includeGitFiles: false).Single();
         var directory = marker.Parent!.Value;
         Assert.That(directory.Name, Is.EqualTo("repository"));
 
@@ -41,7 +42,7 @@ public class IndexDiscoverySupersededEntryTests
         {
             Assert.That(GitWizardApi.TryReadIsDirectory(directory, out _), Is.False);
             Assert.That(GitWizardApi.TryGetScopedParent(directory, scope, out _, out _), Is.False);
-            Assert.That(GitWizardApi.SelectGitEntries(index, includeGitFiles: false), Is.Empty);
+            Assert.That(GitWizardApi.SelectGitEntries(new FileIndexSet([index]), includeGitFiles: false), Is.Empty);
         }
     }
 

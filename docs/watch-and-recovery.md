@@ -14,7 +14,7 @@ describes git-wizard's adapters and consumers, not a second library specificatio
 The adapter maps `Changed` into volume batches and consumes `WatchFaulted`. It
 uses `WatchFault.IsRecovering` for recoverability, subscribes to per-drive
 `WatchStateChanged`, reads `WatchStateChange.Watch.State` / `Watch.StateVersion`
-and seeds from `DriveStatus.Watch`. The event and recovery classification
+and seeds from `RootStatus.Watch`. The event and recovery classification
 contracts are defined in the linked MFTLib documentation.
 
 Equal and older versions are ignored. Recovery reconciliation runs off the library callback thread and publishes CaughtUp only if its version is still current. WatchFaulted remains the source of fault diagnostics and terminal-drive policy; recoverable Faulted then Recovering transitions do not exclude the drive. No recovery timer or status polling is used.
@@ -27,9 +27,9 @@ the difference as ordinary change entries
 repository is refreshed. `RepositoryWatchService` applies its usual membership,
 scope and refresh rules to them.
 
-Otherwise the observation stays pending: a recoverable fault is followed, and a terminal one is excluded by its own notification. A fault that lands just after the publication is published by its handler over it. `OnWatchFaulted` excludes a nonrecovering drive and raises optional `IVolumeChangeDiagnostics.DriveFailed` while healthy drives continue. The adapter reads `DriveWatchStatus.IsRecoveryStopped` for journal-warning refreshes; consumers do not infer exhaustion from failure text or a retry count. A drive that reads `Recovering` when its startup catch-up wait faults is followed the same way instead of being excluded. MFTLib's linked watch/checkpoint contracts define fault classification.
+Otherwise the observation stays pending: a recoverable fault is followed, and a terminal one is excluded by its own notification. A fault that lands just after the publication is published by its handler over it. `OnWatchFaulted` excludes a nonrecovering drive and raises optional `IVolumeChangeDiagnostics.DriveFailed` while healthy drives continue. The adapter reads `RootWatchStatus.IsRecoveryStopped` for journal-warning refreshes; consumers do not infer exhaustion from failure text or a retry count. A drive that reads `Recovering` when its startup catch-up wait faults is followed the same way instead of being excluded. MFTLib's linked watch/checkpoint contracts define fault classification.
 
-When the faulted drive reports a `JournalCheckpointLossDetection.LiveWatch` or `ScanCatchUp` loss the source first raises `IVolumeChangeDiagnostics.JournalWarningDetected` with the drive's refreshed hint; an unrelated fault raises no warning and leaves the open's standing report untouched. Arm-time `JournalCheckpointLossDetection.DriveOpening` losses, including a cache-declined drive's discarded checkpoint, reach the arm result as `JournalWarning`s.
+When the faulted drive reports a `JournalCheckpointLossDetection.LiveWatch` or `ScanCatchUp` loss the source first raises `IVolumeChangeDiagnostics.JournalWarningDetected` with the drive's refreshed hint; an unrelated fault raises no warning and leaves the open's standing report untouched. Arm-time `JournalCheckpointLossDetection.RootOpening` losses, including a cache-declined drive's discarded checkpoint, reach the arm result as `JournalWarning`s.
 
 When the last usable drive is excluded the source raises `SourceDied` once and closes the output channel; a recovering drive keeps the source alive. Subscriber faults reach the reader as errors. Shutdown detaches index handlers and stops the pump before disposing its owner.
 

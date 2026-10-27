@@ -25,19 +25,19 @@ public sealed partial class IndexVolumeChangeSource
     {
         try
         {
-            AcceptWatchState(change.Drive.Letter, change.Watch, change.Fault, recordTransition: true);
+            AcceptWatchState(change.Volume.Letter, change.Watch, change.Fault, recordTransition: true);
         }
         catch (Exception exception)
         {
-            FailWatchState(change.Drive.Letter, exception);
+            FailWatchState(change.Volume.Letter, exception);
         }
     }
 
-    void SeedWatchStates(FileIndex index)
+    void SeedWatchStates(IEnumerable<FileIndex> indices)
     {
-        foreach (var status in index.Drives)
+        foreach (var status in indices.Select(index => index.Status))
         {
-            AcceptWatchState(status.Drive.Letter, status.Watch, null, recordTransition: false);
+            AcceptWatchState(status.Root.VolumeLetter(), status.Watch, null, recordTransition: false);
         }
     }
 
@@ -55,7 +55,7 @@ public sealed partial class IndexVolumeChangeSource
         RecordStartupDriveFailure(drive, exception.Message);
     }
 
-    void AcceptWatchState(char driveLetter, DriveWatchStatus watch, WatchFault? fault, bool recordTransition)
+    void AcceptWatchState(char driveLetter, RootWatchStatus watch, WatchFault? fault, bool recordTransition)
     {
         var drive = char.ToUpperInvariant(driveLetter);
         lock (_watchStateLock)

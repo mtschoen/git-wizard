@@ -109,9 +109,9 @@ public sealed partial class IndexVolumeChangeSource
 
         _driveRealRoots.TryGetValue(drive, out var realRoot);
         var markers = new HashSet<string>(WatchPath.StringComparer);
-        foreach (var entry in GitWizardApi.SelectGitEntries(owner.Index, includeGitFiles: true))
+        foreach (var entry in GitWizardApi.SelectGitEntries(owner.IndexSet, includeGitFiles: true))
         {
-            if (entry.Drive.Letter != drive)
+            if (entry.Root.VolumeLetter() != drive)
             {
                 continue;
             }

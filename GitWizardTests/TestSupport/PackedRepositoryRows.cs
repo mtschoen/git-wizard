@@ -9,7 +9,7 @@ static class PackedRepositoryRows
     public static Task<FileIndex> OpenRowsAsync(PackedIndexFixture files, params SyntheticRow[] rows) =>
         FileIndex.OpenAsync(new FileIndexOptions
         {
-            Drives = [new IndexedDrive('X', files.TreePath, 1)],
+            Root = SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1),
             CacheMode = CacheMode.Disabled,
             MftSource = SyntheticIndexSource.Create(new SyntheticMftProducer(_ => [Directory(5, "root", 5), .. rows])
             {

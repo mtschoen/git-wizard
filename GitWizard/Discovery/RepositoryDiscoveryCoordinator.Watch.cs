@@ -60,11 +60,11 @@ public partial class RepositoryDiscoveryCoordinator
 
             if (source?.Session is { } session)
             {
-                accumulator.RecordDriveStatuses(session.CaptureDriveStatuses());
+                accumulator.RecordDriveStatuses(session.CaptureRootStatuses());
             }
 
             progress?.Report(new WatchStartupProgress(WatchStartupPhase.Discovering));
-            if (source?.Index is { } index && !request.NoMft)
+            if (source?.IndexSet is { } index && !request.NoMft)
             {
                 AddIndexedCandidates(index, accumulator, cancellationToken);
             }
@@ -256,7 +256,7 @@ public partial class RepositoryDiscoveryCoordinator
             }
         }
 
-        if (movedRoots.Count == 0 || source.Index is not { } index)
+        if (movedRoots.Count == 0 || source.IndexSet is not { } index)
         {
             return batches;
         }

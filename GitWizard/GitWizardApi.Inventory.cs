@@ -56,7 +56,7 @@ public static partial class GitWizardApi
                 Paths = expandedPaths,
                 RequestedNtfsDrives = [],
                 Observations = [],
-                DriveStatuses = [],
+                RootStatuses = [],
                 Errors = new Dictionary<string, string>(),
                 WatchExcludedRoots = []
             };

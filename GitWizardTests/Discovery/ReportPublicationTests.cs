@@ -285,7 +285,7 @@ public class ReportPublicationTests
                 Paths = [],
                 RequestedNtfsDrives = [],
                 Observations = [],
-                DriveStatuses = [],
+                RootStatuses = [],
                 Errors = new Dictionary<string, string> { ["D"] = "error" },
                 WatchExcludedRoots = []
             }
@@ -307,7 +307,7 @@ public class ReportPublicationTests
                 Paths = [],
                 RequestedNtfsDrives = [],
                 Observations = [],
-                DriveStatuses = [],
+                RootStatuses = [],
                 Errors = new Dictionary<string, string>(),
                 WatchExcludedRoots = []
             }

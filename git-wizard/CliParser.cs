@@ -64,7 +64,7 @@ static partial class CliParser
 
         var rootOptions = SetupOptions(app);
         SubcommandHandle[] subcommands = [SetupTagsCommand(app), SetupBranchesCommand(app), SetupPruneCommand(app)];
-        RunConfiguration? parsed = null;
+        RunConfiguration? parsed;
 
         try
         {

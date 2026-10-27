@@ -102,11 +102,10 @@ public class PrunerTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(report.Candidates.Select(c => c.Action), Is.EqualTo(new[]
-            {
+            Assert.That(report.Candidates.Select(c => c.Action), Is.EqualTo([
                 PruneCandidate.Deleted, PruneCandidate.Skipped, PruneCandidate.Deleted
-            }));
-            Assert.That(scenario.StashShas(), Is.EqualTo(new[] { stashes[1] }));
+            ]));
+            Assert.That(scenario.StashShas(), Is.EqualTo([stashes[1]]));
             Assert.That(hints.ToString(), Does.Contain("stash store -m 'On main: stash ").And.Contain(stashes[0]).And.Contain(stashes[2]));
             Assert.That(report.Candidates.Any(c => c.Kind == PruneCandidate.BranchKind), Is.False);
         }
@@ -134,7 +133,7 @@ public class PrunerTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(File.Exists(marker), Is.False);
-            Assert.That(scenario.StashShas(), Is.EqualTo(new[] { stashSha }));
+            Assert.That(scenario.StashShas(), Is.EqualTo([stashSha]));
             Assert.That(storedMessage, Does.Contain(message));
             Assert.That(scenario.StashMessages().Single(), Is.EqualTo(storedMessage));
         }

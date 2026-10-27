@@ -145,7 +145,7 @@ public class PruneCliTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(result.ExitCode, Is.Zero, result.StandardError);
-            Assert.That(report.Repositories.Single().Branches.Select(b => b.Name), Is.EqualTo(new[] { "local-work" }));
+            Assert.That(report.Repositories.Single().Branches.Select(b => b.Name), Is.EqualTo(["local-work"]));
         }
     }
 }

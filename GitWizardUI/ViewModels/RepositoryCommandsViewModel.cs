@@ -243,7 +243,7 @@ public sealed class RepositoryCommandsViewModel
         var applied = await Task.Run(() => Pruner.Run([workingDirectory], options, restoreHints));
         foreach (var hint in restoreHints.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
-            GitWizardLog.Log(hint, GitWizardLog.LogType.Info);
+            GitWizardLog.Log(hint);
         }
 
         await Task.Run(() => node.Repository.Refresh(_updateHandler));

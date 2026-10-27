@@ -119,6 +119,8 @@ internal sealed class GitScenarioRepo : IDisposable
     public void Dispose()
     {
         foreach (var directory in _directories)
+        {
             directory.Dispose();
+        }
     }
 }

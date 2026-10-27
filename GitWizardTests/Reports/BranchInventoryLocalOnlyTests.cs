@@ -57,7 +57,7 @@ public class BranchInventoryLocalOnlyTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(repository.Path, Is.EqualTo(scenario.Path));
-            Assert.That(repository.Branches.Select(b => b.Name), Is.EqualTo(new[] { "local-work" }));
+            Assert.That(repository.Branches.Select(b => b.Name), Is.EqualTo(["local-work"]));
             Assert.That(repository.Stashes, Has.Count.EqualTo(1));
         }
     }
@@ -104,10 +104,10 @@ public class BranchInventoryLocalOnlyTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(full.Select(b => b.Name), Is.EquivalentTo(new[] { "local-work", "pushed-work", "squashed" }));
+            Assert.That(full.Select(b => b.Name), Is.EquivalentTo(["local-work", "pushed-work", "squashed"]));
             Assert.That(full.Single(b => b.Name == "pushed-work").UniqueCommitCount, Is.Zero);
             Assert.That(full.Single(b => b.Name == "squashed").UniqueCommitCount, Is.EqualTo(1));
-            Assert.That(localOnly.Select(b => b.Name), Is.EqualTo(new[] { "local-work" }));
+            Assert.That(localOnly.Select(b => b.Name), Is.EqualTo(["local-work"]));
             Assert.That(localOnly.Single().MergedBy, Is.Null);
         }
     }
@@ -127,7 +127,7 @@ public class BranchInventoryLocalOnlyTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(full.Select(s => s.IsMerged), Is.EqualTo(new[] { false, true }));
+            Assert.That(full.Select(s => s.IsMerged), Is.EqualTo([false, true]));
             Assert.That(localOnly.Branches, Is.Empty);
             Assert.That(localOnly.Stashes.Single().Message, Does.Contain("unlanded"));
         }

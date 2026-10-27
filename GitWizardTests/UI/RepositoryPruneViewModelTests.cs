@@ -20,7 +20,9 @@ public class RepositoryPruneViewModelTests
     {
         var viewModel = TestViewModels.Create();
         foreach (var repository in repositories)
+        {
             viewModel.RepositoryList.AddRepository(repository, streaming: false);
+        }
 
         viewModel.RepositoryList.SetSortMode(mode);
         return viewModel.RepositoryList.Repositories.Select(node => node.WorkingDirectory).ToList();
@@ -88,7 +90,7 @@ public class RepositoryPruneViewModelTests
             Branches = [new BranchInfo { Name = "a", IsMerged = true }, new BranchInfo { Name = "b", IsMerged = true }]
         };
 
-        Assert.That(SortedPaths(SortMode.Prunable, none, stashes, mixed), Is.EqualTo(new[] { "/mixed", "/stashes", "/none" }));
+        Assert.That(SortedPaths(SortMode.Prunable, none, stashes, mixed), Is.EqualTo(["/mixed", "/stashes", "/none"]));
     }
 
     [Test]
@@ -98,7 +100,7 @@ public class RepositoryPruneViewModelTests
         var recent = new GitWizardRepository("/recent") { OldestLocalOnlyBranchDate = new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero) };
         var old = new GitWizardRepository("/old") { OldestLocalOnlyBranchDate = new DateTimeOffset(2021, 1, 1, 0, 0, 0, TimeSpan.Zero) };
 
-        Assert.That(SortedPaths(SortMode.StaleBranches, none, recent, old), Is.EqualTo(new[] { "/old", "/recent", "/none" }));
+        Assert.That(SortedPaths(SortMode.StaleBranches, none, recent, old), Is.EqualTo(["/old", "/recent", "/none"]));
     }
 
     [Test]

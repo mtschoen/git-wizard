@@ -95,7 +95,7 @@ internal sealed class GitScenarioRepo : IDisposable
     public string Sha(string revision)
     {
         using var repository = new Repository(Path);
-        return repository.Lookup<Commit>(revision).Sha;
+        return repository.Lookup(revision).Sha;
     }
 
     public bool HasBranch(string name)

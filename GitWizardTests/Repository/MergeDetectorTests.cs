@@ -16,6 +16,12 @@ public class MergeDetectorTests
         return MergeDetector.Detect(repository, repository.Branches[branch].Tip, repository.Branches[baseBranch].Tip);
     }
 
+    static string? DetectCheap(GitScenarioRepo scenario, string branch, string baseBranch = "main")
+    {
+        using var repository = new Repository(scenario.Path);
+        return MergeDetector.DetectCheap(repository, repository.Branches[branch].Tip, repository.Branches[baseBranch].Tip);
+    }
+
     [Test]
     public void FastForwardMergedBranch_IsAncestor()
     {
@@ -28,18 +34,43 @@ public class MergeDetectorTests
         Assert.That(Detect(scenario, "feature"), Is.EqualTo(MergedBy.Ancestor));
     }
 
-    [Test]
-    public void RebaseMergedBranch_IsPatchId()
+    [TestCase("rebased", MergedBy.PatchId)]
+    [TestCase("pr439-merge-only-unmerged-resolution", null)]
+    [TestCase("pr439-merge-plus-cherry-picked-commit", null)]
+    public void RebaseMergedBranch_IsPatchId(string mode, string? expected)
     {
         using var scenario = GitScenarioRepo.Create();
-        scenario.NewBranch("feature");
-        scenario.Commit("a.txt", "a", "a");
-        scenario.Commit("b.txt", "b", "b");
-        scenario.Checkout("main");
-        scenario.Commit("unrelated.txt", "unrelated", "unrelated");
-        scenario.Git("cherry-pick", "main..feature");
+        if (mode == "rebased")
+        {
+            scenario.NewBranch("feature");
+            scenario.Commit("a.txt", "a", "a");
+            scenario.Commit("b.txt", "b", "b");
+            scenario.Checkout("main");
+            scenario.Commit("unrelated.txt", "unrelated", "unrelated");
+            scenario.Git("cherry-pick", "main..feature");
+        }
+        else
+        {
+            scenario.Commit("main-side.txt", "main side", "advance main");
+            scenario.Git("checkout", "-q", "-b", "feature", "HEAD~1");
+            scenario.Git("merge", "-q", "--no-ff", "--no-commit", "main");
+            scenario.Write("resolution.txt", "unmerged work in merge commit");
+            scenario.Git("add", "resolution.txt");
+            scenario.Git("commit", "-q", "-m", "merge main with extra work");
+            if (mode == "pr439-merge-plus-cherry-picked-commit")
+            {
+                scenario.Commit("picked.txt", "picked", "picked commit");
+                var pickedSha = scenario.Sha("feature");
+                scenario.Checkout("main");
+                scenario.Git("cherry-pick", pickedSha);
+            }
+            else
+            {
+                scenario.Checkout("main");
+            }
+        }
 
-        Assert.That(Detect(scenario, "feature"), Is.EqualTo(MergedBy.PatchId));
+        Assert.That(Detect(scenario, "feature"), Is.EqualTo(expected));
     }
 
     [Test]
@@ -73,16 +104,37 @@ public class MergeDetectorTests
         Assert.That(Detect(scenario, "feature"), Is.EqualTo(MergedBy.Content));
     }
 
-    [Test]
-    public void UnmergedBranch_IsNull()
+    [TestCase("new-file")]
+    [TestCase("pr439-executable-bit-only")]
+    [TestCase("pr439-symlink-mode-only")]
+    public void UnmergedBranch_IsNull(string mode)
     {
         using var scenario = GitScenarioRepo.Create();
         scenario.NewBranch("feature");
-        scenario.Commit("a.txt", "a", "a");
-        scenario.Checkout("main");
+        switch (mode)
+        {
+            case "new-file":
+                scenario.Commit("a.txt", "a", "a");
+                break;
+            case "pr439-executable-bit-only":
+                scenario.Git("update-index", "--chmod=+x", "base.txt");
+                scenario.Git("commit", "-q", "-m", "make base.txt executable");
+                break;
+            case "pr439-symlink-mode-only":
+                var blobSha = scenario.Sha("HEAD:base.txt");
+                scenario.Git("update-index", "--cacheinfo", $"120000,{blobSha},base.txt");
+                scenario.Git("commit", "-q", "-m", "make base.txt symlink");
+                break;
+        }
+
+        scenario.Git("checkout", "-q", "-f", "main");
         scenario.Commit("unrelated.txt", "unrelated", "unrelated");
 
-        Assert.That(Detect(scenario, "feature"), Is.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(Detect(scenario, "feature"), Is.Null);
+            Assert.That(DetectCheap(scenario, "feature"), Is.Null);
+        }
     }
 
     [Test]

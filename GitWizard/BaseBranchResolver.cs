@@ -56,12 +56,12 @@ public static class BaseBranchResolver
         return string.Equals(branch.FriendlyName, ShortNameOfRemoteBranch(baseBranch), StringComparison.Ordinal);
     }
 
-    static Branch? ResolveExplicit(Repository repository, string name)
+    internal static Branch? ResolveExplicit(Repository repository, string name)
     {
         return repository.Branches[name]
             ?? repository.Branches[$"origin/{name}"]
-            ?? repository.Branches.FirstOrDefault(b =>
-                b.IsRemote && b.FriendlyName.EndsWith($"/{name}", StringComparison.OrdinalIgnoreCase));
+            ?? repository.Branches.FirstOrDefault(branch =>
+                branch.IsRemote && branch.FriendlyName.EndsWith($"/{name}", StringComparison.OrdinalIgnoreCase));
     }
 
     static Branch? ResolveRemoteDefault(Repository repository)

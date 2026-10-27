@@ -102,4 +102,7 @@ public sealed record PruneOptions(
     bool Stashes = true,
     bool Apply = false,
     string? BaseBranchName = null,
-    IReadOnlySet<string>? OnlyShas = null);
+    IReadOnlySet<string>? OnlyShas = null)
+{
+    internal Action<PruneCandidate>? BeforeDelete { get; init; }
+}

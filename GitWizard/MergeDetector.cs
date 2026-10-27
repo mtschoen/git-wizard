@@ -97,11 +97,22 @@ public static class MergeDetector
     }
 
     /// <summary>
-    /// True when every path in <paramref name="paths"/> has the same blob (or is absent in both)
-    /// in <paramref name="expected"/> and <paramref name="actual"/>.
+    /// True when every path in <paramref name="paths"/> has the same mode and object SHA (or is
+    /// absent in both) in <paramref name="expected"/> and <paramref name="actual"/>.
     /// </summary>
     internal static bool PathsMatch(IEnumerable<string> paths, Tree expected, Tree actual) =>
-        paths.All(path => string.Equals(expected[path]?.Target.Sha, actual[path]?.Target.Sha, StringComparison.Ordinal));
+        paths.All(path => EntriesMatch(expected[path], actual[path]));
+
+    static bool EntriesMatch(TreeEntry? expected, TreeEntry? actual)
+    {
+        if (expected == null || actual == null)
+        {
+            return expected == null && actual == null;
+        }
+
+        return expected.Mode == actual.Mode
+            && string.Equals(expected.Target.Sha, actual.Target.Sha, StringComparison.Ordinal);
+    }
 
     // Rename detection is quadratic in the diff size (minutes per branch on a monorepo whose
     // branch has drifted from trunk) and adds nothing here: a rename surfaces as a delete plus an
@@ -125,8 +136,22 @@ public static class MergeDetector
 
     static bool AllCommitsHavePatchEquivalent(Repository repository, Commit baseTip, Commit tip)
     {
+        // git cherry silently ignores merge commits, so any merge commit in baseTip..tip must fall
+        // through to the squash and content tiers rather than being treated as patch-equivalent.
+        var merges = GitCli.Run(repository, "rev-list", "--merges", $"{baseTip.Sha}..{tip.Sha}");
+        if (!merges.Succeeded || !string.IsNullOrWhiteSpace(merges.Output))
+        {
+            return false;
+        }
+
         var result = GitCli.Run(repository, "cherry", baseTip.Sha, tip.Sha);
-        return result.Succeeded && !CherryLines(result.Output).Any(line => line.StartsWith('+'));
+        if (!result.Succeeded)
+        {
+            return false;
+        }
+
+        var lines = CherryLines(result.Output);
+        return lines.Length > 0 && !lines.Any(line => line.StartsWith('+'));
     }
 
     // git-delete-squashed technique: a synthetic commit whose tree is the branch tip and whose

@@ -256,7 +256,6 @@ The automation-focused sweep is a separate contract from the cached report above
 | `CommitSha` | `string` | Target commit SHA |
 | `ExistsOnRemote` | `bool` | Whether the tag exists on any configured remote |
 | `Remotes` | `string[]` | Remote names that still hold this tag |
-| `Stashes` | `StashInventoryInfo[]` | Stashes, newest first (`Index`, `Message`, `Sha`, `IsMerged`, `MergedBy`); `MergedBy` is `content` when every path the stash changes (working tree, differing staged versions and untracked files) is identical on the base |
 | `Error` | `string` | Optional repository error if repository could not be inspected |
 
 ## Prune output (`prune`)
@@ -293,11 +292,11 @@ The automation-focused sweep is a separate contract from the cached report above
 | `Message` | `string` | Stash message (stashes only) |
 | `Errors` | `object[]` | Repositories that could not be inspected (`Repository`, `Error`) |
 
-Branches are deleted with `git branch -D`; stashes with `git stash drop`, highest index first, after checking the index still points at the listed SHA. Each deletion prints a restore command (`git -C <repo> branch <name> <sha>` or `git -C <repo> stash store -m "<msg>" <sha>`) to stderr.
+Branches are deleted with `git update-ref -d refs/heads/<name> <sha>` (matching the inspected tip SHA) followed by best-effort cleanup of `branch.<name>.*` config; stashes are dropped with `git stash drop`, highest index first, and immediately restored with `git stash store` if the dropped SHA differs from the listed SHA. Each deletion prints a restore command (`git -C <repo> branch <name> <sha>` or `git -C <repo> stash store -m "<msg>" <sha>`) to stderr.
 
 ## Branch inventory output (`branches`)
 
-`git-wizard branches` inspects every clone for local branches and stashes, comparing against the specified base branch (`--not-merged <base>` / `--not <base>`) or each repository's default branch. The default prefers `refs/remotes/origin/HEAD`, then `origin/main`, `origin/master`, `origin/develop`, then local main/master/develop, then the checked-out branch, so a stale local `main` is not the comparison point; the local counterpart of a remote base is not listed. It calculates upstream tracking divergence and a `UniqueCommitCount` that proves zero data loss before branch deletion. `--local-only` keeps branches with `UniqueCommitCount > 0` and `MergedBy` null, and only unmerged stashes. Schema 1.1 added `MergedBy` and `Stashes`.
+`git-wizard branches` inspects every clone for local branches and stashes, comparing against the specified base branch (`--not-merged <base>` / `--not <base>`) or each repository's default branch. The default prefers `refs/remotes/origin/HEAD`, then `origin/main`, `origin/master`, `origin/develop`, then local main/master/develop, then the checked-out branch, so a stale local `main` is not the comparison point; the local counterpart of a remote base is omitted unless it has unpushed commits (`UniqueCommitCount > 0`). It calculates upstream tracking divergence and a `UniqueCommitCount` that proves zero data loss before branch deletion. `--local-only` keeps branches with `UniqueCommitCount > 0` and `MergedBy` null, and only unmerged stashes. Schema 1.1 added `MergedBy` and `Stashes`.
 
 Upstream tracking is resolved only when the branch's configured remote exactly
 matches a configured remote name. URL-valued remotes, missing remote names, and
@@ -362,4 +361,5 @@ tracking branch reference is absent locally, upstream divergence counts are zero
 | `BehindUpstream` | `int` | Commits behind upstream branch |
 | `UniqueCommitCount` | `int` | Count of commits reachable only from this branch and not on base branch or any remote branch. When 0, the branch is safe to delete with zero data loss. |
 | `LastCommitDate` | `string` (ISO 8601) | Timestamp of the branch tip commit |
+| `Stashes` | `StashInventoryInfo[]` | Stashes, newest first (`Index`, `Message`, `Sha`, `IsMerged`, `MergedBy`); `MergedBy` is `content` when every path the stash changes (working tree, differing staged versions and untracked files) is identical on the base |
 | `Error` | `string` | Optional repository error if repository could not be inspected |

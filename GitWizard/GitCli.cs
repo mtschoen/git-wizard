@@ -18,11 +18,50 @@ internal static class GitCli
 {
     const int TimeoutMilliseconds = 30000;
 
+    // Git environment variables that redirect repository, worktree, index, object-store or config
+    // lookup. Clearing them ensures child git commands operate on the target repository rather than
+    // inheriting overrides from a hook, alias or parent worktree environment.
+    static readonly string[] RepositoryEnvironmentVariables =
+    [
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_COMMON_DIR",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_IMPLICIT_WORK_TREE",
+        "GIT_PREFIX",
+        "GIT_GRAFT_FILE",
+        "GIT_SHALLOW_FILE",
+        "GIT_NO_REPLACE_OBJECTS",
+        "GIT_REPLACE_REF_BASE",
+        "GIT_CONFIG",
+        "GIT_CONFIG_PARAMETERS",
+        "GIT_CONFIG_COUNT"
+    ];
+
+    internal static void ClearRepositoryEnvironment(ProcessStartInfo startInfo)
+    {
+        foreach (var variable in RepositoryEnvironmentVariables)
+        {
+            startInfo.Environment.Remove(variable);
+        }
+    }
+
     /// <summary>
     /// Run git in the repository's working directory (or via --git-dir for a bare repository),
     /// logging any failure with the command line and git's stderr.
     /// </summary>
-    public static GitCliResult Run(Repository repository, params string[] arguments)
+    public static GitCliResult Run(Repository repository, params string[] arguments) =>
+        RunCore(repository, logNonZeroExit: true, arguments);
+
+    /// <summary>
+    /// Run git like <see cref="Run"/>, but do not log a warning when git exits non-zero.
+    /// </summary>
+    public static GitCliResult RunQuiet(Repository repository, params string[] arguments) =>
+        RunCore(repository, logNonZeroExit: false, arguments);
+
+    static GitCliResult RunCore(Repository repository, bool logNonZeroExit, string[] arguments)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -32,6 +71,7 @@ internal static class GitCli
             RedirectStandardError = true,
             CreateNoWindow = true
         };
+        ClearRepositoryEnvironment(startInfo);
 
         var workingDirectory = repository.Info.WorkingDirectory;
         if (!string.IsNullOrEmpty(workingDirectory))
@@ -53,7 +93,7 @@ internal static class GitCli
         var commandLine = $"git {string.Join(' ', arguments)} ({workingDirectory ?? repository.Info.Path})";
         try
         {
-            return RunProcess(startInfo, commandLine);
+            return RunProcess(startInfo, commandLine, logNonZeroExit);
         }
         catch (Exception exception)
         {
@@ -62,7 +102,7 @@ internal static class GitCli
         }
     }
 
-    static GitCliResult RunProcess(ProcessStartInfo startInfo, string commandLine)
+    static GitCliResult RunProcess(ProcessStartInfo startInfo, string commandLine, bool logNonZeroExit)
     {
         using var process = Process.Start(startInfo);
         if (process == null)
@@ -98,7 +138,11 @@ internal static class GitCli
 
         if (process.ExitCode != 0)
         {
-            GitWizardLog.Log($"{commandLine} exited {process.ExitCode}: {error.Trim()}", GitWizardLog.LogType.Warning);
+            if (logNonZeroExit)
+            {
+                GitWizardLog.Log($"{commandLine} exited {process.ExitCode}: {error.Trim()}", GitWizardLog.LogType.Warning);
+            }
+
             return new GitCliResult(false, output);
         }
 

@@ -47,7 +47,7 @@ public static class Pruner
         try
         {
             using var repository = new Repository(path);
-            return (PruneRepository(repository, path, options, restoreHints), null);
+            return PruneRepository(repository, path, options, restoreHints);
         }
         catch (Exception exception)
         {
@@ -61,10 +61,29 @@ public static class Pruner
         return new PruneRepositoryError { Repository = path, Error = exception.Message };
     }
 
-    static List<PruneCandidate> PruneRepository(Repository repository, string path, PruneOptions options, TextWriter restoreHints)
+    static (List<PruneCandidate> Candidates, PruneRepositoryError? Error) PruneRepository(
+        Repository repository,
+        string path,
+        PruneOptions options,
+        TextWriter restoreHints)
     {
-        var baseBranch = BaseBranchResolver.Resolve(repository, options.BaseBranchName);
-        var context = new RepositoryContext(repository, path, baseBranch, options.Apply, restoreHints, options.OnlyShas);
+        Branch? baseBranch;
+        if (!string.IsNullOrEmpty(options.BaseBranchName))
+        {
+            baseBranch = BaseBranchResolver.ResolveExplicit(repository, options.BaseBranchName);
+            if (baseBranch?.Tip == null)
+            {
+                var message = $"Base branch '{options.BaseBranchName}' was not found.";
+                GitWizardLog.Log($"{message} ({path})", GitWizardLog.LogType.Warning);
+                return ([], new PruneRepositoryError { Repository = path, Error = message });
+            }
+        }
+        else
+        {
+            baseBranch = BaseBranchResolver.Resolve(repository);
+        }
+
+        var context = new RepositoryContext(repository, path, baseBranch, options, restoreHints);
         var candidates = new List<PruneCandidate>();
         if (options.Branches)
         {
@@ -76,12 +95,17 @@ public static class Pruner
             candidates.AddRange(PruneStashes(context));
         }
 
-        return candidates;
+        return (candidates, null);
     }
 
-    sealed record RepositoryContext(Repository Repository, string Path, Branch? BaseBranch, bool Apply, TextWriter RestoreHints, IReadOnlySet<string>? OnlyShas)
+    sealed record RepositoryContext(
+        Repository Repository,
+        string Path,
+        Branch? BaseBranch,
+        PruneOptions Options,
+        TextWriter RestoreHints)
     {
-        public bool IsExcluded(string sha) => OnlyShas != null && !OnlyShas.Contains(sha);
+        public bool IsExcluded(string sha) => Options.OnlyShas != null && !Options.OnlyShas.Contains(sha);
     }
 
     static List<PruneCandidate> PruneBranches(RepositoryContext context)
@@ -91,8 +115,8 @@ public static class Pruner
         var headName = repository.Head.Reference is SymbolicReference ? repository.Head.CanonicalName : null;
         var candidates = new List<PruneCandidate>();
         var localBranches = repository.Branches
-            .Where(b => b is { IsRemote: false, Tip: not null })
-            .OrderBy(b => b.FriendlyName, StringComparer.Ordinal)
+            .Where(branch => branch is { IsRemote: false, Tip: not null })
+            .OrderBy(branch => branch.FriendlyName, StringComparer.Ordinal)
             .ToList();
 
         foreach (var branch in localBranches)
@@ -188,23 +212,25 @@ public static class Pruner
             return;
         }
 
-        if (!context.Apply)
+        if (!context.Options.Apply)
         {
             candidate.Action = PruneCandidate.WouldDelete;
             return;
         }
 
+        context.Options.BeforeDelete?.Invoke(candidate);
         candidate.SkipReason = delete();
         candidate.Action = candidate.SkipReason == null ? PruneCandidate.Deleted : PruneCandidate.Skipped;
     }
 
     static string? DeleteBranch(RepositoryContext context, PruneCandidate candidate)
     {
-        if (!GitCli.Run(context.Repository, "branch", "-D", candidate.Name).Succeeded)
+        if (!GitCli.Run(context.Repository, "update-ref", "-d", $"refs/heads/{candidate.Name}", candidate.Sha).Succeeded)
         {
             return PruneSkipReasons.DeleteFailed;
         }
 
+        GitCli.RunQuiet(context.Repository, "config", "--local", "--remove-section", $"branch.{candidate.Name}");
         context.RestoreHints.WriteLine($"Deleted branch {candidate.Name}; restore with: git -C {ShellQuote(context.Path)} branch {ShellQuote(candidate.Name)} {candidate.Sha}");
         return null;
     }
@@ -217,20 +243,36 @@ public static class Pruner
     static string? DropStash(RepositoryContext context, PruneCandidate candidate, int stashIndex)
     {
         var reference = $"stash@{{{stashIndex}}}";
-        var current = GitCli.Run(context.Repository, "rev-parse", "--verify", "--quiet", reference);
-        if (!current.Succeeded || !string.Equals(current.Output.Trim(), candidate.Sha, StringComparison.Ordinal))
-        {
-            GitWizardLog.Log($"{reference} in {context.Path} no longer points at {candidate.Sha}; not dropping it", GitWizardLog.LogType.Warning);
-            return PruneSkipReasons.StashMoved;
-        }
-
-        if (!GitCli.Run(context.Repository, "stash", "drop", "--quiet", reference).Succeeded)
+        var drop = GitCli.Run(context.Repository, "stash", "drop", reference);
+        if (!drop.Succeeded)
         {
             return PruneSkipReasons.DeleteFailed;
         }
 
+        var droppedSha = ParseDroppedStashSha(drop.Output);
+        if (droppedSha != null && !string.Equals(droppedSha, candidate.Sha, StringComparison.Ordinal))
+        {
+            var message = context.Repository.Lookup<Commit>(droppedSha)?.MessageShort ?? candidate.Message ?? string.Empty;
+            GitCli.Run(context.Repository, "stash", "store", "-m", message, droppedSha);
+            GitWizardLog.Log($"{reference} in {context.Path} moved to {droppedSha}; restored it without dropping {candidate.Sha}", GitWizardLog.LogType.Warning);
+            return PruneSkipReasons.StashMoved;
+        }
+
         context.RestoreHints.WriteLine($"Dropped {reference}; restore with: git -C {ShellQuote(context.Path)} stash store -m {ShellQuote(candidate.Message)} {candidate.Sha}");
         return null;
+    }
+
+    static string? ParseDroppedStashSha(string output)
+    {
+        var closeParen = output.LastIndexOf(')');
+        var openParen = closeParen > 0 ? output.LastIndexOf('(', closeParen - 1) : -1;
+        if (openParen < 0)
+        {
+            return null;
+        }
+
+        var sha = output[(openParen + 1)..closeParen].Trim();
+        return sha.Length >= 40 ? sha : null;
     }
 
     /// <summary>

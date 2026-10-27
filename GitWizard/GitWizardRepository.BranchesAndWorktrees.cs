@@ -37,6 +37,7 @@ public partial class GitWizardRepository
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            GitCli.ClearRepositoryEnvironment(psi);
 
             var errorBuilder = new System.Text.StringBuilder();
             using var process = System.Diagnostics.Process.Start(psi);
@@ -164,7 +165,8 @@ public partial class GitWizardRepository
         OldestLocalOnlyBranchDate = null;
         var defaultBranch = ResolveDefaultBranch(repository);
         DefaultBranch = defaultBranch?.FriendlyName;
-        if (defaultBranch?.Tip == null)
+        var comparisonBranch = defaultBranch?.Tip != null ? defaultBranch : baseBranch;
+        if (comparisonBranch?.Tip == null && _localOnlyTipShas == null)
         {
             return;
         }
@@ -179,13 +181,20 @@ public partial class GitWizardRepository
                     continue;
                 }
 
-                var divergence = repository.ObjectDatabase.CalculateHistoryDivergence(branch.Tip, defaultBranch.Tip);
-                var ahead = divergence.AheadBy ?? 0;
-                var behind = divergence.BehindBy ?? 0;
+                var ahead = 0;
+                var behind = 0;
+                var listed = false;
+                if (comparisonBranch?.Tip is { } comparisonTip)
+                {
+                    var divergence = repository.ObjectDatabase.CalculateHistoryDivergence(branch.Tip, comparisonTip);
+                    ahead = divergence.AheadBy ?? 0;
+                    behind = divergence.BehindBy ?? 0;
 
-                // "Boring": the default branch itself, or a branch identical to it.
-                var boring = branch.FriendlyName == defaultBranch.FriendlyName || (ahead == 0 && behind == 0);
-                var listed = allBranches || !boring;
+                    // "Boring": the comparison branch itself, or a branch identical to it.
+                    var boring = BaseBranchResolver.IsBaseOrCounterpart(branch, comparisonBranch) || (ahead == 0 && behind == 0);
+                    listed = allBranches || !boring;
+                }
+
                 var localOnly = _localOnlyTipShas?.Contains(branch.Tip.Sha) == true;
                 if (!listed && !localOnly)
                 {
@@ -310,6 +319,7 @@ public partial class GitWizardRepository
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            GitCli.ClearRepositoryEnvironment(psi);
 
             var errorBuilder = new System.Text.StringBuilder();
             using var process = System.Diagnostics.Process.Start(psi);

@@ -151,8 +151,9 @@ public class GitWizardRepositoryMergedByTests
         }
     }
 
-    [Test]
-    public void Refresh_LocalOnlyBranchCount_CountsUnpushedUnmergedBranchesOnly()
+    [TestCase("default")]
+    [TestCase("pr439-detached-no-local-default")]
+    public void Refresh_LocalOnlyBranchCount_CountsUnpushedUnmergedBranchesOnly(string mode)
     {
         using var scenario = GitScenarioRepo.Create();
         scenario.AddOrigin();
@@ -176,6 +177,11 @@ public class GitWizardRepositoryMergedByTests
         scenario.Git("add", "extra.txt");
         scenario.Git("commit", "-q", "-m", "squash merged-local with fixup");
         scenario.Git("push", "-q", "origin", "main");
+        if (mode == "pr439-detached-no-local-default")
+        {
+            scenario.Git("checkout", "-q", "--detach", "origin/main");
+            scenario.Git("branch", "-D", "main");
+        }
 
         var repository = Refreshed(scenario);
 

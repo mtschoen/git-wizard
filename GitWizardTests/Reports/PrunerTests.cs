@@ -28,7 +28,7 @@ public class PrunerTests
         scenario.Commit(fileName, content, $"land {fileName}");
     }
 
-    static PruneCandidate Find(PruneReport report, string name) => report.Candidates.Single(c => c.Name == name);
+    static PruneCandidate Find(PruneReport report, string name) => report.Candidates.Single(candidate => candidate.Name == name);
 
     [Test]
     public void DryRun_ReportsWouldDeleteAndDeletesNothing()
@@ -55,12 +55,14 @@ public class PrunerTests
         }
     }
 
-    [Test]
-    public void Apply_DeletesMergedBranchAndSkipsCheckedOutAndWorktreeBranches()
+    [TestCase("default")]
+    [TestCase("pr439-branch-tip-advanced")]
+    public void Apply_DeletesMergedBranchAndSkipsCheckedOutAndWorktreeBranches(string mode)
     {
         using var scenario = CreateWithSquashMergedBranch("merged");
         scenario.NewBranch("unmerged");
         scenario.Commit("unmerged.txt", "unmerged", "unmerged");
+        var unmergedSha = scenario.Sha("unmerged");
         scenario.Checkout("main");
         scenario.Git("branch", "in-worktree");
         scenario.Git("branch", "checked-out");
@@ -69,26 +71,51 @@ public class PrunerTests
         var mergedSha = scenario.Sha("merged");
         using var hints = new StringWriter();
 
-        var report = Pruner.Run([scenario.Path], new PruneOptions(Stashes: false, Apply: true), hints);
+        var options = new PruneOptions(Stashes: false, Apply: true)
+        {
+            BeforeDelete = mode == "pr439-branch-tip-advanced"
+                ? candidate =>
+                {
+                    if (candidate.Name == "merged")
+                    {
+                        scenario.Git("update-ref", "refs/heads/merged", unmergedSha);
+                    }
+                }
+            : null
+        };
+        var report = Pruner.Run([scenario.Path], options, hints);
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(report.Applied, Is.True);
-            Assert.That(Find(report, "merged").Action, Is.EqualTo(PruneCandidate.Deleted));
-            Assert.That(scenario.HasBranch("merged"), Is.False);
-            Assert.That(hints.ToString(), Does.Contain($"branch 'merged' {mergedSha}"));
+            if (mode == "pr439-branch-tip-advanced")
+            {
+                Assert.That(Find(report, "merged").Action, Is.EqualTo(PruneCandidate.Skipped));
+                Assert.That(Find(report, "merged").SkipReason, Is.EqualTo(PruneSkipReasons.DeleteFailed));
+                Assert.That(scenario.HasBranch("merged"), Is.True);
+                Assert.That(scenario.Sha("merged"), Is.EqualTo(unmergedSha));
+                Assert.That(hints.ToString(), Is.Empty);
+            }
+            else
+            {
+                Assert.That(Find(report, "merged").Action, Is.EqualTo(PruneCandidate.Deleted));
+                Assert.That(scenario.HasBranch("merged"), Is.False);
+                Assert.That(hints.ToString(), Does.Contain($"branch 'merged' {mergedSha}"));
+            }
+
             Assert.That(Find(report, "checked-out").SkipReason, Is.EqualTo(PruneSkipReasons.CheckedOut));
             Assert.That(Find(report, "in-worktree").SkipReason, Is.EqualTo(PruneSkipReasons.CheckedOutInWorktree));
             Assert.That(Find(report, "unmerged").SkipReason, Is.EqualTo(PruneSkipReasons.NotMerged));
             Assert.That(Find(report, "unmerged").MergedBy, Is.Null);
             Assert.That(Find(report, "main").SkipReason, Is.EqualTo(PruneSkipReasons.BaseBranch));
             Assert.That(scenario.HasBranch("checked-out") && scenario.HasBranch("in-worktree") && scenario.HasBranch("unmerged"), Is.True);
-            Assert.That(report.Candidates.Any(c => c.Kind == PruneCandidate.StashKind), Is.False);
+            Assert.That(report.Candidates.Any(candidate => candidate.Kind == PruneCandidate.StashKind), Is.False);
         }
     }
 
-    [Test]
-    public void Apply_DropsMultipleMergedStashesByDescendingIndexAndKeepsUnmergedOne()
+    [TestCase("default")]
+    [TestCase("pr439-concurrent-stash-push")]
+    public void Apply_DropsMultipleMergedStashesByDescendingIndexAndKeepsUnmergedOne(string mode)
     {
         using var scenario = GitScenarioRepo.Create();
         StashLandedEdit(scenario, "first.txt", "first");
@@ -96,18 +123,46 @@ public class PrunerTests
         scenario.Git("stash", "push", "-q", "-m", "unmerged");
         StashLandedEdit(scenario, "third.txt", "third");
         var stashes = scenario.StashShas();
+        string? concurrentStashSha = null;
         using var hints = new StringWriter();
 
-        var report = Pruner.Run([scenario.Path], new PruneOptions(Branches: false, Apply: true), hints);
+        var options = new PruneOptions(Branches: false, Apply: true)
+        {
+            BeforeDelete = mode == "pr439-concurrent-stash-push"
+                ? candidate =>
+                {
+                    if (candidate.Name == "stash@{0}")
+                    {
+                        scenario.Write("base.txt", "concurrent unmerged stash");
+                        scenario.Git("stash", "push", "-q", "-m", "concurrent-unmerged");
+                        concurrentStashSha = scenario.Sha("stash@{0}");
+                    }
+                }
+            : null
+        };
+        var report = Pruner.Run([scenario.Path], options, hints);
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(report.Candidates.Select(c => c.Action), Is.EqualTo([
-                PruneCandidate.Deleted, PruneCandidate.Skipped, PruneCandidate.Deleted
-            ]));
-            Assert.That(scenario.StashShas(), Is.EqualTo([stashes[1]]));
-            Assert.That(hints.ToString(), Does.Contain("stash store -m 'On main: stash ").And.Contain(stashes[0]).And.Contain(stashes[2]));
-            Assert.That(report.Candidates.Any(c => c.Kind == PruneCandidate.BranchKind), Is.False);
+            if (mode == "pr439-concurrent-stash-push")
+            {
+                Assert.That(report.Candidates.Select(candidate => candidate.Action), Is.EqualTo([
+                    PruneCandidate.Skipped, PruneCandidate.Skipped, PruneCandidate.Deleted
+                ]));
+                Assert.That(Find(report, "stash@{0}").SkipReason, Is.EqualTo(PruneSkipReasons.StashMoved));
+                Assert.That(scenario.StashShas(), Is.EqualTo([concurrentStashSha!, stashes[0], stashes[1]]));
+                Assert.That(scenario.StashMessages()[0], Does.Contain("concurrent-unmerged"));
+            }
+            else
+            {
+                Assert.That(report.Candidates.Select(candidate => candidate.Action), Is.EqualTo([
+                    PruneCandidate.Deleted, PruneCandidate.Skipped, PruneCandidate.Deleted
+                ]));
+                Assert.That(scenario.StashShas(), Is.EqualTo([stashes[1]]));
+                Assert.That(hints.ToString(), Does.Contain("stash store -m 'On main: stash ").And.Contain(stashes[0]).And.Contain(stashes[2]));
+            }
+
+            Assert.That(report.Candidates.Any(candidate => candidate.Kind == PruneCandidate.BranchKind), Is.False);
         }
     }
 
@@ -139,17 +194,21 @@ public class PrunerTests
         }
     }
 
-    [Test]
-    public void LinkedWorktreePath_IsPrunedOnceWithItsMainCheckout()
+    [TestCase("exact")]
+    [TestCase("pr439-windows-case-variants")]
+    public void LinkedWorktreePath_IsPrunedOnceWithItsMainCheckout(string mode)
     {
         using var scenario = CreateWithSquashMergedBranch("feature");
         scenario.Git("branch", "elsewhere");
         var worktree = scenario.AddWorktree("elsewhere");
         using var hints = new StringWriter();
+        var paths = mode == "pr439-windows-case-variants" && OperatingSystem.IsWindows()
+            ? new[] { scenario.Path.ToLowerInvariant(), scenario.Path.ToUpperInvariant(), worktree.ToUpperInvariant() }
+            : new[] { scenario.Path, worktree };
 
-        var report = Pruner.Run([scenario.Path, worktree], new PruneOptions(Stashes: false), hints);
+        var report = Pruner.Run(paths, new PruneOptions(Stashes: false), hints);
 
-        Assert.That(report.Candidates.Count(c => c.Name == "feature"), Is.EqualTo(1));
+        Assert.That(report.Candidates.Count(candidate => candidate.Name == "feature"), Is.EqualTo(1));
     }
 
     [Test]

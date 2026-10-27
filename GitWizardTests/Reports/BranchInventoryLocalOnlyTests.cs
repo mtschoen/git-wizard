@@ -37,8 +37,9 @@ public class BranchInventoryLocalOnlyTests
         }
     }
 
-    [Test]
-    public void LinkedWorktreePath_IsScannedOnceWithItsMainCheckout()
+    [TestCase("exact")]
+    [TestCase("pr439-windows-case-variants")]
+    public void LinkedWorktreePath_IsScannedOnceWithItsMainCheckout(string mode)
     {
         using var scenario = GitScenarioRepo.Create();
         scenario.AddOrigin();
@@ -50,14 +51,17 @@ public class BranchInventoryLocalOnlyTests
         scenario.Write("wip.txt", "wip");
         scenario.Git("stash", "push", "-u", "-q", "-m", "wip");
         var worktreePath = scenario.AddWorktree("in-worktree");
+        var paths = mode == "pr439-windows-case-variants" && OperatingSystem.IsWindows()
+            ? new[] { scenario.Path.ToLowerInvariant(), scenario.Path.ToUpperInvariant(), worktreePath.ToUpperInvariant() }
+            : new[] { scenario.Path, worktreePath };
 
-        var report = BranchInventoryReport.Scan([scenario.Path, worktreePath], localOnly: true);
+        var report = BranchInventoryReport.Scan(paths, localOnly: true);
 
         var repository = report.Repositories.Single();
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(repository.Path, Is.EqualTo(scenario.Path));
-            Assert.That(repository.Branches.Select(b => b.Name), Is.EqualTo(["local-work"]));
+            Assert.That(repository.Path, Is.EqualTo(paths[0]));
+            Assert.That(repository.Branches.Select(branch => branch.Name), Is.EqualTo(["local-work"]));
             Assert.That(repository.Stashes, Has.Count.EqualTo(1));
         }
     }
@@ -104,10 +108,10 @@ public class BranchInventoryLocalOnlyTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(full.Select(b => b.Name), Is.EquivalentTo(["local-work", "pushed-work", "squashed"]));
-            Assert.That(full.Single(b => b.Name == "pushed-work").UniqueCommitCount, Is.Zero);
-            Assert.That(full.Single(b => b.Name == "squashed").UniqueCommitCount, Is.EqualTo(1));
-            Assert.That(localOnly.Select(b => b.Name), Is.EqualTo(["local-work"]));
+            Assert.That(full.Select(branch => branch.Name), Is.EquivalentTo(["local-work", "pushed-work", "squashed"]));
+            Assert.That(full.Single(branch => branch.Name == "pushed-work").UniqueCommitCount, Is.Zero);
+            Assert.That(full.Single(branch => branch.Name == "squashed").UniqueCommitCount, Is.EqualTo(1));
+            Assert.That(localOnly.Select(branch => branch.Name), Is.EqualTo(["local-work"]));
             Assert.That(localOnly.Single().MergedBy, Is.Null);
         }
     }
@@ -127,7 +131,7 @@ public class BranchInventoryLocalOnlyTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(full.Select(s => s.IsMerged), Is.EqualTo([false, true]));
+            Assert.That(full.Select(stash => stash.IsMerged), Is.EqualTo([false, true]));
             Assert.That(localOnly.Branches, Is.Empty);
             Assert.That(localOnly.Stashes.Single().Message, Does.Contain("unlanded"));
         }

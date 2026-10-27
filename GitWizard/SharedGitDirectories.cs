@@ -8,6 +8,9 @@ namespace GitWizard;
 /// </summary>
 static class SharedGitDirectories
 {
+    static readonly StringComparer PathComparer =
+        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+
     /// <summary>
     /// Keep one path per shared git directory, in ordinal order: the main checkout when it is
     /// listed, else the first linked worktree. Paths that are not repositories are dropped; a path
@@ -15,9 +18,9 @@ static class SharedGitDirectories
     /// </summary>
     internal static List<string> OnePathPerCommonDirectory(IEnumerable<string> repositoryPaths)
     {
-        var chosen = new Dictionary<string, (string Path, bool IsMain)>(StringComparer.Ordinal);
+        var chosen = new Dictionary<string, (string Path, bool IsMain)>(PathComparer);
         var unreadable = new List<string>();
-        foreach (var path in new SortedSet<string>(repositoryPaths, StringComparer.Ordinal))
+        foreach (var path in new SortedSet<string>(repositoryPaths, PathComparer))
         {
             try
             {

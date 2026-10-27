@@ -34,15 +34,24 @@ public class StashMergeDetectorTests
         }
     }
 
-    [Test]
-    public void StashPartiallyInBase_IsNotMerged()
+    [TestCase("two-files-one-landed")]
+    [TestCase("pr439-executable-bit-only")]
+    public void StashPartiallyInBase_IsNotMerged(string mode)
     {
         using var scenario = GitScenarioRepo.Create();
-        scenario.Commit("other.txt", "other", "add other");
-        scenario.Write("base.txt", "stashed edit");
-        scenario.Write("other.txt", "stashed other edit");
-        scenario.Git("stash", "push", "-q", "-m", "two edits");
-        scenario.Commit("base.txt", "stashed edit", "land only one edit");
+        if (mode == "pr439-executable-bit-only")
+        {
+            scenario.Git("update-index", "--chmod=+x", "base.txt");
+            scenario.Git("stash", "push", "-q", "-m", "chmod only");
+        }
+        else
+        {
+            scenario.Commit("other.txt", "other", "add other");
+            scenario.Write("base.txt", "stashed edit");
+            scenario.Write("other.txt", "stashed other edit");
+            scenario.Git("stash", "push", "-q", "-m", "two edits");
+            scenario.Commit("base.txt", "stashed edit", "land only one edit");
+        }
 
         var stashes = Inventory(scenario);
 

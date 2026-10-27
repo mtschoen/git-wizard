@@ -265,7 +265,8 @@ git-wizard tags -m 'archive/*'
 # Inventory local branches divergent from default or base branch, with unique-commit counts
 git-wizard branches --not-merged main
 
-# Before wiping a machine: list only work that exists nowhere else (unmerged, unpushed branches and stashes)
+# List unmerged, unpushed feature branches and stashes relative to each repo's base branch
+# (for a complete pre-wipe audit including dirty files and repos with no remote, use git-wizard --sweep)
 git-wizard branches --local-only
 
 # List branches and stashes whose changes are already in the default branch (dry run), then delete them

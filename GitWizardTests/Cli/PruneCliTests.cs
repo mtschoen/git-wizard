@@ -108,26 +108,65 @@ public class PruneCliTests
         {
             Assert.That(result.ExitCode, Is.Zero, result.StandardError);
             Assert.That(report.Applied, Is.False);
-            Assert.That(report.Candidates.Single(c => c.Name == "feature").Action, Is.EqualTo(PruneCandidate.WouldDelete));
+            Assert.That(report.Candidates.Single(candidate => candidate.Name == "feature").Action, Is.EqualTo(PruneCandidate.WouldDelete));
             Assert.That(scenario.HasBranch("feature"), Is.True);
         }
     }
 
-    [Test]
-    public async Task Main_PruneApply_DeletesBranchAndPrintsRestoreHintToStderr()
+    [TestCase("default")]
+    [TestCase("pr439-git-dir-override")]
+    [TestCase("pr439-missing-base")]
+    public async Task Main_PruneApply_DeletesBranchAndPrintsRestoreHintToStderr(string mode)
     {
         using var scenario = CreateWithSquashMergedBranch();
         var sha = scenario.Sha("feature");
 
-        var result = await RunCliAsync("prune", "--apply", "--paths", scenario.Path);
+        if (mode == "pr439-missing-base")
+        {
+            var missingBaseResult = await RunCliAsync("prune", "--apply", "--base", "does-not-exist", "--paths", scenario.Path);
+            var missingBaseReport = JsonSerializer.Deserialize<PruneReport>(missingBaseResult.StandardOutput)!;
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(missingBaseResult.ExitCode, Is.Zero, missingBaseResult.StandardError);
+                Assert.That(missingBaseReport.Candidates, Is.Empty);
+                Assert.That(missingBaseReport.Errors, Has.Count.EqualTo(1));
+                Assert.That(missingBaseReport.Errors[0].Repository, Is.EqualTo(scenario.Path).IgnoreCase);
+                Assert.That(missingBaseReport.Errors[0].Error, Does.Contain("does-not-exist"));
+                Assert.That(scenario.HasBranch("feature"), Is.True);
+            }
+
+            return;
+        }
+
+        using var otherRepo = mode == "pr439-git-dir-override" ? GitScenarioRepo.Create() : null;
+        if (otherRepo != null)
+        {
+            otherRepo.NewBranch("feature");
+            otherRepo.Commit("unmerged.txt", "unmerged", "unmerged feature in other repo");
+            otherRepo.Checkout("main");
+        }
+
+        var result = otherRepo != null
+            ? await RunCliWithEnvironmentAsync(
+                new Dictionary<string, string?>
+                {
+                    ["GIT_DIR"] = Path.Combine(otherRepo.Path, ".git"),
+                    ["GIT_WORK_TREE"] = otherRepo.Path
+                },
+                "prune", "--apply", "--paths", scenario.Path)
+            : await RunCliAsync("prune", "--apply", "--paths", scenario.Path);
 
         var report = JsonSerializer.Deserialize<PruneReport>(result.StandardOutput)!;
         using (Assert.EnterMultipleScope())
         {
             Assert.That(result.ExitCode, Is.Zero, result.StandardError);
-            Assert.That(report.Candidates.Single(c => c.Name == "feature").Action, Is.EqualTo(PruneCandidate.Deleted));
+            Assert.That(report.Candidates.Single(candidate => candidate.Name == "feature").Action, Is.EqualTo(PruneCandidate.Deleted));
             Assert.That(scenario.HasBranch("feature"), Is.False);
             Assert.That(result.StandardError, Does.Contain($"branch 'feature' {sha}"));
+            if (otherRepo != null)
+            {
+                Assert.That(otherRepo.HasBranch("feature"), Is.True);
+            }
         }
     }
 
@@ -145,7 +184,7 @@ public class PruneCliTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(result.ExitCode, Is.Zero, result.StandardError);
-            Assert.That(report.Repositories.Single().Branches.Select(b => b.Name), Is.EqualTo(["local-work"]));
+            Assert.That(report.Repositories.Single().Branches.Select(branch => branch.Name), Is.EqualTo(["local-work"]));
         }
     }
 }

@@ -7,6 +7,7 @@ namespace GitWizardTests.TestSupport;
 sealed class DiscoveryDependencyRecorder : IDisposable
 {
     public List<IReadOnlyList<string>> OpenedDriveSets { get; } = [];
+    public List<CacheMode> OpenedCacheModes { get; } = [];
     public List<string> CrawledRoots { get; } = [];
     public Action<string>? CrawlGuard { get; set; }
     public PackedIndexFixture IndexFixture { get; } = new();
@@ -38,18 +39,6 @@ sealed class DiscoveryDependencyRecorder : IDisposable
 
     static DiagnosticVolumeChangeSource DefaultCreateLinuxSource() => new();
 
-    static RootClassification DefaultClassify(string root)
-    {
-        if (root.StartsWith(@"Z:\", StringComparison.OrdinalIgnoreCase) ||
-            root.Contains("shared", StringComparison.OrdinalIgnoreCase) ||
-            root.Contains("nonntfs", StringComparison.OrdinalIgnoreCase))
-        {
-            return new RootClassification(root, RootFileSystem.Recursive, null, null);
-        }
-
-        return new RootClassification(root, RootFileSystem.Ntfs, "C", null);
-    }
-
     async Task<MftIndexSession> DefaultOpenIndexAsync(
         IReadOnlyList<string> drives,
         CacheMode intent,
@@ -57,9 +46,17 @@ sealed class DiscoveryDependencyRecorder : IDisposable
         CancellationToken token)
     {
         OpenedDriveSets.Add(drives);
-        var driveChars = drives.Select(d => d[0]).ToArray();
-        var indices = await IndexFixture.OpenIndicesAsync(driveChars).ConfigureAwait(false);
-        var indexedDrives = drives.Select(d => (RootKey)new VolumeKey(d[0])).ToList();
+        OpenedCacheModes.Add(intent);
+        // Clone commands can add their shared-clone directory. Supply rows from this owned
+        // fixture even for that key; never enumerate a host directory in a routing test.
+        var source = SyntheticIndexSource.Create(IndexFixture.Producer);
+        var indices = await Task.WhenAll(drives.Select(root => FileIndex.OpenAsync(
+            SyntheticVolumeFacts.Apply(new FileIndexOptions
+            {
+                Root = RootKey.FromDirectory(root),
+                CacheMode = CacheMode.Disabled,
+                MftSource = source
+            }, 1, volume: new VolumeKey('X'), volumeRootDirectory: root), token))).ConfigureAwait(false);
         return new MftIndexSession(indices, new CountingOwner(), drives, new Dictionary<string, string>());
     }
 

@@ -170,7 +170,7 @@ public class BrokerDiscoveryTests
         var owner = new MftIndexSession([await files.OpenIndexAsync()], null, ["X", "Y"], new Dictionary<string, string> { ["Y"] = "scan denied" });
         var updates = new RecordingUpdateHandler();
         await using var result = await GitWizardApi.DiscoverRepositoriesWithIndexAsync(
-            new GitWizardConfiguration { IncludeTempDirectories = true }, new List<string>(), [@"X:\", @"Y:\"], [],
+            new GitWizardConfiguration { IncludeTempDirectories = true }, new List<string>(), [files.TreePath, @"Y:\"], [],
             new IndexDiscoveryComposition(_ => Task.FromResult(owner), _ => true), updates);
         Assert.That(result.Success, Is.True);
         using (Assert.EnterMultipleScope())
@@ -206,7 +206,7 @@ public class BrokerDiscoveryTests
         var owner = new MftIndexSession([await files.OpenIndexAsync()], null, ["X", "Y"], new Dictionary<string, string> { ["Y"] = "scan denied" });
         var expected = owner.CaptureRootStatuses();
         await using var result = await GitWizardApi.DiscoverRepositoriesWithIndexAsync(
-            new GitWizardConfiguration { IncludeTempDirectories = true }, new List<string>(), [@"X:\", @"Y:\"], [],
+            new GitWizardConfiguration { IncludeTempDirectories = true }, new List<string>(), [files.TreePath, @"Y:\"], [],
             new IndexDiscoveryComposition(_ => Task.FromResult(owner),
                 _ => throw new IOException("candidate probe failed")));
         using (Assert.EnterMultipleScope())
@@ -243,7 +243,7 @@ public class BrokerDiscoveryTests
 
     static Task<MftDiscoveryResult> DiscoverAsync(IndexOwnerFixture fixture, ICollection<string> paths,
         Func<string, bool>? candidateExists = null) => GitWizardApi.DiscoverRepositoriesWithIndexAsync(
-        new GitWizardConfiguration { IncludeTempDirectories = true }, paths, [@"X:\"], [], new IndexDiscoveryComposition(
+        new GitWizardConfiguration { IncludeTempDirectories = true }, paths, [fixture.Owner.Indices.Single().Root().Path], [], new IndexDiscoveryComposition(
             _ => Task.FromResult(fixture.Owner), candidateExists ?? (_ => true)));
 
 }

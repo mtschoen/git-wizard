@@ -1,5 +1,6 @@
 using GitWizard;
 using GitWizardTests.TestSupport;
+using MFTLib;
 using MFTLib.Index;
 
 namespace GitWizardTests.Discovery;
@@ -77,7 +78,7 @@ public class RepositoryDiscoveryCoordinatorTests
                 using (Assert.EnterMultipleScope())
                 {
                     Assert.That(cacheMode, Is.EqualTo(CacheMode.ExistingOnly));
-                    Assert.That(drives, Is.EquivalentTo(["X"]));
+                    Assert.That(drives, Is.EquivalentTo([files.TreePath]).IgnoreCase);
                 }
                 return openSession(drives, cacheMode, progress, token);
             },
@@ -102,11 +103,11 @@ public class RepositoryDiscoveryCoordinatorTests
 
     [TestCase(false)]
     [TestCase(true, TestName = "Issue370_ListMiss_SameTagDifferentShape_Rescans")]
-    public async Task ListMiss_CacheDeclined_RescansAndUsesScanSource(bool seedDifferentRetention)
+    public async Task ListMiss_CacheDeclined_RescansAndUsesScanSource(bool seedDifferentShape)
     {
         await using var broker = new BlockBrokerFixture();
         var cache = MftIndexCachePolicy.GetCacheDirectory(broker.CacheDirectory);
-        if (seedDifferentRetention)
+        if (seedDifferentShape)
         {
             await using var seedBroker = broker.CreateSession();
             await using var seed = await FileIndex.OpenAsync(MFTLibTestExtensions.SyntheticVolumeFacts.Apply(new FileIndexOptions
@@ -114,18 +115,18 @@ public class RepositoryDiscoveryCoordinatorTests
                 Root = broker.Drive('X'),
                 CacheDirectory = cache,
                 CacheTag = MftIndexCachePolicy.CacheTag,
-                MftSource = seedBroker.CreateIndexSource()
+                MftSource = seedBroker.CreateIndexSource(new MftScanOptions { IncludeFreed = true })
             }, 1, volume: new VolumeKey('X'), volumeRootDirectory: broker.TreePath), CancellationToken.None);
             Assert.That(seed.Status.Block?.Origin, Is.EqualTo(BlockOrigin.ProducedByScan));
         }
 
-        await using var session = await MftIndexSession.OpenAsync([broker.Drive('X')], broker.CreateSession(),
+        await using var session = await MftIndexSession.OpenAsync([RootKey.FromDirectory(broker.TreePath)], broker.CreateSession(),
             cache, CacheMode.ExistingOnly, null, CancellationToken.None, configureOptions: broker.ConfigureOptions);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(session.CaptureRootStatuses().Single().IndexStatus!.State, Is.EqualTo(RootState.Failed));
             Assert.That(session.CaptureRootStatuses().Single().IndexStatus!.Failure?.Kind,
-                Is.EqualTo(seedDifferentRetention
+                Is.EqualTo(seedDifferentShape
                     ? RootFailureKind.CacheIdentityMismatch
                     : RootFailureKind.CacheDeclined));
         }
@@ -153,8 +154,8 @@ public class RepositoryDiscoveryCoordinatorTests
         {
             Assert.That(result.Inventory.Observations.Single().Source, Is.EqualTo(DiscoverySource.Scan));
             Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.CompleteNonempty));
-            Assert.That(broker.ConnectionCount, Is.EqualTo(seedDifferentRetention ? 2 : 1));
-            Assert.That(broker.Scans, Has.Count.EqualTo(seedDifferentRetention ? 2 : 1));
+            Assert.That(broker.ConnectionCount, Is.EqualTo(seedDifferentShape ? 2 : 1));
+            Assert.That(broker.Scans, Has.Count.EqualTo(seedDifferentShape ? 2 : 1));
         }
     }
 
@@ -163,7 +164,7 @@ public class RepositoryDiscoveryCoordinatorTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo1");
-        await using var index = await files.OpenIndexAsync();
+        await using var index = await files.OpenIndexAsync(root: RootKey.FromDirectory(files.TreePath));
 
         var configuration = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Rebuild, true, false, []);
@@ -174,7 +175,7 @@ public class RepositoryDiscoveryCoordinatorTests
             IsWindows = true,
             IsLinux = false,
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS crawler invoked"),
-            OpenIndexAsync = async (_, _, _, _) => new MftIndexSession([await indexTask], null, ["X"], new Dictionary<string, string>()),
+            OpenIndexAsync = async (roots, _, _, _) => new MftIndexSession([await indexTask], null, roots, new Dictionary<string, string>()),
             ReadListAsync = _ => Task.FromResult<string[]?>([@"C:\old"]),
             WriteListAsync = (_, _) => Task.CompletedTask,
             CandidateExists = (_, _) => true,
@@ -250,8 +251,8 @@ public class RepositoryDiscoveryCoordinatorTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Unusable));
-            Assert.That(result.Inventory.RequestedNtfsDrives, Is.EquivalentTo(["X"]));
-            Assert.That(result.Inventory.Errors, Does.ContainKey("X").WithValue("Volume identity could not be acquired"));
+            Assert.That(result.Inventory.RootStatuses.Single().IndexStatus!.MftUnavailable, Is.EqualTo(MftUnavailableReason.NoMftSource));
+            Assert.That(result.Inventory.Errors.Keys, Does.Contain(GitWizardApi.NormalizePath(broker.TreePath)).IgnoreCase);
         }
     }
 
@@ -261,7 +262,8 @@ public class RepositoryDiscoveryCoordinatorTests
         using var files = new PackedIndexFixture();
 
         var writtenPaths = new List<string[]>();
-        var configuration = new GitWizardConfiguration { SearchPaths = { @"C:\repos", @"D:\repos" } };
+        var failedRoot = Path.Combine(files.DirectoryPath, "unavailable");
+        var configuration = new GitWizardConfiguration { SearchPaths = { files.TreePath, failedRoot } };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Rebuild, false, false, []);
 
         var dependencies = new RepositoryDiscoveryDependencies
@@ -271,7 +273,7 @@ public class RepositoryDiscoveryCoordinatorTests
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS crawler invoked"),
             OpenIndexAsync = StatusSessions.Opener(files,
                 ('C', SyntheticDriveBehavior.Ready), ('D', SyntheticDriveBehavior.Offline)),
-            ReadListAsync = _ => Task.FromResult<string[]?>([@"C:\repos\gone", @"D:\repos\keep"]),
+            ReadListAsync = _ => Task.FromResult<string[]?>([Path.Combine(files.TreePath, "gone"), Path.Combine(failedRoot, "keep")]),
             WriteListAsync = (paths, _) => { writtenPaths.Add([.. paths]); return Task.CompletedTask; },
             CandidateExists = (_, _) => true,
             CreateLinuxSource = () => throw new PlatformNotSupportedException()
@@ -286,7 +288,7 @@ public class RepositoryDiscoveryCoordinatorTests
         {
             Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Partial));
             Assert.That(result.Inventory.Paths, Is.Empty);
-            Assert.That(writtenPaths.Single(), Is.EquivalentTo([@"D:\repos\keep"]));
+            Assert.That(writtenPaths.Single(), Is.EquivalentTo([Path.Combine(failedRoot, "keep")]).IgnoreCase);
         }
     }
 
@@ -382,7 +384,7 @@ public class RepositoryDiscoveryCoordinatorTests
         {
             Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Unusable));
             Assert.That(result.Inventory.CanPublishFullInventory, Is.False);
-            Assert.That(result.Inventory.Errors, Does.ContainKey("X").WithValue("MFT producer failed during rescan"));
+            Assert.That(result.Inventory.Errors, Does.ContainKey(GitWizardApi.NormalizePath(files.TreePath)).WithValue("MFT producer failed during rescan"));
         }
     }
 }

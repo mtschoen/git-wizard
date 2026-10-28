@@ -54,7 +54,7 @@ public class GitFileIndexMappingTests
         using var fixture = new PackedIndexFixture();
         fixture.AddMarker(Path.Combine("worktree"), false);
         await using var index = await fixture.OpenIndexAsync();
-        const string root = "X:/worktree";
+        var root = Path.Combine(fixture.TreePath, "worktree");
         var entries = GitWizardApi.SelectGitEntries(new FileIndexSet([index]), true);
         using (Assert.EnterMultipleScope())
         {
@@ -71,7 +71,7 @@ public class GitFileIndexMappingTests
         using var fixture = new PackedIndexFixture();
         fixture.AddMarker(Path.Combine("worktree"), false);
         await using var index = await fixture.OpenIndexAsync();
-        const string root = "X:/other";
+        var root = Path.Combine(fixture.TreePath, "other");
         var entries = GitWizardApi.SelectGitEntries(new FileIndexSet([index]), true);
         using (Assert.EnterMultipleScope())
         {
@@ -88,14 +88,14 @@ public class GitFileIndexMappingTests
         using var fixture = new PackedIndexFixture();
         fixture.AddMarker(Path.Combine("scope", "ignored", "worktree"), false);
         await using var index = await fixture.OpenIndexAsync();
-        const string root = "X:/scope";
+        var root = Path.Combine(fixture.TreePath, "scope");
         var entries = GitWizardApi.SelectGitEntries(new FileIndexSet([index]), true);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(entries.Single().Name, Is.EqualTo(".git"));
             Assert.That(entries.Single().IsDirectory, Is.False);
         }
-        var candidates = CandidateSelection.Paths(index, root, ["X:/scope/ignored"], includeTempDirectories: true);
+        var candidates = CandidateSelection.Paths(index, root, [Path.Combine(root, "ignored")], includeTempDirectories: true);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(candidates, Is.Empty);
@@ -110,7 +110,7 @@ public class GitFileIndexMappingTests
         using var fixture = new PackedIndexFixture();
         fixture.AddMarker(Path.Combine("scope", ".hidden", "worktree"), false);
         await using var index = await fixture.OpenIndexAsync();
-        const string root = "X:/scope";
+        var root = Path.Combine(fixture.TreePath, "scope");
         var entries = GitWizardApi.SelectGitEntries(new FileIndexSet([index]), true);
         using (Assert.EnterMultipleScope())
         {
@@ -127,7 +127,7 @@ public class GitFileIndexMappingTests
         using var fixture = new PackedIndexFixture();
         fixture.AddMarker(Path.Combine("scope", ".hidden", "worktree"), false);
         await using var index = await fixture.OpenIndexAsync();
-        const string root = "X:/scope";
+        var root = Path.Combine(fixture.TreePath, "scope");
         var entries = GitWizardApi.SelectGitEntries(new FileIndexSet([index]), true);
         using (Assert.EnterMultipleScope())
         {
@@ -144,7 +144,7 @@ public class GitFileIndexMappingTests
         using var fixture = new PackedIndexFixture();
         var marker = fixture.AddMarker("worktree", false);
         await using var index = await fixture.OpenIndexAsync();
-        const string root = "X:/worktree";
+        var root = Path.Combine(fixture.TreePath, "worktree");
         var entries = GitWizardApi.SelectGitEntries(new FileIndexSet([index]), true);
         using (Assert.EnterMultipleScope())
         {
@@ -169,7 +169,7 @@ public class GitFileIndexMappingTests
         using var fixture = new PackedIndexFixture();
         fixture.AddMarker(Path.Combine("worktree"), false);
         await using var index = await fixture.OpenIndexAsync();
-        const string root = "X:/";
+        var root = Path.GetPathRoot(fixture.TreePath)!;
         var entries = GitWizardApi.SelectGitEntries(new FileIndexSet([index]), true);
         using (Assert.EnterMultipleScope())
         {
@@ -191,7 +191,7 @@ public class GitFileIndexMappingTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(entries.Select(entry => entry.Parent!.Value.Name), Is.EquivalentTo(["outer", "worktree"]));
-            Assert.That(CandidateSelection.Paths(index, "X:/outer", [], includeTempDirectories: true), Has.Length.EqualTo(2));
+            Assert.That(CandidateSelection.Paths(index, Path.Combine(fixture.TreePath, "outer"), [], includeTempDirectories: true), Has.Length.EqualTo(2));
         }
     }
 
@@ -203,7 +203,7 @@ public class GitFileIndexMappingTests
         using var fixture = new PackedIndexFixture();
         fixture.AddMarker(Path.Combine("Users", "gitea-runner", "AppData", "Local", "Temp", "pytest-1", "repo"));
         await using var index = await fixture.OpenIndexAsync();
-        const string root = "X:/";
+        var root = Path.GetPathRoot(fixture.TreePath)!;
         using (Assert.EnterMultipleScope())
         {
             Assert.That(CandidateSelection.Paths(index, root, []), Is.Empty);

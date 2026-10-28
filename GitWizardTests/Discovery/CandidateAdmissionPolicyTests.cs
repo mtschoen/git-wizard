@@ -112,9 +112,8 @@ public class CandidateAdmissionPolicyTests
             .Any(path => SamePath(path, repositoryPath));
 
         await using var index = await fixture.OpenIndexAsync();
-        var logicalIgnored = LogicalIgnoredFor(admissionCase, fixture.TreePath, ignoredPath);
         var indexed = CandidateSelection
-            .Paths(index, "X:/scope", logicalIgnored, admissionCase.SkipHiddenDirectories, admissionCase.IncludeTemporary)
+            .Paths(index, scopePath, ignoredPath is null ? [] : [ignoredPath], admissionCase.SkipHiddenDirectories, admissionCase.IncludeTemporary)
             .Any(path => SamePath(path, repositoryPath));
 
         var scope = DiscoveryScope.CreateExpanded(
@@ -201,19 +200,6 @@ public class CandidateAdmissionPolicyTests
             ? null
             : Path.Combine(scopePath, admissionCase.IgnoredRelative.Replace('/', Path.DirectorySeparatorChar)).TrimEnd(Path.DirectorySeparatorChar);
     }
-
-    static string[] LogicalIgnoredFor(AdmissionCase admissionCase, string treePath, string? ignoredPath)
-    {
-        if (ignoredPath is null)
-        {
-            return [];
-        }
-
-        return admissionCase.IgnoreVolumeRoot ? ["X:/"] : [ToLogical(treePath, ignoredPath)];
-    }
-
-    static string ToLogical(string treePath, string path) =>
-        "X:/" + Path.GetRelativePath(treePath, path).Replace('\\', '/');
 
     static bool SamePath(string left, string right) =>
         string.Equals(

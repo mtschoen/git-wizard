@@ -34,13 +34,6 @@ public enum DiscoveryPurpose
     Watch = 2
 }
 
-public enum RootFileSystem
-{
-    Ntfs = 0,
-    Recursive = 1,
-    Unknown = 2
-}
-
 public enum RepositoryCandidateKind
 {
     Ordinary = 0,
@@ -49,12 +42,6 @@ public enum RepositoryCandidateKind
 }
 
 public sealed record RepositoryCandidate(string Path, RepositoryCandidateKind Kind);
-
-public sealed record RootClassification(
-    string Root,
-    RootFileSystem FileSystem,
-    string? NtfsDrive,
-    string? Error);
 
 public sealed record DiscoveryRequest(
     GitWizardConfiguration Configuration,

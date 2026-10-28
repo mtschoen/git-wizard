@@ -236,7 +236,7 @@ public partial class RepositoryDiscoveryCoordinator
                     WatchPath.Parse(candidate.Path).IsUnderOrEqual(WatchPath.Parse(root))) &&
                 Dependencies.CandidateExists(candidate.Path, candidate.Kind))
             {
-                accumulator.Paths.Add(candidate.Path);
+                accumulator.Paths.Add(GitWizardApi.NormalizePath(candidate.Path));
             }
         }
     }

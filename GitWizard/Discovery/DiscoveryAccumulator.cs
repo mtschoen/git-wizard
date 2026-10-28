@@ -57,12 +57,13 @@ sealed class DiscoveryAccumulator
         {
             var indexedRoot = Scope.IndexRoots.Contains(root, WatchPath.StringComparer) ? root :
                 Scope.SearchRoots.FirstOrDefault(search => WatchPath.Parse(root).IsUnderOrEqual(WatchPath.Parse(search))) ?? root;
+            var key = ToStatusKey(indexedRoot);
             var rootStatus = FinalStatuses.FirstOrDefault(item =>
-                string.Equals(item.Drive, indexedRoot, StringComparison.OrdinalIgnoreCase));
-            var isSuccess = ObservedDrives.Contains(indexedRoot);
-            var source = RescannedDrives.Contains(indexedRoot) ? DiscoverySource.Scan : unrescannedSource;
+                string.Equals(item.Drive, key, StringComparison.OrdinalIgnoreCase));
+            var isSuccess = ObservedDrives.Contains(key);
+            var source = RescannedDrives.Contains(key) ? DiscoverySource.Scan : unrescannedSource;
             var timestamp = isSuccess ? rootStatus?.IndexStatus?.Block?.ScanTimestamp : null;
-            var error = isSuccess ? null : Errors.GetValueOrDefault(indexedRoot);
+            var error = isSuccess ? null : Errors.GetValueOrDefault(key);
 
             if (rootStatus?.IndexStatus is { } observed)
             {
@@ -78,6 +79,13 @@ sealed class DiscoveryAccumulator
             Observations.Add(new RootObservation(root, exactRoot, isSuccess, source, timestamp, error));
         }
     }
+
+    /// <summary>
+    /// Statuses, observed drives, rescans and errors are keyed by the index root key text (a volume letter or a normalized
+    /// directory path), while scope roots are path-shaped, so each root is converted before it is looked up.
+    /// </summary>
+    static string ToStatusKey(string root) =>
+        RootKeyProjection.ParseRootKeys([root]) is [var parsed] ? parsed.ToString() : root;
 
     public void AddCrawlResult(string root, RecursiveDiscovery crawlResult, DiscoverySource source)
     {

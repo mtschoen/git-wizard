@@ -31,6 +31,59 @@ public class RepositoryDiscoveryCoordinatorTests
     }
 
 
+    [TestCase(@"c:\", @"c:\repos\one")]
+    [TestCase(@"D:\", @"D:\repos\one")]
+    public void VolumeRootObservationMatchesStatusKeyedByRootKey(string indexRoot, string repository)
+    {
+        var request = new DiscoveryRequest(new GitWizardConfiguration(), DiscoveryPurpose.Ordinary, false, false, []);
+        var scope = DiscoveryScope.CreateExpanded(request, [indexRoot], [], []);
+        var driveKey = RootKeyProjection.ParseRootKeys([indexRoot]).Single().ToString();
+        var accumulator = new DiscoveryAccumulator(scope, new List<string> { repository });
+
+        accumulator.RecordDriveStatuses([ReadyStatus(driveKey, RootKeyProjection.ParseRootKeys([indexRoot]).Single())]);
+        accumulator.AddIndexedObservations(scope.SearchRoots, false, DiscoverySource.Snapshot, null);
+        var inventory = accumulator.BuildInventory(DiscoveryRoute.Indexed, []);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(inventory.Outcome, Is.EqualTo(DiscoveryOutcome.CompleteNonempty));
+            Assert.That(inventory.Observations.Single().Complete, Is.True);
+            Assert.That(inventory.Observations.Single().Root, Is.EqualTo(indexRoot));
+        }
+    }
+
+    [Test]
+    public void VolumeRootRescanAndFailureAreFoundByRootKey()
+    {
+        var request = new DiscoveryRequest(new GitWizardConfiguration(), DiscoveryPurpose.Ordinary, false, false, []);
+        var scope = DiscoveryScope.CreateExpanded(request, [@"c:\", @"d:\"], [], []);
+        var accumulator = new DiscoveryAccumulator(scope, new List<string>());
+        var failed = ReadyStatus("D", RootKeyProjection.ParseRootKeys([@"d:\"]).Single()) with { IndexStatus = null };
+        accumulator.RecordDriveStatuses([ReadyStatus("C", RootKeyProjection.ParseRootKeys([@"c:\"]).Single()), failed]);
+        accumulator.RescannedDrives.Add("C");
+        accumulator.AddIndexedObservations(scope.SearchRoots, false, DiscoverySource.Snapshot, null);
+
+        var observations = accumulator.Observations;
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(observations[0].Source, Is.EqualTo(DiscoverySource.Scan));
+            Assert.That(observations[0].Complete, Is.True);
+            Assert.That(observations[1].Complete, Is.False);
+            Assert.That(observations[1].Error, Does.Contain("no index status"));
+        }
+    }
+
+    static MftRootStatus ReadyStatus(string drive, RootKey root)
+    {
+        var block = MFTLibTestExtensions.SyntheticNotifications.CreateRootBlockStatus(
+            BlockOrigin.ProducedByScan, 1, false, PackedIndexFixture.CompletionTimestamp);
+        var status = MFTLibTestExtensions.SyntheticNotifications.CreateRootStatus(root, RootState.Ready, block, null) with
+        { Producer = ProducerKind.Mft };
+        return new MftRootStatus(drive, status, null);
+    }
+
+
     static Func<IReadOnlyList<string>, CacheMode, IProgress<IndexScanProgress>?, CancellationToken,
         Task<MftIndexSession>> OpenWithBroker(BlockBrokerFixture broker, RootKey drive, string cache) =>
         (_, cacheMode, _, token) => MftIndexSession.OpenAsync([drive], broker.CreateSession(), new MftIndexSession.CacheSelection(cache, cacheMode), null, token, configureOptions: broker.ConfigureOptions);

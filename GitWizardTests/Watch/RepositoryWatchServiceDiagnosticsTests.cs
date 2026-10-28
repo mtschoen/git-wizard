@@ -157,8 +157,7 @@ public class RepositoryWatchServiceDiagnosticsTests
         {
             var request = new DiscoveryRequest(new GitWizardConfiguration(), DiscoveryPurpose.Watch, false, false, []);
             var armResult = new VolumeArmResult(new Dictionary<string, string>(), isStateRefresh ? [initialWarning] : []);
-            var scope = DiscoveryScope.CreateExpanded(request, [], [@"C:\repo"], [],
-                root => new RootClassification(root, RootFileSystem.Ntfs, "C", null));
+            var scope = DiscoveryScope.CreateExpanded(request, [], [@"C:\repo"], []);
             var inventory = new DiscoveryInventory
             {
                 Outcome = DiscoveryOutcome.CompleteNonempty,

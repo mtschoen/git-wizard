@@ -163,9 +163,8 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
 
         foreach (var drive in catchUpDrives)
         {
-            var driveStatus = owner.CaptureRootStatuses().FirstOrDefault(status =>
-                string.Equals(status.Drive, drive.ToString(), StringComparison.OrdinalIgnoreCase));
-            if (driveStatus?.IndexStatus is not { State: RootState.Failed or RootState.Offline } failed)
+            if (owner.IndexFor(new VolumeKey(drive))?.Status is not
+                { State: RootState.Failed or RootState.Offline } failed)
             {
                 continue;
             }
@@ -189,11 +188,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         var errors = new Dictionary<string, string>(owner.ScanErrors, StringComparer.OrdinalIgnoreCase);
         foreach (var status in owner.CaptureRootStatuses())
         {
-            if (status.IdentityFailure is not null)
-            {
-                errors[status.Drive] = status.IdentityFailure;
-            }
-            else if (status.IndexStatus?.Failure?.Message is { Length: > 0 } message)
+            if (status.IndexStatus?.Failure?.Message is { Length: > 0 } message)
             {
                 errors[status.Drive] = message;
             }
@@ -271,7 +266,8 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
 
     Task StartWatch(MftIndexSession owner, CancellationToken cancellationToken)
     {
-        var indices = owner.Indices;
+        var indices = owner.Indices.Where(index => index.Status.Producer == ProducerKind.Mft)
+            .DistinctBy(index => index.Status.Root.VolumeLetter()).ToArray();
         foreach (var index in indices)
         {
             index.Changed += OnChanged;

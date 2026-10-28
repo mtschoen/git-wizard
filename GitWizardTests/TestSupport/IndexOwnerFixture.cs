@@ -18,7 +18,7 @@ sealed class IndexOwnerFixture : IAsyncDisposable
         var index = watchSource is null
             ? await _files.OpenIndexAsync()
             : await _files.OpenMftIndexAsync(watchSource, 'X');
-        _owner = new MftIndexSession([index], _connection, ["X"], [], new Dictionary<string, string>());
+        _owner = new MftIndexSession([index], _connection, ["X"], new Dictionary<string, string>());
     }
 
     public async ValueTask DisposeAsync()

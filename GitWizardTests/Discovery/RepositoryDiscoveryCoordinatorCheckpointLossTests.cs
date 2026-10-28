@@ -46,13 +46,13 @@ public class RepositoryDiscoveryCoordinatorCheckpointLossTests
         _files.Dispose();
     }
 
-    FileIndexOptions Options(bool cacheOnly, ScriptedWatchSource? source = null) => new()
+    FileIndexOptions Options(bool cacheOnly, ScriptedWatchSource? source = null) => _files.ConfigureOptions(new FileIndexOptions
     {
-        Root = SyntheticIndexedRoot.Create(new VolumeKey('X'), _files.TreePath, 1),
+        Root = (RootKey)new VolumeKey('X'),
         CacheDirectory = _files.BlockDirectory,
         CacheMode = cacheOnly ? CacheMode.ExistingOnly : CacheMode.Persistent,
         MftSource = SyntheticIndexSource.Create(_files.Producer, source)
-    };
+    });
 
     async Task SeedCacheAsync()
     {
@@ -64,14 +64,13 @@ public class RepositoryDiscoveryCoordinatorCheckpointLossTests
     {
         var index = await FileIndex.OpenAsync(Options(cacheOnly, source), CancellationToken.None);
         return new MftIndexSession([index], new CountingOwner(), ["X"],
-            [SyntheticIndexedRoot.Create(new VolumeKey('X'), _files.TreePath, 1)], new Dictionary<string, string>());
+new Dictionary<string, string>());
     }
 
-    RepositoryDiscoveryCoordinator CreateCoordinator() => new(new RepositoryDiscoveryDependencies
+    static RepositoryDiscoveryCoordinator CreateCoordinator() => new(new RepositoryDiscoveryDependencies
     {
         IsWindows = true,
         IsLinux = false,
-        ClassifyRoot = _ => new RootClassification(_files.TreePath, RootFileSystem.Ntfs, "X", null),
         CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled."),
         OpenIndexAsync = (_, _, _, _) => throw new AssertionException("The prepared session must be reused."),
         ReadListAsync = _ => Task.FromResult<string[]?>([]),

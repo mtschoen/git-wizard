@@ -24,7 +24,7 @@ public class IndexVolumeChangeSourceTests
         // Opening no drives never launches the broker; the grow is the session's first use.
         // The source owns the prepared owner, so it is not using-declared here.
         var owner = await MftIndexSession.OpenAsync([], broker.CreateSession(),
-            broker.CacheDirectory, null, CancellationToken.None);
+            broker.CacheDirectory, null, CancellationToken.None, configureOptions: broker.ConfigureOptions);
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner), owner);
         Assert.That(broker.ConnectionCount, Is.Zero);
         var settings = await source.GrowUsnJournalAsync('X',
@@ -85,8 +85,7 @@ public class IndexVolumeChangeSourceTests
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
         var connection = new CountingOwner();
-        var owner = new MftIndexSession([await files.OpenIndexAsync()], connection, ["X"], [],
-            new Dictionary<string, string> { ["Z"] = "scan denied" });
+        var owner = new MftIndexSession([await files.OpenIndexAsync()], connection, ["X"], new Dictionary<string, string> { ["Z"] = "scan denied" });
         var source = new IndexVolumeChangeSource((_, _, _) =>
             throw new AssertionException("Matching prepared owner must be reused."), owner);
         try
@@ -156,12 +155,12 @@ public class IndexVolumeChangeSourceTests
             }
             Assert.That(fresh.IsDisposed, Is.True);
         }
-        await using var failedIndex = await FileIndex.OpenAsync(new FileIndexOptions
+        await using var failedIndex = await FileIndex.OpenAsync(MFTLibTestExtensions.SyntheticVolumeFacts.Apply(new FileIndexOptions
         {
-            Root = SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1),
+            Root = (RootKey)new VolumeKey('X'),
             CacheMode = CacheMode.Disabled,
             MftSource = SyntheticIndexSource.Create(new SyntheticMftProducer(_ => throw new IOException("cannot scan X")))
-        }, CancellationToken.None);
+        }, 1, volume: new VolumeKey('X'), volumeRootDirectory: files.TreePath), CancellationToken.None);
         var failedOwner = Owner(failedIndex, "X");
         await using var failedSource = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(failedOwner));
         var failedArm = await failedSource.ArmAndCatchUpAsync(["X"], CancellationToken.None);
@@ -182,8 +181,7 @@ public class IndexVolumeChangeSourceTests
     {
         using var files = new PackedIndexFixture();
         var connection = new CountingOwner();
-        var owner = new MftIndexSession([await files.OpenIndexAsync()], connection, ["X"], [],
-            new Dictionary<string, string>());
+        var owner = new MftIndexSession([await files.OpenIndexAsync()], connection, ["X"], new Dictionary<string, string>());
         var opens = 0;
         var source = new IndexVolumeChangeSource((_, _, _) =>
         {
@@ -375,7 +373,7 @@ public class IndexVolumeChangeSourceTests
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
         var owner = new MftIndexSession([await files.OpenIndexAsync()], null, ["X"],
-            [SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 12345u)], new Dictionary<string, string>());
+new Dictionary<string, string>());
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner), owner);
         var loss = SyntheticNotifications.CreateJournalCheckpointLoss('X', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.RootOpening, new UsnJournalSettings { MaximumSize = 32L * 1024 * 1024, AllocationDelta = 8 * 1024 * 1024 }) with { BytesBehind = 4_000_000, SizeThatWouldHaveRetained = 136L * 1024 * 1024 };
         var declined = RootStatuses.CreateRootStatus('X', RootState.Failed,
@@ -402,7 +400,7 @@ public class IndexVolumeChangeSourceTests
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
         var owner = new MftIndexSession([await files.OpenIndexAsync()], null, ["X"],
-            [SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 12345u)], new Dictionary<string, string>());
+new Dictionary<string, string>());
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner), owner);
         var warnings = new List<JournalWarning>();
         source.JournalWarningDetected += warnings.Add;
@@ -440,7 +438,7 @@ public class IndexVolumeChangeSourceTests
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
         var owner = new MftIndexSession([await files.OpenIndexAsync()], null, ["X"],
-            [SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 12345u)], new Dictionary<string, string>());
+new Dictionary<string, string>());
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner), owner);
         var warnings = new List<JournalWarning>();
         source.JournalWarningDetected += warnings.Add;

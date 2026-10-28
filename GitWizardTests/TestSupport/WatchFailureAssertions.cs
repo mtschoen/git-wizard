@@ -142,7 +142,7 @@ static class WatchFailureAssertions
         var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var indices = await files.OpenMftIndicesAsync(scripted, 'X', 'Y');
         var set = new FileIndexSet(indices);
-        var owner = new MftIndexSession(indices, null, ["X", "Y"], [], new Dictionary<string, string>());
+        var owner = new MftIndexSession(indices, null, ["X", "Y"], new Dictionary<string, string>());
         var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         try
         {
@@ -178,10 +178,7 @@ static class WatchFailureAssertions
             }
             await scripted.WatchFor('Y').PublishBatchAsync([new SyntheticJournalRecord
                 {
-                    RecordNumber = 50, ParentRecordNumber = 6, SequenceNumber = 1,
-                    FileName = "file", Reason = SyntheticJournalReason.FileCreate,
-                    FileAttributes = FileAttributes.Normal,
-                    Timestamp = PackedIndexFixture.CompletionTimestamp, Usn = 1001
+                    RecordNumber = 50,ParentRecordNumber = 6,SequenceNumber = 1,                    FileName = "file",Reason = SyntheticJournalReason.FileCreate,                    FileAttributes = FileAttributes.Normal,                    Timestamp = PackedIndexFixture.CompletionTimestamp,Usn = 1001
                 }], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, 1002));
             var pendingResult = await pending;
             Assert.That(pendingResult, Is.True);

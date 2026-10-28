@@ -27,12 +27,13 @@ public class MftIndexCacheInspectionTests
         MftIndexCacheInspection.InspectDirectory);
 
     static Task<FileIndex> Open(PackedIndexFixture files, string cache, bool cacheOnly = false) =>
-        FileIndex.OpenAsync(new FileIndexOptions
+        FileIndex.OpenAsync(MFTLibTestExtensions.SyntheticVolumeFacts.Apply(new FileIndexOptions
         {
-            Root = SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1, ProducerKind.Enumeration),
+            Root = (RootKey)new VolumeKey('X'),
             CacheDirectory = cache,
             CacheMode = cacheOnly ? CacheMode.ExistingOnly : CacheMode.Persistent
-        }, CancellationToken.None);
+        } with
+        { Producer = ProducerSelection.WalkOnly }, 1, volume: new VolumeKey('X'), volumeRootDirectory: files.TreePath), CancellationToken.None);
 
     [Test]
     public void MissingInventoryDoesNotCreateCache()
@@ -169,8 +170,7 @@ public class MftIndexCacheInspectionTests
         using var files = new PackedIndexFixture();
         var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         var index = await Open(files, cache);
-        var ui = new MftIndexSession([index], null, ["X"],
-        [SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1)], new Dictionary<string, string>(), cache);
+        var ui = new MftIndexSession([index], null, ["X"], new Dictionary<string, string>(), cache);
         await using var cli = await Open(files, cache);
         using (Assert.EnterMultipleScope())
         {

@@ -45,13 +45,12 @@ public class ProgramWatchStartupTests
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = root => new RootClassification(root, RootFileSystem.Ntfs, "C", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled"),
             OpenIndexAsync = async (drives, _, _, _) =>
             {
                 var indices = await files.OpenIndicesAsync([.. drives.Select(d => d[0])]).ConfigureAwait(false);
-                var indexed = drives.Select(d => SyntheticIndexedRoot.Create(new VolumeKey(d[0]), files.TreePath, 1)).ToList();
-                return new MftIndexSession(indices, new CountingOwner(), drives, indexed, new Dictionary<string, string>());
+                var indexed = drives.Select(d => (RootKey)new VolumeKey(d[0])).ToList();
+                return new MftIndexSession(indices, new CountingOwner(), drives, new Dictionary<string, string>());
             },
             ReadListAsync = GitWizardApi.GetCachedRepositoryPathsAsync,
             WriteListAsync = GitWizardApi.SaveCachedRepositoryPathsAsync,
@@ -106,13 +105,12 @@ public class ProgramWatchStartupTests
 
         var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var index = await files.OpenMftIndexAsync(scripted, 'C');
-        var session = new MftIndexSession([index], new CountingOwner(), ["C"], [SyntheticIndexedRoot.Create(new VolumeKey('C'), files.TreePath, 1)], new Dictionary<string, string>());
+        var session = new MftIndexSession([index], new CountingOwner(), ["C"], new Dictionary<string, string>());
 
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = root => new RootClassification(root, RootFileSystem.Ntfs, "C", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled"),
             OpenIndexAsync = (_, _, _, _) => Task.FromResult(session),
             ReadListAsync = GitWizardApi.GetCachedRepositoryPathsAsync,
@@ -146,7 +144,6 @@ public class ProgramWatchStartupTests
         {
             IsWindows = false,
             IsLinux = true,
-            ClassifyRoot = root => new RootClassification(root, RootFileSystem.Recursive, null, null),
             CrawlRootAsync = (_, _, _) =>
             {
                 Assert.That(marksInstalled, Is.True, "Marks must be installed before recursive crawling.");
@@ -183,7 +180,6 @@ public class ProgramWatchStartupTests
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = root => new RootClassification(root, RootFileSystem.Ntfs, "C", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled"),
             OpenIndexAsync = (_, _, _, _) =>
             {
@@ -222,9 +218,6 @@ public class ProgramWatchStartupTests
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = root => string.Equals(root, dRoot, StringComparison.OrdinalIgnoreCase)
-                ? new RootClassification(root, RootFileSystem.Ntfs, "D", null)
-                : new RootClassification(root, RootFileSystem.Ntfs, "C", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled"),
             OpenIndexAsync = (_, _, _, _) => Task.FromResult(session),
             ReadListAsync = GitWizardApi.GetCachedRepositoryPathsAsync,
@@ -303,9 +296,6 @@ public class ProgramWatchStartupTests
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = root => root.StartsWith(treePath, StringComparison.OrdinalIgnoreCase)
-                ? new RootClassification(root, RootFileSystem.Ntfs, "C", null)
-                : new RootClassification(root, RootFileSystem.Ntfs, "E", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled"),
             OpenIndexAsync = (drives, _, _, _) =>
             {

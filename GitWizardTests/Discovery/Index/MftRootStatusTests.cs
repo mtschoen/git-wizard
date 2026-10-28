@@ -14,8 +14,7 @@ public class MftRootStatusTests
     {
         await using var broker = new BlockBrokerFixture(scanError: "scan refused");
         var session = await MftIndexSession.OpenSelectedVolumesAsync(["W", "X"],
-            drive => drive == 'W' ? throw new IOException("identity denied") : broker.Drive('X'),
-            broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);
+            broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None, broker.ConfigureOptions);
         try
         {
             await AssertStatusesSurviveOwnerDisposalAsync(session);
@@ -32,8 +31,8 @@ public class MftRootStatusTests
         Assert.That(statuses.Select(status => status.Drive), Is.EqualTo(["W", "X"]));
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(statuses[0].IdentityFailure, Is.EqualTo("identity denied"));
-            Assert.That(statuses[0].IndexStatus, Is.Null);
+            Assert.That(statuses[0].IdentityFailure, Is.Null);
+            Assert.That(statuses[0].IndexStatus!.Failure?.Kind, Is.EqualTo(RootFailureKind.ProducerFailed));
             Assert.That(statuses[1].IdentityFailure, Is.Null);
             Assert.That(statuses[1].IndexStatus!.Failure?.Kind, Is.EqualTo(RootFailureKind.ProducerFailed));
             Assert.That(statuses[1].IndexStatus!.Block, Is.Null);
@@ -54,7 +53,7 @@ public class MftRootStatusTests
     {
         await using var broker = new BlockBrokerFixture();
         await using var session = await MftIndexSession.OpenAsync([broker.Drive('X')],
-            broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None);
+            broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None, configureOptions: broker.ConfigureOptions);
         var first = session.CaptureRootStatuses();
         var second = session.CaptureRootStatuses();
         Assert.That(second, Is.Not.SameAs(first));

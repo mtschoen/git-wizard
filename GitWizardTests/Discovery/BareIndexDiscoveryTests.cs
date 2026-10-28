@@ -53,7 +53,7 @@ public class BareIndexDiscoveryTests
         };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, false, []);
         var treePath = files.TreePath;
-        var scope = DiscoveryScope.CreateExpanded(request, [treePath], [], [], _ => new RootClassification(treePath, RootFileSystem.Ntfs, "X", null));
+        var scope = DiscoveryScope.CreateExpanded(request, [treePath], [], []);
 
         var candidates = GitWizardApi.SelectRepositoryCandidates(new FileIndexSet([index]), scope, CancellationToken.None);
 

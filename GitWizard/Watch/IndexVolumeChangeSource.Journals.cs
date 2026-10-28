@@ -49,8 +49,11 @@ public sealed partial class IndexVolumeChangeSource
         // Cache the drive's real indexed root directory so OnChanged can rewrite a live
         // change's path back onto this drive's own "<letter>:\" form, regardless of
         // whether IndexedRoot.RootDirectory is the drive root (MFTLib #143).
-        _driveRealRoots[letter] = (owner.IndexFor(drive.Root)
-            ?? throw new InvalidOperationException($"No index holds root {drive.Root}.")).Root(cancellationToken).Path;
+        if (drive.Root.IsVolume)
+        {
+            _driveRealRoots[letter] = (owner.IndexFor(drive.Root)
+                ?? throw new InvalidOperationException($"No index holds root {drive.Root}.")).Root(cancellationToken).Path;
+        }
 
         AddJournalWarning(drive, owner, configuration, warnings);
     }
@@ -196,14 +199,13 @@ public sealed partial class IndexVolumeChangeSource
     static JournalWarning? BuildJournalWarning(RootStatus drive, MftIndexSession owner,
         GitWizardConfiguration configuration)
     {
-        var indexedDrive = owner.IndexedRoots.FirstOrDefault(candidate =>
-            candidate.Root == drive.Root);
-        if (indexedDrive is null || configuration.IgnoredJournalWarnings.Contains(indexedDrive.VolumeSerial))
+        if (drive.Watch.CheckpointLoss is not { } loss)
         {
             return null;
         }
 
-        if (drive.Watch.CheckpointLoss is not { } loss)
+        var serial = drive.VolumeSerial;
+        if (serial is null || configuration.IgnoredJournalWarnings.Contains(serial.Value))
         {
             return null;
         }
@@ -211,7 +213,7 @@ public sealed partial class IndexVolumeChangeSource
         return new JournalWarning
         {
             DriveLetter = drive.Root.ToString(),
-            VolumeSerial = indexedDrive.VolumeSerial,
+            VolumeSerial = serial.Value,
             Loss = loss,
             WatchState = drive.Watch.State,
             IsRecoveryStopped = drive.Watch.IsRecoveryStopped

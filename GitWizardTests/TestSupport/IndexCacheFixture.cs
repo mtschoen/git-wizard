@@ -29,11 +29,12 @@ sealed class IndexCacheFixture : IDisposable
         File.WriteAllText(Path.Combine(Cache, "unrelated.txt"), "keep");
     }
 
-    public Task<FileIndex> OpenOwnerAsync() => FileIndex.OpenAsync(new FileIndexOptions
+    public Task<FileIndex> OpenOwnerAsync() => FileIndex.OpenAsync(MFTLibTestExtensions.SyntheticVolumeFacts.Apply(new FileIndexOptions
     {
-        Root = SyntheticIndexedRoot.Create(new VolumeKey('X'), _files.TreePath, 1, ProducerKind.Enumeration),
+        Root = (RootKey)new VolumeKey('X'),
         CacheDirectory = Cache
-    }, CancellationToken.None);
+    } with
+    { Producer = ProducerSelection.WalkOnly }, 1, volume: new VolumeKey('X'), volumeRootDirectory: _files.TreePath), CancellationToken.None);
 
     public void SeedLegacyAndUnknownLayout()
     {
@@ -111,7 +112,6 @@ sealed class IndexCacheFixture : IDisposable
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = root => new RootClassification(root, RootFileSystem.Ntfs, "X", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("Cached paths must not crawl."),
             OpenIndexAsync = (_, _, _, _) => throw new AssertionException("Cached paths must not open an index."),
             ReadListAsync = GitWizardApi.GetCachedRepositoryPathsAsync,

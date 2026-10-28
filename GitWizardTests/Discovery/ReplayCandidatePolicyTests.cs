@@ -24,8 +24,7 @@ public class ReplayCandidatePolicyTests
             IncludeTempDirectories = includeTempDirectories
         };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Watch, false, false, retainedRoots ?? []);
-        return DiscoveryScope.CreateExpanded(request, searchRoots, retainedRoots ?? [], ignoredRoots ?? [],
-            root => new RootClassification(root, RootFileSystem.Ntfs, "X", null));
+        return DiscoveryScope.CreateExpanded(request, searchRoots, retainedRoots ?? [], ignoredRoots ?? []);
     }
 
     [Test]

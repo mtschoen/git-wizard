@@ -27,7 +27,7 @@ public partial class RepositoryDiscoveryCoordinator
         }
 
         ArgumentNullException.ThrowIfNull(request);
-        var scope = DiscoveryScope.Create(request, dependencies.ClassifyRoot);
+        var scope = DiscoveryScope.Create(request);
 
         if (dependencies.IsWindows)
         {
@@ -64,12 +64,11 @@ public partial class RepositoryDiscoveryCoordinator
             }
 
             progress?.Report(new WatchStartupProgress(WatchStartupPhase.Discovering));
-            if (source?.IndexSet is { } index && !request.NoMft)
+            if (source?.IndexSet is { } index)
             {
                 AddIndexedCandidates(index, accumulator, cancellationToken);
             }
 
-            await CrawlRecursiveRootsAsync(request, accumulator, null, cancellationToken).ConfigureAwait(false);
 
             IReadOnlyList<VolumeChangeBatch> startupBatches = [];
             if (source is not null)
@@ -81,7 +80,7 @@ public partial class RepositoryDiscoveryCoordinator
             accumulator.AddIndexedObservations(scope.SearchRoots, false, DiscoverySource.Replay, null);
             accumulator.AddIndexedObservations(scope.RetainedRoots, true, DiscoverySource.Replay, null);
             accumulator.AddClassificationErrorObservations();
-            var inventory = accumulator.BuildInventory(DetermineRoute(scope), scope.RequestedNtfsDrives);
+            var inventory = accumulator.BuildInventory(DetermineRoute(scope, source?.Session), WatchVolumes(source?.Session));
             await PersistAsync(previousList, inventory, cancellationToken).ConfigureAwait(false);
 
             if (inventory.Outcome is DiscoveryOutcome.CompleteEmpty or DiscoveryOutcome.Unusable && source is not null)
@@ -90,9 +89,7 @@ public partial class RepositoryDiscoveryCoordinator
                 source = null;
             }
 
-            var watchVolumes = accumulator.ObservedDrives.Count > 0
-                ? (string[])[.. scope.RequestedNtfsDrives.Where(accumulator.ObservedDrives.Contains)]
-                : scope.RequestedNtfsDrives;
+            var watchVolumes = WatchVolumes(source?.Session);
             var result = new WatchStartupResult(inventory, armResult, source, watchVolumes, scope, startupBatches);
             source = null;
             return result;
@@ -113,7 +110,7 @@ public partial class RepositoryDiscoveryCoordinator
         IProgress<WatchStartupProgress>? progress,
         CancellationToken cancellationToken)
     {
-        if (scope.RequestedNtfsDrives.Count == 0)
+        if (scope.IndexRoots.Count == 0)
         {
             if (prepared is not null)
             {
@@ -138,7 +135,7 @@ public partial class RepositoryDiscoveryCoordinator
         {
             progress?.Report(new WatchStartupProgress(WatchStartupPhase.CatchingUp));
             source.StartStartupBuffering();
-            armResult = await source.ArmAndCatchUpAsync(scope.RequestedNtfsDrives, cancellationToken).ConfigureAwait(false);
+            armResult = await source.ArmAndCatchUpAsync(scope.IndexRoots, cancellationToken).ConfigureAwait(false);
             foreach (var (drive, message) in armResult.Errors)
             {
                 accumulator.Errors[drive] = message;
@@ -171,12 +168,13 @@ public partial class RepositoryDiscoveryCoordinator
             try
             {
                 session = await Dependencies.OpenIndexAsync(
-                    scope.RequestedNtfsDrives, CacheMode.ExistingOnly, null, cancellationToken).ConfigureAwait(false);
+                    scope.IndexRoots, scope.Request.NoMft ? CacheMode.Disabled : CacheMode.ExistingOnly,
+                    null, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception exception) when (exception is not OperationCanceledException ||
                                               !cancellationToken.IsCancellationRequested)
             {
-                foreach (var drive in scope.RequestedNtfsDrives)
+                foreach (var drive in scope.IndexRoots)
                 {
                     accumulator.Errors[drive] = exception.Message;
                 }

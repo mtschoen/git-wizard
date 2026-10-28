@@ -32,8 +32,7 @@ public class JournalWarningRefreshTests
         {
             Files.AddMarker("repo");
             var index = await Files.OpenMftIndexAsync(Scripted, 'X');
-            Owner = new MftIndexSession([index], null, ["X"], [SyntheticIndexedRoot.Create(new VolumeKey('X'), Files.TreePath, 12345u)],
-                new Dictionary<string, string>());
+            Owner = new MftIndexSession([index], null, ["X"], new Dictionary<string, string>());
             Source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(Owner));
             Source.JournalWarningDetected += _warnings.Enqueue;
             return await Source.ArmAndCatchUpAsync(["X"], CancellationToken.None);

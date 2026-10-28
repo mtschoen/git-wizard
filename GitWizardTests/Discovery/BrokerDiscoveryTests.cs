@@ -167,8 +167,7 @@ public class BrokerDiscoveryTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
-        var owner = new MftIndexSession([await files.OpenIndexAsync()], null, ["X", "Y"], [],
-            new Dictionary<string, string> { ["Y"] = "scan denied" });
+        var owner = new MftIndexSession([await files.OpenIndexAsync()], null, ["X", "Y"], new Dictionary<string, string> { ["Y"] = "scan denied" });
         var updates = new RecordingUpdateHandler();
         await using var result = await GitWizardApi.DiscoverRepositoriesWithIndexAsync(
             new GitWizardConfiguration { IncludeTempDirectories = true }, new List<string>(), [@"X:\", @"Y:\"], [],
@@ -187,8 +186,7 @@ public class BrokerDiscoveryTests
     public async Task Discovery_AllDrivesFail_PreservesScanErrorsInResult()
     {
         using var files = new PackedIndexFixture();
-        var owner = new MftIndexSession([await files.OpenIndexAsync()], null, ["X"], [],
-            new Dictionary<string, string> { ["X"] = "Timed out waiting for broker to connect" });
+        var owner = new MftIndexSession([await files.OpenIndexAsync()], null, ["X"], new Dictionary<string, string> { ["X"] = "Timed out waiting for broker to connect" });
         await using var result = await GitWizardApi.DiscoverRepositoriesWithIndexAsync(
             new GitWizardConfiguration(), new List<string>(), [@"X:\"], [],
             new IndexDiscoveryComposition(_ => Task.FromResult(owner), _ => true));
@@ -205,8 +203,7 @@ public class BrokerDiscoveryTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
-        var owner = new MftIndexSession([await files.OpenIndexAsync()], null, ["X", "Y"], [],
-            new Dictionary<string, string> { ["Y"] = "scan denied" });
+        var owner = new MftIndexSession([await files.OpenIndexAsync()], null, ["X", "Y"], new Dictionary<string, string> { ["Y"] = "scan denied" });
         var expected = owner.CaptureRootStatuses();
         await using var result = await GitWizardApi.DiscoverRepositoriesWithIndexAsync(
             new GitWizardConfiguration { IncludeTempDirectories = true }, new List<string>(), [@"X:\", @"Y:\"], [],

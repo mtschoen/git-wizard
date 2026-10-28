@@ -132,14 +132,14 @@ public class IndexCacheViewModelTests
     public async Task PreparedOwnerCaptureFollowsTransferAndDisposal()
     {
         using var files = new PackedIndexFixture();
-        var drive = SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1, ProducerKind.Enumeration);
-        var index = await FileIndex.OpenAsync(new FileIndexOptions
+        var drive = (RootKey)new VolumeKey('X');
+        var index = await FileIndex.OpenAsync(MFTLibTestExtensions.SyntheticVolumeFacts.Apply(new FileIndexOptions
         {
             Root = drive,
             CacheDirectory = files.BlockDirectory
-        }, CancellationToken.None);
-        var session = new MftIndexSession([index], null, ["X"], [drive],
-            new Dictionary<string, string>(), files.BlockDirectory);
+        } with
+        { Producer = ProducerSelection.WalkOnly }, 1, volume: new VolumeKey('X'), volumeRootDirectory: files.TreePath), CancellationToken.None);
+        var session = new MftIndexSession([index], null, ["X"], new Dictionary<string, string>(), files.BlockDirectory);
         await using var main = TestViewModels.Create();
         await main.PreparedDiscoveryIndex.SetAsync(session);
         Assert.That(main.PreparedDiscoveryIndex.CaptureActiveCacheSessions(liveSource: null).Single().Drives.Single().Drive.IndexStatus!.Block?.CacheLocation,
@@ -155,14 +155,14 @@ public class IndexCacheViewModelTests
         }
 
         using var secondFiles = new PackedIndexFixture();
-        var secondDrive = SyntheticIndexedRoot.Create(new VolumeKey('Y'), secondFiles.TreePath, 2, ProducerKind.Enumeration);
-        var secondIndex = await FileIndex.OpenAsync(new FileIndexOptions
+        var secondDrive = (RootKey)new VolumeKey('Y');
+        var secondIndex = await FileIndex.OpenAsync(MFTLibTestExtensions.SyntheticVolumeFacts.Apply(new FileIndexOptions
         {
             Root = secondDrive,
             CacheDirectory = secondFiles.BlockDirectory
-        }, CancellationToken.None);
-        var secondSession = new MftIndexSession([secondIndex], null, ["Y"], [secondDrive],
-            new Dictionary<string, string>(), secondFiles.BlockDirectory);
+        } with
+        { Producer = ProducerSelection.WalkOnly }, 2, volume: new VolumeKey('Y'), volumeRootDirectory: secondFiles.TreePath), CancellationToken.None);
+        var secondSession = new MftIndexSession([secondIndex], null, ["Y"], new Dictionary<string, string>(), secondFiles.BlockDirectory);
         await main.PreparedDiscoveryIndex.SetAsync(secondSession);
         var captures = main.PreparedDiscoveryIndex.CaptureActiveCacheSessions(source);
         using (Assert.EnterMultipleScope())

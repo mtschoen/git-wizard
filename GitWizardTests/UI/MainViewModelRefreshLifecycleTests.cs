@@ -63,7 +63,6 @@ public class MainViewModelRefreshLifecycleTests
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = root => new RootClassification(root, RootFileSystem.Recursive, null, null),
             CrawlRootAsync = (_, root, _) => Task.FromResult(new RecursiveDiscovery(
                 [], [root], new Dictionary<string, string> { [root] = "access denied" })),
             OpenIndexAsync = (_, _, _, _) => throw new AssertionException("Recursive roots must not open an index."),

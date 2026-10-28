@@ -13,7 +13,7 @@ public class IndexVolumeChangeSourceReadinessTests
 {
 
     static MftIndexSession Owner(IReadOnlyList<FileIndex> indices, params string[] drives) =>
-        new(indices, null, drives, [], new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+        new(indices, null, drives, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
 
     [Test]
     public async Task ReadinessFollowsPerDriveCatchUpMarkers()
@@ -84,7 +84,7 @@ public class IndexVolumeChangeSourceReadinessTests
         files.CatchUpLoss = _ => Interlocked.Exchange(ref lossPending, 0) == 1 ? retained : null;
         var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var owner = new MftIndexSession([await files.OpenMftIndexAsync(scripted, 'X')], null, ["X"],
-            [SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 12345u)], new Dictionary<string, string>());
+new Dictionary<string, string>());
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         var result = await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
         // The returned retained-loss hint describes the drive after catch-up, not before watching started.
@@ -109,12 +109,12 @@ public class IndexVolumeChangeSourceReadinessTests
     public async Task OpenFailedDriveIsExcludedWithItsProducerMessage()
     {
         using var files = new PackedIndexFixture();
-        await using var failedIndex = await FileIndex.OpenAsync(new FileIndexOptions
+        await using var failedIndex = await FileIndex.OpenAsync(MFTLibTestExtensions.SyntheticVolumeFacts.Apply(new FileIndexOptions
         {
-            Root = SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1),
+            Root = (RootKey)new VolumeKey('X'),
             CacheMode = CacheMode.Disabled,
             MftSource = SyntheticIndexSource.Create(new SyntheticMftProducer(_ => throw new IOException("cannot scan X")))
-        }, CancellationToken.None);
+        }, 1, volume: new VolumeKey('X'), volumeRootDirectory: files.TreePath), CancellationToken.None);
         var owner = Owner([failedIndex], "X");
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);

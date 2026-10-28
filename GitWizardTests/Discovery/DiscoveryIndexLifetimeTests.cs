@@ -22,7 +22,6 @@ public class DiscoveryIndexLifetimeTests
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = root => new RootClassification(root, RootFileSystem.Ntfs, "C", null),
             CrawlRootAsync = (_, _, _) => Task.FromResult(new RecursiveDiscovery([], [], new Dictionary<string, string>())),
             OpenIndexAsync = (_, _, _, _) => Task.FromResult(owner),
             ReadListAsync = _ => Task.FromResult<string[]?>(null),
@@ -32,7 +31,7 @@ public class DiscoveryIndexLifetimeTests
         };
 
         var coordinator = new RepositoryDiscoveryCoordinator(dependencies);
-        var scope = DiscoveryScope.CreateExpanded(request, [@"C:\repos"], [], [], dependencies.ClassifyRoot);
+        var scope = DiscoveryScope.CreateExpanded(request, [@"C:\repos"], [], []);
         Assert.ThrowsAsync<OperationCanceledException>(async () =>
             await coordinator.DiscoverScopeAsync(request, scope, null, null, cts.Token));
 

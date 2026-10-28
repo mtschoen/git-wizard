@@ -34,11 +34,6 @@ public class ReportPublicationTests
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = root =>
-            {
-                var drive = string.Equals(root, dRoot, StringComparison.OrdinalIgnoreCase) ? "D" : "C";
-                return new RootClassification(root, RootFileSystem.Ntfs, drive, null);
-            },
             CrawlRootAsync = (_, _, _) => throw new AssertionException("Unexpected crawler call"),
             OpenIndexAsync = (_, _, _, _) => StatusSessions.OpenAsync(files,
                 ('C', outcome == DiscoveryOutcome.Unusable ? SyntheticDriveBehavior.Offline : SyntheticDriveBehavior.Ready),
@@ -230,7 +225,6 @@ public class ReportPublicationTests
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = _ => throw new AssertionException("Coordinator should not be invoked for explicit paths."),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("Coordinator should not be invoked for explicit paths."),
             OpenIndexAsync = (_, _, _, _) => throw new AssertionException("Coordinator should not be invoked for explicit paths."),
             ReadListAsync = _ => throw new AssertionException("Coordinator should not be invoked for explicit paths."),

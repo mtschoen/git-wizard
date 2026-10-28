@@ -25,7 +25,7 @@ public class MftIndexCacheStatusFormatterTests
     [TestCase(new[] { ".git", "HEAD" }, "directories plus .git, HEAD")]
     public void RetentionDescribesFullDirectoryOnlyAndNamedScans(string[]? names, string expected)
     {
-        var snapshot = new MftIndexCacheSnapshot { IsApplicable = true, DirectoryScanFileNames = names };
+        var snapshot = new MftIndexCacheSnapshot { IsApplicable = true };
         Assert.That(MftIndexCacheStatusFormatter.Format(snapshot), Does.Contain($"Retention: {expected}"));
     }
 
@@ -42,11 +42,12 @@ public class MftIndexCacheStatusFormatterTests
     {
         using var files = new PackedIndexFixture();
         var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
-        await using var index = await FileIndex.OpenAsync(new FileIndexOptions
+        await using var index = await FileIndex.OpenAsync(MFTLibTestExtensions.SyntheticVolumeFacts.Apply(new FileIndexOptions
         {
-            Root = SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1, ProducerKind.Enumeration),
+            Root = (RootKey)new VolumeKey('X'),
             CacheDirectory = cache
-        }, CancellationToken.None);
+        } with
+        { Producer = ProducerSelection.WalkOnly }, 1, volume: new VolumeKey('X'), volumeRootDirectory: files.TreePath), CancellationToken.None);
         var active = new MftActiveCacheSession(sameDirectory ? cache : files.BlockDirectory,
             [new MftActiveCacheRoot(new MftRootStatus("X", index.Status, null), serial)]);
         var service = new MftIndexCacheInspection(new FrozenCacheClock(), true,

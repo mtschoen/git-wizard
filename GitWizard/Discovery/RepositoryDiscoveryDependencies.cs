@@ -9,7 +9,6 @@ public sealed class RepositoryDiscoveryDependencies
 {
     public required bool IsWindows { get; init; }
     public required bool IsLinux { get; init; }
-    public required Func<string, RootClassification> ClassifyRoot { get; init; }
     public required Func<DiscoveryRequest, string, CancellationToken,
         Task<RecursiveDiscovery>> CrawlRootAsync
     { get; init; }
@@ -28,7 +27,6 @@ public sealed class RepositoryDiscoveryDependencies
         {
             IsWindows = OperatingSystem.IsWindows(),
             IsLinux = OperatingSystem.IsLinux(),
-            ClassifyRoot = WindowsRootClassifier.Classify,
             CrawlRootAsync = (request, root, token) => EnumerationDiscovery.DiscoverAsync(request, root, token),
             OpenIndexAsync = (drives, cacheMode, progress, token) => OperatingSystem.IsWindows()
                 ? MftIndexSession.OpenWindowsAsync(drives, BrokerLauncher.Launch, cacheMode, null, progress, token)

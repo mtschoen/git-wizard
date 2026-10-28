@@ -72,7 +72,6 @@ public class LinuxWatchStartupTests
         {
             IsWindows = false,
             IsLinux = true,
-            ClassifyRoot = root => new RootClassification(root, RootFileSystem.Recursive, null, null),
             CrawlRootAsync = Crawl,
             OpenIndexAsync = (_, _, _, _) => throw new PlatformNotSupportedException(),
             ReadListAsync = _ => Task.FromResult<string[]?>([]),
@@ -158,7 +157,6 @@ public class LinuxWatchStartupTests
         {
             IsWindows = false,
             IsLinux = true,
-            ClassifyRoot = root => new RootClassification(root, RootFileSystem.Recursive, null, null),
             CrawlRootAsync = (_, root, _) => Task.FromResult(new RecursiveDiscovery([Path.Combine(root, "repo")], [], new Dictionary<string, string>())),
             OpenIndexAsync = (_, _, _, _) => throw new PlatformNotSupportedException(),
             ReadListAsync = _ => Task.FromResult<string[]?>([]),
@@ -197,7 +195,6 @@ public class LinuxWatchStartupTests
         {
             IsWindows = false,
             IsLinux = true,
-            ClassifyRoot = root => new RootClassification(root, RootFileSystem.Recursive, null, null),
             CrawlRootAsync = (_, root, _) => Task.FromResult(new RecursiveDiscovery([Path.Combine(root, "healthy-repo")], [], new Dictionary<string, string>())),
             OpenIndexAsync = (_, _, _, _) => throw new PlatformNotSupportedException(),
             ReadListAsync = _ => Task.FromResult<string[]?>([Path.Combine(failedRoot, "old-repo")]),
@@ -240,7 +237,6 @@ public class LinuxWatchStartupTests
         {
             IsWindows = false,
             IsLinux = true,
-            ClassifyRoot = root => new RootClassification(root, RootFileSystem.Recursive, null, null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("Crawl must not happen when all marks fail."),
             OpenIndexAsync = (_, _, _, _) => throw new PlatformNotSupportedException(),
             ReadListAsync = _ => Task.FromResult<string[]?>([]),
@@ -274,7 +270,6 @@ public class LinuxWatchStartupTests
         {
             IsWindows = false,
             IsLinux = true,
-            ClassifyRoot = root => new RootClassification(root, RootFileSystem.Recursive, null, null),
             CrawlRootAsync = Crawl,
             OpenIndexAsync = (_, _, _, _) => throw new PlatformNotSupportedException(),
             ReadListAsync = _ => Task.FromResult<string[]?>([]),

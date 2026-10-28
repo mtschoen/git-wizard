@@ -31,70 +31,30 @@ public sealed partial class MftIndexSession
         Func<string, bool> brokerLauncher, CacheMode cacheMode, TimeSpan? connectTimeout,
         IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken)
     {
-        return OpenSelectedVolumesAsync(drives, IndexedRoot.FromWindowsDrive,
+        return OpenSelectedVolumesAsync(drives,
             new BrokerSession(brokerLauncher, connectTimeout),
             new CacheSelection(MftIndexCachePolicy.GetCacheDirectory(GitWizardApi.GetLocalFilesPath()), cacheMode),
             progress, cancellationToken);
     }
 
     internal static Task<MftIndexSession> OpenSelectedVolumesAsync(IReadOnlyList<string> drives,
-        Func<VolumeKey, IndexedRoot> acquireIdentity,
         BrokerSession brokerSession,
-        string cacheDirectory, IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken) =>
-        OpenSelectedVolumesAsync(drives, acquireIdentity, brokerSession,
-            new CacheSelection(cacheDirectory, CacheMode.Persistent), progress, cancellationToken);
+        string cacheDirectory, IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken,
+        Func<FileIndexOptions, FileIndexOptions>? configureOptions = null) =>
+        OpenSelectedVolumesAsync(drives, brokerSession,
+            new CacheSelection(cacheDirectory, CacheMode.Persistent), progress, cancellationToken, configureOptions);
 
     internal readonly record struct CacheSelection(string Directory, CacheMode CacheMode);
 
     internal static async Task<MftIndexSession> OpenSelectedVolumesAsync(IReadOnlyList<string> drives,
-        Func<VolumeKey, IndexedRoot> acquireIdentity,
         BrokerSession brokerSession,
-        CacheSelection cache, IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken)
+        CacheSelection cache, IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken,
+        Func<FileIndexOptions, FileIndexOptions>? configureOptions = null)
     {
         var requested = RootKeyProjection.ParseRootKeys(drives);
-        var identities = new List<IndexedRoot>();
-        var errors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        try
-        {
-            foreach (var drive in requested)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                try
-                {
-                    identities.Add(acquireIdentity(new VolumeKey(drive.VolumeLetter())));
-                }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
-                {
-                    errors[drive.ToString()] = exception.Message;
-                }
-            }
-        }
-        catch
-        {
-            // OpenAsync below owns the session only once it is called; an earlier escape must not leak it.
-            await brokerSession.DisposeAsync().ConfigureAwait(false);
-            throw;
-        }
-
-        var session = await OpenAsync(identities, brokerSession, cache.Directory, cache.CacheMode, progress,
-            cancellationToken).ConfigureAwait(false);
-        try
-        {
-            session._identityFailures = new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(
-                new Dictionary<string, string>(errors, StringComparer.OrdinalIgnoreCase));
-            foreach (var error in session.ScanErrors)
-            {
-                errors[error.Key] = error.Value;
-            }
-
-            session.Drives = Array.AsReadOnly<string>([.. requested.Select(drive => drive.ToString())]);
-            session.ScanErrors = new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(errors);
-            return session;
-        }
-        catch
-        {
-            await session.DisposeAsync().ConfigureAwait(false);
-            throw;
-        }
+        var session = await OpenAsync(requested, brokerSession, cache.Directory, cache.CacheMode, progress,
+            cancellationToken, cache.CacheMode == CacheMode.Disabled
+                ? ProducerSelection.WalkOnly : ProducerSelection.Automatic, configureOptions).ConfigureAwait(false);
+        return session;
     }
 }

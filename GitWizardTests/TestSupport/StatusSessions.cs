@@ -58,18 +58,26 @@ static class StatusSessions
             ? throw new IOException(ProducerFailureMessage(drive.ToString()[0]))
             : Task.CompletedTask;
         var absentRoot = Path.Combine(files.DirectoryPath, "absent");
-        var indexedDrives = drives.Select(item => SyntheticIndexedRoot.Create(new VolumeKey(item.Letter), item.Behavior == SyntheticDriveBehavior.Offline ? absentRoot : files.TreePath, 1)).ToArray();
-        var indices = await Task.WhenAll(indexedDrives.Select(root => FileIndex.OpenAsync(new FileIndexOptions
+        var indexedDrives = drives.Select(item => (RootKey)new VolumeKey(item.Letter)).ToArray();
+        var indices = await Task.WhenAll(indexedDrives.Select(root => FileIndex.OpenAsync(Configure(new FileIndexOptions
         {
             Root = root,
             CacheMode = CacheMode.Disabled,
             MftSource = SyntheticIndexSource.Create(files.Producer, watchSource)
-        }, CancellationToken.None))).ConfigureAwait(false);
+        }), CancellationToken.None))).ConfigureAwait(false);
         var scanErrors = indices.Select(index => index.Status)
             .Where(status => status.State is RootState.Failed or RootState.Offline)
             .ToDictionary(status => status.Root.ToString(),
                 status => status.Failure?.Message ?? $"Drive is {status.State}.");
         return new MftIndexSession(indices, new CountingOwner(),
-            (string[])[.. drives.Select(item => item.Letter.ToString())], indexedDrives, scanErrors);
+            (string[])[.. drives.Select(item => item.Letter.ToString())], scanErrors);
+
+        FileIndexOptions Configure(FileIndexOptions options)
+        {
+            var volume = options.Root!.Value.TryGetVolume(out var value) ? value : throw new InvalidOperationException();
+            return drives.Single(item => item.Letter == volume.Letter).Behavior == SyntheticDriveBehavior.Offline
+                ? SyntheticVolumeFacts.Apply(options, 1, volume: volume, volumeRootDirectory: absentRoot)
+                : files.ConfigureOptions(options);
+        }
     }
 }

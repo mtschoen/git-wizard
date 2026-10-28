@@ -23,11 +23,12 @@ public class IndexChangeMappingTests
         Directory.CreateDirectory(Path.Combine(treeDirectory, "current", ".git"));
         Directory.CreateDirectory(Path.Combine(treeDirectory, "current", "sub"));
         await File.WriteAllTextAsync(Path.Combine(treeDirectory, "current", "file.txt"), "content");
-        _index = await FileIndex.OpenAsync(new FileIndexOptions
+        _index = await FileIndex.OpenAsync(MFTLibTestExtensions.SyntheticVolumeFacts.Apply(new FileIndexOptions
         {
-            Root = SyntheticIndexedRoot.Create(new VolumeKey('T'), treeDirectory, 1, ProducerKind.Enumeration),
+            Root = (RootKey)new VolumeKey('T'),
             CacheMode = CacheMode.Disabled
-        }, CancellationToken.None);
+        } with
+        { Producer = ProducerSelection.WalkOnly }, 1, volume: new VolumeKey('T'), volumeRootDirectory: treeDirectory), CancellationToken.None);
     }
 
     [TearDown]

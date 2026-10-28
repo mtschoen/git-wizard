@@ -298,13 +298,13 @@ public class ProgramWatchLoopTests
     public async Task RunWatchLoopAsync_NoWatchableDrives_PrintsBrokerDiedAndReturnsTrue()
     {
         using var files = new PackedIndexFixture();
-        await using var failedIndex = await FileIndex.OpenAsync(new FileIndexOptions
+        await using var failedIndex = await FileIndex.OpenAsync(MFTLibTestExtensions.SyntheticVolumeFacts.Apply(new FileIndexOptions
         {
-            Root = SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1),
+            Root = (RootKey)new VolumeKey('X'),
             CacheMode = CacheMode.Disabled,
             MftSource = SyntheticIndexSource.Create(new SyntheticMftProducer(_ => throw new IOException("cannot scan X")))
-        }, CancellationToken.None);
-        var owner = new MftIndexSession([failedIndex], null, ["X"], [], new Dictionary<string, string>());
+        }, 1, volume: new VolumeKey('X'), volumeRootDirectory: files.TreePath), CancellationToken.None);
+        var owner = new MftIndexSession([failedIndex], null, ["X"], new Dictionary<string, string>());
         var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
         var service = new RepositoryWatchService(
             source,

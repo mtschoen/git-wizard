@@ -17,7 +17,6 @@ public static class MftIndexCacheStatusFormatter
             "Index cache status (point-in-time observation, not a reservation)",
             $"Observed UTC: {snapshot.ObservedAt:O}",
             $"Cache directory: {snapshot.CacheDirectory}",
-            $"Retention: {DescribeRetention(snapshot.DirectoryScanFileNames)}",
             "Namespace: current user's GitWizard private cache.",
             "Inspection may create persistent .lock siblings; holder identity is unavailable.",
             "Directory-entry last-write is not a scan timestamp or last successful catch-up."
@@ -51,16 +50,6 @@ public static class MftIndexCacheStatusFormatter
         return string.Join(Environment.NewLine, lines);
     }
 
-    static string DescribeRetention(IReadOnlyList<string>? names)
-    {
-        if (names is null)
-        {
-            return "all eligible records";
-        }
-
-        return names.Count == 0 ? "directories only" : $"directories plus {string.Join(", ", names)}";
-    }
-
     static void AddInventory(List<string> lines, MftIndexCacheSnapshot snapshot, CachedBlockStatus row)
     {
         var owned = snapshot.Sessions.SelectMany(session => session.Drives).Any(active =>
@@ -88,7 +77,7 @@ public static class MftIndexCacheStatusFormatter
             lines.Add($"  Identity failure: {row.Drive.IdentityFailure ?? "unavailable"}");
             return;
         }
-        lines.Add($"  State: {status.State}; source: {status.Block?.Origin.ToString() ?? "unavailable"}");
+        lines.Add($"  State: {status.State}; producer: {status.Producer?.ToString() ?? "unavailable"}; MFT unavailable: {status.MftUnavailable?.ToString() ?? "none"}; source: {status.Block?.Origin.ToString() ?? "unavailable"}");
         var ownership = status.Block is { } block ? Backing(block.CacheLocation) : string.Empty;
         if (ownership.Length > 0)
         {

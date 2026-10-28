@@ -118,8 +118,7 @@ public class CandidateAdmissionPolicyTests
             .Any(path => SamePath(path, repositoryPath));
 
         var scope = DiscoveryScope.CreateExpanded(
-            request, [scopePath], [], ignoredPath is null ? [] : [ignoredPath],
-            root => new RootClassification(root, RootFileSystem.Ntfs, "X", null));
+            request, [scopePath], [], ignoredPath is null ? [] : [ignoredPath]);
         var replay = CandidateAdmissionPolicy.AdmitsInventoryCandidate(scope, repositoryPath);
         var linuxRetainedRoots = (await CandidateSelection.InventoryAsync(
                 scopePath, repositoryPath, ignoredPath, admissionCase.SkipHiddenDirectories, admissionCase.IncludeTemporary))
@@ -168,8 +167,7 @@ public class CandidateAdmissionPolicyTests
         var configuration = new GitWizardConfiguration { IncludeTempDirectories = syntaxCase.IncludeTempDirectories };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, true, []);
         var scope = DiscoveryScope.CreateExpanded(
-            request, [syntaxCase.SearchRoot], [], syntaxCase.IgnoredRoot is null ? [] : [syntaxCase.IgnoredRoot],
-            root => new RootClassification(root, RootFileSystem.Recursive, null, null));
+            request, [syntaxCase.SearchRoot], [], syntaxCase.IgnoredRoot is null ? [] : [syntaxCase.IgnoredRoot]);
         var policy = CandidateAdmissionPolicy.ForScope(scope);
         var searchRoot = WatchPath.Parse(syntaxCase.SearchRoot);
         var candidate = WatchPath.Parse(syntaxCase.Candidate);

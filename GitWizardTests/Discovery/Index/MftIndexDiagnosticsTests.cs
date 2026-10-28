@@ -55,14 +55,14 @@ public class MftIndexDiagnosticsTests
         await File.WriteAllTextAsync(retired, "retired sentinel");
         var messages = new ConcurrentQueue<string>();
         var relay = new MftIndexDiagnostics(messages.Enqueue);
-        await using (await FileIndex.OpenAsync(new FileIndexOptions
+        await using (await FileIndex.OpenAsync(MFTLibTestExtensions.SyntheticVolumeFacts.Apply(new FileIndexOptions
         {
-            Root = SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1),
+            Root = (RootKey)new VolumeKey('X'),
             CacheDirectory = cache,
             CacheTag = MftIndexCachePolicy.CacheTag,
             MftSource = SyntheticIndexSource.Create(files.Producer),
             Diagnostics = relay.Report
-        }, CancellationToken.None))
+        }, 1, volume: new VolumeKey('X'), volumeRootDirectory: files.TreePath), CancellationToken.None))
         {
             Assert.That(File.Exists(retired), Is.False);
         }
@@ -91,7 +91,7 @@ public class MftIndexDiagnosticsTests
             GitWizardLog.LogMethod = message => messages.Enqueue(message ?? string.Empty);
             GitWizardLog.SilentMode = false;
             var session = await MftIndexSession.OpenAsync([broker.Drive('X')], broker.CreateSession(),
-                cache, null, CancellationToken.None);
+                cache, null, CancellationToken.None, configureOptions: broker.ConfigureOptions);
             await session.DisposeAsync();
             Assert.That(messages.Any(message => message.Contains(retired, StringComparison.Ordinal) &&
                 message.Contains("Info:", StringComparison.Ordinal)), Is.True);

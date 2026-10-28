@@ -36,8 +36,7 @@ static class EnumerationDiscovery
             return new RecursiveDiscovery(paths, failedSubtrees, errors);
         }
 
-        var scope = DiscoveryScope.CreateExpanded(request, [expandedRoot], [], ignoredPaths,
-            root => new RootClassification(root, RootFileSystem.Recursive, null, null));
+        var scope = DiscoveryScope.CreateExpanded(request, [expandedRoot], [], ignoredPaths);
 
         FileIndex index;
         try
@@ -95,9 +94,9 @@ static class EnumerationDiscovery
         GitWizardConfiguration configuration, string root, IReadOnlyList<string> ignoredPaths) =>
         new()
         {
-            Root = IndexedRoot.FromDirectory(root),
+            Root = RootKey.FromDirectory(root),
+            Producer = ProducerSelection.WalkOnly,
             CacheMode = CacheMode.Disabled,
-            RetainedFileNames = MftIndexCachePolicy.DirectoryScanFileNames,
             DirectoryWalk = CreateDirectoryWalk(configuration, root, ignoredPaths)
         };
 

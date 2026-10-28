@@ -91,7 +91,7 @@ public class IndexVolumeChangeSourcePreparedIndexTests
         await using var broker = new BlockBrokerFixture([entry]);
         broker.WatchEntries = [entry];
         var owner = await MftIndexSession.OpenAsync([broker.Drive('X')], broker.CreateSession(),
-            broker.CacheDirectory, null, CancellationToken.None);
+            broker.CacheDirectory, null, CancellationToken.None, configureOptions: broker.ConfigureOptions);
         await using var source = new IndexVolumeChangeSource((_, _, _) =>
             throw new AssertionException("Must reuse owner"), owner);
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);

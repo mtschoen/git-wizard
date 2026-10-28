@@ -13,7 +13,7 @@ sealed class DiscoveryAccumulator
     {
         Scope = scope;
         Paths = paths;
-        Errors = new Dictionary<string, string>(scope.ClassificationErrors, StringComparer.OrdinalIgnoreCase);
+        Errors = new Dictionary<string, string>(scope.ExpansionErrors, StringComparer.OrdinalIgnoreCase);
     }
 
     public DiscoveryScope Scope { get; }
@@ -53,23 +53,16 @@ sealed class DiscoveryAccumulator
     {
         foreach (var root in roots)
         {
-            var classification = Scope.Classifications.FirstOrDefault(item =>
-                string.Equals(item.Root, root, StringComparison.OrdinalIgnoreCase));
-            if (classification is not { FileSystem: RootFileSystem.Ntfs, NtfsDrive: { } drive })
-            {
-                continue;
-            }
-
-            var driveStatus = FinalStatuses.FirstOrDefault(item =>
-                string.Equals(item.Drive, drive, StringComparison.OrdinalIgnoreCase));
-            var isSuccess = ObservedDrives.Contains(drive);
-            var source = RescannedDrives.Contains(drive) ? DiscoverySource.Scan : unrescannedSource;
-            var timestamp = isSuccess ? driveStatus?.IndexStatus?.Block?.ScanTimestamp : null;
-            var error = isSuccess ? null : Errors.GetValueOrDefault(drive) ?? classification.Error;
+            var rootStatus = FinalStatuses.FirstOrDefault(item =>
+                string.Equals(item.Drive, root, StringComparison.OrdinalIgnoreCase));
+            var isSuccess = ObservedDrives.Contains(root);
+            var source = RescannedDrives.Contains(root) ? DiscoverySource.Scan : unrescannedSource;
+            var timestamp = isSuccess ? rootStatus?.IndexStatus?.Block?.ScanTimestamp : null;
+            var error = isSuccess ? null : Errors.GetValueOrDefault(root);
 
             if (isSuccess && source == DiscoverySource.Snapshot && timestamp.HasValue)
             {
-                snapshotUpdates?.SendUpdateMessage($"Using index snapshot for {drive}: (scan timestamp {timestamp.Value:O}; may be stale)");
+                snapshotUpdates?.SendUpdateMessage($"Using index snapshot for {root}: (scan timestamp {timestamp.Value:O}; may be stale)");
             }
 
             Observations.Add(new RootObservation(root, exactRoot, isSuccess, source, timestamp, error));
@@ -103,7 +96,7 @@ sealed class DiscoveryAccumulator
     {
         foreach (var root in Scope.SearchRoots.Concat(Scope.RetainedRoots))
         {
-            if (!Scope.ClassificationErrors.TryGetValue(root, out var classificationError))
+            if (!Scope.ExpansionErrors.TryGetValue(root, out var classificationError))
             {
                 continue;
             }
@@ -130,7 +123,9 @@ sealed class DiscoveryAccumulator
             Observations = Observations,
             RootStatuses = FinalStatuses,
             Errors = Errors,
-            WatchExcludedRoots = Scope.WatchExcludedRoots
+            WatchExcludedRoots = Array.AsReadOnly<string>([.. FinalStatuses
+                .Where(item => item.IndexStatus?.Producer != ProducerKind.Mft)
+                .Select(item => item.Drive)])
         };
     }
 

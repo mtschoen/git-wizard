@@ -19,7 +19,6 @@ sealed class DiscoveryDependencyRecorder : IDisposable
         {
             IsWindows = IsWindows,
             IsLinux = false,
-            ClassifyRoot = DefaultClassify,
             CrawlRootAsync = (_, root, _) =>
             {
                 CrawledRoots.Add(root);
@@ -60,8 +59,8 @@ sealed class DiscoveryDependencyRecorder : IDisposable
         OpenedDriveSets.Add(drives);
         var driveChars = drives.Select(d => d[0]).ToArray();
         var indices = await IndexFixture.OpenIndicesAsync(driveChars).ConfigureAwait(false);
-        var indexedDrives = drives.Select(d => SyntheticIndexedRoot.Create(new VolumeKey(d[0]), IndexFixture.TreePath, 1)).ToList();
-        return new MftIndexSession(indices, new CountingOwner(), drives, indexedDrives, new Dictionary<string, string>());
+        var indexedDrives = drives.Select(d => (RootKey)new VolumeKey(d[0])).ToList();
+        return new MftIndexSession(indices, new CountingOwner(), drives, new Dictionary<string, string>());
     }
 
     public void Dispose()

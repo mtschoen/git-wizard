@@ -21,13 +21,11 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
             [await files.OpenMftIndexAsync(scripted, 'X')],
             null,
             ["X"],
-            [SyntheticIndexedRoot.Create(new VolumeKey('X'), treePath, 1)],
             new Dictionary<string, string>());
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = _ => new RootClassification(treePath, RootFileSystem.Ntfs, "X", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled."),
             OpenIndexAsync = (_, _, _, _) => throw new AssertionException("The prepared session must be adopted."),
             ReadListAsync = _ => Task.FromResult<string[]?>([]),
@@ -106,7 +104,6 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
             [await files.OpenMftIndexAsync(scripted, 'X')],
             null,
             ["X"],
-            [SyntheticIndexedRoot.Create(new VolumeKey('X'), treePath, 1)],
             new Dictionary<string, string>())
         {
             BrokerSession = brokerSession
@@ -115,7 +112,6 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = _ => new RootClassification(treePath, RootFileSystem.Ntfs, "X", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled."),
             OpenIndexAsync = (_, _, _, _) => throw new AssertionException("The prepared session must be adopted."),
             ReadListAsync = _ => Task.FromResult<string[]?>([]),

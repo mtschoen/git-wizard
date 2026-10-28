@@ -18,7 +18,7 @@ public class WindowsWatchStartupTests
         var scripted = new ScriptedWatchSource();
         var index = await files.OpenMftIndexAsync(scripted, 'X');
         var connection = new CountingOwner();
-        var session = new MftIndexSession([index], connection, ["X"], [SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1)], new Dictionary<string, string>());
+        var session = new MftIndexSession([index], connection, ["X"], new Dictionary<string, string>());
 
         var listWrites = new List<IReadOnlyList<string>>();
         var treePath = files.TreePath;
@@ -26,7 +26,6 @@ public class WindowsWatchStartupTests
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = _ => new RootClassification(treePath, RootFileSystem.Ntfs, "X", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled."),
             OpenIndexAsync = (_, _, _, _) => Task.FromResult(session),
             ReadListAsync = _ => Task.FromResult<string[]?>([]),
@@ -74,7 +73,7 @@ public class WindowsWatchStartupTests
         var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var index = await files.OpenMftIndexAsync(scripted, 'X');
         var connection = new CountingOwner();
-        var session = new MftIndexSession([index], connection, ["X"], [SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1)], new Dictionary<string, string>());
+        var session = new MftIndexSession([index], connection, ["X"], new Dictionary<string, string>());
         var openCalled = false;
         var treePath = files.TreePath;
 
@@ -82,7 +81,6 @@ public class WindowsWatchStartupTests
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = _ => new RootClassification(treePath, RootFileSystem.Ntfs, "X", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled."),
             OpenIndexAsync = (_, _, _, _) => { openCalled = true; return Task.FromResult(session); },
             ReadListAsync = _ => Task.FromResult<string[]?>([@"X:\old\repo"]),
@@ -111,14 +109,13 @@ public class WindowsWatchStartupTests
         var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var index = await files.OpenMftIndexAsync(scripted, 'X');
         var connection = new CountingOwner();
-        var session = new MftIndexSession([index], connection, ["X"], [SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1)], new Dictionary<string, string>());
+        var session = new MftIndexSession([index], connection, ["X"], new Dictionary<string, string>());
         var treePath = files.TreePath;
 
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = _ => new RootClassification(treePath, RootFileSystem.Ntfs, "X", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled."),
             OpenIndexAsync = (_, _, _, _) => Task.FromResult(session),
             ReadListAsync = _ => Task.FromResult<string[]?>([]),
@@ -153,14 +150,11 @@ public class WindowsWatchStartupTests
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = root => root.StartsWith(retainedBase, StringComparison.OrdinalIgnoreCase)
-                ? new RootClassification(root, RootFileSystem.Ntfs, "E", null)
-                : new RootClassification(root, RootFileSystem.Ntfs, "X", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled."),
             OpenIndexAsync = (drives, _, _, _) =>
             {
                 armedDrives = drives;
-                return Task.FromResult(new MftIndexSession([OpenDefaultIndexAsync(treePath).GetAwaiter().GetResult()], new CountingOwner(), drives, [], new Dictionary<string, string>()));
+                return Task.FromResult(new MftIndexSession([OpenDefaultIndexAsync(treePath).GetAwaiter().GetResult()], new CountingOwner(), drives, new Dictionary<string, string>()));
             },
             ReadListAsync = _ => Task.FromResult<string[]?>([]),
             WriteListAsync = (_, _) => Task.CompletedTask,
@@ -190,14 +184,11 @@ public class WindowsWatchStartupTests
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = root => string.Equals(root, nonNtfsDir, StringComparison.OrdinalIgnoreCase)
-                ? new RootClassification(root, RootFileSystem.Recursive, null, null)
-                : new RootClassification(root, RootFileSystem.Ntfs, "X", null),
             CrawlRootAsync = (_, root, _) => Task.FromResult(new RecursiveDiscovery([Path.Combine(root, "repo")], [], new Dictionary<string, string>())),
             OpenIndexAsync = (drives, _, _, _) =>
             {
                 openedDrives = drives;
-                return Task.FromResult(new MftIndexSession([OpenDefaultIndexAsync(treePath).GetAwaiter().GetResult()], new CountingOwner(), drives, [], new Dictionary<string, string>()));
+                return Task.FromResult(new MftIndexSession([OpenDefaultIndexAsync(treePath).GetAwaiter().GetResult()], new CountingOwner(), drives, new Dictionary<string, string>()));
             },
             ReadListAsync = _ => Task.FromResult<string[]?>([]),
             WriteListAsync = (_, _) => Task.CompletedTask,
@@ -227,18 +218,12 @@ public class WindowsWatchStartupTests
         var scripted = new ScriptedWatchSource();
         var indices = await files.OpenMftIndicesAsync(scripted, 'X', 'Y');
         var connection = new CountingOwner();
-        var session = new MftIndexSession(indices, connection, ["X", "Y"], [
-            SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1),
-            SyntheticIndexedRoot.Create(new VolumeKey('Y'), yDir, 2)
-        ], new Dictionary<string, string>());
+        var session = new MftIndexSession(indices, connection, ["X", "Y"], new Dictionary<string, string>());
 
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = root => string.Equals(root, yDir, StringComparison.OrdinalIgnoreCase)
-                ? new RootClassification(root, RootFileSystem.Ntfs, "Y", null)
-                : new RootClassification(root, RootFileSystem.Ntfs, "X", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled."),
             OpenIndexAsync = (_, _, _, _) => Task.FromResult(session),
             ReadListAsync = _ => Task.FromResult<string[]?>([]),
@@ -274,7 +259,7 @@ public class WindowsWatchStartupTests
     {
         using var files = new PackedIndexFixture();
         var connection = new CountingOwner();
-        var oldSession = new MftIndexSession([await files.OpenIndexAsync()], connection, ["X"], [], new Dictionary<string, string>());
+        var oldSession = new MftIndexSession([await files.OpenIndexAsync()], connection, ["X"], new Dictionary<string, string>());
         var openerCalled = false;
         var treePath = files.TreePath;
 
@@ -282,12 +267,11 @@ public class WindowsWatchStartupTests
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = _ => new RootClassification(treePath, RootFileSystem.Ntfs, "Y", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled."),
             OpenIndexAsync = (drives, _, _, _) =>
             {
                 openerCalled = true;
-                return Task.FromResult(new MftIndexSession([OpenDefaultIndexAsync(treePath).GetAwaiter().GetResult()], new CountingOwner(), drives, [], new Dictionary<string, string>()));
+                return Task.FromResult(new MftIndexSession([OpenDefaultIndexAsync(treePath).GetAwaiter().GetResult()], new CountingOwner(), drives, new Dictionary<string, string>()));
             },
             ReadListAsync = _ => Task.FromResult<string[]?>([]),
             WriteListAsync = (_, _) => Task.CompletedTask,
@@ -316,14 +300,13 @@ public class WindowsWatchStartupTests
         var scripted = new ScriptedWatchSource();
         var index = await files.OpenMftIndexAsync(scripted, 'X');
         var connection = new CountingOwner();
-        var session = new MftIndexSession([index], connection, ["X"], [SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1)], new Dictionary<string, string>());
+        var session = new MftIndexSession([index], connection, ["X"], new Dictionary<string, string>());
         var treePath = files.TreePath;
 
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = _ => new RootClassification(treePath, RootFileSystem.Ntfs, "X", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled."),
             OpenIndexAsync = (_, _, _, _) => Task.FromResult(session),
             ReadListAsync = _ => Task.FromResult<string[]?>([]),
@@ -361,14 +344,13 @@ public class WindowsWatchStartupTests
         var scripted = new ScriptedWatchSource();
         var index = await files.OpenMftIndexAsync(scripted, 'X');
         var connection = new CountingOwner();
-        var session = new MftIndexSession([index], connection, ["X"], [SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1)], new Dictionary<string, string>());
+        var session = new MftIndexSession([index], connection, ["X"], new Dictionary<string, string>());
         var treePath = files.TreePath;
 
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = _ => new RootClassification(treePath, RootFileSystem.Ntfs, "X", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled."),
             OpenIndexAsync = (_, _, _, _) => Task.FromResult(session),
             ReadListAsync = _ => Task.FromResult<string[]?>([]),
@@ -411,7 +393,7 @@ public class WindowsWatchStartupTests
         var scripted = new ScriptedWatchSource();
         var index = await files.OpenMftIndexAsync(scripted, 'X');
         var connection = new CountingOwner();
-        var session = new MftIndexSession([index], connection, ["X"], [SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1)], new Dictionary<string, string>());
+        var session = new MftIndexSession([index], connection, ["X"], new Dictionary<string, string>());
         var treePath = files.TreePath;
 
         // Both repositories exist on disk only after the index block was packed: the plain
@@ -423,7 +405,6 @@ public class WindowsWatchStartupTests
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = _ => new RootClassification(treePath, RootFileSystem.Ntfs, "X", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled."),
             OpenIndexAsync = (_, _, _, _) => Task.FromResult(session),
             ReadListAsync = _ => Task.FromResult<string[]?>([]),
@@ -461,11 +442,12 @@ public class WindowsWatchStartupTests
     }
 
     static Task<FileIndex> OpenDefaultIndexAsync(string treePath) =>
-        FileIndex.OpenAsync(new FileIndexOptions
+        FileIndex.OpenAsync(MFTLibTestExtensions.SyntheticVolumeFacts.Apply(new FileIndexOptions
         {
-            Root = SyntheticIndexedRoot.Create(new VolumeKey('X'), treePath, 1, ProducerKind.Enumeration),
+            Root = (RootKey)new VolumeKey('X'),
             CacheMode = CacheMode.Disabled
-        }, CancellationToken.None);
+        } with
+        { Producer = ProducerSelection.WalkOnly }, 1, volume: new VolumeKey('X'), volumeRootDirectory: treePath), CancellationToken.None);
 
     static SyntheticJournalRecord Entry(ulong recordNumber, ulong parentNumber, string name, SyntheticJournalReason reason, bool isDirectory = false) =>
         new()

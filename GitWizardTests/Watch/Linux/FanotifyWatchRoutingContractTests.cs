@@ -78,7 +78,6 @@ public class FanotifyWatchRoutingContractTests
         {
             IsWindows = false,
             IsLinux = true,
-            ClassifyRoot = root => new RootClassification(root, RootFileSystem.Recursive, null, null),
             CrawlRootAsync = (_, _, _) => Task.FromResult(
                 new RecursiveDiscovery(crawledRepositories, [], new Dictionary<string, string>())),
             OpenIndexAsync = (_, _, _, _) => throw new PlatformNotSupportedException(),

@@ -35,7 +35,6 @@ public class IndexVolumeChangeSourceCheckpointLossTests
         files.AddMarker("repo");
         var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
         var owner = new MftIndexSession(await files.OpenMftIndicesAsync(scripted, 'X', 'Y'), null, ["X", "Y"],
-            [SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1), SyntheticIndexedRoot.Create(new VolumeKey('Y'), files.TreePath, 1)],
             new Dictionary<string, string>());
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         files.BeforeProduceAsync = (_, token) => release.Task.WaitAsync(token);

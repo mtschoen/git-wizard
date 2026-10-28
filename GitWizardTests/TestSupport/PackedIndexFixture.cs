@@ -94,11 +94,15 @@ sealed class PackedIndexFixture : IDisposable
 
     /// <summary>Opens one synthetic-producer index over the fixture tree for <paramref name="drive" />.</summary>
     public Task<FileIndex> OpenMftIndexAsync(ScriptedWatchSource source, char drive, RootKey? root = null) =>
+        OpenMftIndexAsync(SyntheticIndexSource.Create(Producer, source), drive, root);
+
+    /// <summary>Opens one index over <paramref name="source" />; indexes opened over the same instance share a volume scan.</summary>
+    public Task<FileIndex> OpenMftIndexAsync(MftIndexSource source, char drive, RootKey? root = null) =>
         FileIndex.OpenAsync(ConfigureVolumeOptions(new FileIndexOptions
         {
             Root = root ?? new VolumeKey(drive),
             CacheMode = CacheMode.Disabled,
-            MftSource = SyntheticIndexSource.Create(Producer, source)
+            MftSource = source
         }, new VolumeKey(drive)), CancellationToken.None);
 
     /// <summary>Opens one synthetic-producer index per drive, in the order given, all sharing <paramref name="source" />.</summary>

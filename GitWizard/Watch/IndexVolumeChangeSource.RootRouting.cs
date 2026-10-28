@@ -4,7 +4,6 @@ namespace GitWizard.Watch;
 
 public sealed partial class IndexVolumeChangeSource
 {
-    readonly Dictionary<RootKey, WatchPath> _watchedRootDirectories = [];
     readonly Dictionary<RootKey, long> _rootWatchVersions = [];
     bool _watchOpeningComplete;
 
@@ -68,17 +67,5 @@ public sealed partial class IndexVolumeChangeSource
                 AcceptWatchState(volume.Letter, AggregateWatch(owner, volume, index.Status.Watch), null, recordTransition: false);
             }
         }
-    }
-
-    // At this pin each directory view can report a whole-volume change. Route it through the
-    // outermost participating view once, including the old side of a cross-boundary rename.
-    bool OwnsChange(FileChange change)
-    {
-        var path = WatchPath.Parse(change.Path);
-        var previous = change.PreviousPath is { } old ? WatchPath.Parse(old) : (WatchPath?)null;
-        var selected = _watchedRootDirectories.Where(item => path.IsUnderOrEqual(item.Value) ||
-                (previous is { } oldPath && oldPath.IsUnderOrEqual(item.Value)))
-            .OrderBy(item => item.Value.Comparison.Length).Select(item => (RootKey?)item.Key).FirstOrDefault();
-        return selected == change.Entry.Root;
     }
 }

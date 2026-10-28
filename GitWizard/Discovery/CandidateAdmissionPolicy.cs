@@ -37,15 +37,12 @@ readonly partial record struct CandidateAdmissionPolicy(
     /// Applies the ignored, temporary and hidden rules to <paramref name="candidate"/>, which must
     /// already lie under or equal <paramref name="searchRoot"/>. <paramref name="hasHiddenAttributeWithin"/>
     /// answers whether any of the nearest N directories of the candidate, counting the candidate
-    /// itself, carries the Hidden attribute; a route without attributes passes null. A route that
-    /// translated the search root into index coordinates passes the root as configured in
-    /// <paramref name="configuredSearchRoot"/>, which decides whether the search root is temporary.
+    /// itself, carries the Hidden attribute; a route without attributes passes null.
     /// </summary>
     public bool AdmitsWithin(
         WatchPath searchRoot,
         WatchPath candidate,
-        Func<int, bool>? hasHiddenAttributeWithin = null,
-        WatchPath? configuredSearchRoot = null)
+        Func<int, bool>? hasHiddenAttributeWithin = null)
     {
         if (IsIgnored(candidate))
         {
@@ -53,7 +50,7 @@ readonly partial record struct CandidateAdmissionPolicy(
         }
 
         if (!IncludeTempDirectories &&
-            !TempDirectories.IsTempPath((configuredSearchRoot ?? searchRoot).Original) &&
+            !TempDirectories.IsTempPath(searchRoot.Original) &&
             TempDirectories.IsTempPath(candidate.Original))
         {
             return false;

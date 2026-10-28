@@ -56,8 +56,7 @@ public static partial class GitWizardApi
         WatchPath TranslatedRoot,
         bool IsExact,
         bool CoversDriveRoot,
-        CandidateAdmissionPolicy Policy,
-        WatchPath ConfiguredRoot);
+        CandidateAdmissionPolicy Policy);
 
     static IEnumerable<RepositoryCandidate> SelectRootCandidates(FileIndexSet index, DiscoveryScope scope,
         CandidateSelectionDiagnostics? diagnostics, CancellationToken cancellationToken)
@@ -80,8 +79,7 @@ public static partial class GitWizardApi
                 root,
                 item.IsExact,
                 !item.IsExact && IsLogicalDriveRoot(root),
-                policy,
-                root);
+                policy);
             foreach (var candidate in SelectGitMarkerCandidates(gitEntries, admission, diagnostics)
                          .Concat(SelectBareCandidates(headEntries, admission, layouts, diagnostics)))
             {
@@ -204,8 +202,7 @@ public static partial class GitWizardApi
         var candidateDirectory = parent;
         return matches &&
                candidateScope.Policy.AdmitsWithin(
-                   root, candidate, depth => HasHiddenAttributeWithin(candidateDirectory, depth),
-                   candidateScope.ConfiguredRoot);
+                   root, candidate, depth => HasHiddenAttributeWithin(candidateDirectory, depth));
     }
 
     // The nearest `depth` directories, starting at the candidate directory itself, are the ones

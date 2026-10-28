@@ -275,10 +275,6 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
 
     void DeliverChange(FileChange change)
     {
-        if (!OwnsChange(change))
-        {
-            return;
-        }
         // FileEntry.Root is the stable root key MFTLib assigns, unlike change.Path,
         // which renders the drive's real indexed root directory and only reads back as a
         // "<letter>:\" volume when that root directory happens to be the drive root (MFTLib #143).

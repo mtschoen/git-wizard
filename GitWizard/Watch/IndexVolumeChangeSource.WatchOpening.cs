@@ -13,7 +13,6 @@ public sealed partial class IndexVolumeChangeSource
             index.Changed += OnChanged;
             index.WatchFaulted += OnWatchFaulted;
             var root = index.Status.Root;
-            _watchedRootDirectories[root] = WatchPath.Parse(index.Root(cancellationToken).Path);
             void ObserveState(WatchStateChange change) => ObserveRootWatchState(owner, root, change);
             _watchStateHandlers[index] = ObserveState;
             index.WatchStateChanged += ObserveState;

@@ -66,9 +66,11 @@ public sealed partial class MftIndexSession : IAsyncDisposable
             diagnostics = MftIndexDiagnostics.CreateForGitWizardLog();
             cancellationToken.ThrowIfCancellationRequested();
             var openDiagnostics = diagnostics;
+            // One source instance is the volume scan share key: every root of this session shares its volume's scan.
+            var indexSource = brokerSession.CreateIndexSource();
             indices = await OpenIndicesAsync(drives, root =>
             {
-                var options = CreateIndexOptions(root, brokerSession, cache, progress, openDiagnostics);
+                var options = CreateIndexOptions(root, indexSource, cache, progress, openDiagnostics);
                 return FileIndex.OpenAsync(configureOptions?.Invoke(options) ?? options, cancellationToken);
             }).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
@@ -142,7 +144,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
         return [.. completed];
     }
 
-    static FileIndexOptions CreateIndexOptions(RootKey root, BrokerSession brokerSession,
+    static FileIndexOptions CreateIndexOptions(RootKey root, MftIndexSource indexSource,
         CacheSelection cache, IProgress<IndexScanProgress>? progress, MftIndexDiagnostics diagnostics)
     {
         // The session stays lazy in both cache modes: a warm or snapshot open never launches the broker,
@@ -153,7 +155,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
             CacheDirectory = cache.Directory,
             CacheTag = MftIndexCachePolicy.CacheTag,
             CacheMode = cache.CacheMode,
-            MftSource = brokerSession.CreateIndexSource(),
+            MftSource = indexSource,
             ScanProgress = progress,
             Diagnostics = diagnostics.Report
         }, new GitWizardConfiguration());

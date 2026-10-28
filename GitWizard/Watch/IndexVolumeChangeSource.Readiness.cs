@@ -55,13 +55,19 @@ public sealed partial class IndexVolumeChangeSource : IVolumeReadiness
     {
         var statuses = owner.CaptureRootStatuses()
             .ToDictionary(status => status.Drive, StringComparer.OrdinalIgnoreCase);
-        foreach (var drive in requested.Select(root => RootKeyProjection.ParseRootKeys([root]))
-                     .SelectMany(keys => keys)
-                     .GroupBy(root => root.VolumeLetter()))
+        foreach (var root in RootKeyProjection.ParseRootKeys(requested))
         {
-            var letter = drive.Key;
-            var status = drive.Select(root => statuses.GetValueOrDefault(root.ToString()))
-                .FirstOrDefault(item => item?.IndexStatus?.Producer == ProducerKind.Mft);
+            var status = statuses.GetValueOrDefault(root.ToString());
+            if (!owner.TryGetVolume(root, out var volume))
+            {
+                if (status?.IndexStatus?.Watch.IsSupported != true)
+                {
+                    PublishVolumeState(VolumeWatchStatus.Excluded(root.ToString(), OriginOf(status?.IndexStatus),
+                        errors.GetValueOrDefault(root.ToString(), NotWatchableReason)));
+                }
+                continue;
+            }
+            var letter = volume.Letter;
             var origin = OriginOf(status?.IndexStatus);
             var usable = ContainsUsableDrive(letter);
             if (usable)
@@ -71,7 +77,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeReadiness
             else
             {
                 PublishVolumeState(VolumeWatchStatus.Excluded(letter.ToString(), origin,
-                    errors.GetValueOrDefault(status?.Drive ?? drive.First().ToString(), NotWatchableReason)));
+                    errors.GetValueOrDefault(root.ToString(), NotWatchableReason)));
             }
         }
     }
@@ -93,7 +99,11 @@ public sealed partial class IndexVolumeChangeSource : IVolumeReadiness
                 continue;
             }
 
-            var letter = index.Root.VolumeLetter();
+            if (!owner.TryGetVolume(index.Root, out var volume))
+            {
+                continue;
+            }
+            var letter = volume.Letter;
             // A recovering drive can carry its fault's message and still come back.
             if (!driveSet.Contains(letter) || index.Watch.State == WatchState.Recovering)
             {

@@ -37,7 +37,10 @@ public sealed partial class IndexVolumeChangeSource
     {
         foreach (var status in indices.Select(index => index.Status))
         {
-            AcceptWatchState(status.Root.VolumeLetter(), status.Watch, null, recordTransition: false);
+            if (Session?.TryGetVolume(status.Root, out var volume) == true)
+            {
+                AcceptWatchState(volume.Letter, status.Watch, null, recordTransition: false);
+            }
         }
     }
 

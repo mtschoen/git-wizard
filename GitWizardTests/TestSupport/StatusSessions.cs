@@ -45,14 +45,14 @@ static class StatusSessions
             return session;
         };
 
-    static async Task<MftIndexSession> OpenRequestedAsync(PackedIndexFixture files, IReadOnlyList<string> roots,
-        (char Letter, SyntheticDriveBehavior Behavior)[] drives)
+    public static async Task<MftIndexSession> OpenRequestedAsync(PackedIndexFixture files, IReadOnlyList<string> roots,
+        (char Letter, SyntheticDriveBehavior Behavior)[] drives, ScriptedWatchSource? watchSource = null)
     {
         var failing = drives.Where(item => item.Behavior == SyntheticDriveBehavior.ProducerFails)
             .Select(item => item.Letter).ToHashSet();
         files.BeforeProduceAsync = (root, _) => failing.Contains(root.ToString()[0])
             ? throw new IOException(ProducerFailureMessage(root.ToString()[0])) : Task.CompletedTask;
-        var source = SyntheticIndexSource.Create(files.Producer, new ScriptedWatchSource());
+        var source = SyntheticIndexSource.Create(files.Producer, watchSource ?? new ScriptedWatchSource());
         var indices = await Task.WhenAll(roots.Select((root, position) => FileIndex.OpenAsync(
             SyntheticVolumeFacts.Apply(new FileIndexOptions
             {

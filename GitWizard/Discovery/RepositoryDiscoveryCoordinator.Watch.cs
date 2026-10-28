@@ -299,7 +299,7 @@ public partial class RepositoryDiscoveryCoordinator
                      dependencies.CandidateExists(candidateRoot, RepositoryCandidateKind.GitFile) ||
                      dependencies.CandidateExists(candidateRoot, RepositoryCandidateKind.Bare);
 
-        if (exists && CandidateAdmissionPolicy.AdmitsInventoryCandidate(accumulator.Scope, candidateRoot))
+        if (exists && CandidateAdmissionPolicy.AdmitsInventoryCandidate(accumulator.CandidateScope, candidateRoot))
         {
             accumulator.Paths.Add(candidateRoot);
             return;

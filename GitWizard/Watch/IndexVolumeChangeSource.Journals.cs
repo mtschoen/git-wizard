@@ -44,7 +44,11 @@ public sealed partial class IndexVolumeChangeSource
             return;
         }
 
-        var letter = drive.Root.VolumeLetter();
+        if (!owner.TryGetVolume(drive.Root, out var volume))
+        {
+            return;
+        }
+        var letter = volume.Letter;
         AddUsableDrive(letter);
         // Cache the drive's real indexed root directory so OnChanged can rewrite a live
         // change's path back onto this drive's own "<letter>:\" form, regardless of
@@ -87,7 +91,7 @@ public sealed partial class IndexVolumeChangeSource
             return;
         }
 
-        var letter = drive.Root.VolumeLetter();
+        var letter = drive.Watch.CheckpointLoss.Volume.Letter;
         if (_raisedFaultLosses.TryGetValue(letter, out var raised) && ReferenceEquals(raised, drive.Watch.CheckpointLoss))
         {
             // The same episode: only the drive's recovery state can have moved on.
@@ -167,7 +171,7 @@ public sealed partial class IndexVolumeChangeSource
                 }
 
                 warnings.Add(warning);
-                _publishedWarnings[drive.Root.VolumeLetter()] = new PublishedWarning(warning, drive.Watch.StateVersion);
+                _publishedWarnings[warning.Loss.Volume.Letter] = new PublishedWarning(warning, drive.Watch.StateVersion);
             }
         }
         return warnings;
@@ -212,7 +216,7 @@ public sealed partial class IndexVolumeChangeSource
 
         return new JournalWarning
         {
-            DriveLetter = drive.Root.ToString(),
+            DriveLetter = loss.Volume.ToString(),
             VolumeSerial = serial.Value,
             Loss = loss,
             WatchState = drive.Watch.State,

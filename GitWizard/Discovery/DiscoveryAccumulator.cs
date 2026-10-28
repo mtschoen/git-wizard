@@ -12,11 +12,13 @@ sealed class DiscoveryAccumulator
     public DiscoveryAccumulator(DiscoveryScope scope, ICollection<string> paths)
     {
         Scope = scope;
+        CandidateScope = scope;
         Paths = paths;
         Errors = new Dictionary<string, string>(scope.ExpansionErrors, StringComparer.OrdinalIgnoreCase);
     }
 
     public DiscoveryScope Scope { get; }
+    public DiscoveryScope CandidateScope { get; set; }
     public ICollection<string> Paths { get; }
     public Dictionary<string, string> Errors { get; }
     public List<RootObservation> Observations { get; } = [];
@@ -53,12 +55,14 @@ sealed class DiscoveryAccumulator
     {
         foreach (var root in roots)
         {
+            var indexedRoot = Scope.IndexRoots.Contains(root, WatchPath.StringComparer) ? root :
+                Scope.SearchRoots.FirstOrDefault(search => WatchPath.Parse(root).IsUnderOrEqual(WatchPath.Parse(search))) ?? root;
             var rootStatus = FinalStatuses.FirstOrDefault(item =>
-                string.Equals(item.Drive, root, StringComparison.OrdinalIgnoreCase));
-            var isSuccess = ObservedDrives.Contains(root);
-            var source = RescannedDrives.Contains(root) ? DiscoverySource.Scan : unrescannedSource;
+                string.Equals(item.Drive, indexedRoot, StringComparison.OrdinalIgnoreCase));
+            var isSuccess = ObservedDrives.Contains(indexedRoot);
+            var source = RescannedDrives.Contains(indexedRoot) ? DiscoverySource.Scan : unrescannedSource;
             var timestamp = isSuccess ? rootStatus?.IndexStatus?.Block?.ScanTimestamp : null;
-            var error = isSuccess ? null : Errors.GetValueOrDefault(root);
+            var error = isSuccess ? null : Errors.GetValueOrDefault(indexedRoot);
 
             if (isSuccess && source == DiscoverySource.Snapshot && timestamp.HasValue)
             {

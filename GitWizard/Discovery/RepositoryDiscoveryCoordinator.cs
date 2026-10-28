@@ -41,12 +41,14 @@ public partial class RepositoryDiscoveryCoordinator
         {
             if (Dependencies.IsWindows && scope.IndexRoots.Count > 0)
             {
+                StartCrawlProgress(updateHandler, scope.IndexRoots.Count);
                 session = await ReusePreparedSessionAsync(scope, prepared).ConfigureAwait(false) ??
                     await dependencies.OpenAsync(
                         scope, request.NoMft ? CacheMode.Disabled : CacheMode.ExistingOnly,
                         null, cancellationToken).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
                 await RescanDrivesNeedingScanAsync(session, request.Purpose, accumulator, null, cancellationToken).ConfigureAwait(false);
+                UpdateCrawlProgress(updateHandler, scope.IndexRoots.Count);
             }
             else if (prepared is not null)
             {
@@ -229,24 +231,19 @@ public partial class RepositoryDiscoveryCoordinator
             return;
         }
 
-        foreach (var candidate in GitWizardApi.SelectRepositoryCandidates(index, accumulator.Scope, cancellationToken))
+        var observed = new FileIndexSet([.. index.Indices.Where(member =>
+            accumulator.ObservedDrives.Contains(member.Status.Root.ToString()))]);
+        accumulator.CandidateScope = ResolvedDiscoveryScope.Create(observed, accumulator.Scope);
+        foreach (var candidate in GitWizardApi.SelectRepositoryCandidates(observed, accumulator.CandidateScope, cancellationToken))
         {
-            if (accumulator.Scope.IndexRoots.Any(root =>
-                    accumulator.ObservedDrives.Contains(root) &&
-                    WatchPath.Parse(candidate.Path).IsUnderOrEqual(WatchPath.Parse(root))) &&
-                Dependencies.CandidateExists(candidate.Path, candidate.Kind))
+            if (Dependencies.CandidateExists(candidate.Path, candidate.Kind))
             {
                 accumulator.Paths.Add(GitWizardApi.NormalizePath(candidate.Path));
             }
         }
     }
 
-    static string[] WatchVolumes(MftIndexSession? session) => session is null ? [] :
-        [.. session.Indices.Select(index => index.Status)
-            .Where(status => status.Producer == ProducerKind.Mft)
-            .Select(status => status.Root.TryGetVolume(out var volume)
-                ? volume.ToString() : WatchPath.Parse(status.Root.ToString()).Volume)
-            .OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase)];
+    static IReadOnlyList<string> WatchVolumes(MftIndexSession? session) => session?.ObservedMftVolumes ?? [];
 
     static DiscoveryRoute DetermineRoute(DiscoveryScope scope, MftIndexSession? session)
     {

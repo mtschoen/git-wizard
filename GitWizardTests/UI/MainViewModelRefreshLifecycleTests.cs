@@ -61,8 +61,8 @@ public class MainViewModelRefreshLifecycleTests
 
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {
-            IsWindows = true,
-            IsLinux = false,
+            IsWindows = false,
+            IsLinux = true,
             CrawlRootAsync = (_, root, _) => Task.FromResult(new RecursiveDiscovery(
                 [], [root], new Dictionary<string, string> { [root] = "access denied" })),
             OpenIndexAsync = (_, _, _, _) => throw new AssertionException("Recursive roots must not open an index."),

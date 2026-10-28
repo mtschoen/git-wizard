@@ -35,9 +35,10 @@ public class ReportPublicationTests
             IsWindows = true,
             IsLinux = false,
             CrawlRootAsync = (_, _, _) => throw new AssertionException("Unexpected crawler call"),
-            OpenIndexAsync = (_, _, _, _) => StatusSessions.OpenAsync(files,
-                ('C', outcome == DiscoveryOutcome.Unusable ? SyntheticDriveBehavior.Offline : SyntheticDriveBehavior.Ready),
-                ('D', outcome == DiscoveryOutcome.CompleteEmpty ? SyntheticDriveBehavior.Ready : SyntheticDriveBehavior.ProducerFails)),
+            OpenIndexAsync = (roots, _, _, _) => StatusSessions.OpenRequestedAsync(files, roots,
+                [.. roots.Select(root => string.Equals(root, dRoot, StringComparison.OrdinalIgnoreCase)
+                    ? ('D', outcome == DiscoveryOutcome.CompleteEmpty ? SyntheticDriveBehavior.Ready : SyntheticDriveBehavior.ProducerFails)
+                    : ('C', outcome == DiscoveryOutcome.Unusable ? SyntheticDriveBehavior.ProducerFails : SyntheticDriveBehavior.Ready))]),
             ReadListAsync = _ => Task.FromResult<string[]?>([]),
             WriteListAsync = (_, _) => Task.CompletedTask,
             CandidateExists = (_, _) => true,

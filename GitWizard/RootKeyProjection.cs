@@ -1,4 +1,3 @@
-using GitWizard.Watch;
 using MFTLib.Index;
 
 namespace GitWizard;
@@ -16,19 +15,4 @@ static class RootKeyProjection
             .OfType<RootKey>()
             .Distinct()];
 
-    /// <summary>The drive letter containing a Windows volume or directory root.</summary>
-    internal static char VolumeLetter(this RootKey root)
-    {
-        if (root.TryGetVolume(out var volume))
-        {
-            return volume.Letter;
-        }
-
-        if (WatchPath.Parse(root.ToString()).Volume is [var letter] && char.IsAsciiLetter(letter))
-        {
-            return char.ToUpperInvariant(letter);
-        }
-
-        throw new InvalidOperationException($"Root {root} does not name a lettered volume.");
-    }
 }

@@ -48,7 +48,7 @@ public class RepositoryDiscoveryCoordinatorCheckpointLossTests
 
     FileIndexOptions Options(bool cacheOnly, ScriptedWatchSource? source = null) => _files.ConfigureOptions(new FileIndexOptions
     {
-        Root = (RootKey)new VolumeKey('X'),
+        Root = RootKey.FromDirectory(_files.TreePath),
         CacheDirectory = _files.BlockDirectory,
         CacheMode = cacheOnly ? CacheMode.ExistingOnly : CacheMode.Persistent,
         MftSource = SyntheticIndexSource.Create(_files.Producer, source)
@@ -63,7 +63,7 @@ public class RepositoryDiscoveryCoordinatorCheckpointLossTests
     async Task<MftIndexSession> OpenSessionAsync(bool cacheOnly, ScriptedWatchSource source)
     {
         var index = await FileIndex.OpenAsync(Options(cacheOnly, source), CancellationToken.None);
-        return new MftIndexSession([index], new CountingOwner(), ["X"],
+        return new MftIndexSession([index], new CountingOwner(), [_files.TreePath],
 new Dictionary<string, string>());
     }
 

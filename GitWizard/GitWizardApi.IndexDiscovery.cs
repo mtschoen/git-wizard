@@ -27,6 +27,7 @@ public static partial class GitWizardApi
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        scope = ResolvedDiscoveryScope.Create(index, scope);
         var results = new List<RepositoryCandidate>();
         var seenPaths = new HashSet<string>(WatchPath.StringComparer);
 

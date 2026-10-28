@@ -44,7 +44,7 @@ public sealed partial class IndexVolumeChangeSource
         {
             index.Changed -= OnChanged;
             index.WatchFaulted -= OnWatchFaulted;
-            index.WatchStateChanged -= ApplyWatchState;
+            index.WatchStateChanged -= _watchStateHandlers[index];
         }
 
         try

@@ -77,8 +77,6 @@ public class IndexVolumeChangeSourceTests
 
     [TestCase(null)]
     [TestCase("Y:relative", TestName = "Issue370_Watch_RejectsDriveRelativePath")]
-    [TestCase(@"Y:\repository", TestName = "Issue370_Watch_RejectsFullPathAsSpec")]
-    [TestCase(@"\\server\share", TestName = "Issue370_Watch_RejectsUncSpec")]
     [TestCase("", TestName = "Issue370_Watch_IgnoresEmptySpec")]
     public async Task ReusesMatchingPreparedIndex(string? invalidSpec)
     {
@@ -116,6 +114,28 @@ public class IndexVolumeChangeSourceTests
         finally
         {
             await source.DisposeAsync();
+        }
+    }
+
+    [TestCase(@"Y:\repository")]
+    [TestCase(@"\\server\share")]
+    public async Task DirectorySpecRequiresAnExactPreparedRootSet(string directory)
+    {
+        using var files = new PackedIndexFixture();
+        var owner = Owner(await files.OpenIndexAsync(), "X");
+        IReadOnlyList<string>? requested = null;
+        await using var source = new IndexVolumeChangeSource((roots, _, _) =>
+        {
+            requested = roots;
+            return Task.FromResult(new MftIndexSession([], null, roots, new Dictionary<string, string>()));
+        }, owner);
+
+        await source.ArmAndCatchUpAsync(["X", directory], CancellationToken.None);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(owner.IsDisposed, Is.True);
+            Assert.That(requested, Is.EqualTo(["X", RootKey.FromDirectory(directory).ToString()]));
         }
     }
 

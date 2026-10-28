@@ -20,7 +20,9 @@ public sealed class DiscoveryScope
         SearchRoots = Array.AsReadOnly<string>([.. searchRoots]);
         RetainedRoots = Array.AsReadOnly<string>([.. retainedRoots]);
         IgnoredRoots = Array.AsReadOnly<string>([.. ignoredRoots]);
-        IndexRoots = Array.AsReadOnly<string>([.. searchRoots.Concat(retainedRoots).Distinct(WatchPath.StringComparer)]);
+        IndexRoots = Array.AsReadOnly<string>([.. searchRoots.Concat(retainedRoots.Where(retained =>
+            !searchRoots.Any(search => WatchPath.Parse(retained).IsUnderOrEqual(WatchPath.Parse(search)))))
+            .Distinct(WatchPath.StringComparer)]);
         ExpansionErrors = new ReadOnlyDictionary<string, string>(
             new Dictionary<string, string>(errors, WatchPath.StringComparer));
     }

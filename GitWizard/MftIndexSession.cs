@@ -263,7 +263,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
     internal FileIndex? IndexFor(RootKey root) => Indices.FirstOrDefault(index => index.Status.Root == root);
 
     internal FileIndex? IndexFor(VolumeKey volume) => Indices.FirstOrDefault(index =>
-        index.Status.Producer == ProducerKind.Mft && index.Status.Root.VolumeLetter() == volume.Letter);
+        index.Status.Producer == ProducerKind.Mft && TryGetVolume(index.Status.Root, out var observed) && observed == volume);
 
     Task DisposeCoreAsync()
     {

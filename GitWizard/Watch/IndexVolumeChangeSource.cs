@@ -24,6 +24,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
     bool _watchClaimed;
     bool _watchStarted;
     IReadOnlyList<FileIndex> _watchedIndices = [];
+    readonly Dictionary<FileIndex, Action<WatchStateChange>> _watchStateHandlers = [];
     int _deathReported;
 
     public event Action<string>? SourceDied;
@@ -123,7 +124,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
             cancellationToken.ThrowIfCancellationRequested();
             PublishArmedDrives(Session, requested, errors);
 
-            if (HasUsableDrives())
+            if (Session.Indices.Any(index => index.Status is { State: RootState.Ready, Watch.IsSupported: true }))
             {
                 await EnsureWatchStartedAsync(Session, cancellationToken).ConfigureAwait(false);
 
@@ -266,13 +267,25 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
 
     Task StartWatch(MftIndexSession owner, CancellationToken cancellationToken)
     {
-        var indices = owner.Indices.Where(index => index.Status.Producer == ProducerKind.Mft)
-            .DistinctBy(index => index.Status.Root.VolumeLetter()).ToArray();
+        var indices = owner.Indices.Where(index => index.Status is
+        { Producer: ProducerKind.Mft, State: RootState.Ready, Watch.IsSupported: true }).ToArray();
         foreach (var index in indices)
         {
             index.Changed += OnChanged;
             index.WatchFaulted += OnWatchFaulted;
-            index.WatchStateChanged += ApplyWatchState;
+            var root = index.Status.Root;
+            void ObserveState(WatchStateChange change)
+            {
+                if (!owner.TryGetVolume(root, out _))
+                {
+                    owner.ObserveVolume(root, change.Volume);
+                    AddUsableDrive(change.Volume.Letter);
+                    PublishVolumeState(VolumeWatchStatus.CatchingUp(change.Volume.ToString(), OriginOf(index.Status)));
+                }
+                ApplyWatchState(change);
+            }
+            _watchStateHandlers[index] = ObserveState;
+            index.WatchStateChanged += ObserveState;
         }
 
         _watchedIndices = indices;
@@ -287,7 +300,8 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
             .ConfigureAwait(false);
         foreach (var result in results.Where(result => result.Outcome == RootOperationOutcome.Failed))
         {
-            RecordStartupDriveFailure(result.Root.VolumeLetter(), result.Failure?.Message ?? "The drive watch could not start.");
+            RecordStartupDriveFailure((Session ?? throw new InvalidOperationException("No index session available."))
+                .VolumeFor(result.Root).Letter, result.Failure?.Message ?? "The drive watch could not start.");
         }
 
         _pumpStarted.TrySetResult();
@@ -306,7 +320,8 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         // FileEntry.Root is the stable root key MFTLib assigns, unlike change.Path,
         // which renders the drive's real indexed root directory and only reads back as a
         // "<letter>:\" volume when that root directory happens to be the drive root (MFTLib #143).
-        var letter = change.Entry.Root.VolumeLetter();
+        var letter = (Session ?? throw new InvalidOperationException("No index session available."))
+            .VolumeFor(change.Entry.Root).Letter;
         var rewritten = _driveRealRoots.TryGetValue(letter, out var realRoot)
             ? change with
             {

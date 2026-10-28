@@ -18,9 +18,9 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
         var scripted = new ScriptedWatchSource();
         var treePath = files.TreePath;
         var session = new MftIndexSession(
-            [await files.OpenMftIndexAsync(scripted, 'X')],
+            [await files.OpenMftIndexAsync(scripted, 'X', RootKey.FromDirectory(treePath))],
             null,
-            ["X"],
+            [treePath],
             new Dictionary<string, string>());
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {
@@ -101,9 +101,9 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
             return connectAsync(cancellationToken);
         });
         var session = new MftIndexSession(
-            [await files.OpenMftIndexAsync(scripted, 'X')],
+            [await files.OpenMftIndexAsync(scripted, 'X', RootKey.FromDirectory(treePath))],
             null,
-            ["X"],
+            [treePath],
             new Dictionary<string, string>())
         {
             BrokerSession = brokerSession

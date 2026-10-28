@@ -298,7 +298,7 @@ public class ProgramWatchLoopTests
     public async Task RunWatchLoopAsync_NoWatchableDrives_PrintsBrokerDiedAndReturnsTrue()
     {
         using var files = new PackedIndexFixture();
-        await using var failedIndex = await FileIndex.OpenAsync(MFTLibTestExtensions.SyntheticVolumeFacts.Apply(new FileIndexOptions
+        await using var failedIndex = await FileIndex.OpenAsync(SyntheticVolumeFacts.Apply(new FileIndexOptions
         {
             Root = (RootKey)new VolumeKey('X'),
             CacheMode = CacheMode.Disabled,

@@ -29,7 +29,7 @@ sealed class IndexCacheFixture : IDisposable
         File.WriteAllText(Path.Combine(Cache, "unrelated.txt"), "keep");
     }
 
-    public Task<FileIndex> OpenOwnerAsync() => FileIndex.OpenAsync(MFTLibTestExtensions.SyntheticVolumeFacts.Apply(new FileIndexOptions
+    public Task<FileIndex> OpenOwnerAsync() => FileIndex.OpenAsync(SyntheticVolumeFacts.Apply(new FileIndexOptions
     {
         Root = (RootKey)new VolumeKey('X'),
         CacheDirectory = Cache

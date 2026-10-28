@@ -31,7 +31,7 @@ public partial class RepositoryDiscoveryCoordinator
 
         if (dependencies.IsWindows)
         {
-            return await PrepareWindowsWatchAsync(request, scope, prepared, progress, cancellationToken).ConfigureAwait(false);
+            return await PrepareWindowsWatchAsync(scope, prepared, progress, cancellationToken).ConfigureAwait(false);
         }
 
         if (dependencies.IsLinux)
@@ -43,7 +43,6 @@ public partial class RepositoryDiscoveryCoordinator
     }
 
     async Task<WatchStartupResult> PrepareWindowsWatchAsync(
-        DiscoveryRequest request,
         DiscoveryScope scope,
         MftIndexSession? prepared,
         IProgress<WatchStartupProgress>? progress,
@@ -79,8 +78,8 @@ public partial class RepositoryDiscoveryCoordinator
 
             accumulator.AddIndexedObservations(scope.SearchRoots, false, DiscoverySource.Replay, null);
             accumulator.AddIndexedObservations(scope.RetainedRoots, true, DiscoverySource.Replay, null);
-            accumulator.AddClassificationErrorObservations();
-            var inventory = accumulator.BuildInventory(DetermineRoute(scope, source?.Session), WatchVolumes(source?.Session));
+            accumulator.AddExpansionErrorObservations();
+            var inventory = accumulator.BuildInventory(DetermineRoute(source?.Session), WatchVolumes(source?.Session));
             await PersistAsync(previousList, inventory, cancellationToken).ConfigureAwait(false);
 
             if (inventory.Outcome is DiscoveryOutcome.CompleteEmpty or DiscoveryOutcome.Unusable && source is not null)
@@ -139,6 +138,14 @@ public partial class RepositoryDiscoveryCoordinator
             foreach (var (drive, message) in armResult.Errors)
             {
                 accumulator.Errors[drive] = message;
+                if (VolumeKey.TryParse(drive, out var failedVolume) && source.Session is { } owner)
+                {
+                    foreach (var index in owner.Indices.Where(index => owner.TryGetVolume(index.Status.Root, out var volume) &&
+                                 volume == failedVolume))
+                    {
+                        accumulator.Errors[index.Status.Root.ToString()] = message;
+                    }
+                }
             }
 
             return (source, armResult);
@@ -162,7 +169,7 @@ public partial class RepositoryDiscoveryCoordinator
         IProgress<WatchStartupProgress>? progress,
         CancellationToken cancellationToken)
     {
-        var session = await ReusePreparedSessionAsync(scope, prepared).ConfigureAwait(false);
+        var session = await ReusePreparedSessionAsync(scope, prepared, requireExactRoots: true).ConfigureAwait(false);
         if (session is null)
         {
             try

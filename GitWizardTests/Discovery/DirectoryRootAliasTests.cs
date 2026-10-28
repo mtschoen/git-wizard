@@ -24,12 +24,14 @@ public class DirectoryRootAliasTests
             configuration.IgnoredPaths.Add(Path.Combine(alias, "repo"));
         }
         var source = SyntheticIndexSource.Create(files.Producer);
+        var configureOptions = files.ConfigureOptions;
         var dependencies = RepositoryDiscoveryDependencies.CreateDefault(options =>
-            files.ConfigureOptions(options) with { CacheMode = CacheMode.Disabled, MftSource = source });
+            configureOptions(options) with { CacheMode = CacheMode.Disabled, MftSource = source });
         var coordinator = new RepositoryDiscoveryCoordinator(dependencies);
+        var updates = new RecordingUpdateHandler();
 
         await using var result = await coordinator.DiscoverAsync(
-            new DiscoveryRequest(configuration, DiscoveryPurpose.Rebuild, false, walkOnly, []), null, CancellationToken.None);
+            new DiscoveryRequest(configuration, DiscoveryPurpose.Rebuild, false, walkOnly, []), updates, CancellationToken.None);
 
         using (Assert.EnterMultipleScope())
         {
@@ -39,6 +41,7 @@ public class DirectoryRootAliasTests
             Assert.That(result.Inventory.RootStatuses.Single().IndexStatus!.Root, Is.EqualTo(RootKey.FromDirectory(alias)));
             Assert.That(result.Inventory.RootStatuses.Single().IndexStatus!.Producer,
                 Is.EqualTo(walkOnly ? ProducerKind.Enumeration : ProducerKind.Mft));
+            Assert.That(updates.Messages, Has.Some.Contains($"producer: {(walkOnly ? "Enumeration" : "Mft")}"));
         }
     }
 }

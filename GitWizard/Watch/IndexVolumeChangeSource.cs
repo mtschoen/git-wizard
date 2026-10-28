@@ -23,7 +23,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
     bool _disposed;
     bool _watchClaimed;
     bool _watchStarted;
-    IReadOnlyList<FileIndex> _watchedIndices = [];
+    FileIndex[] _watchedIndices = [];
     readonly Dictionary<FileIndex, Action<WatchStateChange>> _watchStateHandlers = [];
     int _deathReported;
 
@@ -265,48 +265,6 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         }
     }
 
-    Task StartWatch(MftIndexSession owner, CancellationToken cancellationToken)
-    {
-        var indices = owner.Indices.Where(index => index.Status is
-        { Producer: ProducerKind.Mft, State: RootState.Ready, Watch.IsSupported: true }).ToArray();
-        foreach (var index in indices)
-        {
-            index.Changed += OnChanged;
-            index.WatchFaulted += OnWatchFaulted;
-            var root = index.Status.Root;
-            void ObserveState(WatchStateChange change)
-            {
-                if (!owner.TryGetVolume(root, out _))
-                {
-                    owner.ObserveVolume(root, change.Volume);
-                    AddUsableDrive(change.Volume.Letter);
-                    PublishVolumeState(VolumeWatchStatus.CatchingUp(change.Volume.ToString(), OriginOf(index.Status)));
-                }
-                ApplyWatchState(change);
-            }
-            _watchStateHandlers[index] = ObserveState;
-            index.WatchStateChanged += ObserveState;
-        }
-
-        _watchedIndices = indices;
-        SeedWatchStates(indices);
-        // Starting means the library pumps were scheduled, not that catch-up has drained.
-        return StartWatchAndSignalAsync(indices, cancellationToken);
-    }
-
-    async Task StartWatchAndSignalAsync(IReadOnlyList<FileIndex> indices, CancellationToken cancellationToken)
-    {
-        var results = await Task.WhenAll(indices.Select(index => index.StartWatchingAsync(cancellationToken)))
-            .ConfigureAwait(false);
-        foreach (var result in results.Where(result => result.Outcome == RootOperationOutcome.Failed))
-        {
-            RecordStartupDriveFailure((Session ?? throw new InvalidOperationException("No index session available."))
-                .VolumeFor(result.Root).Letter, result.Failure?.Message ?? "The drive watch could not start.");
-        }
-
-        _pumpStarted.TrySetResult();
-    }
-
     void OnChanged(FileChange change)
     {
         lock (_deliveryLock)
@@ -317,6 +275,10 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
 
     void DeliverChange(FileChange change)
     {
+        if (!OwnsChange(change))
+        {
+            return;
+        }
         // FileEntry.Root is the stable root key MFTLib assigns, unlike change.Path,
         // which renders the drive's real indexed root directory and only reads back as a
         // "<letter>:\" volume when that root directory happens to be the drive root (MFTLib #143).

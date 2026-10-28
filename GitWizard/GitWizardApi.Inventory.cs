@@ -72,8 +72,7 @@ public static partial class GitWizardApi
             ForkPath = configuration.ForkPath
         };
 
-        var prCrewReposPath = GetPrCrewReposPath();
-        if (Directory.Exists(prCrewReposPath))
+        foreach (var prCrewReposPath in coordinator.AdditionalCloneRoots)
         {
             var normalizedPrCrewPath = NormalizePath(prCrewReposPath);
             var alreadyCovered = searchConfig.SearchPaths

@@ -7,7 +7,7 @@ static class PackedRepositoryRows
 {
     /// <summary>Opens drive X over a block holding the root row (row 5) plus <paramref name="rows"/>.</summary>
     public static Task<FileIndex> OpenRowsAsync(PackedIndexFixture files, params SyntheticRow[] rows) =>
-        FileIndex.OpenAsync(MFTLibTestExtensions.SyntheticVolumeFacts.Apply(new FileIndexOptions
+        FileIndex.OpenAsync(SyntheticVolumeFacts.Apply(new FileIndexOptions
         {
             Root = (RootKey)new VolumeKey('X'),
             CacheMode = CacheMode.Disabled,

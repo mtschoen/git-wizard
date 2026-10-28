@@ -27,7 +27,7 @@ public class MftIndexCacheInspectionTests
         MftIndexCacheInspection.InspectDirectory);
 
     static Task<FileIndex> Open(PackedIndexFixture files, string cache, bool cacheOnly = false) =>
-        FileIndex.OpenAsync(MFTLibTestExtensions.SyntheticVolumeFacts.Apply(new FileIndexOptions
+        FileIndex.OpenAsync(SyntheticVolumeFacts.Apply(new FileIndexOptions
         {
             Root = (RootKey)new VolumeKey('X'),
             CacheDirectory = cache,

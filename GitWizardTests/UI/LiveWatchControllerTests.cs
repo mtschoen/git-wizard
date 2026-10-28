@@ -436,7 +436,7 @@ public class LiveWatchControllerTests
     public async Task Start_WhenNoDrivesWatchable_CallsOnStopped()
     {
         using var files = new PackedIndexFixture();
-        await using var failedIndex = await FileIndex.OpenAsync(MFTLibTestExtensions.SyntheticVolumeFacts.Apply(new FileIndexOptions
+        await using var failedIndex = await FileIndex.OpenAsync(SyntheticVolumeFacts.Apply(new FileIndexOptions
         {
             Root = (RootKey)new VolumeKey('X'),
             CacheMode = CacheMode.Disabled,

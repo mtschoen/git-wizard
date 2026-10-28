@@ -8,10 +8,32 @@ namespace GitWizardTests.Discovery;
 [TestFixture]
 public class RepositoryDiscoveryCoordinatorTests
 {
+    [TestCase(true, 0)]
+    [TestCase(false, 1)]
+    public void IncompleteWalkStatusCannotPublishEmptyInventory(bool exhausted, int deniedSubtrees)
+    {
+        using var files = new PackedIndexFixture();
+        var request = new DiscoveryRequest(new GitWizardConfiguration(), DiscoveryPurpose.Ordinary, false, false, []);
+        var scope = DiscoveryScope.CreateExpanded(request, [files.TreePath], [], []);
+        var block = MFTLibTestExtensions.SyntheticNotifications.CreateRootBlockStatus(
+            BlockOrigin.ProducedByScan, 1, exhausted, PackedIndexFixture.CompletionTimestamp) with
+        { AccessDeniedSubtreeCount = deniedSubtrees };
+        var status = MFTLibTestExtensions.SyntheticNotifications.CreateRootStatus(RootKey.FromDirectory(files.TreePath),
+            RootState.Ready, block, null) with
+        { Producer = ProducerKind.Enumeration };
+        var accumulator = new DiscoveryAccumulator(scope, new List<string>());
+        accumulator.RecordDriveStatuses([new MftRootStatus(files.TreePath, status, null)]);
+        accumulator.AddIndexedObservations(scope.SearchRoots, false, DiscoverySource.Scan, null);
+
+        var inventory = accumulator.BuildInventory(DiscoveryRoute.RecursiveOnly, []);
+
+        Assert.That(inventory.CanPublishFullInventory, Is.False);
+    }
+
 
     static Func<IReadOnlyList<string>, CacheMode, IProgress<IndexScanProgress>?, CancellationToken,
         Task<MftIndexSession>> OpenWithBroker(BlockBrokerFixture broker, RootKey drive, string cache) =>
-        (_, cacheMode, _, token) => MftIndexSession.OpenAsync([drive], broker.CreateSession(), cache, cacheMode, null, token, configureOptions: broker.ConfigureOptions);
+        (_, cacheMode, _, token) => MftIndexSession.OpenAsync([drive], broker.CreateSession(), new MftIndexSession.CacheSelection(cache, cacheMode), null, token, configureOptions: broker.ConfigureOptions);
 
     static Func<IReadOnlyList<string>, CacheMode, IProgress<IndexScanProgress>?, CancellationToken,
         Task<MftIndexSession>> OpenWithIdentityFailure(BlockBrokerFixture broker) =>
@@ -68,6 +90,7 @@ public class RepositoryDiscoveryCoordinatorTests
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, false, []);
 
         var openSession = StatusSessions.Opener(files, ('X', SyntheticDriveBehavior.Ready));
+        var treePath = files.TreePath;
         var dependencies = new RepositoryDiscoveryDependencies
         {
             IsWindows = true,
@@ -78,7 +101,7 @@ public class RepositoryDiscoveryCoordinatorTests
                 using (Assert.EnterMultipleScope())
                 {
                     Assert.That(cacheMode, Is.EqualTo(CacheMode.ExistingOnly));
-                    Assert.That(drives, Is.EquivalentTo([files.TreePath]).IgnoreCase);
+                    Assert.That(drives, Is.EquivalentTo([treePath]).IgnoreCase);
                 }
                 return openSession(drives, cacheMode, progress, token);
             },
@@ -121,7 +144,7 @@ public class RepositoryDiscoveryCoordinatorTests
         }
 
         await using var session = await MftIndexSession.OpenAsync([RootKey.FromDirectory(broker.TreePath)], broker.CreateSession(),
-            cache, CacheMode.ExistingOnly, null, CancellationToken.None, configureOptions: broker.ConfigureOptions);
+            new MftIndexSession.CacheSelection(cache, CacheMode.ExistingOnly), null, CancellationToken.None, configureOptions: broker.ConfigureOptions);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(session.CaptureRootStatuses().Single().IndexStatus!.State, Is.EqualTo(RootState.Failed));
@@ -196,7 +219,7 @@ public class RepositoryDiscoveryCoordinatorTests
         var drive = holderBroker.Drive('X');
         var cache = MftIndexCachePolicy.GetCacheDirectory(holderBroker.CacheDirectory);
         await using var holder = await MftIndexSession.OpenAsync([drive], holderBroker.CreateSession(),
-            cache, CacheMode.Persistent, null, CancellationToken.None, configureOptions: holderBroker.ConfigureOptions);
+            new MftIndexSession.CacheSelection(cache, CacheMode.Persistent), null, CancellationToken.None, configureOptions: holderBroker.ConfigureOptions);
 
         var crawlerCalls = 0;
         var configuration = new GitWizardConfiguration { SearchPaths = { holderBroker.TreePath } };
@@ -263,6 +286,7 @@ public class RepositoryDiscoveryCoordinatorTests
 
         var writtenPaths = new List<string[]>();
         var failedRoot = Path.Combine(files.DirectoryPath, "unavailable");
+        var treePath = files.TreePath;
         var configuration = new GitWizardConfiguration { SearchPaths = { files.TreePath, failedRoot } };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Rebuild, false, false, []);
 
@@ -273,7 +297,7 @@ public class RepositoryDiscoveryCoordinatorTests
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS crawler invoked"),
             OpenIndexAsync = StatusSessions.Opener(files,
                 ('C', SyntheticDriveBehavior.Ready), ('D', SyntheticDriveBehavior.Offline)),
-            ReadListAsync = _ => Task.FromResult<string[]?>([Path.Combine(files.TreePath, "gone"), Path.Combine(failedRoot, "keep")]),
+            ReadListAsync = _ => Task.FromResult<string[]?>([Path.Combine(treePath, "gone"), Path.Combine(failedRoot, "keep")]),
             WriteListAsync = (paths, _) => { writtenPaths.Add([.. paths]); return Task.CompletedTask; },
             CandidateExists = (_, _) => true,
             CreateLinuxSource = () => throw new PlatformNotSupportedException()

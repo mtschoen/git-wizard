@@ -8,6 +8,8 @@ public partial class RepositoryDiscoveryCoordinator
     RepositoryDiscoveryDependencies Dependencies =>
         _dependencies ?? throw new InvalidOperationException("Dependencies are required for discovery.");
 
+    internal IReadOnlyList<string> AdditionalCloneRoots => Dependencies.AdditionalCloneRoots();
+
     public Task<RepositoryDiscoveryResult> DiscoverAsync(
         DiscoveryRequest request,
         IUpdateHandler? updateHandler,
@@ -74,8 +76,8 @@ public partial class RepositoryDiscoveryCoordinator
                 await CrawlRecursiveRootsAsync(request, accumulator, updateHandler, cancellationToken).ConfigureAwait(false);
             }
 
-            accumulator.AddClassificationErrorObservations();
-            var inventory = accumulator.BuildInventory(DetermineRoute(scope, session), WatchVolumes(session));
+            accumulator.AddExpansionErrorObservations();
+            var inventory = accumulator.BuildInventory(DetermineRoute(session), WatchVolumes(session));
             await PersistAsync(previousList, inventory, cancellationToken).ConfigureAwait(false);
 
             var result = new RepositoryDiscoveryResult(inventory, session);
@@ -100,7 +102,7 @@ public partial class RepositoryDiscoveryCoordinator
         var listInventory = new DiscoveryInventory
         {
             Outcome = DiscoveryOutcome.CompleteNonempty,
-            Route = DetermineRoute(scope, null),
+            Route = DetermineRoute(null),
             Paths = previousList,
             RequestedNtfsDrives = [],
             Observations = listObservations,
@@ -159,7 +161,8 @@ public partial class RepositoryDiscoveryCoordinator
         }
     }
 
-    static async Task<MftIndexSession?> ReusePreparedSessionAsync(DiscoveryScope scope, MftIndexSession? prepared)
+    static async Task<MftIndexSession?> ReusePreparedSessionAsync(DiscoveryScope scope, MftIndexSession? prepared,
+        bool requireExactRoots = false)
     {
         if (prepared is null)
         {
@@ -170,7 +173,8 @@ public partial class RepositoryDiscoveryCoordinator
         {
             var available = RootKeyProjection.ParseRootKeys(prepared.Drives).ToHashSet();
             var requested = RootKeyProjection.ParseRootKeys(scope.IndexRoots);
-            if (requested.Length == scope.IndexRoots.Count && requested.All(available.Contains))
+            if (requested.Length == scope.IndexRoots.Count && requested.All(available.Contains) &&
+                (!requireExactRoots || available.SetEquals(requested)))
             {
                 return prepared;
             }
@@ -245,7 +249,7 @@ public partial class RepositoryDiscoveryCoordinator
 
     static IReadOnlyList<string> WatchVolumes(MftIndexSession? session) => session?.ObservedMftVolumes ?? [];
 
-    static DiscoveryRoute DetermineRoute(DiscoveryScope scope, MftIndexSession? session)
+    static DiscoveryRoute DetermineRoute(MftIndexSession? session)
     {
         if (session is null || session.Indices.Count == 0)
         {

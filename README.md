@@ -75,26 +75,25 @@ owns that slot.
 
 Windows discovery uses GitWizard-owned persistent index blocks below
 `GetLocalFilesPath()/mft-index/blocks` (normally `~/.GitWizard/mft-index/blocks`).
-The scan sets `FileIndexOptions.RetainedFileNames` to `[".git", "HEAD"]`, retaining
-directories and those marker files. MFTLib stamps the `GWMI` application cache tag,
-version 2, and independently validates the scan shape derived from row-shaping
+Every index stores every name. MFTLib stamps the `GWMI` application cache tag,
+version 3, and independently validates the scan shape derived from row-shaping
 options. A tag or shape mismatch is declined by a snapshot open and triggers a
 cold scan for a normal open. Cached blocks are not migrated; a library format
 change can also require a cold scan. GitWizard applies repository scope, ignore,
 hidden-directory, and temporary-directory policy when admitting candidates.
 
-The stored metadata covers directories and retained marker names across each selected volume,
+MFT metadata covers every record and name across each selected volume,
 potentially including other users' directory names. Search, ignore, hidden-directory and
 temporary-directory settings filter repository candidates after collection; they do not
-restrict the metadata written to the index. Live hydration can add metadata for observed
-ordinary files. A process running as your user can read these mapped or backing blocks. MFTLib
+restrict MFT metadata written to the index. Directory walks apply pruning before descending
+into ignored, hidden, temporary, and `.git` subtrees. A process running as your user can read these mapped or backing blocks. MFTLib
 protects the supplied cache directory and owns cache validation and locking.
 
 A normal open can reuse a cached block. A concurrent normal open that cannot own its canonical
 slot scans into a private delete-on-close block without modifying that canonical block.
 Snapshot opening is an explicit session API cache mode (`CacheMode.ExistingOnly`): it does not
 launch the broker, scan, or start watching. Missing, incompatible, in-use, offline and
-identity-failed outcomes remain visible; they are not evidence of an empty repository
+producer-unavailable outcomes remain visible; they are not evidence of an empty repository
 inventory. Cache opening and inspection can create lock files and perform library-managed
 housekeeping; snapshot means no scan or watch, not a filesystem read-only promise.
 
@@ -134,23 +133,23 @@ including after successful block clearing. Configuration and report/list files
 are not removed by **Clear Index Cache**. Recursive discovery on Linux and with
 `--no-mft` walks the root into an uncached enumeration index on every run.
 
-`git-wizard --index-cache-status` reports the current Windows MFT cache policy's directory, retention description, requested and stored cache tags, per-volume serial identity, size, directory-entry last-write time and age, validation and availability, then exits without repository discovery, opening an index, or launching an elevated broker. Linux and other platforms report that this cache is not applicable. Do not combine the status flag with cache deletion flags. Exit 0 means the observation succeeded, even when a block is invalid or in use; exit 1 means inspection failed, and exit 2 means the arguments were invalid.
+`git-wizard --index-cache-status` reports the current Windows index cache directory, requested and stored cache tags, volume serial, size, directory-entry last-write time and age, validation and availability, then exits without discovery or elevation. Active sessions also report the observed producer and MFT-unavailability reason; an unreported serial prints `unavailable`. Linux and other platforms report that this cache is not applicable. Do not combine the status flag with cache deletion flags. Exit 0 means inspection succeeded, including invalid or busy blocks; exit 1 means inspection failed, and exit 2 means the arguments were invalid.
 
 The desktop **Index Cache Status** window provides the same read-only observation and can additionally identify backing owned by its active session. Refresh status updates the observation and age. Inspection can create persistent `.lock` siblings. Availability is point-in-time, not a reservation; an in-use slot does not expose its holder's PID, name, user, or whether it is CLI or UI. Directory-entry last-write time is not the scan timestamp or last successful catch-up. A normal concurrent open may cold-scan into a private block, while a cache-only open refuses with `InUse`.
 
 `DuplicateNames` and `Largest` are inapplicable to repository discovery: discovery does not
-group arbitrary duplicate names or rank file sizes. Retaining `HEAD` does not change the
+group arbitrary duplicate names or rank file sizes. Querying `HEAD` does not change the
 `.git`-based candidate-selection rules.
 
 ### Discovery sources, outcomes, and ownership
 
 Every entry point (CLI report/scan/tags/branches, `--watch`, desktop refresh, and Live) runs
-through one discovery coordinator. It classifies each expanded search root by filesystem:
-NTFS roots use the repository list, a cache-only index snapshot, or a broker scan, while
-confirmed non-NTFS roots and explicit `--no-mft` use enumeration-backed discovery scoped to
-those roots. `--no-mft` is the explicit choice for users unable to accept the UAC elevation
-prompt; it does not promise an unelevated NTFS journal watch. Bare repositories are found
-through retained `HEAD` markers and validated by their `objects` and `refs` layout; internal
+through one discovery coordinator. Each search root is an index view. MFTLib selects MFT
+or directory walking under `Automatic`, and reports its producer and fallback reason.
+`--no-mft` selects `WalkOnly`, without elevation or journal watch. Eligibility failures,
+including declined or unavailable brokers, permit Automatic to walk; mid-scan errors
+remain failures. Bare repositories are found through `HEAD` markers and validated by
+their `objects` and `refs` layout; internal
 `.git` directories and unrelated `HEAD` files are never classified as repositories.
 
 An ordinary (non-watch) refresh reuses `repositories.txt` when the command flags allow it. On

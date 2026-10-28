@@ -49,7 +49,7 @@ public class MftIndexCacheStatusFormatterTests
     {
         using var files = new PackedIndexFixture();
         var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
-        await using var index = await FileIndex.OpenAsync(MFTLibTestExtensions.SyntheticVolumeFacts.Apply(new FileIndexOptions
+        await using var index = await FileIndex.OpenAsync(SyntheticVolumeFacts.Apply(new FileIndexOptions
         {
             Root = (RootKey)new VolumeKey('X'),
             CacheDirectory = cache

@@ -17,6 +17,7 @@ public sealed class RepositoryDiscoveryDependencies
         Task<MftIndexSession>>? OpenIndexAsync
     { get; init; }
     public Func<FileIndexOptions, FileIndexOptions> ConfigureOptions { get; init; } = options => options;
+    public Func<IReadOnlyList<string>> AdditionalCloneRoots { get; init; } = DefaultCloneRoots;
     public required Func<CancellationToken, Task<string[]?>> ReadListAsync { get; init; }
     public required Func<IReadOnlyList<string>, CancellationToken, Task> WriteListAsync { get; init; }
     public required Func<string, RepositoryCandidateKind, bool> CandidateExists { get; init; }
@@ -41,7 +42,14 @@ public sealed class RepositoryDiscoveryDependencies
             options => ConfigureOptions(EnumerationDiscovery.ConfigureWalk(options, scope.Request.Configuration)));
     }
 
-    public static RepositoryDiscoveryDependencies CreateDefault(Func<FileIndexOptions, FileIndexOptions>? configureOptions = null)
+    static IReadOnlyList<string> DefaultCloneRoots()
+    {
+        var root = GitWizardApi.GetPrCrewReposPath();
+        return Directory.Exists(root) ? [root] : [];
+    }
+
+    public static RepositoryDiscoveryDependencies CreateDefault(Func<FileIndexOptions, FileIndexOptions>? configureOptions = null,
+        Func<IReadOnlyList<string>>? additionalCloneRoots = null)
     {
         return new RepositoryDiscoveryDependencies
         {
@@ -50,6 +58,7 @@ public sealed class RepositoryDiscoveryDependencies
             CrawlRootAsync = (request, root, token) => EnumerationDiscovery.DiscoverAsync(request, root, token,
                 configureOptions: configureOptions),
             ConfigureOptions = configureOptions ?? (options => options),
+            AdditionalCloneRoots = additionalCloneRoots ?? DefaultCloneRoots,
             ReadListAsync = GitWizardApi.GetCachedRepositoryPathsAsync,
             WriteListAsync = GitWizardApi.SaveCachedRepositoryPathsAsync,
             CandidateExists = RepositoryCandidateProbe.Exists,

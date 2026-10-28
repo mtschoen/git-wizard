@@ -133,7 +133,7 @@ public class IndexCacheViewModelTests
     {
         using var files = new PackedIndexFixture();
         var drive = (RootKey)new VolumeKey('X');
-        var index = await FileIndex.OpenAsync(MFTLibTestExtensions.SyntheticVolumeFacts.Apply(new FileIndexOptions
+        var index = await FileIndex.OpenAsync(SyntheticVolumeFacts.Apply(new FileIndexOptions
         {
             Root = drive,
             CacheDirectory = files.BlockDirectory
@@ -156,7 +156,7 @@ public class IndexCacheViewModelTests
 
         using var secondFiles = new PackedIndexFixture();
         var secondDrive = (RootKey)new VolumeKey('Y');
-        var secondIndex = await FileIndex.OpenAsync(MFTLibTestExtensions.SyntheticVolumeFacts.Apply(new FileIndexOptions
+        var secondIndex = await FileIndex.OpenAsync(SyntheticVolumeFacts.Apply(new FileIndexOptions
         {
             Root = secondDrive,
             CacheDirectory = secondFiles.BlockDirectory

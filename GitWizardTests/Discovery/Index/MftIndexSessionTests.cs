@@ -19,8 +19,8 @@ public class MftIndexSessionTests
         await File.WriteAllTextAsync(Path.Combine(files.TreePath, "repo", ".git", "private-object"), "content");
         await using var session = await MftIndexSession.OpenAsync(
             [RootKey.FromDirectory(files.TreePath)], broker.CreateSession(),
-            files.BlockDirectory, CacheMode.Disabled, null, CancellationToken.None, producer,
-            options => files.ConfigureOptions(options) with { MftSource = null });
+            new MftIndexSession.CacheSelection(files.BlockDirectory, CacheMode.Disabled), null, CancellationToken.None,
+            options => files.ConfigureOptions(options) with { MftSource = null, Producer = producer });
 
         using (Assert.EnterMultipleScope())
         {
@@ -184,6 +184,7 @@ public class MftIndexSessionTests
         var first = (RootKey)new VolumeKey('X');
         var second = (RootKey)new VolumeKey('Y');
         var producer = files.Producer;
+        var configureOptions = files.ConfigureOptions;
         FileIndex? opened = null;
         Task<FileIndex> Open(RootKey root)
         {
@@ -197,7 +198,7 @@ public class MftIndexSessionTests
             return OpenFirstAsync(root);
         }
 
-        async Task<FileIndex> OpenFirstAsync(RootKey root) => opened = await FileIndex.OpenAsync(files.ConfigureOptions(new FileIndexOptions
+        async Task<FileIndex> OpenFirstAsync(RootKey root) => opened = await FileIndex.OpenAsync(configureOptions(new FileIndexOptions
         {
             Root = root,
             CacheMode = CacheMode.Disabled,
@@ -222,9 +223,10 @@ public class MftIndexSessionTests
         var cancellationToken = cancellation.Token;
         var cacheDirectory = broker.CacheDirectory;
         var brokerSession = broker.CreateSession();
+        var configureOptions = broker.ConfigureOptions;
         Assert.That(async () =>
             await MftIndexSession.OpenAsync([drive], brokerSession,
-                cacheDirectory, null, cancellationToken, configureOptions: broker.ConfigureOptions), Throws.InstanceOf<OperationCanceledException>());
+                cacheDirectory, null, cancellationToken, configureOptions: configureOptions), Throws.InstanceOf<OperationCanceledException>());
         await broker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.That(broker.ConnectionCount, Is.EqualTo(1));
     }
@@ -319,8 +321,8 @@ public class MftIndexSessionTests
         var drive = (RootKey)new VolumeKey('X');
         await using var session = await MftIndexSession.OpenAsync([drive],
             BrokerTestHarness.CreateSession(_ => throw new AssertionException("Enumeration must not connect.")),
-            files.BlockDirectory, CacheMode.Persistent, null, CancellationToken.None,
-            ProducerSelection.WalkOnly, files.ConfigureOptions);
+            new MftIndexSession.CacheSelection(files.BlockDirectory, CacheMode.Persistent), null, CancellationToken.None,
+            options => files.ConfigureOptions(options) with { Producer = ProducerSelection.WalkOnly });
         using (Assert.EnterMultipleScope())
         {
             Assert.That(session.IndexSet.Search(new SearchQuery(".git", NameMatchMode.Exact)), Has.Count.EqualTo(2));
@@ -342,7 +344,7 @@ public class MftIndexSessionTests
         Assert.That(File.Exists(canonical), Is.True);
         await using var reopened = await MftIndexSession.OpenAsync([broker.Drive('X')],
             BrokerTestHarness.CreateSession(_ => throw new AssertionException("A cached block must not connect.")),
-            broker.CacheDirectory, CacheMode.ExistingOnly, null, CancellationToken.None, configureOptions: broker.ConfigureOptions);
+            new MftIndexSession.CacheSelection(broker.CacheDirectory, CacheMode.ExistingOnly), null, CancellationToken.None, configureOptions: broker.ConfigureOptions);
         Assert.That(reopened.CaptureRootStatuses().Single().IndexStatus!.Block?.Origin,
             Is.EqualTo(BlockOrigin.WarmStartedFromCache));
     }

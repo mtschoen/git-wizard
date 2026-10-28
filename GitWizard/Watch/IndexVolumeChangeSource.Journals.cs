@@ -52,7 +52,7 @@ public sealed partial class IndexVolumeChangeSource
         AddUsableDrive(letter);
         // Cache the drive's real indexed root directory so OnChanged can rewrite a live
         // change's path back onto this drive's own "<letter>:\" form, regardless of
-        // whether IndexedRoot.RootDirectory is the drive root (MFTLib #143).
+        // whether the opened index renders a volume root or a synthetic fixture directory.
         if (drive.Root.IsVolume)
         {
             _driveRealRoots[letter] = (owner.IndexFor(drive.Root)
@@ -98,11 +98,12 @@ public sealed partial class IndexVolumeChangeSource
             RefreshJournalWarning(letter, drive.Watch, configuration);
             return;
         }
-        if (BuildJournalWarning(drive, owner, configuration) is not { } warning)
+        if (BuildJournalWarning(drive, configuration) is not { } warning)
         {
             return;
         }
 
+        owner.ObserveVolume(drive.Root, warning.Loss.Volume);
         _raisedFaultLosses[letter] = warning.Loss;
         PublishJournalWarning(letter, warning, drive.Watch.StateVersion);
     }
@@ -165,7 +166,7 @@ public sealed partial class IndexVolumeChangeSource
                     continue;
                 }
 
-                if (BuildJournalWarning(drive, owner, configuration) is not { } warning)
+                if (BuildJournalWarning(drive, configuration) is not { } warning)
                 {
                     continue;
                 }
@@ -194,14 +195,14 @@ public sealed partial class IndexVolumeChangeSource
     static void AddJournalWarning(RootStatus drive, MftIndexSession owner,
         GitWizardConfiguration configuration, List<JournalWarning> warnings)
     {
-        if (BuildJournalWarning(drive, owner, configuration) is { } warning)
+        if (BuildJournalWarning(drive, configuration) is { } warning)
         {
+            owner.ObserveVolume(drive.Root, warning.Loss.Volume);
             warnings.Add(warning);
         }
     }
 
-    static JournalWarning? BuildJournalWarning(RootStatus drive, MftIndexSession owner,
-        GitWizardConfiguration configuration)
+    static JournalWarning? BuildJournalWarning(RootStatus drive, GitWizardConfiguration configuration)
     {
         if (drive.Watch.CheckpointLoss is not { } loss)
         {

@@ -31,16 +31,13 @@ public static partial class GitWizardApi
         var results = new List<RepositoryCandidate>();
         var seenPaths = new HashSet<string>(WatchPath.StringComparer);
 
-        var gitEntries = ScanByName(index, GitEntryName, diagnostics, cancellationToken);
-        var headEntries = ScanByName(index, "HEAD", diagnostics, cancellationToken);
-        var layouts = new Lazy<BareLayoutIndex>(() => BareLayoutIndex.Build(index, diagnostics, cancellationToken));
-
-        foreach (var candidateScope in BuildCandidateScopes(scope))
+        foreach (var member in index.Indices.Where(member => member.Status.Block is not null))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var scopeCandidates = SelectGitMarkerCandidates(gitEntries, candidateScope, diagnostics)
-                .Concat(SelectBareCandidates(headEntries, candidateScope, layouts, diagnostics));
-            results.AddRange(scopeCandidates.Where(candidate => seenPaths.Add(candidate.Path)));
+            // Each member's queries are already restricted to its directory view by MFTLib.
+            // The remaining scope predicates are candidate admission (including exact retained roots).
+            var candidates = SelectRootCandidates(new FileIndexSet([member]), scope, diagnostics, cancellationToken);
+            results.AddRange(candidates.Where(candidate => seenPaths.Add(candidate.Path)));
         }
 
         return results.AsReadOnly();
@@ -62,8 +59,12 @@ public static partial class GitWizardApi
         CandidateAdmissionPolicy Policy,
         WatchPath ConfiguredRoot);
 
-    static List<CandidateScope> BuildCandidateScopes(DiscoveryScope scope)
+    static IEnumerable<RepositoryCandidate> SelectRootCandidates(FileIndexSet index, DiscoveryScope scope,
+        CandidateSelectionDiagnostics? diagnostics, CancellationToken cancellationToken)
     {
+        var gitEntries = ScanByName(index, GitEntryName, diagnostics, cancellationToken);
+        var headEntries = ScanByName(index, "HEAD", diagnostics, cancellationToken);
+        var layouts = new Lazy<BareLayoutIndex>(() => BareLayoutIndex.Build(index, diagnostics, cancellationToken));
         var roots = scope.SearchRoots.Select(root => (Root: root, IsExact: false)).ToList();
         roots.AddRange(scope.RetainedRoots
             .Select(retainedRoot => (Root: retainedRoot, Path: WatchPath.Parse(retainedRoot)))
@@ -71,16 +72,22 @@ public static partial class GitWizardApi
             .Select(retained => (retained.Root, true)));
 
         var policy = CandidateAdmissionPolicy.ForScope(scope);
-        return roots.ConvertAll(item =>
+        foreach (var item in roots)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var root = WatchPath.Parse(item.Root);
-            return new CandidateScope(
+            var admission = new CandidateScope(
                 root,
                 item.IsExact,
                 !item.IsExact && IsLogicalDriveRoot(root),
                 policy,
                 root);
-        });
+            foreach (var candidate in SelectGitMarkerCandidates(gitEntries, admission, diagnostics)
+                         .Concat(SelectBareCandidates(headEntries, admission, layouts, diagnostics)))
+            {
+                yield return candidate;
+            }
+        }
     }
 
     // A scope root is a logical Windows path even when the index was enumerated on another host, so the

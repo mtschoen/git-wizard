@@ -14,7 +14,7 @@ public class MftActiveCacheSessionTests
     {
         using var files = new PackedIndexFixture();
         var drive = (RootKey)new VolumeKey('X');
-        var index = await FileIndex.OpenAsync(MFTLibTestExtensions.SyntheticVolumeFacts.Apply(new FileIndexOptions
+        var index = await FileIndex.OpenAsync(SyntheticVolumeFacts.Apply(new FileIndexOptions
         {
             Root = drive,
             CacheMode = cacheMode,

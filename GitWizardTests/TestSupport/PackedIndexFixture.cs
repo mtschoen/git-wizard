@@ -83,7 +83,7 @@ sealed class PackedIndexFixture : IDisposable
     /// <summary>Opens one enumeration-backed index over the fixture tree for <paramref name="drive" />.</summary>
     public Task<FileIndex> OpenIndexAsync(char drive = 'X', RootKey? root = null) => FileIndex.OpenAsync(ConfigureOptions(new FileIndexOptions
     {
-        Root = root ?? (RootKey)new VolumeKey(drive),
+        Root = root ?? new VolumeKey(drive),
         CacheMode = CacheMode.Disabled,
         Producer = ProducerSelection.WalkOnly
     }), CancellationToken.None);
@@ -96,7 +96,7 @@ sealed class PackedIndexFixture : IDisposable
     public Task<FileIndex> OpenMftIndexAsync(ScriptedWatchSource source, char drive, RootKey? root = null) =>
         FileIndex.OpenAsync(ConfigureVolumeOptions(new FileIndexOptions
         {
-            Root = root ?? (RootKey)new VolumeKey(drive),
+            Root = root ?? new VolumeKey(drive),
             CacheMode = CacheMode.Disabled,
             MftSource = SyntheticIndexSource.Create(Producer, source)
         }, new VolumeKey(drive)), CancellationToken.None);

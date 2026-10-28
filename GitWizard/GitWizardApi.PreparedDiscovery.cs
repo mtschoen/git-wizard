@@ -12,17 +12,20 @@ public static partial class GitWizardApi
         GitWizardConfiguration configuration, ICollection<string> paths,
         IUpdateHandler? updateHandler = null, bool noMft = false)
     {
-        return TryDiscoverRepositoriesUsingMftAsync(
-            configuration, paths, null, null, updateHandler, noMft);
+        if (noMft)
+        {
+            return Task.FromResult(new MftDiscoveryResult(false));
+        }
+        return TryDiscoverRepositoriesUsingMftAsync(configuration, paths, null, null, updateHandler);
     }
 
     internal static Task<MftDiscoveryResult> TryDiscoverRepositoriesUsingMftAsync(
         GitWizardConfiguration configuration, ICollection<string> paths, Func<string, bool>? brokerLauncher,
         TimeSpan? connectTimeout = null,
-        IUpdateHandler? updateHandler = null, bool noMft = false,
+        IUpdateHandler? updateHandler = null,
         Func<FileIndexOptions, FileIndexOptions>? configureOptions = null)
     {
-        if (!OperatingSystem.IsWindows() || noMft)
+        if (!OperatingSystem.IsWindows())
         {
             return Task.FromResult(new MftDiscoveryResult(false));
         }
@@ -93,7 +96,7 @@ public static partial class GitWizardApi
                 paths.Add(candidate);
             }
 
-            updateHandler?.SendUpdateMessage($"MFT search found {candidates.Length} repositories");
+            updateHandler?.SendUpdateMessage($"Index search found {candidates.Length} repositories");
             if (candidates.Length == 0)
             {
                 return new MftDiscoveryResult(false, scanErrors: owner.ScanErrors,

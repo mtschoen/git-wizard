@@ -9,7 +9,7 @@ describes git-wizard's adapters and consumers, not a second library specificatio
 
 ## Windows adapter
 
-`IndexVolumeChangeSource` owns a `MftIndexSession`, adopting a prepared discovery owner only when it is usable and its normalized drive set matches. Otherwise it disposes that owner and opens a replacement. An arm that opens a fresh session forwards the broker's throttled ScanProgress frames as `IVolumeScanProgress.ScanProgress` (`VolumeScanProgress`: drive, 1-based drive ordinal/total, rows written and nullable total); an adopted prepared owner scans nothing and reports nothing.
+`IndexVolumeChangeSource` owns a `MftIndexSession`, adopting a prepared owner only when it is usable and its parsed root-key set exactly matches. Otherwise it disposes that owner and opens a replacement. Fresh opens forward throttled scan progress; adopted owners do not reopen. Directory roots keep their configured identity, while watch/checkpoint observations identify their volumes. See [directory-root integration](directory-root-integration.md) for alias policy, sibling readiness and overlapping-view routing.
 
 The adapter maps `Changed` into volume batches and consumes `WatchFaulted`. It
 uses `WatchFault.IsRecovering` for recoverability, subscribes to per-drive
@@ -53,7 +53,7 @@ When the last usable drive is excluded the source raises `SourceDied` once and c
 
 ## Readiness
 
-`Started` and the green Live state describe pump startup, never a catch-up completion fence. Readiness is a separate contract: `IVolumeReadiness` (`GitWizard/Watch/VolumeReadiness.cs`) exposes immutable per-volume `CatchingUp`/`CaughtUp`/`Excluded` state with `Warm`/`Cold` origin; `IndexVolumeChangeSource` sets it only from each drive's `WaitForCatchUpAsync` outcome and later watch faults, and `FanotifyVolumeChangeSource` sets `CaughtUp` when a mark installs (mode `FilesystemMarks`, no backlog fence). `RepositoryWatchService.Ready` fires exactly once per run when the snapshot is settled with at least one caught-up volume, the startup batches are delivered and the run is not terminal; terminal marking and publication share one lock so death or cancellation cannot race out a late marker.
+`Started` and green Live describe pump startup, not catch-up completion. `IVolumeReadiness` exposes immutable per-volume `CatchingUp`/`CaughtUp`/`Excluded` state and backing origin. Windows readiness follows version-checked library watch observations and catch-up waits; all views on a volume must catch up before that volume is ready. Linux marks report `CaughtUp` when installed, with no historical backlog. `RepositoryWatchService.Ready` fires once after startup batches are delivered and readiness settles with a caught-up volume; terminal/cancellation state wins publication races.
 
 `LiveWatchController` forwards `Ready`, `VolumeReadinessChanged` and `StartupProgress`; the CLI prints `ready:` (grammar in README) and, under `-v`, timestamped `drive:`/`startup:` lines. `RepositoryDiscoveryCoordinator.PrepareWatchAsync` takes an `IProgress<WatchStartupProgress>` because the arm and catch-up complete before any consumer holds the source; `RequestingElevation`/`BrokerConnected` come from `BrokerSession.Connecting`/`Connected`. Broker process existence is never readiness evidence. The UI still correlates delete/create pairs by remote URL.
 

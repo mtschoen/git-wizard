@@ -43,7 +43,7 @@ sealed class DiscoveryAccumulator
             {
                 Errors[status.Drive] = GetIndexStatusFailureMessage(indexStatus);
             }
-            else
+            else if (!Errors.ContainsKey(status.Drive))
             {
                 ObservedDrives.Add(status.Drive);
             }
@@ -63,6 +63,12 @@ sealed class DiscoveryAccumulator
             var source = RescannedDrives.Contains(indexedRoot) ? DiscoverySource.Scan : unrescannedSource;
             var timestamp = isSuccess ? rootStatus?.IndexStatus?.Block?.ScanTimestamp : null;
             var error = isSuccess ? null : Errors.GetValueOrDefault(indexedRoot);
+
+            if (rootStatus?.IndexStatus is { } observed)
+            {
+                snapshotUpdates?.SendUpdateMessage($"Index {root}: producer: {observed.Producer?.ToString() ?? "unavailable"}; " +
+                    $"MFT unavailable: {observed.MftUnavailable?.ToString() ?? "none"}");
+            }
 
             if (isSuccess && source == DiscoverySource.Snapshot && timestamp.HasValue)
             {
@@ -96,11 +102,11 @@ sealed class DiscoveryAccumulator
         }
     }
 
-    public void AddClassificationErrorObservations()
+    public void AddExpansionErrorObservations()
     {
         foreach (var root in Scope.SearchRoots.Concat(Scope.RetainedRoots))
         {
-            if (!Scope.ExpansionErrors.TryGetValue(root, out var classificationError))
+            if (!Scope.ExpansionErrors.TryGetValue(root, out var expansionError))
             {
                 continue;
             }
@@ -111,7 +117,7 @@ sealed class DiscoveryAccumulator
             }
 
             var isExact = Scope.RetainedRoots.Contains(root);
-            Observations.Add(new RootObservation(root, isExact, false, DiscoverySource.Recursive, null, classificationError));
+            Observations.Add(new RootObservation(root, isExact, false, DiscoverySource.Recursive, null, expansionError));
         }
     }
 
@@ -128,7 +134,7 @@ sealed class DiscoveryAccumulator
             RootStatuses = FinalStatuses,
             Errors = Errors,
             WatchExcludedRoots = Array.AsReadOnly<string>([.. FinalStatuses
-                .Where(item => item.IndexStatus?.Producer != ProducerKind.Mft)
+                .Where(item => item.IndexStatus?.Producer != ProducerKind.Mft || Errors.ContainsKey(item.Drive))
                 .Select(item => item.Drive)])
         };
     }
@@ -152,10 +158,19 @@ sealed class DiscoveryAccumulator
 
     static bool IsFailed(RootStatus indexStatus) =>
         indexStatus.State is RootState.Failed or RootState.Offline ||
-        indexStatus.Failure is not null;
+        indexStatus.Failure is not null ||
+        indexStatus.Block is { IsCapacityExhausted: true } or { AccessDeniedSubtreeCount: > 0 };
 
     static string GetIndexStatusFailureMessage(RootStatus indexStatus)
     {
+        if (indexStatus.Block is { IsCapacityExhausted: true })
+        {
+            return $"The index block for {indexStatus.Root} ran out of capacity before the scan finished.";
+        }
+        if (indexStatus.Block is { AccessDeniedSubtreeCount: > 0 } block)
+        {
+            return $"{block.AccessDeniedSubtreeCount} subtree(s) under {indexStatus.Root} could not be entered.";
+        }
         return indexStatus.Failure?.Message ?? $"Drive is {indexStatus.State}.";
     }
 }

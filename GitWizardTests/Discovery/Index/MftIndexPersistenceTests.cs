@@ -41,7 +41,7 @@ public class MftIndexPersistenceTests
         await SeedAsync(files, drive, cache);
         var calls = 0;
         await using var session = await MftIndexSession.OpenAsync([drive], BrokerTestHarness.CreateSession(Unexpected),
-            cache, intent, null, CancellationToken.None, configureOptions: files.ConfigureOptions);
+            new MftIndexSession.CacheSelection(cache, intent), null, CancellationToken.None, configureOptions: files.ConfigureOptions);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(calls, Is.Zero);
@@ -63,8 +63,8 @@ public class MftIndexPersistenceTests
     {
         await using var broker = new BlockBrokerFixture();
         await using var session = await MftIndexSession.OpenAsync([broker.Drive('X')], broker.CreateSession(),
-            MftIndexCachePolicy.GetCacheDirectory(broker.CacheDirectory),
-            CacheMode.ExistingOnly, null, CancellationToken.None, configureOptions: broker.ConfigureOptions);
+            new MftIndexSession.CacheSelection(MftIndexCachePolicy.GetCacheDirectory(broker.CacheDirectory),
+                CacheMode.ExistingOnly), null, CancellationToken.None, configureOptions: broker.ConfigureOptions);
         var status = session.CaptureRootStatuses().Single().IndexStatus!;
         using (Assert.EnterMultipleScope())
         {
@@ -86,7 +86,7 @@ public class MftIndexPersistenceTests
         var cache = MftIndexCachePolicy.GetCacheDirectory(firstBroker.CacheDirectory);
         // Disposed mid-test to release the canonical slot; the finally is an idempotent safety net.
         var first = await MftIndexSession.OpenAsync([drive], firstBroker.CreateSession(),
-            cache, CacheMode.Persistent, null, CancellationToken.None, configureOptions: firstBroker.ConfigureOptions);
+            new MftIndexSession.CacheSelection(cache, CacheMode.Persistent), null, CancellationToken.None, configureOptions: firstBroker.ConfigureOptions);
         try
         {
             await AssertInUseAndPrivateCompetitorAsync(first, otherBroker, drive, cache);
@@ -103,7 +103,7 @@ public class MftIndexPersistenceTests
         var canonical = SyntheticBlock.CachedPath(cache, new VolumeKey('X'), 1);
         var before = await ReadSharedAsync(canonical);
         await using (var refused = await MftIndexSession.OpenAsync([drive], otherBroker.CreateSession(),
-            cache, CacheMode.ExistingOnly, null, CancellationToken.None, configureOptions: otherBroker.ConfigureOptions))
+            new MftIndexSession.CacheSelection(cache, CacheMode.ExistingOnly), null, CancellationToken.None, configureOptions: otherBroker.ConfigureOptions))
         {
             using (Assert.EnterMultipleScope())
             {
@@ -113,7 +113,7 @@ public class MftIndexPersistenceTests
             }
         }
         await using (var competitor = await MftIndexSession.OpenAsync([drive], otherBroker.CreateSession(),
-            cache, CacheMode.Persistent, null, CancellationToken.None, configureOptions: otherBroker.ConfigureOptions))
+            new MftIndexSession.CacheSelection(cache, CacheMode.Persistent), null, CancellationToken.None, configureOptions: otherBroker.ConfigureOptions))
         {
             using (Assert.EnterMultipleScope())
             {
@@ -127,7 +127,7 @@ public class MftIndexPersistenceTests
         Assert.That(await ReadSharedAsync(canonical), Is.EqualTo(before));
         await using var reopened = await MftIndexSession.OpenAsync([drive],
             BrokerTestHarness.CreateSession(_ => throw new AssertionException("Canonical cache must remain reusable.")),
-            cache, CacheMode.ExistingOnly, null, CancellationToken.None, configureOptions: otherBroker.ConfigureOptions);
+            new MftIndexSession.CacheSelection(cache, CacheMode.ExistingOnly), null, CancellationToken.None, configureOptions: otherBroker.ConfigureOptions);
         Assert.That(reopened.CaptureRootStatuses().Single().IndexStatus!.Block?.Origin,
             Is.EqualTo(BlockOrigin.WarmStartedFromCache));
     }
@@ -141,7 +141,7 @@ public class MftIndexPersistenceTests
         var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         await SeedAsync(files, drive, cache);
         var source = new ScriptedWatchSource { CatchUpOnStart = true };
-        await using var index = await FileIndex.OpenAsync(MFTLibTestExtensions.SyntheticVolumeFacts.Apply(new FileIndexOptions
+        await using var index = await FileIndex.OpenAsync(SyntheticVolumeFacts.Apply(new FileIndexOptions
         {
             Root = drive,
             CacheDirectory = cache,
@@ -179,7 +179,7 @@ public class MftIndexPersistenceTests
         var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
         await SeedAsync(files, drive, cache);
         var session = await MftIndexSession.OpenAsync([drive], broker.CreateSession(),
-            cache, CacheMode.ExistingOnly, null, CancellationToken.None, configureOptions: broker.ConfigureOptions);
+            new MftIndexSession.CacheSelection(cache, CacheMode.ExistingOnly), null, CancellationToken.None, configureOptions: broker.ConfigureOptions);
         try
         {
             Assert.That(broker.ConnectionCount, Is.Zero);
@@ -205,7 +205,7 @@ public class MftIndexPersistenceTests
         await using var broker = new BlockBrokerFixture();
         var cache = MftIndexCachePolicy.GetCacheDirectory(broker.CacheDirectory);
         var session = await MftIndexSession.OpenAsync([broker.Drive('X')], broker.CreateSession(),
-            cache, CacheMode.ExistingOnly, null, CancellationToken.None, configureOptions: broker.ConfigureOptions);
+            new MftIndexSession.CacheSelection(cache, CacheMode.ExistingOnly), null, CancellationToken.None, configureOptions: broker.ConfigureOptions);
         try
         {
             var old = session.CaptureRootStatuses();
@@ -237,9 +237,9 @@ public class MftIndexPersistenceTests
         using var files = new PackedIndexFixture();
         await using var broker = new BlockBrokerFixture();
         await using var session = await MftIndexSession.OpenAsync(
-            [(RootKey)new VolumeKey('X')],
-            broker.CreateSession(), MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath),
-            CacheMode.ExistingOnly, null, CancellationToken.None, configureOptions: options =>
+            [new VolumeKey('X')],
+            broker.CreateSession(), new MftIndexSession.CacheSelection(MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath),
+                CacheMode.ExistingOnly), null, CancellationToken.None, configureOptions: options =>
                 SyntheticVolumeFacts.Apply(options, 1, volume: new VolumeKey('X'),
                     volumeRootDirectory: Path.Combine(files.DirectoryPath, "absent")));
         var status = session.CaptureRootStatuses().Single().IndexStatus!;

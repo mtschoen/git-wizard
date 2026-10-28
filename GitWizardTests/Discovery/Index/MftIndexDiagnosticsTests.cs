@@ -55,7 +55,7 @@ public class MftIndexDiagnosticsTests
         await File.WriteAllTextAsync(retired, "retired sentinel");
         var messages = new ConcurrentQueue<string>();
         var relay = new MftIndexDiagnostics(messages.Enqueue);
-        await using (await FileIndex.OpenAsync(MFTLibTestExtensions.SyntheticVolumeFacts.Apply(new FileIndexOptions
+        await using (await FileIndex.OpenAsync(SyntheticVolumeFacts.Apply(new FileIndexOptions
         {
             Root = (RootKey)new VolumeKey('X'),
             CacheDirectory = cache,

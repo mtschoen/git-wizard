@@ -39,11 +39,12 @@ public class RootKeyProjectionTests
         RootKey volume = new VolumeKey('X');
         var directory = RootKey.FromDirectory(files.TreePath);
         await using var owner = new MftIndexSession([], null, [], new Dictionary<string, string>());
+        var resolveVolume = owner.VolumeFor;
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(owner.VolumeFor(volume), Is.EqualTo(new VolumeKey('X')));
-            Assert.That(() => owner.VolumeFor(directory), Throws.InvalidOperationException);
+            Assert.That(() => resolveVolume(directory), Throws.InvalidOperationException);
         }
     }
 }

@@ -75,20 +75,7 @@ Central test scaffolding lives in `GitWizardTests/TestSupport/` (`TempDirectory`
 `ScriptedVolumeChangeSource`, `FakeFanotifyNative`, `RootStatuses`, `TestTimeouts`, `AsyncCondition`);
 detailed doubles and fixtures are inventoried in [testing reference](docs/testing.md).
 
-Regression checks for test scaffolding:
-
-```bash
-# Direct temp path allocation is forbidden outside TestSupport
-grep -rn 'Path.GetTempPath()' GitWizardTests
-
-# Update handlers must be consolidated in TestSupport
-grep -rnE 'class .*: IUpdateHandler' GitWizardTests
-
-# Hang guards must use TestTimeouts properties, not local static fields
-grep -rn 'static readonly TimeSpan HangGuard' GitWizardTests
-```
-
-Expected: only `TestSupport/TempDirectory.cs` matches for temp path, only `TestSupport/RecordingUpdateHandler.cs` matches for `IUpdateHandler`, and zero matches for `static readonly TimeSpan HangGuard`.
+Run the [test scaffolding regression checks](docs/testing.md#scaffolding-regression-checks).
 
 ## Cleaning the working tree
 
@@ -174,12 +161,14 @@ disposal. Detach clears, replacement disposes; queries borrow. Never serialize
 the index/owner; schema stays 2.1. Dispose index before broker session. Replace
 unusable or drive-mismatched prepared owners.
 
-`MftIndexCachePolicy` owns `[".git", "HEAD"]`, directory and `GWMI` tag. Retention
-changes increment its version and test table. Scope/ignore/hidden/temp settings
-filter candidates, not stored metadata. No ordinal `.git` post-filter; retain
+`MftIndexCachePolicy` owns the directory and `GWMI` version-3 tag. Every index
+stores every name. Scope/ignore/hidden/temp settings filter MFT candidates;
+walks also apply directory pruning. No ordinal `.git` post-filter; retain
 case-insensitive matching and Windows-boundary filesystem validation.
 
-Unknown filesystem means error, not crawl permission. Reuse `CandidateAdmissionPolicy`;
+MFTLib selects the producer from `RootKey` and `ProducerSelection`; `--no-mft`
+selects `WalkOnly`. Automatic walks on eligibility failures, never mid-scan errors.
+Reuse `CandidateAdmissionPolicy`;
 ignored roots reject descendants. Temp paths require opt-in or an explicit search
 root; hidden paths default included. Temp fixtures opt in explicitly.
 
@@ -222,6 +211,10 @@ branch/value warnings; no `Branch.RemoteName`/`Repository.Config`/suffix substit
 Arm first, reconcile against the exact watched session, then deliver buffered
 startup events through the normal ordered path. Preserve retained roots outside
 search drives. A null source means complete-empty or unusable, not a respawn cue.
+Directory keys remain exact owner identities. Read final paths from opened indexes
+and volume identity from watch/checkpoint observations; never infer it from an alias.
+Sibling views must all catch up before their volume becomes ready; route each
+change through one owning view. See [directory-root integration](docs/directory-root-integration.md).
 Keep optional diagnostics and scan-progress subscriptions attached before arming
 and detached on shutdown. Deliver warning changes even without repository events.
 

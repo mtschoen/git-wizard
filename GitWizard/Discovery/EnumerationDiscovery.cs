@@ -123,7 +123,7 @@ static class EnumerationDiscovery
 
     internal static FileIndexOptions ConfigureWalk(FileIndexOptions options, GitWizardConfiguration configuration)
     {
-        var root = options.Root!.Value;
+        var root = options.Root ?? throw new ArgumentException("Discovery options require a root.", nameof(options));
         return options with
         {
             DirectoryWalk = CreateDirectoryWalk(configuration,

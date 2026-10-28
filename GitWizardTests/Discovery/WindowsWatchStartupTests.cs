@@ -21,7 +21,6 @@ public class WindowsWatchStartupTests
         var session = new MftIndexSession([index], connection, [files.TreePath], new Dictionary<string, string>());
 
         var listWrites = new List<IReadOnlyList<string>>();
-        var treePath = files.TreePath;
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {
             IsWindows = true,
@@ -75,7 +74,6 @@ public class WindowsWatchStartupTests
         var connection = new CountingOwner();
         var session = new MftIndexSession([index], connection, [files.TreePath], new Dictionary<string, string>());
         var openCalled = false;
-        var treePath = files.TreePath;
 
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {
@@ -110,7 +108,6 @@ public class WindowsWatchStartupTests
         var index = await files.OpenMftIndexAsync(scripted, 'X', RootKey.FromDirectory(files.TreePath));
         var connection = new CountingOwner();
         var session = new MftIndexSession([index], connection, [files.TreePath], new Dictionary<string, string>());
-        var treePath = files.TreePath;
 
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {
@@ -182,7 +179,6 @@ public class WindowsWatchStartupTests
         var walkedIndex = await OpenDefaultIndexAsync(nonNtfsDir);
         var session = new MftIndexSession([mftIndex, walkedIndex], null, [files.TreePath, nonNtfsDir], new Dictionary<string, string>());
         IReadOnlyList<string>? openedDrives = null;
-        var treePath = files.TreePath;
 
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {
@@ -258,15 +254,23 @@ public class WindowsWatchStartupTests
             Assert.That(startup.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Partial));
             Assert.That(startup.Source, Is.Not.Null, "Healthy drive X must keep source active.");
             Assert.That(startup.Inventory.Errors, Does.ContainKey("Y"));
+            Assert.That(startup.Inventory.Observations.Single(observation =>
+                string.Equals(observation.Root, yDir, StringComparison.OrdinalIgnoreCase)).Complete, Is.False);
         }
     }
 
-    [Test]
-    public async Task StrictMismatch_DisposesOldSessionAndCallsOpener()
+    [TestCase(false)]
+    [TestCase(true)]
+    public async Task StrictMismatch_DisposesOldSessionAndCallsOpener(bool preparedSuperset)
     {
         using var files = new PackedIndexFixture();
         var connection = new CountingOwner();
-        var oldSession = new MftIndexSession([await files.OpenIndexAsync()], connection, ["X"], new Dictionary<string, string>());
+        var extraRoot = Directory.CreateDirectory(Path.Combine(files.TreePath, "extra")).FullName;
+        var oldSession = preparedSuperset
+            ? new MftIndexSession([await files.OpenIndexAsync(root: RootKey.FromDirectory(files.TreePath)),
+                    await files.OpenIndexAsync(root: RootKey.FromDirectory(extraRoot))], connection,
+                [files.TreePath, extraRoot], new Dictionary<string, string>())
+            : new MftIndexSession([await files.OpenIndexAsync()], connection, ["X"], new Dictionary<string, string>());
         var openerCalled = false;
         var treePath = files.TreePath;
 
@@ -308,7 +312,6 @@ public class WindowsWatchStartupTests
         var index = await files.OpenMftIndexAsync(scripted, 'X', RootKey.FromDirectory(files.TreePath));
         var connection = new CountingOwner();
         var session = new MftIndexSession([index], connection, [files.TreePath], new Dictionary<string, string>());
-        var treePath = files.TreePath;
 
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {
@@ -352,7 +355,6 @@ public class WindowsWatchStartupTests
         var index = await files.OpenMftIndexAsync(scripted, 'X', RootKey.FromDirectory(files.TreePath));
         var connection = new CountingOwner();
         var session = new MftIndexSession([index], connection, [files.TreePath], new Dictionary<string, string>());
-        var treePath = files.TreePath;
 
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {
@@ -401,7 +403,6 @@ public class WindowsWatchStartupTests
         var index = await files.OpenMftIndexAsync(scripted, 'X', RootKey.FromDirectory(files.TreePath));
         var connection = new CountingOwner();
         var session = new MftIndexSession([index], connection, [files.TreePath], new Dictionary<string, string>());
-        var treePath = files.TreePath;
 
         // Both repositories exist on disk only after the index block was packed: the plain
         // one must enter the inventory through replay, the hidden one must not.
@@ -449,7 +450,7 @@ public class WindowsWatchStartupTests
     }
 
     static Task<FileIndex> OpenDefaultIndexAsync(string treePath) =>
-        FileIndex.OpenAsync(MFTLibTestExtensions.SyntheticVolumeFacts.Apply(new FileIndexOptions
+        FileIndex.OpenAsync(SyntheticVolumeFacts.Apply(new FileIndexOptions
         {
             Root = RootKey.FromDirectory(treePath),
             CacheMode = CacheMode.Disabled

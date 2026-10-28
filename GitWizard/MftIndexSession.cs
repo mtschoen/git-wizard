@@ -42,25 +42,20 @@ public sealed partial class MftIndexSession : IAsyncDisposable
         BrokerSession brokerSession,
         string cacheDirectory, IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken,
         Func<FileIndexOptions, FileIndexOptions>? configureOptions = null) =>
-        OpenAsync(drives, brokerSession, cacheDirectory, CacheMode.Persistent, progress, cancellationToken,
+        OpenAsync(drives, brokerSession, new CacheSelection(cacheDirectory, CacheMode.Persistent), progress, cancellationToken,
             configureOptions: configureOptions);
 
-    /// <summary>Opens the drives over <paramref name="cacheDirectory" /> without connecting the broker eagerly.</summary>
-    /// <param name="drives">Volume identities to open.</param>
-    /// <param name="brokerSession">Owns the broker process, launched lazily on first use; ownership transfers here.</param>
-    /// <param name="cacheDirectory">A fully resolved policy directory, normally from <see cref="MftIndexCachePolicy" />.</param>
-    /// <param name="cacheMode">Persistent scans a drive without a usable cached block; ExistingOnly refuses it.</param>
-    /// <param name="progress">Receives scan progress.</param>
-    /// <param name="cancellationToken">Cancels opening.</param>
+    /// <summary>Owns the broker lazily and opens each requested root with the selected cache policy.</summary>
     internal static async Task<MftIndexSession> OpenAsync(IReadOnlyList<RootKey> drives,
         BrokerSession brokerSession,
-        string cacheDirectory, CacheMode cacheMode, IProgress<IndexScanProgress>? progress,
-        CancellationToken cancellationToken, ProducerSelection producer = ProducerSelection.Automatic,
+        CacheSelection cache, IProgress<IndexScanProgress>? progress,
+        CancellationToken cancellationToken,
         Func<FileIndexOptions, FileIndexOptions>? configureOptions = null)
     {
+        var (cacheDirectory, cacheMode) = cache;
         if (cacheMode is not (CacheMode.Persistent or CacheMode.ExistingOnly or CacheMode.Disabled))
         {
-            throw new ArgumentOutOfRangeException(nameof(cacheMode));
+            throw new ArgumentOutOfRangeException(nameof(cache));
         }
 
         MftIndexDiagnostics? diagnostics = null;
@@ -73,8 +68,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
             var openDiagnostics = diagnostics;
             indices = await OpenIndicesAsync(drives, root =>
             {
-                var options = CreateIndexOptions(root, brokerSession, cacheDirectory, cacheMode, progress,
-                    openDiagnostics, producer);
+                var options = CreateIndexOptions(root, brokerSession, cache, progress, openDiagnostics);
                 return FileIndex.OpenAsync(configureOptions?.Invoke(options) ?? options, cancellationToken);
             }).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
@@ -149,18 +143,16 @@ public sealed partial class MftIndexSession : IAsyncDisposable
     }
 
     static FileIndexOptions CreateIndexOptions(RootKey root, BrokerSession brokerSession,
-        string cacheDirectory, CacheMode cacheMode, IProgress<IndexScanProgress>? progress,
-        MftIndexDiagnostics diagnostics, ProducerSelection producer)
+        CacheSelection cache, IProgress<IndexScanProgress>? progress, MftIndexDiagnostics diagnostics)
     {
         // The session stays lazy in both cache modes: a warm or snapshot open never launches the broker,
         // while a later watch or explicit rescan connects through the same owned session.
         return Discovery.EnumerationDiscovery.ConfigureWalk(new FileIndexOptions
         {
             Root = root,
-            Producer = producer,
-            CacheDirectory = cacheDirectory,
+            CacheDirectory = cache.Directory,
             CacheTag = MftIndexCachePolicy.CacheTag,
-            CacheMode = cacheMode,
+            CacheMode = cache.CacheMode,
             MftSource = brokerSession.CreateIndexSource(),
             ScanProgress = progress,
             Diagnostics = diagnostics.Report

@@ -35,7 +35,7 @@ public sealed partial class IndexVolumeChangeSource
         await Task.Yield();
         await StopWatchStateWorkAsync().ConfigureAwait(false);
         var indices = _watchedIndices;
-        if (indices.Count == 0)
+        if (indices.Length == 0)
         {
             return;
         }

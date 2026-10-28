@@ -23,7 +23,7 @@ public class IndexChangeMappingTests
         Directory.CreateDirectory(Path.Combine(treeDirectory, "current", ".git"));
         Directory.CreateDirectory(Path.Combine(treeDirectory, "current", "sub"));
         await File.WriteAllTextAsync(Path.Combine(treeDirectory, "current", "file.txt"), "content");
-        _index = await FileIndex.OpenAsync(MFTLibTestExtensions.SyntheticVolumeFacts.Apply(new FileIndexOptions
+        _index = await FileIndex.OpenAsync(SyntheticVolumeFacts.Apply(new FileIndexOptions
         {
             Root = (RootKey)new VolumeKey('T'),
             CacheMode = CacheMode.Disabled

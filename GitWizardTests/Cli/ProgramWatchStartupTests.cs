@@ -3,7 +3,6 @@ using GitWizard.CLI;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
 using LibGit2Sharp;
-using MFTLib.Index;
 using MFTLibTestExtensions;
 
 namespace GitWizardTests;

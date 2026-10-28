@@ -92,7 +92,7 @@ static partial class CliParser
         ConfigPath: subcommand.Option("--config-path <PATH>", "Path to custom configuration file", CommandOptionType.MultipleValue),
         Minified: subcommand.Option("--minified", "Print the output as minified JSON", CommandOptionType.NoValue),
         PrintMinified: subcommand.Option("--print-minified", "Alias for --minified", CommandOptionType.NoValue),
-        NoMft: subcommand.Option("--no-mft", "Use explicit recursive directory discovery instead of MFT index search (for users unable to accept the UAC elevation prompt); does not promise an unelevated NTFS journal watch", CommandOptionType.NoValue),
+        NoMft: subcommand.Option("--no-mft", "Use uncached directory-walk indexes (WalkOnly), without MFT scanning, elevation, or NTFS journal watch", CommandOptionType.NoValue),
         Verbose: subcommand.Option("-v|--verbose", "Enable verbose logging.", CommandOptionType.NoValue),
         Silent: subcommand.Option("-s|--silent", "Do not print to the console", CommandOptionType.NoValue),
         Help: subcommand.HelpOption("-h|-?|--help"));

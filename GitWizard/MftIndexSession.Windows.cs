@@ -23,8 +23,8 @@ public sealed partial class MftIndexSession
     }
 
     /// <summary>
-    /// Opens the selected volumes over git-wizard's private cache. <see cref="CacheMode.ExistingOnly" />
-    /// adopts cached blocks only and reports every other drive as a typed refusal without launching the broker.
+    /// Opens selected roots over git-wizard's private cache. <see cref="CacheMode.ExistingOnly" />
+    /// adopts cached blocks only and reports each refused root without launching the broker.
     /// </summary>
     [SupportedOSPlatform("windows")]
     public static Task<MftIndexSession> OpenWindowsAsync(IReadOnlyList<string> drives,
@@ -52,9 +52,15 @@ public sealed partial class MftIndexSession
         Func<FileIndexOptions, FileIndexOptions>? configureOptions = null)
     {
         var requested = RootKeyProjection.ParseRootKeys(drives);
-        var session = await OpenAsync(requested, brokerSession, cache.Directory, cache.CacheMode, progress,
-            cancellationToken, cache.CacheMode == CacheMode.Disabled
-                ? ProducerSelection.WalkOnly : ProducerSelection.Automatic, configureOptions).ConfigureAwait(false);
+        var session = await OpenAsync(requested, brokerSession, cache, progress, cancellationToken, options =>
+        {
+            var selected = options with
+            {
+                Producer = cache.CacheMode == CacheMode.Disabled
+                ? ProducerSelection.WalkOnly : ProducerSelection.Automatic
+            };
+            return configureOptions?.Invoke(selected) ?? selected;
+        }).ConfigureAwait(false);
         return session;
     }
 }

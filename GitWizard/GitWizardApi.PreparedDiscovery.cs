@@ -1,6 +1,7 @@
 using GitWizard.Discovery;
 using GitWizard.Watch;
 using MFTLib;
+using MFTLib.Index;
 
 namespace GitWizard;
 
@@ -18,7 +19,8 @@ public static partial class GitWizardApi
     internal static Task<MftDiscoveryResult> TryDiscoverRepositoriesUsingMftAsync(
         GitWizardConfiguration configuration, ICollection<string> paths, Func<string, bool>? brokerLauncher,
         TimeSpan? connectTimeout = null,
-        IUpdateHandler? updateHandler = null, bool noMft = false)
+        IUpdateHandler? updateHandler = null, bool noMft = false,
+        Func<FileIndexOptions, FileIndexOptions>? configureOptions = null)
     {
         if (!OperatingSystem.IsWindows() || noMft)
         {
@@ -29,15 +31,22 @@ public static partial class GitWizardApi
         var roots = configuration.SearchPaths.Select(ExpandSearchPath).OfType<string>().ToArray();
         var ignored = ExpandIgnoredPaths(configuration.IgnoredPaths);
         return DiscoverRepositoriesWithIndexAsync(configuration, paths, roots, ignored, new IndexDiscoveryComposition(
-            drives => OpenWindowsDiscoveryIndexAsync(drives, brokerLauncher, connectTimeout), WindowsCandidateExists), updateHandler);
+            rootsToOpen => OpenWindowsDiscoveryIndexAsync(rootsToOpen, brokerLauncher, connectTimeout,
+                options =>
+                {
+                    var configured = EnumerationDiscovery.ConfigureWalk(options, configuration);
+                    return configureOptions?.Invoke(configured) ?? configured;
+                }), WindowsCandidateExists), updateHandler);
     }
 
     static Task<MftIndexSession> OpenWindowsDiscoveryIndexAsync(
-        IReadOnlyList<string> drives, Func<string, bool> brokerLauncher, TimeSpan? connectTimeout = null)
+        IReadOnlyList<string> drives, Func<string, bool> brokerLauncher, TimeSpan? connectTimeout,
+        Func<FileIndexOptions, FileIndexOptions> configureOptions)
     {
         return !OperatingSystem.IsWindows()
             ? throw new PlatformNotSupportedException("MFT discovery requires Windows.")
-            : MftIndexSession.OpenWindowsAsync(drives, brokerLauncher, connectTimeout, CancellationToken.None);
+            : MftIndexSession.OpenSelectedVolumesAsync(drives, new BrokerSession(brokerLauncher, connectTimeout),
+                MftIndexCachePolicy.GetCacheDirectory(GetLocalFilesPath()), null, CancellationToken.None, configureOptions);
     }
 
     static bool WindowsCandidateExists(string path, RepositoryCandidateKind kind)
@@ -52,10 +61,7 @@ public static partial class GitWizardApi
         IReadOnlyCollection<string> expandedRoots, ICollection<string> expandedIgnoredPaths,
         IndexDiscoveryComposition composition, IUpdateHandler? updateHandler = null)
     {
-        var drives = expandedRoots.Select(WatchPath.Parse)
-            .Select(root => root.IsWindows && root.Volume is { Length: 1 } volume &&
-                char.IsAsciiLetter(volume[0]) ? volume.ToUpperInvariant() : null)
-            .OfType<string>()
+        var drives = expandedRoots.Where(root => WatchPath.Parse(root).IsWindows)
             .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         if (expandedRoots.Count == 0 || drives.Length == 0)
         {

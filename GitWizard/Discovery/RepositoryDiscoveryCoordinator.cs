@@ -42,8 +42,8 @@ public partial class RepositoryDiscoveryCoordinator
             if (Dependencies.IsWindows && scope.IndexRoots.Count > 0)
             {
                 session = await ReusePreparedSessionAsync(scope, prepared).ConfigureAwait(false) ??
-                    await dependencies.OpenIndexAsync(
-                        scope.IndexRoots, request.NoMft ? CacheMode.Disabled : CacheMode.ExistingOnly,
+                    await dependencies.OpenAsync(
+                        scope, request.NoMft ? CacheMode.Disabled : CacheMode.ExistingOnly,
                         null, cancellationToken).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
                 await RescanDrivesNeedingScanAsync(session, request.Purpose, accumulator, null, cancellationToken).ConfigureAwait(false);

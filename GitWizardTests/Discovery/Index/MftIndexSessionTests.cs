@@ -9,6 +9,27 @@ namespace GitWizardTests;
 [TestFixture]
 public class MftIndexSessionTests
 {
+    [TestCase(ProducerSelection.Automatic)]
+    [TestCase(ProducerSelection.WalkOnly)]
+    public async Task WalkPrunesGitContentsBeforeTheyEnterTheIndex(ProducerSelection producer)
+    {
+        using var files = new PackedIndexFixture();
+        await using var broker = new BlockBrokerFixture();
+        files.AddMarker("repo");
+        await File.WriteAllTextAsync(Path.Combine(files.TreePath, "repo", ".git", "private-object"), "content");
+        await using var session = await MftIndexSession.OpenAsync(
+            [RootKey.FromDirectory(files.TreePath)], broker.CreateSession(),
+            files.BlockDirectory, CacheMode.Disabled, null, CancellationToken.None, producer,
+            options => files.ConfigureOptions(options) with { MftSource = null });
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(session.Indices.Single().Status.Producer, Is.EqualTo(ProducerKind.Enumeration));
+            Assert.That(session.IndexSet.Search(new SearchQuery(".git", NameMatchMode.Exact)), Has.Count.EqualTo(1));
+            Assert.That(session.IndexSet.Search(new SearchQuery("private-object", NameMatchMode.Exact)), Is.Empty);
+        }
+    }
+
     [Test]
     public async Task ConnectsOnceAcrossDrives()
     {

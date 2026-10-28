@@ -167,8 +167,8 @@ public partial class RepositoryDiscoveryCoordinator
         {
             try
             {
-                session = await Dependencies.OpenIndexAsync(
-                    scope.IndexRoots, scope.Request.NoMft ? CacheMode.Disabled : CacheMode.ExistingOnly,
+                session = await Dependencies.OpenAsync(
+                    scope, scope.Request.NoMft ? CacheMode.Disabled : CacheMode.ExistingOnly,
                     null, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception exception) when (exception is not OperationCanceledException ||

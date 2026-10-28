@@ -14,7 +14,8 @@ static class EnumerationDiscovery
 {
     public static async Task<RecursiveDiscovery> DiscoverAsync(
         DiscoveryRequest request, string expandedRoot, CancellationToken cancellationToken,
-        CandidateSelectionDiagnostics? diagnostics = null)
+        CandidateSelectionDiagnostics? diagnostics = null,
+        Func<FileIndexOptions, FileIndexOptions>? configureOptions = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -41,7 +42,8 @@ static class EnumerationDiscovery
         FileIndex index;
         try
         {
-            index = await FileIndex.OpenAsync(CreateIndexOptions(request.Configuration, expandedRoot, ignoredPaths),
+            var options = CreateIndexOptions(request.Configuration, expandedRoot, ignoredPaths);
+            index = await FileIndex.OpenAsync(configureOptions?.Invoke(options) ?? options,
                 cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
@@ -116,6 +118,17 @@ static class EnumerationDiscovery
             PruneDotDirectories = skipHidden,
             PrunedDirectoryAttributes = skipHidden ? FileAttributes.Hidden : 0,
             PrunedDirectoryPaths = prunedPaths
+        };
+    }
+
+    internal static FileIndexOptions ConfigureWalk(FileIndexOptions options, GitWizardConfiguration configuration)
+    {
+        var root = options.Root!.Value;
+        return options with
+        {
+            DirectoryWalk = CreateDirectoryWalk(configuration,
+                root.TryGetVolume(out var volume) ? $"{volume}:\\" : root.ToString(),
+                GitWizardApi.ExpandIgnoredPaths(configuration.IgnoredPaths))
         };
     }
 

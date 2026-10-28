@@ -154,7 +154,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
     {
         // The session stays lazy in both cache modes: a warm or snapshot open never launches the broker,
         // while a later watch or explicit rescan connects through the same owned session.
-        return new FileIndexOptions
+        return Discovery.EnumerationDiscovery.ConfigureWalk(new FileIndexOptions
         {
             Root = root,
             Producer = producer,
@@ -164,7 +164,7 @@ public sealed partial class MftIndexSession : IAsyncDisposable
             MftSource = brokerSession.CreateIndexSource(),
             ScanProgress = progress,
             Diagnostics = diagnostics.Report
-        };
+        }, new GitWizardConfiguration());
     }
 
     static Dictionary<string, string> CollectScanErrors(IEnumerable<FileIndex> indices)

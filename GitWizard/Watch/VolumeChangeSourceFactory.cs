@@ -67,7 +67,8 @@ public static partial class VolumeChangeSourceFactory
     /// </exception>
     public static IVolumeChangeSource Create(
         MftIndexSession? preparedIndex,
-        Func<string, bool>? brokerLauncher = null)
+        Func<string, bool>? brokerLauncher = null,
+        Func<FileIndexOptions, FileIndexOptions>? configureOptions = null)
     {
         if (_sourceFactoryOverride != null)
         {
@@ -77,7 +78,7 @@ public static partial class VolumeChangeSourceFactory
         if (IsWindows())
         {
             return new IndexVolumeChangeSource((drives, progress, cancellationToken) =>
-                OpenWindowsIndexAsync(drives, brokerLauncher, progress, cancellationToken), preparedIndex);
+                OpenWindowsIndexAsync(drives, brokerLauncher, progress, configureOptions, cancellationToken), preparedIndex);
         }
 
         if (IsLinux() && OperatingSystem.IsLinux())
@@ -88,16 +89,24 @@ public static partial class VolumeChangeSourceFactory
         throw new PlatformNotSupportedException("Live mode currently requires Windows or Linux.");
     }
 
-    static Task<MftIndexSession> OpenWindowsIndexAsync(IReadOnlyList<string> drives,
-        Func<string, bool>? brokerLauncher, IProgress<IndexScanProgress> progress, CancellationToken cancellationToken)
+    static async Task<MftIndexSession> OpenWindowsIndexAsync(IReadOnlyList<string> drives,
+        Func<string, bool>? brokerLauncher, IProgress<IndexScanProgress> progress,
+        Func<FileIndexOptions, FileIndexOptions>? configureOptions, CancellationToken cancellationToken)
     {
         if (!OperatingSystem.IsWindows())
         {
             throw new PlatformNotSupportedException("Opening a Windows index requires Windows.");
         }
 
-        return MftIndexSession.OpenWindowsAsync(drives, brokerLauncher ?? BrokerLauncher.Launch,
-            null, progress, cancellationToken);
+        var configuration = await GitWizardConfiguration.GetGlobalConfigurationAsync(cancellationToken).ConfigureAwait(false);
+        return await MftIndexSession.OpenSelectedVolumesAsync(drives,
+            new BrokerSession(brokerLauncher ?? BrokerLauncher.Launch),
+            MftIndexCachePolicy.GetCacheDirectory(GitWizardApi.GetLocalFilesPath()), progress, cancellationToken,
+            options =>
+            {
+                var configured = Discovery.EnumerationDiscovery.ConfigureWalk(options, configuration);
+                return configureOptions?.Invoke(configured) ?? configured;
+            }).ConfigureAwait(false);
     }
 
     static bool IsWindows() => _isWindowsOverride?.Invoke() ?? RuntimeInformation.IsOSPlatform(OSPlatform.Windows);

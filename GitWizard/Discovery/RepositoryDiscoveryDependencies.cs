@@ -12,25 +12,44 @@ public sealed class RepositoryDiscoveryDependencies
     public required Func<DiscoveryRequest, string, CancellationToken,
         Task<RecursiveDiscovery>> CrawlRootAsync
     { get; init; }
-    public required Func<IReadOnlyList<string>, CacheMode,
+    public Func<IReadOnlyList<string>, CacheMode,
         IProgress<IndexScanProgress>?, CancellationToken,
-        Task<MftIndexSession>> OpenIndexAsync
+        Task<MftIndexSession>>? OpenIndexAsync
     { get; init; }
+    public Func<FileIndexOptions, FileIndexOptions> ConfigureOptions { get; init; } = options => options;
     public required Func<CancellationToken, Task<string[]?>> ReadListAsync { get; init; }
     public required Func<IReadOnlyList<string>, CancellationToken, Task> WriteListAsync { get; init; }
     public required Func<string, RepositoryCandidateKind, bool> CandidateExists { get; init; }
     public required Func<IVolumeChangeSource> CreateLinuxSource { get; init; }
 
-    public static RepositoryDiscoveryDependencies CreateDefault()
+    internal Task<MftIndexSession> OpenAsync(DiscoveryScope scope, CacheMode cacheMode,
+        IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken)
+    {
+        if (OpenIndexAsync is { } open)
+        {
+            return open(scope.IndexRoots, cacheMode, progress, cancellationToken);
+        }
+
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException("MFT discovery requires Windows.");
+        }
+
+        return MftIndexSession.OpenSelectedVolumesAsync(scope.IndexRoots, new BrokerSession(BrokerLauncher.Launch),
+            new MftIndexSession.CacheSelection(MftIndexCachePolicy.GetCacheDirectory(GitWizardApi.GetLocalFilesPath()), cacheMode),
+            progress, cancellationToken,
+            options => ConfigureOptions(EnumerationDiscovery.ConfigureWalk(options, scope.Request.Configuration)));
+    }
+
+    public static RepositoryDiscoveryDependencies CreateDefault(Func<FileIndexOptions, FileIndexOptions>? configureOptions = null)
     {
         return new RepositoryDiscoveryDependencies
         {
             IsWindows = OperatingSystem.IsWindows(),
             IsLinux = OperatingSystem.IsLinux(),
-            CrawlRootAsync = (request, root, token) => EnumerationDiscovery.DiscoverAsync(request, root, token),
-            OpenIndexAsync = (drives, cacheMode, progress, token) => OperatingSystem.IsWindows()
-                ? MftIndexSession.OpenWindowsAsync(drives, BrokerLauncher.Launch, cacheMode, null, progress, token)
-                : throw new PlatformNotSupportedException("MFT discovery requires Windows."),
+            CrawlRootAsync = (request, root, token) => EnumerationDiscovery.DiscoverAsync(request, root, token,
+                configureOptions: configureOptions),
+            ConfigureOptions = configureOptions ?? (options => options),
             ReadListAsync = GitWizardApi.GetCachedRepositoryPathsAsync,
             WriteListAsync = GitWizardApi.SaveCachedRepositoryPathsAsync,
             CandidateExists = RepositoryCandidateProbe.Exists,

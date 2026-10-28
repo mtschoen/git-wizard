@@ -378,7 +378,7 @@ new Dictionary<string, string>());
         var loss = SyntheticNotifications.CreateJournalCheckpointLoss('X', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.RootOpening, new UsnJournalSettings { MaximumSize = 32L * 1024 * 1024, AllocationDelta = 8 * 1024 * 1024 }) with { BytesBehind = 4_000_000, SizeThatWouldHaveRetained = 136L * 1024 * 1024 };
         var declined = RootStatuses.CreateRootStatus('X', RootState.Failed,
             failure: SyntheticNotifications.CreateRootFailure(RootFailureKind.CacheDeclined, "cache declined"));
-        var status = declined with { Watch = declined.Watch with { CheckpointLoss = loss } };
+        var status = declined with { VolumeSerial = 12345u, Watch = declined.Watch with { CheckpointLoss = loss } };
         var errors = new Dictionary<string, string>();
         var warnings = new List<JournalWarning>();
 
@@ -409,7 +409,7 @@ new Dictionary<string, string>());
         var ready = RootStatuses.CreateRootStatus('X', RootState.Ready,
             SyntheticNotifications.CreateRootBlockStatus(BlockOrigin.ProducedByScan, 10, false, DateTime.UtcNow),
             watchSupported: true);
-        var status = ready with { Watch = ready.Watch with { FailureMessage = "watch reached a position the journal no longer holds", CheckpointLoss = liveLoss, State = WatchState.Faulted, IsRecoveryStopped = true } };
+        var status = ready with { VolumeSerial = 12345u, Watch = ready.Watch with { FailureMessage = "watch reached a position the journal no longer holds", CheckpointLoss = liveLoss, State = WatchState.Faulted, IsRecoveryStopped = true } };
 
         source.ProcessFaultedDrive(status, owner, new GitWizardConfiguration());
 
@@ -447,7 +447,7 @@ new Dictionary<string, string>());
         var recreated = RootStatuses.CreateRootStatus('X', RootState.Ready,
             SyntheticNotifications.CreateRootBlockStatus(BlockOrigin.ProducedByScan, 10, false, DateTime.UtcNow),
             watchSupported: true);
-        var status = recreated with { Watch = recreated.Watch with { CheckpointLoss = liveLoss } };
+        var status = recreated with { VolumeSerial = 12345u, Watch = recreated.Watch with { CheckpointLoss = liveLoss } };
 
         source.ProcessFaultedDrive(status, owner, new GitWizardConfiguration());
         // The library keeps the report after its recovery rescan, so a later fault of another

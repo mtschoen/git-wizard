@@ -354,7 +354,7 @@ public partial class GitWizardRepository
     {
         try
         {
-            SizeOnDisk = ComputeDirectorySize(workingDirectory);
+            SizeOnDisk = WithdrawIndexedSize() ?? ComputeDirectorySize(workingDirectory);
         }
         catch (Exception exception)
         {

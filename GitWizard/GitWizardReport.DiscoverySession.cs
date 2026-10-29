@@ -8,6 +8,9 @@ public partial class GitWizardReport
 {
     MftIndexSession? _discoveryIndex;
 
+    // Sizes the last discovery read from the index. Only the Refresh that follows that discovery may use them.
+    IReadOnlyDictionary<string, long>? _indexedSizes;
+
     /// <summary>Borrowed query access, valid while the report owns the discovery session.</summary>
     [JsonIgnore]
     public FileIndexSet? DiscoveryIndex => _discoveryIndex?.IndexSet;
@@ -78,6 +81,7 @@ public partial class GitWizardReport
 
         var result = await coordinator.DiscoverAsync(request, updateHandler, cancellationToken).ConfigureAwait(false);
         DiscoveryInventory = result.Inventory;
+        _indexedSizes = result.Inventory.RepositorySizes;
         return result;
     }
 }

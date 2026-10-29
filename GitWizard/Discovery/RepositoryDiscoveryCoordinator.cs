@@ -245,6 +245,8 @@ public partial class RepositoryDiscoveryCoordinator
                 accumulator.Paths.Add(candidate.Path);
             }
         }
+
+        accumulator.RepositorySizes = RepositorySizeCalculator.Compute(observed, [.. accumulator.Paths], cancellationToken);
     }
 
     static IReadOnlyList<string> WatchVolumes(MftIndexSession? session) => session?.ObservedMftVolumes ?? [];

@@ -21,6 +21,7 @@ sealed class DiscoveryAccumulator
     public DiscoveryScope CandidateScope { get; set; }
     public ICollection<string> Paths { get; }
     public Dictionary<string, string> Errors { get; }
+    public IReadOnlyDictionary<string, long> RepositorySizes { get; set; } = new Dictionary<string, long>();
     public List<RootObservation> Observations { get; } = [];
     public HashSet<string> RescannedDrives { get; } = new(StringComparer.OrdinalIgnoreCase);
     public HashSet<string> ObservedDrives { get; } = new(StringComparer.OrdinalIgnoreCase);
@@ -137,6 +138,7 @@ sealed class DiscoveryAccumulator
             Outcome = DetermineOutcome(finalPaths.Length),
             Route = route,
             Paths = finalPaths,
+            RepositorySizes = RepositorySizes,
             RequestedNtfsDrives = requestedNtfsDrives,
             Observations = Observations,
             RootStatuses = FinalStatuses,

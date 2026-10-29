@@ -30,6 +30,7 @@ static class Program
             return helperExitCode;
         }
 
+        LibGit2MemorySettings.Configure();
         return DesktopInstance.Run(getMutexName(), () =>
         {
             if (Array.IndexOf(arguments, "-v") >= 0)

@@ -407,6 +407,11 @@ public class ReportCliOutputTests
         {
             throw new IOException("Report output failed");
         }
+
+        public override void Write(char[] buffer, int index, int count)
+        {
+            throw new IOException("Report output failed");
+        }
     }
 
     [Test]

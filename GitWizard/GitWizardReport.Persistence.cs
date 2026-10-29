@@ -136,7 +136,8 @@ public partial class GitWizardReport
         {
             SchemaVersion = CurrentSchemaVersion;
             var snapshot = CreateSnapshotForSerialization();
-            File.WriteAllText(path, JsonSerializer.Serialize(snapshot, SerializerOptions));
+            using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
+            JsonSerializer.Serialize(stream, snapshot, SerializerOptions);
         }
         catch (Exception exception)
         {
@@ -161,8 +162,9 @@ public partial class GitWizardReport
         {
             SchemaVersion = CurrentSchemaVersion;
             var snapshot = CreateSnapshotForSerialization();
-            var jsonText = JsonSerializer.Serialize(snapshot, SerializerOptions);
-            await File.WriteAllTextAsync(path, jsonText, cancellationToken).ConfigureAwait(false);
+            await using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None,
+                bufferSize: 4096, useAsync: true);
+            await JsonSerializer.SerializeAsync(stream, snapshot, SerializerOptions, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
@@ -218,7 +220,7 @@ public partial class GitWizardReport
 
         SchemaVersion = CurrentSchemaVersion;
         var snapshot = CreateSnapshotForSerialization();
-        WriteAtomic(path, JsonSerializer.Serialize(snapshot, SerializerOptions));
+        WriteAtomic(path, stream => JsonSerializer.Serialize(stream, snapshot, SerializerOptions));
     }
 
     /// <summary>
@@ -228,6 +230,15 @@ public partial class GitWizardReport
     /// a partially-written file. Shared by <see cref="SaveAtomic"/> and <see cref="MergeIntoFile"/>.
     /// </summary>
     static void WriteAtomic(string path, string jsonText)
+    {
+        WriteAtomic(path, stream => stream.Write(System.Text.Encoding.UTF8.GetBytes(jsonText)));
+    }
+
+    /// <summary>
+    /// Atomic write of whatever <paramref name="writeContent"/> streams to the temp file, so a large
+    /// report never has to exist as one in-memory string or byte array.
+    /// </summary>
+    static void WriteAtomic(string path, Action<Stream> writeContent)
     {
         var directory = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
@@ -240,10 +251,9 @@ public partial class GitWizardReport
         var tempPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            var bytes = System.Text.Encoding.UTF8.GetBytes(jsonText);
-            using (var handle = File.OpenHandle(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
             {
-                RandomAccess.Write(handle, bytes, 0);
+                writeContent(stream);
             }
             // overwrite: true performs an atomic replace on the same volume.
             File.Move(tempPath, path, overwrite: true);

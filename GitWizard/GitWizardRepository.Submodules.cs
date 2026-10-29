@@ -46,17 +46,17 @@ public partial class GitWizardRepository
             }
 
             var submodulesMap = Submodules ??= new SortedDictionary<string, GitWizardRepository?>();
-            Parallel.ForEach(submodules, new ParallelOptions { CancellationToken = cancellationToken }, submodule =>
+            foreach (var submodule in submodules)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var submoduleRepository = GetOrCreateSubmoduleRepository(submodule, workingDirectory, updateHandler, submodulesMap);
                 if (submoduleRepository == null)
                 {
-                    return;
+                    continue;
                 }
 
                 submoduleRepository.Refresh(updateHandler, cancellationToken: cancellationToken);
-            });
+            }
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

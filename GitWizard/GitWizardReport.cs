@@ -232,7 +232,7 @@ public partial class GitWizardReport : IAsyncDisposable
         bool computeLocalCommitCount = true)
     {
         var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) };
-        var validPaths = PruneDeletedRepositories(repositoryPaths);
+        var validPaths = OrderPathsForRefresh(PruneDeletedRepositories(repositoryPaths));
 
         var count = 0;
 
@@ -247,7 +247,7 @@ public partial class GitWizardReport : IAsyncDisposable
 
         using (GitWizardRepository.UnresolvedUpstreamDiagnosticScope.Open())
         {
-            Parallel.ForEach(validPaths, parallelOptions, path =>
+            Parallel.ForEach(Partitioner.Create(validPaths, EnumerablePartitionerOptions.NoBuffering), parallelOptions, path =>
             {
                 RefreshSingleRepository(path, updateHandler, fetchRemotes, deepRefresh, allBranches, computeLocalCommitCount);
 
@@ -307,9 +307,9 @@ public partial class GitWizardReport : IAsyncDisposable
 
     // Identifies repos whose directory no longer exists, records them on DeletedPaths, prunes
     // them from Repositories, and returns the remaining still-present paths to refresh.
-    ConcurrentBag<string> PruneDeletedRepositories(ICollection<string> repositoryPaths)
+    List<string> PruneDeletedRepositories(ICollection<string> repositoryPaths)
     {
-        var validPaths = new ConcurrentBag<string>();
+        var validPaths = new List<string>();
         var deletedPaths = new ConcurrentBag<string>();
 
         foreach (var path in repositoryPaths)

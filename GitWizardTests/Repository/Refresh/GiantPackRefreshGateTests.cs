@@ -25,7 +25,7 @@ public class GiantPackRefreshGateTests
     public async Task Acquire_WaitingForGiantPack_ObservesCancellation_Issue451()
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        CreatePackIndex(fixture.Path, OneHundredMebibytes + 1);
+        PackIndexFixture.Create(fixture.Path, OneHundredMebibytes + 1);
         using var heldGate = GiantPackRefreshGate.Acquire(fixture.Path, CancellationToken.None);
         using var cancellationTokenSource = new CancellationTokenSource();
         var attemptStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -49,8 +49,8 @@ public class GiantPackRefreshGateTests
         GitWizardLog.SilentMode = true;
         using var first = TempRepoFixture.CreateWithInitialCommit();
         using var second = TempRepoFixture.CreateWithInitialCommit();
-        CreatePackIndex(first.Path, packIndexBytes);
-        CreatePackIndex(second.Path, packIndexBytes);
+        PackIndexFixture.Create(first.Path, packIndexBytes);
+        PackIndexFixture.Create(second.Path, packIndexBytes);
 
         using var probe = new RefreshOverlapProbe();
         var report = new GitWizardReport
@@ -66,57 +66,4 @@ public class GiantPackRefreshGateTests
         return probe.MaximumActive;
     }
 
-    static void CreatePackIndex(string repositoryPath, long length)
-    {
-        var packDirectory = Path.Combine(repositoryPath, ".git", "objects", "pack");
-        Directory.CreateDirectory(packDirectory);
-        using var stream = new FileStream(Path.Combine(packDirectory, "synthetic.idx"),
-            FileMode.Create, FileAccess.Write, FileShare.Read);
-        stream.SetLength(length);
-    }
-
-    sealed class RefreshOverlapProbe : IDisposable
-    {
-        readonly ManualResetEventSlim _secondEntered = new(false);
-        readonly object _sync = new();
-        int _entries;
-        int _active;
-
-        public int MaximumActive { get; private set; }
-
-        public void OnPhase(int phaseIndex)
-        {
-            if (phaseIndex != 0)
-            {
-                return;
-            }
-
-            var active = Interlocked.Increment(ref _active);
-            lock (_sync)
-            {
-                MaximumActive = Math.Max(MaximumActive, active);
-            }
-
-            var entry = Interlocked.Increment(ref _entries);
-            try
-            {
-                if (entry == 1)
-                {
-                    _ = _secondEntered.Wait(TestTimeouts.ShortHangGuard);
-                }
-                else
-                {
-                    _secondEntered.Set();
-                }
-            }
-            finally
-            {
-                _ = Interlocked.Decrement(ref _active);
-            }
-
-            throw new OperationCanceledException();
-        }
-
-        public void Dispose() => _secondEntered.Dispose();
-    }
 }

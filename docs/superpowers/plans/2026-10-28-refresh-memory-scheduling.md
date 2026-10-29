@@ -61,15 +61,17 @@
 - Modify: `GitWizard/GitWizardReport.cs`
 - Modify: `GitWizard/GitWizardRepository.Submodules.cs`
 - Modify: `GitWizard/GitWizardRepository.Worktrees.cs`
-- Modify: `GitWizardTests/Repository/Refresh/RefreshPhaseObservationAndCancellationTests.cs`
-- Create: `GitWizardTests/Reports/GitWizardReportRefreshSchedulingTests.cs`
+- Modify: `GitWizardTests/Repository/Refresh/RefreshPhaseObservationAndCancellationTests.cs`, `GitWizardTests/Repository/Refresh/GiantPackRefreshGateTests.cs`
+- Create: `GitWizardTests/Reports/GitWizardReportRefreshSchedulingTests.cs`, `GitWizardTests/Repository/Refresh/NestedRefreshSchedulingTests.cs`
+- Create: `GitWizardTests/TestSupport/PackIndexFixture.cs`, `GitWizardTests/TestSupport/RefreshOverlapProbe.cs`
+- Modify: `docs/testing.md`
 
-- [ ] Add issue-tagged ordering tests through `GitWizardReport.Refresh`: prior timings put the longest repository first, while absent/equal timings retain input order. Use the issue-451 gate and phase observers for deterministic assertions, and watch them fail against `ConcurrentBag` scheduling.
-- [ ] Preserve pruned path order in a list, snapshot timings from the cached report (or already populated report), stable-sort descending by `RefreshTimeSeconds`, and feed `Partitioner.Create(..., EnumerablePartitionerOptions.NoBuffering)` to the existing outer loop.
-- [ ] Replace both nested parallel loops with sequential `foreach` loops, retaining cancellation checks and all creation/refresh callbacks. This caps nested concurrency at one so total refresh concurrency remains at the existing outer cap.
-- [ ] Update comments/docstrings that still describe nested parallel behavior, then rerun scheduling, submodule, worktree, cancellation, and report tests.
-- [ ] Run interleaved issue-451/issue-453 `time-phases.ps1 -RequireQuiet` measurements; require at least 5 seconds lower total wall, at least 1 second lower post-refresh tail, and no regression in summed refresh seconds. Record counts and commands.
-- [ ] Run `aislop scan --staged`, stage only issue 453 files, commit, and confirm with `git log`.
+- [x] Add issue-tagged tests at the report ordering seam consumed by `GitWizardReport.Refresh`: prior timings put the longest repository first, while absent/equal timings retain input order. Avoid asserting operating-system thread acquisition order, and watch the behavioral versions fail against `ConcurrentBag` scheduling before implementation.
+- [x] Preserve pruned path order in a list, snapshot timings from the cached report (or already populated report), stable-sort descending by `RefreshTimeSeconds`, and feed `Partitioner.Create(..., EnumerablePartitionerOptions.NoBuffering)` to the existing outer loop.
+- [x] Replace both nested parallel loops with sequential `foreach` loops, retaining cancellation checks and all creation/refresh callbacks. This caps nested concurrency at one so total refresh concurrency remains at the existing outer cap.
+- [x] Update comments/docstrings that still describe nested parallel behavior, then rerun scheduling, submodule, worktree, cancellation, and report tests.
+- [x] Run scheduling, nested-refresh, cancellation, and CLI smoke checks only; defer wall-time and post-refresh-tail acceptance measurements to the orchestrator's quiet box as directed after the outage.
+- [x] Run `aislop scan --staged`, stage only issue 453 files, commit, and confirm with `git log`.
 
 ### Task 4: Final verification and handoff
 

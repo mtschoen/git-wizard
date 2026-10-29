@@ -43,13 +43,16 @@ public static partial class GitWizardApi
         return results.AsReadOnly();
     }
 
-    // Every index scan the selection starts goes through here so a test can count them. The result is
-    // materialized because each candidate scope reads it again.
-    internal static IReadOnlyList<FileEntry> ScanByName(
-        FileIndexSet index, string name, CandidateSelectionDiagnostics? diagnostics, CancellationToken cancellationToken)
+    // The four exact names discovery needs, in the order ScanByNames returns their entry lists.
+    internal static readonly string[] DiscoveryNames = [GitEntryName, "HEAD", "objects", "refs"];
+
+    // Every index scan the selection starts goes through here so a test can count them. The lists are
+    // materialized because each candidate scope reads them again.
+    internal static IReadOnlyList<IReadOnlyList<FileEntry>> ScanByNames(
+        FileIndexSet index, CandidateSelectionDiagnostics? diagnostics, CancellationToken cancellationToken)
     {
         diagnostics?.RecordIndexScan();
-        return (FileEntry[])[.. index.Search(new SearchQuery(name, NameMatchMode.Exact), cancellationToken)];
+        return index.SearchExactNames(DiscoveryNames, cancellationToken: cancellationToken);
     }
 
     internal readonly record struct CandidateScope(
@@ -61,9 +64,10 @@ public static partial class GitWizardApi
     static IEnumerable<RepositoryCandidate> SelectRootCandidates(FileIndexSet index, DiscoveryScope scope,
         CandidateSelectionDiagnostics? diagnostics, CancellationToken cancellationToken)
     {
-        var gitEntries = ScanByName(index, GitEntryName, diagnostics, cancellationToken);
-        var headEntries = ScanByName(index, "HEAD", diagnostics, cancellationToken);
-        var layouts = new Lazy<BareLayoutIndex>(() => BareLayoutIndex.Build(index, diagnostics, cancellationToken));
+        var found = ScanByNames(index, diagnostics, cancellationToken);
+        var gitEntries = found[0];
+        var headEntries = found[1];
+        var layouts = new Lazy<BareLayoutIndex>(() => BareLayoutIndex.Build(found[2], found[3]));
         var roots = scope.SearchRoots.Select(root => (Root: root, IsExact: false)).ToList();
         roots.AddRange(scope.RetainedRoots
             .Select(retainedRoot => (Root: retainedRoot, Path: WatchPath.Parse(retainedRoot)))

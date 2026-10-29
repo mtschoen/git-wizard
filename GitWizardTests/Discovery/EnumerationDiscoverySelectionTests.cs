@@ -52,6 +52,12 @@ public class EnumerationDiscoverySelectionTests
     }
 
     [Test]
+    public void Discover_StartsOneIndexScanPerMember_ForAllFourDiscoveryNames()
+    {
+        Assert.That(CountIndexScans(headFileCount: 3), Is.EqualTo(1));
+    }
+
+    [Test]
     public void Discover_FindsEveryBareRepository_AmongUnrelatedHeadFiles()
     {
         var bareRepositories = new List<string>();

@@ -1,5 +1,6 @@
 using GitWizard;
 using GitWizardTests.TestSupport;
+using LibGit2Sharp;
 
 namespace GitWizardTests;
 
@@ -19,6 +20,58 @@ public class GiantPackRefreshGateTests
     {
         Assert.That(RunTwoRepositoryRefresh(OneHundredMebibytes), Is.EqualTo(2),
             "The strict over-100 MiB threshold must not serialize an index exactly at 100 MiB.");
+    }
+
+    [Test]
+    public void Refresh_LinkedWorktreesSharingGiantPack_DoNotOverlap_Issue451()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var first = fixture.AddWorktree("giant-gate-one");
+        var second = fixture.AddWorktree("giant-gate-two");
+        PackIndexFixture.Create(fixture.Path, OneHundredMebibytes + 1);
+
+        using var probe = new RefreshOverlapProbe();
+        var report = new GitWizardReport
+        {
+            Repositories =
+            {
+                [first] = new GitWizardRepository(first) { IsWorktree = true, PhaseObserverForTesting = probe.OnPhase },
+                [second] = new GitWizardRepository(second) { IsWorktree = true, PhaseObserverForTesting = probe.OnPhase },
+            },
+        };
+
+        report.Refresh([first, second]);
+
+        Assert.That(probe.MaximumActive, Is.EqualTo(1),
+            "Linked worktrees bypassed the giant-pack gate through their gitfiles.");
+    }
+
+    [Test]
+    public void Refresh_BareRepositoriesWithGiantPacks_DoNotOverlap_Issue451()
+    {
+        GitWizardLog.SilentMode = true;
+        using var first = new TempDirectory();
+        using var second = new TempDirectory();
+        Repository.Init(first.Path, isBare: true);
+        Repository.Init(second.Path, isBare: true);
+        PackIndexFixture.CreateBare(first.Path, OneHundredMebibytes + 1);
+        PackIndexFixture.CreateBare(second.Path, OneHundredMebibytes + 1);
+
+        using var probe = new RefreshOverlapProbe();
+        var report = new GitWizardReport
+        {
+            Repositories =
+            {
+                [first.Path] = new GitWizardRepository(first.Path) { PhaseObserverForTesting = probe.OnPhase },
+                [second.Path] = new GitWizardRepository(second.Path) { PhaseObserverForTesting = probe.OnPhase },
+            },
+        };
+
+        report.Refresh([first.Path, second.Path]);
+
+        Assert.That(probe.MaximumActive, Is.EqualTo(1),
+            "Bare repositories bypassed the giant-pack gate without a .git directory.");
     }
 
     [Test]

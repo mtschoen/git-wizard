@@ -32,8 +32,8 @@ public class InventoryWalkTests
 
         var expanded = GitWizardApi.ExpandAllClonePaths([repo.Path]);
 
-        var normalizedRepo = GitWizardApi.NormalizePath(repo.Path);
-        var normalizedSub = GitWizardApi.NormalizePath(submoduleDir);
+        var normalizedRepo = GitWizardApi.ResolveOnDiskPath(repo.Path);
+        var normalizedSub = GitWizardApi.ResolveOnDiskPath(submoduleDir);
 
         Assert.That(expanded, Does.Contain(normalizedRepo));
         Assert.That(expanded, Does.Contain(normalizedSub));
@@ -47,8 +47,8 @@ public class InventoryWalkTests
 
         var expanded = GitWizardApi.ExpandAllClonePaths([repo.Path]);
 
-        var normalizedRepo = GitWizardApi.NormalizePath(repo.Path);
-        var normalizedWt = GitWizardApi.NormalizePath(worktreeDir);
+        var normalizedRepo = GitWizardApi.ResolveOnDiskPath(repo.Path);
+        var normalizedWt = GitWizardApi.ResolveOnDiskPath(worktreeDir);
 
         Assert.That(expanded, Does.Contain(normalizedRepo));
         Assert.That(expanded, Does.Contain(normalizedWt));
@@ -63,8 +63,8 @@ public class InventoryWalkTests
         // Pass both the parent repo and the submodule directly
         var expanded = GitWizardApi.ExpandAllClonePaths([repo.Path, submoduleDir, repo.Path]);
 
-        var normalizedRepo = GitWizardApi.NormalizePath(repo.Path);
-        var normalizedSub = GitWizardApi.NormalizePath(submoduleDir);
+        var normalizedRepo = GitWizardApi.ResolveOnDiskPath(repo.Path);
+        var normalizedSub = GitWizardApi.ResolveOnDiskPath(submoduleDir);
 
         using (Assert.EnterMultipleScope())
         {
@@ -104,7 +104,7 @@ public class InventoryWalkTests
 
         var expanded = GitWizardApi.ExpandAllClonePaths([plainDir, repo.Path, nonexistent]);
 
-        var normalizedRepo = GitWizardApi.NormalizePath(repo.Path);
+        var normalizedRepo = GitWizardApi.ResolveOnDiskPath(repo.Path);
         Assert.That(expanded, Has.Count.EqualTo(1));
         Assert.That(expanded[0], Is.EqualTo(normalizedRepo));
     }
@@ -139,8 +139,8 @@ public class InventoryWalkTests
         await using var inventory = await GitWizardApi.DiscoverAllCloneInventoryAsync(config, null, true, coordinator);
         var allClones = inventory.Inventory.Paths;
 
-        var normalizedCrewRepo = GitWizardApi.NormalizePath(crewRepoPath);
-        var normalizedBareRepo = GitWizardApi.NormalizePath(bareRepoPath);
+        var normalizedCrewRepo = GitWizardApi.ResolveOnDiskPath(crewRepoPath);
+        var normalizedBareRepo = GitWizardApi.ResolveOnDiskPath(bareRepoPath);
 
         Assert.That(allClones, Does.Contain(normalizedCrewRepo));
         Assert.That(allClones, Does.Contain(normalizedBareRepo));
@@ -169,7 +169,7 @@ public class InventoryWalkTests
             additionalCloneRoots: () => []));
         await using var inventory = await GitWizardApi.DiscoverAllCloneInventoryAsync(config, null, true, coordinator);
         var allClones = inventory.Inventory.Paths;
-        var normalizedBareRepo = GitWizardApi.NormalizePath(bareRepoPath);
+        var normalizedBareRepo = GitWizardApi.ResolveOnDiskPath(bareRepoPath);
 
         Assert.That(allClones, Does.Not.Contain(normalizedBareRepo));
     }

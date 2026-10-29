@@ -63,7 +63,7 @@ static class EnumerationDiscovery
             diagnostics ??= new CandidateSelectionDiagnostics();
             paths.AddRange(GitWizardApi.SelectRepositoryCandidates(new FileIndexSet([index]), scope, diagnostics, cancellationToken)
                 .Where(IsConfirmed)
-                .Select(candidate => GitWizardApi.NormalizePath(candidate.Path)));
+                .Select(candidate => candidate.Path));
 
             if (diagnostics.UnresolvedPathCount > 0)
             {

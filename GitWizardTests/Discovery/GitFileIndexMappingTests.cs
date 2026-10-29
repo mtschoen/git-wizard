@@ -160,7 +160,7 @@ public class GitFileIndexMappingTests
         // The recursive collector receives an independent host path, never an index path.
         var repositories = new List<string>();
         EnumeratedDiscovery.GetRepositoryPaths(fixture.TreePath, repositories, []);
-        Assert.That(repositories, Does.Contain(GitWizardApi.NormalizePath(Path.GetDirectoryName(marker)!)));
+        Assert.That(repositories, Does.Contain(GitWizardApi.ResolveOnDiskPath(Path.GetDirectoryName(marker)!)));
     }
 
     [Test]

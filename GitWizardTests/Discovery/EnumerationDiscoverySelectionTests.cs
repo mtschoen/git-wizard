@@ -65,7 +65,7 @@ public class EnumerationDiscoverySelectionTests
 
         var result = Discover(new CandidateSelectionDiagnostics());
 
-        Assert.That(result.Paths, Is.EquivalentTo(bareRepositories.Select(GitWizardApi.NormalizePath)));
+        Assert.That(result.Paths, Is.EquivalentTo(bareRepositories.Select(GitWizardApi.ResolveOnDiskPath)));
     }
 
     [TestCase("ordinary")]
@@ -156,7 +156,7 @@ public class EnumerationDiscoverySelectionTests
             Assert.That(diagnostics.UnresolvedPathCount, Is.Zero);
             Assert.That(result.FailedSubtrees, Is.Empty);
             Assert.That(result.Paths,
-                Is.EqualTo([GitWizardApi.NormalizePath(Path.Combine(_tempDir, "repo"))]));
+                Is.EqualTo([GitWizardApi.ResolveOnDiskPath(Path.Combine(_tempDir, "repo"))]));
         }
     }
 

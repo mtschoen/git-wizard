@@ -206,7 +206,7 @@ public class ProgramInventoryEntryPointTests
             Assert.That(result.StandardOutput.TrimEnd(), Does.Contain(Environment.NewLine));
             Assert.That(document.RootElement.GetProperty("SchemaVersion").GetString(), Is.EqualTo("1.0"));
             Assert.That(document.RootElement.GetProperty("MatchPattern").GetString(), Is.EqualTo("archive/*"));
-            Assert.That(repository.GetProperty("Path").GetString(), Is.EqualTo(GitWizardApi.NormalizePath(fixture.Path)));
+            Assert.That(repository.GetProperty("Path").GetString(), Is.EqualTo(GitWizardApi.ResolveOnDiskPath(fixture.Path)));
             var tags = repository.GetProperty("Tags");
             Assert.That(tags.GetArrayLength(), Is.EqualTo(1));
             Assert.That(tags[0].GetProperty("Name").GetString(), Is.EqualTo("archive/v1"));
@@ -249,7 +249,7 @@ public class ProgramInventoryEntryPointTests
             Assert.That(result.StandardOutput.TrimEnd(), Does.Contain(Environment.NewLine));
             Assert.That(document.RootElement.GetProperty("SchemaVersion").GetString(), Is.EqualTo("1.1"));
             Assert.That(document.RootElement.GetProperty("BaseBranch").GetString(), Is.EqualTo("main"));
-            Assert.That(repository.GetProperty("Path").GetString(), Is.EqualTo(GitWizardApi.NormalizePath(fixture.Path)));
+            Assert.That(repository.GetProperty("Path").GetString(), Is.EqualTo(GitWizardApi.ResolveOnDiskPath(fixture.Path)));
             var branches = repository.GetProperty("Branches");
             Assert.That(branches.GetArrayLength(), Is.EqualTo(1));
             Assert.That(branches[0].GetProperty("Name").GetString(), Is.EqualTo("feature-test"));

@@ -489,7 +489,7 @@ public class RepositoryDiscoveryCoordinatorTests
         {
             Assert.That(result.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Unusable));
             Assert.That(result.Inventory.CanPublishFullInventory, Is.False);
-            Assert.That(result.Inventory.Errors, Does.ContainKey(GitWizardApi.NormalizePath(files.TreePath)).WithValue("MFT producer failed during rescan"));
+            Assert.That(result.Inventory.Errors, Does.ContainKey(GitWizardApi.ResolveOnDiskPath(files.TreePath)).WithValue("MFT producer failed during rescan"));
         }
     }
 }

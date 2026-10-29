@@ -51,10 +51,10 @@ public class RecursiveDiscoveryTests
 
         var result = EnumeratedDiscovery.Run(request, _tempDir);
 
-        Assert.That(result.Paths, Does.Contain(GitWizardApi.NormalizePath(ordinaryRepo)));
-        Assert.That(result.Paths, Does.Contain(GitWizardApi.NormalizePath(bareRepo)));
-        Assert.That(result.Paths, Does.Contain(GitWizardApi.NormalizePath(gitFileRepo)));
-        Assert.That(result.Paths, Does.Not.Contain(GitWizardApi.NormalizePath(nonRepo)));
+        Assert.That(result.Paths, Does.Contain(GitWizardApi.ResolveOnDiskPath(ordinaryRepo)));
+        Assert.That(result.Paths, Does.Contain(GitWizardApi.ResolveOnDiskPath(bareRepo)));
+        Assert.That(result.Paths, Does.Contain(GitWizardApi.ResolveOnDiskPath(gitFileRepo)));
+        Assert.That(result.Paths, Does.Not.Contain(GitWizardApi.ResolveOnDiskPath(nonRepo)));
     }
 
     [Test]
@@ -78,8 +78,8 @@ public class RecursiveDiscoveryTests
 
         var result = EnumeratedDiscovery.Run(request, _tempDir);
 
-        Assert.That(result.Paths, Does.Contain(GitWizardApi.NormalizePath(ordinaryRepo)));
-        Assert.That(result.Paths, Does.Not.Contain(GitWizardApi.NormalizePath(internalGit)));
+        Assert.That(result.Paths, Does.Contain(GitWizardApi.ResolveOnDiskPath(ordinaryRepo)));
+        Assert.That(result.Paths, Does.Not.Contain(GitWizardApi.ResolveOnDiskPath(internalGit)));
     }
 
     [Test]
@@ -102,8 +102,8 @@ public class RecursiveDiscoveryTests
 
         var result = EnumeratedDiscovery.Run(request, _tempDir);
 
-        Assert.That(result.Paths, Does.Contain(GitWizardApi.NormalizePath(repo1)));
-        Assert.That(result.Paths, Does.Not.Contain(GitWizardApi.NormalizePath(ignoredRepo)));
+        Assert.That(result.Paths, Does.Contain(GitWizardApi.ResolveOnDiskPath(repo1)));
+        Assert.That(result.Paths, Does.Not.Contain(GitWizardApi.ResolveOnDiskPath(ignoredRepo)));
     }
 
     [Test]
@@ -144,10 +144,10 @@ public class RecursiveDiscoveryTests
         using var restore = DeniedDirectory.Deny(denied);
         var result = EnumeratedDiscovery.Run(request, _tempDir);
 
-        var normalizedRoot = GitWizardApi.NormalizePath(_tempDir);
+        var normalizedRoot = GitWizardApi.ResolveOnDiskPath(_tempDir);
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(result.Paths, Does.Contain(GitWizardApi.NormalizePath(accessibleRepo)));
+            Assert.That(result.Paths, Does.Contain(GitWizardApi.ResolveOnDiskPath(accessibleRepo)));
             Assert.That(result.FailedSubtrees, Does.Contain(normalizedRoot));
             Assert.That(result.Errors, Does.ContainKey(normalizedRoot));
         }

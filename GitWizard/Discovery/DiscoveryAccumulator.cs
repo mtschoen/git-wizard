@@ -124,7 +124,7 @@ sealed class DiscoveryAccumulator
                 continue;
             }
 
-            var isExact = Scope.RetainedRoots.Contains(root);
+            var isExact = Scope.RetainedRoots.Contains(root, WatchPath.StringComparer);
             Observations.Add(new RootObservation(root, isExact, false, DiscoverySource.Recursive, null, expansionError));
         }
     }

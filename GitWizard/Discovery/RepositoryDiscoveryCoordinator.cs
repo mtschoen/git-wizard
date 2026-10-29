@@ -242,7 +242,7 @@ public partial class RepositoryDiscoveryCoordinator
         {
             if (Dependencies.CandidateExists(candidate.Path, candidate.Kind))
             {
-                accumulator.Paths.Add(GitWizardApi.NormalizePath(candidate.Path));
+                accumulator.Paths.Add(candidate.Path);
             }
         }
     }

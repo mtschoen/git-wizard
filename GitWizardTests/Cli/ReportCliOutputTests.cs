@@ -77,7 +77,7 @@ public class ReportCliOutputTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(exitCode, Is.EqualTo(1));
-            Assert.That(output, Does.Contain(GitWizardApi.NormalizePath(repository.Path)).And.Contain("dirty"));
+            Assert.That(output, Does.Contain(repository.Path).And.Contain("dirty"));
             Assert.That(output.Split("Run: "), Has.Length.EqualTo(2));
             Assert.That(output, Does.Contain("Run: created=1 refreshed=1 skipped=0"));
             Assert.That(output, Does.Not.Contain("\"Repositories\""));
@@ -134,7 +134,7 @@ public class ReportCliOutputTests
             Assert.That(JsonElement.DeepEquals(document.RootElement, savedDocument.RootElement), Is.True);
             var repositories = document.RootElement.GetProperty("Repositories");
             Assert.That(repositories.EnumerateObject().Count(), Is.EqualTo(1));
-            Assert.That(repositories.GetProperty(GitWizardApi.NormalizePath(repository.Path))
+            Assert.That(repositories.GetProperty(repository.Path)
                 .GetProperty("HasPendingChanges").GetBoolean(), Is.True);
             Assert.That(diagnostics, Does.Contain("Scanning repositories"));
             if (!suppliedWriters)

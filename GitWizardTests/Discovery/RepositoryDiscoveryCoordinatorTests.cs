@@ -177,6 +177,34 @@ public class RepositoryDiscoveryCoordinatorTests
         }
     }
 
+    [Test]
+    public async Task IndexedCandidate_PublishesOnDiskCasing()
+    {
+        using var files = new PackedIndexFixture();
+        var markerPath = files.AddMarker("MixedCaseRepo");
+        var expected = Path.GetDirectoryName(markerPath)!;
+        Assert.That(expected, Is.Not.EqualTo(expected.ToLowerInvariant()), "fixture path must contain uppercase");
+
+        var configuration = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
+        var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, false, []);
+        var dependencies = new RepositoryDiscoveryDependencies
+        {
+            IsWindows = true,
+            IsLinux = false,
+            CrawlRootAsync = (_, _, _) => Task.FromResult(new RecursiveDiscovery([], [], new Dictionary<string, string>())),
+            OpenIndexAsync = StatusSessions.OpenerForRoots(files, [files.TreePath], ('X', SyntheticDriveBehavior.Ready)),
+            ReadListAsync = _ => Task.FromResult<string[]?>(null),
+            WriteListAsync = (_, _) => Task.CompletedTask,
+            CandidateExists = (_, _) => true,
+            CreateLinuxSource = () => throw new PlatformNotSupportedException()
+        };
+
+        await using var result = await new RepositoryDiscoveryCoordinator(dependencies)
+            .DiscoverAsync(request, new RecordingUpdateHandler(), CancellationToken.None);
+
+        Assert.That(result.Inventory.Paths.Single(), Is.EqualTo(expected));
+    }
+
     [TestCase(false)]
     [TestCase(true, TestName = "Issue370_ListMiss_SameTagDifferentShape_Rescans")]
     public async Task ListMiss_CacheDeclined_RescansAndUsesScanSource(bool seedDifferentShape)

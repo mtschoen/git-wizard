@@ -34,6 +34,12 @@ static class StatusSessions
         params (char Letter, SyntheticDriveBehavior Behavior)[] drives) =>
         (roots, _, _, _) => OpenRequestedAsync(files, roots, drives);
 
+    /// <summary>Like <see cref="Opener" />, but opens <paramref name="roots" /> exactly as spelled rather than the requested spelling.</summary>
+    public static Func<IReadOnlyList<string>, CacheMode, IProgress<IndexScanProgress>?, CancellationToken,
+        Task<MftIndexSession>> OpenerForRoots(PackedIndexFixture files, IReadOnlyList<string> roots,
+        params (char Letter, SyntheticDriveBehavior Behavior)[] drives) =>
+        (_, _, _, _) => OpenRequestedAsync(files, roots, drives);
+
     /// <summary>Like <see cref="Opener" />, with every later production failing as a failed rescan does.</summary>
     public static Func<IReadOnlyList<string>, CacheMode, IProgress<IndexScanProgress>?, CancellationToken,
         Task<MftIndexSession>> OpenerFailingRescan(PackedIndexFixture files, string message,

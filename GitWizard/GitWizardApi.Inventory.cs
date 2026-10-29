@@ -134,8 +134,8 @@ public static partial class GitWizardApi
             return;
         }
 
-        var normalizedPath = NormalizePath(repositoryPath);
-        if (allClones.Contains(normalizedPath))
+        var clonePath = ResolveOnDiskPath(repositoryPath);
+        if (allClones.Contains(clonePath))
         {
             return;
         }
@@ -147,7 +147,7 @@ public static partial class GitWizardApi
                 return;
             }
 
-            allClones.Add(normalizedPath);
+            allClones.Add(clonePath);
 
             using var repository = new Repository(repositoryPath);
 

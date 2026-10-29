@@ -88,7 +88,7 @@ merge of disjoint updates must serialize their writes externally.
 | `AheadOfRemoteCount` | `int` | no | Commits on the checked-out branch not reachable from its upstream - unpushed commits on the branch actually checked out (narrower than `LocalOnlyCommits`, which sums across *all* local branches). 0 when there is no upstream or HEAD is detached. |
 | `LastFetchTime` | `string` (ISO 8601) | yes | When GitWizard itself last completed a `fetchRemotes` refresh for this repository. Null if GitWizard has never fetched it - in that case `BehindRemoteCount`/`AheadOfRemoteCount` reflect whatever remote-tracking state happens to be cached locally (possibly from a manual `git fetch`, possibly stale) rather than a comparison GitWizard can vouch for. |
 | `IsPublishReady` | `bool` | no | `true` when the checkout is clean (`!HasPendingChanges`), not behind its remote (`BehindRemoteCount == 0`), and currently on `DefaultBranch` - the literal "safe to publish from" check. Derived from the fields above at read time (not a separately refreshed field), so it can go stale the same way `BehindRemoteCount` can; check `LastFetchTime` for freshness. |
-| `SizeOnDisk` | `long` (bytes) | no | Repository size on disk in bytes (0/absent if not computed) |
+| `SizeOnDisk` | `long` (bytes) | no | Logical bytes of every file under the working directory, `.git` included (0/absent if not computed). A refresh that follows an MFT discovery takes it from the index; a repository the index cannot size completely, or a refresh that fetches, walks the directory instead |
 | `RefreshTimeSeconds` | `float` | no | How long the last refresh took |
 | `RefreshError` | `string` | yes | Error message if refresh failed |
 | `RemoteUrls` | `string[]` | no | List of remote URLs |

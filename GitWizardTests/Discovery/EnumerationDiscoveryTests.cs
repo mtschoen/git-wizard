@@ -146,7 +146,7 @@ public class EnumerationDiscoveryTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(result.Paths, Is.EqualTo([GitWizardApi.NormalizePath(repository)]));
+            Assert.That(result.Paths, Is.EqualTo([GitWizardApi.ResolveOnDiskPath(repository)]));
             Assert.That(result.Errors, Is.Empty);
         }
     }
@@ -161,7 +161,7 @@ public class EnumerationDiscoveryTests
         var paths = new List<string>();
         EnumeratedDiscovery.GetRepositoryPaths(_root, paths, [ignored], includeTempDirectories: true);
 
-        Assert.That(paths, Is.EqualTo([GitWizardApi.NormalizePath(Path.Combine(_root, "kept"))]));
+        Assert.That(paths, Is.EqualTo([GitWizardApi.ResolveOnDiskPath(Path.Combine(_root, "kept"))]));
     }
 
     [Test]

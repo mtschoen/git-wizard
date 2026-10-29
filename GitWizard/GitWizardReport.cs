@@ -262,6 +262,7 @@ public partial class GitWizardReport : IAsyncDisposable
             });
         }
 
+        _indexedSizes = null;
         PruneNonRepositoryPaths(validPaths);
     }
 
@@ -377,9 +378,16 @@ public partial class GitWizardReport : IAsyncDisposable
             GitWizardLog.LogException(exception, "Exception thrown by Refresh OnRepositoryCreated callback.");
         }
 
+        // A fetch rewrites .git after the index was read, so only a refresh that leaves the files alone may use it.
+        if (!fetchRemotes && _indexedSizes is { } indexedSizes && indexedSizes.TryGetValue(path, out var indexedSize))
+        {
+            repository.OfferIndexedSize(indexedSize);
+        }
+
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         using var cancellationTokenSource = new CancellationTokenSource(RefreshTimeout);
         repository.Refresh(updateHandler, fetchRemotes, deepRefresh, allBranches, computeLocalCommitCount, cancellationTokenSource.Token);
+        repository.WithdrawIndexedSize();
 
         stopwatch.Stop();
         repository.RefreshTimeSeconds = Math.Round(stopwatch.Elapsed.TotalSeconds, 1);

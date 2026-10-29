@@ -48,11 +48,11 @@
 - Modify: `GitWizard/GitWizardRepository.cs`
 - Create: `GitWizardTests/Repository/Refresh/GiantPackRefreshGateTests.cs`
 
-- [ ] Add refresh-level regression tests using real temporary repositories and sparse `.idx` files: two indexes strictly over 100 MiB never overlap phase 0, while exactly 100 MiB does not force serialization. Watch the over-threshold test fail on the ungated code.
-- [ ] Implement a process-wide semaphore of one around `RefreshLocked` for paths with any `.git/objects/pack/*.idx` strictly over 100 MiB. Wait with the existing cancellation token and release in `finally`/disposal; place detection inside the existing refresh exception boundary.
-- [ ] Rerun the regression and refresh/cancellation neighbors red-to-green.
-- [ ] Run at least six interleaved issue-450/issue-451 probe and timing measurements with `time-phases.ps1 -RequireQuiet`; record spread, old-low-mode comparison, summed refresh seconds, wall seconds, and commands without committing logs.
-- [ ] Run `aislop scan --staged`, stage only issue 451 files, commit, and confirm with `git log`.
+- [x] Add refresh-level regression tests using real temporary repositories and sparse `.idx` files: two indexes strictly over 100 MiB never overlap phase 0, while exactly 100 MiB does not force serialization. Watch the over-threshold test fail on the ungated code.
+- [x] Implement a process-wide semaphore of one around `RefreshLocked` for paths with any `.git/objects/pack/*.idx` strictly over 100 MiB. Wait with the existing cancellation token and release in `finally`/disposal; place detection inside the existing refresh exception boundary.
+- [x] Rerun the regression and refresh/cancellation neighbors red-to-green.
+- [x] Run the giant-pack regression and refresh smoke checks only; defer the six-run memory and wall-time acceptance batch to the orchestrator's quiet box as directed after the outage.
+- [x] Run `aislop scan --staged`, stage only issue 451 files, commit, and confirm with `git log`.
 
 ### Task 3: Issue 453 refresh scheduling
 

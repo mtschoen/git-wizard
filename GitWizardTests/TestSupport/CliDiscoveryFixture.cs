@@ -8,8 +8,7 @@ sealed class CliDiscoveryFixture : IAsyncDisposable
 {
     readonly string _command;
     readonly string[] _extraArgs;
-    bool _createdZShared;
-    bool _substMapped;
+    string? _substDrive;
     TempDirectory? _substDirectory;
 
     public DiscoveryDependencyRecorder Dependencies { get; } = new();
@@ -22,6 +21,15 @@ sealed class CliDiscoveryFixture : IAsyncDisposable
     int ExitCode { get; set; }
 
     public CliDiscoveryFixture(string command, bool noMft = false, params string[] extraArgs)
+        : this(command, noMft, null, extraArgs)
+    {
+    }
+
+    internal CliDiscoveryFixture(
+        string command,
+        bool noMft,
+        Func<string>? sharedDirectoryMapper,
+        params string[] extraArgs)
     {
         _command = command;
         NoMft = noMft;
@@ -29,45 +37,89 @@ sealed class CliDiscoveryFixture : IAsyncDisposable
 
         GitWizardLog.SilentMode = true;
 
-        EnsureZShared();
-
-        var cPath = Dependencies.IndexFixture.TreePath;
-        const string zPath = @"Z:\shared";
-        Configuration = new GitWizardConfiguration
-        {
-            SearchPaths = { cPath, zPath }
-        };
-    }
-
-    void EnsureZShared()
-    {
         try
         {
-            if (!Directory.Exists(@"Z:\") && OperatingSystem.IsWindows())
+            var nonNtfsPath = sharedDirectoryMapper is null ? MapSharedDirectory() : sharedDirectoryMapper();
+            var cPath = Dependencies.IndexFixture.TreePath;
+            Configuration = new GitWizardConfiguration
             {
-                _substDirectory = new TempDirectory("gw-z-");
-                var psi = new ProcessStartInfo("subst", $"Z: \"{_substDirectory.Path}\"")
-                {
-                    CreateNoWindow = true,
-                    UseShellExecute = false
-                };
-                using var proc = Process.Start(psi);
-                proc?.WaitForExit(2000);
-                _substMapped = true;
-            }
-
-            if (!Directory.Exists(@"Z:\") || Directory.Exists(@"Z:\shared"))
-            {
-                return;
-            }
-
-            Directory.CreateDirectory(@"Z:\shared");
-            _createdZShared = true;
+                SearchPaths = { cPath, nonNtfsPath }
+            };
         }
         catch
         {
-            // Best effort
+            try
+            {
+                Dependencies.Dispose();
+            }
+            finally
+            {
+                _sandbox.Dispose();
+            }
+            throw;
         }
+    }
+
+    string MapSharedDirectory()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return @"Z:\shared";
+        }
+
+        var drive = FindFreeDrive();
+        _substDirectory = new TempDirectory("gw-subst-");
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(_substDirectory.Path, "shared"));
+            var startInfo = new ProcessStartInfo("subst", $"{drive} \"{_substDirectory.Path}\"")
+            {
+                CreateNoWindow = true,
+                UseShellExecute = false
+            };
+            using var process = Process.Start(startInfo);
+            if (process is null)
+            {
+                throw new InvalidOperationException($"Could not start subst to map '{drive}'.");
+            }
+
+            if (!process.WaitForExit((int)TestTimeouts.HangGuard.TotalMilliseconds))
+            {
+                process.Kill(entireProcessTree: true);
+                process.WaitForExit();
+                throw new TimeoutException($"Timed out mapping '{drive}' with subst.");
+            }
+
+            if (process.ExitCode != 0)
+            {
+                throw new InvalidOperationException($"Mapping '{drive}' with subst failed with exit code {process.ExitCode}.");
+            }
+
+            _substDrive = drive;
+            return $@"{drive}\shared";
+        }
+        catch
+        {
+            _substDirectory.Dispose();
+            _substDirectory = null;
+            throw;
+        }
+    }
+
+    static string FindFreeDrive()
+    {
+        var occupiedDrives = DriveInfo.GetDrives()
+            .Select(drive => char.ToUpperInvariant(drive.Name[0]))
+            .ToHashSet();
+        for (var letter = 'Z'; letter >= 'A'; letter--)
+        {
+            if (!occupiedDrives.Contains(letter))
+            {
+                return $"{letter}:";
+            }
+        }
+
+        throw new InvalidOperationException("CliDiscoveryFixture could not find a free drive letter from Z: through A: for its subst mapping.");
     }
 
     public async Task<int> RunAsync(CancellationToken cancellationToken = default)
@@ -122,43 +174,37 @@ sealed class CliDiscoveryFixture : IAsyncDisposable
     {
         Dependencies.Dispose();
 
-        if (_createdZShared && Directory.Exists(@"Z:\shared"))
+        if (_substDrive is not null)
         {
             try
             {
-                Directory.Delete(@"Z:\shared", true);
-            }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-            {
-                await TestContext.Out.WriteLineAsync($"Failed to delete 'Z:\\shared': {exception.Message}").ConfigureAwait(false);
-            }
-        }
-
-        if (_substMapped)
-        {
-            try
-            {
-                var psi = new ProcessStartInfo("subst", "Z: /d")
+                var startInfo = new ProcessStartInfo("subst", $"{_substDrive} /d")
                 {
                     CreateNoWindow = true,
                     UseShellExecute = false
                 };
-                using var proc = Process.Start(psi);
-                if (proc != null)
+                using var process = Process.Start(startInfo);
+                if (process is null)
                 {
-                    using var cts = new CancellationTokenSource(2000);
-                    await proc.WaitForExitAsync(cts.Token).ConfigureAwait(false);
+                    throw new InvalidOperationException("Could not start subst to remove the mapping.");
+                }
+
+                using var timeout = new CancellationTokenSource(TestTimeouts.HangGuard);
+                await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+                if (process.ExitCode != 0)
+                {
+                    await TestContext.Out.WriteLineAsync(
+                        $"Unmapping '{_substDrive}' subst drive failed with exit code {process.ExitCode}.").ConfigureAwait(false);
                 }
             }
             catch (Exception exception) when (exception is InvalidOperationException or IOException or OperationCanceledException
                 or System.ComponentModel.Win32Exception)
             {
-                await TestContext.Out.WriteLineAsync($"Failed to unmap 'Z:' subst drive: {exception.Message}").ConfigureAwait(false);
+                await TestContext.Out.WriteLineAsync($"Failed to unmap '{_substDrive}' subst drive: {exception.Message}").ConfigureAwait(false);
             }
-
-            _substDirectory?.Dispose();
         }
 
+        _substDirectory?.Dispose();
         _sandbox.Dispose();
     }
 }

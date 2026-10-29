@@ -16,6 +16,42 @@ public class CliDiscoveryRoutingTests
     [TearDown]
     public void TearDown() => VolumeChangeSourceFactory.ResetToDefaults();
 
+    [Test]
+    public void MappingFailure_RestoresSandbox()
+    {
+        var previousHome = Environment.GetEnvironmentVariable("GITWIZARD_HOME");
+        string? failedHome = null;
+        try
+        {
+            Assert.Throws<InvalidOperationException>(() =>
+            {
+                _ = new CliDiscoveryFixture(
+                    "report",
+                    false,
+                    () =>
+                    {
+                        failedHome = Environment.GetEnvironmentVariable("GITWIZARD_HOME");
+                        throw new InvalidOperationException("Synthetic mapping failure");
+                    });
+            });
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(failedHome, Is.Not.Null);
+                Assert.That(Environment.GetEnvironmentVariable("GITWIZARD_HOME"), Is.EqualTo(previousHome));
+                Assert.That(Directory.Exists(failedHome), Is.False);
+            }
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("GITWIZARD_HOME", previousHome);
+            TestUtilities.ResetStaticCaches();
+            if (failedHome is not null && failedHome != previousHome)
+            {
+                TempDirectory.DeleteTree(failedHome);
+            }
+        }
+    }
+
     [TestCase("report")]
     [TestCase("scan")]
     [TestCase("sweep")]
@@ -25,9 +61,18 @@ public class CliDiscoveryRoutingTests
     public async Task WindowsEntryPointDoesNotCrawlNtfs(string command)
     {
         await using var fixture = new CliDiscoveryFixture(command);
-        fixture.Dependencies.CrawlGuard = root => Assert.That(root, Does.StartWith(@"Z:\shared"));
+        var nonNtfsPath = fixture.Configuration.SearchPaths.Single(path =>
+            path.EndsWith(@"\shared", StringComparison.OrdinalIgnoreCase));
+        fixture.Dependencies.CrawlGuard = root => Assert.That(root, Does.StartWith(nonNtfsPath));
         await fixture.RunAsync();
-        Assert.That(fixture.OpenedDriveSets, Is.Not.Empty);
+        using (Assert.EnterMultipleScope())
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                Assert.That(fixture.Dependencies.CrawledRoots, Does.Contain(nonNtfsPath).IgnoreCase);
+            }
+            Assert.That(fixture.OpenedDriveSets, Is.Not.Empty);
+        }
         foreach (var drives in fixture.OpenedDriveSets)
         {
             Assert.That(drives, Is.EquivalentTo(["C"]));

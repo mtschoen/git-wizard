@@ -282,6 +282,12 @@ public partial class GitWizardRepository
     {
         try
         {
+            if (repository.Info.IsBare)
+            {
+                // A bare repository has no index or working tree to report status on.
+                return;
+            }
+
             // Refresh the index to update stale stat data (slow on large repos / slow drives)
             // Only run during deep refresh to keep auto-refresh fast
             if (deepRefresh)

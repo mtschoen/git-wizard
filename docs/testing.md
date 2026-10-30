@@ -108,7 +108,6 @@ Central test scaffolding lives in `GitWizardTests/TestSupport/`:
 - `RootStatuses`: Consistent factory for synthetic `RootStatus` instances with independent `watchSupported` policy.
 - `TestTimeouts`: Canonical timeouts exposed as get-only properties (`HangGuard` at 10s, `BrokerHangGuard` at 30s, `ShortHangGuard` at 5s).
 - `AsyncCondition`: Deterministic condition poller (`WaitUntilAsync`) reporting poll count, elapsed time, and expression details upon timeout or predicate failure.
-- `PackIndexFixture`: Synthetic pack-index files at exact byte thresholds for giant-pack refresh tests.
 - `RefreshOverlapProbe`: Deterministic phase-boundary overlap detector for outer and nested refresh concurrency tests.
 
 ### Scaffolding regression checks

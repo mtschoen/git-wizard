@@ -26,7 +26,7 @@ public class GitWizardReportRefreshSchedulingTests
 
         var order = new GitWizardReport().OrderPathsForRefresh(Paths);
 
-        Assert.That(order, Is.EqualTo(new[] { Paths[1], Paths[3], Paths[5], Paths[4], Paths[0], Paths[2] }));
+        Assert.That(order, Is.EqualTo([Paths[1], Paths[3], Paths[5], Paths[4], Paths[0], Paths[2]]));
     }
 
     [Test]

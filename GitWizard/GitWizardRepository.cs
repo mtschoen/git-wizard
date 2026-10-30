@@ -171,7 +171,6 @@ public partial class GitWizardRepository
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            using var giantPackRefresh = GiantPackRefreshGate.Acquire(WorkingDirectory, cancellationToken);
 
             if (fetchRemotes && FetchAllRemotes(WorkingDirectory))
             {

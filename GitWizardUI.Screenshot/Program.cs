@@ -2,7 +2,6 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Headless;
 using Avalonia.Threading;
-using GitWizard;
 
 namespace GitWizardUI.Screenshot;
 
@@ -12,8 +11,6 @@ static class Program
     {
         try
         {
-            LibGit2MemorySettings.Configure();
-
             // SetupWithClassicDesktopLifetime initializes the application without running the
             // blocking main loop (StartWithClassicDesktopLifetime never returns until shutdown).
             AppBuilder.Configure<App>()

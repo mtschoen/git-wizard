@@ -29,7 +29,6 @@ public static partial class Program
             return;
         }
 
-        LibGit2MemorySettings.Configure();
         var runConfiguration = CliParser.ParseProcessArgs(args);
 
         // --help/--version already printed their text via McMaster; stop here rather than

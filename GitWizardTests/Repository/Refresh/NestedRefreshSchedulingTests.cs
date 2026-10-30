@@ -13,7 +13,7 @@ public class NestedRefreshSchedulingTests
         fixture.AddInitializedSubmodule("sub-one");
         fixture.AddInitializedSubmodule("sub-two");
         using var probe = new RefreshOverlapProbe();
-        var onPhase = probe.OnPhase;
+        Action<int> onPhase = probe.OnPhase;
         var handler = new RecordingUpdateHandler
         {
             CreatingSubmodule = (_, submodule) => submodule.PhaseObserverForTesting = onPhase,
@@ -34,7 +34,7 @@ public class NestedRefreshSchedulingTests
         fixture.AddWorktree("worktree-one");
         fixture.AddWorktree("worktree-two");
         using var probe = new RefreshOverlapProbe();
-        var onPhase = probe.OnPhase;
+        Action<int> onPhase = probe.OnPhase;
         var handler = new RecordingUpdateHandler
         {
             CreatingWorktree = worktree => worktree.PhaseObserverForTesting = onPhase,

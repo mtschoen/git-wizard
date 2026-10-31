@@ -38,10 +38,13 @@ public class DirectoryRootAliasTests
             Assert.That(result.Inventory.CanPublishFullInventory, Is.True);
             Assert.That(result.Inventory.Paths, Is.EqualTo(ignored ? Array.Empty<string>() :
                 [Path.Combine(files.TreePath, "repo")]));
-            Assert.That(result.Inventory.RootStatuses.Single().IndexStatus!.Root, Is.EqualTo(RootKey.FromDirectory(alias)));
-            Assert.That(result.Inventory.RootStatuses.Single().IndexStatus!.Producer,
-                Is.EqualTo(walkOnly ? ProducerKind.Enumeration : ProducerKind.Mft));
-            Assert.That(updates.Messages, Has.Some.Contains($"producer: {(walkOnly ? "Enumeration" : "Mft")}"));
+            if (OperatingSystem.IsWindows())
+            {
+                Assert.That(result.Inventory.RootStatuses.Single().IndexStatus!.Root, Is.EqualTo(RootKey.FromDirectory(alias)));
+                Assert.That(result.Inventory.RootStatuses.Single().IndexStatus!.Producer,
+                    Is.EqualTo(walkOnly ? ProducerKind.Enumeration : ProducerKind.Mft));
+                Assert.That(updates.Messages, Has.Some.Contains($"producer: {(walkOnly ? "Enumeration" : "Mft")}"));
+            }
         }
     }
 }

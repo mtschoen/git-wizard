@@ -397,7 +397,7 @@ public class RepositoryDiscoveryCoordinatorTests
         }
     }
 
-    [Test]
+    [Test, Platform("Win")]
     public async Task EveryDriveFailed_IsUnusable_ListWriterNeverCalled()
     {
         using var files = new PackedIndexFixture();

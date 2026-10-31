@@ -64,8 +64,8 @@ public static partial class GitWizardApi
         IReadOnlyCollection<string> expandedRoots, ICollection<string> expandedIgnoredPaths,
         IndexDiscoveryComposition composition, IUpdateHandler? updateHandler = null)
     {
-        var drives = expandedRoots.Where(root => WatchPath.Parse(root).IsWindows)
-            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var drives = expandedRoots.Where(root => RootKey.TryParse(root, out _))
+            .Distinct(WatchPath.StringComparer).ToArray();
         if (expandedRoots.Count == 0 || drives.Length == 0)
         {
             return new MftDiscoveryResult(false);

@@ -18,9 +18,10 @@ public class RootKeyProjectionTests
     [Test]
     public void ParseRootKeys_SkipsUnparseableEntriesAndKeepsFirstOfRepeats()
     {
-        var keys = RootKeyProjection.ParseRootKeys(["C", "", "not a drive", "c:", "D", @"C:\Users\someone"]);
+        var directory = Path.Combine(Path.GetTempPath(), "someone");
+        var keys = RootKeyProjection.ParseRootKeys(["C", "", "not a drive", "c:", "D", directory]);
 
-        Assert.That(keys.Select(key => key.ToString()), Is.EqualTo(["C", "D", @"C:\Users\someone"]));
+        Assert.That(keys.Select(key => key.ToString()), Is.EqualTo(["C", "D", RootKey.FromDirectory(directory).ToString()]));
     }
 
     [Test]

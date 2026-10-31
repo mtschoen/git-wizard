@@ -11,6 +11,7 @@ namespace GitWizardTests.Discovery;
 /// equal the walk's total, and any repository the index cannot size completely must be left to the walk.
 /// </summary>
 [TestFixture]
+[Platform("Win")]
 public class RepositorySizeCalculatorTests
 {
     const uint RootRow = 5;
@@ -19,15 +20,7 @@ public class RepositorySizeCalculatorTests
     PackedIndexFixture _files = null!;
 
     [SetUp]
-    public void SetUp()
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            Assert.Ignore("The MFT route is the Windows discovery route.");
-        }
-
-        _files = new PackedIndexFixture();
-    }
+    public void SetUp() => _files = new PackedIndexFixture();
 
     [TearDown]
     public void TearDown() => _files.Dispose();

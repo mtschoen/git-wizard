@@ -70,16 +70,11 @@ public class CliDiscoveryRoutingTests
     public async Task WindowsEntryPointDoesNotCrawlNtfs(string command)
     {
         await using var fixture = new CliDiscoveryFixture(command);
-        var nonNtfsPath = fixture.Configuration.SearchPaths.Single(path =>
-            path.EndsWith(@"\shared", StringComparison.OrdinalIgnoreCase));
-        fixture.Dependencies.CrawlGuard = root => Assert.That(root, Does.StartWith(nonNtfsPath));
+        fixture.Dependencies.CrawlGuard = root => throw new AssertionException($"Crawler invoked unexpectedly for {root}");
         await fixture.RunAsync();
         using (Assert.EnterMultipleScope())
         {
-            if (OperatingSystem.IsWindows())
-            {
-                Assert.That(fixture.Dependencies.CrawledRoots, Does.Contain(nonNtfsPath).IgnoreCase);
-            }
+            Assert.That(fixture.Dependencies.CrawledRoots, Is.Empty);
             Assert.That(fixture.OpenedDriveSets, Is.Not.Empty);
         }
         foreach (var drives in fixture.OpenedDriveSets)

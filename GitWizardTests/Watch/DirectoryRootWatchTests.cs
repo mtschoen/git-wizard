@@ -121,7 +121,7 @@ public class DirectoryRootWatchTests
             PackedIndexFixture.Entry(51, 50, ".git", SyntheticJournalReason.FileCreate, directory: true));
 
         var delivered = source.CompleteStartupBuffer().SelectMany(batch => batch.Entries)
-            .Where(entry => entry.FullPath.EndsWith("newrepo\\.git", StringComparison.OrdinalIgnoreCase))
+            .Where(entry => entry.FullPath.EndsWith(Path.Combine("newrepo", ".git"), StringComparison.OrdinalIgnoreCase))
             .ToArray();
         Assert.That(delivered, Has.Length.EqualTo(1));
     }

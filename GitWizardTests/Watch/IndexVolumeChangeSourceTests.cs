@@ -119,6 +119,7 @@ public class IndexVolumeChangeSourceTests
 
     [TestCase(@"Y:\repository")]
     [TestCase(@"\\server\share")]
+    [Platform("Win")]
     public async Task DirectorySpecRequiresAnExactPreparedRootSet(string directory)
     {
         using var files = new PackedIndexFixture();

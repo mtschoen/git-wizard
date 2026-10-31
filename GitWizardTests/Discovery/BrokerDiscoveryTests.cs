@@ -74,7 +74,7 @@ public class BrokerDiscoveryTests
         var calls = 0;
         var paths = new List<string>();
         await using var result = await GitWizardApi.DiscoverRepositoriesWithIndexAsync(
-            new GitWizardConfiguration(), paths, ["/unselected"], [], new IndexDiscoveryComposition(
+            new GitWizardConfiguration(), paths, ["not a drive"], [], new IndexDiscoveryComposition(
                 _ =>
                 {
                     calls++;

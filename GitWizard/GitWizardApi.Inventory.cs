@@ -97,7 +97,7 @@ public static partial class GitWizardApi
 
         var expandedInventory = discoveryResult.Inventory with { Paths = expandedClonePaths };
 
-        var session = discoveryResult.DetachIndexSession();
+        var session = discoveryResult.DetachSession();
         await discoveryResult.DisposeAsync().ConfigureAwait(false);
         return new RepositoryDiscoveryResult(expandedInventory, session);
     }

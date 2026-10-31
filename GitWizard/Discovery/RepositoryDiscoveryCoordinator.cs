@@ -62,7 +62,11 @@ public partial class RepositoryDiscoveryCoordinator
             if (session is not null)
             {
                 accumulator.RecordDriveStatuses(session.CaptureRootStatuses());
-                AddIndexedCandidates(session.IndexSet, accumulator, cancellationToken);
+                var observed = AddIndexedCandidates(session.IndexSet, accumulator, cancellationToken);
+                if (observed is not null)
+                {
+                    StartRepositorySizePass(observed, accumulator, cancellationToken);
+                }
             }
 
             if (session is not null)
@@ -80,7 +84,8 @@ public partial class RepositoryDiscoveryCoordinator
             var inventory = accumulator.BuildInventory(DetermineRoute(session), WatchVolumes(session));
             await PersistAsync(previousList, inventory, cancellationToken).ConfigureAwait(false);
 
-            var result = new RepositoryDiscoveryResult(inventory, session);
+            var result = new RepositoryDiscoveryResult(inventory,
+                new RepositoryDiscoverySession(session, accumulator.RepositorySizes, accumulator.RepositorySizeCancellation));
             session = null;
             return result;
         }
@@ -88,7 +93,8 @@ public partial class RepositoryDiscoveryCoordinator
         {
             if (session is not null)
             {
-                await session.DisposeAsync().ConfigureAwait(false);
+                await new RepositoryDiscoverySession(session, accumulator.RepositorySizes,
+                    accumulator.RepositorySizeCancellation).DisposeAsync().ConfigureAwait(false);
             }
         }
     }
@@ -228,11 +234,11 @@ public partial class RepositoryDiscoveryCoordinator
         }
     }
 
-    void AddIndexedCandidates(FileIndexSet index, DiscoveryAccumulator accumulator, CancellationToken cancellationToken)
+    FileIndexSet? AddIndexedCandidates(FileIndexSet index, DiscoveryAccumulator accumulator, CancellationToken cancellationToken)
     {
         if (accumulator.ObservedDrives.Count == 0)
         {
-            return;
+            return null;
         }
 
         var observed = new FileIndexSet([.. index.Indices.Where(member =>
@@ -246,7 +252,16 @@ public partial class RepositoryDiscoveryCoordinator
             }
         }
 
-        accumulator.RepositorySizes = RepositorySizeCalculator.Compute(observed, [.. accumulator.Paths], cancellationToken);
+        return observed;
+    }
+
+    void StartRepositorySizePass(FileIndexSet observed, DiscoveryAccumulator accumulator, CancellationToken cancellationToken)
+    {
+        var sizeCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        accumulator.RepositorySizeCancellation = sizeCancellation;
+        accumulator.RepositorySizes = Task.Run(
+            () => Dependencies.ComputeRepositorySizes(observed, [.. accumulator.Paths], sizeCancellation.Token),
+            CancellationToken.None);
     }
 
     static IReadOnlyList<string> WatchVolumes(MftIndexSession? session) => session?.ObservedMftVolumes ?? [];

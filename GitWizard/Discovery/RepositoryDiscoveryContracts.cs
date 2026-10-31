@@ -103,17 +103,6 @@ public sealed record DiscoveryInventory
         init => field = Array.AsReadOnly<string>([.. value]);
     } = [];
 
-    /// <summary>
-    /// Bytes under each repository the index sized completely, keyed by repository path. A repository absent
-    /// here (not on an indexed volume, or holding a size the index does not know) is sized by walking it.
-    /// </summary>
-    [JsonIgnore]
-    public IReadOnlyDictionary<string, long> RepositorySizes
-    {
-        get;
-        init => field = new ReadOnlyDictionary<string, long>(new Dictionary<string, long>(value, Watch.WatchPath.StringComparer));
-    } = new ReadOnlyDictionary<string, long>(new Dictionary<string, long>());
-
     [JsonIgnore]
     public bool CanPublishFullInventory => Outcome is
         DiscoveryOutcome.CompleteEmpty or DiscoveryOutcome.CompleteNonempty;

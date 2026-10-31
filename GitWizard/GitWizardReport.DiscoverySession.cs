@@ -6,29 +6,56 @@ namespace GitWizard;
 
 public partial class GitWizardReport
 {
-    MftIndexSession? _discoveryIndex;
+    RepositoryDiscoverySession? _discoverySession;
 
-    // Sizes the last discovery read from the index. Only the Refresh that follows that discovery may use them.
-    IReadOnlyDictionary<string, long>? _indexedSizes;
+    // Only the Refresh that follows discovery may await and use these indexed sizes.
+    Task<IReadOnlyDictionary<string, long>>? _indexedSizes;
 
     /// <summary>Borrowed query access, valid while the report owns the discovery session.</summary>
     [JsonIgnore]
-    public FileIndexSet? DiscoveryIndex => _discoveryIndex?.IndexSet;
+    public FileIndexSet? DiscoveryIndex => _discoverySession?.IndexSession?.IndexSet;
 
-    public MftIndexSession? DetachDiscoveryIndex() => Interlocked.Exchange(ref _discoveryIndex, null);
+    public MftIndexSession? DetachDiscoveryIndex() =>
+        Interlocked.Exchange(ref _discoverySession, null)?.DetachIndexSession();
 
     internal async Task SetDiscoveryIndexAsync(MftIndexSession? nextIndex)
     {
-        var previous = Interlocked.Exchange(ref _discoveryIndex, nextIndex);
-        if (previous is not null && !ReferenceEquals(previous, nextIndex))
+        if (nextIndex is null)
+        {
+            await SetDiscoverySessionAsync(null).ConfigureAwait(false);
+            return;
+        }
+
+        var previous = Interlocked.Exchange(ref _discoverySession, new RepositoryDiscoverySession(nextIndex));
+        if (previous is not null && !ReferenceEquals(previous.IndexSession, nextIndex))
         {
             await previous.DisposeAsync().ConfigureAwait(false);
         }
     }
 
+    internal Task SetDiscoveryResultAsync(RepositoryDiscoveryResult result) =>
+        SetDiscoverySessionAsync(result.DetachSession());
+
+    async Task SetDiscoverySessionAsync(RepositoryDiscoverySession? nextSession)
+    {
+        var previous = Interlocked.Exchange(ref _discoverySession, nextSession);
+        if (previous is not null && !ReferenceEquals(previous, nextSession))
+        {
+            await previous.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    async Task CompleteDiscoverySizesAsync()
+    {
+        if (_discoverySession is { } session)
+        {
+            await session.WaitForRepositorySizesAsync().ConfigureAwait(false);
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
-        await SetDiscoveryIndexAsync(null).ConfigureAwait(false);
+        await SetDiscoverySessionAsync(null).ConfigureAwait(false);
         GC.SuppressFinalize(this);
     }
 
@@ -62,7 +89,7 @@ public partial class GitWizardReport
 
         if (retainDiscoveryIndex)
         {
-            await SetDiscoveryIndexAsync(result.DetachIndexSession()).ConfigureAwait(false);
+            await SetDiscoveryResultAsync(result).ConfigureAwait(false);
         }
         else
         {
@@ -81,7 +108,7 @@ public partial class GitWizardReport
 
         var result = await coordinator.DiscoverAsync(request, updateHandler, cancellationToken).ConfigureAwait(false);
         DiscoveryInventory = result.Inventory;
-        _indexedSizes = result.Inventory.RepositorySizes;
+        _indexedSizes = result.RepositorySizes;
         return result;
     }
 }

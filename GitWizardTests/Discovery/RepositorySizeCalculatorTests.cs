@@ -97,7 +97,8 @@ public class RepositorySizeCalculatorTests
     GitWizardConfiguration Configuration() =>
         new() { SearchPaths = { _files.TreePath }, IncludeTempDirectories = true };
 
-    RepositoryDiscoveryCoordinator CreateCoordinator()
+    RepositoryDiscoveryCoordinator CreateCoordinator(
+        Func<FileIndexSet, IReadOnlyCollection<string>, CancellationToken, IReadOnlyDictionary<string, long>>? computeSizes = null)
     {
         var producer = new SyntheticMftProducer(_ => FullTreeRows())
         {
@@ -106,15 +107,21 @@ public class RepositorySizeCalculatorTests
         };
         var source = SyntheticIndexSource.Create(producer);
         var configureOptions = _files.ConfigureOptions;
-        return new RepositoryDiscoveryCoordinator(RepositoryDiscoveryDependencies.CreateDefault(options =>
-            configureOptions(options) with { CacheMode = CacheMode.Disabled, MftSource = source }));
+        var dependencies = RepositoryDiscoveryDependencies.CreateDefault(options =>
+            configureOptions(options) with { CacheMode = CacheMode.Disabled, MftSource = source });
+        if (computeSizes is not null)
+        {
+            dependencies.ComputeRepositorySizes = computeSizes;
+        }
+
+        return new RepositoryDiscoveryCoordinator(dependencies);
     }
 
-    async Task<DiscoveryInventory> DiscoverAsync(bool walkOnly = false)
+    async Task<(DiscoveryInventory Inventory, IReadOnlyDictionary<string, long> Sizes)> DiscoverAsync(bool walkOnly = false)
     {
         await using var result = await CreateCoordinator().DiscoverAsync(
             new DiscoveryRequest(Configuration(), DiscoveryPurpose.Rebuild, false, walkOnly, []), null, CancellationToken.None);
-        return result.Inventory;
+        return (result.Inventory, await result.RepositorySizes);
     }
 
     string InitializeRepository()
@@ -137,15 +144,15 @@ public class RepositorySizeCalculatorTests
         WriteFile(Path.Combine("solo", "c.txt"), 30);
         WriteFile(Path.Combine("elsewhere", "d.txt"), 40);
 
-        var inventory = await DiscoverAsync();
+        var (_, sizes) = await DiscoverAsync();
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(inventory.RepositorySizes.Keys, Is.EquivalentTo([outer, inner, solo]));
-            Assert.That(inventory.RepositorySizes[outer], Is.EqualTo(GitWizardRepository.ComputeDirectorySize(outer)));
-            Assert.That(inventory.RepositorySizes[inner], Is.EqualTo(GitWizardRepository.ComputeDirectorySize(inner)));
-            Assert.That(inventory.RepositorySizes[solo], Is.EqualTo(GitWizardRepository.ComputeDirectorySize(solo)));
-            Assert.That(inventory.RepositorySizes[outer], Is.EqualTo(700 + 700 + 10 + 20));
+            Assert.That(sizes.Keys, Is.EquivalentTo([outer, inner, solo]));
+            Assert.That(sizes[outer], Is.EqualTo(GitWizardRepository.ComputeDirectorySize(outer)));
+            Assert.That(sizes[inner], Is.EqualTo(GitWizardRepository.ComputeDirectorySize(inner)));
+            Assert.That(sizes[solo], Is.EqualTo(GitWizardRepository.ComputeDirectorySize(solo)));
+            Assert.That(sizes[outer], Is.EqualTo(700 + 700 + 10 + 20));
         }
     }
 
@@ -157,12 +164,12 @@ public class RepositorySizeCalculatorTests
         var sibling = CreateRepositoryDirectory("sibling");
         WriteFile(Path.Combine("outer", "vendor", "inner", UnsizedFileName), 50);
 
-        var inventory = await DiscoverAsync();
+        var (inventory, sizes) = await DiscoverAsync();
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(inventory.Paths, Is.EquivalentTo([outer, inner, sibling]));
-            Assert.That(inventory.RepositorySizes.Keys, Is.EqualTo([sibling]));
+            Assert.That(sizes.Keys, Is.EqualTo([sibling]));
         }
     }
 
@@ -171,12 +178,12 @@ public class RepositorySizeCalculatorTests
     {
         CreateRepositoryDirectory("repo");
 
-        var inventory = await DiscoverAsync(walkOnly: true);
+        var (inventory, sizes) = await DiscoverAsync(walkOnly: true);
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(inventory.Paths, Has.Count.EqualTo(1));
-            Assert.That(inventory.RepositorySizes, Is.Empty);
+            Assert.That(sizes, Is.Empty);
         }
     }
 
@@ -189,7 +196,7 @@ public class RepositorySizeCalculatorTests
         await using var discovery = await report.DiscoverRepositoryPathsAsync(
             new DiscoveryRequest(configuration, DiscoveryPurpose.Rebuild, false, false, []),
             CreateCoordinator(), null, CancellationToken.None);
-        var indexedSize = report.DiscoveryInventory!.RepositorySizes[path];
+        var indexedSize = (await discovery.RepositorySizes)[path];
         WriteFile(Path.Combine("repo", "written-after-discovery.bin"), 5000);
 
         report.Refresh([path]);
@@ -219,5 +226,79 @@ public class RepositorySizeCalculatorTests
         report.Refresh([path], fetchRemotes: true);
 
         Assert.That(report.Repositories[path].SizeOnDisk, Is.EqualTo(GitWizardRepository.ComputeDirectorySize(path)));
+    }
+
+    [Test]
+    public async Task GenerateReport_CreatesRepositoryRowsBeforePendingSizeCompletes()
+    {
+        var path = InitializeRepository();
+        var configuration = Configuration();
+        var sizeStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseSize = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var repositoryCreated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        IReadOnlyDictionary<string, long>? batchSizes = null;
+        var handler = new RecordingUpdateHandler
+        {
+            CreatingRepository = _ => repositoryCreated.TrySetResult()
+        };
+        var reportTask = GitWizardReport.GenerateReportAsync(configuration, null, handler,
+            new GitWizardReportOptions
+            {
+                DiscoveryCoordinator = CreateCoordinator((index, paths, cancellationToken) =>
+                {
+                    batchSizes = RepositorySizeCalculator.Compute(index, paths, cancellationToken);
+                    sizeStarted.TrySetResult();
+                    releaseSize.Task.GetAwaiter().GetResult();
+                    return batchSizes;
+                }),
+                RetainDiscoveryIndex = true,
+                DiscoveryPurpose = DiscoveryPurpose.Rebuild
+            });
+        GitWizardReport report;
+        try
+        {
+            await sizeStarted.Task.WaitAsync(TestTimeouts.HangGuard);
+            await repositoryCreated.Task.WaitAsync(TestTimeouts.HangGuard);
+            Assert.That(reportTask.IsCompleted, Is.False);
+            WriteFile(Path.Combine("repo", "written-after-discovery.bin"), 5000);
+        }
+        finally
+        {
+            releaseSize.TrySetResult();
+            report = await reportTask.WaitAsync(TestTimeouts.HangGuard);
+        }
+
+        await using (report)
+        {
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(batchSizes, Is.Not.Null);
+                Assert.That(report.Repositories[path].SizeOnDisk, Is.EqualTo(batchSizes![path]));
+            }
+        }
+    }
+
+    [Test]
+    public async Task GenerateReport_WhenSizePassFails_WalksTheRepository()
+    {
+        var path = InitializeRepository();
+        var configuration = Configuration();
+        GitWizardReport report = null!;
+        Assert.DoesNotThrowAsync(async () => report = await GitWizardReport.GenerateReportAsync(configuration, null, null,
+            new GitWizardReportOptions
+            {
+                DiscoveryCoordinator = CreateCoordinator((_, _, _) => throw new InvalidDataException("Size pass failed.")),
+                RetainDiscoveryIndex = true,
+                DiscoveryPurpose = DiscoveryPurpose.Rebuild
+            }));
+
+        await using (report)
+        {
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(report.Repositories[path].SizeOnDisk, Is.EqualTo(GitWizardRepository.ComputeDirectorySize(path)));
+                Assert.That(report.Repositories[path].RefreshError, Is.Null);
+            }
+        }
     }
 }

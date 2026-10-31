@@ -210,12 +210,18 @@ public partial class GitWizardReport : IAsyncDisposable
             if (repositoryPaths == null)
             {
                 var discovered = new SortedSet<string>();
-                await report.GetRepositoryPathsAsync(discovered, updateHandler, options.NoMft, options.RetainDiscoveryIndex, options).ConfigureAwait(false);
+                await report.GetRepositoryPathsAsync(discovered, updateHandler, options.NoMft, true, options).ConfigureAwait(false);
                 repositoryPaths = discovered;
             }
 
             var pathsToRefresh = report.DiscoveryInventory is { CanPublishFullInventory: false } ? [.. report.DiscoveryInventory.Paths] : repositoryPaths;
             report.Refresh(pathsToRefresh, updateHandler, options.FetchRemotes, options.DeepRefresh, options.AllBranches, options.ComputeLocalCommitCount);
+            await report.CompleteDiscoverySizesAsync().ConfigureAwait(false);
+            if (!options.RetainDiscoveryIndex)
+            {
+                await report.SetDiscoveryIndexAsync(null).ConfigureAwait(false);
+            }
+
             report.BranchScope = options.AllBranches ? "all" : "actionable";
 
             return report;
@@ -379,9 +385,9 @@ public partial class GitWizardReport : IAsyncDisposable
         }
 
         // A fetch rewrites .git after the index was read, so only a refresh that leaves the files alone may use it.
-        if (!fetchRemotes && _indexedSizes is { } indexedSizes && indexedSizes.TryGetValue(path, out var indexedSize))
+        if (!fetchRemotes && _indexedSizes is { } indexedSizes)
         {
-            repository.OfferIndexedSize(indexedSize);
+            repository.OfferIndexedSizes(indexedSizes, path);
         }
 
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();

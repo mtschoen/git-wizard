@@ -23,6 +23,10 @@ public sealed class RepositoryDiscoveryDependencies
     public required Func<string, RepositoryCandidateKind, bool> CandidateExists { get; init; }
     public required Func<IVolumeChangeSource> CreateLinuxSource { get; init; }
 
+    internal Func<FileIndexSet, IReadOnlyCollection<string>, CancellationToken, IReadOnlyDictionary<string, long>>
+        ComputeRepositorySizes
+    { get; set; } = RepositorySizeCalculator.Compute;
+
     internal Task<MftIndexSession> OpenAsync(DiscoveryScope scope, CacheMode cacheMode,
         IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken)
     {

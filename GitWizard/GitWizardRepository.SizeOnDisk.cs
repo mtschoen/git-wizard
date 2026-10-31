@@ -13,17 +13,32 @@ public partial class GitWizardRepository
         internal set => _sizeOnDisk = value;
     }
 
-    long? _indexedSizeOnDisk;
+    Func<long?>? _indexedSizeOnDisk;
 
-    /// <summary>Hands the next size refresh the bytes the discovery index counted, in place of a directory walk.</summary>
-    internal void OfferIndexedSize(long bytes) => _indexedSizeOnDisk = bytes;
+    /// <summary>Hands the next size phase the pending discovery result, in place of a directory walk.</summary>
+    internal void OfferIndexedSizes(Task<IReadOnlyDictionary<string, long>> sizes, string path) =>
+        _indexedSizeOnDisk = () => sizes.GetAwaiter().GetResult().TryGetValue(path, out var bytes) ? bytes : null;
 
     /// <summary>Takes back an offered size so a later refresh measures the files again.</summary>
     internal long? WithdrawIndexedSize()
     {
         var offered = _indexedSizeOnDisk;
         _indexedSizeOnDisk = null;
-        return offered;
+        if (offered is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return offered();
+        }
+        catch (Exception exception)
+        {
+            GitWizardLog.LogException(exception,
+                $"Exception reading the discovery index size for {WorkingDirectory}; walking the directory instead.");
+            return null;
+        }
     }
 
     /// <summary>Distinguishes an unmeasured repository from a measured zero without changing report JSON.</summary>

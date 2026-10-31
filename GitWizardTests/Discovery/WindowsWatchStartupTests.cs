@@ -65,6 +65,56 @@ public class WindowsWatchStartupTests
     }
 
     [Test]
+    public async Task WatchStartup_DoesNotStartRepositorySizePass()
+    {
+        using var files = new PackedIndexFixture();
+        files.AddMarker("repo");
+        var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
+        var index = await files.OpenMftIndexAsync(scripted, 'X', RootKey.FromDirectory(files.TreePath));
+        var connection = new CountingOwner();
+        var session = new MftIndexSession([index], connection, [files.TreePath], new Dictionary<string, string>());
+        var sizeStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseSize = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
+        {
+            IsWindows = true,
+            IsLinux = false,
+            CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled."),
+            OpenIndexAsync = (_, _, _, _) => Task.FromResult(session),
+            ReadListAsync = _ => Task.FromResult<string[]?>([]),
+            WriteListAsync = (_, _) => Task.CompletedTask,
+            CandidateExists = (_, _) => true,
+            CreateLinuxSource = () => throw new PlatformNotSupportedException(),
+            ComputeRepositorySizes = (_, _, _) =>
+            {
+                sizeStarted.TrySetResult();
+                releaseSize.Task.GetAwaiter().GetResult();
+                return new Dictionary<string, long>();
+            }
+        });
+
+        var config = new GitWizardConfiguration { SearchPaths = { files.TreePath } };
+        var request = new DiscoveryRequest(config, DiscoveryPurpose.Watch, false, false, []);
+        using var cts = new CancellationTokenSource(TestTimeouts.HangGuard);
+
+        try
+        {
+            await using (var startup = await coordinator.PrepareWatchAsync(request, null, cts.Token)
+                .WaitAsync(TestTimeouts.HangGuard))
+            {
+                Assert.That(startup.Inventory.Errors, Is.Empty);
+            }
+
+            Assert.That(sizeStarted.Task.IsCompleted, Is.False);
+        }
+        finally
+        {
+            releaseSize.TrySetResult();
+        }
+    }
+
+    [Test]
     public async Task ReadableOldList_DoesNotSkipIndexOpenOrCatchUp()
     {
         using var files = new PackedIndexFixture();

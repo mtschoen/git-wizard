@@ -62,4 +62,68 @@ public class DiscoveryIndexLifetimeTests
         Assert.That(result.Inventory.RootStatuses, Is.Not.Empty);
         Assert.That(result.Inventory.RootStatuses.Single().Drive, Is.EqualTo("X"));
     }
+
+    [Test]
+    public async Task PendingSizePass_DisposalCancelsBeforeSessionDisposal()
+    {
+        await using var fixture = new IndexOwnerFixture();
+        await fixture.StartAsync();
+        var sizeStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sizeFinished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseSize = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var owner = fixture.Owner;
+        var disposalsAtSizeCompletion = -1;
+        var dependencies = new RepositoryDiscoveryDependencies
+        {
+            IsWindows = true,
+            IsLinux = false,
+            CrawlRootAsync = (_, _, _) => Task.FromResult(new RecursiveDiscovery([], [], new Dictionary<string, string>())),
+            OpenIndexAsync = (_, _, _, _) => Task.FromResult(owner),
+            ReadListAsync = _ => Task.FromResult<string[]?>(null),
+            WriteListAsync = (_, _) => Task.CompletedTask,
+            CandidateExists = (_, _) => true,
+            CreateLinuxSource = () => throw new PlatformNotSupportedException(),
+            ComputeRepositorySizes = (_, _, cancellationToken) =>
+            {
+                sizeStarted.TrySetResult();
+                try
+                {
+                    using var cancellationRegistration = cancellationToken.Register(() => releaseSize.TrySetResult());
+                    releaseSize.Task.GetAwaiter().GetResult();
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return new Dictionary<string, long>();
+                }
+                finally
+                {
+                    disposalsAtSizeCompletion = owner.IsDisposed ? 1 : 0;
+                    sizeFinished.TrySetResult();
+                }
+            }
+        };
+        var coordinator = new RepositoryDiscoveryCoordinator(dependencies);
+        var searchRoot = fixture.Owner.Indices.Single().Root().Path;
+        var configuration = new GitWizardConfiguration { SearchPaths = { searchRoot } };
+        var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, false, []);
+        var discoveryTask = Task.Run(() => coordinator.DiscoverAsync(request, null, CancellationToken.None));
+        RepositoryDiscoveryResult? result = null;
+        try
+        {
+            await sizeStarted.Task.WaitAsync(TestTimeouts.HangGuard);
+            result = await discoveryTask.WaitAsync(TestTimeouts.HangGuard);
+            var disposalTask = result.DisposeAsync().AsTask();
+            await sizeFinished.Task.WaitAsync(TestTimeouts.HangGuard);
+            await disposalTask.WaitAsync(TestTimeouts.HangGuard);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(disposalsAtSizeCompletion, Is.Zero);
+                Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
+            }
+        }
+        finally
+        {
+            releaseSize.TrySetResult();
+            result ??= await discoveryTask.WaitAsync(TestTimeouts.HangGuard);
+            await result.DisposeAsync();
+        }
+    }
 }

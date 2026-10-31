@@ -24,7 +24,10 @@ provider so inventory tests can supply owned clone directories.
 MFTLib owns alias resolution. GitWizard reads opened indexes' root paths and projects
 configured admission policy into those coordinates. It does not resolve junctions,
 symbolic links, mounted folders or substituted drives independently. Root keys remain
-the caller's keys even when result paths use the resolved spelling.
+the caller's keys even when result paths use the resolved spelling. Status lookup uses
+the configured key, but a successful root observation names the resolved root, so a
+partial reconciliation prunes a stale resolved path that the root rescanned. A failed
+observation keeps the configured root, and saved entries under it are retained.
 
 Directory-root volume identity comes from watch notifications and checkpoint-loss
 observations. A configured path's letter is not a volume resolver. Each supported view

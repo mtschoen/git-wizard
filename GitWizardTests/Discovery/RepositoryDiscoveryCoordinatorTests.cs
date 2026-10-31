@@ -23,7 +23,7 @@ public class RepositoryDiscoveryCoordinatorTests
         { Producer = ProducerKind.Enumeration };
         var accumulator = new DiscoveryAccumulator(scope, new List<string>());
         accumulator.RecordDriveStatuses([new MftRootStatus(files.TreePath, status, null)]);
-        accumulator.AddIndexedObservations(scope.SearchRoots, false, DiscoverySource.Scan, null);
+        accumulator.AddIndexedObservations(false, DiscoverySource.Scan, null);
 
         var inventory = accumulator.BuildInventory(DiscoveryRoute.RecursiveOnly, []);
 
@@ -41,7 +41,7 @@ public class RepositoryDiscoveryCoordinatorTests
         var accumulator = new DiscoveryAccumulator(scope, new List<string> { repository });
 
         accumulator.RecordDriveStatuses([ReadyStatus(driveKey, RootKeyProjection.ParseRootKeys([indexRoot]).Single())]);
-        accumulator.AddIndexedObservations(scope.SearchRoots, false, DiscoverySource.Snapshot, null);
+        accumulator.AddIndexedObservations(false, DiscoverySource.Snapshot, null);
         var inventory = accumulator.BuildInventory(DiscoveryRoute.Indexed, []);
 
         using (Assert.EnterMultipleScope())
@@ -61,7 +61,7 @@ public class RepositoryDiscoveryCoordinatorTests
         var failed = ReadyStatus("D", RootKeyProjection.ParseRootKeys([@"d:\"]).Single()) with { IndexStatus = null };
         accumulator.RecordDriveStatuses([ReadyStatus("C", RootKeyProjection.ParseRootKeys([@"c:\"]).Single()), failed]);
         accumulator.RescannedDrives.Add("C");
-        accumulator.AddIndexedObservations(scope.SearchRoots, false, DiscoverySource.Snapshot, null);
+        accumulator.AddIndexedObservations(false, DiscoverySource.Snapshot, null);
 
         var observations = accumulator.Observations;
 

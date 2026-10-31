@@ -76,8 +76,8 @@ public partial class RepositoryDiscoveryCoordinator
                 startupBatches = ReconcileBufferedBatches(source, accumulator, cancellationToken);
             }
 
-            accumulator.AddIndexedObservations(scope.SearchRoots, false, DiscoverySource.Replay, null);
-            accumulator.AddIndexedObservations(scope.RetainedRoots, true, DiscoverySource.Replay, null);
+            accumulator.AddIndexedObservations(false, DiscoverySource.Replay, null);
+            accumulator.AddIndexedObservations(true, DiscoverySource.Replay, null);
             accumulator.AddExpansionErrorObservations();
             var inventory = accumulator.BuildInventory(DetermineRoute(source?.Session), WatchVolumes(source?.Session));
             await PersistAsync(previousList, inventory, cancellationToken).ConfigureAwait(false);

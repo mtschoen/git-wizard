@@ -71,8 +71,8 @@ public partial class RepositoryDiscoveryCoordinator
 
             if (session is not null)
             {
-                accumulator.AddIndexedObservations(scope.SearchRoots, false, DiscoverySource.Snapshot, updateHandler);
-                accumulator.AddIndexedObservations(scope.RetainedRoots, true, DiscoverySource.Snapshot, null);
+                accumulator.AddIndexedObservations(false, DiscoverySource.Snapshot, updateHandler);
+                accumulator.AddIndexedObservations(true, DiscoverySource.Snapshot, null);
             }
 
             if (!Dependencies.IsWindows)

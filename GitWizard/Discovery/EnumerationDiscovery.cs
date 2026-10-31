@@ -80,9 +80,9 @@ static class EnumerationDiscovery
                     return Failed(paths, failedSubtrees, errors, expandedRoot,
                         $"{block.AccessDeniedSubtreeCount} subtree(s) under {expandedRoot} could not be entered.");
             }
-        }
 
-        return new RecursiveDiscovery(paths, failedSubtrees, errors);
+            return new RecursiveDiscovery(paths, failedSubtrees, errors) { ResolvedRoot = index.Root(cancellationToken).Path };
+        }
     }
 
     // The index matches names case-insensitively, so the filesystem confirms what the index selected. An

@@ -52,10 +52,17 @@ sealed class DiscoveryAccumulator
         }
     }
 
-    public void AddIndexedObservations(
-        IEnumerable<string> roots, bool exactRoot, DiscoverySource unrescannedSource, IUpdateHandler? snapshotUpdates)
+    /// <summary>
+    /// Adds one observation per configured search root, or per retained root when <paramref name="exactRoot" /> is set.
+    /// Status lookup uses the configured root, but a successful observation names the matching
+    /// <see cref="CandidateScope" /> root: its coverage must be in the resolved coordinates the inventory paths use,
+    /// or reconciliation could not recognize a resolved entry as rescanned.
+    /// </summary>
+    public void AddIndexedObservations(bool exactRoot, DiscoverySource unrescannedSource, IUpdateHandler? snapshotUpdates)
     {
-        foreach (var root in roots)
+        var configuredRoots = exactRoot ? Scope.RetainedRoots : Scope.SearchRoots;
+        var resolvedRoots = exactRoot ? CandidateScope.RetainedRoots : CandidateScope.SearchRoots;
+        foreach (var (root, resolvedRoot) in configuredRoots.Zip(resolvedRoots))
         {
             var indexedRoot = Scope.IndexRoots.Contains(root, WatchPath.StringComparer) ? root :
                 Scope.SearchRoots.FirstOrDefault(search => WatchPath.Parse(root).IsUnderOrEqual(WatchPath.Parse(search))) ?? root;
@@ -78,7 +85,8 @@ sealed class DiscoveryAccumulator
                 snapshotUpdates?.SendUpdateMessage($"Using index snapshot for {root}: (scan timestamp {timestamp.Value:O}; may be stale)");
             }
 
-            Observations.Add(new RootObservation(root, exactRoot, isSuccess, source, timestamp, error));
+            Observations.Add(new RootObservation(
+                isSuccess ? resolvedRoot : root, exactRoot, isSuccess, source, timestamp, error));
         }
     }
 
@@ -103,7 +111,8 @@ sealed class DiscoveryAccumulator
 
         var isComplete = crawlResult.Errors.Count == 0 && crawlResult.FailedSubtrees.Count == 0;
         var crawlError = isComplete ? null : crawlResult.Errors.GetValueOrDefault(root);
-        Observations.Add(new RootObservation(root, false, isComplete, source, null, crawlError));
+        var observedRoot = isComplete ? crawlResult.ResolvedRoot ?? root : root;
+        Observations.Add(new RootObservation(observedRoot, false, isComplete, source, null, crawlError));
 
         foreach (var failedSubtree in crawlResult.FailedSubtrees)
         {

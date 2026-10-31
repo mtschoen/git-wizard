@@ -119,4 +119,10 @@ public sealed record RecursiveDiscovery(
 
     public IReadOnlyDictionary<string, string> Errors { get; } = new ReadOnlyDictionary<string, string>(
         new Dictionary<string, string>(Errors));
+
+    /// <summary>
+    /// The final path the walked root resolved to, when the walk completed; the discovered paths are under it.
+    /// Null when the crawl did not report one, in which case the configured root is its coverage.
+    /// </summary>
+    public string? ResolvedRoot { get; init; }
 }

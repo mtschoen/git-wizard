@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text.RegularExpressions;
 using GitWizard;
 
 namespace GitWizardTests;
@@ -48,11 +50,10 @@ public class GitWizardLogFlushTests
         var files = Directory.GetFiles(GitWizardApi.GetLogFolderPath(), "GitWizardLog_*.log");
         var contents = string.Join(Environment.NewLine,
             await Task.WhenAll(files.Select(path => File.ReadAllTextAsync(path))));
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(contents, Does.Contain($"flush-{token}-0"));
-            Assert.That(contents, Does.Contain($"flush-{token}-{QueuedRecordCount - 1}"));
-        }
+        var written = Regex.Matches(contents, $@"flush-{token}-(\d+)")
+            .Select(match => int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture));
+        Assert.That(written, Is.EquivalentTo(Enumerable.Range(0, QueuedRecordCount)),
+            "Every queued record must be written exactly once.");
     }
 
     [Test]

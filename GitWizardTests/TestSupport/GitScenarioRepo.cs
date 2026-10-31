@@ -116,6 +116,41 @@ internal sealed class GitScenarioRepo : IDisposable
         return repository.Stashes.Select(stash => stash.Message).ToList();
     }
 
+    /// <summary>Every direct ref whose canonical name starts with <paramref name="prefix"/>, mapped to its target SHA.</summary>
+    public Dictionary<string, string> RefTargets(string prefix)
+    {
+        using var repository = new Repository(Path);
+        return repository.Refs
+            .Where(reference => reference.CanonicalName.StartsWith(prefix, StringComparison.Ordinal))
+            .ToDictionary(reference => reference.CanonicalName, reference => reference.TargetIdentifier, StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// Install a reference-transaction hook that aborts every transaction touching
+    /// <c>refs/stash</c>, so <c>git stash store</c> fails while <c>git stash drop</c> (a reflog
+    /// rewrite) still succeeds.
+    /// </summary>
+    public static void RejectStashRefUpdates(string repositoryPath)
+    {
+        var hooks = System.IO.Path.Combine(repositoryPath, ".git", "hooks");
+        Directory.CreateDirectory(hooks);
+        var hookPath = System.IO.Path.Combine(hooks, "reference-transaction");
+        string[] script =
+        [
+            "#!/bin/sh",
+            "if grep -q ' refs/stash$' && [ \"$1\" = prepared ]; then",
+            "  echo 'test hook rejects refs/stash' >&2",
+            "  exit 1",
+            "fi",
+            "exit 0"
+        ];
+        File.WriteAllText(hookPath, string.Join('\n', script) + "\n");
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(hookPath, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+    }
+
     public void Dispose()
     {
         foreach (var directory in _directories)

@@ -14,7 +14,7 @@ Scan, organize, and manage all the git repositories on your machine. Find duplic
 - **Repository sizes** appear beside every row after measurement, with totals on group headers
 - **Search** to quickly find repos by path
 - **Deep refresh** per repo with remote fetch and index update
-- **Clean** per repo - rows show a badge such as `3 merged · 2 stashes · 1 local-only` (refresh checks ancestry and identical content only); Clean runs the full check, including squash and rebase merges, confirms and deletes merged branches, logs a restore command for each deleted branch, and reports merged stashes (stashes are report-only) with manual verify-and-drop commands in the log
+- **Clean** per repo - rows show a badge such as `3 merged · 2 stashes · 1 local-only` (refresh checks ancestry and identical content only); Clean runs the full check, including squash and rebase merges, confirms, then deletes merged branches and drops merged stashes, logging a restore command for each one. Before dropping, every stash is archived under `refs/git-wizard/stash-archive/<sha>`, so a stash list that changes mid-run cannot lose an unmerged stash ([prune output](docs/report-schema.md#prune-output-prune) explains the archive refs and restoring)
 - **Live mode** - opt-in repository monitoring (Windows USN journal, Linux fanotify with kernel 5.9+) updates changed, created, deleted, and renamed repositories after one elevation prompt
 - **Cross-platform desktop** - Avalonia app runs natively on Windows, macOS, and Linux; library and CLI run everywhere
 
@@ -269,9 +269,13 @@ git-wizard branches --not-merged main
 # (for a complete pre-wipe audit including dirty files and repos with no remote, use git-wizard --sweep)
 git-wizard branches --local-only
 
-# List branches and stashes whose changes are already in the default branch (dry run), then delete merged branches (stashes are report-only)
+# List branches and stashes whose changes are already in the default branch (dry run), then delete merged branches and drop merged stashes
 git-wizard prune
 git-wizard prune --apply
+
+# Restore a dropped stash from the restore command prune printed; the SHA stays reachable from
+# refs/git-wizard/stash-dropped/<sha> until the next prune --apply, even after git gc
+git -C /path/to/repo stash store -m 'On main: wip' <sha>
 ```
 
 #### Example: Reap tag fleet-wide and prove nothing is left

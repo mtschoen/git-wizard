@@ -9,11 +9,11 @@ namespace GitWizard;
 [Serializable]
 public sealed class PruneReport
 {
-    public const string CurrentSchemaVersion = "1.0";
+    public const string CurrentSchemaVersion = "1.1";
 
     public string SchemaVersion { get; set; } = CurrentSchemaVersion;
 
-    /// <summary>False for a dry run (nothing deleted); true when branch deletions were attempted.</summary>
+    /// <summary>False for a dry run (nothing deleted); true when branch and stash deletions were attempted.</summary>
     public bool Applied { get; set; }
 
     public List<PruneCandidate> Candidates { get; set; } = new();
@@ -32,7 +32,6 @@ public sealed class PruneCandidate
     public const string StashKind = "stash";
     public const string WouldDelete = "would-delete";
     public const string Deleted = "deleted";
-    public const string ManualDrop = "manual-drop";
     public const string Skipped = "skipped";
 
     public string Repository { get; set; } = string.Empty;
@@ -48,7 +47,7 @@ public sealed class PruneCandidate
     /// <summary>The <see cref="GitWizard.MergedBy"/> tier, or null when not merged.</summary>
     public string? MergedBy { get; set; }
 
-    /// <summary><see cref="WouldDelete"/>, <see cref="Deleted"/>, <see cref="ManualDrop"/> or <see cref="Skipped"/>.</summary>
+    /// <summary><see cref="WouldDelete"/>, <see cref="Deleted"/> or <see cref="Skipped"/>.</summary>
     public string Action { get; set; } = Skipped;
 
     /// <summary>Why the candidate was skipped (see <see cref="PruneSkipReasons"/>); null otherwise.</summary>
@@ -84,14 +83,29 @@ public static class PruneSkipReasons
     public const string SymbolicRef = "symbolic-ref";
     public const string DeleteFailed = "delete-failed";
     public const string NotConfirmed = "not-confirmed";
+
+    /// <summary>
+    /// <c>git stash drop</c> removed a different entry than the inspected one, or its output did
+    /// not name the dropped SHA; every entry it removed was stored back.
+    /// </summary>
+    public const string StashMismatch = "stash-mismatch";
+
+    /// <summary>The inspected stash was no longer in the stash list when its drop was due.</summary>
+    public const string StashMissing = "stash-missing";
+
+    /// <summary>
+    /// An earlier stash in the same repository could not be archived, listed or restored, so no
+    /// further stash in that repository was dropped (the repository error says why).
+    /// </summary>
+    public const string StashDropsStopped = "stash-drops-stopped";
 }
 
 /// <summary>
-/// What a prune run considers and whether it deletes eligible branches.
+/// What a prune run considers and whether it deletes eligible branches and drops eligible stashes.
 /// </summary>
 /// <param name="Branches">Consider local branches.</param>
-/// <param name="Stashes">Consider stashes (report-only; stashes are never dropped automatically).</param>
-/// <param name="Apply">Delete eligible branches; false is a dry run.</param>
+/// <param name="Stashes">Consider stashes.</param>
+/// <param name="Apply">Delete eligible branches and drop eligible stashes; false is a dry run.</param>
 /// <param name="BaseBranchName">Explicit base branch; null resolves each repository's default.</param>
 /// <param name="OnlyShas">
 /// When set, only branches and stashes whose SHA is listed are eligible; every other one is
@@ -105,5 +119,15 @@ public sealed record PruneOptions(
     string? BaseBranchName = null,
     IReadOnlySet<string>? OnlyShas = null)
 {
+    /// <summary>
+    /// Runs immediately before each branch deletion and each <c>git stash drop</c>, after the
+    /// last inspection, so tests can change the repository inside the race window.
+    /// </summary>
     internal Action<PruneCandidate>? BeforeDelete { get; init; }
+
+    /// <summary>
+    /// Replaces the result of each <c>git stash drop</c> before it is parsed, so tests can feed
+    /// output git does not normally print.
+    /// </summary>
+    internal Func<GitCliResult, GitCliResult>? AfterStashDrop { get; init; }
 }

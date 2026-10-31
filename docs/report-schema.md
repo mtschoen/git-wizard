@@ -260,11 +260,11 @@ The automation-focused sweep is a separate contract from the cached report above
 
 ## Prune output (`prune`)
 
-`git-wizard prune` uses the same base-branch resolution and merge tiers as `branches`. It is a dry run unless `--apply` is passed. `--branches` / `--stashes` limit it to one kind; neither means both. Stashes are report-only in both dry-run and `--apply` modes and are never dropped automatically. Linked worktrees are handled once with their main checkout.
+`git-wizard prune` uses the same base-branch resolution and merge tiers as `branches`. It is a dry run unless `--apply` is passed. `--branches` / `--stashes` limit it to one kind; neither means both. With `--apply` it deletes merged branches and drops merged stashes. Linked worktrees are handled once with their main checkout.
 
 ```json
 {
-  "SchemaVersion": "1.0",
+  "SchemaVersion": "1.1",
   "Applied": false,
   "Candidates": [
     {
@@ -282,17 +282,29 @@ The automation-focused sweep is a separate contract from the cached report above
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `SchemaVersion` | `string` | Contract version, currently `"1.0"` |
+| `SchemaVersion` | `string` | Contract version, currently `"1.1"` |
 | `Applied` | `bool` | True when `--apply` was passed |
 | `Kind` | `string` | `branch` or `stash` |
 | `Name` | `string` | Branch name, or `stash@{n}` |
 | `MergedBy` | `string` | Tier from the branch inventory; null when unmerged |
-| `Action` | `string` | `would-delete`, `deleted`, `manual-drop` (merged stashes, which are report-only) or `skipped` |
-| `SkipReason` | `string` | `not-merged`, `base-branch`, `checked-out`, `checked-out-in-worktree`, `worktree-list-failed`, `symbolic-ref`, `delete-failed` or `not-confirmed` (library callers that restrict a run to confirmed SHAs, such as the UI's Clean button; the CLI never emits it) |
+| `Action` | `string` | `would-delete`, `deleted` or `skipped` |
+| `SkipReason` | `string` | `not-merged`, `base-branch`, `checked-out`, `checked-out-in-worktree`, `worktree-list-failed`, `symbolic-ref`, `delete-failed`, `not-confirmed` (library callers that restrict a run to confirmed SHAs, such as the UI's Clean button; the CLI never emits it), `stash-mismatch` (`git stash drop` removed another entry or did not name the dropped SHA; what it removed was stored back), `stash-missing` (the stash left the list before its drop) or `stash-drops-stopped` (an earlier stash in the repository could not be archived, listed or restored, so no further stash there was dropped) |
 | `Message` | `string` | Stash message (stashes only) |
-| `Errors` | `object[]` | Repositories that could not be inspected (`Repository`, `Error`) |
+| `Errors` | `object[]` | Repositories that could not be inspected, and repositories where a stash could not be archived, listed or stored back (`Repository`, `Error`; a failed restore names the archive ref that keeps the stash) |
 
-Immediately before deleting a branch, `prune --apply` re-reads the main checkout's `HEAD` and `git worktree list --porcelain` and skips the branch (`checked-out`) if any checkout or worktree now has it checked out, then deletes with `git update-ref --no-deref -d refs/heads/<name> <sha>` (matching the inspected tip SHA without dereferencing symbolic refs) followed by best-effort cleanup of `branch.<name>.*` config. Symbolic refs under `refs/heads/*` are skipped during inventory (`symbolic-ref`). Each branch deletion prints a restore command (`git -C '<repo>' branch '<name>' <sha>`) to stderr. Merged stashes are report-only and never dropped automatically; in both dry-run and `--apply`, they report `manual-drop` and print `git -C '<repo>' stash list --format='%H %gd' | grep '^<sha> '` followed by `git -C '<repo>' stash drop <stash@{n}>` to stderr.
+Immediately before deleting a branch, `prune --apply` re-reads the main checkout's `HEAD` and `git worktree list --porcelain` and skips the branch (`checked-out`) if any checkout or worktree now has it checked out, then deletes with `git update-ref --no-deref -d refs/heads/<name> <sha>` (matching the inspected tip SHA without dereferencing symbolic refs) followed by best-effort cleanup of `branch.<name>.*` config. Symbolic refs under `refs/heads/*` are skipped during inventory (`symbolic-ref`). Each branch deletion prints a restore command (`git -C '<repo>' branch '<name>' <sha>`) to stderr.
+
+### Stash archive refs
+
+git addresses a stash only by its position in the `refs/stash` reflog, so a `git stash push` between inspection and `git stash drop stash@{n}` would make the drop remove a different stash. `prune --apply` therefore never trusts a position:
+
+1. Before any drop in a repository it creates `refs/git-wizard/stash-archive/<sha>` for every stash entry with `git update-ref <ref> <sha> ""` (create-only). An existing archive ref for the same commit, left by an earlier run, counts as archived. Every stash commit is then reachable whatever happens to the reflog.
+2. It drops merged stashes highest index first. Immediately before each drop it re-reads `git stash list`, archives any new entry, and drops the candidate's current position. It then parses the SHA in git's `Dropped stash@{n} (<sha>)` line; output with no SHA is a mismatch, never success.
+3. On a mismatch it stores back, with `git stash store -m '<original message>' <sha>`, every entry that was listed before the drop and is gone now, checks each is listed again, and reports the candidate `stash-mismatch`. If a restore fails it reports a repository error naming the archive ref and drops no further stash in that repository.
+4. At the end of the run, the archive ref of each confirmed, dropped stash moves to `refs/git-wizard/stash-dropped/<sha>`, and each archive ref this run created for a stash that is still listed is deleted. Every other archive ref stays, and the run prints a restore hint for each one whose stash is not listed (dry runs print these hints too).
+5. The next `--apply` run that considers stashes deletes every `refs/git-wizard/stash-dropped/*` ref before it drops anything. Until then the dropped stash survives `git gc`; this is the undo window.
+
+Each confirmed drop prints `Dropped stash@{n} (<sha>); restore with: git -C '<repo>' stash store -m '<message>' <sha> (refs/git-wizard/stash-dropped/<sha> keeps it until the next prune --apply)` to stderr. Each archive ref left behind prints `Stash <sha> is not in the stash list; refs/git-wizard/stash-archive/<sha> keeps it. Restore with: git -C '<repo>' stash store -m '<message>' <sha> && git -C '<repo>' update-ref -d refs/git-wizard/stash-archive/<sha>`. To list every archived or recently dropped stash by hand, run `git for-each-ref refs/git-wizard/`. Delete an archive ref with `git update-ref -d <ref>` once its stash is restored or no longer wanted.
 
 ## Branch inventory output (`branches`)
 

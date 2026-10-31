@@ -4,8 +4,9 @@ using GitWizardTests.TestSupport;
 namespace GitWizardTests;
 
 /// <summary>
-/// <see cref="Pruner"/> dry-run and apply behavior, branch deletion safety guards, and report-only
-/// stash handling, all against throwaway repositories.
+/// <see cref="Pruner"/> dry-run and apply behavior, branch deletion safety guards, and stash
+/// dropping through archive refs (including injected races and failures), all against throwaway
+/// repositories.
 /// </summary>
 [TestFixture]
 public class PrunerTests
@@ -40,20 +41,19 @@ public class PrunerTests
 
         var report = Pruner.Run([scenario.Path], new PruneOptions(), hints);
 
-        var quotedPath = Pruner.ShellQuote(scenario.Path);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(report.Applied, Is.False);
-            Assert.That(report.SchemaVersion, Is.EqualTo("1.0"));
+            Assert.That(report.SchemaVersion, Is.EqualTo("1.1"));
             Assert.That(Find(report, "feature").Action, Is.EqualTo(PruneCandidate.WouldDelete));
             Assert.That(Find(report, "feature").MergedBy, Is.EqualTo(MergedBy.Squash));
-            Assert.That(Find(report, "stash@{0}").Action, Is.EqualTo(PruneCandidate.ManualDrop));
+            Assert.That(Find(report, "stash@{0}").Action, Is.EqualTo(PruneCandidate.WouldDelete));
             Assert.That(Find(report, "stash@{0}").Kind, Is.EqualTo(PruneCandidate.StashKind));
             Assert.That(Find(report, "main").SkipReason, Is.EqualTo(PruneSkipReasons.BaseBranch));
             Assert.That(scenario.HasBranch("feature"), Is.True);
             Assert.That(scenario.StashShas(), Is.EqualTo(stashesBefore));
-            Assert.That(hints.ToString(), Does.Contain($"git -C {quotedPath} stash list --format='%H %gd' | grep '^{stashesBefore[0]} '")
-                .And.Contain($"git -C {quotedPath} stash drop stash@{{0}}"));
+            Assert.That(scenario.RefTargets("refs/git-wizard/"), Is.Empty, "A dry run writes no archive refs.");
+            Assert.That(hints.ToString(), Is.Empty);
         }
     }
 
@@ -152,37 +152,6 @@ public class PrunerTests
     }
 
     [Test]
-    public void Apply_ReportsMergedStashesForManualDropAndLeavesEveryStashInPlace()
-    {
-        using var scenario = GitScenarioRepo.Create();
-        StashLandedEdit(scenario, "first.txt", "first");
-        scenario.Write("base.txt", "never landed");
-        scenario.Git("stash", "push", "-q", "-m", "unmerged");
-        StashLandedEdit(scenario, "third.txt", "third");
-        var stashes = scenario.StashShas();
-        using var hints = new StringWriter();
-
-        var report = Pruner.Run([scenario.Path], new PruneOptions(Branches: false, Apply: true), hints);
-
-        var quotedPath = Pruner.ShellQuote(scenario.Path);
-        var hintOutput = hints.ToString();
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(report.Candidates.Select(candidate => candidate.Action), Is.EqualTo([
-                PruneCandidate.ManualDrop, PruneCandidate.Skipped, PruneCandidate.ManualDrop
-            ]));
-            Assert.That(Find(report, "stash@{1}").SkipReason, Is.EqualTo(PruneSkipReasons.NotMerged));
-            Assert.That(scenario.StashShas(), Is.EqualTo(stashes));
-            Assert.That(hintOutput, Does.Contain($"git -C {quotedPath} stash list --format='%H %gd' | grep '^{stashes[0]} '")
-                .And.Contain($"git -C {quotedPath} stash drop stash@{{0}}"));
-            Assert.That(hintOutput, Does.Contain($"git -C {quotedPath} stash list --format='%H %gd' | grep '^{stashes[2]} '")
-                .And.Contain($"git -C {quotedPath} stash drop stash@{{2}}"));
-            Assert.That(hintOutput, Does.Not.Contain(stashes[1]));
-            Assert.That(report.Candidates.Any(candidate => candidate.Kind == PruneCandidate.BranchKind), Is.False);
-        }
-    }
-
-    [Test]
     public void Apply_RestoreHint_IsShellSafeForSingleQuoteInBranchName()
     {
         using var scenario = CreateWithSquashMergedBranch("it's-merged");
@@ -214,6 +183,181 @@ public class PrunerTests
 
         Assert.That(report.Candidates.Count(candidate => candidate.Name == "feature"), Is.EqualTo(1));
     }
+
+    const string ArchivePrefix = "refs/git-wizard/stash-archive/";
+    const string DroppedPrefix = "refs/git-wizard/stash-dropped/";
+
+    /// <summary>A merged stash at <c>stash@{1}</c> under an unmerged one at <c>stash@{0}</c>.</summary>
+    static GitScenarioRepo CreateWithMergedStashUnderUnmergedStash(out string mergedSha, out string unmergedSha)
+    {
+        var scenario = GitScenarioRepo.Create();
+        StashLandedEdit(scenario, "landed.txt", "landed");
+        scenario.Write("base.txt", "never landed");
+        scenario.Git("stash", "push", "-q", "-m", "unmerged");
+        var shas = scenario.StashShas();
+        unmergedSha = shas[0];
+        mergedSha = shas[1];
+        return scenario;
+    }
+
+    static void PushStash(string repositoryPath, string content, string message)
+    {
+        File.WriteAllText(Path.Combine(repositoryPath, "base.txt"), content);
+        TempRepoFixture.RunGit(repositoryPath, "stash", "push", "-q", "-m", message);
+    }
+
+    [Test]
+    public void Apply_DropsMergedStashesHighestIndexFirstAndKeepsAnUndoWindowUntilTheNextRun()
+    {
+        using var scenario = GitScenarioRepo.Create();
+        StashLandedEdit(scenario, "first.txt", "first");
+        scenario.Write("base.txt", "never landed");
+        scenario.Git("stash", "push", "-q", "-m", "unmerged");
+        StashLandedEdit(scenario, "third.txt", "third");
+        var stashes = scenario.StashShas();
+        var droppedOrder = new List<string>();
+        using var hints = new StringWriter();
+
+        var report = Pruner.Run([scenario.Path], new PruneOptions(Branches: false, Apply: true)
+        {
+            BeforeDelete = candidate => droppedOrder.Add(candidate.Name)
+        }, hints);
+
+        var quotedPath = Pruner.ShellQuote(scenario.Path);
+        var hintOutput = hints.ToString();
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(report.Candidates.Select(candidate => candidate.Action), Is.EqualTo([
+                PruneCandidate.Deleted, PruneCandidate.Skipped, PruneCandidate.Deleted
+            ]));
+            Assert.That(droppedOrder, Is.EqualTo(["stash@{2}", "stash@{0}"]));
+            Assert.That(Find(report, "stash@{1}").SkipReason, Is.EqualTo(PruneSkipReasons.NotMerged));
+            Assert.That(report.Errors, Is.Empty);
+            Assert.That(scenario.StashShas(), Is.EqualTo([stashes[1]]));
+            Assert.That(scenario.RefTargets(ArchivePrefix), Is.Empty, "The unmerged stash is still listed, so its archive ref is released.");
+            Assert.That(scenario.RefTargets(DroppedPrefix), Is.EquivalentTo(new Dictionary<string, string>
+            {
+                [DroppedPrefix + stashes[0]] = stashes[0],
+                [DroppedPrefix + stashes[2]] = stashes[2]
+            }));
+            Assert.That(hintOutput, Does.Contain($"Dropped stash@{{2}} ({stashes[2]}); restore with: git -C {quotedPath} stash store -m 'On main: stash first.txt' {stashes[2]}"));
+            Assert.That(hintOutput, Does.Contain($"Dropped stash@{{0}} ({stashes[0]}); restore with: git -C {quotedPath} stash store -m 'On main: stash third.txt' {stashes[0]}"));
+            Assert.That(hintOutput, Does.Not.Contain(stashes[1]));
+        }
+
+        // The undo window survives garbage collection, then the next stash-pruning apply run ends it.
+        scenario.Git("gc", "-q", "--prune=now");
+        scenario.Git("stash", "store", "-m", "On main: stash first.txt", stashes[2]);
+        var nextReport = Pruner.Run([scenario.Path], new PruneOptions(Branches: false, Apply: true, OnlyShas: new HashSet<string>()), TextWriter.Null);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(nextReport.Candidates.All(candidate => candidate.SkipReason == PruneSkipReasons.NotConfirmed), Is.True);
+            Assert.That(scenario.StashShas(), Is.EqualTo([stashes[2], stashes[1]]));
+            Assert.That(scenario.RefTargets(DroppedPrefix), Is.Empty);
+            Assert.That(scenario.RefTargets(ArchivePrefix), Is.Empty);
+        }
+    }
+
+    [Test]
+    public void Apply_ConcurrentStashPushBeforeDrop_KeepsTheUnmergedStashListed()
+    {
+        using var scenario = CreateWithMergedStashUnderUnmergedStash(out var mergedSha, out var unmergedSha);
+        var scenarioPath = scenario.Path;
+        using var hints = new StringWriter();
+        var options = new PruneOptions(Branches: false, Apply: true)
+        {
+            BeforeDelete = _ => PushStash(scenarioPath, "pushed during prune", "concurrent")
+        };
+
+        var report = Pruner.Run([scenario.Path], options, hints);
+
+        var stashes = scenario.StashShas();
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(stashes, Does.Contain(unmergedSha), "The drop hit the unmerged stash; it must be stored back.");
+            Assert.That(stashes, Does.Contain(mergedSha));
+            Assert.That(stashes, Has.Count.EqualTo(3));
+            Assert.That(Find(report, "stash@{1}").Action, Is.EqualTo(PruneCandidate.Skipped));
+            Assert.That(Find(report, "stash@{1}").SkipReason, Is.EqualTo(PruneSkipReasons.StashMismatch));
+            Assert.That(report.Errors, Is.Empty);
+            Assert.That(scenario.RefTargets(ArchivePrefix), Is.Empty);
+            Assert.That(hints.ToString(), Does.Not.Contain("Dropped"));
+        }
+    }
+
+    [Test]
+    public void Apply_StashStoreFailsAfterMismatchedDrop_KeepsTheArchiveRefAndReportsIt()
+    {
+        using var scenario = CreateWithMergedStashUnderUnmergedStash(out var mergedSha, out var unmergedSha);
+        var scenarioPath = scenario.Path;
+        using var hints = new StringWriter();
+        var options = new PruneOptions(Branches: false, Apply: true)
+        {
+            BeforeDelete = _ =>
+            {
+                PushStash(scenarioPath, "pushed during prune", "concurrent");
+                GitScenarioRepo.RejectStashRefUpdates(scenarioPath);
+            }
+        };
+
+        var report = Pruner.Run([scenario.Path], options, hints);
+
+        var archiveRef = ArchivePrefix + unmergedSha;
+        var stashes = scenario.StashShas();
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(scenario.RefTargets(ArchivePrefix), Is.EquivalentTo(new Dictionary<string, string> { [archiveRef] = unmergedSha }));
+            Assert.That(stashes, Does.Not.Contain(unmergedSha), "The injected hook makes the restore fail.");
+            Assert.That(stashes, Does.Contain(mergedSha));
+            Assert.That(report.Errors.Single().Error, Does.Contain(archiveRef));
+            Assert.That(Find(report, "stash@{1}").SkipReason, Is.EqualTo(PruneSkipReasons.StashMismatch));
+            Assert.That(hints.ToString(), Does.Contain($"Stash {unmergedSha} is not in the stash list; {archiveRef} keeps it."));
+        }
+
+        // A later dry run repeats the hint, and the hint's command restores the stash.
+        File.Delete(Path.Combine(scenario.Path, ".git", "hooks", "reference-transaction"));
+        using var dryRunHints = new StringWriter();
+        Pruner.Run([scenario.Path], new PruneOptions(Branches: false), dryRunHints);
+        scenario.Git("stash", "store", "-m", "On main: unmerged", unmergedSha);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(dryRunHints.ToString(), Does.Contain($"git -C {Pruner.ShellQuote(scenario.Path)} stash store -m 'On main: unmerged' {unmergedSha}"));
+            Assert.That(scenario.StashShas(), Does.Contain(unmergedSha));
+        }
+    }
+
+    [Test]
+    public void Apply_UnparseableStashDropOutput_IsAMismatchAndTheStashIsStoredBack()
+    {
+        using var scenario = CreateWithMergedStashUnderUnmergedStash(out var mergedSha, out var unmergedSha);
+        using var hints = new StringWriter();
+        var options = new PruneOptions(Branches: false, Apply: true)
+        {
+            AfterStashDrop = result => result with { Output = "Dropped something git never prints\n" }
+        };
+
+        var report = Pruner.Run([scenario.Path], options, hints);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(Find(report, "stash@{1}").Action, Is.EqualTo(PruneCandidate.Skipped));
+            Assert.That(Find(report, "stash@{1}").SkipReason, Is.EqualTo(PruneSkipReasons.StashMismatch));
+            Assert.That(scenario.StashShas(), Is.EquivalentTo([mergedSha, unmergedSha]));
+            Assert.That(scenario.StashMessages(), Does.Contain("On main: stash landed.txt"));
+            Assert.That(report.Errors, Is.Empty);
+            Assert.That(scenario.RefTargets(ArchivePrefix), Is.Empty);
+            Assert.That(hints.ToString(), Does.Not.Contain("Dropped stash@"));
+        }
+    }
+
+    [TestCase("Dropped refs/stash@{0} (1b1d5f12126c02c9bec4dd13b428b3374df3dea0)\n", "1b1d5f12126c02c9bec4dd13b428b3374df3dea0")]
+    [TestCase("Dropped stash@{0} (1b1d5f1)", null)]
+    [TestCase("Dropped stash@{0} (1B1D5F12126C02C9BEC4DD13B428B3374DF3DEA0)", null)]
+    [TestCase("", null)]
+    public void ParseDroppedStashSha_AcceptsOnlyAFullLowercaseObjectId(string output, string? expected) =>
+        Assert.That(Pruner.ParseDroppedStashSha(output), Is.EqualTo(expected));
 
     [Test]
     public void InvalidPath_IsIgnored()

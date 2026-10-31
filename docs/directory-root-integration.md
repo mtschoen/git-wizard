@@ -37,6 +37,7 @@ Active-session serials come from `RootStatus.VolumeSerial`. A null serial prints
 `unavailable` and cannot match a dismissed journal warning. Cached-file inventory keeps
 the serial recorded in the cached file. Indexes are disposed before their broker session.
 
-At the pinned dependency revision, same-volume scan sharing is not implemented. A
-second view can use private fallback. The consumer still opens the target per-root shape;
-scan-sharing measurements belong after the dependency implements shared scans.
+At the pinned dependency revision, eligible views with one source instance, volume,
+serial, normalized cache directory and cache tag share one volume scan. GitWizard opens
+all roots in a session with one source instance. A view with a different share key or
+contested canonical ownership can still use private fallback.

@@ -139,6 +139,26 @@ public class DiscoveryReconciliationTests
     }
 
     [Test]
+    public void OverlappingRoots_SuccessfulChildOverridesFailedAncestor()
+    {
+        var inventory = new DiscoveryInventory
+        {
+            Outcome = DiscoveryOutcome.Partial,
+            Route = DiscoveryRoute.Indexed,
+            Paths = [],
+            RequestedNtfsDrives = ["C"],
+            Observations = [new RootObservation(@"C:\repos", false, false, DiscoverySource.Scan, null, "access denied"),
+             new RootObservation(@"C:\repos\sub", false, true, DiscoverySource.Scan, DateTime.UtcNow, null)],
+            RootStatuses = [],
+            Errors = new Dictionary<string, string> { [@"C:\repos"] = "access denied" },
+            WatchExcludedRoots = []
+        };
+        var reconciled = RepositoryDiscoveryCoordinator.ReconcilePaths(
+            [@"C:\repos\sub\gone", @"C:\repos\keep"], inventory);
+        Assert.That(reconciled, Is.EquivalentTo([@"C:\repos\keep"]));
+    }
+
+    [Test]
     public void StaleSnapshotDoesNotPruneMissingEntries()
     {
         var inventory = new DiscoveryInventory

@@ -295,12 +295,12 @@ public sealed partial class RepositoryWatchService
             StringComparer.OrdinalIgnoreCase);
     }
 
-    static Dictionary<string, List<string>> GroupRootsByVolume(IReadOnlyCollection<string> roots)
+    Dictionary<string, List<string>> GroupRootsByVolume(IReadOnlyCollection<string> roots)
     {
         var result = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (var root in roots)
         {
-            var volume = GetVolume(root);
+            var volume = _startup?.GetObservedVolume(root) ?? GetVolume(root);
             if (volume is null)
             {
                 continue;

@@ -273,8 +273,30 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         }
     }
 
+    bool IsOutermostChange(FileChange change)
+    {
+        var path = WatchPath.Parse(change.Path);
+        var participating = _watchedIndices
+            .Select(index => (index.Status.Root, Path: WatchPath.Parse(index.Root().Path)))
+            .Where(candidate => path.IsUnderOrEqual(candidate.Path) ||
+                change.PreviousPath is not null && WatchPath.Parse(change.PreviousPath).IsUnderOrEqual(candidate.Path))
+            .ToArray();
+        if (participating.Length < 2)
+        {
+            return true;
+        }
+
+        var outermost = participating.OrderBy(candidate => candidate.Path.Comparison.Length).First();
+        return outermost.Root == change.Entry.Root;
+    }
+
     void DeliverChange(FileChange change)
     {
+        if (!IsOutermostChange(change))
+        {
+            return;
+        }
+
         // FileEntry.Root is the stable root key MFTLib assigns, unlike change.Path,
         // which renders the drive's real indexed root directory and only reads back as a
         // "<letter>:\" volume when that root directory happens to be the drive root (MFTLib #143).

@@ -38,8 +38,19 @@ public partial class RepositoryDiscoveryCoordinator(RepositoryDiscoveryDependenc
         }
 
         var retained = previous.Where(path =>
-            inventory.Observations.Any(item => !item.Complete && Contains(item, path)) ||
-            !inventory.Observations.Any(item => item.Complete && item.Source != DiscoverySource.Snapshot && Contains(item, path)));
+        {
+            var incompleteSpecificity = inventory.Observations
+                .Where(item => !item.Complete && Contains(item, path))
+                .Select(item => WatchPath.Parse(item.Root).Comparison.Length)
+                .DefaultIfEmpty(-1).Max();
+            var completeSpecificity = inventory.Observations
+                .Where(item => item.Complete && item.Source != DiscoverySource.Snapshot && Contains(item, path))
+                .Select(item => WatchPath.Parse(item.Root).Comparison.Length)
+                .DefaultIfEmpty(-1).Max();
+            return incompleteSpecificity >= 0
+                ? incompleteSpecificity >= completeSpecificity
+                : completeSpecificity < 0;
+        });
 
         return (string[])[.. retained.Concat(inventory.Paths).Distinct(WatchPath.StringComparer)];
     }

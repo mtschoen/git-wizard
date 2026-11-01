@@ -72,6 +72,11 @@ public partial class GitWizardReport : IAsyncDisposable
     /// </summary>
     public HashSet<string> NonRepositoryPaths { get; private set; } = [];
 
+    /// <summary>Failed probe outcomes retained by normalized full path and directory write time.</summary>
+    [JsonInclude]
+    public SortedDictionary<string, NonRepositoryProbeEntry> NonRepositoryProbes { get; private set; } =
+        new(GitWizardApi.PathComparer);
+
     /// <summary>Immutable inventory from the discovery pass, or null if explicit paths were used or report was deserialized.</summary>
     [JsonIgnore]
     public DiscoveryInventory? DiscoveryInventory { get; internal set; }
@@ -207,6 +212,17 @@ public partial class GitWizardReport : IAsyncDisposable
         var report = new GitWizardReport(configuration);
         try
         {
+            ResetCachedReport();
+            var cachedReport = await GetCachedReportAsync().ConfigureAwait(false);
+            if (cachedReport is not null)
+            {
+                lock (cachedReport.NonRepositoryProbes)
+                {
+                    report.NonRepositoryProbes = new SortedDictionary<string, NonRepositoryProbeEntry>(
+                        cachedReport.NonRepositoryProbes, GitWizardApi.PathComparer);
+                }
+            }
+
             if (repositoryPaths == null)
             {
                 var discovered = new SortedSet<string>();
@@ -237,8 +253,20 @@ public partial class GitWizardReport : IAsyncDisposable
         bool fetchRemotes = false, bool deepRefresh = false, bool allBranches = false,
         bool computeLocalCommitCount = true)
     {
+        var probeCache = new NonRepositoryProbeCache(NonRepositoryProbes, TimeProvider.System, Directory.Exists,
+            path => new DateTimeOffset(Directory.GetLastWriteTimeUtc(path), TimeSpan.Zero));
+        Refresh(repositoryPaths, new RepositoryRefreshContext(updateHandler, fetchRemotes, deepRefresh,
+            allBranches, computeLocalCommitCount, probeCache));
+    }
+
+    // Test seam: callers inject the probe cache's capacity, clock and filesystem facts.
+    internal void Refresh(ICollection<string> repositoryPaths, RepositoryRefreshContext refreshContext)
+    {
         var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) };
+        var probeCache = refreshContext.ProbeCache;
+        probeCache.DropMissingPaths();
         var validPaths = OrderPathsForRefresh(PruneDeletedRepositories(repositoryPaths));
+        var updateHandler = refreshContext.UpdateHandler;
 
         var count = 0;
 
@@ -255,7 +283,7 @@ public partial class GitWizardReport : IAsyncDisposable
         {
             Parallel.ForEach(Partitioner.Create(validPaths, EnumerablePartitionerOptions.NoBuffering), parallelOptions, path =>
             {
-                RefreshSingleRepository(path, updateHandler, fetchRemotes, deepRefresh, allBranches, computeLocalCommitCount);
+                RefreshSingleRepository(path, refreshContext);
 
                 try
                 {
@@ -269,46 +297,7 @@ public partial class GitWizardReport : IAsyncDisposable
         }
 
         _indexedSizes = null;
-        PruneNonRepositoryPaths(validPaths);
-    }
-
-    // Identifies paths that existed but whose Refresh determined they are no longer a valid git
-    // repository (NotAGitRepositoryError), records them on NonRepositoryPaths, and prunes them
-    // from Repositories so they stop being re-probed as stale cache entries every session. This
-    // is deliberately separate from PruneDeletedRepositories: a missing directory can be a
-    // transiently-unmounted drive and must NOT be pruned, whereas a directory that exists but
-    // isn't a repo is unambiguously stale.
-    void PruneNonRepositoryPaths(IEnumerable<string> refreshedPaths)
-    {
-        var stalePaths = new List<string>();
-
-        // Locked for the whole read-then-write pass: an in-flight orphan refresh from a
-        // concurrent Refresh call (see RefreshSingleRepository) mutates the same dictionary
-        // with its own lock (Repositories), so TryGetValue and the later Remove must be
-        // serialized against it to avoid observing or leaving Repositories in a torn state.
-        lock (Repositories)
-        {
-            foreach (var path in refreshedPaths)
-            {
-                if (Repositories.TryGetValue(path, out var repository) &&
-                    repository.RefreshError == GitWizardRepository.NotAGitRepositoryError)
-                {
-                    stalePaths.Add(path);
-                }
-            }
-
-            NonRepositoryPaths = [.. stalePaths];
-
-            foreach (var stale in NonRepositoryPaths)
-            {
-                Repositories.Remove(stale);
-            }
-        }
-
-        if (NonRepositoryPaths.Count > 0)
-        {
-            GitWizardLog.Log($"Pruned {NonRepositoryPaths.Count} stale non-repo path(s) from cache");
-        }
+        PruneNonRepositoryPaths(validPaths, probeCache);
     }
 
     // Identifies repos whose directory no longer exists, records them on DeletedPaths, prunes
@@ -349,58 +338,6 @@ public partial class GitWizardReport : IAsyncDisposable
         }
 
         return validPaths;
-    }
-
-    /// <summary>
-    /// Timeout for refreshing a single repository. Defaults to 5 minutes.
-    /// Internal so tests can shorten it without sleeping. Assumes tests run sequentially
-    /// (NUnit test fixtures in this solution do not enable LevelOfParallelism).
-    /// </summary>
-    internal static TimeSpan RefreshTimeout { get; set; } = TimeSpan.FromMinutes(5);
-
-    // Gets or creates the GitWizardRepository for path, runs its Refresh inline under a
-    // CancellationTokenSource with RefreshTimeout, and records the elapsed time. One iteration
-    // of the Refresh Parallel.ForEach body. Runs inline without Task.Run to prevent thread-pool
-    // starvation under large reports (docs/refresh-concurrency-review.md hazard 7).
-    void RefreshSingleRepository(string path, IUpdateHandler? updateHandler, bool fetchRemotes,
-        bool deepRefresh, bool allBranches, bool computeLocalCommitCount)
-    {
-        GitWizardRepository? repository;
-        lock (Repositories)
-        {
-            if (!Repositories.TryGetValue(path, out repository))
-            {
-                repository = new GitWizardRepository(path);
-                Repositories[path] = repository;
-            }
-        }
-
-        try
-        {
-            updateHandler?.OnRepositoryCreated(repository);
-        }
-        catch (Exception exception)
-        {
-            GitWizardLog.LogException(exception, "Exception thrown by Refresh OnRepositoryCreated callback.");
-        }
-
-        // A fetch rewrites .git after the index was read, so only a refresh that leaves the files alone may use it.
-        if (!fetchRemotes && _indexedSizes is { } indexedSizes)
-        {
-            repository.OfferIndexedSizes(indexedSizes, path);
-        }
-
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        using var cancellationTokenSource = new CancellationTokenSource(RefreshTimeout);
-        repository.Refresh(updateHandler, fetchRemotes, deepRefresh, allBranches, computeLocalCommitCount, cancellationTokenSource.Token);
-        repository.WithdrawIndexedSize();
-
-        stopwatch.Stop();
-        repository.RefreshTimeSeconds = Math.Round(stopwatch.Elapsed.TotalSeconds, 1);
-        if (stopwatch.Elapsed.TotalSeconds >= 10)
-        {
-            GitWizardLog.Log($"Refresh took {repository.RefreshTimeSeconds}s for {path}", GitWizardLog.LogType.Warning);
-        }
     }
 
     public IEnumerable<string> GetRepositoryPaths()

@@ -106,6 +106,90 @@ public class GitWizardReportMergeTests
     }
 
     [Test]
+    public void Merge_FailingTarget_PersistsProbeMemory()
+    {
+        GitWizardLog.SilentMode = true;
+        using var candidate = new TempDirectory("gw-merge-junk-");
+        using var directory = new TempDirectory("gw-merge-");
+        var savePath = Path.Combine(directory.Path, "report.json");
+        var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
+
+        var merged = GitWizardReport.MergeIntoFile(savePath, configuration, [candidate.Path]);
+
+        var key = GitWizardApi.NormalizePath(candidate.Path);
+        var onDisk = JsonSerializer.Deserialize<GitWizardReport>(File.ReadAllText(savePath));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(merged.NonRepositoryProbes.ContainsKey(key), Is.True);
+            Assert.That(onDisk!.NonRepositoryProbes.ContainsKey(key), Is.True);
+        }
+    }
+
+    [Test]
+    public void Merge_ProbesAtCapacity_EvictsLeastRecentlyUsedAndKeepsUnrelatedRepositories()
+    {
+        GitWizardLog.SilentMode = true;
+        using var candidate = new TempDirectory("gw-merge-capacity-");
+        using var directory = new TempDirectory("gw-merge-");
+        var savePath = Path.Combine(directory.Path, "report.json");
+        var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
+        var oldestUse = new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var existing = new GitWizardReport();
+        existing.Repositories["/unrelated/repository"] = new GitWizardRepository("/unrelated/repository");
+        for (var index = 0; index < NonRepositoryProbeCache.DefaultCapacity; index++)
+        {
+            existing.NonRepositoryProbes[$"/persisted/junk-{index:D4}"] = new NonRepositoryProbeEntry
+            {
+                LastUsedUtc = oldestUse.AddMinutes(index),
+            };
+        }
+
+        existing.Save(savePath);
+
+        GitWizardReport.MergeIntoFile(savePath, configuration, [candidate.Path]);
+
+        var onDisk = JsonSerializer.Deserialize<GitWizardReport>(File.ReadAllText(savePath))!;
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(onDisk.NonRepositoryProbes, Has.Count.EqualTo(NonRepositoryProbeCache.DefaultCapacity));
+            Assert.That(onDisk.NonRepositoryProbes.ContainsKey(GitWizardApi.NormalizePath(candidate.Path)), Is.True);
+            Assert.That(onDisk.NonRepositoryProbes.ContainsKey("/persisted/junk-0000"), Is.False);
+            Assert.That(onDisk.NonRepositoryProbes.ContainsKey("/persisted/junk-0001"), Is.True);
+            Assert.That(onDisk.Repositories.ContainsKey("/unrelated/repository"), Is.True);
+        }
+    }
+
+    [Test]
+    public void Merge_ValidTarget_RemovesOnlyItsStaleProbeMemory()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        using var directory = new TempDirectory("gw-merge-");
+        var savePath = Path.Combine(directory.Path, "report.json");
+        var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
+        var targetKey = GitWizardApi.NormalizePath(fixture.Path);
+        const string unrelatedKey = "/unrelated/junk";
+        var existing = new GitWizardReport();
+        existing.NonRepositoryProbes[targetKey] = new NonRepositoryProbeEntry
+        {
+            LastWriteTimeUtc = new DateTimeOffset(Directory.GetLastWriteTimeUtc(fixture.Path), TimeSpan.Zero),
+            LastUsedUtc = new DateTimeOffset(2026, 10, 31, 12, 0, 0, TimeSpan.Zero),
+        };
+        existing.NonRepositoryProbes[unrelatedKey] = new NonRepositoryProbeEntry();
+        existing.Save(savePath);
+
+        var merged = GitWizardReport.MergeIntoFile(savePath, configuration, [fixture.Path]);
+
+        var onDisk = JsonSerializer.Deserialize<GitWizardReport>(File.ReadAllText(savePath));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(merged.NonRepositoryProbes.ContainsKey(targetKey), Is.False);
+            Assert.That(onDisk!.NonRepositoryProbes.ContainsKey(targetKey), Is.False);
+            Assert.That(onDisk.NonRepositoryProbes.ContainsKey(unrelatedKey), Is.True);
+        }
+    }
+
+    [Test]
     public void Merge_StampsCurrentSchemaVersion()
     {
         GitWizardLog.SilentMode = true;

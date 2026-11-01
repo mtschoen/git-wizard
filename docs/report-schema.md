@@ -61,7 +61,21 @@ merge of disjoint updates must serialize their writes externally.
 | `IncludeTempDirectories` | `bool` | Whether this report's scan included temp directories. Absent when unset (the default: excluded). |
 | `Repositories` | `object` | Map of repo path to repository object |
 | `DeletedPaths` | `string[]` | Repo paths removed from the cache during the last refresh (no longer on disk). Usually empty/absent. |
+| `NonRepositoryPaths` | `string[]` | Existing candidates confirmed as non-repositories or recognized malformed-repository junk and pruned from `Repositories` during the last refresh. |
+| `NonRepositoryProbes` | `object` | Bounded junk-probe memory keyed by normalized full path; see below. |
 | `run` | `object` | Run execution metadata (callback counts and warnings); see below |
+
+### Non-repository probe memory
+
+`NonRepositoryProbes` lets a rebuilt report skip an unchanged junk candidate instead of probing it on every run. Each key is a normalized full path. Each value contains `LastWriteTimeUtc`, the directory's UTC last-write time when it was probed, and `LastUsedUtc`, the UTC time of the most recent match or record.
+
+Only non-repositories and recognized junk are remembered: unsupported repository formats such as `extensions.refstorage`, unknown object formats such as SHA-256, missing indexes or other malformed fixtures, and `NotFoundException` failures. Ownership-blocked repositories, programming errors, transient failures, and cancellation are never added.
+
+A candidate is skipped only while its current directory last-write time equals the stored value. A changed value forces another probe, a successful refresh removes the entry, and a missing directory removes the entry. The cache retains at most 4096 entries and evicts the least recently used entry beyond that bound. This is additive cache data within schema 2.1, not a schema change.
+
+### Ownership-blocked repositories
+
+A repository rejected by Git's ownership check remains in `Repositories` with `RefreshError` set to `ownership-blocked: needs safe.directory`. This distinct status appears in the existing desktop error state, tooltip, and error log. Each refresh probes the repository again and emits one single-line warning without a stack trace. GitWizard never changes the user's Git configuration or `safe.directory` entries.
 
 ## Repository object
 

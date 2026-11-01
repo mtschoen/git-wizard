@@ -91,6 +91,11 @@ public static partial class GitWizardApi
             ? StringComparison.OrdinalIgnoreCase
             : StringComparison.Ordinal;
 
+    internal static StringComparer PathComparer =>
+        RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
+
     internal static string NormalizePath(string path)
     {
         var fullPath = Path.GetFullPath(path);

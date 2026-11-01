@@ -49,6 +49,13 @@ public class GitWizardReportPersistenceTests
         var report = new GitWizardReport { SchemaVersion = "0.0" };
         report.Repositories["/repo/one"] = new GitWizardRepository("/repo/one");
         report.Repositories["/repo/two"] = new GitWizardRepository("/repo/two");
+        var lastWriteTimeUtc = new DateTimeOffset(2026, 10, 30, 11, 0, 0, TimeSpan.Zero);
+        var lastUsedUtc = new DateTimeOffset(2026, 10, 31, 12, 0, 0, TimeSpan.Zero);
+        report.NonRepositoryProbes["/repo/junk"] = new NonRepositoryProbeEntry
+        {
+            LastWriteTimeUtc = lastWriteTimeUtc,
+            LastUsedUtc = lastUsedUtc,
+        };
 
         var path = GitWizardReport.GetCachedReportPath();
         if (async)
@@ -70,6 +77,9 @@ public class GitWizardReportPersistenceTests
         {
             Assert.That(loaded!.SchemaVersion, Is.EqualTo(GitWizardReport.CurrentSchemaVersion));
             Assert.That(loaded.Repositories.Keys, Is.EqualTo(["/repo/one", "/repo/two"]));
+            Assert.That(loaded.NonRepositoryProbes.Keys, Is.EqualTo(["/repo/junk"]));
+            Assert.That(loaded.NonRepositoryProbes["/repo/junk"].LastWriteTimeUtc, Is.EqualTo(lastWriteTimeUtc));
+            Assert.That(loaded.NonRepositoryProbes["/repo/junk"].LastUsedUtc, Is.EqualTo(lastUsedUtc));
         }
     }
 

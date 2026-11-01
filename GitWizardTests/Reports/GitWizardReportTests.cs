@@ -157,6 +157,94 @@ public class GitWizardReportTests
     }
 
     [Test]
+    public void Refresh_NonRepository_IsSkippedUntilLastWriteTimeChanges()
+    {
+        GitWizardLog.SilentMode = true;
+        using var directory = new TempDirectory("gw-nonrepo-memory-");
+        var initialWriteTimeUtc = new DateTime(2026, 10, 31, 12, 0, 0, DateTimeKind.Utc);
+        Directory.SetLastWriteTimeUtc(directory.Path, initialWriteTimeUtc);
+        var report = new GitWizardReport();
+        var handler = new RecordingUpdateHandler();
+
+        report.Refresh([directory.Path], handler);
+        report.Refresh([directory.Path], handler);
+
+        Assert.That(handler.RepositoriesCreated, Has.Length.EqualTo(1),
+            "An unchanged invalid candidate must not be probed again.");
+
+        Directory.SetLastWriteTimeUtc(directory.Path, initialWriteTimeUtc.AddMinutes(1));
+        report.Refresh([directory.Path], handler);
+
+        Assert.That(handler.RepositoriesCreated, Has.Length.EqualTo(2),
+            "A changed directory write time must force another probe.");
+    }
+
+    [Test]
+    public async Task GenerateReportAsync_Rebuilds_SkipPersistedNonRepositories()
+    {
+        GitWizardLog.SilentMode = true;
+        using var sandbox = new LocalFilesSandbox();
+        using var firstDirectory = new TempDirectory("gw-nonrepo-rebuild-first-");
+        using var secondDirectory = new TempDirectory("gw-nonrepo-rebuild-second-");
+        var configuration = GitWizardConfiguration.CreateDefaultConfiguration();
+        var initialReport = new GitWizardReport(configuration);
+        initialReport.Refresh([firstDirectory.Path]);
+        await initialReport.SaveAsync(GitWizardReport.GetCachedReportPath());
+        TestUtilities.ResetStaticCaches();
+        string[] candidatePaths = [firstDirectory.Path, secondDirectory.Path];
+        var firstHandler = new RecordingUpdateHandler();
+
+        await using var firstRebuiltReport = await GitWizardReport.GenerateReportAsync(
+            configuration, candidatePaths, firstHandler);
+        Assert.That(firstRebuiltReport.NonRepositoryProbes, Has.Count.EqualTo(2));
+        await firstRebuiltReport.SaveAsync(GitWizardReport.GetCachedReportPath());
+        var secondHandler = new RecordingUpdateHandler();
+
+        await using var secondRebuiltReport = await GitWizardReport.GenerateReportAsync(
+            configuration, candidatePaths, secondHandler);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(secondHandler.RepositoriesCreated, Is.Empty);
+            Assert.That(secondRebuiltReport.NonRepositoryProbes, Has.Count.EqualTo(2));
+        }
+    }
+
+    [Test]
+    public void NonRepositoryProbes_UsePlatformCaseSemantics()
+    {
+        var report = new GitWizardReport();
+        report.NonRepositoryProbes["/tmp/Candidate"] = new NonRepositoryProbeEntry();
+        report.NonRepositoryProbes["/tmp/candidate"] = new NonRepositoryProbeEntry();
+
+        var expectedCount = OperatingSystem.IsWindows() ? 1 : 2;
+        Assert.That(report.NonRepositoryProbes, Has.Count.EqualTo(expectedCount));
+    }
+
+    [Test]
+    public void Refresh_ProgrammingError_IsNotRememberedAsNonRepository()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var report = new GitWizardReport();
+        var handler = new RecordingUpdateHandler
+        {
+            CreatingRepository = repository => repository.PhaseObserverForTesting =
+                _ => throw new InvalidOperationException("programming error"),
+        };
+
+        report.Refresh([fixture.Path], handler);
+        report.Refresh([fixture.Path], handler);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(handler.RepositoriesCreated, Has.Length.EqualTo(2));
+            Assert.That(report.NonRepositoryProbes, Is.Empty);
+            Assert.That(report.Repositories.ContainsKey(fixture.Path), Is.True);
+        }
+    }
+
+    [Test]
     public void RefreshSingleRepository_SetsRefreshTimeSeconds()
     {
         GitWizardLog.SilentMode = true;

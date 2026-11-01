@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using GitWizard;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests;
 
@@ -58,6 +59,59 @@ public class RefreshConcurrencyGateTests
             "Expected exactly one thread hand-off (one Refresh call's phases fully complete " +
             "before the other's begin). Recorded sequence: " +
             string.Join(", ", sequence.Select(entry => $"(thread {entry.ThreadId}, phase {entry.PhaseIndex})")));
+    }
+
+    [Test]
+    public async Task RefreshWithOutcome_ConcurrentCalls_ReturnPerCallOutcomes()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var repository = new GitWizardRepository(fixture.Path);
+        using var coordinator = new OutcomeRefreshCoordinator(repository);
+        repository.PhaseObserverForTesting = coordinator.OnPhase;
+
+        var first = Task.Run(coordinator.RunRefresh);
+        Assert.That(coordinator.WaitForFirst(), Is.True);
+        var second = Task.Run(coordinator.RunRefresh);
+        coordinator.ReleaseFirst();
+        var outcomes = await Task.WhenAll(first, second);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(outcomes[0], Is.EqualTo(RepositoryRefreshOutcome.TransientFailure));
+            Assert.That(outcomes[1], Is.EqualTo(RepositoryRefreshOutcome.Success));
+        }
+    }
+
+    sealed class OutcomeRefreshCoordinator(GitWizardRepository repository) : IDisposable
+    {
+        readonly ManualResetEventSlim _firstStarted = new(false);
+        readonly ManualResetEventSlim _releaseFirst = new(false);
+        int _callCount;
+
+        public void OnPhase(int _)
+        {
+            if (Interlocked.Increment(ref _callCount) != 1)
+            {
+                return;
+            }
+
+            _firstStarted.Set();
+            _releaseFirst.Wait(TestTimeouts.ShortHangGuard);
+            throw new InvalidOperationException("transient failure");
+        }
+
+        public bool WaitForFirst() => _firstStarted.Wait(TestTimeouts.ShortHangGuard);
+
+        public void ReleaseFirst() => _releaseFirst.Set();
+
+        public RepositoryRefreshOutcome RunRefresh() => repository.RefreshWithOutcome();
+
+        public void Dispose()
+        {
+            _firstStarted.Dispose();
+            _releaseFirst.Dispose();
+        }
     }
 
     sealed class ConcurrentRefreshCoordinator(GitWizardRepository repository) : IDisposable

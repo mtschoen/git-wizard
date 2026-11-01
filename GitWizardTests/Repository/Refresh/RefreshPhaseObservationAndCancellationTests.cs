@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using GitWizard;
 using GitWizardTests.TestSupport;
+using LibGit2Sharp;
 
 namespace GitWizardTests;
 
@@ -95,6 +96,38 @@ public class RefreshPhaseObservationAndCancellationTests
             Assert.That(observer.ObservedPhases, Does.Not.Contain(3), "Expected phase 3 to never run after cancellation.");
             Assert.That(repository.RefreshError, Is.EqualTo("Timed out"));
             Assert.That(repository.IsRefreshing, Is.False);
+        }
+    }
+
+    [Test]
+    public void Refresh_CancellationAfterMalformedPhase_DoesNotRecordCandidate()
+    {
+        GitWizardLog.SilentMode = true;
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var report = new GitWizardReport();
+        var handler = new RecordingUpdateHandler
+        {
+            CreatingRepository = repository => repository.PhaseObserverForTesting = phaseIndex =>
+            {
+                if (phaseIndex == 1)
+                {
+                    repository.LogRepositoryException(new LibGit2SharpException("failed to read index"), "malformed phase");
+                }
+
+                if (phaseIndex == 2)
+                {
+                    throw new OperationCanceledException();
+                }
+            },
+        };
+
+        report.Refresh([fixture.Path], handler);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(report.NonRepositoryProbes, Is.Empty);
+            Assert.That(report.Repositories.ContainsKey(fixture.Path), Is.True);
+            Assert.That(report.Repositories[fixture.Path].RefreshError, Is.EqualTo("Timed out"));
         }
     }
 

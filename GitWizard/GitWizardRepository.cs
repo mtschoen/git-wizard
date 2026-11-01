@@ -134,6 +134,7 @@ public partial class GitWizardRepository
     /// lock gives the same per-object mutual exclusion without that liability.
     /// </summary>
     readonly Lock _refreshGate = new();
+    RepositoryRefreshOutcome _refreshOutcome;
 
     internal GitWizardRepository() { }
 
@@ -144,7 +145,13 @@ public partial class GitWizardRepository
 
     public void Refresh(IUpdateHandler? updateHandler = null, bool fetchRemotes = false,
         bool deepRefresh = false, bool allBranches = false, bool computeLocalCommitCount = true,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        _ = RefreshWithOutcome(updateHandler, fetchRemotes, deepRefresh, allBranches,
+            computeLocalCommitCount, cancellationToken);
+
+    internal RepositoryRefreshOutcome RefreshWithOutcome(IUpdateHandler? updateHandler = null,
+        bool fetchRemotes = false, bool deepRefresh = false, bool allBranches = false,
+        bool computeLocalCommitCount = true, CancellationToken cancellationToken = default)
     {
         // Serialize overlapping Refresh calls on this object: RefreshSubmodules and
         // RefreshWorktrees recurse into Refresh on DIFFERENT GitWizardRepository objects (their
@@ -154,14 +161,19 @@ public partial class GitWizardRepository
         lock (_refreshGate)
         {
             RefreshLocked(updateHandler, fetchRemotes, deepRefresh, allBranches, computeLocalCommitCount, cancellationToken);
+            return _refreshOutcome;
         }
     }
+
+    internal const string OwnershipBlockedError = "ownership-blocked: needs safe.directory";
 
     void RefreshLocked(IUpdateHandler? updateHandler, bool fetchRemotes, bool deepRefresh,
         bool allBranches, bool computeLocalCommitCount, CancellationToken cancellationToken)
     {
+        _refreshOutcome = RepositoryRefreshOutcome.Success;
         if (string.IsNullOrEmpty(WorkingDirectory) || !Directory.Exists(WorkingDirectory))
         {
+            _refreshOutcome = RepositoryRefreshOutcome.TransientFailure;
             // Expected for short-lived repositories (CI/test scratch repos under temp, deleted
             // between discovery and refresh): not an error, and Live drops the entry quietly.
             GitWizardLog.Log($"Working directory {WorkingDirectory} is invalid.", GitWizardLog.LogType.Debug);
@@ -182,12 +194,11 @@ public partial class GitWizardRepository
             // Probe with IsValid before constructing Repository: a cached path whose .git is gone makes
             // the Repository ctor throw RepositoryNotFoundException on every refresh (first-chance
             // exception spam in the log). IsValid returns false for that case without throwing, so we
-            // skip it cleanly. IsValid CAN still throw for other libgit2 errors (e.g. git's "not owned
-            // by current user" ownership protection) -- those fall through to the catch below and
-            // surface as a normal refresh error, exactly as before. Hence the check lives inside the
-            // try. (Pruning stale cache entries is tracked separately.)
+            // skip it cleanly. Other libgit2 errors reach the catch below for ownership and junk
+            // classification, so the check lives inside the try.
             if (!Repository.IsValid(WorkingDirectory))
             {
+                _refreshOutcome = RepositoryRefreshOutcome.NonRepository;
                 GitWizardLog.Log($"Working directory {WorkingDirectory} is not a git repository; skipping refresh.", GitWizardLog.LogType.Warning);
                 MarkRefreshFailed(NotAGitRepositoryError, updateHandler);
                 return;
@@ -202,16 +213,56 @@ public partial class GitWizardRepository
         }
         catch (OperationCanceledException)
         {
+            _refreshOutcome = RepositoryRefreshOutcome.Cancelled;
             GitWizardLog.Log($"Refresh timed out for {WorkingDirectory}", GitWizardLog.LogType.Warning);
             MarkRefreshFailed("Timed out", updateHandler);
         }
         catch (Exception exception)
         {
+            if (IsOwnershipBlocked(exception))
+            {
+                _refreshOutcome = RepositoryRefreshOutcome.OwnershipBlocked;
+                GitWizardLog.Log($"{OwnershipBlockedError}: {WorkingDirectory}", GitWizardLog.LogType.Warning);
+                MarkRefreshFailed(OwnershipBlockedError, updateHandler);
+                return;
+            }
+
+            if (IsNonRepositoryProbeFailure(exception))
+            {
+                _refreshOutcome = RepositoryRefreshOutcome.NonRepository;
+            }
+            else if (_refreshOutcome != RepositoryRefreshOutcome.NonRepository)
+            {
+                _refreshOutcome = RepositoryRefreshOutcome.TransientFailure;
+            }
+
             RefreshError = exception.Message;
             GitWizardLog.LogException(exception, $"Exception thrown trying to refresh {WorkingDirectory}");
             IsRefreshing = false;
             NotifyRefreshCompleted(updateHandler);
         }
+    }
+
+    internal static bool IsOwnershipBlocked(Exception exception) =>
+        exception is LibGit2SharpException &&
+        exception.Message.StartsWith("repository path '", StringComparison.Ordinal) &&
+        exception.Message.EndsWith("' is not owned by current user", StringComparison.Ordinal);
+
+    static bool IsNonRepositoryProbeFailure(Exception exception)
+    {
+        if (exception is NotFoundException)
+        {
+            return true;
+        }
+
+        if (exception is not LibGit2SharpException)
+        {
+            return false;
+        }
+
+        return exception.Message.Contains("extensions.refstorage", StringComparison.OrdinalIgnoreCase) ||
+               exception.Message.Contains("unknown object format", StringComparison.OrdinalIgnoreCase) ||
+               exception.Message.Contains("failed to read index", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -308,7 +359,7 @@ public partial class GitWizardRepository
         }
         catch (Exception exception)
         {
-            GitWizardLog.LogException(exception, $"Exception retrieving status for {WorkingDirectory}");
+            LogRepositoryException(exception, $"Exception retrieving status for {WorkingDirectory}");
         }
     }
 
@@ -329,7 +380,7 @@ public partial class GitWizardRepository
         }
         catch (Exception exception)
         {
-            GitWizardLog.LogException(exception, $"Exception collecting author emails for {WorkingDirectory}");
+            LogRepositoryException(exception, $"Exception collecting author emails for {WorkingDirectory}");
         }
     }
 
@@ -352,7 +403,7 @@ public partial class GitWizardRepository
         }
         catch (Exception exception)
         {
-            GitWizardLog.LogException(exception, $"Exception collecting recent commits for {WorkingDirectory}");
+            LogRepositoryException(exception, $"Exception collecting recent commits for {WorkingDirectory}");
         }
     }
 

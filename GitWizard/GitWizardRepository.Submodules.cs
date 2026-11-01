@@ -61,12 +61,20 @@ public partial class GitWizardRepository
                     continue;
                 }
 
-                submoduleRepository.Refresh(updateHandler, cancellationToken: cancellationToken);
+                try
+                {
+                    submoduleRepository.Refresh(updateHandler, cancellationToken: cancellationToken);
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    GitWizardLog.LogException(exception,
+                        $"Exception refreshing submodule for {submoduleRepository.WorkingDirectory}");
+                }
             }
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            GitWizardLog.LogException(exception, $"Exception enumerating submodules for {WorkingDirectory}");
+            LogRepositoryException(exception, $"Exception enumerating submodules for {WorkingDirectory}");
         }
     }
 
@@ -215,7 +223,7 @@ public partial class GitWizardRepository
         }
         catch (Exception exception)
         {
-            GitWizardLog.LogException(exception, $"Exception checking submodule health for {WorkingDirectory}");
+            LogRepositoryException(exception, $"Exception checking submodule health for {WorkingDirectory}");
         }
     }
 

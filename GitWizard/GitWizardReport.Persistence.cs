@@ -65,6 +65,27 @@ public partial class GitWizardReport
             repositories[kvp.Key] = JsonSerializer.SerializeToNode(kvp.Value, SerializerOptions);
         }
 
+        if (root[nameof(NonRepositoryProbes)] is not JsonObject probes)
+        {
+            probes = new JsonObject();
+            root[nameof(NonRepositoryProbes)] = probes;
+        }
+
+        foreach (var path in repositoryPaths)
+        {
+            var key = GitWizardApi.NormalizePath(path);
+            if (refreshed.NonRepositoryProbes.TryGetValue(key, out var entry))
+            {
+                probes[key] = JsonSerializer.SerializeToNode(entry, SerializerOptions);
+            }
+            else
+            {
+                probes.Remove(key);
+            }
+        }
+
+        EvictLeastRecentlyUsedProbes(probes, NonRepositoryProbeCache.DefaultCapacity);
+
         root[nameof(SchemaVersion)] = CurrentSchemaVersion;
 
         var jsonText = root.ToJsonString(SerializerOptions);
@@ -83,6 +104,28 @@ public partial class GitWizardReport
         }
 
         return result;
+    }
+
+    // The merged probe collection holds persisted entries from earlier runs plus the new ones, so the
+    // bound applies to the whole collection. Unrelated entries survive unless they are least recently used.
+    static void EvictLeastRecentlyUsedProbes(JsonObject probes, int capacity)
+    {
+        if (probes.Count <= capacity)
+        {
+            return;
+        }
+
+        var evictionOrder = probes
+            .Select(pair => (pair.Key, LastUsedUtc: pair.Value?.Deserialize<NonRepositoryProbeEntry>(SerializerOptions)?.LastUsedUtc
+                                                    ?? DateTimeOffset.MinValue))
+            .OrderBy(candidate => candidate.LastUsedUtc)
+            .ThenBy(candidate => candidate.Key, StringComparer.Ordinal)
+            .Take(probes.Count - capacity)
+            .ToArray();
+        foreach (var (key, _) in evictionOrder)
+        {
+            probes.Remove(key);
+        }
     }
 
     static JsonObject? ReadJsonObjectFromFile(string path)
@@ -190,6 +233,13 @@ public partial class GitWizardReport
             repositoriesSnapshot = new SortedDictionary<string, GitWizardRepository>(Repositories);
         }
 
+        SortedDictionary<string, NonRepositoryProbeEntry> probesSnapshot;
+        lock (NonRepositoryProbes)
+        {
+            probesSnapshot = new SortedDictionary<string, NonRepositoryProbeEntry>(
+                NonRepositoryProbes, GitWizardApi.PathComparer);
+        }
+
         return new GitWizardReport
         {
             SchemaVersion = SchemaVersion,
@@ -201,6 +251,7 @@ public partial class GitWizardReport
             Repositories = repositoriesSnapshot,
             DeletedPaths = DeletedPaths,
             NonRepositoryPaths = NonRepositoryPaths,
+            NonRepositoryProbes = probesSnapshot,
             Run = Run,
         };
     }

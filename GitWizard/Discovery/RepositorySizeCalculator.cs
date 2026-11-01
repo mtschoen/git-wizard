@@ -19,29 +19,42 @@ static class RepositorySizeCalculator
     {
         var sizes = new Dictionary<string, long>(WatchPath.StringComparer);
         var remaining = repositoryPaths.ToHashSet(WatchPath.StringComparer);
-        foreach (var member in index.Indices.Where(IsCompleteSnapshot))
+        foreach (var member in index.Indices)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var located = new List<(string Path, FileEntry Entry)>();
-            foreach (var path in remaining)
+            try
             {
-                if (member.Find(path, cancellationToken) is { IsDirectory: true } entry)
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!IsCompleteSnapshot(member))
                 {
-                    located.Add((path, entry));
+                    continue;
                 }
-            }
 
-            if (located.Count == 0)
+                var located = new List<(string Path, FileEntry Entry)>();
+                foreach (var path in remaining)
+                {
+                    if (member.Find(path, cancellationToken) is { IsDirectory: true } entry)
+                    {
+                        located.Add((path, entry));
+                    }
+                }
+
+                if (located.Count == 0)
+                {
+                    continue;
+                }
+
+                foreach (var (path, size) in SumMember(member, located, cancellationToken))
+                {
+                    sizes[path] = size;
+                }
+
+                remaining.ExceptWith(located.Select(item => item.Path));
+            }
+            finally
             {
-                continue;
+                // Discovery and sizing are done with this view. Keep ownership for Live, not its resident pages.
+                member.ReleaseResidentPages();
             }
-
-            foreach (var (path, size) in SumMember(member, located, cancellationToken))
-            {
-                sizes[path] = size;
-            }
-
-            remaining.ExceptWith(located.Select(item => item.Path));
         }
 
         return sizes;

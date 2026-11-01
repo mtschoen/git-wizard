@@ -23,6 +23,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "elevation-heads-up.ps1")
+
 $repoRoot = if ($env:GITHUB_WORKSPACE) { [string]$env:GITHUB_WORKSPACE } else { [string](Resolve-Path "$PSScriptRoot\..") }
 Push-Location $repoRoot
 try {
@@ -52,7 +54,7 @@ try {
     if (-not $NonInteractive) {
         # Run RequiresAdmin tests elevated. Write a temp script with literal paths so there are no
         # nested-quoting issues, mirroring MFTLib's run-coverage.ps1.
-        Write-Host "`nLaunching elevated runner for RequiresAdmin tests (UAC prompt)..." -ForegroundColor Yellow
+        Write-Host "`nLaunching elevated runner for RequiresAdmin tests (heads-up dialog, then UAC prompt)..." -ForegroundColor Yellow
 
         $adminLog = Join-Path $repoRoot "admin-test-output.log"
         $adminScript = Join-Path $repoRoot "admin-test-runner.ps1"
@@ -80,9 +82,16 @@ try {
                   Replace("LOG_FILE", $adminLog) |
             Set-Content $adminScript
 
-        Start-Process powershell -Verb RunAs `
-            -ArgumentList "-ExecutionPolicy", "Bypass", "-File", $adminScript `
-            -Wait
+        try {
+            $adminProcess = Start-ElevatedProcess -ScriptName 'run-coverage.ps1' `
+                -Reason 'run the RequiresAdmin tests and collect coverage' `
+                -ArgumentList @('-ExecutionPolicy', 'Bypass', '-File', $adminScript)
+            $adminProcess.WaitForExit()
+        } catch {
+            Remove-Item $adminScript -ErrorAction SilentlyContinue
+            Write-Host $_.Exception.Message -ForegroundColor Red
+            exit 1
+        }
 
         Remove-Item $adminScript -ErrorAction SilentlyContinue
 

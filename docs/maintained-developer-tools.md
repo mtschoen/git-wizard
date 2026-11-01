@@ -14,7 +14,8 @@ purpose, operator, and executable CI check.
 | `scripts/update-screenshots.ps1` | Regenerate the Avalonia screenshot from three synthetic repositories | Maintainers and Windows CI | PowerShell parser; Generate headless screenshot with 180-second capture timeout; required GitWizardUI-screenshot artifact |
 | `scripts/cli-live-smoke.ps1` | Verify elevated CLI watch behavior against scratch repositories | Attended Windows operator | PowerShell parser; ci/script-tests/cli-live-smoke.tests.ps1 |
 | `scripts/ui-live-timing.ps1` | Measure Live readiness and check toolbar layout | Attended Windows operator | PowerShell parser; ci/script-tests/ui-live-timing.tests.ps1 |
-| `scripts/run-coverage.ps1` | Run local NUnit coverage with optional attended elevated tests | Maintainers | PowerShell parser |
+| `scripts/run-coverage.ps1` | Run local NUnit coverage with optional attended elevated tests, behind the elevation heads-up | Maintainers | PowerShell parser; ci/script-tests/elevation-heads-up.tests.ps1 |
+| `scripts/elevation-heads-up.ps1` | Show the system-modal heads-up dialog and make the single elevated launch for the scripts | Dot-sourced by scripts that elevate | PowerShell parser; ci/script-tests/elevation-heads-up.tests.ps1 |
 | `scripts/run-preview.ps1` | Download and launch a published desktop preview | Maintainers on Windows or Linux with PowerShell | PowerShell parser |
 | `scripts/run-preview.sh` | Download and launch a published Linux desktop preview | Linux maintainers | bash -n |
 | `scripts/verify-windows.sh` | Run remote Windows non-admin verification | Maintainers with an authorized Windows host | bash -n; ci/test_verify_windows.py |

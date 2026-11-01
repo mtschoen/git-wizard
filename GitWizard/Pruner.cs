@@ -4,16 +4,16 @@ namespace GitWizard;
 
 /// <summary>
 /// Finds local branches and stashes whose work is already on the base branch and, when asked,
-/// deletes eligible branches. Dry run by default; every branch deletion prints a restore command,
-/// and every merged stash prints a manual verify-and-drop command.
+/// deletes eligible branches and drops eligible stashes. Dry run by default; every deletion and
+/// every stash archive ref left behind prints a restore command.
 /// </summary>
-public static class Pruner
+public static partial class Pruner
 {
     /// <summary>
     /// Consider every repository in <paramref name="repositoryPaths"/> once per shared git
     /// directory (linked worktrees share branches and stashes with their main checkout).
-    /// Restore commands for deleted branches and manual drop commands for merged stashes are
-    /// written to <paramref name="restoreHints"/>.
+    /// Restore commands for deleted branches, dropped stashes and archived stashes no longer in
+    /// the stash list are written to <paramref name="restoreHints"/>.
     /// </summary>
     public static PruneReport Run(IEnumerable<string> repositoryPaths, PruneOptions options, TextWriter restoreHints)
     {
@@ -32,19 +32,16 @@ public static class Pruner
             .Select(path => PruneRepositoryAt(path, options, synchronizedHints))
             .ToList();
 
-        foreach (var (candidates, error) in results)
+        foreach (var (candidates, errors) in results)
         {
             report.Candidates.AddRange(candidates);
-            if (error != null)
-            {
-                report.Errors.Add(error);
-            }
+            report.Errors.AddRange(errors);
         }
 
         return report;
     }
 
-    static (List<PruneCandidate> Candidates, PruneRepositoryError? Error) PruneRepositoryAt(string path, PruneOptions options, TextWriter restoreHints)
+    static (List<PruneCandidate> Candidates, List<PruneRepositoryError> Errors) PruneRepositoryAt(string path, PruneOptions options, TextWriter restoreHints)
     {
         try
         {
@@ -53,7 +50,7 @@ public static class Pruner
         }
         catch (Exception exception)
         {
-            return ([], PruneError(path, exception));
+            return ([], [PruneError(path, exception)]);
         }
     }
 
@@ -63,7 +60,7 @@ public static class Pruner
         return new PruneRepositoryError { Repository = path, Error = exception.Message };
     }
 
-    static (List<PruneCandidate> Candidates, PruneRepositoryError? Error) PruneRepository(
+    static (List<PruneCandidate> Candidates, List<PruneRepositoryError> Errors) PruneRepository(
         Repository repository,
         string path,
         PruneOptions options,
@@ -77,7 +74,7 @@ public static class Pruner
             {
                 var message = $"Base branch '{options.BaseBranchName}' was not found.";
                 GitWizardLog.Log($"{message} ({path})", GitWizardLog.LogType.Warning);
-                return ([], new PruneRepositoryError { Repository = path, Error = message });
+                return ([], [new PruneRepositoryError { Repository = path, Error = message }]);
             }
         }
         else
@@ -97,7 +94,7 @@ public static class Pruner
             candidates.AddRange(PruneStashes(context));
         }
 
-        return (candidates, null);
+        return (candidates, context.Errors);
     }
 
     sealed record RepositoryContext(
@@ -107,7 +104,16 @@ public static class Pruner
         PruneOptions Options,
         TextWriter RestoreHints)
     {
+        /// <summary>Failures that leave the repository needing attention, such as a stash that could not be stored back.</summary>
+        public List<PruneRepositoryError> Errors { get; } = [];
+
         public bool IsExcluded(string sha) => Options.OnlyShas != null && !Options.OnlyShas.Contains(sha);
+
+        public void AddError(string message)
+        {
+            GitWizardLog.Log($"{message} ({Path})", GitWizardLog.LogType.Warning);
+            Errors.Add(new PruneRepositoryError { Repository = Path, Error = message });
+        }
     }
 
     static List<PruneCandidate> PruneBranches(RepositoryContext context)
@@ -178,48 +184,6 @@ public static class Pruner
         }
 
         return mergedBy == null ? PruneSkipReasons.NotMerged : null;
-    }
-
-    static List<PruneCandidate> PruneStashes(RepositoryContext context)
-    {
-        var candidates = StashMergeDetector.Inventory(context.Repository, context.BaseBranch?.Tip)
-            .Select(stash => new PruneCandidate
-            {
-                Repository = context.Path,
-                Kind = PruneCandidate.StashKind,
-                Name = $"stash@{{{stash.Index}}}",
-                Sha = stash.Sha,
-                MergedBy = stash.MergedBy,
-                Message = stash.Message,
-                SkipReason = StashSkipReason(context, stash)
-            })
-            .ToList();
-
-        var quotedPath = ShellQuote(context.Path);
-        foreach (var candidate in candidates)
-        {
-            if (candidate.SkipReason != null)
-            {
-                candidate.Action = PruneCandidate.Skipped;
-                continue;
-            }
-
-            candidate.Action = PruneCandidate.ManualDrop;
-            context.RestoreHints.WriteLine(
-                $"Merged {candidate.Name} ({candidate.Sha}); check with: git -C {quotedPath} stash list --format='%H %gd' | grep '^{candidate.Sha} ' then drop with: git -C {quotedPath} stash drop {candidate.Name}");
-        }
-
-        return candidates;
-    }
-
-    static string? StashSkipReason(RepositoryContext context, StashInventoryInfo stash)
-    {
-        if (context.IsExcluded(stash.Sha))
-        {
-            return PruneSkipReasons.NotConfirmed;
-        }
-
-        return stash.IsMerged ? null : PruneSkipReasons.NotMerged;
     }
 
     static void Decide(PruneCandidate candidate, RepositoryContext context, Func<string?> delete)

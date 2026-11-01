@@ -4,8 +4,8 @@ using GitWizardTests.TestSupport;
 namespace GitWizardTests;
 
 /// <summary>
-/// <see cref="Pruner"/> dry-run and apply behavior, branch deletion safety guards, and report-only
-/// stash handling, all against throwaway repositories.
+/// <see cref="Pruner"/> dry-run and apply behavior and branch deletion safety guards, against
+/// throwaway repositories. Stash dropping through archive refs is in <see cref="PrunerStashTests"/>.
 /// </summary>
 [TestFixture]
 public class PrunerTests
@@ -21,14 +21,14 @@ public class PrunerTests
         return scenario;
     }
 
-    static void StashLandedEdit(GitScenarioRepo scenario, string fileName, string content)
+    internal static void StashLandedEdit(GitScenarioRepo scenario, string fileName, string content)
     {
         scenario.Write(fileName, content);
         scenario.Git("stash", "push", "-q", "-u", "-m", $"stash {fileName}");
         scenario.Commit(fileName, content, $"land {fileName}");
     }
 
-    static PruneCandidate Find(PruneReport report, string name) => report.Candidates.Single(candidate => candidate.Name == name);
+    internal static PruneCandidate Find(PruneReport report, string name) => report.Candidates.Single(candidate => candidate.Name == name);
 
     [Test]
     public void DryRun_ReportsWouldDeleteAndDeletesNothing()
@@ -40,20 +40,19 @@ public class PrunerTests
 
         var report = Pruner.Run([scenario.Path], new PruneOptions(), hints);
 
-        var quotedPath = Pruner.ShellQuote(scenario.Path);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(report.Applied, Is.False);
-            Assert.That(report.SchemaVersion, Is.EqualTo("1.0"));
+            Assert.That(report.SchemaVersion, Is.EqualTo("1.1"));
             Assert.That(Find(report, "feature").Action, Is.EqualTo(PruneCandidate.WouldDelete));
             Assert.That(Find(report, "feature").MergedBy, Is.EqualTo(MergedBy.Squash));
-            Assert.That(Find(report, "stash@{0}").Action, Is.EqualTo(PruneCandidate.ManualDrop));
+            Assert.That(Find(report, "stash@{0}").Action, Is.EqualTo(PruneCandidate.WouldDelete));
             Assert.That(Find(report, "stash@{0}").Kind, Is.EqualTo(PruneCandidate.StashKind));
             Assert.That(Find(report, "main").SkipReason, Is.EqualTo(PruneSkipReasons.BaseBranch));
             Assert.That(scenario.HasBranch("feature"), Is.True);
             Assert.That(scenario.StashShas(), Is.EqualTo(stashesBefore));
-            Assert.That(hints.ToString(), Does.Contain($"git -C {quotedPath} stash list --format='%H %gd' | grep '^{stashesBefore[0]} '")
-                .And.Contain($"git -C {quotedPath} stash drop stash@{{0}}"));
+            Assert.That(scenario.RefTargets("refs/git-wizard/"), Is.Empty, "A dry run writes no archive refs.");
+            Assert.That(hints.ToString(), Is.Empty);
         }
     }
 
@@ -148,37 +147,6 @@ public class PrunerTests
             Assert.That(scenario.HasBranch("main"), Is.True);
             Assert.That(scenario.HasBranch("checked-out") && scenario.HasBranch("in-worktree") && scenario.HasBranch("unmerged"), Is.True);
             Assert.That(report.Candidates.Any(candidate => candidate.Kind == PruneCandidate.StashKind), Is.False);
-        }
-    }
-
-    [Test]
-    public void Apply_ReportsMergedStashesForManualDropAndLeavesEveryStashInPlace()
-    {
-        using var scenario = GitScenarioRepo.Create();
-        StashLandedEdit(scenario, "first.txt", "first");
-        scenario.Write("base.txt", "never landed");
-        scenario.Git("stash", "push", "-q", "-m", "unmerged");
-        StashLandedEdit(scenario, "third.txt", "third");
-        var stashes = scenario.StashShas();
-        using var hints = new StringWriter();
-
-        var report = Pruner.Run([scenario.Path], new PruneOptions(Branches: false, Apply: true), hints);
-
-        var quotedPath = Pruner.ShellQuote(scenario.Path);
-        var hintOutput = hints.ToString();
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(report.Candidates.Select(candidate => candidate.Action), Is.EqualTo([
-                PruneCandidate.ManualDrop, PruneCandidate.Skipped, PruneCandidate.ManualDrop
-            ]));
-            Assert.That(Find(report, "stash@{1}").SkipReason, Is.EqualTo(PruneSkipReasons.NotMerged));
-            Assert.That(scenario.StashShas(), Is.EqualTo(stashes));
-            Assert.That(hintOutput, Does.Contain($"git -C {quotedPath} stash list --format='%H %gd' | grep '^{stashes[0]} '")
-                .And.Contain($"git -C {quotedPath} stash drop stash@{{0}}"));
-            Assert.That(hintOutput, Does.Contain($"git -C {quotedPath} stash list --format='%H %gd' | grep '^{stashes[2]} '")
-                .And.Contain($"git -C {quotedPath} stash drop stash@{{2}}"));
-            Assert.That(hintOutput, Does.Not.Contain(stashes[1]));
-            Assert.That(report.Candidates.Any(candidate => candidate.Kind == PruneCandidate.BranchKind), Is.False);
         }
     }
 

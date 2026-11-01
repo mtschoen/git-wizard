@@ -65,10 +65,10 @@ static partial class CliParser
     static SubcommandHandle SetupPruneCommand(CommandLineApplication app)
     {
         var pruneApp = app.Command("prune", _ => { });
-        pruneApp.Description = "List (dry run) or, with --apply, delete local branches whose changes are already in the base branch; merged stashes are report-only.";
+        pruneApp.Description = "List (dry run) or, with --apply, delete local branches and drop stashes whose changes are already in the base branch.";
         var branchesOption = pruneApp.Option("--branches", "Consider local branches (default: branches and stashes)", CommandOptionType.NoValue);
-        var stashesOption = pruneApp.Option("--stashes", "Consider stashes (report-only; default: branches and stashes)", CommandOptionType.NoValue);
-        var applyOption = pruneApp.Option("--apply", "Delete eligible branches (stashes remain report-only); without it nothing is deleted", CommandOptionType.NoValue);
+        var stashesOption = pruneApp.Option("--stashes", "Consider stashes (default: branches and stashes)", CommandOptionType.NoValue);
+        var applyOption = pruneApp.Option("--apply", "Delete eligible branches and drop eligible stashes, archiving every stash first; without it nothing is deleted", CommandOptionType.NoValue);
         var baseOption = pruneApp.Option("--base <BRANCH>", "Base branch to compare against (defaults to origin's default branch)", CommandOptionType.SingleValue);
         var inventoryOptions = AddInventoryOptions(pruneApp);
 

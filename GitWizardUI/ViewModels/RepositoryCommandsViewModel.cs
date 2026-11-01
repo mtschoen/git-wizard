@@ -193,9 +193,9 @@ public sealed class RepositoryCommandsViewModel
     /// <summary>
     /// The row's Clean button: runs a full-tier <see cref="Pruner"/> dry run for the repository off
     /// the UI thread (this includes the slow patch-id and squash tiers that refresh skips), asks
-    /// for confirmation listing every would-delete branch and manual-drop stash, then deletes the
-    /// confirmed branches, logs each branch restore command and stash manual-drop command, and
-    /// refreshes the repository.
+    /// for confirmation listing every would-delete branch and stash, then deletes the confirmed
+    /// branches and drops the confirmed stashes, logs each restore command, and refreshes the
+    /// repository.
     /// </summary>
     public async Task CleanDownstreamBranchesAsync(RepositoryNodeViewModel? node)
     {
@@ -219,14 +219,14 @@ public sealed class RepositoryCommandsViewModel
         }
 
         var candidates = dryRun.Candidates
-            .Where(candidate => candidate.Action is PruneCandidate.WouldDelete or PruneCandidate.ManualDrop)
+            .Where(candidate => candidate.Action == PruneCandidate.WouldDelete)
             .ToList();
         var skippedCount = dryRun.Candidates.Count - candidates.Count;
-        if (!candidates.Any(candidate => candidate.Action == PruneCandidate.WouldDelete))
+        if (candidates.Count == 0)
         {
             LogHints(dryRunHints);
             await _ui.InvokeAsync(() => _dialogs.ShowAlertAsync("Nothing to Clean",
-                $"No merged branches in {workingDirectory} ({skippedCount} skipped)."));
+                $"No merged branches or stashes in {workingDirectory} ({skippedCount} skipped)."));
             return;
         }
 
@@ -266,7 +266,7 @@ public sealed class RepositoryCommandsViewModel
         }
 
         var summary = failed.Count == 0
-            ? $"Deleted {deleted} item(s). Restore and manual stash drop commands are in the log."
+            ? $"Deleted {deleted} item(s). Restore commands are in the log."
             : $"Deleted {deleted} item(s). Could not delete: {string.Join(", ", failed)}";
         await _ui.InvokeAsync(() => _dialogs.ShowAlertAsync("Done", summary));
     }
@@ -296,7 +296,7 @@ public sealed class RepositoryCommandsViewModel
     {
         var builder = new StringBuilder();
         builder.Append("Clean ").Append(candidates.Count).Append(" item(s) in ").Append(workingDirectory)
-            .AppendLine(" (merged branches are deleted; merged stashes are logged for manual drop)?")
+            .AppendLine(" (merged branches are deleted and merged stashes are dropped; restore commands are logged)?")
             .AppendLine();
         foreach (var candidate in candidates)
         {

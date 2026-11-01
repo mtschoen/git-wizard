@@ -202,11 +202,10 @@ public class RepositoryPruneViewModelTests
                 Assert.That(scenario.HasBranch("squashed"), Is.False);
                 Assert.That(scenario.HasBranch("ancestor"), Is.False);
                 Assert.That(scenario.HasBranch("unmerged"), Is.True);
-                Assert.That(scenario.StashShas(), Is.EqualTo([stashSha]));
-                Assert.That(dialogs.AlertCalls.Single().Message, Does.StartWith("Deleted 2 item(s)"));
-                Assert.That(node.Repository.StashCount, Is.EqualTo(1), "The stash remains in place and the repository is refreshed.");
-                Assert.That(logText, Does.Contain($"git -C {quotedPath} stash list --format='%H %gd' | grep '^{stashSha} '")
-                    .And.Contain($"git -C {quotedPath} stash drop stash@{{0}}"));
+                Assert.That(scenario.StashShas(), Is.Empty);
+                Assert.That(dialogs.AlertCalls.Single().Message, Does.StartWith("Deleted 3 item(s)"));
+                Assert.That(node.Repository.StashCount, Is.EqualTo(0), "The stash is dropped and the repository is refreshed.");
+                Assert.That(logText, Does.Contain($"Dropped stash@{{0}} ({stashSha}); restore with: git -C {quotedPath} stash store -m 'On main: landed' {stashSha}"));
             }
         }
         finally

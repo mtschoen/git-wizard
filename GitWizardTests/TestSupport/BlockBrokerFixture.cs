@@ -44,7 +44,10 @@ sealed class BlockBrokerFixture : IAsyncDisposable
     }
 
     public string CacheDirectory => _files.BlockDirectory;
-    public IndexedRoot Drive(char letter) => SyntheticIndexedRoot.Create(new VolumeKey(letter), _files.TreePath, 1);
+    public string TreePath => _files.TreePath;
+    public RootKey Drive(char letter) => _files.Roots[char.ToUpperInvariant(letter)];
+
+    public FileIndexOptions ConfigureOptions(FileIndexOptions options) => _files.ConfigureOptions(options);
     public int ConnectionCount { get; private set; }
 
     /// <summary>Answers the host's grow requests; unset refuses the grow, as a host without a source does.</summary>

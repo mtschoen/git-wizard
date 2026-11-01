@@ -27,11 +27,11 @@ public partial class RepositoryDiscoveryCoordinator
         }
 
         ArgumentNullException.ThrowIfNull(request);
-        var scope = DiscoveryScope.Create(request, dependencies.ClassifyRoot);
+        var scope = DiscoveryScope.Create(request);
 
         if (dependencies.IsWindows)
         {
-            return await PrepareWindowsWatchAsync(request, scope, prepared, progress, cancellationToken).ConfigureAwait(false);
+            return await PrepareWindowsWatchAsync(scope, prepared, progress, cancellationToken).ConfigureAwait(false);
         }
 
         if (dependencies.IsLinux)
@@ -43,7 +43,6 @@ public partial class RepositoryDiscoveryCoordinator
     }
 
     async Task<WatchStartupResult> PrepareWindowsWatchAsync(
-        DiscoveryRequest request,
         DiscoveryScope scope,
         MftIndexSession? prepared,
         IProgress<WatchStartupProgress>? progress,
@@ -64,12 +63,11 @@ public partial class RepositoryDiscoveryCoordinator
             }
 
             progress?.Report(new WatchStartupProgress(WatchStartupPhase.Discovering));
-            if (source?.IndexSet is { } index && !request.NoMft)
+            if (source?.IndexSet is { } index)
             {
                 AddIndexedCandidates(index, accumulator, cancellationToken);
             }
 
-            await CrawlRecursiveRootsAsync(request, accumulator, null, cancellationToken).ConfigureAwait(false);
 
             IReadOnlyList<VolumeChangeBatch> startupBatches = [];
             if (source is not null)
@@ -78,10 +76,10 @@ public partial class RepositoryDiscoveryCoordinator
                 startupBatches = ReconcileBufferedBatches(source, accumulator, cancellationToken);
             }
 
-            accumulator.AddIndexedObservations(scope.SearchRoots, false, DiscoverySource.Replay, null);
-            accumulator.AddIndexedObservations(scope.RetainedRoots, true, DiscoverySource.Replay, null);
-            accumulator.AddClassificationErrorObservations();
-            var inventory = accumulator.BuildInventory(DetermineRoute(scope), scope.RequestedNtfsDrives);
+            accumulator.AddIndexedObservations(false, DiscoverySource.Replay, null);
+            accumulator.AddIndexedObservations(true, DiscoverySource.Replay, null);
+            accumulator.AddExpansionErrorObservations();
+            var inventory = accumulator.BuildInventory(DetermineRoute(source?.Session), WatchVolumes(source?.Session));
             await PersistAsync(previousList, inventory, cancellationToken).ConfigureAwait(false);
 
             if (inventory.Outcome is DiscoveryOutcome.CompleteEmpty or DiscoveryOutcome.Unusable && source is not null)
@@ -90,9 +88,7 @@ public partial class RepositoryDiscoveryCoordinator
                 source = null;
             }
 
-            var watchVolumes = accumulator.ObservedDrives.Count > 0
-                ? (string[])[.. scope.RequestedNtfsDrives.Where(accumulator.ObservedDrives.Contains)]
-                : scope.RequestedNtfsDrives;
+            var watchVolumes = WatchVolumes(source?.Session);
             var result = new WatchStartupResult(inventory, armResult, source, watchVolumes, scope, startupBatches);
             source = null;
             return result;
@@ -113,7 +109,7 @@ public partial class RepositoryDiscoveryCoordinator
         IProgress<WatchStartupProgress>? progress,
         CancellationToken cancellationToken)
     {
-        if (scope.RequestedNtfsDrives.Count == 0)
+        if (scope.IndexRoots.Count == 0)
         {
             if (prepared is not null)
             {
@@ -138,10 +134,18 @@ public partial class RepositoryDiscoveryCoordinator
         {
             progress?.Report(new WatchStartupProgress(WatchStartupPhase.CatchingUp));
             source.StartStartupBuffering();
-            armResult = await source.ArmAndCatchUpAsync(scope.RequestedNtfsDrives, cancellationToken).ConfigureAwait(false);
+            armResult = await source.ArmAndCatchUpAsync(scope.IndexRoots, cancellationToken).ConfigureAwait(false);
             foreach (var (drive, message) in armResult.Errors)
             {
                 accumulator.Errors[drive] = message;
+                if (VolumeKey.TryParse(drive, out var failedVolume) && source.Session is { } owner)
+                {
+                    foreach (var index in owner.Indices.Where(index => owner.TryGetVolume(index.Status.Root, out var volume) &&
+                                 volume == failedVolume))
+                    {
+                        accumulator.Errors[index.Status.Root.ToString()] = message;
+                    }
+                }
             }
 
             return (source, armResult);
@@ -165,18 +169,19 @@ public partial class RepositoryDiscoveryCoordinator
         IProgress<WatchStartupProgress>? progress,
         CancellationToken cancellationToken)
     {
-        var session = await ReusePreparedSessionAsync(scope, prepared).ConfigureAwait(false);
+        var session = await ReusePreparedSessionAsync(scope, prepared, requireExactRoots: true).ConfigureAwait(false);
         if (session is null)
         {
             try
             {
-                session = await Dependencies.OpenIndexAsync(
-                    scope.RequestedNtfsDrives, CacheMode.ExistingOnly, null, cancellationToken).ConfigureAwait(false);
+                session = await Dependencies.OpenAsync(
+                    scope, scope.Request.NoMft ? CacheMode.Disabled : CacheMode.ExistingOnly,
+                    null, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception exception) when (exception is not OperationCanceledException ||
                                               !cancellationToken.IsCancellationRequested)
             {
-                foreach (var drive in scope.RequestedNtfsDrives)
+                foreach (var drive in scope.IndexRoots)
                 {
                     accumulator.Errors[drive] = exception.Message;
                 }
@@ -301,7 +306,7 @@ public partial class RepositoryDiscoveryCoordinator
                      dependencies.CandidateExists(candidateRoot, RepositoryCandidateKind.GitFile) ||
                      dependencies.CandidateExists(candidateRoot, RepositoryCandidateKind.Bare);
 
-        if (exists && CandidateAdmissionPolicy.AdmitsInventoryCandidate(accumulator.Scope, candidateRoot))
+        if (exists && CandidateAdmissionPolicy.AdmitsInventoryCandidate(accumulator.CandidateScope, candidateRoot))
         {
             accumulator.Paths.Add(candidateRoot);
             return;

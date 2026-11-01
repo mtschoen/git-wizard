@@ -8,13 +8,15 @@ public partial class RepositoryDiscoveryCoordinator
     RepositoryDiscoveryDependencies Dependencies =>
         _dependencies ?? throw new InvalidOperationException("Dependencies are required for discovery.");
 
+    internal IReadOnlyList<string> AdditionalCloneRoots => Dependencies.AdditionalCloneRoots();
+
     public Task<RepositoryDiscoveryResult> DiscoverAsync(
         DiscoveryRequest request,
         IUpdateHandler? updateHandler,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var scope = DiscoveryScope.Create(request, Dependencies.ClassifyRoot);
+        var scope = DiscoveryScope.Create(request);
         return DiscoverScopeAsync(request, scope, null, updateHandler, cancellationToken);
     }
 
@@ -39,13 +41,16 @@ public partial class RepositoryDiscoveryCoordinator
         MftIndexSession? session = null;
         try
         {
-            if (scope.RequestedNtfsDrives.Count > 0 && !request.NoMft)
+            if (Dependencies.IsWindows && scope.IndexRoots.Count > 0)
             {
+                StartCrawlProgress(updateHandler, scope.IndexRoots.Count);
                 session = await ReusePreparedSessionAsync(scope, prepared).ConfigureAwait(false) ??
-                    await dependencies.OpenIndexAsync(
-                        scope.RequestedNtfsDrives, CacheMode.ExistingOnly, null, cancellationToken).ConfigureAwait(false);
+                    await dependencies.OpenAsync(
+                        scope, request.NoMft ? CacheMode.Disabled : CacheMode.ExistingOnly,
+                        null, cancellationToken).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
                 await RescanDrivesNeedingScanAsync(session, request.Purpose, accumulator, null, cancellationToken).ConfigureAwait(false);
+                UpdateCrawlProgress(updateHandler, scope.IndexRoots.Count);
             }
             else if (prepared is not null)
             {
@@ -57,22 +62,30 @@ public partial class RepositoryDiscoveryCoordinator
             if (session is not null)
             {
                 accumulator.RecordDriveStatuses(session.CaptureRootStatuses());
-                AddIndexedCandidates(session.IndexSet, accumulator, cancellationToken);
+                var observed = AddIndexedCandidates(session.IndexSet, accumulator, cancellationToken);
+                if (observed is not null)
+                {
+                    StartRepositorySizePass(observed, accumulator, cancellationToken);
+                }
             }
 
-            if (!request.NoMft)
+            if (session is not null)
             {
-                accumulator.AddIndexedObservations(scope.SearchRoots, false, DiscoverySource.Snapshot, updateHandler);
-                accumulator.AddIndexedObservations(scope.RetainedRoots, true, DiscoverySource.Snapshot, null);
+                accumulator.AddIndexedObservations(false, DiscoverySource.Snapshot, updateHandler);
+                accumulator.AddIndexedObservations(true, DiscoverySource.Snapshot, null);
             }
 
-            await CrawlRecursiveRootsAsync(request, accumulator, updateHandler, cancellationToken).ConfigureAwait(false);
+            if (!Dependencies.IsWindows)
+            {
+                await CrawlRecursiveRootsAsync(request, accumulator, updateHandler, cancellationToken).ConfigureAwait(false);
+            }
 
-            accumulator.AddClassificationErrorObservations();
-            var inventory = accumulator.BuildInventory(DetermineRoute(scope), scope.RequestedNtfsDrives);
+            accumulator.AddExpansionErrorObservations();
+            var inventory = accumulator.BuildInventory(DetermineRoute(session), WatchVolumes(session));
             await PersistAsync(previousList, inventory, cancellationToken).ConfigureAwait(false);
 
-            var result = new RepositoryDiscoveryResult(inventory, session);
+            var result = new RepositoryDiscoveryResult(inventory,
+                new RepositoryDiscoverySession(session, accumulator.RepositorySizes, accumulator.RepositorySizeCancellation));
             session = null;
             return result;
         }
@@ -80,7 +93,8 @@ public partial class RepositoryDiscoveryCoordinator
         {
             if (session is not null)
             {
-                await session.DisposeAsync().ConfigureAwait(false);
+                await new RepositoryDiscoverySession(session, accumulator.RepositorySizes,
+                    accumulator.RepositorySizeCancellation).DisposeAsync().ConfigureAwait(false);
             }
         }
     }
@@ -94,13 +108,13 @@ public partial class RepositoryDiscoveryCoordinator
         var listInventory = new DiscoveryInventory
         {
             Outcome = DiscoveryOutcome.CompleteNonempty,
-            Route = DetermineRoute(scope),
+            Route = DetermineRoute(null),
             Paths = previousList,
-            RequestedNtfsDrives = scope.RequestedNtfsDrives,
+            RequestedNtfsDrives = [],
             Observations = listObservations,
             RootStatuses = [],
             Errors = new Dictionary<string, string>(),
-            WatchExcludedRoots = scope.WatchExcludedRoots
+            WatchExcludedRoots = []
         };
 
         updateHandler?.SendUpdateMessage($"Loaded {previousList.Length} repositories from repository list.");
@@ -113,7 +127,7 @@ public partial class RepositoryDiscoveryCoordinator
         IUpdateHandler? progressHandler,
         CancellationToken cancellationToken)
     {
-        var roots = accumulator.Scope.RecursiveRoots;
+        var roots = accumulator.Scope.SearchRoots;
         if (roots.Count > 0)
         {
             StartCrawlProgress(progressHandler, roots.Count);
@@ -153,7 +167,8 @@ public partial class RepositoryDiscoveryCoordinator
         }
     }
 
-    static async Task<MftIndexSession?> ReusePreparedSessionAsync(DiscoveryScope scope, MftIndexSession? prepared)
+    static async Task<MftIndexSession?> ReusePreparedSessionAsync(DiscoveryScope scope, MftIndexSession? prepared,
+        bool requireExactRoots = false)
     {
         if (prepared is null)
         {
@@ -163,8 +178,9 @@ public partial class RepositoryDiscoveryCoordinator
         if (!prepared.IsDisposed && !prepared.IsFaulted)
         {
             var available = RootKeyProjection.ParseRootKeys(prepared.Drives).ToHashSet();
-            var requested = RootKeyProjection.ParseRootKeys(scope.RequestedNtfsDrives);
-            if (requested.Length == scope.RequestedNtfsDrives.Count && requested.All(available.Contains))
+            var requested = RootKeyProjection.ParseRootKeys(scope.IndexRoots);
+            if (requested.Length == scope.IndexRoots.Count && requested.All(available.Contains) &&
+                (!requireExactRoots || available.SetEquals(requested)))
             {
                 return prepared;
             }
@@ -218,44 +234,52 @@ public partial class RepositoryDiscoveryCoordinator
         }
     }
 
-    void AddIndexedCandidates(FileIndexSet index, DiscoveryAccumulator accumulator, CancellationToken cancellationToken)
+    FileIndexSet? AddIndexedCandidates(FileIndexSet index, DiscoveryAccumulator accumulator, CancellationToken cancellationToken)
     {
         if (accumulator.ObservedDrives.Count == 0)
         {
-            return;
+            return null;
         }
 
-        foreach (var candidate in GitWizardApi.SelectRepositoryCandidates(index, accumulator.Scope, cancellationToken))
+        var observed = new FileIndexSet([.. index.Indices.Where(member =>
+            accumulator.ObservedDrives.Contains(member.Status.Root.ToString()))]);
+        accumulator.CandidateScope = ResolvedDiscoveryScope.Create(observed, accumulator.Scope);
+        foreach (var candidate in GitWizardApi.SelectRepositoryCandidates(observed, accumulator.CandidateScope, cancellationToken))
         {
-            var candidateDrive = FindCandidateDrive(accumulator.Scope, candidate.Path);
-            if (candidateDrive is not null && !accumulator.ObservedDrives.Contains(candidateDrive))
-            {
-                continue;
-            }
-
             if (Dependencies.CandidateExists(candidate.Path, candidate.Kind))
             {
                 accumulator.Paths.Add(candidate.Path);
             }
         }
+
+        return observed;
     }
 
-    static string? FindCandidateDrive(DiscoveryScope scope, string candidatePath)
+    void StartRepositorySizePass(FileIndexSet observed, DiscoveryAccumulator accumulator, CancellationToken cancellationToken)
     {
-        var candidate = WatchPath.Parse(candidatePath);
-        var classification = scope.Classifications.FirstOrDefault(item =>
-            item.NtfsDrive is not null && candidate.IsUnderOrEqual(WatchPath.Parse(item.Root)));
-        return classification?.NtfsDrive ?? candidate.Volume;
+        var sizeCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        accumulator.RepositorySizeCancellation = sizeCancellation;
+        accumulator.RepositorySizes = Task.Run(
+            () => Dependencies.ComputeRepositorySizes(observed, [.. accumulator.Paths], sizeCancellation.Token),
+            CancellationToken.None);
     }
 
-    static DiscoveryRoute DetermineRoute(DiscoveryScope scope)
+    static IReadOnlyList<string> WatchVolumes(MftIndexSession? session) => session?.ObservedMftVolumes ?? [];
+
+    static DiscoveryRoute DetermineRoute(MftIndexSession? session)
     {
-        return (scope.RequestedNtfsDrives.Count, scope.RecursiveRoots.Count) switch
+        if (session is null || session.Indices.Count == 0)
         {
-            ( > 0, > 0) => DiscoveryRoute.Mixed,
-            ( > 0, _) => DiscoveryRoute.Indexed,
-            _ => DiscoveryRoute.RecursiveOnly
-        };
+            return DiscoveryRoute.RecursiveOnly;
+        }
+
+        var mftCount = session.Indices.Count(index => index.Status.Producer == ProducerKind.Mft);
+        if (mftCount == 0)
+        {
+            return DiscoveryRoute.RecursiveOnly;
+        }
+
+        return mftCount == session.Indices.Count ? DiscoveryRoute.Indexed : DiscoveryRoute.Mixed;
     }
 
     static bool NeedsScan(DiscoveryPurpose purpose, MftRootStatus drive)

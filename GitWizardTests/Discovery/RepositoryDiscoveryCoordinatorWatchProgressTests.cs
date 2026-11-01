@@ -18,16 +18,14 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
         var scripted = new ScriptedWatchSource();
         var treePath = files.TreePath;
         var session = new MftIndexSession(
-            [await files.OpenMftIndexAsync(scripted, 'X')],
+            [await files.OpenMftIndexAsync(scripted, 'X', RootKey.FromDirectory(treePath))],
             null,
-            ["X"],
-            [SyntheticIndexedRoot.Create(new VolumeKey('X'), treePath, 1)],
+            [treePath],
             new Dictionary<string, string>());
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = _ => new RootClassification(treePath, RootFileSystem.Ntfs, "X", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled."),
             OpenIndexAsync = (_, _, _, _) => throw new AssertionException("The prepared session must be adopted."),
             ReadListAsync = _ => Task.FromResult<string[]?>([]),
@@ -103,10 +101,9 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
             return connectAsync(cancellationToken);
         });
         var session = new MftIndexSession(
-            [await files.OpenMftIndexAsync(scripted, 'X')],
+            [await files.OpenMftIndexAsync(scripted, 'X', RootKey.FromDirectory(treePath))],
             null,
-            ["X"],
-            [SyntheticIndexedRoot.Create(new VolumeKey('X'), treePath, 1)],
+            [treePath],
             new Dictionary<string, string>())
         {
             BrokerSession = brokerSession
@@ -115,7 +112,6 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = _ => new RootClassification(treePath, RootFileSystem.Ntfs, "X", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled."),
             OpenIndexAsync = (_, _, _, _) => throw new AssertionException("The prepared session must be adopted."),
             ReadListAsync = _ => Task.FromResult<string[]?>([]),

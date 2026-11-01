@@ -11,6 +11,34 @@ sealed class PackedIndexFixture : IDisposable
     public string DirectoryPath => _directory.Path;
     public string TreePath { get; }
     public string BlockDirectory { get; }
+    public IReadOnlyDictionary<char, RootKey> Roots { get; } = Enumerable.Range('A', 26)
+        .ToDictionary(value => (char)value, value => (RootKey)new VolumeKey((char)value));
+
+    public FileIndexOptions ConfigureOptions(FileIndexOptions options) => ConfigureVolumeOptions(options,
+        options.Root!.Value.TryGetVolume(out var requested) ? requested : new VolumeKey('X'));
+
+    FileIndexOptions ConfigureVolumeOptions(FileIndexOptions options, VolumeKey volume)
+    {
+        var directory = volume.Letter == 'X' ? TreePath : Path.Combine(DirectoryPath, volume.ToString());
+        Directory.CreateDirectory(directory);
+        if (volume.Letter != 'X')
+        {
+            CopyTree(TreePath, directory);
+        }
+        return SyntheticVolumeFacts.Apply(options, 1, volume: volume, volumeRootDirectory: directory);
+    }
+
+    static void CopyTree(string source, string destination)
+    {
+        foreach (var directory in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
+        {
+            Directory.CreateDirectory(Path.Combine(destination, Path.GetRelativePath(source, directory)));
+        }
+        foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+        {
+            File.Copy(file, Path.Combine(destination, Path.GetRelativePath(source, file)), true);
+        }
+    }
 
     public PackedIndexFixture()
     {
@@ -53,28 +81,42 @@ sealed class PackedIndexFixture : IDisposable
     }
 
     /// <summary>Opens one enumeration-backed index over the fixture tree for <paramref name="drive" />.</summary>
-    public Task<FileIndex> OpenIndexAsync(char drive = 'X') => FileIndex.OpenAsync(new FileIndexOptions
+    public Task<FileIndex> OpenIndexAsync(char drive = 'X', RootKey? root = null) => FileIndex.OpenAsync(ConfigureOptions(new FileIndexOptions
     {
-        Root = SyntheticIndexedRoot.Create(new VolumeKey(drive), TreePath, 1, ProducerKind.Enumeration),
-        CacheMode = CacheMode.Disabled
-    }, CancellationToken.None);
+        Root = root ?? new VolumeKey(drive),
+        CacheMode = CacheMode.Disabled,
+        Producer = ProducerSelection.WalkOnly
+    }), CancellationToken.None);
 
     /// <summary>Opens one enumeration-backed index per drive, in the order given.</summary>
     public Task<FileIndex[]> OpenIndicesAsync(params char[] drives) =>
         Task.WhenAll(drives.Select(drive => OpenIndexAsync(drive)));
 
     /// <summary>Opens one synthetic-producer index over the fixture tree for <paramref name="drive" />.</summary>
-    public Task<FileIndex> OpenMftIndexAsync(ScriptedWatchSource source, char drive) =>
-        FileIndex.OpenAsync(new FileIndexOptions
+    public Task<FileIndex> OpenMftIndexAsync(ScriptedWatchSource source, char drive, RootKey? root = null) =>
+        OpenMftIndexAsync(SyntheticIndexSource.Create(Producer, source), drive, root);
+
+    /// <summary>Opens one index over <paramref name="source" />; indexes opened over the same instance share a volume scan.</summary>
+    public Task<FileIndex> OpenMftIndexAsync(MftIndexSource source, char drive, RootKey? root = null) =>
+        FileIndex.OpenAsync(ConfigureVolumeOptions(new FileIndexOptions
         {
-            Root = SyntheticIndexedRoot.Create(new VolumeKey(drive), TreePath, 1),
+            Root = root ?? new VolumeKey(drive),
             CacheMode = CacheMode.Disabled,
-            MftSource = SyntheticIndexSource.Create(Producer, source)
-        }, CancellationToken.None);
+            MftSource = source
+        }, new VolumeKey(drive)), CancellationToken.None);
 
     /// <summary>Opens one synthetic-producer index per drive, in the order given, all sharing <paramref name="source" />.</summary>
     public Task<FileIndex[]> OpenMftIndicesAsync(ScriptedWatchSource source, params char[] drives) =>
         Task.WhenAll(drives.Select(drive => OpenMftIndexAsync(source, drive)));
+
+    public async Task<GitWizard.MftIndexSession> OpenDirectorySessionAsync(IReadOnlyList<string> roots,
+        ScriptedWatchSource? source = null)
+    {
+        var indices = await Task.WhenAll(roots.Select(root => source is null
+            ? OpenIndexAsync(root: RootKey.FromDirectory(root))
+            : OpenMftIndexAsync(source, 'X', RootKey.FromDirectory(root)))).ConfigureAwait(false);
+        return new GitWizard.MftIndexSession(indices, null, roots, new Dictionary<string, string>());
+    }
 
     public const ulong JournalIdentifier = 100;
     public const long NextUsn = 1000;
@@ -125,10 +167,10 @@ sealed class PackedIndexFixture : IDisposable
     }
 
     public static GitWizard.MftIndexSession Owner(FileIndex index, params string[] drives) =>
-        new([index], null, drives, [], new Dictionary<string, string>());
+        new([index], null, drives, new Dictionary<string, string>());
 
     public static GitWizard.MftIndexSession Owner(IReadOnlyList<FileIndex> indices, params string[] drives) =>
-        new(indices, null, drives, [], new Dictionary<string, string>());
+        new(indices, null, drives, new Dictionary<string, string>());
 
     public static SyntheticJournalRecord Entry(ulong record, ulong parent, string name, SyntheticJournalReason reason,
         bool directory = false) => new()

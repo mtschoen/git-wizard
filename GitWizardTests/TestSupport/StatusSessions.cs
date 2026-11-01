@@ -32,18 +32,46 @@ static class StatusSessions
     public static Func<IReadOnlyList<string>, CacheMode, IProgress<IndexScanProgress>?, CancellationToken,
         Task<MftIndexSession>> Opener(PackedIndexFixture files,
         params (char Letter, SyntheticDriveBehavior Behavior)[] drives) =>
-        (_, _, _, _) => OpenAsync(files, drives);
+        (roots, _, _, _) => OpenRequestedAsync(files, roots, drives);
+
+    /// <summary>Like <see cref="Opener" />, but opens <paramref name="roots" /> exactly as spelled rather than the requested spelling.</summary>
+    public static Func<IReadOnlyList<string>, CacheMode, IProgress<IndexScanProgress>?, CancellationToken,
+        Task<MftIndexSession>> OpenerForRoots(PackedIndexFixture files, IReadOnlyList<string> roots,
+        params (char Letter, SyntheticDriveBehavior Behavior)[] drives) =>
+        (_, _, _, _) => OpenRequestedAsync(files, roots, drives);
 
     /// <summary>Like <see cref="Opener" />, with every later production failing as a failed rescan does.</summary>
     public static Func<IReadOnlyList<string>, CacheMode, IProgress<IndexScanProgress>?, CancellationToken,
         Task<MftIndexSession>> OpenerFailingRescan(PackedIndexFixture files, string message,
         params (char Letter, SyntheticDriveBehavior Behavior)[] drives) =>
-        async (_, _, _, _) =>
+        async (roots, _, _, _) =>
         {
-            var session = await OpenAsync(files, drives).ConfigureAwait(false);
+            var session = await OpenRequestedAsync(files, roots, drives).ConfigureAwait(false);
             files.BeforeProduceAsync = (_, _) => throw new IOException(message);
             return session;
         };
+
+    public static async Task<MftIndexSession> OpenRequestedAsync(PackedIndexFixture files, IReadOnlyList<string> roots,
+        (char Letter, SyntheticDriveBehavior Behavior)[] drives, ScriptedWatchSource? watchSource = null)
+    {
+        var failing = drives.Where(item => item.Behavior == SyntheticDriveBehavior.ProducerFails)
+            .Select(item => item.Letter).ToHashSet();
+        files.BeforeProduceAsync = (root, _) => failing.Contains(root.ToString()[0])
+            ? throw new IOException(ProducerFailureMessage(root.ToString()[0])) : Task.CompletedTask;
+        var source = SyntheticIndexSource.Create(files.Producer, watchSource ?? new ScriptedWatchSource());
+        var indices = await Task.WhenAll(roots.Select((root, position) => FileIndex.OpenAsync(
+            SyntheticVolumeFacts.Apply(new FileIndexOptions
+            {
+                Root = RootKey.FromDirectory(root),
+                CacheMode = CacheMode.Disabled,
+                MftSource = source
+            }, 1, volume: new VolumeKey(drives.Length == 1 ? drives[0].Letter : drives[position].Letter), volumeRootDirectory: root),
+            CancellationToken.None))).ConfigureAwait(false);
+        var errors = indices.Select(index => index.Status)
+            .Where(status => status.State is RootState.Failed or RootState.Offline)
+            .ToDictionary(status => status.Root.ToString(), status => status.Failure?.Message ?? $"Drive is {status.State}.");
+        return new MftIndexSession(indices, new CountingOwner(), roots, errors);
+    }
 
     public static Task<MftIndexSession> OpenAsync(PackedIndexFixture files,
         params (char Letter, SyntheticDriveBehavior Behavior)[] drives) =>
@@ -58,18 +86,26 @@ static class StatusSessions
             ? throw new IOException(ProducerFailureMessage(drive.ToString()[0]))
             : Task.CompletedTask;
         var absentRoot = Path.Combine(files.DirectoryPath, "absent");
-        var indexedDrives = drives.Select(item => SyntheticIndexedRoot.Create(new VolumeKey(item.Letter), item.Behavior == SyntheticDriveBehavior.Offline ? absentRoot : files.TreePath, 1)).ToArray();
-        var indices = await Task.WhenAll(indexedDrives.Select(root => FileIndex.OpenAsync(new FileIndexOptions
+        var indexedDrives = drives.Select(item => (RootKey)new VolumeKey(item.Letter)).ToArray();
+        var indices = await Task.WhenAll(indexedDrives.Select(root => FileIndex.OpenAsync(Configure(new FileIndexOptions
         {
             Root = root,
             CacheMode = CacheMode.Disabled,
             MftSource = SyntheticIndexSource.Create(files.Producer, watchSource)
-        }, CancellationToken.None))).ConfigureAwait(false);
+        }), CancellationToken.None))).ConfigureAwait(false);
         var scanErrors = indices.Select(index => index.Status)
             .Where(status => status.State is RootState.Failed or RootState.Offline)
             .ToDictionary(status => status.Root.ToString(),
                 status => status.Failure?.Message ?? $"Drive is {status.State}.");
         return new MftIndexSession(indices, new CountingOwner(),
-            (string[])[.. drives.Select(item => item.Letter.ToString())], indexedDrives, scanErrors);
+            (string[])[.. drives.Select(item => item.Letter.ToString())], scanErrors);
+
+        FileIndexOptions Configure(FileIndexOptions options)
+        {
+            var volume = options.Root!.Value.TryGetVolume(out var value) ? value : throw new InvalidOperationException();
+            return drives.Single(item => item.Letter == volume.Letter).Behavior == SyntheticDriveBehavior.Offline
+                ? SyntheticVolumeFacts.Apply(options, 1, volume: volume, volumeRootDirectory: absentRoot)
+                : files.ConfigureOptions(options);
+        }
     }
 }

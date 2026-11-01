@@ -185,7 +185,7 @@ public class RefreshPhaseObservationAndCancellationTests
 
     /// <summary>
     /// Cancels from inside <see cref="IUpdateHandler.OnSubmoduleCreated"/>, which fires from
-    /// inside the <c>Parallel.ForEach</c> loop in <c>RefreshSubmodules</c> - i.e. after that
+    /// inside the <c>foreach</c> loop in <c>RefreshSubmodules</c> - i.e. after that
     /// phase has genuinely been entered and has processed at least one submodule - rather than
     /// from <c>PhaseObserverForTesting</c>, which fires before the phase's own
     /// <c>ThrowIfCancellationRequested</c> guard and so would cancel before the phase ever ran.
@@ -232,7 +232,7 @@ public class RefreshPhaseObservationAndCancellationTests
 
     /// <summary>
     /// Cancels from inside <see cref="IUpdateHandler.OnWorktreeCreated"/>, which fires from
-    /// inside the <c>Parallel.ForEach</c> loop in <c>RefreshWorktrees</c> - i.e. after that
+    /// inside the <c>foreach</c> loop in <c>RefreshWorktrees</c> - i.e. after that
     /// phase has genuinely been entered and has processed at least one worktree - rather than
     /// from <c>PhaseObserverForTesting</c>, which fires before the phase's own
     /// <c>ThrowIfCancellationRequested</c> guard and so would cancel before the phase ever ran.

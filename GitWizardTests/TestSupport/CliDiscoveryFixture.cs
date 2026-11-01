@@ -64,7 +64,10 @@ sealed class CliDiscoveryFixture : IAsyncDisposable
     {
         if (!OperatingSystem.IsWindows())
         {
-            return @"Z:\shared";
+            _substDirectory = new TempDirectory("gw-shared-");
+            var shared = Path.Combine(_substDirectory.Path, "shared");
+            Directory.CreateDirectory(shared);
+            return shared;
         }
 
         var drive = FindFreeDrive();

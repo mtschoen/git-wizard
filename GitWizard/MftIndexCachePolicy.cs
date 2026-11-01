@@ -3,7 +3,7 @@ using MFTLib.Index;
 namespace GitWizard;
 
 /// <summary>
-/// Application cache identity, marker retention, and the directory holding GitWizard's index blocks.
+/// Application cache identity and the directory holding GitWizard's index blocks.
 /// </summary>
 public static class MftIndexCachePolicy
 {
@@ -11,9 +11,7 @@ public static class MftIndexCachePolicy
     const string BlockDirectoryName = "blocks";
 
     // The tag identifies application semantics; MFTLib validates row-shaping options independently.
-    const uint CacheTagVersion = 2;
-
-    public static IReadOnlyList<string> DirectoryScanFileNames { get; } = Array.AsReadOnly([".git", "HEAD"]);
+    const uint CacheTagVersion = 3;
 
     public static CacheTag CacheTag { get; } = new("GWMI", CacheTagVersion);
 

@@ -32,8 +32,7 @@ public class JournalWarningRefreshTests
         {
             Files.AddMarker("repo");
             var index = await Files.OpenMftIndexAsync(Scripted, 'X');
-            Owner = new MftIndexSession([index], null, ["X"], [SyntheticIndexedRoot.Create(new VolumeKey('X'), Files.TreePath, 12345u)],
-                new Dictionary<string, string>());
+            Owner = new MftIndexSession([index], null, ["X"], new Dictionary<string, string>());
             Source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(Owner));
             Source.JournalWarningDetected += _warnings.Enqueue;
             return await Source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
@@ -137,7 +136,7 @@ public class JournalWarningRefreshTests
         var drive = harness.Owner!.Indices.Single().Status;
         var recovering = drive.Watch with { CheckpointLoss = loss, State = WatchState.Recovering, StateVersion = drive.Watch.StateVersion + 1 };
         source.ProcessFaultedDrive(drive with { Watch = recovering }, harness.Owner, new GitWizardConfiguration());
-        var dismissed = new GitWizardConfiguration { IgnoredJournalWarnings = [12345u] };
+        var dismissed = new GitWizardConfiguration { IgnoredJournalWarnings = [drive.VolumeSerial!.Value] };
 
         source.RefreshJournalWarning('X', recovering with { State = WatchState.CaughtUp, StateVersion = recovering.StateVersion + 1 }, dismissed);
         source.RefreshJournalWarning('X', recovering with { State = WatchState.CaughtUp, StateVersion = recovering.StateVersion + 1, CheckpointLoss = Harness.ScanCatchUpLoss() }, new GitWizardConfiguration());

@@ -3,8 +3,8 @@ using MFTLib.Index;
 namespace GitWizard.Discovery;
 
 /// <summary>
-/// The directories holding both an <c>objects</c> and a <c>refs</c> child directory, found with one index
-/// scan per name instead of one whole-index child scan per candidate.
+/// The directories holding both an <c>objects</c> and a <c>refs</c> child directory, built from the entries
+/// the shared discovery scan found for those two names.
 /// </summary>
 sealed class BareLayoutIndex
 {
@@ -14,20 +14,18 @@ sealed class BareLayoutIndex
 
     public bool Contains(FileEntry directory) => _directories.Contains(directory);
 
-    public static BareLayoutIndex Build(
-        FileIndexSet index, CandidateSelectionDiagnostics? diagnostics, CancellationToken cancellationToken)
+    public static BareLayoutIndex Build(IReadOnlyList<FileEntry> objects, IReadOnlyList<FileEntry> refs)
     {
-        var withObjects = ParentsOfDirectoriesNamed(index, "objects", diagnostics, cancellationToken);
-        var withRefs = ParentsOfDirectoriesNamed(index, "refs", diagnostics, cancellationToken);
+        var withObjects = ParentsOfDirectories(objects);
+        var withRefs = ParentsOfDirectories(refs);
         withObjects.IntersectWith(withRefs);
         return new BareLayoutIndex(withObjects);
     }
 
-    static HashSet<FileEntry> ParentsOfDirectoriesNamed(
-        FileIndexSet index, string name, CandidateSelectionDiagnostics? diagnostics, CancellationToken cancellationToken)
+    static HashSet<FileEntry> ParentsOfDirectories(IReadOnlyList<FileEntry> entries)
     {
         var parents = new HashSet<FileEntry>();
-        foreach (var entry in GitWizardApi.ScanByName(index, name, diagnostics, cancellationToken))
+        foreach (var entry in entries)
         {
             try
             {

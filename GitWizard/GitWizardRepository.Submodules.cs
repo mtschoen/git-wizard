@@ -39,6 +39,12 @@ public partial class GitWizardRepository
     {
         try
         {
+            if (repository.Info.IsBare)
+            {
+                // A bare repository has no working tree, so libgit2 throws on submodule enumeration.
+                return;
+            }
+
             var submodules = repository.Submodules;
             if (!submodules.Any())
             {
@@ -46,17 +52,17 @@ public partial class GitWizardRepository
             }
 
             var submodulesMap = Submodules ??= new SortedDictionary<string, GitWizardRepository?>();
-            Parallel.ForEach(submodules, new ParallelOptions { CancellationToken = cancellationToken }, submodule =>
+            foreach (var submodule in submodules)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var submoduleRepository = GetOrCreateSubmoduleRepository(submodule, workingDirectory, updateHandler, submodulesMap);
                 if (submoduleRepository == null)
                 {
-                    return;
+                    continue;
                 }
 
                 submoduleRepository.Refresh(updateHandler, cancellationToken: cancellationToken);
-            });
+            }
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -155,6 +161,12 @@ public partial class GitWizardRepository
 
         try
         {
+            if (repository.Info.IsBare)
+            {
+                // No index in a bare repository, so there are no gitlinks to reconcile.
+                return;
+            }
+
             // Submodule name -> path, as declared in .gitmodules.
             var declared = ParseGitmodules(workingDirectory);
 

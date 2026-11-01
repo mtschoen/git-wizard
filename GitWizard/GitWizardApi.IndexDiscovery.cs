@@ -27,63 +27,69 @@ public static partial class GitWizardApi
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        scope = ResolvedDiscoveryScope.Create(index, scope);
         var results = new List<RepositoryCandidate>();
         var seenPaths = new HashSet<string>(WatchPath.StringComparer);
 
-        var gitEntries = ScanByName(index, GitEntryName, diagnostics, cancellationToken);
-        var headEntries = ScanByName(index, "HEAD", diagnostics, cancellationToken);
-        var layouts = new Lazy<BareLayoutIndex>(() => BareLayoutIndex.Build(index, diagnostics, cancellationToken));
-
-        foreach (var candidateScope in BuildCandidateScopes(index, scope))
+        foreach (var member in index.Indices.Where(member => member.Status.Block is not null))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var scopeCandidates = SelectGitMarkerCandidates(gitEntries, candidateScope, diagnostics)
-                .Concat(SelectBareCandidates(headEntries, candidateScope, layouts, diagnostics));
-            results.AddRange(scopeCandidates.Where(candidate => seenPaths.Add(candidate.Path)));
+            // Each member's queries are already restricted to its directory view by MFTLib.
+            // The remaining scope predicates are candidate admission (including exact retained roots).
+            var candidates = SelectRootCandidates(new FileIndexSet([member]), scope, diagnostics, cancellationToken);
+            results.AddRange(candidates.Where(candidate => seenPaths.Add(candidate.Path)));
         }
 
         return results.AsReadOnly();
     }
 
-    // Every index scan the selection starts goes through here so a test can count them. The result is
-    // materialized because each candidate scope reads it again.
-    internal static IReadOnlyList<FileEntry> ScanByName(
-        FileIndexSet index, string name, CandidateSelectionDiagnostics? diagnostics, CancellationToken cancellationToken)
+    // The four exact names discovery needs, in the order ScanByNames returns their entry lists.
+    internal static readonly string[] DiscoveryNames = [GitEntryName, "HEAD", "objects", "refs"];
+
+    // Every index scan the selection starts goes through here so a test can count them. The lists are
+    // materialized because each candidate scope reads them again.
+    internal static IReadOnlyList<IReadOnlyList<FileEntry>> ScanByNames(
+        FileIndexSet index, CandidateSelectionDiagnostics? diagnostics, CancellationToken cancellationToken)
     {
         diagnostics?.RecordIndexScan();
-        return (FileEntry[])[.. index.Search(new SearchQuery(name, NameMatchMode.Exact), cancellationToken)];
+        return index.SearchExactNames(DiscoveryNames, cancellationToken: cancellationToken);
     }
 
     internal readonly record struct CandidateScope(
         WatchPath TranslatedRoot,
         bool IsExact,
         bool CoversDriveRoot,
-        CandidateAdmissionPolicy Policy,
-        WatchPath ConfiguredRoot);
+        CandidateAdmissionPolicy Policy);
 
-    static List<CandidateScope> BuildCandidateScopes(FileIndexSet index, DiscoveryScope scope)
+    static IEnumerable<RepositoryCandidate> SelectRootCandidates(FileIndexSet index, DiscoveryScope scope,
+        CandidateSelectionDiagnostics? diagnostics, CancellationToken cancellationToken)
     {
+        var found = ScanByNames(index, diagnostics, cancellationToken);
+        var gitEntries = found[0];
+        var headEntries = found[1];
+        var layouts = new Lazy<BareLayoutIndex>(() => BareLayoutIndex.Build(found[2], found[3]));
         var roots = scope.SearchRoots.Select(root => (Root: root, IsExact: false)).ToList();
         roots.AddRange(scope.RetainedRoots
             .Select(retainedRoot => (Root: retainedRoot, Path: WatchPath.Parse(retainedRoot)))
             .Where(retained => !scope.SearchRoots.Any(searchRoot => retained.Path.IsUnderOrEqual(WatchPath.Parse(searchRoot))))
             .Select(retained => (retained.Root, true)));
 
-        var policy = CandidateAdmissionPolicy.ForScope(scope) with
+        var policy = CandidateAdmissionPolicy.ForScope(scope);
+        foreach (var item in roots)
         {
-            IgnoredRoots = (WatchPath[])[.. scope.IgnoredRoots
-                .Select(ignoredRoot => TranslateToRealRoot(index, WatchPath.Parse(ignoredRoot)))]
-        };
-        return roots.ConvertAll(item =>
-        {
+            cancellationToken.ThrowIfCancellationRequested();
             var root = WatchPath.Parse(item.Root);
-            return new CandidateScope(
-                TranslateToRealRoot(index, root),
+            var admission = new CandidateScope(
+                root,
                 item.IsExact,
                 !item.IsExact && IsLogicalDriveRoot(root),
-                policy,
-                root);
-        });
+                policy);
+            foreach (var candidate in SelectGitMarkerCandidates(gitEntries, admission, diagnostics)
+                         .Concat(SelectBareCandidates(headEntries, admission, layouts, diagnostics)))
+            {
+                yield return candidate;
+            }
+        }
     }
 
     // A scope root is a logical Windows path even when the index was enumerated on another host, so the
@@ -200,8 +206,7 @@ public static partial class GitWizardApi
         var candidateDirectory = parent;
         return matches &&
                candidateScope.Policy.AdmitsWithin(
-                   root, candidate, depth => HasHiddenAttributeWithin(candidateDirectory, depth),
-                   candidateScope.ConfiguredRoot);
+                   root, candidate, depth => HasHiddenAttributeWithin(candidateDirectory, depth));
     }
 
     // The nearest `depth` directories, starting at the candidate directory itself, are the ones
@@ -234,51 +239,4 @@ public static partial class GitWizardApi
         }
     }
 
-    /// <summary>
-    /// Rewrites a drive-letter-rooted path onto that drive's real indexed root directory, so it can
-    /// be compared against <see cref="FileEntry.Path" /> values in the same coordinate space. Falls
-    /// back to the original path for anything that is not a single-drive-letter Windows path, or
-    /// whose drive is not part of <paramref name="index" /> (the caller's own scope filtering then
-    /// naturally excludes it).
-    /// </summary>
-    static WatchPath TranslateToRealRoot(FileIndexSet index, WatchPath path)
-    {
-        if (!path.IsWindows || path.Volume is not { Length: 1 } volume || !char.IsAsciiLetter(volume[0]))
-        {
-            return path;
-        }
-
-        // Not every configured search root's drive is necessarily part of this set (a denied or failed
-        // drive is reported through ScanErrors and never opened), so a drive without an index is treated
-        // like one the set has no entries for: the caller's own scope filtering excludes it naturally.
-        RootKey root = new VolumeKey(char.ToUpperInvariant(volume[0]));
-        var owner = index.Indices.FirstOrDefault(candidate => candidate.Status.Root == root);
-        if (owner is null)
-        {
-            return path;
-        }
-
-        string realRoot;
-        try
-        {
-            realRoot = owner.Root().Path;
-        }
-        catch (Exception exception) when (
-            exception is InvalidOperationException or InvalidDataException or ArgumentException)
-        {
-            // An index that never produced a block has no root entry to read.
-            return path;
-        }
-        var realRootPath = WatchPath.Parse(realRoot);
-        if (path.IsUnderOrEqual(realRootPath) ||
-            (realRootPath.IsWindows && string.Equals(realRootPath.Volume, volume, StringComparison.OrdinalIgnoreCase)))
-        {
-            return path;
-        }
-
-        var relative = path.Comparison.Length > 3 ? path.Comparison[3..] : string.Empty;
-        return WatchPath.Parse(relative.Length == 0
-            ? realRoot
-            : Path.Combine(realRoot, relative.Replace('/', Path.DirectorySeparatorChar)));
-    }
 }

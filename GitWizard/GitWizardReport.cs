@@ -210,12 +210,18 @@ public partial class GitWizardReport : IAsyncDisposable
             if (repositoryPaths == null)
             {
                 var discovered = new SortedSet<string>();
-                await report.GetRepositoryPathsAsync(discovered, updateHandler, options.NoMft, options.RetainDiscoveryIndex, options).ConfigureAwait(false);
+                await report.GetRepositoryPathsAsync(discovered, updateHandler, options.NoMft, true, options).ConfigureAwait(false);
                 repositoryPaths = discovered;
             }
 
             var pathsToRefresh = report.DiscoveryInventory is { CanPublishFullInventory: false } ? [.. report.DiscoveryInventory.Paths] : repositoryPaths;
             report.Refresh(pathsToRefresh, updateHandler, options.FetchRemotes, options.DeepRefresh, options.AllBranches, options.ComputeLocalCommitCount);
+            await report.CompleteDiscoverySizesAsync().ConfigureAwait(false);
+            if (!options.RetainDiscoveryIndex)
+            {
+                await report.SetDiscoveryIndexAsync(null).ConfigureAwait(false);
+            }
+
             report.BranchScope = options.AllBranches ? "all" : "actionable";
 
             return report;
@@ -232,7 +238,7 @@ public partial class GitWizardReport : IAsyncDisposable
         bool computeLocalCommitCount = true)
     {
         var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) };
-        var validPaths = PruneDeletedRepositories(repositoryPaths);
+        var validPaths = OrderPathsForRefresh(PruneDeletedRepositories(repositoryPaths));
 
         var count = 0;
 
@@ -247,7 +253,7 @@ public partial class GitWizardReport : IAsyncDisposable
 
         using (GitWizardRepository.UnresolvedUpstreamDiagnosticScope.Open())
         {
-            Parallel.ForEach(validPaths, parallelOptions, path =>
+            Parallel.ForEach(Partitioner.Create(validPaths, EnumerablePartitionerOptions.NoBuffering), parallelOptions, path =>
             {
                 RefreshSingleRepository(path, updateHandler, fetchRemotes, deepRefresh, allBranches, computeLocalCommitCount);
 
@@ -262,6 +268,7 @@ public partial class GitWizardReport : IAsyncDisposable
             });
         }
 
+        _indexedSizes = null;
         PruneNonRepositoryPaths(validPaths);
     }
 
@@ -306,9 +313,9 @@ public partial class GitWizardReport : IAsyncDisposable
 
     // Identifies repos whose directory no longer exists, records them on DeletedPaths, prunes
     // them from Repositories, and returns the remaining still-present paths to refresh.
-    ConcurrentBag<string> PruneDeletedRepositories(ICollection<string> repositoryPaths)
+    List<string> PruneDeletedRepositories(ICollection<string> repositoryPaths)
     {
-        var validPaths = new ConcurrentBag<string>();
+        var validPaths = new List<string>();
         var deletedPaths = new ConcurrentBag<string>();
 
         foreach (var path in repositoryPaths)
@@ -377,9 +384,16 @@ public partial class GitWizardReport : IAsyncDisposable
             GitWizardLog.LogException(exception, "Exception thrown by Refresh OnRepositoryCreated callback.");
         }
 
+        // A fetch rewrites .git after the index was read, so only a refresh that leaves the files alone may use it.
+        if (!fetchRemotes && _indexedSizes is { } indexedSizes)
+        {
+            repository.OfferIndexedSizes(indexedSizes, path);
+        }
+
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         using var cancellationTokenSource = new CancellationTokenSource(RefreshTimeout);
         repository.Refresh(updateHandler, fetchRemotes, deepRefresh, allBranches, computeLocalCommitCount, cancellationTokenSource.Token);
+        repository.WithdrawIndexedSize();
 
         stopwatch.Stop();
         repository.RefreshTimeSeconds = Math.Round(stopwatch.Elapsed.TotalSeconds, 1);

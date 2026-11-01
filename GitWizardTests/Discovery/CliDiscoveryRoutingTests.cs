@@ -1,5 +1,7 @@
+using GitWizard;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
+using MFTLib.Index;
 
 namespace GitWizardTests.Discovery;
 
@@ -7,6 +9,13 @@ namespace GitWizardTests.Discovery;
 [NonParallelizable]
 public class CliDiscoveryRoutingTests
 {
+    static IEnumerable<string> ExpectedRoots(CliDiscoveryFixture fixture, string command)
+    {
+        var shared = GitWizardApi.GetPrCrewReposPath();
+        return command is "tags" or "branches" && Directory.Exists(shared)
+            ? fixture.Configuration.SearchPaths.Append(shared) : fixture.Configuration.SearchPaths;
+    }
+
     [SetUp]
     public void SetUp()
     {
@@ -61,21 +70,16 @@ public class CliDiscoveryRoutingTests
     public async Task WindowsEntryPointDoesNotCrawlNtfs(string command)
     {
         await using var fixture = new CliDiscoveryFixture(command);
-        var nonNtfsPath = fixture.Configuration.SearchPaths.Single(path =>
-            path.EndsWith(@"\shared", StringComparison.OrdinalIgnoreCase));
-        fixture.Dependencies.CrawlGuard = root => Assert.That(root, Does.StartWith(nonNtfsPath));
+        fixture.Dependencies.CrawlGuard = root => throw new AssertionException($"Crawler invoked unexpectedly for {root}");
         await fixture.RunAsync();
         using (Assert.EnterMultipleScope())
         {
-            if (OperatingSystem.IsWindows())
-            {
-                Assert.That(fixture.Dependencies.CrawledRoots, Does.Contain(nonNtfsPath).IgnoreCase);
-            }
+            Assert.That(fixture.Dependencies.CrawledRoots, Is.Empty);
             Assert.That(fixture.OpenedDriveSets, Is.Not.Empty);
         }
         foreach (var drives in fixture.OpenedDriveSets)
         {
-            Assert.That(drives, Is.EquivalentTo(["C"]));
+            Assert.That(drives, Is.EquivalentTo(ExpectedRoots(fixture, command)).IgnoreCase);
         }
     }
 
@@ -101,7 +105,7 @@ public class CliDiscoveryRoutingTests
         }
         foreach (var drives in fixture.OpenedDriveSets)
         {
-            Assert.That(drives, Is.EquivalentTo(["C"]));
+            Assert.That(drives, Is.EquivalentTo(ExpectedRoots(fixture, command)).IgnoreCase);
         }
     }
 
@@ -111,7 +115,7 @@ public class CliDiscoveryRoutingTests
     [TestCase("tags")]
     [TestCase("branches")]
     [TestCase("watch")]
-    public async Task NoMft_ExplicitCrawlingIsUsed(string command)
+    public async Task NoMft_OpensUncachedDirectoryIndexes(string command)
     {
         await using var fixture = new CliDiscoveryFixture(command, noMft: true);
         fixture.Configuration.SearchPaths.Clear();
@@ -120,14 +124,11 @@ public class CliDiscoveryRoutingTests
 
         await fixture.RunAsync();
 
-        Assert.That(fixture.Dependencies.CrawledRoots, Does.Contain(treePath).IgnoreCase);
-        if (command != "watch")
+        using (Assert.EnterMultipleScope())
         {
-            Assert.That(fixture.OpenedDriveSets, Is.Empty, "MFT discovery must not be opened for ordinary commands under --no-mft");
-        }
-        else
-        {
-            Assert.That(fixture.OpenedDriveSets, Is.Not.Empty, "Watch still arms NTFS for journal watch");
+            Assert.That(fixture.Dependencies.CrawledRoots, Is.Empty);
+            Assert.That(fixture.OpenedDriveSets, Is.Not.Empty);
+            Assert.That(fixture.Dependencies.OpenedCacheModes, Is.All.EqualTo(CacheMode.Disabled));
         }
     }
 
@@ -141,8 +142,7 @@ public class CliDiscoveryRoutingTests
         fixture.Configuration.SearchPaths.Add(fixture.Dependencies.IndexFixture.TreePath);
 
         var indexFixture = fixture.Dependencies.IndexFixture;
-        fixture.Dependencies.CustomOpenIndexAsync = (drives, _, _, _) => StatusSessions.OpenAsync(
-            indexFixture, [.. drives.Select(drive => (drive[0], SyntheticDriveBehavior.ProducerFails))]);
+        fixture.Dependencies.CustomOpenIndexAsync = StatusSessions.Opener(indexFixture, ('C', SyntheticDriveBehavior.ProducerFails));
 
         var exitCode = await fixture.RunAsync();
 
@@ -161,8 +161,7 @@ public class CliDiscoveryRoutingTests
         fixture.Configuration.SearchPaths.Add(fixture.Dependencies.IndexFixture.TreePath);
 
         var indexFixture = fixture.Dependencies.IndexFixture;
-        fixture.Dependencies.CustomOpenIndexAsync = (drives, _, _, _) => StatusSessions.OpenAsync(
-            indexFixture, [.. drives.Select(drive => (drive[0], SyntheticDriveBehavior.ProducerFails))]);
+        fixture.Dependencies.CustomOpenIndexAsync = StatusSessions.Opener(indexFixture, ('C', SyntheticDriveBehavior.ProducerFails));
 
         var exitCode = await fixture.RunAsync();
 
@@ -182,8 +181,7 @@ public class CliDiscoveryRoutingTests
         fixture.Configuration.SearchPaths.Add(fixture.Dependencies.IndexFixture.TreePath);
 
         var indexFixture = fixture.Dependencies.IndexFixture;
-        fixture.Dependencies.CustomOpenIndexAsync = (drives, _, _, _) => StatusSessions.OpenAsync(
-            indexFixture, [.. drives.Select(drive => (drive[0], SyntheticDriveBehavior.ProducerFails))]);
+        fixture.Dependencies.CustomOpenIndexAsync = StatusSessions.Opener(indexFixture, ('C', SyntheticDriveBehavior.ProducerFails));
 
         var exitCode = await fixture.RunAsync();
 

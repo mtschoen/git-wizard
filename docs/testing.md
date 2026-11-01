@@ -108,6 +108,24 @@ Central test scaffolding lives in `GitWizardTests/TestSupport/`:
 - `RootStatuses`: Consistent factory for synthetic `RootStatus` instances with independent `watchSupported` policy.
 - `TestTimeouts`: Canonical timeouts exposed as get-only properties (`HangGuard` at 10s, `BrokerHangGuard` at 30s, `ShortHangGuard` at 5s).
 - `AsyncCondition`: Deterministic condition poller (`WaitUntilAsync`) reporting poll count, elapsed time, and expression details upon timeout or predicate failure.
+- `RefreshOverlapProbe`: Deterministic phase-boundary overlap detector for outer and nested refresh concurrency tests.
+
+### Scaffolding regression checks
+
+Regression checks for test scaffolding:
+
+```bash
+# Direct temp path allocation is forbidden outside TestSupport
+grep -rn 'Path.GetTempPath()' GitWizardTests
+
+# Update handlers must be consolidated in TestSupport
+grep -rnE 'class .*: IUpdateHandler' GitWizardTests
+
+# Hang guards must use TestTimeouts properties, not local static fields
+grep -rn 'static readonly TimeSpan HangGuard' GitWizardTests
+```
+
+Expected: only `TestSupport/TempDirectory.cs` matches for temp path, only `TestSupport/RecordingUpdateHandler.cs` matches for `IUpdateHandler`, and zero matches for `static readonly TimeSpan HangGuard`.
 
 ## Debugging
 

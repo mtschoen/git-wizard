@@ -18,7 +18,7 @@ flag list. `AgentInstructionsTests` checks it against parser source and help.
 | `--rebuild-all` | Rebuild both list and report. |
 | `--setup-defender` | Configure Windows process-name exclusions, with UAC. |
 | `--scan-only` | Print discovered paths and exit; implies membership rebuild. |
-| `--no-mft` | Select recursive discovery; does not promise unelevated NTFS watch. |
+| `--no-mft` | Select uncached WalkOnly indexes, without MFT scanning, elevation or NTFS journal watch. |
 | `--no-local-commit-count` | Skip per-branch local commit counting. |
 | `--json` | Print the ordinary report as strict JSON. |
 | `--sweep` | Print automation JSON for tracked dirty files, unique branch commits and stashes. |

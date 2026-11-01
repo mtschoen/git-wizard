@@ -183,7 +183,7 @@ public class GitWizardApiTests
     {
         var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         var result = GitWizardApi.ExpandSearchPath(input);
-        Assert.That(result, Is.EqualTo(GitWizardApi.NormalizePath(profile)));
+        Assert.That(result, Is.EqualTo(GitWizardApi.ResolveOnDiskPath(profile)));
     }
 
     [Test]

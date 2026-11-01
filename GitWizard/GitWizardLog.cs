@@ -92,6 +92,24 @@ public static class GitWizardLog
     {
         CleanLogFolder();
         _writerTask = WriteLogToFileAsync();
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => FlushForProcessExit();
+    }
+
+    /// <summary>
+    /// Drains the queued file records and flushes the writer when the process exits, so the last
+    /// records (for example the final per-repository timing lines) are not lost with the process.
+    /// </summary>
+    internal static void FlushForProcessExit()
+    {
+        try
+        {
+            CloseCurrentLogFile();
+        }
+        catch (Exception exception)
+        {
+            // Never throw from the exit path; the log is best-effort diagnostics.
+            Console.Error.WriteLine($"[GitWizardLog] Failed to flush log at exit: {exception.Message}");
+        }
     }
 
     /// <summary>
@@ -184,29 +202,28 @@ public static class GitWizardLog
 
     public static void CloseCurrentLogFile()
     {
-        // Dispose old resources and recreate fresh ones (fully idempotent).
+        // Drain and dispose the current writer, then start a fresh one (fully idempotent).
         // This ensures that even after CloseCurrentLogFile is called by tests
         // or app shutdown, subsequent Log() calls still work.
         Channel<string> oldChannel;
         CancellationTokenSource oldCts;
         Task? oldTask;
-        StreamWriter? oldWriter;
 
         lock (LogFileLock)
         {
             oldChannel = _logChannel;
             oldCts = _writerCts;
             oldTask = _writerTask;
-            oldWriter = _logFileWriter;
 
+            // Records logged from now on queue on the new channel until its writer starts below.
             _logChannel = CreateLogChannel();
             _writerCts = new CancellationTokenSource();
-            _writerTask = WriteLogToFileAsync();
-            _logFileWriter = null;
+            _writerTask = null;
         }
 
-        // Signal old writer to stop
-        oldCts.Cancel();
+        // Complete the channel so the writer drains every queued record and then ends on its
+        // own. Cancelling first would abandon the records still queued. The old writer task
+        // flushes and disposes its own file writer when it finishes.
         oldChannel.Writer.Complete();
 
         // Wait for old writer task to finish draining
@@ -214,10 +231,11 @@ public static class GitWizardLog
         // blocking here is safe because there is no synchronization context to deadlock.
         oldTask?.GetAwaiter().GetResult();
 
-        // Dispose old resources
+        // Start the replacement writer only after the old one released the log file, because the
+        // file is opened without write sharing.
         lock (LogFileLock)
         {
-            oldWriter?.Dispose();
+            _writerTask = WriteLogToFileAsync();
             oldCts.Dispose();
         }
     }

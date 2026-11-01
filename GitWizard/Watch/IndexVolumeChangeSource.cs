@@ -23,7 +23,8 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
     bool _disposed;
     bool _watchClaimed;
     bool _watchStarted;
-    IReadOnlyList<FileIndex> _watchedIndices = [];
+    FileIndex[] _watchedIndices = [];
+    readonly Dictionary<FileIndex, Action<WatchStateChange>> _watchStateHandlers = [];
     int _deathReported;
 
     public event Action<string>? SourceDied;
@@ -123,7 +124,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
             cancellationToken.ThrowIfCancellationRequested();
             PublishArmedDrives(Session, requested, errors);
 
-            if (HasUsableDrives())
+            if (Session.Indices.Any(index => index.Status is { State: RootState.Ready, Watch.IsSupported: true }))
             {
                 await EnsureWatchStartedAsync(Session, cancellationToken).ConfigureAwait(false);
 
@@ -163,9 +164,8 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
 
         foreach (var drive in catchUpDrives)
         {
-            var driveStatus = owner.CaptureRootStatuses().FirstOrDefault(status =>
-                string.Equals(status.Drive, drive.ToString(), StringComparison.OrdinalIgnoreCase));
-            if (driveStatus?.IndexStatus is not { State: RootState.Failed or RootState.Offline } failed)
+            if (owner.IndexFor(new VolumeKey(drive))?.Status is not
+                { State: RootState.Failed or RootState.Offline } failed)
             {
                 continue;
             }
@@ -189,11 +189,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         var errors = new Dictionary<string, string>(owner.ScanErrors, StringComparer.OrdinalIgnoreCase);
         foreach (var status in owner.CaptureRootStatuses())
         {
-            if (status.IdentityFailure is not null)
-            {
-                errors[status.Drive] = status.IdentityFailure;
-            }
-            else if (status.IndexStatus?.Failure?.Message is { Length: > 0 } message)
+            if (status.IndexStatus?.Failure?.Message is { Length: > 0 } message)
             {
                 errors[status.Drive] = message;
             }
@@ -269,34 +265,6 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         }
     }
 
-    Task StartWatch(MftIndexSession owner, CancellationToken cancellationToken)
-    {
-        var indices = owner.Indices;
-        foreach (var index in indices)
-        {
-            index.Changed += OnChanged;
-            index.WatchFaulted += OnWatchFaulted;
-            index.WatchStateChanged += ApplyWatchState;
-        }
-
-        _watchedIndices = indices;
-        SeedWatchStates(indices);
-        // Starting means the library pumps were scheduled, not that catch-up has drained.
-        return StartWatchAndSignalAsync(indices, cancellationToken);
-    }
-
-    async Task StartWatchAndSignalAsync(IReadOnlyList<FileIndex> indices, CancellationToken cancellationToken)
-    {
-        var results = await Task.WhenAll(indices.Select(index => index.StartWatchingAsync(cancellationToken)))
-            .ConfigureAwait(false);
-        foreach (var result in results.Where(result => result.Outcome == RootOperationOutcome.Failed))
-        {
-            RecordStartupDriveFailure(result.Root.VolumeLetter(), result.Failure?.Message ?? "The drive watch could not start.");
-        }
-
-        _pumpStarted.TrySetResult();
-    }
-
     void OnChanged(FileChange change)
     {
         lock (_deliveryLock)
@@ -305,12 +273,35 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         }
     }
 
+    bool IsOutermostChange(FileChange change)
+    {
+        var path = WatchPath.Parse(change.Path);
+        var participating = _watchedIndices
+            .Select(index => (index.Status.Root, Path: WatchPath.Parse(index.Root().Path)))
+            .Where(candidate => path.IsUnderOrEqual(candidate.Path) ||
+                change.PreviousPath is not null && WatchPath.Parse(change.PreviousPath).IsUnderOrEqual(candidate.Path))
+            .ToArray();
+        if (participating.Length < 2)
+        {
+            return true;
+        }
+
+        var outermost = participating.OrderBy(candidate => candidate.Path.Comparison.Length).First();
+        return outermost.Root == change.Entry.Root;
+    }
+
     void DeliverChange(FileChange change)
     {
+        if (!IsOutermostChange(change))
+        {
+            return;
+        }
+
         // FileEntry.Root is the stable root key MFTLib assigns, unlike change.Path,
         // which renders the drive's real indexed root directory and only reads back as a
         // "<letter>:\" volume when that root directory happens to be the drive root (MFTLib #143).
-        var letter = change.Entry.Root.VolumeLetter();
+        var letter = (Session ?? throw new InvalidOperationException("No index session available."))
+            .VolumeFor(change.Entry.Root).Letter;
         var rewritten = _driveRealRoots.TryGetValue(letter, out var realRoot)
             ? change with
             {

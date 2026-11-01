@@ -17,7 +17,7 @@ static class CandidateSelection
         };
         var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, false, []);
         var scope = DiscoveryScope.CreateExpanded(
-            request, [root], [], ignoredPaths, _ => new RootClassification(root, RootFileSystem.Ntfs, "X", null));
+            request, [root], [], ignoredPaths);
         return [.. GitWizardApi.SelectRepositoryCandidates(new FileIndexSet([index]), scope).Select(candidate => candidate.Path)];
     }
 
@@ -29,7 +29,6 @@ static class CandidateSelection
         {
             IsWindows = false,
             IsLinux = true,
-            ClassifyRoot = root => new RootClassification(root, RootFileSystem.Recursive, null, null),
             CrawlRootAsync = (_, _, _) => Task.FromResult(new RecursiveDiscovery([], [], new Dictionary<string, string>())),
             OpenIndexAsync = (_, _, _, _) => throw new PlatformNotSupportedException(),
             ReadListAsync = _ => Task.FromResult<string[]?>([]),

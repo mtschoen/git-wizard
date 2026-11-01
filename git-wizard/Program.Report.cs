@@ -155,7 +155,8 @@ public static partial class Program
 
         if (runConfiguration.Json)
         {
-            stdout.WriteLine(SerializeReport(runConfiguration, filteredReport));
+            WriteReportJson(runConfiguration, filteredReport, stdout);
+            stdout.WriteLine();
         }
         else
         {
@@ -218,6 +219,20 @@ public static partial class Program
 
         var jsonString = JsonSerializer.Serialize(report, options);
         return jsonString;
+    }
+
+    /// <summary>
+    /// Streams the report JSON to <paramref name="stdout"/> without building the whole document as a
+    /// string. Produces the same text as <see cref="SerializeReport"/>.
+    /// </summary>
+    internal static void WriteReportJson(RunConfiguration runConfiguration, GitWizardReport report, TextWriter stdout)
+    {
+        report.SchemaVersion = GitWizardReport.CurrentSchemaVersion;
+        var options = GetSerializerOptions(runConfiguration, JsonIgnoreCondition.WhenWritingDefault);
+
+        using var jsonWriter = new Utf8JsonWriter(new Utf8TextWriterBuffer(stdout),
+            new JsonWriterOptions { Indented = options.WriteIndented, Encoder = options.Encoder });
+        JsonSerializer.Serialize(jsonWriter, report, options);
     }
 
     internal static GitWizardReport ApplyFilter(RunConfiguration runConfiguration, GitWizardReport report)

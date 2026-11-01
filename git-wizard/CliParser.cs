@@ -134,7 +134,7 @@ static partial class CliParser
         var rebuildAllOption = app.Option("--rebuild-all", "Rebuild the report and list of repositories (instead of using cache)", CommandOptionType.NoValue);
         var setupDefenderOption = app.Option("--setup-defender", "Add Windows Defender exclusions for git/dotnet processes and search paths (triggers UAC prompt)", CommandOptionType.NoValue);
         var scanOnlyOption = app.Option("--scan-only", "Print discovered repository paths (one per line) and exit without refreshing", CommandOptionType.NoValue);
-        var noMftOption = app.Option("--no-mft", "Use explicit recursive directory discovery instead of MFT index search (for users unable to accept the UAC elevation prompt); does not promise an unelevated NTFS journal watch", CommandOptionType.NoValue);
+        var noMftOption = app.Option("--no-mft", "Use uncached directory-walk indexes (WalkOnly), without MFT scanning, elevation, or NTFS journal watch", CommandOptionType.NoValue);
         var noLocalCommitCountOption = app.Option("--no-local-commit-count", "Skip the expensive per-branch local-commit-count iteration in each repository refresh", CommandOptionType.NoValue);
         var jsonOption = app.Option("--json", "Print the ordinary report as strict JSON", CommandOptionType.NoValue);
         var sweepOption = app.Option("--sweep", "Output automation-focused JSON: tracked dirty files, branches with commits absent from all remote-tracking refs, and stash counts", CommandOptionType.NoValue);

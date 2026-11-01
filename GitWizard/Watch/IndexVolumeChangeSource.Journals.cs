@@ -44,13 +44,20 @@ public sealed partial class IndexVolumeChangeSource
             return;
         }
 
-        var letter = drive.Root.VolumeLetter();
+        if (!owner.TryGetVolume(drive.Root, out var volume))
+        {
+            return;
+        }
+        var letter = volume.Letter;
         AddUsableDrive(letter);
         // Cache the drive's real indexed root directory so OnChanged can rewrite a live
         // change's path back onto this drive's own "<letter>:\" form, regardless of
-        // whether IndexedRoot.RootDirectory is the drive root (MFTLib #143).
-        _driveRealRoots[letter] = (owner.IndexFor(drive.Root)
-            ?? throw new InvalidOperationException($"No index holds root {drive.Root}.")).Root(cancellationToken).Path;
+        // whether the opened index renders a volume root or a synthetic fixture directory.
+        if (drive.Root.IsVolume)
+        {
+            _driveRealRoots[letter] = (owner.IndexFor(drive.Root)
+                ?? throw new InvalidOperationException($"No index holds root {drive.Root}.")).Root(cancellationToken).Path;
+        }
 
         AddJournalWarning(drive, owner, configuration, warnings);
     }
@@ -84,18 +91,19 @@ public sealed partial class IndexVolumeChangeSource
             return;
         }
 
-        var letter = drive.Root.VolumeLetter();
+        var letter = drive.Watch.CheckpointLoss.Volume.Letter;
         if (_raisedFaultLosses.TryGetValue(letter, out var raised) && ReferenceEquals(raised, drive.Watch.CheckpointLoss))
         {
             // The same episode: only the drive's recovery state can have moved on.
             RefreshJournalWarning(letter, drive.Watch, configuration);
             return;
         }
-        if (BuildJournalWarning(drive, owner, configuration) is not { } warning)
+        if (BuildJournalWarning(drive, configuration) is not { } warning)
         {
             return;
         }
 
+        owner.ObserveVolume(drive.Root, warning.Loss.Volume);
         _raisedFaultLosses[letter] = warning.Loss;
         PublishJournalWarning(letter, warning, drive.Watch.StateVersion);
     }
@@ -158,13 +166,13 @@ public sealed partial class IndexVolumeChangeSource
                     continue;
                 }
 
-                if (BuildJournalWarning(drive, owner, configuration) is not { } warning)
+                if (BuildJournalWarning(drive, configuration) is not { } warning)
                 {
                     continue;
                 }
 
                 warnings.Add(warning);
-                _publishedWarnings[drive.Root.VolumeLetter()] = new PublishedWarning(warning, drive.Watch.StateVersion);
+                _publishedWarnings[warning.Loss.Volume.Letter] = new PublishedWarning(warning, drive.Watch.StateVersion);
             }
         }
         return warnings;
@@ -187,31 +195,30 @@ public sealed partial class IndexVolumeChangeSource
     static void AddJournalWarning(RootStatus drive, MftIndexSession owner,
         GitWizardConfiguration configuration, List<JournalWarning> warnings)
     {
-        if (BuildJournalWarning(drive, owner, configuration) is { } warning)
+        if (BuildJournalWarning(drive, configuration) is { } warning)
         {
+            owner.ObserveVolume(drive.Root, warning.Loss.Volume);
             warnings.Add(warning);
         }
     }
 
-    static JournalWarning? BuildJournalWarning(RootStatus drive, MftIndexSession owner,
-        GitWizardConfiguration configuration)
+    static JournalWarning? BuildJournalWarning(RootStatus drive, GitWizardConfiguration configuration)
     {
-        var indexedDrive = owner.IndexedRoots.FirstOrDefault(candidate =>
-            candidate.Root == drive.Root);
-        if (indexedDrive is null || configuration.IgnoredJournalWarnings.Contains(indexedDrive.VolumeSerial))
+        if (drive.Watch.CheckpointLoss is not { } loss)
         {
             return null;
         }
 
-        if (drive.Watch.CheckpointLoss is not { } loss)
+        var serial = drive.VolumeSerial;
+        if (serial is null || configuration.IgnoredJournalWarnings.Contains(serial.Value))
         {
             return null;
         }
 
         return new JournalWarning
         {
-            DriveLetter = drive.Root.ToString(),
-            VolumeSerial = indexedDrive.VolumeSerial,
+            DriveLetter = loss.Volume.ToString(),
+            VolumeSerial = serial.Value,
             Loss = loss,
             WatchState = drive.Watch.State,
             IsRecoveryStopped = drive.Watch.IsRecoveryStopped

@@ -14,7 +14,7 @@ public partial class GitWizardRepository
         }
 
         Worktrees ??= new SortedDictionary<string, GitWizardRepository?>();
-        Parallel.ForEach(worktrees, new ParallelOptions { CancellationToken = cancellationToken }, worktree =>
+        foreach (var worktree in worktrees)
         {
             try
             {
@@ -23,7 +23,7 @@ public partial class GitWizardRepository
                 if (worktree == null)
                 {
                     GitWizardLog.Log($"Worktree is null in {repository}");
-                    return;
+                    continue;
                 }
 
                 var path = worktree.WorktreeRepository.Info.WorkingDirectory;
@@ -72,6 +72,6 @@ public partial class GitWizardRepository
                 GitWizardLog.LogException(exception,
                     $"Exception updating worktrees for {WorkingDirectory}");
             }
-        });
+        }
     }
 }

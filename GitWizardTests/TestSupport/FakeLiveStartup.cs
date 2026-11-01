@@ -47,8 +47,7 @@ static class FakeLiveStartup
             request,
             searchRoots,
             request.RetainedRoots,
-            (string[])[.. request.Configuration.IgnoredPaths],
-            root => new RootClassification(root, RootFileSystem.Ntfs, WatchPath.Parse(root).Volume, null));
+            (string[])[.. request.Configuration.IgnoredPaths]);
 
         var inventory = new DiscoveryInventory
         {
@@ -103,8 +102,7 @@ static class FakeLiveStartup
             request,
             [],
             request.RetainedRoots,
-            [],
-            root => new RootClassification(root, RootFileSystem.Ntfs, WatchPath.Parse(root).Volume, null));
+            []);
 
         var inventory = new DiscoveryInventory
         {

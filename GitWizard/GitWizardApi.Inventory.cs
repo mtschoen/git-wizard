@@ -72,8 +72,7 @@ public static partial class GitWizardApi
             ForkPath = configuration.ForkPath
         };
 
-        var prCrewReposPath = GetPrCrewReposPath();
-        if (Directory.Exists(prCrewReposPath))
+        foreach (var prCrewReposPath in coordinator.AdditionalCloneRoots)
         {
             var normalizedPrCrewPath = NormalizePath(prCrewReposPath);
             var alreadyCovered = searchConfig.SearchPaths
@@ -98,7 +97,7 @@ public static partial class GitWizardApi
 
         var expandedInventory = discoveryResult.Inventory with { Paths = expandedClonePaths };
 
-        var session = discoveryResult.DetachIndexSession();
+        var session = discoveryResult.DetachSession();
         await discoveryResult.DisposeAsync().ConfigureAwait(false);
         return new RepositoryDiscoveryResult(expandedInventory, session);
     }
@@ -135,8 +134,8 @@ public static partial class GitWizardApi
             return;
         }
 
-        var normalizedPath = NormalizePath(repositoryPath);
-        if (allClones.Contains(normalizedPath))
+        var clonePath = ResolveOnDiskPath(repositoryPath);
+        if (allClones.Contains(clonePath))
         {
             return;
         }
@@ -148,7 +147,7 @@ public static partial class GitWizardApi
                 return;
             }
 
-            allClones.Add(normalizedPath);
+            allClones.Add(clonePath);
 
             using var repository = new Repository(repositoryPath);
 

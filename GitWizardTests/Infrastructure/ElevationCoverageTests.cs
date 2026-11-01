@@ -1,6 +1,7 @@
 using GitWizard;
 using GitWizardTests.TestSupport;
 using MFTLib;
+using MFTLib.Index;
 
 namespace GitWizardTests;
 
@@ -84,34 +85,41 @@ public class ElevationCoverageTests
     }
 
     [Test]
-    public async Task TryDiscoverRepositoriesUsingMftAsync_InjectedBrokerLauncher_InvokesLauncher()
+    public async Task TryDiscoverRepositoriesUsingMftAsync_DeclinedBroker_WalksOwnedRoot()
     {
+        using var files = new PackedIndexFixture();
+        files.AddMarker("repo");
         var receivedBrokerArguments = new List<string>();
-        var configuration = new GitWizardConfiguration { SearchPaths = { TempDirectory.SystemTempPath } };
+        var configuration = new GitWizardConfiguration { SearchPaths = { files.TreePath }, IncludeTempDirectories = true };
 
         await using var result = await GitWizardApi.TryDiscoverRepositoriesUsingMftAsync(
             configuration, new List<string>(), brokerLauncher: brokerArguments =>
             {
                 receivedBrokerArguments.Add(brokerArguments);
                 return false;
-            });
+            }, configureOptions: files.ConfigureOptions);
 
-        Assert.That(result.Success, Is.False);
+        Assert.That(result.Success, Is.True);
         var brokerArgumentCount = receivedBrokerArguments.Count;
         Assert.That(brokerArgumentCount, Is.EqualTo(1));
         using (Assert.EnterMultipleScope())
         {
             Assert.That(receivedBrokerArguments.Single(), Does.StartWith("--broker --pipe "));
-            Assert.That(result.ScanErrors.Values, Has.Some.Contains("Failed to launch the elevated broker"));
+            Assert.That(result.ScanErrors, Is.Empty);
+            Assert.That(result.RootStatuses.Single().IndexStatus!.Producer, Is.EqualTo(ProducerKind.Enumeration));
+            Assert.That(result.RootStatuses.Single().IndexStatus!.MftUnavailable, Is.EqualTo(MftUnavailableReason.ElevationDeclined));
+            Assert.That(result.Index!.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single().Parent!.Value.Path,
+                Is.EqualTo(Path.Combine(files.TreePath, "repo")));
         }
-        Assert.That(result.ScanErrors.Values, Has.Some.Matches<string>(TestUtilities.IsBrokerConnectionFailure));
     }
 
     [Test]
-    public async Task TryDiscoverRepositoriesUsingMftAsync_BrokerNeverConnects_RecordsTimeoutInScanErrors()
+    public async Task TryDiscoverRepositoriesUsingMftAsync_BrokerNeverConnects_WalksOwnedRoot()
     {
+        using var files = new PackedIndexFixture();
+        files.AddMarker("repo");
         var receivedBrokerArguments = new List<string>();
-        var configuration = new GitWizardConfiguration { SearchPaths = { TempDirectory.SystemTempPath } };
+        var configuration = new GitWizardConfiguration { SearchPaths = { files.TreePath }, IncludeTempDirectories = true };
 
         await using var result = await GitWizardApi.TryDiscoverRepositoriesUsingMftAsync(
             configuration, new List<string>(),
@@ -120,18 +128,20 @@ public class ElevationCoverageTests
                 receivedBrokerArguments.Add(brokerArguments);
                 return true;
             },
-            connectTimeout: TimeSpan.FromMilliseconds(50));
+            connectTimeout: TimeSpan.FromMilliseconds(50), configureOptions: files.ConfigureOptions);
 
-        Assert.That(result.Success, Is.False);
+        Assert.That(result.Success, Is.True);
         var brokerArgumentCount = receivedBrokerArguments.Count;
         Assert.That(brokerArgumentCount, Is.EqualTo(1));
         using (Assert.EnterMultipleScope())
         {
             Assert.That(receivedBrokerArguments.Single(), Does.StartWith("--broker --pipe "));
-            Assert.That(result.ScanErrors.Values, Has.Some.Contains("Timed out waiting"));
+            Assert.That(result.ScanErrors, Is.Empty);
+            Assert.That(result.RootStatuses.Single().IndexStatus!.Producer, Is.EqualTo(ProducerKind.Enumeration));
+            Assert.That(result.RootStatuses.Single().IndexStatus!.MftUnavailable, Is.EqualTo(MftUnavailableReason.BrokerUnavailable));
+            Assert.That(result.Index!.Search(new SearchQuery(".git", NameMatchMode.Exact)).Single().Parent!.Value.Path,
+                Is.EqualTo(Path.Combine(files.TreePath, "repo")));
         }
-        Assert.That(result.ScanErrors.Values, Has.Some.Contains("never connected"));
-        Assert.That(result.ScanErrors.Values, Has.Some.Matches<string>(TestUtilities.IsBrokerConnectionFailure));
     }
 
 }

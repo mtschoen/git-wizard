@@ -97,11 +97,7 @@ public class InventoryCommandOutputTests
 
     static string FormatGoldenItem(string command, bool minified, string path)
     {
-        var effectivePath = command == "sweep"
-            ? path
-            : GitWizardApi.NormalizePath(path);
-        var jsonPath = JsonSerializer.Serialize(effectivePath);
-
+        var jsonPath = JsonSerializer.Serialize(path);
         return command switch
         {
             "sweep" => minified

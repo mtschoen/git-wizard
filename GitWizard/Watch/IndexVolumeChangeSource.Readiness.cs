@@ -47,8 +47,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeReadiness
     };
 
     static VolumeBlockOrigin CurrentOrigin(MftIndexSession owner, char drive) =>
-        OriginOf(owner.CaptureRootStatuses().FirstOrDefault(status =>
-            string.Equals(status.Drive, drive.ToString(), StringComparison.OrdinalIgnoreCase))?.IndexStatus);
+        OriginOf(owner.IndexFor(new VolumeKey(drive))?.Status);
 
     // Called once per arm, after ProcessArmedDrive decided _usableDrives and before the pump
     // starts, so every requested drive has a state before any catch-up marker can arrive.
@@ -56,11 +55,20 @@ public sealed partial class IndexVolumeChangeSource : IVolumeReadiness
     {
         var statuses = owner.CaptureRootStatuses()
             .ToDictionary(status => status.Drive, StringComparer.OrdinalIgnoreCase);
-        foreach (var drive in requested)
+        foreach (var root in RootKeyProjection.ParseRootKeys(requested))
         {
-            statuses.TryGetValue(drive, out var status);
+            var status = statuses.GetValueOrDefault(root.ToString());
+            if (!owner.TryGetVolume(root, out var volume))
+            {
+                if (status?.IndexStatus?.Watch.IsSupported != true)
+                {
+                    PublishVolumeState(VolumeWatchStatus.Excluded(root.ToString(), OriginOf(status?.IndexStatus),
+                        errors.GetValueOrDefault(root.ToString(), NotWatchableReason)));
+                }
+                continue;
+            }
+            var letter = volume.Letter;
             var origin = OriginOf(status?.IndexStatus);
-            var letter = char.ToUpperInvariant(drive[0]);
             var usable = ContainsUsableDrive(letter);
             if (usable)
             {
@@ -69,7 +77,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeReadiness
             else
             {
                 PublishVolumeState(VolumeWatchStatus.Excluded(letter.ToString(), origin,
-                    errors.GetValueOrDefault(drive, NotWatchableReason)));
+                    errors.GetValueOrDefault(root.ToString(), NotWatchableReason)));
             }
         }
     }
@@ -86,7 +94,16 @@ public sealed partial class IndexVolumeChangeSource : IVolumeReadiness
                 continue;
             }
 
-            var letter = char.ToUpperInvariant(status.Drive[0]);
+            if (index.Producer != ProducerKind.Mft)
+            {
+                continue;
+            }
+
+            if (!owner.TryGetVolume(index.Root, out var volume))
+            {
+                continue;
+            }
+            var letter = volume.Letter;
             // A recovering drive can carry its fault's message and still come back.
             if (!driveSet.Contains(letter) || index.Watch.State == WatchState.Recovering)
             {

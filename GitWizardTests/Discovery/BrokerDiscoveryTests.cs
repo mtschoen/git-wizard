@@ -74,7 +74,7 @@ public class BrokerDiscoveryTests
         var calls = 0;
         var paths = new List<string>();
         await using var result = await GitWizardApi.DiscoverRepositoriesWithIndexAsync(
-            new GitWizardConfiguration(), paths, ["/unselected"], [], new IndexDiscoveryComposition(
+            new GitWizardConfiguration(), paths, ["not a drive"], [], new IndexDiscoveryComposition(
                 _ =>
                 {
                     calls++;
@@ -167,11 +167,10 @@ public class BrokerDiscoveryTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
-        var owner = new MftIndexSession([await files.OpenIndexAsync()], null, ["X", "Y"], [],
-            new Dictionary<string, string> { ["Y"] = "scan denied" });
+        var owner = new MftIndexSession([await files.OpenIndexAsync()], null, ["X", "Y"], new Dictionary<string, string> { ["Y"] = "scan denied" });
         var updates = new RecordingUpdateHandler();
         await using var result = await GitWizardApi.DiscoverRepositoriesWithIndexAsync(
-            new GitWizardConfiguration { IncludeTempDirectories = true }, new List<string>(), [@"X:\", @"Y:\"], [],
+            new GitWizardConfiguration { IncludeTempDirectories = true }, new List<string>(), [files.TreePath, @"Y:\"], [],
             new IndexDiscoveryComposition(_ => Task.FromResult(owner), _ => true), updates);
         Assert.That(result.Success, Is.True);
         using (Assert.EnterMultipleScope())
@@ -187,8 +186,7 @@ public class BrokerDiscoveryTests
     public async Task Discovery_AllDrivesFail_PreservesScanErrorsInResult()
     {
         using var files = new PackedIndexFixture();
-        var owner = new MftIndexSession([await files.OpenIndexAsync()], null, ["X"], [],
-            new Dictionary<string, string> { ["X"] = "Timed out waiting for broker to connect" });
+        var owner = new MftIndexSession([await files.OpenIndexAsync()], null, ["X"], new Dictionary<string, string> { ["X"] = "Timed out waiting for broker to connect" });
         await using var result = await GitWizardApi.DiscoverRepositoriesWithIndexAsync(
             new GitWizardConfiguration(), new List<string>(), [@"X:\"], [],
             new IndexDiscoveryComposition(_ => Task.FromResult(owner), _ => true));
@@ -205,11 +203,10 @@ public class BrokerDiscoveryTests
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
-        var owner = new MftIndexSession([await files.OpenIndexAsync()], null, ["X", "Y"], [],
-            new Dictionary<string, string> { ["Y"] = "scan denied" });
+        var owner = new MftIndexSession([await files.OpenIndexAsync()], null, ["X", "Y"], new Dictionary<string, string> { ["Y"] = "scan denied" });
         var expected = owner.CaptureRootStatuses();
         await using var result = await GitWizardApi.DiscoverRepositoriesWithIndexAsync(
-            new GitWizardConfiguration { IncludeTempDirectories = true }, new List<string>(), [@"X:\", @"Y:\"], [],
+            new GitWizardConfiguration { IncludeTempDirectories = true }, new List<string>(), [files.TreePath, @"Y:\"], [],
             new IndexDiscoveryComposition(_ => Task.FromResult(owner),
                 _ => throw new IOException("candidate probe failed")));
         using (Assert.EnterMultipleScope())
@@ -246,7 +243,7 @@ public class BrokerDiscoveryTests
 
     static Task<MftDiscoveryResult> DiscoverAsync(IndexOwnerFixture fixture, ICollection<string> paths,
         Func<string, bool>? candidateExists = null) => GitWizardApi.DiscoverRepositoriesWithIndexAsync(
-        new GitWizardConfiguration { IncludeTempDirectories = true }, paths, [@"X:\"], [], new IndexDiscoveryComposition(
+        new GitWizardConfiguration { IncludeTempDirectories = true }, paths, [fixture.Owner.Indices.Single().Root().Path], [], new IndexDiscoveryComposition(
             _ => Task.FromResult(fixture.Owner), candidateExists ?? (_ => true)));
 
 }

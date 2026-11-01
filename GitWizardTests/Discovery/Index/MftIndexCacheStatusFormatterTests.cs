@@ -20,13 +20,20 @@ public class MftIndexCacheStatusFormatterTests
     public void UnknownTimestampIsNotZeroAge() => Assert.That(
         MftIndexCacheStatusFormatter.Age(default, FrozenCacheClock.Now), Is.EqualTo("unavailable"));
 
-    [TestCase(null, "all eligible records")]
-    [TestCase(new string[] { }, "directories only")]
-    [TestCase(new[] { ".git", "HEAD" }, "directories plus .git, HEAD")]
-    public void RetentionDescribesFullDirectoryOnlyAndNamedScans(string[]? names, string expected)
+    [TestCase(null, null, "unavailable", "none")]
+    [TestCase(ProducerKind.Mft, null, "Mft", "none")]
+    [TestCase(ProducerKind.Enumeration, MftUnavailableReason.NotNtfs, "Enumeration", "NotNtfs")]
+    public void StatusDescribesObservedProducerAndFallback(ProducerKind? producer, MftUnavailableReason? reason,
+        string expectedProducer, string expectedReason)
     {
-        var snapshot = new MftIndexCacheSnapshot { IsApplicable = true, DirectoryScanFileNames = names };
-        Assert.That(MftIndexCacheStatusFormatter.Format(snapshot), Does.Contain($"Retention: {expected}"));
+        var status = RootStatuses.CreateRootStatus('X', RootState.Ready) with { Producer = producer, MftUnavailable = reason };
+        var snapshot = new MftIndexCacheSnapshot
+        {
+            IsApplicable = true,
+            Sessions = [new MftActiveCacheSession("", [new MftActiveCacheRoot(new MftRootStatus("X", status, null), null)])]
+        };
+        Assert.That(MftIndexCacheStatusFormatter.Format(snapshot),
+            Does.Contain($"producer: {expectedProducer}; MFT unavailable: {expectedReason}"));
     }
 
     [TestCase(CacheLocation.OwnedCanonical, "this session owns the cache")]
@@ -42,11 +49,12 @@ public class MftIndexCacheStatusFormatterTests
     {
         using var files = new PackedIndexFixture();
         var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
-        await using var index = await FileIndex.OpenAsync(new FileIndexOptions
+        await using var index = await FileIndex.OpenAsync(SyntheticVolumeFacts.Apply(new FileIndexOptions
         {
-            Root = SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1, ProducerKind.Enumeration),
+            Root = (RootKey)new VolumeKey('X'),
             CacheDirectory = cache
-        }, CancellationToken.None);
+        } with
+        { Producer = ProducerSelection.WalkOnly }, 1, volume: new VolumeKey('X'), volumeRootDirectory: files.TreePath), CancellationToken.None);
         var active = new MftActiveCacheSession(sameDirectory ? cache : files.BlockDirectory,
             [new MftActiveCacheRoot(new MftRootStatus("X", index.Status, null), serial)]);
         var service = new MftIndexCacheInspection(new FrozenCacheClock(), true,
@@ -60,7 +68,7 @@ public class MftIndexCacheStatusFormatterTests
         }
         Assert.That(text, Does.Contain("Size:"));
         Assert.That(text, Does.Contain("serial 00000001"));
-        Assert.That(text, Does.Contain("Retention: directories plus .git, HEAD"));
+        Assert.That(text, Does.Contain(sameDirectory ? "producer: Enumeration" : "producer: unavailable"));
     }
 
     [TestCase(false)]

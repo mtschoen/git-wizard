@@ -65,7 +65,7 @@ public static partial class GitWizardApi
             rootPath = string.Concat(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), rootPath.AsSpan(1));
         }
 
-        return !Directory.Exists(rootPath) ? null : NormalizePath(rootPath);
+        return !Directory.Exists(rootPath) ? null : ResolveOnDiskPath(rootPath);
     }
 
     /// <summary>
@@ -142,7 +142,7 @@ public static partial class GitWizardApi
             path = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         }
 
-        return NormalizePath(path);
+        return ResolveOnDiskPath(path);
     }
 
     /// <summary>

@@ -14,9 +14,8 @@ public class MftIndexCachePolicyTests
         using var files = new PackedIndexFixture();
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(MftIndexCachePolicy.DirectoryScanFileNames, Is.EqualTo([".git", "HEAD"]));
             Assert.That(SyntheticCacheTag.GetFourCharacterCode(MftIndexCachePolicy.CacheTag), Is.EqualTo("GWMI"));
-            Assert.That(SyntheticCacheTag.GetVersion(MftIndexCachePolicy.CacheTag), Is.EqualTo(2u));
+            Assert.That(SyntheticCacheTag.GetVersion(MftIndexCachePolicy.CacheTag), Is.EqualTo(3u));
             Assert.That(Path.GetDirectoryName(MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath)),
                 Is.EqualTo(MftIndexCachePolicy.GetCacheRoot(files.DirectoryPath)));
         }
@@ -59,13 +58,13 @@ public class MftIndexCachePolicyTests
         }
         return;
 
-        FileIndexOptions Options(uint cacheTagVersion, bool snapshot) => new()
+        FileIndexOptions Options(uint cacheTagVersion, bool snapshot) => files.ConfigureOptions(new FileIndexOptions
         {
-            Root = SyntheticIndexedRoot.Create(new VolumeKey('X'), files.TreePath, 1),
+            Root = (RootKey)new VolumeKey('X'),
             CacheDirectory = path,
             CacheTag = new CacheTag(SyntheticCacheTag.GetFourCharacterCode(MftIndexCachePolicy.CacheTag), cacheTagVersion),
             CacheMode = snapshot ? CacheMode.ExistingOnly : CacheMode.Persistent,
             MftSource = SyntheticIndexSource.Create(files.Producer)
-        };
+        });
     }
 }

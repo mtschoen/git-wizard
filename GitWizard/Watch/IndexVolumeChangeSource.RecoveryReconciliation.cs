@@ -111,7 +111,7 @@ public sealed partial class IndexVolumeChangeSource
         var markers = new HashSet<string>(WatchPath.StringComparer);
         foreach (var entry in GitWizardApi.SelectGitEntries(owner.IndexSet, includeGitFiles: true))
         {
-            if (entry.Root.VolumeLetter() != drive)
+            if (!owner.TryGetVolume(entry.Root, out var volume) || volume.Letter != drive)
             {
                 continue;
             }

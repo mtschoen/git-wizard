@@ -32,17 +32,16 @@ public class EnumerationDiscoveryTests
     }
 
     [Test]
-    public void IndexOptionsRetainOnlyGitMarkersAndOpenWithoutAnyCache()
+    public void IndexOptionsSelectWalkOnlyWithoutAnyCache()
     {
         var options = EnumerationDiscovery.CreateIndexOptions(new GitWizardConfiguration(), _root, []);
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(options.RetainedFileNames, Is.EqualTo([".git", "HEAD"]));
+            Assert.That(options.Producer, Is.EqualTo(ProducerSelection.WalkOnly));
             Assert.That(options.CacheMode, Is.EqualTo(CacheMode.Disabled));
             Assert.That(options.CacheDirectory, Is.Null);
-            Assert.That(options.Root!.Producer, Is.EqualTo(ProducerKind.Enumeration));
-            Assert.That(options.Root!.RootDirectory, Is.EqualTo(_root));
+            Assert.That(options.Root, Is.EqualTo(RootKey.FromDirectory(_root)));
         }
     }
 
@@ -147,7 +146,7 @@ public class EnumerationDiscoveryTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(result.Paths, Is.EqualTo([GitWizardApi.NormalizePath(repository)]));
+            Assert.That(result.Paths, Is.EqualTo([GitWizardApi.ResolveOnDiskPath(repository)]));
             Assert.That(result.Errors, Is.Empty);
         }
     }
@@ -162,7 +161,7 @@ public class EnumerationDiscoveryTests
         var paths = new List<string>();
         EnumeratedDiscovery.GetRepositoryPaths(_root, paths, [ignored], includeTempDirectories: true);
 
-        Assert.That(paths, Is.EqualTo([GitWizardApi.NormalizePath(Path.Combine(_root, "kept"))]));
+        Assert.That(paths, Is.EqualTo([GitWizardApi.ResolveOnDiskPath(Path.Combine(_root, "kept"))]));
     }
 
     [Test]

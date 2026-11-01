@@ -1,6 +1,7 @@
 using GitWizard.Discovery;
 using GitWizard.Watch;
 using MFTLib;
+using MFTLib.Index;
 
 namespace GitWizard;
 
@@ -11,16 +12,20 @@ public static partial class GitWizardApi
         GitWizardConfiguration configuration, ICollection<string> paths,
         IUpdateHandler? updateHandler = null, bool noMft = false)
     {
-        return TryDiscoverRepositoriesUsingMftAsync(
-            configuration, paths, null, null, updateHandler, noMft);
+        if (noMft)
+        {
+            return Task.FromResult(new MftDiscoveryResult(false));
+        }
+        return TryDiscoverRepositoriesUsingMftAsync(configuration, paths, null, null, updateHandler);
     }
 
     internal static Task<MftDiscoveryResult> TryDiscoverRepositoriesUsingMftAsync(
         GitWizardConfiguration configuration, ICollection<string> paths, Func<string, bool>? brokerLauncher,
         TimeSpan? connectTimeout = null,
-        IUpdateHandler? updateHandler = null, bool noMft = false)
+        IUpdateHandler? updateHandler = null,
+        Func<FileIndexOptions, FileIndexOptions>? configureOptions = null)
     {
-        if (!OperatingSystem.IsWindows() || noMft)
+        if (!OperatingSystem.IsWindows())
         {
             return Task.FromResult(new MftDiscoveryResult(false));
         }
@@ -29,15 +34,22 @@ public static partial class GitWizardApi
         var roots = configuration.SearchPaths.Select(ExpandSearchPath).OfType<string>().ToArray();
         var ignored = ExpandIgnoredPaths(configuration.IgnoredPaths);
         return DiscoverRepositoriesWithIndexAsync(configuration, paths, roots, ignored, new IndexDiscoveryComposition(
-            drives => OpenWindowsDiscoveryIndexAsync(drives, brokerLauncher, connectTimeout), WindowsCandidateExists), updateHandler);
+            rootsToOpen => OpenWindowsDiscoveryIndexAsync(rootsToOpen, brokerLauncher, connectTimeout,
+                options =>
+                {
+                    var configured = EnumerationDiscovery.ConfigureWalk(options, configuration);
+                    return configureOptions?.Invoke(configured) ?? configured;
+                }), WindowsCandidateExists), updateHandler);
     }
 
     static Task<MftIndexSession> OpenWindowsDiscoveryIndexAsync(
-        IReadOnlyList<string> drives, Func<string, bool> brokerLauncher, TimeSpan? connectTimeout = null)
+        IReadOnlyList<string> drives, Func<string, bool> brokerLauncher, TimeSpan? connectTimeout,
+        Func<FileIndexOptions, FileIndexOptions> configureOptions)
     {
         return !OperatingSystem.IsWindows()
             ? throw new PlatformNotSupportedException("MFT discovery requires Windows.")
-            : MftIndexSession.OpenWindowsAsync(drives, brokerLauncher, connectTimeout, CancellationToken.None);
+            : MftIndexSession.OpenSelectedVolumesAsync(drives, new BrokerSession(brokerLauncher, connectTimeout),
+                MftIndexCachePolicy.GetCacheDirectory(GetLocalFilesPath()), null, CancellationToken.None, configureOptions);
     }
 
     static bool WindowsCandidateExists(string path, RepositoryCandidateKind kind)
@@ -52,11 +64,8 @@ public static partial class GitWizardApi
         IReadOnlyCollection<string> expandedRoots, ICollection<string> expandedIgnoredPaths,
         IndexDiscoveryComposition composition, IUpdateHandler? updateHandler = null)
     {
-        var drives = expandedRoots.Select(WatchPath.Parse)
-            .Select(root => root.IsWindows && root.Volume is { Length: 1 } volume &&
-                char.IsAsciiLetter(volume[0]) ? volume.ToUpperInvariant() : null)
-            .OfType<string>()
-            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var drives = expandedRoots.Where(root => RootKey.TryParse(root, out _))
+            .Distinct(WatchPath.StringComparer).ToArray();
         if (expandedRoots.Count == 0 || drives.Length == 0)
         {
             return new MftDiscoveryResult(false);
@@ -76,8 +85,7 @@ public static partial class GitWizardApi
             }
 
             var request = new DiscoveryRequest(configuration, DiscoveryPurpose.Ordinary, false, false, []);
-            var scope = DiscoveryScope.CreateExpanded(request, (string[])[.. expandedRoots], [], (string[])[.. expandedIgnoredPaths],
-                r => new RootClassification(r, RootFileSystem.Ntfs, WatchPath.Parse(r).Volume, null));
+            var scope = DiscoveryScope.CreateExpanded(request, (string[])[.. expandedRoots], [], (string[])[.. expandedIgnoredPaths]);
             var repoCandidates = SelectRepositoryCandidates(owner.IndexSet, scope);
             var candidates = (string[])[.. repoCandidates
                 .Where(c => composition.CandidateExists(c.Path, c.Kind))
@@ -88,7 +96,7 @@ public static partial class GitWizardApi
                 paths.Add(candidate);
             }
 
-            updateHandler?.SendUpdateMessage($"MFT search found {candidates.Length} repositories");
+            updateHandler?.SendUpdateMessage($"Index search found {candidates.Length} repositories");
             if (candidates.Length == 0)
             {
                 return new MftDiscoveryResult(false, scanErrors: owner.ScanErrors,

@@ -34,13 +34,6 @@ public enum DiscoveryPurpose
     Watch = 2
 }
 
-public enum RootFileSystem
-{
-    Ntfs = 0,
-    Recursive = 1,
-    Unknown = 2
-}
-
 public enum RepositoryCandidateKind
 {
     Ordinary = 0,
@@ -49,12 +42,6 @@ public enum RepositoryCandidateKind
 }
 
 public sealed record RepositoryCandidate(string Path, RepositoryCandidateKind Kind);
-
-public sealed record RootClassification(
-    string Root,
-    RootFileSystem FileSystem,
-    string? NtfsDrive,
-    string? Error);
 
 public sealed record DiscoveryRequest(
     GitWizardConfiguration Configuration,
@@ -132,4 +119,10 @@ public sealed record RecursiveDiscovery(
 
     public IReadOnlyDictionary<string, string> Errors { get; } = new ReadOnlyDictionary<string, string>(
         new Dictionary<string, string>(Errors));
+
+    /// <summary>
+    /// The final path the walked root resolved to, when the walk completed; the discovered paths are under it.
+    /// Null when the crawl did not report one, in which case the configured root is its coverage.
+    /// </summary>
+    public string? ResolvedRoot { get; init; }
 }

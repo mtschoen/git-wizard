@@ -1,4 +1,5 @@
 using GitWizard;
+using GitWizardTests.TestSupport;
 using MFTLib.Index;
 
 namespace GitWizardTests;
@@ -17,29 +18,34 @@ public class RootKeyProjectionTests
     [Test]
     public void ParseRootKeys_SkipsUnparseableEntriesAndKeepsFirstOfRepeats()
     {
-        var keys = RootKeyProjection.ParseRootKeys(["C", "", "not a drive", "c:", "D", @"C:\Users\someone"]);
+        var directory = Path.Combine(Path.GetTempPath(), "someone");
+        var keys = RootKeyProjection.ParseRootKeys(["C", "", "not a drive", "c:", "D", directory]);
 
-        Assert.That(keys.Select(key => key.ToString()), Is.EqualTo(["C", "D"]));
+        Assert.That(keys.Select(key => key.ToString()), Is.EqualTo(["C", "D", RootKey.FromDirectory(directory).ToString()]));
     }
 
     [Test]
-    public void ParseRootKeys_DoesNotWidenAPathToADirectoryRoot()
+    public void ParseRootKeys_PreservesDirectoryScope()
     {
-        var keys = RootKeyProjection.ParseRootKeys([Path.GetTempPath()]);
+        using var directory = new TempDirectory();
+        var keys = RootKeyProjection.ParseRootKeys([directory.Path]);
 
-        Assert.That(keys, Is.Empty);
+        Assert.That(keys, Is.EqualTo([RootKey.FromDirectory(directory.Path)]));
     }
 
     [Test]
-    public void VolumeLetter_NamesTheVolumeAndRejectsDirectoryRoots()
+    public async Task SessionRequiresAnObservedVolumeForDirectoryRoots()
     {
+        using var files = new PackedIndexFixture();
         RootKey volume = new VolumeKey('X');
-        var directory = RootKey.FromDirectory(Path.GetTempPath());
+        var directory = RootKey.FromDirectory(files.TreePath);
+        await using var owner = new MftIndexSession([], null, [], new Dictionary<string, string>());
+        var resolveVolume = owner.VolumeFor;
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(volume.VolumeLetter(), Is.EqualTo('X'));
-            Assert.That(() => directory.VolumeLetter(), Throws.InvalidOperationException);
+            Assert.That(owner.VolumeFor(volume), Is.EqualTo(new VolumeKey('X')));
+            Assert.That(() => resolveVolume(directory), Throws.InvalidOperationException);
         }
     }
 }

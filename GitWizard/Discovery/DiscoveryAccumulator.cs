@@ -12,13 +12,17 @@ sealed class DiscoveryAccumulator
     public DiscoveryAccumulator(DiscoveryScope scope, ICollection<string> paths)
     {
         Scope = scope;
+        CandidateScope = scope;
         Paths = paths;
-        Errors = new Dictionary<string, string>(scope.ClassificationErrors, StringComparer.OrdinalIgnoreCase);
+        Errors = new Dictionary<string, string>(scope.ExpansionErrors, StringComparer.OrdinalIgnoreCase);
     }
 
     public DiscoveryScope Scope { get; }
+    public DiscoveryScope CandidateScope { get; set; }
     public ICollection<string> Paths { get; }
     public Dictionary<string, string> Errors { get; }
+    public Task<IReadOnlyDictionary<string, long>>? RepositorySizes { get; set; }
+    public CancellationTokenSource? RepositorySizeCancellation { get; set; }
     public List<RootObservation> Observations { get; } = [];
     public HashSet<string> RescannedDrives { get; } = new(StringComparer.OrdinalIgnoreCase);
     public HashSet<string> ObservedDrives { get; } = new(StringComparer.OrdinalIgnoreCase);
@@ -41,40 +45,57 @@ sealed class DiscoveryAccumulator
             {
                 Errors[status.Drive] = GetIndexStatusFailureMessage(indexStatus);
             }
-            else
+            else if (!Errors.ContainsKey(status.Drive))
             {
                 ObservedDrives.Add(status.Drive);
             }
         }
     }
 
-    public void AddIndexedObservations(
-        IEnumerable<string> roots, bool exactRoot, DiscoverySource unrescannedSource, IUpdateHandler? snapshotUpdates)
+    /// <summary>
+    /// Adds one observation per configured search root, or per retained root when <paramref name="exactRoot" /> is set.
+    /// Status lookup uses the configured root, but a successful observation names the matching
+    /// <see cref="CandidateScope" /> root: its coverage must be in the resolved coordinates the inventory paths use,
+    /// or reconciliation could not recognize a resolved entry as rescanned.
+    /// </summary>
+    public void AddIndexedObservations(bool exactRoot, DiscoverySource unrescannedSource, IUpdateHandler? snapshotUpdates)
     {
-        foreach (var root in roots)
+        var configuredRoots = exactRoot ? Scope.RetainedRoots : Scope.SearchRoots;
+        var resolvedRoots = exactRoot ? CandidateScope.RetainedRoots : CandidateScope.SearchRoots;
+        foreach (var (root, resolvedRoot) in configuredRoots.Zip(resolvedRoots))
         {
-            var classification = Scope.Classifications.FirstOrDefault(item =>
-                string.Equals(item.Root, root, StringComparison.OrdinalIgnoreCase));
-            if (classification is not { FileSystem: RootFileSystem.Ntfs, NtfsDrive: { } drive })
-            {
-                continue;
-            }
+            var indexedRoot = Scope.IndexRoots.Contains(root, WatchPath.StringComparer) ? root :
+                Scope.SearchRoots.FirstOrDefault(search => WatchPath.Parse(root).IsUnderOrEqual(WatchPath.Parse(search))) ?? root;
+            var key = ToStatusKey(indexedRoot);
+            var rootStatus = FinalStatuses.FirstOrDefault(item =>
+                string.Equals(item.Drive, key, StringComparison.OrdinalIgnoreCase));
+            var isSuccess = ObservedDrives.Contains(key);
+            var source = RescannedDrives.Contains(key) ? DiscoverySource.Scan : unrescannedSource;
+            var timestamp = isSuccess ? rootStatus?.IndexStatus?.Block?.ScanTimestamp : null;
+            var error = isSuccess ? null : Errors.GetValueOrDefault(key);
 
-            var driveStatus = FinalStatuses.FirstOrDefault(item =>
-                string.Equals(item.Drive, drive, StringComparison.OrdinalIgnoreCase));
-            var isSuccess = ObservedDrives.Contains(drive);
-            var source = RescannedDrives.Contains(drive) ? DiscoverySource.Scan : unrescannedSource;
-            var timestamp = isSuccess ? driveStatus?.IndexStatus?.Block?.ScanTimestamp : null;
-            var error = isSuccess ? null : Errors.GetValueOrDefault(drive) ?? classification.Error;
+            if (rootStatus?.IndexStatus is { } observed)
+            {
+                snapshotUpdates?.SendUpdateMessage($"Index {root}: producer: {observed.Producer?.ToString() ?? "unavailable"}; " +
+                    $"MFT unavailable: {observed.MftUnavailable?.ToString() ?? "none"}");
+            }
 
             if (isSuccess && source == DiscoverySource.Snapshot && timestamp.HasValue)
             {
-                snapshotUpdates?.SendUpdateMessage($"Using index snapshot for {drive}: (scan timestamp {timestamp.Value:O}; may be stale)");
+                snapshotUpdates?.SendUpdateMessage($"Using index snapshot for {root}: (scan timestamp {timestamp.Value:O}; may be stale)");
             }
 
-            Observations.Add(new RootObservation(root, exactRoot, isSuccess, source, timestamp, error));
+            Observations.Add(new RootObservation(
+                isSuccess ? resolvedRoot : root, exactRoot, isSuccess, source, timestamp, error));
         }
     }
+
+    /// <summary>
+    /// Statuses, observed drives, rescans and errors are keyed by the index root key text (a volume letter or a normalized
+    /// directory path), while scope roots are path-shaped, so each root is converted before it is looked up.
+    /// </summary>
+    static string ToStatusKey(string root) =>
+        RootKeyProjection.ParseRootKeys([root]) is [var parsed] ? parsed.ToString() : root;
 
     public void AddCrawlResult(string root, RecursiveDiscovery crawlResult, DiscoverySource source)
     {
@@ -90,7 +111,8 @@ sealed class DiscoveryAccumulator
 
         var isComplete = crawlResult.Errors.Count == 0 && crawlResult.FailedSubtrees.Count == 0;
         var crawlError = isComplete ? null : crawlResult.Errors.GetValueOrDefault(root);
-        Observations.Add(new RootObservation(root, false, isComplete, source, null, crawlError));
+        var observedRoot = isComplete ? crawlResult.ResolvedRoot ?? root : root;
+        Observations.Add(new RootObservation(observedRoot, false, isComplete, source, null, crawlError));
 
         foreach (var failedSubtree in crawlResult.FailedSubtrees)
         {
@@ -99,11 +121,11 @@ sealed class DiscoveryAccumulator
         }
     }
 
-    public void AddClassificationErrorObservations()
+    public void AddExpansionErrorObservations()
     {
         foreach (var root in Scope.SearchRoots.Concat(Scope.RetainedRoots))
         {
-            if (!Scope.ClassificationErrors.TryGetValue(root, out var classificationError))
+            if (!Scope.ExpansionErrors.TryGetValue(root, out var expansionError))
             {
                 continue;
             }
@@ -113,8 +135,8 @@ sealed class DiscoveryAccumulator
                 continue;
             }
 
-            var isExact = Scope.RetainedRoots.Contains(root);
-            Observations.Add(new RootObservation(root, isExact, false, DiscoverySource.Recursive, null, classificationError));
+            var isExact = Scope.RetainedRoots.Contains(root, WatchPath.StringComparer);
+            Observations.Add(new RootObservation(root, isExact, false, DiscoverySource.Recursive, null, expansionError));
         }
     }
 
@@ -130,7 +152,9 @@ sealed class DiscoveryAccumulator
             Observations = Observations,
             RootStatuses = FinalStatuses,
             Errors = Errors,
-            WatchExcludedRoots = Scope.WatchExcludedRoots
+            WatchExcludedRoots = Array.AsReadOnly<string>([.. FinalStatuses
+                .Where(item => item.IndexStatus?.Producer != ProducerKind.Mft || Errors.ContainsKey(item.Drive))
+                .Select(item => item.Drive)])
         };
     }
 
@@ -153,10 +177,19 @@ sealed class DiscoveryAccumulator
 
     static bool IsFailed(RootStatus indexStatus) =>
         indexStatus.State is RootState.Failed or RootState.Offline ||
-        indexStatus.Failure is not null;
+        indexStatus.Failure is not null ||
+        indexStatus.Block is { IsCapacityExhausted: true } or { AccessDeniedSubtreeCount: > 0 };
 
     static string GetIndexStatusFailureMessage(RootStatus indexStatus)
     {
+        if (indexStatus.Block is { IsCapacityExhausted: true })
+        {
+            return $"The index block for {indexStatus.Root} ran out of capacity before the scan finished.";
+        }
+        if (indexStatus.Block is { AccessDeniedSubtreeCount: > 0 } block)
+        {
+            return $"{block.AccessDeniedSubtreeCount} subtree(s) under {indexStatus.Root} could not be entered.";
+        }
         return indexStatus.Failure?.Message ?? $"Drive is {indexStatus.State}.";
     }
 }

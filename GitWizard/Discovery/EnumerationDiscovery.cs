@@ -14,7 +14,8 @@ static class EnumerationDiscovery
 {
     public static async Task<RecursiveDiscovery> DiscoverAsync(
         DiscoveryRequest request, string expandedRoot, CancellationToken cancellationToken,
-        CandidateSelectionDiagnostics? diagnostics = null)
+        CandidateSelectionDiagnostics? diagnostics = null,
+        Func<FileIndexOptions, FileIndexOptions>? configureOptions = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -36,13 +37,13 @@ static class EnumerationDiscovery
             return new RecursiveDiscovery(paths, failedSubtrees, errors);
         }
 
-        var scope = DiscoveryScope.CreateExpanded(request, [expandedRoot], [], ignoredPaths,
-            root => new RootClassification(root, RootFileSystem.Recursive, null, null));
+        var scope = DiscoveryScope.CreateExpanded(request, [expandedRoot], [], ignoredPaths);
 
         FileIndex index;
         try
         {
-            index = await FileIndex.OpenAsync(CreateIndexOptions(request.Configuration, expandedRoot, ignoredPaths),
+            var options = CreateIndexOptions(request.Configuration, expandedRoot, ignoredPaths);
+            index = await FileIndex.OpenAsync(configureOptions?.Invoke(options) ?? options,
                 cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
@@ -62,7 +63,7 @@ static class EnumerationDiscovery
             diagnostics ??= new CandidateSelectionDiagnostics();
             paths.AddRange(GitWizardApi.SelectRepositoryCandidates(new FileIndexSet([index]), scope, diagnostics, cancellationToken)
                 .Where(IsConfirmed)
-                .Select(candidate => GitWizardApi.NormalizePath(candidate.Path)));
+                .Select(candidate => candidate.Path));
 
             if (diagnostics.UnresolvedPathCount > 0)
             {
@@ -79,9 +80,9 @@ static class EnumerationDiscovery
                     return Failed(paths, failedSubtrees, errors, expandedRoot,
                         $"{block.AccessDeniedSubtreeCount} subtree(s) under {expandedRoot} could not be entered.");
             }
-        }
 
-        return new RecursiveDiscovery(paths, failedSubtrees, errors);
+            return new RecursiveDiscovery(paths, failedSubtrees, errors) { ResolvedRoot = index.Root(cancellationToken).Path };
+        }
     }
 
     // The index matches names case-insensitively, so the filesystem confirms what the index selected. An
@@ -95,9 +96,9 @@ static class EnumerationDiscovery
         GitWizardConfiguration configuration, string root, IReadOnlyList<string> ignoredPaths) =>
         new()
         {
-            Root = IndexedRoot.FromDirectory(root),
+            Root = RootKey.FromDirectory(root),
+            Producer = ProducerSelection.WalkOnly,
             CacheMode = CacheMode.Disabled,
-            RetainedFileNames = MftIndexCachePolicy.DirectoryScanFileNames,
             DirectoryWalk = CreateDirectoryWalk(configuration, root, ignoredPaths)
         };
 
@@ -117,6 +118,17 @@ static class EnumerationDiscovery
             PruneDotDirectories = skipHidden,
             PrunedDirectoryAttributes = skipHidden ? FileAttributes.Hidden : 0,
             PrunedDirectoryPaths = prunedPaths
+        };
+    }
+
+    internal static FileIndexOptions ConfigureWalk(FileIndexOptions options, GitWizardConfiguration configuration)
+    {
+        var root = options.Root ?? throw new ArgumentException("Discovery options require a root.", nameof(options));
+        return options with
+        {
+            DirectoryWalk = CreateDirectoryWalk(configuration,
+                root.TryGetVolume(out var volume) ? $"{volume}:\\" : root.ToString(),
+                GitWizardApi.ExpandIgnoredPaths(configuration.IgnoredPaths))
         };
     }
 

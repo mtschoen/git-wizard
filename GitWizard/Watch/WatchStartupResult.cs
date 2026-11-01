@@ -9,6 +9,7 @@ public sealed class WatchStartupResult : IAsyncDisposable
 {
     IVolumeChangeSource? _source;
     int _disposed;
+    readonly (WatchPath Root, string Volume)[] _rootVolumes = [];
 
     public DiscoveryInventory Inventory { get; }
     public VolumeArmResult ArmResult { get; }
@@ -38,10 +39,39 @@ public sealed class WatchStartupResult : IAsyncDisposable
         ArmResult = armResult ?? throw new ArgumentNullException(nameof(armResult));
         _source = source;
         WatchVolumes = Array.AsReadOnly<string>([.. watchVolumes]);
-        SearchRoots = scope.SearchRoots;
-        IgnoredRoots = scope.IgnoredRoots;
-        IncludeTempDirectories = scope.Request.Configuration.IncludeTempDirectories ?? false;
+        var effectiveScope = scope;
+        if (source is IndexVolumeChangeSource { Session: { } session })
+        {
+            effectiveScope = ResolvedDiscoveryScope.Create(session.IndexSet, scope);
+            var rootVolumes = new List<(WatchPath Root, string Volume)>();
+            foreach (var index in session.Indices)
+            {
+                if (index.Status.Block is null || !session.TryGetVolume(index.Status.Root, out var volume))
+                {
+                    continue;
+                }
+
+                var configured = index.Status.Root.TryGetVolume(out var configuredVolume)
+                    ? $"{configuredVolume}:\\"
+                    : index.Status.Root.ToString();
+                rootVolumes.Add((WatchPath.Parse(configured), volume.ToString()));
+                rootVolumes.Add((WatchPath.Parse(index.Root().Path), volume.ToString()));
+            }
+            _rootVolumes = rootVolumes.ToArray();
+        }
+        SearchRoots = effectiveScope.SearchRoots;
+        IgnoredRoots = effectiveScope.IgnoredRoots;
+        IncludeTempDirectories = effectiveScope.Request.Configuration.IncludeTempDirectories ?? false;
         StartupBatches = startupBatches ?? [];
+    }
+
+    internal string? GetObservedVolume(string path)
+    {
+        var parsed = WatchPath.Parse(path);
+        return _rootVolumes.Where(mapping => parsed.IsUnderOrEqual(mapping.Root))
+            .OrderByDescending(mapping => mapping.Root.Comparison.Length)
+            .Select(mapping => mapping.Volume)
+            .FirstOrDefault();
     }
 
     public IVolumeChangeSource? DetachSource() => Interlocked.Exchange(ref _source, null);

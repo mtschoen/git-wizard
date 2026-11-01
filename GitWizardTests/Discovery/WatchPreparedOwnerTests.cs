@@ -17,7 +17,6 @@ public class WatchPreparedOwnerTests
         {
             IsWindows = false,
             IsLinux = isLinux,
-            ClassifyRoot = root => new RootClassification(root, RootFileSystem.Recursive, null, null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("No roots are configured to crawl."),
             OpenIndexAsync = (_, _, _, _) => throw new AssertionException("A non-Windows watch must not open an index."),
             ReadListAsync = _ => Task.FromResult<string[]?>([]),

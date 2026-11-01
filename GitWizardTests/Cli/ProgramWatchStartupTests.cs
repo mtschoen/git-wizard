@@ -3,7 +3,6 @@ using GitWizard.CLI;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
 using LibGit2Sharp;
-using MFTLib.Index;
 using MFTLibTestExtensions;
 
 namespace GitWizardTests;
@@ -45,14 +44,8 @@ public class ProgramWatchStartupTests
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = root => new RootClassification(root, RootFileSystem.Ntfs, "C", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled"),
-            OpenIndexAsync = async (drives, _, _, _) =>
-            {
-                var indices = await files.OpenIndicesAsync([.. drives.Select(d => d[0])]).ConfigureAwait(false);
-                var indexed = drives.Select(d => SyntheticIndexedRoot.Create(new VolumeKey(d[0]), files.TreePath, 1)).ToList();
-                return new MftIndexSession(indices, new CountingOwner(), drives, indexed, new Dictionary<string, string>());
-            },
+            OpenIndexAsync = (roots, _, _, _) => files.OpenDirectorySessionAsync(roots),
             ReadListAsync = GitWizardApi.GetCachedRepositoryPathsAsync,
             WriteListAsync = GitWizardApi.SaveCachedRepositoryPathsAsync,
             CandidateExists = (path, _) => Directory.Exists(path),
@@ -105,14 +98,12 @@ public class ProgramWatchStartupTests
         var fresh = GitWizardApi.NormalizePath(Path.GetDirectoryName(freshMarker)!);
 
         var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
-        var index = await files.OpenMftIndexAsync(scripted, 'C');
-        var session = new MftIndexSession([index], new CountingOwner(), ["C"], [SyntheticIndexedRoot.Create(new VolumeKey('C'), files.TreePath, 1)], new Dictionary<string, string>());
+        var session = await files.OpenDirectorySessionAsync([files.TreePath], scripted);
 
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = root => new RootClassification(root, RootFileSystem.Ntfs, "C", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled"),
             OpenIndexAsync = (_, _, _, _) => Task.FromResult(session),
             ReadListAsync = GitWizardApi.GetCachedRepositoryPathsAsync,
@@ -146,7 +137,6 @@ public class ProgramWatchStartupTests
         {
             IsWindows = false,
             IsLinux = true,
-            ClassifyRoot = root => new RootClassification(root, RootFileSystem.Recursive, null, null),
             CrawlRootAsync = (_, _, _) =>
             {
                 Assert.That(marksInstalled, Is.True, "Marks must be installed before recursive crawling.");
@@ -183,7 +173,6 @@ public class ProgramWatchStartupTests
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = root => new RootClassification(root, RootFileSystem.Ntfs, "C", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled"),
             OpenIndexAsync = (_, _, _, _) =>
             {
@@ -215,16 +204,13 @@ public class ProgramWatchStartupTests
         var dRoot = Directory.CreateDirectory(Path.Combine(files.DirectoryPath, "d-repos")).FullName;
 
         var scripted = new ScriptedWatchSource { CatchUpOnStart = true };
-        var session = await StatusSessions.OpenAsync(files, scripted,
-            ('C', SyntheticDriveBehavior.Ready), ('D', SyntheticDriveBehavior.ProducerFails));
+        var session = await StatusSessions.OpenRequestedAsync(files, [files.TreePath, dRoot],
+            [('C', SyntheticDriveBehavior.Ready), ('D', SyntheticDriveBehavior.ProducerFails)], scripted);
 
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = root => string.Equals(root, dRoot, StringComparison.OrdinalIgnoreCase)
-                ? new RootClassification(root, RootFileSystem.Ntfs, "D", null)
-                : new RootClassification(root, RootFileSystem.Ntfs, "C", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled"),
             OpenIndexAsync = (_, _, _, _) => Task.FromResult(session),
             ReadListAsync = GitWizardApi.GetCachedRepositoryPathsAsync,
@@ -303,9 +289,6 @@ public class ProgramWatchStartupTests
         {
             IsWindows = true,
             IsLinux = false,
-            ClassifyRoot = root => root.StartsWith(treePath, StringComparison.OrdinalIgnoreCase)
-                ? new RootClassification(root, RootFileSystem.Ntfs, "C", null)
-                : new RootClassification(root, RootFileSystem.Ntfs, "E", null),
             CrawlRootAsync = (_, _, _) => throw new AssertionException("NTFS roots must not be crawled"),
             OpenIndexAsync = (drives, _, _, _) =>
             {
@@ -328,8 +311,8 @@ public class ProgramWatchStartupTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(requestedDrives, Is.EquivalentTo(["C", "E"]),
-                "The retained root's drive must join the selected set, not just the search roots' drives.");
+            Assert.That(requestedDrives, Is.EquivalentTo([treePath, retainedRoot]).IgnoreCase,
+                "The retained directory must join the configured search roots.");
             Assert.That(exitCode, Is.EqualTo(1), "An unusable discovery exits nonzero.");
             Assert.That(cached, Is.Not.Null, "An unusable discovery preserves the previous repository list.");
             Assert.That(cached, Does.Contain(normalizedRetained).IgnoreCase);

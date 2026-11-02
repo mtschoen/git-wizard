@@ -12,6 +12,9 @@ public partial class GitWizardRepository
     /// </summary>
     internal const string NotAGitRepositoryError = "Not a git repository";
 
+    const int AuthorEmailCommitLimit = 200;
+    const int RecentCommitLimit = 10;
+
     public string? WorkingDirectory { get; private set; }
     public string? CurrentBranch { get; private set; }
     public bool IsDetachedHead { get; private set; }
@@ -294,8 +297,7 @@ public partial class GitWizardRepository
 
         Step(() => RefreshBranchDivergence(repository, allBranches));
         Step(() => RefreshRemoteDivergence(repository));
-        Step(() => RefreshAuthorEmails(repository));
-        Step(() => RefreshRecentCommits(repository));
+        Step(() => RefreshAuthorEmailsAndRecentCommits(repository));
         PhaseObserverForTesting?.Invoke(phaseIndex);
         cancellationToken.ThrowIfCancellationRequested();
         RefreshSizeOnDisk(workingDirectory);
@@ -369,42 +371,42 @@ public partial class GitWizardRepository
         RemoteUrls.AddRange(repository.Network.Remotes.Select(r => r.Url).Where(url => !string.IsNullOrEmpty(url)));
     }
 
-    // Cache author emails for "My Repositories" filter
-    internal void RefreshAuthorEmails(Repository repository)
+    // One revwalk feeds both the "My Repositories" author-email cache and the recent-commit
+    // summary for projdash/LLM consumption. CommitSortStrategies.None skips libgit2's eager
+    // time-sort preparation of the whole history; parents are still inserted by date.
+    internal void RefreshAuthorEmailsAndRecentCommits(Repository repository)
     {
+        var authorEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var recentCommits = new List<GitWizardCommitInfo>(RecentCommitLimit);
         try
         {
-            AuthorEmails = repository.Commits.Take(200)
-                .Select(commit => commit.Author.Email)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        }
-        catch (Exception exception)
-        {
-            LogRepositoryException(exception, $"Exception collecting author emails for {WorkingDirectory}");
-        }
-    }
-
-    // Collect recent commits for projdash/LLM consumption
-    internal void RefreshRecentCommits(Repository repository)
-    {
-        try
-        {
-            RecentCommits = [];
-            foreach (var commit in repository.Commits.Take(10))
+            var filter = new CommitFilter { SortBy = CommitSortStrategies.None };
+            foreach (var commit in repository.Commits.QueryBy(filter).Take(AuthorEmailCommitLimit))
             {
-                RecentCommits.Add(new GitWizardCommitInfo
+                authorEmails.Add(commit.Author.Email);
+                if (recentCommits.Count < RecentCommitLimit)
                 {
-                    Hash = commit.Sha[..7],
-                    Message = commit.MessageShort,
-                    Date = commit.Author.When,
-                    AuthorEmail = commit.Author.Email
-                });
+                    recentCommits.Add(new GitWizardCommitInfo
+                    {
+                        Hash = commit.Sha[..7],
+                        Message = commit.MessageShort,
+                        Date = commit.Author.When,
+                        AuthorEmail = commit.Author.Email
+                    });
+                }
             }
+
+            AuthorEmails = authorEmails;
         }
         catch (Exception exception)
         {
-            LogRepositoryException(exception, $"Exception collecting recent commits for {WorkingDirectory}");
+            LogRepositoryException(exception,
+                $"Exception collecting author emails and recent commits for {WorkingDirectory}");
         }
+
+        // The recent commits keep whatever the walk produced before a failure, so a fault
+        // late in the 200-commit walk still reports the ten newest commits.
+        RecentCommits = recentCommits;
     }
 
     internal void RefreshSizeOnDisk(string workingDirectory)

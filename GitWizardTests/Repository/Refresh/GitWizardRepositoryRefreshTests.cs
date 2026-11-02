@@ -586,8 +586,7 @@ public class GitWizardRepositoryRefreshTests
         using (Assert.EnterMultipleScope())
         {
             Assert.DoesNotThrow(() => repo.RefreshLocalOnlyCommits(null!));
-            Assert.DoesNotThrow(() => repo.RefreshAuthorEmails(null!));
-            Assert.DoesNotThrow(() => repo.RefreshRecentCommits(null!));
+            Assert.DoesNotThrow(() => repo.RefreshAuthorEmailsAndRecentCommits(null!));
             Assert.DoesNotThrow(() => repo.RefreshPendingChangesStatus(null!, false));
             Assert.DoesNotThrow(() => repo.RefreshBranchDivergence(null!, false));
         }

@@ -106,8 +106,8 @@ A repository rejected by Git's ownership check remains in `Repositories` with `R
 | `RefreshTimeSeconds` | `float` | no | How long the last refresh took |
 | `RefreshError` | `string` | yes | Error message if refresh failed |
 | `RemoteUrls` | `string[]` | no | List of remote URLs |
-| `AuthorEmails` | `string[]` | yes | Unique author emails from last 200 commits |
-| `RecentCommits` | `CommitInfo[]` | yes | Last 10 commits on HEAD |
+| `AuthorEmails` | `string[]` | yes | Unique author emails from the first 200 commits of an unsorted walk from HEAD (ancestry order, which on a linear history follows parent links, not timestamps) |
+| `RecentCommits` | `CommitInfo[]` | yes | First 10 commits of an unsorted walk from HEAD (ancestry order, which on a linear history follows parent links, not timestamps) |
 | `Submodules` | `object` | yes | Map of path to repository object (null if uninitialized) |
 | `Worktrees` | `object` | yes | Map of path to repository object |
 

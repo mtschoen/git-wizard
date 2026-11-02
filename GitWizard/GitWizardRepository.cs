@@ -281,7 +281,8 @@ public partial class GitWizardRepository
         var cancellationToken = sizeContext.CancellationToken;
         var workingDirectory = WorkingDirectory ?? string.Empty;
         var phaseIndex = 0;
-        Step(() => RefreshSubmodules(updateHandler, repository, workingDirectory, cancellationToken));
+        HashSet<string> refreshedSubmoduleKeys = [];
+        Step(() => refreshedSubmoduleKeys = RefreshSubmodules(updateHandler, repository, workingDirectory, cancellationToken));
         Step(() => CheckSubmoduleHealth(repository, workingDirectory));
         if (!IsWorktree)
         {
@@ -289,7 +290,11 @@ public partial class GitWizardRepository
         }
 
         Step(() => RefreshHeadInfo(repository));
-        Step(() => RefreshPendingChangesStatus(repository, deepRefresh));
+        Step(() =>
+        {
+            RefreshPendingChangesStatus(repository, deepRefresh);
+            AddModifiedSubmodulesToPendingChanges(refreshedSubmoduleKeys);
+        });
         Step(() => RefreshRemoteUrls(repository));
         _localOnlyTipShas = null;
         if (computeLocalCommitCount)

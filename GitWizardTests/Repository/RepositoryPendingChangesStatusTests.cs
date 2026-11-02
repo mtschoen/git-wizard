@@ -23,6 +23,16 @@ public class RepositoryPendingChangesStatusTests
         }
     }
 
+    [TestCase("? sub/\0", new[] { "sub/" })]
+    [TestCase("1 M. N... 100644 100644 100644 a b tracked\0", new string[0])]
+    [TestCase("? sub/\0? path with spaces\0? sub/\0", new[] { "sub/", "path with spaces" })]
+    public void Parse_RetainsOnlyUntrackedRecordPaths(string output, string[] expectedPaths)
+    {
+        var status = RepositoryPendingChangesStatus.Parse(output);
+
+        Assert.That(status.UntrackedPaths, Is.EquivalentTo(expectedPaths));
+    }
+
     [Test]
     public void Parse_MapsBothColumnsIndependently(
         [Values('.', 'M', 'A', 'D', 'R', 'C', 'T', 'U')] char index,
@@ -75,7 +85,7 @@ public class RepositoryPendingChangesStatusTests
         string[] expectedArguments =
         [
             "--no-optional-locks", "status", "--porcelain=v2", "-z", "--untracked-files=all",
-            "--ignore-submodules=none"
+            "--ignore-submodules=all"
         ];
 
         actual.RefreshPendingChangesStatus(repository, false, 0, (target, arguments) =>
@@ -156,6 +166,45 @@ public class RepositoryPendingChangesStatusTests
         {
             Assert.That(actual.HasPendingChanges, Is.True);
             Assert.That(actual.NumberOfPendingChanges, Is.EqualTo(1));
+        }
+    }
+
+    [Test]
+    [NonParallelizable]
+    public void Refresh_TwoArgumentCallAtDefaultThreshold_Issue476UsesCliStatus()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        using var repository = new Repository(fixture.Path);
+        var readme = (Blob)repository.Head.Tip["README.md"].Target;
+        for (var position = 1; position < RepositoryPendingChangesStatus.TrackedFileThreshold; position++)
+        {
+            repository.Index.Add(readme, $"tracked-{position:D5}", Mode.NonExecutableFile);
+        }
+
+        repository.Index.Write();
+        Assert.That(repository.Index.Count, Is.EqualTo(RepositoryPendingChangesStatus.TrackedFileThreshold));
+        var tracePath = Path.Combine(repository.Info.Path, "status-trace.json");
+        var previousTrace = Environment.GetEnvironmentVariable("GIT_TRACE2_EVENT");
+        var actual = new GitWizardRepository(fixture.Path);
+        try
+        {
+            Environment.SetEnvironmentVariable("GIT_TRACE2_EVENT", tracePath);
+
+            actual.RefreshPendingChangesStatus(repository, false);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(actual.RefreshError, Is.Null);
+                Assert.That(actual.HasPendingChanges, Is.True);
+                Assert.That(actual.NumberOfPendingChanges, Is.EqualTo(139998));
+                Assert.That(File.Exists(tracePath), Is.True, "The default call must start git status.");
+            }
+
+            Assert.That(File.ReadAllText(tracePath), Does.Contain("--porcelain=v2"));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("GIT_TRACE2_EVENT", previousTrace);
         }
     }
 

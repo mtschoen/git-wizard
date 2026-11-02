@@ -147,21 +147,6 @@ public class GitWizardRepositoryTests
     }
 
     [Test]
-    public void Refresh_FlagsGitlinkMissingFromGitmodules()
-    {
-        GitWizardLog.SilentMode = true;
-        using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        fixture.AddGitlinkWithoutGitmodules("orphan/libbar");
-
-        var repository = new GitWizardRepository(fixture.Path);
-        repository.Refresh();
-
-        Assert.That(repository.HasSubmoduleIssues, Is.True);
-        var health = repository.SubmoduleHealth["orphan/libbar"];
-        Assert.That(health.Status, Is.EqualTo(SubmoduleHealthStatus.MissingFromGitmodules));
-    }
-
-    [Test]
     public void Refresh_FlagsUninitializedSubmodule()
     {
         GitWizardLog.SilentMode = true;

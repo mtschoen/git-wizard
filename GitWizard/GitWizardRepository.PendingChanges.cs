@@ -30,16 +30,29 @@ public partial class GitWizardRepository
                 return;
             }
 
-            var status = repository.RetrieveStatus();
+            var status = repository.RetrieveStatus(new StatusOptions { ExcludeSubmodules = true });
             HasPendingChanges = status.IsDirty;
-            // Type changes and conflicts are dirty but have no counted group.
-            NumberOfPendingChanges = status.Modified.Count() + status.Missing.Count() +
-                status.Staged.Count() + status.Removed.Count() + status.Added.Count() +
-                status.Untracked.Count() + status.RenamedInIndex.Count() + status.RenamedInWorkDir.Count();
+            NumberOfPendingChanges = 0;
+            if (HasPendingChanges)
+            {
+                // Type changes and conflicts are dirty but have no counted group.
+                NumberOfPendingChanges = status.Modified.Count() + status.Missing.Count() +
+                    status.Staged.Count() + status.Removed.Count() + status.Added.Count() +
+                    status.Untracked.Count() + status.RenamedInIndex.Count() + status.RenamedInWorkDir.Count();
+            }
+
+            AddStagedSubmoduleChangesToPendingChanges(repository,
+                path => status[$"{path}/"].State == FileStatus.NewInWorkdir,
+                path => (status[path].State & StagedSubmoduleChanges) != 0);
         }
         catch (Exception exception)
         {
             LogRepositoryException(exception, $"Exception retrieving status for {WorkingDirectory}");
+            RefreshError ??= exception.Message;
+            if (_refreshOutcome == RepositoryRefreshOutcome.Success)
+            {
+                _refreshOutcome = RepositoryRefreshOutcome.TransientFailure;
+            }
         }
     }
 
@@ -48,7 +61,7 @@ public partial class GitWizardRepository
         var result = (runGit ?? GitCli.RunStatus)(repository,
         [
             "--no-optional-locks", "status", "--porcelain=v2", "-z", "--untracked-files=all",
-            "--ignore-submodules=none"
+            "--ignore-submodules=all"
         ]);
         if (result.Succeeded)
         {
@@ -57,6 +70,8 @@ public partial class GitWizardRepository
                 var status = RepositoryPendingChangesStatus.Parse(result.Output, repository.Info.WorkingDirectory);
                 HasPendingChanges = status.IsDirty;
                 NumberOfPendingChanges = status.Count;
+                AddStagedSubmoduleChangesToPendingChanges(repository,
+                    path => status.UntrackedPaths.Contains($"{path}/"), _ => false);
                 return true;
             }
             catch (FormatException)

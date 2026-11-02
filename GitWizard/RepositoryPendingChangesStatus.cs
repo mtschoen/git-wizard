@@ -1,6 +1,9 @@
+using System.Collections.Frozen;
+
 namespace GitWizard;
 
-internal readonly record struct RepositoryPendingChangesStatus(bool IsDirty, int Count)
+internal readonly record struct RepositoryPendingChangesStatus(bool IsDirty, int Count,
+    IReadOnlySet<string> UntrackedPaths)
 {
     internal const int TrackedFileThreshold = 70000;
 
@@ -8,6 +11,7 @@ internal readonly record struct RepositoryPendingChangesStatus(bool IsDirty, int
     {
         var dirty = false;
         var count = 0;
+        var untrackedPaths = new HashSet<string>(StringComparer.Ordinal);
         var records = output.Split('\0');
         for (var position = 0; position < records.Length; position++)
         {
@@ -20,6 +24,7 @@ internal readonly record struct RepositoryPendingChangesStatus(bool IsDirty, int
             switch (record[0])
             {
                 case '?':
+                    untrackedPaths.Add(record[2..]);
                     dirty = true;
                     count++;
                     break;
@@ -65,7 +70,7 @@ internal readonly record struct RepositoryPendingChangesStatus(bool IsDirty, int
             }
         }
 
-        return new RepositoryPendingChangesStatus(dirty, count);
+        return new RepositoryPendingChangesStatus(dirty, count, untrackedPaths.ToFrozenSet(StringComparer.Ordinal));
     }
 
     static bool IsNonEmptyWorkingTreeFile(string? workingDirectory, string record)

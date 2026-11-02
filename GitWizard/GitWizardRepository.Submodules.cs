@@ -10,7 +10,6 @@ public enum SubmoduleHealthStatus
     Uninitialized = 1,
     WrongRef = 2,
     MissingFromIndex = 3,
-    MissingFromGitmodules = 4,
     StaleUpstream = 5,
 }
 
@@ -35,26 +34,34 @@ public class SubmoduleHealthInfo
 
 public partial class GitWizardRepository
 {
-    void RefreshSubmodules(IUpdateHandler? updateHandler, Repository repository, string workingDirectory, CancellationToken cancellationToken)
+    HashSet<string> RefreshSubmodules(IUpdateHandler? updateHandler, Repository repository, string workingDirectory, CancellationToken cancellationToken)
     {
+        var refreshedKeys = new HashSet<string>(StringComparer.Ordinal);
         try
         {
             if (repository.Info.IsBare)
             {
                 // A bare repository has no working tree, so libgit2 throws on submodule enumeration.
-                return;
+                return refreshedKeys;
             }
 
-            var submodules = repository.Submodules;
-            if (!submodules.Any())
-            {
-                return;
-            }
-
-            var submodulesMap = Submodules ??= new SortedDictionary<string, GitWizardRepository?>();
-            foreach (var submodule in submodules)
+            // Look up each declared submodule by name. Enumerating repository.Submodules would make libgit2
+            // scan the whole index and the HEAD tree for gitlinks, which dominates refresh on repositories
+            // with hundreds of thousands of entries; a by-name lookup is a config read plus a binary search.
+            var declared = ParseGitmodules(workingDirectory);
+            RemoveUndeclaredSubmodules(workingDirectory, declared.Values);
+            var declaredNames = declared.Keys;
+            SortedDictionary<string, GitWizardRepository?>? submodulesMap = null;
+            foreach (var name in declaredNames)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                var submodule = repository.Submodules[name];
+                if (submodule == null)
+                {
+                    continue;
+                }
+
+                submodulesMap ??= Submodules ??= new SortedDictionary<string, GitWizardRepository?>();
                 var submoduleRepository = GetOrCreateSubmoduleRepository(submodule, workingDirectory, updateHandler, submodulesMap);
                 if (submoduleRepository == null)
                 {
@@ -63,7 +70,12 @@ public partial class GitWizardRepository
 
                 try
                 {
-                    submoduleRepository.Refresh(updateHandler, cancellationToken: cancellationToken);
+                    var outcome = submoduleRepository.RefreshWithOutcome(updateHandler,
+                        sizeContext: new GitWizardRepositoryRefreshContext(null, cancellationToken));
+                    if (outcome == RepositoryRefreshOutcome.Success && submoduleRepository.RefreshError == null)
+                    {
+                        refreshedKeys.Add(SubmoduleKey(workingDirectory, submodule.Path));
+                    }
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {
@@ -76,6 +88,32 @@ public partial class GitWizardRepository
         {
             LogRepositoryException(exception, $"Exception enumerating submodules for {WorkingDirectory}");
         }
+
+        return refreshedKeys;
+    }
+
+    void RemoveUndeclaredSubmodules(string workingDirectory, IEnumerable<string> declaredPaths)
+    {
+        if (Submodules == null)
+        {
+            return;
+        }
+
+        var declaredKeys = declaredPaths.Select(path => SubmoduleKey(workingDirectory, path)).ToHashSet(StringComparer.Ordinal);
+        lock (Submodules)
+        {
+            foreach (var key in Submodules.Keys.Where(key => !declaredKeys.Contains(key)).ToArray())
+            {
+                Submodules.Remove(key);
+            }
+        }
+    }
+
+    /// <summary>The key under which <see cref="Submodules"/> stores the child at <paramref name="relativePath"/>.</summary>
+    static string SubmoduleKey(string workingDirectory, string relativePath)
+    {
+        var path = Path.Combine(workingDirectory, relativePath);
+        return RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? path.ToLowerInvariant() : path;
     }
 
     GitWizardRepository? GetOrCreateSubmoduleRepository(
@@ -84,11 +122,7 @@ public partial class GitWizardRepository
         IUpdateHandler? updateHandler,
         SortedDictionary<string, GitWizardRepository?> submodulesMap)
     {
-        var path = Path.Combine(workingDirectory, submodule.Path);
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            path = path.ToLowerInvariant();
-        }
+        var path = SubmoduleKey(workingDirectory, submodule.Path);
 
         GitWizardRepository? submoduleRepository;
         bool hasExisting;
@@ -97,13 +131,14 @@ public partial class GitWizardRepository
             hasExisting = submodulesMap.TryGetValue(path, out submoduleRepository);
         }
 
-        if (hasExisting)
-        {
-            return submoduleRepository;
-        }
-
         if (submodule.WorkDirCommitId == null)
         {
+            // Keep an existing child's identity for reinitialization, but leave it out of this pass.
+            if (hasExisting)
+            {
+                return null;
+            }
+
             // Uninitialized submodules will have a null work directory commit id
             lock (submodulesMap)
             {
@@ -121,6 +156,11 @@ public partial class GitWizardRepository
             }
 
             return null;
+        }
+
+        if (hasExisting && submoduleRepository != null)
+        {
+            return submoduleRepository;
         }
 
         try
@@ -178,39 +218,28 @@ public partial class GitWizardRepository
             // Submodule name -> path, as declared in .gitmodules.
             var declared = ParseGitmodules(workingDirectory);
 
-            // Paths the index records as gitlinks (committed submodule pointers).
-            var indexedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var entry in repository.Index)
+            // Only declared paths are examined, each with a direct index lookup (a binary search). Walking the
+            // whole index to find undeclared gitlinks costs seconds on repositories with hundreds of thousands
+            // of entries, so a gitlink with no .gitmodules declaration is not reported.
+            var checkedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (name, path) in declared)
             {
-                if (entry.Mode == Mode.GitLink)
+                if (!checkedPaths.Add(path))
                 {
-                    indexedPaths.Add(entry.Path);
+                    continue;
                 }
-            }
 
-            var allPaths = new HashSet<string>(declared.Values, StringComparer.OrdinalIgnoreCase);
-            allPaths.UnionWith(indexedPaths);
-
-            foreach (var path in allPaths)
-            {
-                var name = declared.FirstOrDefault(
-                    entry => string.Equals(entry.Value, path, StringComparison.OrdinalIgnoreCase)).Key;
-                var isIndexed = indexedPaths.Contains(path);
+                var isIndexed = repository.Index[path]?.Mode == Mode.GitLink;
                 var info = new SubmoduleHealthInfo { Path = path };
 
-                switch (name, isIndexed)
+                if (isIndexed)
                 {
-                    case ({ Length: > 0 }, false):
-                        info.Status = SubmoduleHealthStatus.MissingFromIndex;
-                        info.Issues.Add($"'{path}' is declared in .gitmodules but missing from the index");
-                        break;
-                    case (null or "", true):
-                        info.Status = SubmoduleHealthStatus.MissingFromGitmodules;
-                        info.Issues.Add($"'{path}' is recorded in the index but missing from .gitmodules");
-                        break;
-                    case ({ Length: > 0 } declaredName, true):
-                        EvaluateCheckedOutSubmodule(repository, declaredName, path, info);
-                        break;
+                    EvaluateCheckedOutSubmodule(repository, name, path, info);
+                }
+                else
+                {
+                    info.Status = SubmoduleHealthStatus.MissingFromIndex;
+                    info.Issues.Add($"'{path}' is declared in .gitmodules but missing from the index");
                 }
 
                 if (info.Status != SubmoduleHealthStatus.Healthy)

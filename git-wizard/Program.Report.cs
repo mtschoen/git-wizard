@@ -81,7 +81,7 @@ public static partial class Program
         }
     }
 
-    static Task<GitWizardReport> GenerateReportForRunAsync(
+    internal static Task<GitWizardReport> GenerateReportForRunAsync(
         RunConfiguration runConfiguration,
         GitWizardConfiguration configuration,
         string[]? explicitPaths,

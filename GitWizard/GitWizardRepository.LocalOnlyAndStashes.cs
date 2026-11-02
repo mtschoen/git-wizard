@@ -6,6 +6,90 @@ namespace GitWizard;
 public partial class GitWizardRepository
 {
     /// <summary>
+    /// Cached per-branch divergence and cheap-merge results from the most recent refresh,
+    /// keyed by (branch tip SHA, comparison tip SHA, base tip SHA). Null for shallow repositories.
+    /// </summary>
+    public List<BranchDivergenceCacheEntry>? BranchDivergenceCache { get; set; }
+
+    /// <summary>
+    /// Number of per-branch divergence and merge-base computations performed during the most
+    /// recent <see cref="CollectBranches"/> pass. Exposed to tests to verify cache hits and misses.
+    /// </summary>
+    internal int BranchDivergenceComputationsForTesting { get; private set; }
+
+    static Dictionary<(string BranchTipSha, string? ComparisonTipSha, string? BaseTipSha), BranchDivergenceCacheEntry>? IndexBranchDivergenceCache(
+        Repository repository, List<BranchDivergenceCacheEntry>? entries)
+    {
+        if (repository.Info.IsShallow)
+        {
+            return null;
+        }
+
+        var indexed = new Dictionary<(string BranchTipSha, string? ComparisonTipSha, string? BaseTipSha), BranchDivergenceCacheEntry>();
+        if (entries == null)
+        {
+            return indexed;
+        }
+
+        foreach (var entry in entries)
+        {
+            indexed[entry.Key] = entry;
+        }
+
+        return indexed;
+    }
+
+    BranchDivergenceCacheEntry GetOrComputeBranchDivergence(
+        Repository repository,
+        Commit branchTip,
+        Commit? comparisonTip,
+        Commit? baseTip,
+        Dictionary<(string BranchTipSha, string? ComparisonTipSha, string? BaseTipSha), BranchDivergenceCacheEntry>? cache)
+    {
+        if (cache == null)
+        {
+            return ComputeBranchDivergenceEntry(repository, branchTip, comparisonTip, baseTip);
+        }
+
+        var key = (branchTip.Sha, comparisonTip?.Sha, baseTip?.Sha);
+        if (!cache.TryGetValue(key, out var entry))
+        {
+            entry = ComputeBranchDivergenceEntry(repository, branchTip, comparisonTip, baseTip);
+            cache[key] = entry;
+        }
+
+        return entry;
+    }
+
+    BranchDivergenceCacheEntry ComputeBranchDivergenceEntry(
+        Repository repository, Commit branchTip, Commit? comparisonTip, Commit? baseTip)
+    {
+        BranchDivergenceComputationsForTesting++;
+        var ahead = 0;
+        var behind = 0;
+        if (comparisonTip != null)
+        {
+            var divergence = repository.ObjectDatabase.CalculateHistoryDivergence(branchTip, comparisonTip);
+            ahead = divergence.AheadBy ?? 0;
+            behind = divergence.BehindBy ?? 0;
+        }
+
+        var mergedBy = baseTip != null
+            ? MergeDetector.DetectCheap(repository, branchTip, baseTip)
+            : null;
+
+        return new BranchDivergenceCacheEntry
+        {
+            BranchTipSha = branchTip.Sha,
+            ComparisonTipSha = comparisonTip?.Sha,
+            BaseTipSha = baseTip?.Sha,
+            Ahead = ahead,
+            Behind = behind,
+            MergedBy = mergedBy
+        };
+    }
+
+    /// <summary>
     /// Count commits reachable from any LOCAL branch but not from any
     /// remote-tracking branch - genuinely unpushed commits, counted once
     /// across all local branches. The old per-branch approach counted an

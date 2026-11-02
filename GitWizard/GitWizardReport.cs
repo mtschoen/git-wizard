@@ -216,6 +216,7 @@ public partial class GitWizardReport : IAsyncDisposable
             var cachedReport = await GetCachedReportAsync().ConfigureAwait(false);
             if (cachedReport is not null)
             {
+                report._previousReport = cachedReport;
                 lock (cachedReport.NonRepositoryProbes)
                 {
                     report.NonRepositoryProbes = new SortedDictionary<string, NonRepositoryProbeEntry>(
@@ -297,6 +298,7 @@ public partial class GitWizardReport : IAsyncDisposable
         }
 
         _indexedSizes = null;
+        _previousReport = null;
         if (refreshContext.SizeTally.Describe() is { } sizeSummary)
         {
             GitWizardLog.Log(sizeSummary);

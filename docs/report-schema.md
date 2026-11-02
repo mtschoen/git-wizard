@@ -94,6 +94,7 @@ A repository rejected by Git's ownership check remains in `Repositories` with `R
 | `DefaultBranch` | `string` | yes | The repo's default branch name (e.g. `main`); the divergence baseline for `Branches` |
 | `MatchingBranchName` | `string` | yes | When HEAD is detached, a local branch whose tip matches HEAD (offer to check out); else null |
 | `Branches` | `BranchInfo[]` | yes | Local branches and their divergence from `DefaultBranch`. Filtered to "actionable" branches unless `BranchScope` is `"all"`. Null when none qualify. |
+| `BranchDivergenceCache` | `BranchDivergenceCacheEntry[]` | yes | Optional cache of per-branch divergence and cheap-merge results from the last refresh, keyed by `(BranchTipSha, ComparisonTipSha, BaseTipSha)` and pruned on every refresh to the current local branches. Null/absent when no local branches were evaluated or when the repository is shallow. |
 | `StashCount` | `int` | no | Number of stashes. 0 on a linked worktree (stashes are shared with, and counted on, the main checkout). |
 | `MergedStashCount` | `int` | no | Stashes whose every change is already on the base branch (content tier), so safe to drop. |
 | `LocalOnlyBranchCount` | `int` | no | Local branches with commits on no remote-tracking ref that are not merged into the base branch. 0 when local-commit counting was skipped (`--no-local-commit-count`). |
@@ -141,6 +142,19 @@ A local branch's relationship to the repository's default branch. By default the
 | `BehindDefault` | `int` | Commits in the default branch not reachable from this branch |
 | `LastCommitDate` | `string` (ISO 8601) | Author timestamp of the branch tip; null if the branch has no commits |
 | `HasUpstream` | `bool` | True when the branch tracks a remote (false implies unpushed local work). A branch whose `branch.<name>.remote` is a URL or names a remote that is not configured reports false (git-wizard#185), matching git, which does not treat a URL-valued remote as tracking anything. |
+
+## BranchDivergenceCacheEntry object
+
+An internal cache entry on `Repository.BranchDivergenceCache` that avoids recomputing per-branch history divergence and cheap merge detection when none of the three tip SHAs changed between refreshes. This field is a cache only: entries are keyed by `(BranchTipSha, ComparisonTipSha, BaseTipSha)`, pruned on every refresh to the repository's current local branches, and absent (`null`) for shallow repositories (`repository.Info.IsShallow`), because a shallow boundary can change the reachable commit graph without changing tip SHAs. Consumers should read `Branches`, `LocalOnlyBranchCount`, and `OldestLocalOnlyBranchDate` rather than this cache.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `BranchTipSha` | `string` | Commit SHA of the local branch tip |
+| `ComparisonTipSha` | `string` | Commit SHA of the comparison branch tip (`DefaultBranch` when resolved with a tip, else the base branch tip); null when neither exists |
+| `BaseTipSha` | `string` | Commit SHA of the merge-detection base branch tip; null when no base branch has a tip |
+| `Ahead` | `int` | Commits on `BranchTipSha` not reachable from `ComparisonTipSha` |
+| `Behind` | `int` | Commits on `ComparisonTipSha` not reachable from `BranchTipSha` |
+| `MergedBy` | `string` | Cheap merge tier (`ancestor` or `content`) against `BaseTipSha`, or null when unmerged |
 
 ## CommitInfo object
 

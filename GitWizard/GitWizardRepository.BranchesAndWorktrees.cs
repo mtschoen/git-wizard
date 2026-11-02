@@ -163,14 +163,18 @@ public partial class GitWizardRepository
         Branches = null;
         LocalOnlyBranchCount = 0;
         OldestLocalOnlyBranchDate = null;
+        BranchDivergenceComputationsForTesting = 0;
         var defaultBranch = ResolveDefaultBranch(repository);
         DefaultBranch = defaultBranch?.FriendlyName;
         var comparisonBranch = defaultBranch?.Tip != null ? defaultBranch : baseBranch;
         if (comparisonBranch?.Tip == null && _localOnlyTipShas == null)
         {
+            BranchDivergenceCache = null;
             return;
         }
 
+        var previousCache = IndexBranchDivergenceCache(repository, BranchDivergenceCache);
+        var nextCache = new Dictionary<(string BranchTipSha, string? ComparisonTipSha, string? BaseTipSha), BranchDivergenceCacheEntry>();
         var collected = new List<BranchInfo>();
         foreach (var branch in repository.Branches)
         {
@@ -181,15 +185,17 @@ public partial class GitWizardRepository
                     continue;
                 }
 
-                var ahead = 0;
-                var behind = 0;
-                var listed = false;
-                if (comparisonBranch?.Tip is { } comparisonTip)
+                var entry = GetOrComputeBranchDivergence(
+                    repository, branch.Tip, comparisonBranch?.Tip, baseBranch?.Tip, previousCache);
+                if (previousCache != null)
                 {
-                    var divergence = repository.ObjectDatabase.CalculateHistoryDivergence(branch.Tip, comparisonTip);
-                    ahead = divergence.AheadBy ?? 0;
-                    behind = divergence.BehindBy ?? 0;
-
+                    nextCache[entry.Key] = entry;
+                }
+                var ahead = entry.Ahead;
+                var behind = entry.Behind;
+                var listed = false;
+                if (comparisonBranch?.Tip != null)
+                {
                     // "Boring": the comparison branch itself, or a branch identical to it.
                     var boring = BaseBranchResolver.IsBaseOrCounterpart(branch, comparisonBranch) || (ahead == 0 && behind == 0);
                     listed = allBranches || !boring;
@@ -201,7 +207,7 @@ public partial class GitWizardRepository
                     continue;
                 }
 
-                var mergedBy = DetectMergedOnRefresh(repository, branch, baseBranch);
+                var mergedBy = BaseBranchResolver.IsBaseOrCounterpart(branch, baseBranch) ? null : entry.MergedBy;
                 if (localOnly && mergedBy == null)
                 {
                     CountLocalOnlyBranch(branch.Tip.Author.When);
@@ -228,13 +234,9 @@ public partial class GitWizardRepository
             }
         }
 
+        BranchDivergenceCache = nextCache.Count > 0 ? [.. nextCache.Values] : null;
         Branches = collected.Count > 0 ? collected : null;
     }
-
-    static string? DetectMergedOnRefresh(Repository repository, Branch branch, Branch? baseBranch) =>
-        baseBranch?.Tip is { } baseTip && !BaseBranchResolver.IsBaseOrCounterpart(branch, baseBranch)
-            ? MergeDetector.DetectCheap(repository, branch.Tip, baseTip)
-            : null;
 
     void CountLocalOnlyBranch(DateTimeOffset lastCommitDate)
     {

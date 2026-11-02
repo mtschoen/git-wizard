@@ -2,6 +2,8 @@ namespace GitWizard;
 
 public partial class GitWizardReport
 {
+    GitWizardReport? _previousReport;
+
     internal sealed record RepositoryRefreshContext(
         IUpdateHandler? UpdateHandler,
         bool FetchRemotes,
@@ -68,7 +70,10 @@ public partial class GitWizardReport
         {
             if (!Repositories.TryGetValue(path, out repository))
             {
-                repository = new GitWizardRepository(path);
+                repository = new GitWizardRepository(path)
+                {
+                    BranchDivergenceCache = GetPreviousBranchDivergenceCache(path)
+                };
                 Repositories[path] = repository;
             }
         }
@@ -108,6 +113,21 @@ public partial class GitWizardReport
         if (stopwatch.Elapsed.TotalSeconds >= 10)
         {
             GitWizardLog.Log($"Refresh took {repository.RefreshTimeSeconds}s for {path}", GitWizardLog.LogType.Warning);
+        }
+    }
+
+    List<BranchDivergenceCacheEntry>? GetPreviousBranchDivergenceCache(string path)
+    {
+        if (_previousReport is null)
+        {
+            return null;
+        }
+
+        lock (_previousReport.Repositories)
+        {
+            return _previousReport.Repositories.TryGetValue(path, out var previousRepository)
+                ? previousRepository.BranchDivergenceCache
+                : null;
         }
     }
 }

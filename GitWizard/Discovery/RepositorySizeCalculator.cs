@@ -18,7 +18,7 @@ static class RepositorySizeCalculator
     /// Most files without an index size a repository may hold before it is walked instead. Fewer are completed by
     /// reading just those files' lengths from the file system, so a few odd files do not cost a full walk.
     /// </summary>
-    internal static int UnknownSizeFileLimit { get; set; } = 1000;
+    internal static int UnknownSizeFileLimit { get; set; } = 10000;
 
     /// <summary>Reads one file's length from the file system; null when it cannot be read. Tests replace it.</summary>
     internal static Func<string, long?> ReadFileLength { get; set; } = ReadLengthFromFileSystem;

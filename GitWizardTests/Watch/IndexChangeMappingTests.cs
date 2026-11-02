@@ -59,6 +59,17 @@ public class IndexChangeMappingTests
     }
 
     [Test]
+    public void DeletePendingMapsToDeleted()
+    {
+        var change = SyntheticNotifications.CreateFileChange(FileChangeKind.DeletePending, Entry("file.txt", false),
+            @"T:\captured\file.txt", ChangeTime);
+
+        Assert.That(IndexChangeMapping.Map(change), Is.EqualTo([
+            new VolumeChangeEntry(@"T:\captured\file.txt", VolumeEntryKind.Deleted)
+        ]));
+    }
+
+    [Test]
     public void DeletedUsesCapturedPath()
     {
         var change = SyntheticNotifications.CreateFileChange(FileChangeKind.Deleted, Entry("file.txt", false),

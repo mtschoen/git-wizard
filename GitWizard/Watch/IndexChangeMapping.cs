@@ -8,9 +8,12 @@ static class IndexChangeMapping
     // Entry.IsDirectory is read here, on the watch thread; when a slot was reused in the same batch,
     // the superseded handle refuses column reads. Unknown types must reach moved-in probing,
     // because Created destinations outside tracked repositories are otherwise ignored.
+    // A held-handle delete reports DeletePending at the pre-move path first and Deleted at the same
+    // path later, and both map to a deletion because the second is the expected completion.
     internal static IReadOnlyList<VolumeChangeEntry> Map(FileChange change) => change.Kind switch
     {
         FileChangeKind.Created => [new VolumeChangeEntry(change.Path, VolumeEntryKind.Created)],
+        FileChangeKind.DeletePending => [new VolumeChangeEntry(change.Path, VolumeEntryKind.Deleted)],
         FileChangeKind.Deleted => [new VolumeChangeEntry(change.Path, VolumeEntryKind.Deleted)],
         FileChangeKind.Modified => [new VolumeChangeEntry(change.Path, VolumeEntryKind.Modified)],
         FileChangeKind.Renamed when NeedsMovedInProbe(change.Entry) && change.PreviousPath is not null =>

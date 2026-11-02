@@ -331,40 +331,6 @@ public partial class GitWizardRepository
         }
     }
 
-    internal void RefreshPendingChangesStatus(Repository repository, bool deepRefresh)
-    {
-        try
-        {
-            if (repository.Info.IsBare)
-            {
-                // A bare repository has no index or working tree to report status on.
-                return;
-            }
-
-            // Refresh the index to update stale stat data (slow on large repos / slow drives)
-            // Only run during deep refresh to keep auto-refresh fast
-            if (deepRefresh)
-            {
-                RefreshIndex(repository);
-            }
-
-            var status = repository.RetrieveStatus();
-            HasPendingChanges = status.IsDirty;
-            if (HasPendingChanges)
-            {
-                // Must match the categories that contribute to status.IsDirty so
-                // callers never see HasPendingChanges=true with a count of 0.
-                NumberOfPendingChanges = status.Modified.Count() + status.Missing.Count() +
-                    status.Staged.Count() + status.Removed.Count() + status.Added.Count() +
-                    status.Untracked.Count() + status.RenamedInIndex.Count() + status.RenamedInWorkDir.Count();
-            }
-        }
-        catch (Exception exception)
-        {
-            LogRepositoryException(exception, $"Exception retrieving status for {WorkingDirectory}");
-        }
-    }
-
     void RefreshRemoteUrls(Repository repository)
     {
         RemoteUrls.Clear();

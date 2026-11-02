@@ -84,8 +84,8 @@ A repository rejected by Git's ownership check remains in `Repositories` with `R
 | `WorkingDirectory` | `string` | yes | Absolute path to repo working directory |
 | `CurrentBranch` | `string` | yes | Current branch name |
 | `IsDetachedHead` | `bool` | no | Whether HEAD is detached |
-| `HasPendingChanges` | `bool` | no | Whether repo has uncommitted changes (matches libgit2's `IsDirty`) |
-| `NumberOfPendingChanges` | `int` | no | Count of modified + staged + removed + added + untracked + renamed files, including deleted tracked files whether or not the deletion is staged. Always matches `HasPendingChanges` (0 iff false). |
+| `HasPendingChanges` | `bool` | no | Whether the index or working tree has uncommitted changes. Large repositories use Git CLI status; smaller repositories use LibGit2Sharp. |
+| `NumberOfPendingChanges` | `int` | no | Sum of modified + staged + removed + added + untracked + renamed groups, including deleted tracked files whether or not the deletion is staged. A file changed in both index and working tree counts twice. Conflicts and type changes can be dirty with a count of zero. |
 | `IsWorktree` | `bool` | no | Whether this is a git worktree |
 | `LocalOnlyCommits` | `bool` | no | Whether any local branch has unpushed commits |
 | `LocalCommitCount` | `int` | no | Total unpushed commits across all local branches (sums `AheadOfDefault`-style divergence for tracked branches and all commits on untracked branches). |

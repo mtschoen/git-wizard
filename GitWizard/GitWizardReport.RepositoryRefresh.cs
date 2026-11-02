@@ -8,7 +8,10 @@ public partial class GitWizardReport
         bool DeepRefresh,
         bool AllBranches,
         bool ComputeLocalCommitCount,
-        NonRepositoryProbeCache ProbeCache);
+        NonRepositoryProbeCache ProbeCache)
+    {
+        internal RefreshSizeTally SizeTally { get; } = new();
+    }
 
     // Missing directories can be transiently unmounted and remain separate in DeletedPaths.
     // Existing paths with a remembered failed probe are removed from the repository inventory.
@@ -88,7 +91,8 @@ public partial class GitWizardReport
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         using var cancellationTokenSource = new CancellationTokenSource(RefreshTimeout);
         var refreshOutcome = repository.RefreshWithOutcome(context.UpdateHandler, context.FetchRemotes,
-            context.DeepRefresh, context.AllBranches, context.ComputeLocalCommitCount, cancellationTokenSource.Token);
+            context.DeepRefresh, context.AllBranches, context.ComputeLocalCommitCount,
+            new GitWizardRepositoryRefreshContext(context.SizeTally, cancellationTokenSource.Token));
         repository.WithdrawIndexedSize();
         if (refreshOutcome == RepositoryRefreshOutcome.NonRepository)
         {

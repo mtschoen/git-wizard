@@ -149,12 +149,12 @@ public partial class GitWizardRepository
     public void Refresh(IUpdateHandler? updateHandler = null, bool fetchRemotes = false,
         bool deepRefresh = false, bool allBranches = false, bool computeLocalCommitCount = true,
         CancellationToken cancellationToken = default) =>
-        _ = RefreshWithOutcome(updateHandler, fetchRemotes, deepRefresh, allBranches,
-            computeLocalCommitCount, cancellationToken);
+        _ = RefreshWithOutcome(updateHandler, fetchRemotes, deepRefresh, allBranches, computeLocalCommitCount,
+            new GitWizardRepositoryRefreshContext(null, cancellationToken));
 
     internal RepositoryRefreshOutcome RefreshWithOutcome(IUpdateHandler? updateHandler = null,
         bool fetchRemotes = false, bool deepRefresh = false, bool allBranches = false,
-        bool computeLocalCommitCount = true, CancellationToken cancellationToken = default)
+        bool computeLocalCommitCount = true, GitWizardRepositoryRefreshContext sizeContext = default)
     {
         // Serialize overlapping Refresh calls on this object: RefreshSubmodules and
         // RefreshWorktrees recurse into Refresh on DIFFERENT GitWizardRepository objects (their
@@ -163,7 +163,7 @@ public partial class GitWizardRepository
         using var diagnosticScope = UnresolvedUpstreamDiagnosticScope.Open();
         lock (_refreshGate)
         {
-            RefreshLocked(updateHandler, fetchRemotes, deepRefresh, allBranches, computeLocalCommitCount, cancellationToken);
+            RefreshLocked(updateHandler, fetchRemotes, deepRefresh, allBranches, computeLocalCommitCount, sizeContext);
             return _refreshOutcome;
         }
     }
@@ -171,8 +171,9 @@ public partial class GitWizardRepository
     internal const string OwnershipBlockedError = "ownership-blocked: needs safe.directory";
 
     void RefreshLocked(IUpdateHandler? updateHandler, bool fetchRemotes, bool deepRefresh,
-        bool allBranches, bool computeLocalCommitCount, CancellationToken cancellationToken)
+        bool allBranches, bool computeLocalCommitCount, GitWizardRepositoryRefreshContext sizeContext)
     {
+        var cancellationToken = sizeContext.CancellationToken;
         _refreshOutcome = RepositoryRefreshOutcome.Success;
         if (string.IsNullOrEmpty(WorkingDirectory) || !Directory.Exists(WorkingDirectory))
         {
@@ -210,7 +211,7 @@ public partial class GitWizardRepository
             using var repository = new Repository(WorkingDirectory);
             IsRefreshing = true;
             RefreshError = null;
-            RunRefreshPhases(updateHandler, repository, deepRefresh, allBranches, computeLocalCommitCount, cancellationToken);
+            RunRefreshPhases(updateHandler, repository, deepRefresh, allBranches, computeLocalCommitCount, sizeContext);
             IsRefreshing = false;
             NotifyRefreshCompleted(updateHandler);
         }
@@ -269,14 +270,15 @@ public partial class GitWizardRepository
     }
 
     /// <summary>
-    /// Runs the refresh phases against an already-opened repository handle, checking
-    /// <paramref name="cancellationToken"/> and firing <see cref="PhaseObserverForTesting"/>
+    /// Runs the refresh phases against an already-opened repository handle, checking the refresh context's
+    /// cancellation token and firing <see cref="PhaseObserverForTesting"/>
     /// before each one with its zero-based index in execution order. Split out of <see
     /// cref="RefreshLocked"/> purely to keep that method short.
     /// </summary>
     void RunRefreshPhases(IUpdateHandler? updateHandler, Repository repository,
-        bool deepRefresh, bool allBranches, bool computeLocalCommitCount, CancellationToken cancellationToken)
+        bool deepRefresh, bool allBranches, bool computeLocalCommitCount, GitWizardRepositoryRefreshContext sizeContext)
     {
+        var cancellationToken = sizeContext.CancellationToken;
         var workingDirectory = WorkingDirectory ?? string.Empty;
         var phaseIndex = 0;
         Step(() => RefreshSubmodules(updateHandler, repository, workingDirectory, cancellationToken));
@@ -300,7 +302,7 @@ public partial class GitWizardRepository
         Step(() => RefreshAuthorEmailsAndRecentCommits(repository));
         PhaseObserverForTesting?.Invoke(phaseIndex);
         cancellationToken.ThrowIfCancellationRequested();
-        RefreshSizeOnDisk(workingDirectory);
+        RefreshSizeOnDisk(workingDirectory, sizeContext.SizeTally);
         return;
 
         void Step(Action action)
@@ -373,18 +375,6 @@ public partial class GitWizardRepository
         // The recent commits keep whatever the walk produced before a failure, so a fault
         // late in the 200-commit walk still reports the ten newest commits.
         RecentCommits = recentCommits;
-    }
-
-    internal void RefreshSizeOnDisk(string workingDirectory)
-    {
-        try
-        {
-            SizeOnDisk = WithdrawIndexedSize() ?? ComputeDirectorySize(workingDirectory);
-        }
-        catch (Exception exception)
-        {
-            GitWizardLog.LogException(exception, $"Exception computing size for {WorkingDirectory}");
-        }
     }
 
     internal void NotifyRefreshCompleted(IUpdateHandler? updateHandler)

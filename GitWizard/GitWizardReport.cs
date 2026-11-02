@@ -297,6 +297,11 @@ public partial class GitWizardReport : IAsyncDisposable
         }
 
         _indexedSizes = null;
+        if (refreshContext.SizeTally.Describe() is { } sizeSummary)
+        {
+            GitWizardLog.Log(sizeSummary);
+        }
+
         PruneNonRepositoryPaths(validPaths, probeCache);
     }
 

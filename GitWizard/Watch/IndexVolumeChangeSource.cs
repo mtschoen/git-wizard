@@ -158,21 +158,22 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
     async Task CatchUpArmedDrivesAsync(MftIndexSession owner, Dictionary<string, string> errors,
         CancellationToken cancellationToken)
     {
-        var catchUpDrives = CaptureUsableDrives();
-        var catchUpTasks = catchUpDrives.Select(drive => WaitDriveAsync(owner, drive, cancellationToken)).ToArray();
+        // Every armed root owns a catch-up wait, even after a startup fault removes its
+        // volume from the usable set.
+        var catchUpTasks = _watchedIndices.Select(index => WaitRootAsync(owner, index, cancellationToken)).ToArray();
         await Task.WhenAll(catchUpTasks).ConfigureAwait(false);
 
-        foreach (var drive in catchUpDrives)
+        foreach (var index in _watchedIndices)
         {
-            if (owner.IndexFor(new VolumeKey(drive))?.Status is not
-                { State: RootState.Failed or RootState.Offline } failed)
+            if (index.Status is not { State: RootState.Failed or RootState.Offline } failed)
             {
                 continue;
             }
 
             var message = failed.Failure?.Message ?? $"Drive is {failed.State}.";
-            RecordStartupDriveFailure(drive, message);
+            RecordStartupDriveFailure(owner.VolumeFor(failed.Root).Letter, message);
         }
+        var catchUpDrives = _watchedIndices.Select(index => owner.VolumeFor(index.Status.Root).Letter).Distinct().ToArray();
         ExcludeDrivesWithFailedWatch(owner, catchUpDrives);
 
         lock (_faultLock)

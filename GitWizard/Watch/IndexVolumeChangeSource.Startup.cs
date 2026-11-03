@@ -43,13 +43,11 @@ public sealed partial class IndexVolumeChangeSource
     /// <summary>Awaited after a drive's startup catch-up wait succeeds, before the arm reports it.</summary>
     internal Func<char, Task>? StartupCatchUpSettledForTest { get; init; }
 
-    async Task WaitDriveAsync(MftIndexSession owner, char drive, CancellationToken token)
+    async Task WaitRootAsync(MftIndexSession owner, FileIndex index, CancellationToken token)
     {
-        var upper = char.ToUpperInvariant(drive);
+        var upper = owner.VolumeFor(index.Status.Root).Letter;
         try
         {
-            var index = owner.IndexFor(new VolumeKey(upper))
-                ?? throw new InvalidOperationException($"No index holds drive {upper}.");
             var result = await index.WaitForCatchUpAsync(token).ConfigureAwait(false);
             switch (result)
             {

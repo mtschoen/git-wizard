@@ -1,4 +1,5 @@
 using GitWizard;
+using GitWizard.Watch;
 using GitWizardTests.TestSupport;
 using MFTLib.Index;
 using MFTLibTestExtensions;
@@ -58,8 +59,9 @@ public class DirectoryRootAliasReconciliationTests
         }
     }
 
-    [Test]
-    public async Task WatchStartup_PartialAliasDiscovery_PrunesResolvedStaleEntryAndKeepsFailedRootEntry()
+    [TestCase(false)]
+    [TestCase(true, Description = "Issue 484: exclude the failed root before the startup catch-up snapshot.")]
+    public async Task WatchStartup_PartialAliasDiscovery_PrunesResolvedStaleEntryAndKeepsFailedRootEntry(bool holdHealthyStart)
     {
         using var files = new PackedIndexFixture();
         files.AddMarker("repo");
@@ -68,7 +70,27 @@ public class DirectoryRootAliasReconciliationTests
         var failedRoot = Directory.CreateDirectory(Path.Combine(files.DirectoryPath, "Y")).FullName;
         var stale = Path.Combine(files.TreePath, "gone");
         var failedRootEntry = Path.Combine(failedRoot, "kept");
-        var scripted = new ScriptedWatchSource();
+        using var cancellation = new CancellationTokenSource(TestTimeouts.HangGuard);
+        var cancellationToken = cancellation.Token;
+        var failedRootExcluded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var scripted = new ScriptedWatchSource
+        {
+            StartFailure = volume =>
+            {
+                if (holdHealthyStart && volume == 'X')
+                {
+                    failedRootExcluded.Task.WaitAsync(cancellationToken).GetAwaiter().GetResult();
+                }
+                return null;
+            }
+        };
+        var progress = new SynchronousProgress<WatchStartupProgress>(update =>
+        {
+            if (update.Readiness?.TryGet("Y", out var status) == true && status.State == VolumeWatchState.Excluded)
+            {
+                failedRootExcluded.TrySetResult();
+            }
+        });
         var indices = await Task.WhenAll(
             files.OpenMftIndexAsync(scripted, 'X', RootKey.FromDirectory(alias)),
             files.OpenMftIndexAsync(scripted, 'Y', RootKey.FromDirectory(failedRoot)));
@@ -86,13 +108,11 @@ public class DirectoryRootAliasReconciliationTests
             CreateLinuxSource = () => throw new PlatformNotSupportedException()
         });
         var configuration = new GitWizardConfiguration { SearchPaths = { alias, failedRoot }, IncludeTempDirectories = true };
-        using var cancellation = new CancellationTokenSource(TestTimeouts.HangGuard);
-
         var startupTask = coordinator.PrepareWatchAsync(
-            new DiscoveryRequest(configuration, DiscoveryPurpose.Watch, false, false, []), null, cancellation.Token);
-        await Task.WhenAll(scripted.WaitForStartAsync('X', 1, cancellation.Token),
-            scripted.WaitForStartAsync('Y', 1, cancellation.Token));
+            new DiscoveryRequest(configuration, DiscoveryPurpose.Watch, false, false, []), null, progress, cancellation.Token);
+        await scripted.WaitForStartAsync('Y', 1, cancellation.Token);
         scripted.WatchFor('Y').LoseChannel(new IOException("Y journal corrupt"));
+        await scripted.WaitForStartAsync('X', 1, cancellation.Token);
         await scripted.WatchFor('X').PublishCaughtUpAsync();
         await using var startup = await startupTask;
 

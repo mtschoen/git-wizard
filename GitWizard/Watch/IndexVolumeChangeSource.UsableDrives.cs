@@ -11,14 +11,6 @@ public sealed partial class IndexVolumeChangeSource
         }
     }
 
-    char[] CaptureUsableDrives()
-    {
-        lock (_usableDrivesLock)
-        {
-            return [.. _usableDrives];
-        }
-    }
-
     void AddUsableDrive(char driveLetter)
     {
         lock (_usableDrivesLock)

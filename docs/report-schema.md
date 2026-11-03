@@ -84,7 +84,7 @@ A repository rejected by Git's ownership check remains in `Repositories` with `R
 | `WorkingDirectory` | `string` | yes | Absolute path to repo working directory |
 | `CurrentBranch` | `string` | yes | Current branch name |
 | `IsDetachedHead` | `bool` | no | Whether HEAD is detached |
-| `HasPendingChanges` | `bool` | no | Whether the index or working tree has uncommitted changes. Large repositories use Git CLI status; smaller repositories use LibGit2Sharp. |
+| `HasPendingChanges` | `bool` | no | Whether the index or working tree has uncommitted changes. Repositories at or above 70,000 tracked index entries or routed by previous status timing use Git CLI status; other repositories use LibGit2Sharp. |
 | `NumberOfPendingChanges` | `int` | no | Sum of modified + staged + removed + added + untracked + renamed groups, including deleted tracked files whether or not the deletion is staged. A file changed in both index and working tree counts twice. Conflicts and type changes can be dirty with a count of zero. |
 | `IsWorktree` | `bool` | no | Whether this is a git worktree |
 | `LocalOnlyCommits` | `bool` | no | Whether any local branch has unpushed commits |
@@ -105,6 +105,8 @@ A repository rejected by Git's ownership check remains in `Repositories` with `R
 | `IsPublishReady` | `bool` | no | `true` when the checkout is clean (`!HasPendingChanges`), not behind its remote (`BehindRemoteCount == 0`), and currently on `DefaultBranch` - the literal "safe to publish from" check. Derived from the fields above at read time (not a separately refreshed field), so it can go stale the same way `BehindRemoteCount` can; check `LastFetchTime` for freshness. |
 | `SizeOnDisk` | `long` (bytes) | no | Logical bytes of every file under the working directory, `.git` included (0/absent if not computed). A refresh that follows an MFT discovery takes it from the index; a repository the index cannot size completely, or a refresh that fetches, walks the directory instead |
 | `RefreshTimeSeconds` | `float` | no | How long the last refresh took |
+| `StatusTimeSeconds` | `float` | no | How long the last pending-changes status check took, in seconds |
+| `UseCliStatus` | `bool` | no | Whether pending-changes status stays routed to the Git CLI after a previous status check exceeded 1 second, keeping small repositories that become fast under the CLI from flipping back to LibGit2Sharp |
 | `RefreshError` | `string` | yes | Error message if refresh failed |
 | `RemoteUrls` | `string[]` | no | List of remote URLs |
 | `AuthorEmails` | `string[]` | yes | Unique author emails from the first 200 commits of an unsorted walk from HEAD (ancestry order, which on a linear history follows parent links, not timestamps) |

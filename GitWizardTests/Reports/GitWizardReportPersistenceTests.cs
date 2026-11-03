@@ -48,7 +48,11 @@ public class GitWizardReportPersistenceTests
     {
         var report = new GitWizardReport { SchemaVersion = "0.0" };
         report.Repositories["/repo/one"] = new GitWizardRepository("/repo/one");
-        report.Repositories["/repo/two"] = new GitWizardRepository("/repo/two");
+        report.Repositories["/repo/two"] = new GitWizardRepository("/repo/two")
+        {
+            StatusTimeSeconds = 1.25,
+            UseCliStatus = true
+        };
         var lastWriteTimeUtc = new DateTimeOffset(2026, 10, 30, 11, 0, 0, TimeSpan.Zero);
         var lastUsedUtc = new DateTimeOffset(2026, 10, 31, 12, 0, 0, TimeSpan.Zero);
         report.NonRepositoryProbes["/repo/junk"] = new NonRepositoryProbeEntry
@@ -67,6 +71,10 @@ public class GitWizardReportPersistenceTests
             SaveSync(report, path);
         }
 
+        var savedRoot = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+        var firstRepositoryJson = savedRoot["Repositories"]!["/repo/one"]!.AsObject();
+        var secondRepositoryJson = savedRoot["Repositories"]!["/repo/two"]!.AsObject();
+
         TestUtilities.ResetStaticCaches();
         var loaded = async
             ? await GitWizardReport.GetCachedReportAsync()
@@ -77,6 +85,14 @@ public class GitWizardReportPersistenceTests
         {
             Assert.That(loaded!.SchemaVersion, Is.EqualTo(GitWizardReport.CurrentSchemaVersion));
             Assert.That(loaded.Repositories.Keys, Is.EqualTo(["/repo/one", "/repo/two"]));
+            Assert.That(firstRepositoryJson.ContainsKey(nameof(GitWizardRepository.StatusTimeSeconds)), Is.False);
+            Assert.That(firstRepositoryJson.ContainsKey(nameof(GitWizardRepository.UseCliStatus)), Is.False);
+            Assert.That((double?)secondRepositoryJson[nameof(GitWizardRepository.StatusTimeSeconds)], Is.EqualTo(1.25));
+            Assert.That((bool?)secondRepositoryJson[nameof(GitWizardRepository.UseCliStatus)], Is.True);
+            Assert.That(loaded.Repositories["/repo/one"].StatusTimeSeconds, Is.Zero);
+            Assert.That(loaded.Repositories["/repo/one"].UseCliStatus, Is.False);
+            Assert.That(loaded.Repositories["/repo/two"].StatusTimeSeconds, Is.EqualTo(1.25));
+            Assert.That(loaded.Repositories["/repo/two"].UseCliStatus, Is.True);
             Assert.That(loaded.NonRepositoryProbes.Keys, Is.EqualTo(["/repo/junk"]));
             Assert.That(loaded.NonRepositoryProbes["/repo/junk"].LastWriteTimeUtc, Is.EqualTo(lastWriteTimeUtc));
             Assert.That(loaded.NonRepositoryProbes["/repo/junk"].LastUsedUtc, Is.EqualTo(lastUsedUtc));

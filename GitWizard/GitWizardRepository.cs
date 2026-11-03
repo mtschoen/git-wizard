@@ -34,6 +34,8 @@ public partial class GitWizardRepository
     public List<string> RemoteUrls { get; private set; } = [];
     public DateTimeOffset? LastCommitDate { get; internal set; }
     public double RefreshTimeSeconds { get; set; }
+    public double StatusTimeSeconds { get; set; }
+    public bool UseCliStatus { get; set; }
 
     /// <summary>Error message from the most recent failed refresh; cleared back to null once a
     /// later refresh begins succeeding, so this never reports a stale failure past a successful

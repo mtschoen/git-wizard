@@ -70,10 +70,7 @@ public partial class GitWizardReport
         {
             if (!Repositories.TryGetValue(path, out repository))
             {
-                repository = new GitWizardRepository(path)
-                {
-                    BranchDivergenceCache = GetPreviousBranchDivergenceCache(path)
-                };
+                repository = CreateRepository(path);
                 Repositories[path] = repository;
             }
         }
@@ -116,18 +113,24 @@ public partial class GitWizardReport
         }
     }
 
-    List<BranchDivergenceCacheEntry>? GetPreviousBranchDivergenceCache(string path)
+    GitWizardRepository CreateRepository(string path)
     {
-        if (_previousReport is null)
+        if (_previousReport is not null)
         {
-            return null;
+            lock (_previousReport.Repositories)
+            {
+                if (_previousReport.Repositories.TryGetValue(path, out var previousRepository))
+                {
+                    return new GitWizardRepository(path)
+                    {
+                        BranchDivergenceCache = previousRepository.BranchDivergenceCache,
+                        StatusTimeSeconds = previousRepository.StatusTimeSeconds,
+                        UseCliStatus = previousRepository.UseCliStatus
+                    };
+                }
+            }
         }
 
-        lock (_previousReport.Repositories)
-        {
-            return _previousReport.Repositories.TryGetValue(path, out var previousRepository)
-                ? previousRepository.BranchDivergenceCache
-                : null;
-        }
+        return new GitWizardRepository(path);
     }
 }

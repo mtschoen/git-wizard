@@ -1,4 +1,5 @@
 using GitWizard;
+using GitWizardTests.TestSupport;
 using LibGit2Sharp;
 
 namespace GitWizardTests;
@@ -139,17 +140,107 @@ public class RepositoryPendingChangesStatusTests
         }
     }
 
-    [Test]
-    public void Refresh_ThresholdAvoidsSpawningForSmallRepository()
+    [TestCase(0.0)]
+    [TestCase(0.2)]
+    [TestCase(RepositoryPendingChangesStatus.StatusTimeThresholdSeconds)]
+    public void Refresh_ThresholdAvoidsSpawningForSmallRepository(double previousStatusSeconds)
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         using var repository = new Repository(fixture.Path);
-        var actual = new GitWizardRepository(fixture.Path);
+        var clock = new ControlledDelayClock();
+        var actual = new GitWizardRepository(fixture.Path)
+        {
+            StatusTimeSeconds = previousStatusSeconds
+        };
 
         actual.RefreshPendingChangesStatus(repository, false, repository.Index.Count + 1,
-            (_, _) => throw new AssertionException("Small repository must use libgit2"));
+            (_, _) => throw new AssertionException("Small repository must use libgit2"),
+            clock);
 
-        Assert.That(actual.HasPendingChanges, Is.False);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(actual.HasPendingChanges, Is.False);
+            Assert.That(actual.StatusTimeSeconds, Is.Zero);
+            Assert.That(actual.UseCliStatus, Is.False);
+        }
+    }
+
+    [TestCase(1.001, false, TestName = "Refresh_SlowPreviousStatusRoutesSmallRepositoryToCli_Issue481")]
+    [TestCase(0.15, true, TestName = "Refresh_FastCliStatusStaysOnCliAcrossRefreshes_Issue481")]
+    public void Refresh_TimeRoutedSmallRepositoryUsesCliAndRecordsElapsedSeconds(
+        double previousStatusSeconds, bool previousUseCliStatus)
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        using var repository = new Repository(fixture.Path);
+        var clock = new ControlledDelayClock();
+        var actual = new GitWizardRepository(fixture.Path)
+        {
+            StatusTimeSeconds = previousStatusSeconds,
+            UseCliStatus = previousUseCliStatus
+        };
+
+        actual.RefreshPendingChangesStatus(repository, false, repository.Index.Count + 1,
+            (_, _) =>
+            {
+                clock.Advance(TimeSpan.FromMilliseconds(250));
+                return new GitCliResult(true, "? synthetic change\0");
+            },
+            clock);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(actual.HasPendingChanges, Is.True);
+            Assert.That(actual.NumberOfPendingChanges, Is.EqualTo(1));
+            Assert.That(actual.StatusTimeSeconds, Is.EqualTo(0.25));
+            Assert.That(actual.UseCliStatus, Is.True);
+        }
+    }
+
+    [TestCase(RepositoryPendingChangesStatus.StatusTimeThresholdSeconds, false)]
+    [TestCase(1.001, true)]
+    public void Refresh_Libgit2ElapsedDurationControlsNextRefreshRouting(
+        double initialLibgit2Seconds, bool expectedCliOnNextRefresh)
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        using var repository = new Repository(fixture.Path);
+        var clock = new RecordedTimestampClock(0.0, initialLibgit2Seconds, 10.0, 10.25);
+        var actual = new GitWizardRepository(fixture.Path);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(actual.StatusTimeSeconds, Is.Zero);
+            Assert.That(actual.UseCliStatus, Is.False);
+        }
+
+        actual.RefreshPendingChangesStatus(repository, false, repository.Index.Count + 1,
+            (_, _) => throw new AssertionException("Initial unseeded refresh must use libgit2"),
+            clock);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(actual.HasPendingChanges, Is.False);
+            Assert.That(actual.NumberOfPendingChanges, Is.Zero);
+            Assert.That(actual.StatusTimeSeconds, Is.EqualTo(initialLibgit2Seconds));
+            Assert.That(actual.UseCliStatus, Is.False);
+        }
+
+        var cliInvoked = false;
+        actual.RefreshPendingChangesStatus(repository, false, repository.Index.Count + 1,
+            (_, _) =>
+            {
+                cliInvoked = true;
+                return new GitCliResult(true, "? synthetic change\0");
+            },
+            clock);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(cliInvoked, Is.EqualTo(expectedCliOnNextRefresh));
+            Assert.That(actual.HasPendingChanges, Is.EqualTo(expectedCliOnNextRefresh));
+            Assert.That(actual.NumberOfPendingChanges, Is.EqualTo(expectedCliOnNextRefresh ? 1 : 0));
+            Assert.That(actual.StatusTimeSeconds, Is.EqualTo(0.25));
+            Assert.That(actual.UseCliStatus, Is.EqualTo(expectedCliOnNextRefresh));
+        }
     }
 
     [Test]
@@ -157,15 +248,23 @@ public class RepositoryPendingChangesStatusTests
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         using var repository = new Repository(fixture.Path);
+        var clock = new ControlledDelayClock();
         var actual = new GitWizardRepository(fixture.Path);
 
         actual.RefreshPendingChangesStatus(repository, false, repository.Index.Count,
-            (_, _) => new GitCliResult(true, "? synthetic change\0"));
+            (_, _) =>
+            {
+                clock.Advance(TimeSpan.FromMilliseconds(125));
+                return new GitCliResult(true, "? synthetic change\0");
+            },
+            clock);
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(actual.HasPendingChanges, Is.True);
             Assert.That(actual.NumberOfPendingChanges, Is.EqualTo(1));
+            Assert.That(actual.StatusTimeSeconds, Is.EqualTo(0.125));
+            Assert.That(actual.UseCliStatus, Is.False);
         }
     }
 
@@ -208,6 +307,48 @@ public class RepositoryPendingChangesStatusTests
         }
     }
 
+    [TestCase(1.5, false, TestName = "GenerateReportAsync_SlowCachedStatusRoutesSmallRepositoryToCli_Issue481")]
+    [TestCase(0.15, true, TestName = "GenerateReportAsync_FastCachedCliStatusStaysOnCli_Issue481")]
+    [NonParallelizable]
+    public async Task GenerateReportAsync_CarriesCachedStatusRoutingForSmallRepository(
+        double cachedStatusSeconds, bool cachedUseCliStatus)
+    {
+        GitWizardLog.SilentMode = true;
+        using var sandbox = new LocalFilesSandbox();
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var cachedReport = new GitWizardReport();
+        cachedReport.Repositories[fixture.Path] = new GitWizardRepository(fixture.Path)
+        {
+            StatusTimeSeconds = cachedStatusSeconds,
+            UseCliStatus = cachedUseCliStatus
+        };
+        await cachedReport.SaveAsync(GitWizardReport.GetCachedReportPath());
+
+        var tracePath = Path.Combine(sandbox.Path, "status-trace.json");
+        var previousTrace = Environment.GetEnvironmentVariable("GIT_TRACE2_EVENT");
+        try
+        {
+            Environment.SetEnvironmentVariable("GIT_TRACE2_EVENT", tracePath);
+
+            await using var report = await GitWizardReport.GenerateReportAsync(
+                GitWizardConfiguration.CreateDefaultConfiguration(), [fixture.Path]);
+            var refreshed = report.Repositories[fixture.Path];
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(refreshed.RefreshError, Is.Null);
+                Assert.That(refreshed.UseCliStatus, Is.True);
+                Assert.That(File.Exists(tracePath), Is.True, "Cached slow status routing must start git status.");
+            }
+
+            Assert.That(await File.ReadAllTextAsync(tracePath), Does.Contain("--porcelain=v2"));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("GIT_TRACE2_EVENT", previousTrace);
+        }
+    }
+
     [Test]
     public void GitCli_PreservesNulDelimitedOutput()
     {
@@ -232,7 +373,10 @@ public class RepositoryPendingChangesStatusTests
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
         using var repository = new Repository(fixture.Path);
         File.WriteAllText(Path.Combine(fixture.Path, "untracked"), "untracked");
-        var actual = new GitWizardRepository(fixture.Path);
+        var actual = new GitWizardRepository(fixture.Path)
+        {
+            UseCliStatus = true
+        };
         var previousSink = GitWizardLog.TypedLogMethod;
         var warnings = new List<string>();
         var repositoryPath = fixture.Path;
@@ -254,6 +398,7 @@ public class RepositoryPendingChangesStatusTests
             {
                 Assert.That(actual.HasPendingChanges, Is.True);
                 Assert.That(actual.NumberOfPendingChanges, Is.EqualTo(1));
+                Assert.That(actual.UseCliStatus, Is.False);
                 Assert.That(warnings, Has.Count.EqualTo(1));
                 Assert.That(warnings[0], Does.Contain("falling back to libgit2"));
             }
@@ -286,5 +431,15 @@ public class RepositoryPendingChangesStatusTests
         output.TrySetResult("inherited stdout finally closed");
 
         Assert.CatchAsync<OperationCanceledException>(async () => await reading.ConfigureAwait(false));
+    }
+
+    sealed class RecordedTimestampClock(params double[] timestampsInSeconds) : TimeProvider
+    {
+        int _index;
+
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+        public override long GetTimestamp() =>
+            TimeSpan.FromSeconds(timestampsInSeconds[_index++]).Ticks;
     }
 }

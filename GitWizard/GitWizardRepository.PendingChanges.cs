@@ -8,7 +8,8 @@ public partial class GitWizardRepository
 
     internal void RefreshPendingChangesStatus(Repository repository, bool deepRefresh,
         int trackedFileThreshold = RepositoryPendingChangesStatus.TrackedFileThreshold,
-        Func<Repository, string[], GitCliResult>? runGit = null)
+        Func<Repository, string[], GitCliResult>? runGit = null,
+        TimeProvider? timeProvider = null)
     {
         try
         {
@@ -25,11 +26,17 @@ public partial class GitWizardRepository
                 RefreshIndex(repository);
             }
 
-            if (repository.Index.Count >= trackedFileThreshold && TryRefreshCliStatus(repository, runGit))
+            var clock = timeProvider ?? TimeProvider.System;
+            var routeBySize = repository.Index.Count >= trackedFileThreshold;
+            var routeByTime = !routeBySize &&
+                (StatusTimeSeconds > RepositoryPendingChangesStatus.StatusTimeThresholdSeconds || UseCliStatus);
+            if ((routeBySize || routeByTime) && TryRefreshCliStatus(repository, runGit, clock))
             {
+                UseCliStatus |= routeByTime;
                 return;
             }
 
+            var startTimestamp = clock.GetTimestamp();
             var status = repository.RetrieveStatus(new StatusOptions { ExcludeSubmodules = true });
             HasPendingChanges = status.IsDirty;
             NumberOfPendingChanges = 0;
@@ -44,6 +51,8 @@ public partial class GitWizardRepository
             AddStagedSubmoduleChangesToPendingChanges(repository,
                 path => status[$"{path}/"].State == FileStatus.NewInWorkdir,
                 path => (status[path].State & StagedSubmoduleChanges) != 0);
+            StatusTimeSeconds = MeasureSeconds(clock, startTimestamp);
+            UseCliStatus = false;
         }
         catch (Exception exception)
         {
@@ -56,8 +65,10 @@ public partial class GitWizardRepository
         }
     }
 
-    bool TryRefreshCliStatus(Repository repository, Func<Repository, string[], GitCliResult>? runGit)
+    bool TryRefreshCliStatus(Repository repository, Func<Repository, string[], GitCliResult>? runGit,
+        TimeProvider clock)
     {
+        var startTimestamp = clock.GetTimestamp();
         var result = (runGit ?? GitCli.RunStatus)(repository,
         [
             "--no-optional-locks", "status", "--porcelain=v2", "-z", "--untracked-files=all",
@@ -72,6 +83,7 @@ public partial class GitWizardRepository
                 NumberOfPendingChanges = status.Count;
                 AddStagedSubmoduleChangesToPendingChanges(repository,
                     path => status.UntrackedPaths.Contains($"{path}/"), _ => false);
+                StatusTimeSeconds = MeasureSeconds(clock, startTimestamp);
                 return true;
             }
             catch (FormatException)
@@ -89,4 +101,7 @@ public partial class GitWizardRepository
 
         return false;
     }
+
+    static double MeasureSeconds(TimeProvider clock, long startTimestamp) =>
+        Math.Round(clock.GetElapsedTime(startTimestamp).TotalSeconds, 3);
 }

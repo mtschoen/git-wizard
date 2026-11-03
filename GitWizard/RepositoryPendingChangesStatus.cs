@@ -6,6 +6,7 @@ internal readonly record struct RepositoryPendingChangesStatus(bool IsDirty, int
     IReadOnlySet<string> UntrackedPaths)
 {
     internal const int TrackedFileThreshold = 70000;
+    internal const double StatusTimeThresholdSeconds = 1.0;
 
     internal static RepositoryPendingChangesStatus Parse(string output, string? workingDirectory = null)
     {

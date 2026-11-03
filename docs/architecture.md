@@ -96,13 +96,19 @@ GitWizard stores config and cache in `~/.GitWizard/` (overridable by `GITWIZARD_
 ## Tips
 
 - `deepRefresh` parameter skips expensive `git update-index --refresh` during auto-refresh; per-repo refresh button triggers it on demand.
-- Pending changes use LibGit2Sharp below 70,000 tracked index entries and read-only
+- Pending changes use read-only
   `git --no-optional-locks status --porcelain=v2 -z --untracked-files=all --ignore-submodules=all`
-  at or above that threshold. Both paths exclude submodule working trees and restore staged
+  at or above 70,000 tracked index entries (`TrackedFileThreshold`), or when the repository's
+  previous status check exceeded 1.0 second (`StatusTimeThresholdSeconds`), or while
+  `UseCliStatus` remains set from an earlier slow status check; otherwise they use LibGit2Sharp.
+  Both paths record `StatusTimeSeconds` in `report.json`, and `UseCliStatus` keeps small
+  repositories that become fast under the CLI from flipping back to LibGit2Sharp on the next
+  refresh. Both paths exclude submodule working trees and restore staged
   gitlink changes through direct HEAD/index lookups at declared submodule paths. Removed
   gitlinks do not count an initialized child's untracked directory placeholder separately.
   Child refresh results supply submodule working-tree changes. CLI failures fall back to
-  LibGit2Sharp with one warning per repository object. Counts sum the staged and worktree
+  LibGit2Sharp with one warning per repository object, recording the fallback status time and
+  clearing `UseCliStatus`. Counts sum the staged and worktree
   groups independently, so one path
   can contribute twice; conflicts and type changes are dirty but contribute zero.
   Git's `status.renames` configuration governs CLI rename detection. Deep refresh still

@@ -7,6 +7,32 @@ namespace GitWizardUI.ViewModels;
 
 public sealed class RepositoryCommandsViewModel
 {
+    internal RepositoryIndexRefreshService? IndexRefreshService { get; set; }
+
+    public async Task RefreshIndexAsync(RepositoryNodeViewModel? node)
+    {
+        if (node?.CanRefreshIndex != true)
+        {
+            return;
+        }
+
+        node.Status = RefreshStatus.Refreshing;
+        try
+        {
+            await Task.Run(() => (IndexRefreshService ?? new RepositoryIndexRefreshService(_timeProvider)).Refresh(node.Repository));
+        }
+        catch (Exception exception)
+        {
+            var message = $"Could not refresh index: {exception.Message}";
+            _errorLog.PostError(_ui, message, node.WorkingDirectory);
+            await _ui.InvokeAsync(() => _dialogs.ShowAlertAsync("Refresh Index Failed", message));
+        }
+        finally
+        {
+            _ui.Post(node.Update);
+        }
+    }
+
     readonly IUiDispatcher _ui;
     readonly IUserDialogs _dialogs;
     readonly IClipboardService _clipboard;

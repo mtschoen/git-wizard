@@ -150,17 +150,19 @@
                   <MenuItem Header="Open in Fork"     IsVisible="{Binding IsNotGroupHeader}"  Click="OnOpenInForkClick"       Tag="{Binding .}" />
                   <MenuItem Header="Open in Explorer" Click="OnOpenInExplorerClick"            Tag="{Binding .}" />
                   <MenuItem Header="Copy working directory to clipboard" Click="OnCopyToClipboardClick" Tag="{Binding .}" />
+                  <MenuItem Header="Refresh index" IsVisible="{Binding CanRefreshIndex}" Click="OnRefreshIndexClick" Tag="{Binding .}" />
                 </controls:ContextMenu>
               </Border.ContextMenu>
               <Grid ColumnDefinitions="20,*,Auto,Auto,Auto,Auto">
               <TextBlock Grid.Column="0" Text="{Binding StatusIcon}"      Foreground="{Binding StatusColorHex}" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip.Tip="{Binding StatusTooltip}" IsVisible="{Binding IsStatusVisible}" />
               <TextBlock Grid.Column="0" Text="{Binding ExpandIndicator}" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding IsGroupHeader}" />
-              <Grid Grid.Column="1" ColumnDefinitions="*,Auto,96">
+              <Grid Grid.Column="1" ColumnDefinitions="*,Auto,Auto,96">
                 <TextBlock Grid.Column="0" Text="{Binding DisplayText}" ToolTip.Tip="{Binding BehindRemoteTooltip}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" FontWeight="{Binding GroupHeaderFontWeight}" Padding="{Binding ItemPaddingString, Converter={StaticResource StringToThicknessConverter}}" />
                 <!-- Keep copy feedback clear of the reserved size column. -->
                 <TextBlock Grid.Column="0" Text="✓ Copied" Foreground="#28A745" FontSize="12" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0" IsVisible="{Binding JustCopied}" />
                 <TextBlock Grid.Column="1" x:Name="PruneBadge" Text="{Binding PruneBadgeText}" IsVisible="{Binding HasPruneBadge}" ToolTip.Tip="{Binding PruneBadgeTooltip}" FontSize="12" Foreground="#6A737D" VerticalAlignment="Center" Margin="8,0,0,0" />
-                <TextBlock Grid.Column="2" Text="{Binding SizeText}" FontSize="12" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0,8,0" ToolTip.Tip="Size on disk" />
+                <TextBlock Grid.Column="2" x:Name="IndexRefreshWarning" Text="⚠" IsVisible="{Binding CanRefreshIndex}" ToolTip.Tip="{Binding IndexRefreshTooltip}" Foreground="Orange" VerticalAlignment="Center" Margin="8,0,0,0" />
+                <TextBlock Grid.Column="3" Text="{Binding SizeText}" FontSize="12" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0,8,0" ToolTip.Tip="Size on disk" />
               </Grid>
               <Button   Grid.Column="2" Content="Fork" FontSize="12" Padding="8,4" VerticalAlignment="Center" IsVisible="{Binding IsNotGroupHeader}" Click="ForkButton_Click" Tag="{Binding}" />
               <Button   Grid.Column="3" Content="&#x21bb;" FontSize="12" Padding="8,4" VerticalAlignment="Center" IsVisible="{Binding IsNotGroupHeader}" Click="DeepRefreshButton_Click" Tag="{Binding}" ToolTip.Tip="Deep refresh: fetch remotes and update index (may be slow)" />

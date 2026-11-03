@@ -11,48 +11,55 @@ public partial class GitWizardRepository
         Func<Repository, string[], GitCliResult>? runGit = null,
         TimeProvider? timeProvider = null)
     {
+        var clock = timeProvider ?? TimeProvider.System;
         try
         {
-            if (repository.Info.IsBare)
+            try
             {
-                // A bare repository has no index or working tree to report status on.
-                return;
-            }
+                if (repository.Info.IsBare)
+                {
+                    // A bare repository has no index or working tree to report status on.
+                    return;
+                }
 
-            // Refresh the index to update stale stat data (slow on large repos / slow drives).
-            // Only run during deep refresh to keep auto-refresh fast.
-            if (deepRefresh)
+                // Refresh the index to update stale stat data (slow on large repos / slow drives).
+                // Only run during deep refresh to keep auto-refresh fast.
+                if (deepRefresh)
+                {
+                    RefreshIndex(repository);
+                }
+
+                var routeBySize = repository.Index.Count >= trackedFileThreshold;
+                var routeByTime = !routeBySize &&
+                    (StatusTimeSeconds > RepositoryPendingChangesStatus.StatusTimeThresholdSeconds || UseCliStatus);
+                if ((routeBySize || routeByTime) && TryRefreshCliStatus(repository, runGit, clock))
+                {
+                    UseCliStatus |= routeByTime;
+                    return;
+                }
+
+                var startTimestamp = clock.GetTimestamp();
+                var status = repository.RetrieveStatus(new StatusOptions { ExcludeSubmodules = true });
+                HasPendingChanges = status.IsDirty;
+                NumberOfPendingChanges = 0;
+                if (HasPendingChanges)
+                {
+                    // Type changes and conflicts are dirty but have no counted group.
+                    NumberOfPendingChanges = status.Modified.Count() + status.Missing.Count() +
+                        status.Staged.Count() + status.Removed.Count() + status.Added.Count() +
+                        status.Untracked.Count() + status.RenamedInIndex.Count() + status.RenamedInWorkDir.Count();
+                }
+
+                AddStagedSubmoduleChangesToPendingChanges(repository,
+                    path => status[$"{path}/"].State == FileStatus.NewInWorkdir,
+                    path => (status[path].State & StagedSubmoduleChanges) != 0);
+                StatusTimeSeconds = MeasureSeconds(clock, startTimestamp);
+                UseCliStatus = false;
+            }
+            finally
             {
-                RefreshIndex(repository);
+                IndexRefreshReason = new RepositoryIndexRefreshService(clock).Detect(repository, StatusTimeSeconds);
             }
-
-            var clock = timeProvider ?? TimeProvider.System;
-            var routeBySize = repository.Index.Count >= trackedFileThreshold;
-            var routeByTime = !routeBySize &&
-                (StatusTimeSeconds > RepositoryPendingChangesStatus.StatusTimeThresholdSeconds || UseCliStatus);
-            if ((routeBySize || routeByTime) && TryRefreshCliStatus(repository, runGit, clock))
-            {
-                UseCliStatus |= routeByTime;
-                return;
-            }
-
-            var startTimestamp = clock.GetTimestamp();
-            var status = repository.RetrieveStatus(new StatusOptions { ExcludeSubmodules = true });
-            HasPendingChanges = status.IsDirty;
-            NumberOfPendingChanges = 0;
-            if (HasPendingChanges)
-            {
-                // Type changes and conflicts are dirty but have no counted group.
-                NumberOfPendingChanges = status.Modified.Count() + status.Missing.Count() +
-                    status.Staged.Count() + status.Removed.Count() + status.Added.Count() +
-                    status.Untracked.Count() + status.RenamedInIndex.Count() + status.RenamedInWorkDir.Count();
-            }
-
-            AddStagedSubmoduleChangesToPendingChanges(repository,
-                path => status[$"{path}/"].State == FileStatus.NewInWorkdir,
-                path => (status[path].State & StagedSubmoduleChanges) != 0);
-            StatusTimeSeconds = MeasureSeconds(clock, startTimestamp);
-            UseCliStatus = false;
         }
         catch (Exception exception)
         {

@@ -68,8 +68,11 @@ internal static class GitCli
     internal static GitCliResult RunStatus(Repository repository, params string[] arguments) =>
         RunCore(repository, logNonZeroExit: false, arguments, statusOutput: true);
 
+    internal static GitCliResult RunIndexRefresh(Repository repository) =>
+        RunCore(repository, logNonZeroExit: true, ["update-index", "--refresh"], indexRefresh: true);
+
     static GitCliResult RunCore(Repository repository, bool logNonZeroExit, string[] arguments,
-        bool statusOutput = false)
+        bool statusOutput = false, bool indexRefresh = false)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -104,7 +107,7 @@ internal static class GitCli
         {
             // Synchronous refresh owns this process until exit; all internal awaits use
             // ConfigureAwait(false), so no caller synchronization context is required.
-            return RunProcess(startInfo, commandLine, logNonZeroExit, statusOutput).GetAwaiter().GetResult();
+            return RunProcess(startInfo, commandLine, logNonZeroExit, statusOutput, indexRefresh).GetAwaiter().GetResult();
         }
         catch (Exception exception)
         {
@@ -117,7 +120,7 @@ internal static class GitCli
     }
 
     static async Task<GitCliResult> RunProcess(ProcessStartInfo startInfo, string commandLine, bool logNonZeroExit,
-        bool statusOutput)
+        bool statusOutput, bool indexRefresh)
     {
         using var process = Process.Start(startInfo);
         if (process == null)
@@ -169,7 +172,8 @@ internal static class GitCli
         }
 
         var error = await errorOutput.ConfigureAwait(false);
-        if (process.ExitCode != 0)
+        var expectedNeedsUpdate = indexRefresh && process.ExitCode == 1 && string.IsNullOrWhiteSpace(error);
+        if (process.ExitCode != 0 && !expectedNeedsUpdate)
         {
             if (logNonZeroExit)
             {

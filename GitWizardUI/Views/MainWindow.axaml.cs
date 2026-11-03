@@ -383,6 +383,14 @@ public partial class MainWindow : Window, IAsyncDisposable
         }
     }
 
+    void OnRefreshIndexClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { Tag: RepositoryNodeViewModel node })
+        {
+            _ = _viewModel.Commands.RefreshIndexAsync(node).RunAndLogFaults("Refreshing the repository index");
+        }
+    }
+
     // ContextMenu.PlacementTarget is always null in Avalonia 11 (AvaloniaUI/Avalonia#16344), so the
     // menu can't reach this row's view model via {Binding $self.PlacementTarget.DataContext}. The
     // owning control's DataContext IS the RepositoryNodeViewModel for the row, so copy it onto the

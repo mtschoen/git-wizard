@@ -14,6 +14,7 @@ Scan, organize, and manage all the git repositories on your machine. Find duplic
 - **Repository sizes** appear beside every row after measurement, with totals on group headers
 - **Search** to quickly find repos by path
 - **Deep refresh** per repo with remote fetch and index update
+- **Index refresh warnings** flag old Git index locks and status checks over one second with stale cached file information for unchanged tracked files. Only slow repositories run a read-only Git evidence probe; index-file age is irrelevant. Hover over the row's warning for the reason, then use **Refresh index** in its context menu. The action removes a lock only if it is still older than 10 minutes, no `git` process is running anywhere on the machine, and an exclusive file-open probe succeeds. Otherwise it preserves the lock and warning and explains the refusal on the row. It then updates the index stat cache and refreshes status.
 - **Clean** per repo - rows show a badge such as `3 merged · 2 stashes · 1 local-only` (refresh checks ancestry and identical content only); Clean runs the full check, including squash and rebase merges, confirms, then deletes merged branches and drops merged stashes, logging a restore command for each one. Before dropping, every listed stash is archived under `refs/git-wizard/stash-archive/<sha>`, so a stash list that changes mid-run cannot lose a stash that was listed; a stash pushed during the run is stored back if a drop hits it, with one narrow crash window ([prune output](docs/report-schema.md#prune-output-prune) explains the archive refs and restoring)
 - **Live mode** - opt-in repository monitoring (Windows USN journal, Linux fanotify with kernel 5.9+) updates changed, created, deleted, and renamed repositories after one elevation prompt
 - **Cross-platform desktop** - Avalonia app runs natively on Windows, macOS, and Linux; library and CLI run everywhere
@@ -38,7 +39,7 @@ On first run, configure your search paths in Settings. GitWizard will scan those
 
 The default CLI report prints a human-readable attention overview and repository paths,
 followed by one run summary (created, refreshed and skipped callback counts) and any
-ordering warnings. Dirty, unpushed, stale, merged-branch and behind-remote reasons are
+ordering warnings. Dirty, unpushed, stale, merged-branch, behind-remote and index-needs-refresh reasons are
 shown. Use `git-wizard --json > report.json` for a strict JSON report, or add
 `--minified` for compact JSON. Progress and verbose debug logging use stderr during
 report execution; report warnings are retained in the report's `run.warnings` array.

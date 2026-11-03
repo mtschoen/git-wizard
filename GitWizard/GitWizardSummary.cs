@@ -54,6 +54,11 @@ public class GitWizardSummary
                 reasons.Add("behind-remote");
             }
 
+            if (repository.IndexRefreshReason is { } indexReason)
+            {
+                reasons.Add($"index-needs-refresh ({indexReason})");
+            }
+
             if (reasons.Count > 0)
             {
                 summary.NeedingAttention.Add(new AttentionItem

@@ -271,6 +271,7 @@ public sealed partial class RepositoryNodeViewModel : INotifyPropertyChanged
         }
 
         NotifyPruneBadgeChanged();
+        NotifyIndexRefreshChanged();
 
         if (Repository.HasSubmoduleIssues)
         {

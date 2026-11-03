@@ -105,8 +105,9 @@ A repository rejected by Git's ownership check remains in `Repositories` with `R
 | `IsPublishReady` | `bool` | no | `true` when the checkout is clean (`!HasPendingChanges`), not behind its remote (`BehindRemoteCount == 0`), and currently on `DefaultBranch` - the literal "safe to publish from" check. Derived from the fields above at read time (not a separately refreshed field), so it can go stale the same way `BehindRemoteCount` can; check `LastFetchTime` for freshness. |
 | `SizeOnDisk` | `long` (bytes) | no | Logical bytes of every file under the working directory, `.git` included (0/absent if not computed). A refresh that follows an MFT discovery takes it from the index; a repository the index cannot size completely, or a refresh that fetches, walks the directory instead |
 | `RefreshTimeSeconds` | `float` | no | How long the last refresh took |
-| `StatusTimeSeconds` | `float` | no | How long the last pending-changes status check took, in seconds |
+| `StatusTimeSeconds` | `float` | no | Duration of the last pending-changes status check that ran (Git CLI or LibGit2Sharp), in seconds, excluding deep-refresh index updates and failed CLI attempts before fallback. A previous value over 1 second routes small repositories to the Git CLI; the current value also feeds stale-index detection. Absent or zero on older reports. |
 | `UseCliStatus` | `bool` | no | Whether pending-changes status stays routed to the Git CLI after a previous status check exceeded 1 second, keeping small repositories that become fast under the CLI from flipping back to LibGit2Sharp |
+| `IndexRefreshReason` | `string` | yes | `DeadIndexLock` when the resolved Git directory's `index.lock` is older than 10 minutes; otherwise `StaleIndex` when the current status check took over 1 second and at least one stat-dirty tracked file still matches its indexed checkout content. Evaluated after both Git CLI and LibGit2Sharp status, including time-routed small repositories. Only slow repositories run `git --no-optional-locks diff-files --name-only -z --no-ext-diff --ignore-submodules=all --`, followed by in-process comparison of checkout-filtered indexed content with the working files. Fast repositories skip the evidence probe. Index-file age is irrelevant. Absent when neither condition holds or no unchanged-content evidence can be read. Detection does not refresh or write the index. |
 | `RefreshError` | `string` | yes | Error message if refresh failed |
 | `RemoteUrls` | `string[]` | no | List of remote URLs |
 | `AuthorEmails` | `string[]` | yes | Unique author emails from the first 200 commits of an unsorted walk from HEAD (ancestry order, which on a linear history follows parent links, not timestamps) |
@@ -185,6 +186,18 @@ schemas do not gain this field. A failed discovery prints diagnostic-only JSON w
 `run` and no `Repositories`, exits 3, and leaves published files untouched.
 
 ## Human report output
+
+Flagged repositories also print `index-needs-refresh (DeadIndexLock)` or
+`index-needs-refresh (StaleIndex)` beside their path. The desktop shows a warning
+with an explanation and a **Refresh index** context action. The action refuses a
+lock 10 minutes old or younger. An older lock is removed only when no `git`
+process is running anywhere on the machine and an exclusive file-open probe
+succeeds. Probe failures preserve the lock. A refusal retains the warning and
+sets the row error to explain that a git process may be using the repository.
+After safe cleanup, the action runs `git update-index --refresh` and refreshes
+repository status. Exit code 1 with normal `needs update` output is accepted.
+Stale-stat evidence identifies unchanged content needing a cache refresh, without
+counting every stale entry or guaranteeing a speedup.
 
 The default CLI report formats output as human-readable text rather than JSON:
 

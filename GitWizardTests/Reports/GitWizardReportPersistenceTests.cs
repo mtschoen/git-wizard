@@ -59,6 +59,7 @@ public class GitWizardReportPersistenceTests
         {
             LastWriteTimeUtc = lastWriteTimeUtc,
             LastUsedUtc = lastUsedUtc,
+            PolicyVersion = NonRepositoryProbeEntry.CurrentPolicyVersion,
         };
 
         var path = GitWizardReport.GetCachedReportPath();
@@ -96,6 +97,8 @@ public class GitWizardReportPersistenceTests
             Assert.That(loaded.NonRepositoryProbes.Keys, Is.EqualTo(["/repo/junk"]));
             Assert.That(loaded.NonRepositoryProbes["/repo/junk"].LastWriteTimeUtc, Is.EqualTo(lastWriteTimeUtc));
             Assert.That(loaded.NonRepositoryProbes["/repo/junk"].LastUsedUtc, Is.EqualTo(lastUsedUtc));
+            Assert.That(loaded.NonRepositoryProbes["/repo/junk"].PolicyVersion,
+                Is.EqualTo(NonRepositoryProbeEntry.CurrentPolicyVersion));
         }
     }
 

@@ -45,6 +45,36 @@ public class NonRepositoryProbeCacheTests
     }
 
     [Test]
+    public void ShouldSkip_LegacyPolicyEntryWithMatchingWriteTime_InvalidatesAndReprobes()
+    {
+        var candidatePath = Path.GetFullPath("legacy-candidate");
+        var key = GitWizardApi.NormalizePath(candidatePath);
+        var entries = new SortedDictionary<string, NonRepositoryProbeEntry>
+        {
+            [key] = new()
+            {
+                LastWriteTimeUtc = InitialTimeUtc,
+                LastUsedUtc = InitialTimeUtc,
+            },
+        };
+        var cache = new NonRepositoryProbeCache(entries, new ControllableClock(InitialTimeUtc),
+            _ => true, _ => InitialTimeUtc);
+
+        var skippedLegacy = cache.ShouldSkip(candidatePath, out var observedWriteTimeUtc);
+        var presentAfterLegacyCheck = cache.Contains(candidatePath);
+        cache.Record(candidatePath, observedWriteTimeUtc);
+        var skippedCurrent = cache.ShouldSkip(candidatePath, out _);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(skippedLegacy, Is.False);
+            Assert.That(presentAfterLegacyCheck, Is.False);
+            Assert.That(entries[key].PolicyVersion, Is.EqualTo(NonRepositoryProbeEntry.CurrentPolicyVersion));
+            Assert.That(skippedCurrent, Is.True);
+        }
+    }
+
+    [Test]
     public void DropMissingPaths_RemovesDisappearedCandidate()
     {
         var candidatePath = Path.GetFullPath("missing-candidate");

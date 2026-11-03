@@ -41,7 +41,8 @@ internal sealed class NonRepositoryProbeCache
                 return false;
             }
 
-            if (entry.LastWriteTimeUtc != lastWriteTimeUtc)
+            if (entry.PolicyVersion != NonRepositoryProbeEntry.CurrentPolicyVersion ||
+                entry.LastWriteTimeUtc != lastWriteTimeUtc)
             {
                 // Stale: the re-probe decides again, so a cancelled or transient probe must not leave this behind.
                 _entries.Remove(key);
@@ -54,6 +55,7 @@ internal sealed class NonRepositoryProbeCache
             {
                 LastWriteTimeUtc = entry.LastWriteTimeUtc,
                 LastUsedUtc = _clock.GetUtcNow(),
+                PolicyVersion = NonRepositoryProbeEntry.CurrentPolicyVersion,
             };
             return true;
         }
@@ -69,6 +71,7 @@ internal sealed class NonRepositoryProbeCache
             {
                 LastWriteTimeUtc = lastWriteTimeUtc.ToUniversalTime(),
                 LastUsedUtc = _clock.GetUtcNow(),
+                PolicyVersion = NonRepositoryProbeEntry.CurrentPolicyVersion,
             };
 
             while (_entries.Count > _capacity)

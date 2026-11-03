@@ -61,17 +61,17 @@ merge of disjoint updates must serialize their writes externally.
 | `IncludeTempDirectories` | `bool` | Whether this report's scan included temp directories. Absent when unset (the default: excluded). |
 | `Repositories` | `object` | Map of repo path to repository object |
 | `DeletedPaths` | `string[]` | Repo paths removed from the cache during the last refresh (no longer on disk). Usually empty/absent. |
-| `NonRepositoryPaths` | `string[]` | Existing candidates confirmed as non-repositories or recognized malformed-repository junk and pruned from `Repositories` during the last refresh. |
-| `NonRepositoryProbes` | `object` | Bounded junk-probe memory keyed by normalized full path; see below. |
+| `NonRepositoryPaths` | `string[]` | Existing candidates confirmed not to be Git repositories and pruned from `Repositories` during the last refresh. |
+| `NonRepositoryProbes` | `object` | Bounded non-repository probe memory keyed by normalized full path; see below. |
 | `run` | `object` | Run execution metadata (callback counts and warnings); see below |
 
 ### Non-repository probe memory
 
-`NonRepositoryProbes` lets a rebuilt report skip an unchanged junk candidate instead of probing it on every run. Each key is a normalized full path. Each value contains `LastWriteTimeUtc`, the directory's UTC last-write time when it was probed, and `LastUsedUtc`, the UTC time of the most recent match or record.
+`NonRepositoryProbes` lets a rebuilt report skip an unchanged non-repository directory instead of probing it on every run. Each key is a normalized full path. Each value contains `LastWriteTimeUtc`, the directory's UTC last-write time when it was probed, `LastUsedUtc`, the UTC time of the most recent match or record, and `PolicyVersion` (`2`), which identifies the current non-repository-only classification policy.
 
-Only non-repositories and recognized junk are remembered: unsupported repository formats such as `extensions.refstorage`, unknown object formats such as SHA-256, missing indexes or other malformed fixtures, and `NotFoundException` failures. Ownership-blocked repositories, programming errors, transient failures, and cancellation are never added.
+Only paths where no Git repository is discovered (`Repository.IsValid` returns `false`) are pruned into `NonRepositoryPaths` and remembered in `NonRepositoryProbes`. Recognized repositories that LibGit2Sharp cannot inspect remain in `Repositories` with no status or partial status and a `RefreshError`, and are never added to `NonRepositoryProbes`: unsupported repository formats such as `reftable` (`extensions.refstorage`) and SHA-256 object storage (`unknown object format 'sha256'`) report a plain-language unsupported-format `RefreshError` and a single-line warning, while unreadable indexes (`failed to read index`), missing Git objects (`NotFoundException`), ownership-blocked repositories, programming errors, transient failures, and cancellation are retried on subsequent refreshes.
 
-A candidate is skipped only while its current directory last-write time equals the stored value. A changed value forces another probe, a successful refresh removes the entry, and a missing directory removes the entry. The cache retains at most 4096 entries and evicts the least recently used entry beyond that bound. This is additive cache data within schema 2.1, not a schema change.
+A candidate is skipped only while its `PolicyVersion` matches the current policy and its current directory last-write time equals the stored value. Entries persisted under an older policy (missing or mismatched `PolicyVersion`) or with a changed write time are invalidated and re-probed, a non-pruned refresh outcome removes any stale entry, and a missing directory removes the entry. The cache retains at most 4096 entries and evicts the least recently used entry beyond that bound. This is additive cache data within schema 2.1, not a schema change.
 
 ### Ownership-blocked repositories
 

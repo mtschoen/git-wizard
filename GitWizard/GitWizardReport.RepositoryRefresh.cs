@@ -16,7 +16,7 @@ public partial class GitWizardReport
     }
 
     // Missing directories can be transiently unmounted and remain separate in DeletedPaths.
-    // Existing paths with a remembered failed probe are removed from the repository inventory.
+    // Existing paths confirmed not to be git repositories are removed from the repository inventory.
     void PruneNonRepositoryPaths(IEnumerable<string> refreshedPaths, NonRepositoryProbeCache probeCache)
     {
         var stalePaths = new List<string>();
@@ -100,7 +100,7 @@ public partial class GitWizardReport
         {
             context.ProbeCache.Record(path, lastWriteTimeUtc);
         }
-        else if (refreshOutcome is RepositoryRefreshOutcome.Success or RepositoryRefreshOutcome.OwnershipBlocked)
+        else
         {
             context.ProbeCache.Remove(path);
         }

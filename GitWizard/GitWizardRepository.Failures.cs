@@ -1,5 +1,3 @@
-using LibGit2Sharp;
-
 namespace GitWizard;
 
 public partial class GitWizardRepository
@@ -14,13 +12,8 @@ public partial class GitWizardRepository
             return;
         }
 
-        if (exception is NotFoundException ||
-            exception is LibGit2SharpException &&
-            exception.Message.Contains("failed to read index", StringComparison.OrdinalIgnoreCase))
-        {
-            _refreshOutcome = RepositoryRefreshOutcome.NonRepository;
-        }
-
+        RefreshError ??= exception.Message;
+        _refreshOutcome = RepositoryRefreshOutcome.TransientFailure;
         GitWizardLog.LogException(exception, message);
     }
 }

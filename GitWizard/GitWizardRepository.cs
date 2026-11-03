@@ -200,8 +200,8 @@ public partial class GitWizardRepository
             // Probe with IsValid before constructing Repository: a cached path whose .git is gone makes
             // the Repository ctor throw RepositoryNotFoundException on every refresh (first-chance
             // exception spam in the log). IsValid returns false for that case without throwing, so we
-            // skip it cleanly. Other libgit2 errors reach the catch below for ownership and junk
-            // classification, so the check lives inside the try.
+            // skip it cleanly. Other libgit2 errors reach the catch below for ownership and unsupported-
+            // format classification, so the check lives inside the try.
             if (!Repository.IsValid(WorkingDirectory))
             {
                 _refreshOutcome = RepositoryRefreshOutcome.NonRepository;
@@ -233,15 +233,15 @@ public partial class GitWizardRepository
                 return;
             }
 
-            if (IsNonRepositoryProbeFailure(exception))
-            {
-                _refreshOutcome = RepositoryRefreshOutcome.NonRepository;
-            }
-            else if (_refreshOutcome != RepositoryRefreshOutcome.NonRepository)
+            if (TryFormatUnsupportedFormatError(exception, out var unsupportedFormatError))
             {
                 _refreshOutcome = RepositoryRefreshOutcome.TransientFailure;
+                GitWizardLog.Log($"{unsupportedFormatError}: {WorkingDirectory}", GitWizardLog.LogType.Warning);
+                MarkRefreshFailed(unsupportedFormatError, updateHandler);
+                return;
             }
 
+            _refreshOutcome = RepositoryRefreshOutcome.TransientFailure;
             RefreshError = exception.Message;
             GitWizardLog.LogException(exception, $"Exception thrown trying to refresh {WorkingDirectory}");
             IsRefreshing = false;
@@ -254,21 +254,25 @@ public partial class GitWizardRepository
         exception.Message.StartsWith("repository path '", StringComparison.Ordinal) &&
         exception.Message.EndsWith("' is not owned by current user", StringComparison.Ordinal);
 
-    static bool IsNonRepositoryProbeFailure(Exception exception)
+    static bool TryFormatUnsupportedFormatError(Exception exception, out string refreshError)
     {
-        if (exception is NotFoundException)
+        if (exception is LibGit2SharpException)
         {
-            return true;
+            if (exception.Message.Contains("extensions.refstorage", StringComparison.OrdinalIgnoreCase))
+            {
+                refreshError = "Unsupported repository format: reftable (extensions.refstorage)";
+                return true;
+            }
+
+            if (exception.Message.Contains("unknown object format", StringComparison.OrdinalIgnoreCase))
+            {
+                refreshError = $"Unsupported repository format: {exception.Message}";
+                return true;
+            }
         }
 
-        if (exception is not LibGit2SharpException)
-        {
-            return false;
-        }
-
-        return exception.Message.Contains("extensions.refstorage", StringComparison.OrdinalIgnoreCase) ||
-               exception.Message.Contains("unknown object format", StringComparison.OrdinalIgnoreCase) ||
-               exception.Message.Contains("failed to read index", StringComparison.OrdinalIgnoreCase);
+        refreshError = string.Empty;
+        return false;
     }
 
     /// <summary>

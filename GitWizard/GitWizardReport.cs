@@ -72,7 +72,7 @@ public partial class GitWizardReport : IAsyncDisposable
     /// </summary>
     public HashSet<string> NonRepositoryPaths { get; private set; } = [];
 
-    /// <summary>Failed probe outcomes retained by normalized full path and directory write time.</summary>
+    /// <summary>Non-repository probe outcomes retained by normalized full path and directory write time.</summary>
     [JsonInclude]
     public SortedDictionary<string, NonRepositoryProbeEntry> NonRepositoryProbes { get; private set; } =
         new(GitWizardApi.PathComparer);
@@ -219,8 +219,13 @@ public partial class GitWizardReport : IAsyncDisposable
                 report._previousReport = cachedReport;
                 lock (cachedReport.NonRepositoryProbes)
                 {
-                    report.NonRepositoryProbes = new SortedDictionary<string, NonRepositoryProbeEntry>(
-                        cachedReport.NonRepositoryProbes, GitWizardApi.PathComparer);
+                    foreach (var (path, entry) in cachedReport.NonRepositoryProbes)
+                    {
+                        if (entry.PolicyVersion == NonRepositoryProbeEntry.CurrentPolicyVersion)
+                        {
+                            report.NonRepositoryProbes[path] = entry;
+                        }
+                    }
                 }
             }
 

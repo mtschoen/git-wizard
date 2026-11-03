@@ -64,11 +64,6 @@ public partial class GitWizardRepository
         catch (Exception exception)
         {
             LogRepositoryException(exception, $"Exception retrieving status for {WorkingDirectory}");
-            RefreshError ??= exception.Message;
-            if (_refreshOutcome == RepositoryRefreshOutcome.Success)
-            {
-                _refreshOutcome = RepositoryRefreshOutcome.TransientFailure;
-            }
         }
     }
 

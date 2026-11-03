@@ -411,6 +411,24 @@ sealed class TempRepoFixture : IDisposable
     internal static void RunGit(string workingDirectory, params string[] arguments) =>
         RunProcess("git", workingDirectory, arguments);
 
+    /// <summary>
+    /// Remove inherited <c>GIT_CONFIG_COUNT</c>, <c>GIT_CONFIG_KEY_&lt;n&gt;</c>,
+    /// <c>GIT_CONFIG_VALUE_&lt;n&gt;</c> and <c>GIT_CONFIG_PARAMETERS</c> so a worker-level
+    /// override such as <c>remote.origin.pushurl</c> cannot redirect fixture git processes.
+    /// </summary>
+    internal static void ScrubGitConfigOverrides(ProcessStartInfo startInfo)
+    {
+        var inherited = startInfo.Environment.Keys
+            .Where(name => name is "GIT_CONFIG_COUNT" or "GIT_CONFIG_PARAMETERS"
+                           || name.StartsWith("GIT_CONFIG_KEY_", StringComparison.OrdinalIgnoreCase)
+                           || name.StartsWith("GIT_CONFIG_VALUE_", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        foreach (var name in inherited)
+        {
+            startInfo.Environment.Remove(name);
+        }
+    }
+
     internal static void RunProcess(string fileName, string workingDirectory, params string[] arguments)
     {
         var startInfo = new ProcessStartInfo(fileName)
@@ -424,6 +442,8 @@ sealed class TempRepoFixture : IDisposable
         {
             startInfo.ArgumentList.Add(argument);
         }
+
+        ScrubGitConfigOverrides(startInfo);
 
         using var process = Process.Start(startInfo)
                             ?? throw new InvalidOperationException($"Failed to start {fileName}");

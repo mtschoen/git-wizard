@@ -71,16 +71,7 @@ public class BranchInventoryReportTests
         }
 
         // Push via git command
-        var startInfo = new System.Diagnostics.ProcessStartInfo("git")
-        {
-            WorkingDirectory = repo.Path,
-            Arguments = "push -u origin feature-pushed",
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false
-        };
-        using var proc = System.Diagnostics.Process.Start(startInfo)!;
-        proc.WaitForExit();
+        TempRepoFixture.RunGit(repo.Path, "push", "-u", "origin", "feature-pushed");
 
         var report = BranchInventoryReport.Scan([repo.Path]);
 

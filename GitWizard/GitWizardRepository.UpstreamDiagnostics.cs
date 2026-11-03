@@ -12,7 +12,7 @@ public partial class GitWizardRepository
     // single source of truth for the DECISION (native Branch.TrackedBranch resolution, which
     // reads the repository's own config and therefore does evaluate includeIf); this standalone
     // read exists only to name the offending value in the diagnostic. Neither Branch.RemoteName
-    // nor Repository.Config may be used: in LibGit2Sharp 0.31.0 the first access to
+    // nor Repository.Config may be used: in LibGit2Sharp 0.32.0 the first access to
     // Repository.Config builds a configuration from <Info.Path>/config and installs it on the
     // native repository, which for a linked worktree (Info.Path = <common>/worktrees/<name>)
     // drops the shared config and with it every remote and tracking entry. Configuration.BuildFrom

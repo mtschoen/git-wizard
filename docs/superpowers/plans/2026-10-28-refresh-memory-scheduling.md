@@ -6,7 +6,7 @@
 
 **Architecture:** Order top-level work by cached refresh durations with an unbuffered partitioner, and execute nested submodule/worktree refreshes sequentially so outer parallelism is not multiplied.
 
-**Tech Stack:** C#/.NET 10, LibGit2Sharp 0.31.0, libgit2 native P/Invoke, NUnit.
+**Tech Stack:** C#/.NET 10, LibGit2Sharp 0.32.0, libgit2 native P/Invoke, NUnit.
 
 **Spec:** `C:/Users/mtsch/MFTLib-worktrees/reports/lanes-17/kimi-453.md` and Gitea issue 453, including its acceptance measurements.
 

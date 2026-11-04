@@ -90,7 +90,6 @@ public partial class GitWizardReport
             repository.OfferIndexedSizes(indexedSizes, path);
         }
 
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         using var cancellationTokenSource = new CancellationTokenSource(RefreshTimeout);
         var refreshOutcome = repository.RefreshWithOutcome(context.UpdateHandler, context.FetchRemotes,
             context.DeepRefresh, context.AllBranches, context.ComputeLocalCommitCount,
@@ -105,9 +104,7 @@ public partial class GitWizardReport
             context.ProbeCache.Remove(path);
         }
 
-        stopwatch.Stop();
-        repository.RefreshTimeSeconds = Math.Round(stopwatch.Elapsed.TotalSeconds, 1);
-        if (stopwatch.Elapsed.TotalSeconds >= 10)
+        if (repository.RefreshTimeSeconds >= 10)
         {
             GitWizardLog.Log($"Refresh took {repository.RefreshTimeSeconds}s for {path}", GitWizardLog.LogType.Warning);
         }

@@ -439,6 +439,44 @@ public class GitWizardRepositoryRefreshTests
     }
 
     [Test]
+    public void Refresh_Success_RecordsElapsedTimeFromRefreshClock()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        var repository = new GitWizardRepository(fixture.Path)
+        {
+            RefreshClock = new RecordedTimestampClock(10.0, 12.5)
+        };
+
+        repository.Refresh();
+
+        Assert.That(repository.RefreshTimeSeconds, Is.EqualTo(2.5));
+    }
+
+    [Test]
+    public void Refresh_NotAGitRepo_RecordsElapsedTimeFromRefreshClock()
+    {
+        using var tempDir = new TempDirectory("gw-not-git-time-");
+        var repository = new GitWizardRepository(tempDir.Path)
+        {
+            RefreshClock = new RecordedTimestampClock(0.0, 0.5)
+        };
+
+        repository.Refresh();
+
+        Assert.That(repository.RefreshTimeSeconds, Is.EqualTo(0.5));
+    }
+
+    sealed class RecordedTimestampClock(params double[] timestampsInSeconds) : TimeProvider
+    {
+        int _index;
+
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+        public override long GetTimestamp() =>
+            TimeSpan.FromSeconds(timestampsInSeconds[_index++]).Ticks;
+    }
+
+    [Test]
     [NonParallelizable]
     public void Refresh_VanishedWorkingDirectory_LogsDebugNotError()
     {

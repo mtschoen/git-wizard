@@ -3,7 +3,10 @@ using System.Security.Principal;
 
 namespace GitWizardTests.TestSupport;
 
-/// <summary>Makes a directory unreadable for the current user until disposed, or ignores the test if it cannot.</summary>
+/// <summary>
+/// Makes a directory unlistable for the current process until disposed. A root process ignores the test on Unix;
+/// on Windows a directory still listable after the deny fails the test as a broken precondition.
+/// </summary>
 sealed class DeniedDirectory : IDisposable
 {
     readonly Action _restore;
@@ -34,6 +37,12 @@ sealed class DeniedDirectory : IDisposable
         throw new InvalidOperationException("Unreachable.");
     }
 
+    // .NET opens directories for enumeration with FILE_FLAG_BACKUP_SEMANTICS, so an enabled SeBackupPrivilege
+    // grants the listing whatever the DACL says. An elevated token holds the privilege disabled, and the MSYS2
+    // runtime behind Git Bash enables it at startup in a token its native children inherit, so the deny rule
+    // alone does not deny an elevated suite launched from Git Bash. The privilege stays disabled until disposal.
+    internal const string BackupPrivilege = "SeBackupPrivilege";
+
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     static DeniedDirectory DenyWindows(string path)
     {
@@ -44,12 +53,27 @@ sealed class DeniedDirectory : IDisposable
         var security = directory.GetAccessControl();
         security.AddAccessRule(rule);
         directory.SetAccessControl(security);
-        return new DeniedDirectory(() =>
+        var privilege = ProcessPrivilege.Set(BackupPrivilege, enabled: false);
+        var denied = new DeniedDirectory(() =>
         {
             var restored = directory.GetAccessControl();
             restored.RemoveAccessRule(rule);
             directory.SetAccessControl(restored);
+            privilege?.Dispose();
         });
+
+        try
+        {
+            Directory.GetFileSystemEntries(path);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return denied;
+        }
+
+        denied.Dispose();
+        Assert.Fail($"{path} is still listable after denying {user} ListDirectory and disabling {BackupPrivilege}.");
+        throw new InvalidOperationException("Unreachable.");
     }
 
     public void Dispose() => _restore();

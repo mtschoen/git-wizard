@@ -126,7 +126,8 @@ public class RecursiveDiscoveryTests
             EnumeratedDiscovery.Run(request, _tempDir, cts.Token));
     }
 
-    [Test]
+    // DeniedDirectory changes the process token on Windows.
+    [Test, NonParallelizable]
     public void DiscoverRecursively_RecordsDeniedSubtreeInFailedSubtrees()
     {
         var accessibleRepo = Path.Combine(_tempDir, "accessible", "repo");

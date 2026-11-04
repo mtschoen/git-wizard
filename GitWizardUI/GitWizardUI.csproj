@@ -12,11 +12,11 @@
     <RootNamespace>GitWizardUI</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="11.2.*" />
-    <PackageReference Include="Avalonia.Desktop" Version="11.2.*" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.*" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.2.*" />
-    <PackageReference Include="Avalonia.Diagnostics" Version="11.2.*" Condition="'$(Configuration)' == 'Debug'" />
+    <PackageReference Include="Avalonia" Version="11.2.8" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.2.8" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.8" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.2.8" />
+    <PackageReference Include="Avalonia.Diagnostics" Version="11.2.8" Condition="'$(Configuration)' == 'Debug'" />
     <PackageReference Include="Tmds.DBus.Protocol" Version="0.92.0" />
   </ItemGroup>
   <ItemGroup>

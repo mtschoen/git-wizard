@@ -5,6 +5,10 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 projects=(GitWizard/GitWizard.csproj git-wizard/git-wizard.csproj GitWizardUI/GitWizardUI.csproj GitWizardTests/GitWizardTests.csproj)
 windows=false
 case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) windows=true ;; esac
+# Linux restores run in locked mode against packages.lock.json, which keeps a warm
+# restore off the network (the lock files are Linux-generated; see Directory.Build.props).
+locked_mode=()
+if ! $windows; then locked_mode=(-p:RestoreLockedMode=true); fi
 python_command=python3
 if $windows || ! command -v python3 > /dev/null; then python_command=python; fi
 case "${1:?gate required}" in
@@ -15,13 +19,14 @@ case "${1:?gate required}" in
             cmake -S external/MFTLib/MFTLibNative -B external/MFTLib/build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release
             cmake --build external/MFTLib/build-linux
         fi
-        dotnet build external/MFTLib/MFTLib/MFTLib.csproj -c Release -p:Platform=x64
-        dotnet build external/MFTLib/MFTLibTestExtensions/MFTLibTestExtensions.csproj -c Release -p:Platform=x64
+        dotnet build external/MFTLib/MFTLib/MFTLib.csproj -c Release -p:Platform=x64 "${locked_mode[@]}"
+        dotnet build external/MFTLib/MFTLibTestExtensions/MFTLibTestExtensions.csproj -c Release -p:Platform=x64 "${locked_mode[@]}"
         ;;
     restore|build)
         operation=$1
         arguments=()
         if [[ "$operation" == build ]]; then arguments=(-c Release --no-restore); fi
+        if [[ "$operation" == restore ]]; then arguments=("${locked_mode[@]}"); fi
         if $windows; then
             dotnet "$operation" git-wizard.slnx "${arguments[@]}"
         else

@@ -17,6 +17,12 @@
     <!-- Findings are at zero, so the build is now the gate. MFTLib (outside this
          tree) does not inherit this and keeps its warnings as warnings. -->
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Linux CI restores in locked mode against the per-host NuGet cache, which
+         makes a warm restore silent (zero nuget.org requests). The lock files are
+         generated on Linux, so Windows is excluded: its restore would otherwise
+         rewrite them and dirty the tree; NuGet still reads an existing lock file at NuGetLockFilePath even when RestorePackagesWithLockFile is unset, so redirect Windows to obj/ where none exists (schoen-lab#3353). -->
+    <RestorePackagesWithLockFile Condition="'$(OS)' != 'Windows_NT'">true</RestorePackagesWithLockFile>
+    <NuGetLockFilePath Condition="'$(OS)' == 'Windows_NT'">$(MSBuildProjectDirectory)\obj\packages.lock.json</NuGetLockFilePath>
   </PropertyGroup>
 
   <ItemGroup>

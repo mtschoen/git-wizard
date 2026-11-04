@@ -40,27 +40,14 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Set up .NET 10 SDK
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key: linux-nuget-${{ hashFiles('**/*.csproj') }}
-          restore-keys: |
-            linux-nuget-
-
+      # The fleet Linux image bakes the .NET 10 SDK, cmake, ninja, g++ and zip, and mounts
+      # the per-host NuGet cache, so this job downloads nothing it can avoid (schoen-lab#3353).
       # osx-x64 ships managed-only (no mac runner to build the native; the vendored era
       # shipped no osx native either). linux-x64 gets the CMake-built .so via the
       # CopyMFTLibNativeLinux target. The stray .so a linux host copies into the osx
       # publish is inert junk, accepted (the vendored era did the same with the win dll).
       - name: Build MFTLib (native + managed)
-        run: |
-          apt-get update && apt-get install -y cmake ninja-build g++ zip
-          bash ci/gates.sh native
+        run: bash ci/gates.sh native
 
       - name: Resolve version
         id: ver

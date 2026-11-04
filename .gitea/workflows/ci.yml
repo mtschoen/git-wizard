@@ -44,30 +44,15 @@ jobs:
         run: |
           python3 ci/checkout.py pin-only
 
-      - name: Set up .NET 10 SDK
-        if: steps.changed-files.outputs.pin_only != 'true'
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Cache NuGet packages
-        if: steps.changed-files.outputs.pin_only != 'true'
-        uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key: linux-nuget-${{ hashFiles('**/*.csproj') }}
-          restore-keys: |
-            linux-nuget-
-
+      # The fleet Linux image bakes the .NET 10 SDK, cmake, ninja and g++, and mounts the
+      # per-host NuGet cache; restores run in locked mode (ci/gates.sh), so nothing here
+      # downloads (schoen-lab#3353).
       # MFTLib is a source submodule (external/MFTLib) until 0.3.0 ships to NuGet.
       # Native via CMake (POSIX path is real: platform_posix.cpp), managed via dotnet;
-      # Directory.Build.targets consumes both from fixed paths. apt install mirrors
-      # MFTLib's own linux CI (pip is cert-blocked on this runner).
+      # Directory.Build.targets consumes both from fixed paths.
       - name: Build MFTLib (native + managed)
         if: steps.changed-files.outputs.pin_only != 'true'
-        run: |
-          apt-get update && apt-get install -y cmake ninja-build g++
-          bash ci/gates.sh native
+        run: bash ci/gates.sh native
 
       - name: Restore (cross-platform projects)
         if: steps.changed-files.outputs.pin_only != 'true'

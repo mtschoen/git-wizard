@@ -7,6 +7,8 @@
 
 ## Backlog
 
+Scheduled after MFTLib 0.3.0; items tracked on Gitea carry the `ship:mftlib-0.4.0` label.
+
 Still-live ideas migrated from the legacy `.plan` (2026-06-19) when that pre-Avalonia
 file was retired. Not yet scheduled; promote to Next Up / a Gitea issue when picked up.
 

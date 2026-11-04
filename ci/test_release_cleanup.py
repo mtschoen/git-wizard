@@ -103,7 +103,7 @@ def run_cleanup_block(
 
         log_path.write_text("", encoding="utf-8")
         responses_text = "".join(f"{status} {code}\n" for status, code in responses)
-        responses_path.write_text(responses_text, encoding="utf-8")
+        responses_path.write_text(responses_text, encoding="utf-8", newline="\n")
         script_path.write_text(
             FAKE_CURL_PREAMBLE + "\n" + cleanup_script,
             encoding="utf-8",

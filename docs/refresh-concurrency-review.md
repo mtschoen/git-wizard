@@ -30,9 +30,10 @@ Batch refresh, from the outside in:
    `Repository`, sets `IsRefreshing = true`, and runs eleven phases in sequence, ending with
    `RefreshSizeOnDisk` (a full recursive file enumeration) and `NotifyRefreshCompleted`. There is no
    cancellation check anywhere inside it.
-4. Two of those phases fan out further: `RefreshSubmodules` and `RefreshWorktrees` each run their own
-   `Parallel.ForEach` with no degree-of-parallelism cap
-   (`GitWizard/GitWizardRepository.Submodules.cs:47`, `GitWizard/GitWizardRepository.BranchesAndWorktrees.cs:14`).
+4. Two of those phases recurse into nested repositories: `RefreshSubmodules`
+   (`GitWizard/GitWizardRepository.Submodules.cs`) and `RefreshWorktrees`
+   (`GitWizard/GitWizardRepository.Worktrees.cs`). Both iterate sequentially with `foreach`, so
+   outer parallelism is not multiplied and the parent handle is touched by one thread.
 
 Consumers: the CLI calls `Refresh` on the process-wide cached report
 (`git-wizard/Program.Report.cs:75`) and serializes it with `Save` (`Program.Report.cs:119`, `:127`).
@@ -126,6 +127,8 @@ libgit2's threading document explicitly forbids: the library is thread-safe only
 repository objects. The symptom would be a native-level fault or garbage data rather than a managed
 exception, which is consistent with it never having been diagnosed. This is separate from the
 timeout question but lives in the same call tree and should be fixed alongside it.
+
+*(Resolved by the refresh-scheduling change for issue 453: both nested loops are now sequential `foreach` loops.)*
 
 ### 5. `Save` silently loses the report when an orphan is mutating (confidence: high, CLI only)
 

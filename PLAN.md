@@ -20,8 +20,8 @@ file was retired. Not yet scheduled; promote to Next Up / a Gitea issue when pic
       `LoadConfigurationAsync`; report persistence (`GitWizardReport.Persistence`:
       `ReadJsonObjectFromFile` / `WriteAtomic`) is still synchronous.*
 - [ ] **Make filters additive rather than mutually exclusive.**
-- [ ] **Review refresh concurrency/timeout** - four of the six phases in
-      `docs/refresh-concurrency-review.md` are done, phase 3 is partial, and phase 5 remains open:
+- [ ] **Review refresh concurrency/timeout** - five of the six phases in
+      `docs/refresh-concurrency-review.md` are done and phase 3 is partial:
       per-repository refresh gate (`_refreshGate`, phase 1,
       [#159](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/pulls/159));
       cooperative cancellation between phases via a `CancellationTokenSource(RefreshTimeout)` that
@@ -35,10 +35,6 @@ file was retired. Not yet scheduled; promote to Next Up / a Gitea issue when pic
       pruning fix shipped in [#156](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/pulls/156),
       but single-owner elapsed-time bookkeeping (moving the `RefreshTimeSeconds` write inside
       `GitWizardRepository.Refresh` under `_refreshGate` rather than writing it after gate release
-      in `GitWizardReport.cs` / `MainViewModel.Commands.cs`) remains unfinished.
-      Phase 5 is also still open: `RefreshSubmodules` (`GitWizard/GitWizardRepository.Submodules.cs`)
-      and `RefreshWorktrees` (`GitWizard/GitWizardRepository.BranchesAndWorktrees.cs`) still read the
-      parent `Repository` handle (`submodule.WorkDirCommitId`,
-      `worktree.WorktreeRepository.Info.WorkingDirectory`) from inside their own
-      `Parallel.ForEach` worker bodies instead of hoisting those reads to a sequential pass first,
-      so hazard 4 (concurrent access to one LibGit2Sharp handle) is still live.
+      in `GitWizardReport.RepositoryRefresh.cs` and `RepositoryCommandsViewModel.cs`) remains unfinished.
+      Phase 5 shipped with the refresh-scheduling change for issue 453: `RefreshSubmodules` and
+      `RefreshWorktrees` now iterate sequentially, so the parent handle is touched by one thread.

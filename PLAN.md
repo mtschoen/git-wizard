@@ -20,8 +20,8 @@ file was retired. Not yet scheduled; promote to Next Up / a Gitea issue when pic
       `LoadConfigurationAsync`; report persistence (`GitWizardReport.Persistence`:
       `ReadJsonObjectFromFile` / `WriteAtomic`) is still synchronous.*
 - [ ] **Make filters additive rather than mutually exclusive.**
-- [ ] **Review refresh concurrency/timeout** - five of the six phases in
-      `docs/refresh-concurrency-review.md` are done and phase 3 is partial:
+- [x] **Review refresh concurrency/timeout** - all six phases in
+      `docs/refresh-concurrency-review.md` are done:
       per-repository refresh gate (`_refreshGate`, phase 1,
       [#159](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/pulls/159));
       cooperative cancellation between phases via a `CancellationTokenSource(RefreshTimeout)` that
@@ -31,10 +31,10 @@ file was retired. Not yet scheduled; promote to Next Up / a Gitea issue when pic
       [#157](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/pulls/157)); and the small
       `Interlocked`/`int?` fixes (phase 6,
       [#158](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/pulls/158)).
-      Phase 3 is partial: `RefreshError` cleared at the top of a refresh and the recovered-path
-      pruning fix shipped in [#156](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/pulls/156),
-      but single-owner elapsed-time bookkeeping (moving the `RefreshTimeSeconds` write inside
-      `GitWizardRepository.Refresh` under `_refreshGate` rather than writing it after gate release
-      in `GitWizardReport.RepositoryRefresh.cs` and `RepositoryCommandsViewModel.cs`) remains unfinished.
+      Phase 3 (single-owner bookkeeping): `RefreshError` is cleared at the top of a refresh and the
+      recovered-path pruning fix shipped in [#156](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/pulls/156);
+      `GitWizardRepository.Refresh` is the only writer of `RefreshTimeSeconds`, timing itself under
+      `_refreshGate` with its `RefreshClock`, and `GitWizardReport.RepositoryRefresh.cs` and
+      `RepositoryCommandsViewModel.cs` read the value back.
       Phase 5 shipped with the refresh-scheduling change for issue 453: `RefreshSubmodules` and
       `RefreshWorktrees` now iterate sequentially, so the parent handle is touched by one thread.

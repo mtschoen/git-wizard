@@ -66,7 +66,7 @@ should not change.
 | `GitWizardRepository.Submodules`, `.Worktrees` | nested `Parallel.ForEach` bodies | nested workers | `lock (Submodules)` / `lock (Worktrees)` for the dictionary only |
 | `GitWizardRepository.IsRefreshing` | `Refresh` (`:132`, `:151`, `:158`) and `MarkRefreshFailed` (`BranchesAndWorktrees.cs:78`) | two different threads on timeout | none |
 | `GitWizardRepository.RefreshError` | `MarkRefreshFailed` and the `Refresh` catch block | two different threads on timeout | none. Never cleared on success |
-| `GitWizardRepository.RefreshTimeSeconds` | `RefreshSingleRepository` (`GitWizardReport.cs:324`) | `Parallel.ForEach` worker | none |
+| `GitWizardRepository.RefreshTimeSeconds` | `RefreshWithOutcome`, under `_refreshGate` | the refreshing thread | `_refreshGate` |
 | LibGit2Sharp `Repository` handle | `using var` inside one `Refresh` | one owning thread, plus nested workers via submodule and worktree objects | none |
 | `MainViewModel._uiCommands` | all `IUpdateHandler` methods | any worker | `ConcurrentQueue` |
 | `MainViewModel._repositoryMap` | `AddRepository`, `RemoveRepositoryPathFromUi` | UI thread | `ConcurrentDictionary` |
@@ -143,6 +143,8 @@ the run reports success while `report.json` is left at its previous contents. `S
 `GitWizardReport.Persistence.cs:17`, so it is out of scope here.
 
 ### 6. `RefreshError` is never cleared on success (confidence: certain, not a race)
+
+*(Resolved by phase 3: `RefreshError` is cleared at the top of a refresh.)*
 
 Every write is `MarkRefreshFailed` (`BranchesAndWorktrees.cs:77`) or the catch block
 (`GitWizardRepository.cs:156`); nothing sets it back to null. Because `RefreshError` has a public
@@ -293,6 +295,8 @@ reports a timeout. Fails before (all eleven phases run), passes after. The asser
 observed call pattern, not on elapsed time.
 
 ### Phase 3: single-owner timeout bookkeeping
+
+*(Done: `GitWizardRepository.RefreshWithOutcome` times the refresh with its `RefreshClock` and is the only writer of `RefreshTimeSeconds`; callers read it back. Tests A and B exist as `Refresh_AfterFailureThenSuccess_ClearsRefreshError` and `Refresh_RecoveredPath_IsNotPrunedAsNonRepository`; the timing is covered by `Refresh_Success_RecordsElapsedTimeFromRefreshClock`.)*
 
 Move the `RefreshTimeSeconds` write inside `GitWizardRepository.Refresh` so the owning thread is the
 only writer, and clear `RefreshError = null` at the top of a successful refresh so hazard 6 goes

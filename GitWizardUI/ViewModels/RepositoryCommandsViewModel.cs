@@ -178,13 +178,7 @@ public sealed class RepositoryCommandsViewModel
         }
 
         node.Status = RefreshStatus.Refreshing;
-        Task.Run(() =>
-        {
-            var stopwatch = Stopwatch.StartNew();
-            node.Repository.Refresh(_updateHandler, fetchRemotes: true, deepRefresh: true);
-            stopwatch.Stop();
-            node.Repository.RefreshTimeSeconds = Math.Round(stopwatch.Elapsed.TotalSeconds, 1);
-        });
+        Task.Run(() => node.Repository.Refresh(_updateHandler, fetchRemotes: true, deepRefresh: true));
     }
 
     public void CheckoutMatchingBranch(RepositoryNodeViewModel? node)

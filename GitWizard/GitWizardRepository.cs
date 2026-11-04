@@ -139,6 +139,12 @@ public partial class GitWizardRepository
     /// lock gives the same per-object mutual exclusion without that liability.
     /// </summary>
     readonly Lock _refreshGate = new();
+
+    /// <summary>
+    /// Clock behind <see cref="RefreshTimeSeconds"/>. Internal so tests inject a deterministic
+    /// clock instead of asserting on real elapsed time; never serialized.
+    /// </summary>
+    internal TimeProvider RefreshClock { get; set; } = TimeProvider.System;
     RepositoryRefreshOutcome _refreshOutcome;
 
     internal GitWizardRepository() { }
@@ -165,7 +171,18 @@ public partial class GitWizardRepository
         using var diagnosticScope = UnresolvedUpstreamDiagnosticScope.Open();
         lock (_refreshGate)
         {
-            RefreshLocked(updateHandler, fetchRemotes, deepRefresh, allBranches, computeLocalCommitCount, sizeContext);
+            // The owning thread is the only writer of RefreshTimeSeconds: callers read it back
+            // instead of timing the call themselves (docs/refresh-concurrency-review.md phase 3).
+            var startTimestamp = RefreshClock.GetTimestamp();
+            try
+            {
+                RefreshLocked(updateHandler, fetchRemotes, deepRefresh, allBranches, computeLocalCommitCount, sizeContext);
+            }
+            finally
+            {
+                RefreshTimeSeconds = Math.Round(RefreshClock.GetElapsedTime(startTimestamp).TotalSeconds, 1);
+            }
+
             return _refreshOutcome;
         }
     }

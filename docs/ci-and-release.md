@@ -85,7 +85,7 @@ test recipes. Release, preview and screenshot builds also use
 - **Runners:** `ci.yml` uses `ubuntu-latest` for cross-platform build and NUnit with coverage, and `windows-latest` for full-solution build and NUnit. Both runners run the suite; only Linux collects coverage.
 - **Coverage gate:** `ci/post-coverage-status.py` posts informational `pr-crew/coverage`, writes the summary table and enforces the 55% line threshold via `ci/gates.sh coverage`. Whole-assembly GitWizardUI coverage includes Avalonia glue. The Cobertura XML is uploaded as `coverage-cobertura`.
 - **Release identity:** the release workflow reads `CI_GITEA_TOKEN` for repository releases/assets. Provision a write collaborator and a repository-scoped token. Rotate by replacing the repository Actions secret, not by editing code.
-- **GitHub release mirror:** after a tag push creates the Gitea release and uploads all assets, `release.yml` creates the matching GitHub release and uploads the same zip files. The mirror is deliberately skipped by PR publish-smoke runs. A mirror failure fails the release job loudly; the Gitea release may already exist, so repair or remove the partial releases before rerunning the tag workflow.
+- **GitHub release mirror:** after a tag push creates the Gitea release and uploads all assets, `release.yml` creates the matching GitHub release and uploads the same zip files. The mirror is deliberately skipped by PR publish-smoke runs. PR smoke runs create a draft Gitea release (which produces no Git tag), upload the staged zip assets, and run an `always()` cleanup step that deletes the draft release (accepting HTTP 204 or already-absent 404), verifies HTTP 404 absence for the release ID, `/releases/tags/{tag}` and `/tags/{tag}`, and fails on remaining resources or unexpected HTTP/transport errors. A mirror failure fails the release job loudly; the Gitea release may already exist, so repair or remove the partial releases before rerunning the tag workflow.
 - **GitHub mirror secret:** store a GitHub PAT with `repo` scope for the configured mirror repository as `GITHUB_RELEASE_TOKEN`. The workflow validates that credential before creating the Gitea release, so a missing or revoked token fails without leaving a Gitea-only release. Before first release, use a throwaway branch/version/tag to verify both prerelease pages and assets, then remove the test releases/tag.
 - **Branch protection:** require `CI / Build + Test (Linux, cross-platform projects) (pull_request)`, `CI / Build + Test (Windows, full solution) (pull_request)` and `aislop / quality-gate (pull_request)`, one approval, and restricted force-pushes. Configure only after the checks first run successfully. Protection is an operator setting, not a workflow declaration.
 - **Deliberate non-goals:** no binary signing, no MAUI, and no macOS CI runner.
@@ -173,6 +173,7 @@ stamp publication and skip reporting; `ci/test_preflight.py` tests those paths.
 clean/status failures. Analyzer settings are in `Directory.Build.props` and
 `.editorconfig`; `.aislop/config.yml`, `.aislop/fork-commit` and
 `ci/aislop-gate.sh` define the scanner gate. Release secrets, mirror order,
-tag validation and artifact names are in `.gitea/workflows/release.yml`;
+tag validation, PR smoke cleanup and artifact names are in `.gitea/workflows/release.yml`
+(`ci/test_release_cleanup.py` tests the PR smoke cleanup contract);
 preview auth and launch behavior are in `.gitea/workflows/preview.yml`,
 `.preview/up`, `.preview/down` and `scripts/run-preview.*`.

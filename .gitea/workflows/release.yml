@@ -3,8 +3,9 @@ name: Release
 on:
   push:
     tags: ['v*']
-  # PR publish-smoke: publishes all RIDs and creates+deletes a draft smoke release,
-  # scoped to files that affect publishing.
+  # PR publish-smoke: publishes all RIDs, creates+deletes a draft smoke release
+  # (which produces no Git tag), and verifies release/tag absence; scoped to files
+  # that affect publishing.
   pull_request:
     paths:
       - '.gitea/workflows/release.yml'
@@ -367,6 +368,8 @@ jobs:
               "https://uploads.github.com/repos/$GITHUB_MIRROR_REPOSITORY/releases/${GITHUB_RELEASE_ID}/assets?name=$(basename "$asset")"
           done
 
+      # Draft PR smoke releases do not create a Git tag; delete any created draft
+      # release and verify that both the release and tag resources are absent.
       - name: Smoke cleanup (PR only)
         if: ${{ always() && github.event_name == 'pull_request' }}
         env:
@@ -374,15 +377,70 @@ jobs:
           RELEASE_ID: ${{ steps.create.outputs.release_id }}
           TAG: ${{ steps.ver.outputs.tag }}
         run: |
-          if [ -n "$RELEASE_ID" ] && [ "$RELEASE_ID" != "null" ]; then
+          API_BASE="https://gitea.fleet.sticktoitive.net/api/v1/repos/${GITHUB_REPOSITORY}"
+          has_release_id=false
+          has_tag=false
+          if [ -n "${RELEASE_ID:-}" ] && [ "$RELEASE_ID" != "null" ]; then
+            has_release_id=true
+          fi
+          if [ -n "${TAG:-}" ] && [ "$TAG" != "null" ]; then
+            has_tag=true
+          fi
+          if [ "$has_release_id" = false ] && [ "$has_tag" = false ]; then
+            echo "Smoke cleanup skipped: no release ID or tag resolved."
+            exit 0
+          fi
+
+          request_status() {
+            local method="$1"
+            local resource_path="$2"
+            local description="$3"
+            local status
+            if ! status=$(curl -sSL -o /dev/null -w '%{http_code}' -X "$method" \
+              -H "Authorization: token $CI_GITEA_TOKEN" \
+              "${API_BASE}${resource_path}"); then
+              echo "::error::Smoke cleanup transport failure during ${method} ${resource_path} (${description})." >&2
+              return 1
+            fi
+            printf '%s' "$status"
+          }
+
+          verify_absent() {
+            local resource_path="$1"
+            local description="$2"
+            local status
+            status=$(request_status GET "$resource_path" "$description") || exit 1
+            case "$status" in
+              404) ;;
+              200)
+                echo "::error::Smoke cleanup verification failed: ${description} (${resource_path}) still exists (HTTP 200)." >&2
+                exit 1
+                ;;
+              *)
+                echo "::error::Smoke cleanup verification failed for ${description} (${resource_path}): unexpected HTTP ${status}." >&2
+                exit 1
+                ;;
+            esac
+          }
+
+          if [ "$has_release_id" = true ]; then
             echo "Deleting smoke release $RELEASE_ID"
-            curl -fsSL -X DELETE \
-              -H "Authorization: token $CI_GITEA_TOKEN" \
-              "https://gitea.fleet.sticktoitive.net/api/v1/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" || true
+            delete_path="/releases/${RELEASE_ID}"
+            delete_status=$(request_status DELETE "$delete_path" "smoke release ${RELEASE_ID}") || exit 1
+            case "$delete_status" in
+              204) echo "Deleted smoke release $RELEASE_ID (HTTP 204)." ;;
+              404) echo "Smoke release $RELEASE_ID already absent (HTTP 404)." ;;
+              *)
+                echo "::error::Smoke cleanup failed to delete smoke release ${RELEASE_ID} (${delete_path}): HTTP ${delete_status}." >&2
+                exit 1
+                ;;
+            esac
+            verify_absent "$delete_path" "smoke release ${RELEASE_ID}"
           fi
-          if [ -n "$TAG" ]; then
-            echo "Deleting smoke tag $TAG"
-            curl -fsSL -X DELETE \
-              -H "Authorization: token $CI_GITEA_TOKEN" \
-              "https://gitea.fleet.sticktoitive.net/api/v1/repos/${GITHUB_REPOSITORY}/git/refs/tags/${TAG}" || true
+
+          if [ "$has_tag" = true ]; then
+            verify_absent "/releases/tags/${TAG}" "smoke release for tag ${TAG}"
+            verify_absent "/tags/${TAG}" "smoke tag ${TAG}"
           fi
+
+          echo "Verified smoke release/tag absence (release_id=${RELEASE_ID:-none}, tag=${TAG:-none})."

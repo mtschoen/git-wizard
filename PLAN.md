@@ -2,7 +2,6 @@
 
 ## Infrastructure
 
-- [ ] **Trust the act_runner artifact backend on the Linux runner** - `ci.yml`'s coverage-artifact upload (`ChristopherHX/gitea-upload-artifact`) is `continue-on-error` because the Linux runner's Node does not trust the mkcert CA serving the act_runner artifact endpoint (`ACTIONS_RESULTS_URL` in the runner config on llamabox, which may differ from `GITHUB_SERVER_URL`; `NODE_EXTRA_CA_CERTS` is not resolving). Install that CA into the runner's Node/system trust store, drop `continue-on-error`, and validate with a live CI run. Needs runner-side access to llamabox; not doable from a dev box. The coverage *gate* reads the cobertura file directly, so only the supplementary artifact is affected.
 - [ ] **Retire the MFTLib submodule for a NuGet `PackageReference`** - repo-root `Directory.Build.targets` is a TEMPORARY source-build bridge that unblocks the build while MFTLib 0.3.0 is unpublished. Tracked as [#134](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/134); when 0.3.0 ships to NuGet, follow the retire steps in the `Directory.Build.targets` header and confirm CI stays green.
 
 ## Backlog

@@ -89,7 +89,6 @@ test recipes. Release, preview and screenshot builds also use
 - **GitHub mirror secret:** store a GitHub PAT with `repo` scope for the configured mirror repository as `GITHUB_RELEASE_TOKEN`. The workflow validates that credential before creating the Gitea release, so a missing or revoked token fails without leaving a Gitea-only release. Before first release, use a throwaway branch/version/tag to verify both prerelease pages and assets, then remove the test releases/tag.
 - **Branch protection:** require `CI / Build + Test (Linux, cross-platform projects) (pull_request)`, `CI / Build + Test (Windows, full solution) (pull_request)` and `aislop / quality-gate (pull_request)`, one approval, and restricted force-pushes. Configure only after the checks first run successfully. Protection is an operator setting, not a workflow declaration.
 - **Deliberate non-goals:** no binary signing, no MAUI, and no macOS CI runner.
-- **Artifact-upload cert gap:** TLS verification stays enabled. `ci.yml` tolerates coverage-artifact upload failure (`continue-on-error: true`); the coverage gate reads Cobertura directly. Upload success is not implied by a passing gate. The runner CA investigation remains in `PLAN.md` under Infrastructure.
 
 ### Generated test summary
 

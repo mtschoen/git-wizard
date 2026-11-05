@@ -98,12 +98,7 @@ jobs:
       - name: Upload coverage report
         if: always() && steps.changed-files.outputs.pin_only != 'true'
         # Supplementary artifact only - the coverage GATE runs in "Post coverage status" /
-        # "Coverage gate" above (which read the cobertura file directly). The upload to gitea's
-        # artifact backend currently fails TLS verification on the runner (the mkcert CA isn't
-        # trusted by the runner's Node - NODE_EXTRA_CA_CERTS path is broken; tracked in PLAN.md).
-        # Don't red CI over a cert-blocked nice-to-have upload; keep TLS verification on rather
-        # than spreading NODE_TLS_REJECT_UNAUTHORIZED=0.
-        continue-on-error: true
+        # "Coverage gate" above (which read the cobertura file directly).
         uses: ChristopherHX/gitea-upload-artifact@81f940d004763f986ba3582c007fd842dd5cb0d7
         with:
           name: coverage-cobertura

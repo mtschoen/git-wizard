@@ -56,10 +56,17 @@ sealed class DeniedDirectory : IDisposable
         var privilege = ProcessPrivilege.Set(BackupPrivilege, enabled: false);
         var denied = new DeniedDirectory(() =>
         {
-            var restored = directory.GetAccessControl();
-            restored.RemoveAccessRule(rule);
-            directory.SetAccessControl(restored);
-            privilege?.Dispose();
+            // The privilege is process-wide, so a directory that vanished before cleanup still restores it.
+            try
+            {
+                var restored = directory.GetAccessControl();
+                restored.RemoveAccessRule(rule);
+                directory.SetAccessControl(restored);
+            }
+            finally
+            {
+                privilege?.Dispose();
+            }
         });
 
         try

@@ -57,4 +57,31 @@ public class DeniedDirectoryTests
             Assert.That(Directory.GetFileSystemEntries(denied), Has.Length.EqualTo(1));
         }
     }
+
+    // A directory deleted while the deny is in place makes ACL restoration throw. The disabled privilege is
+    // process-wide, so a failed cleanup must not leave it disabled for every later test in the host.
+    [Test]
+    public void Deny_RestoresThePrivilege_WhenAclRestorationThrows()
+    {
+        using var temporary = new TempDirectory("GitWizardTests_Denied_");
+        var denied = Path.Combine(temporary.Path, "denied");
+        Directory.CreateDirectory(denied);
+
+        using var backup = ProcessPrivilege.Set(DeniedDirectory.BackupPrivilege, enabled: true);
+        if (backup is null)
+        {
+            Assert.Inconclusive($"Requires an elevated token that holds {DeniedDirectory.BackupPrivilege}.");
+            return;
+        }
+
+        Assert.That(() =>
+        {
+            using (DeniedDirectory.Deny(denied))
+            {
+                Directory.Delete(denied);
+            }
+        }, Throws.TypeOf<DirectoryNotFoundException>());
+
+        Assert.That(ProcessPrivilege.IsEnabled(DeniedDirectory.BackupPrivilege), Is.True);
+    }
 }

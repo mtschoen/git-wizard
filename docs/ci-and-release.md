@@ -115,9 +115,9 @@ come from the per-result NotExecuted outcomes, because the producer leaves the C
 notExecuted attribute at zero. Full TRX and coverage output remain CI artifacts. Identical
 inputs produce identical bytes.
 
-Publication reuses `CI_GITEA_TOKEN` (whose `ci-bot` identity holds repository write access,
-with no push whitelist restricting `main`) and commits as `claude-code` with
-`chore: regenerate TEST-REPORT.md from <run id>`. An identical file is not committed.
+Publication uses `CI_REPORT_TOKEN` (the `test-report-bot` account, a write collaborator
+scoped to `write:repository`, the only bot allowed to push to `main`) and commits as
+`test-report-bot` with `chore: regenerate TEST-REPORT.md from <run id>`. An identical file is not committed.
 A run whose source is no longer main's tip does not publish; a concurrent main update
 makes the ordinary non-force push fail safely. The first report is created by CI after
 this workflow reaches main.

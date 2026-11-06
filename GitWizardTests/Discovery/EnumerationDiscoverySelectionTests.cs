@@ -6,7 +6,8 @@ namespace GitWizardTests.Discovery;
 [TestFixture]
 public class EnumerationDiscoverySelectionTests
 {
-    // The pinned index builds a path from at most 128 parent hops, so this is deeper than any path it can name.
+    // Deeper than the 128 parent hops the index once capped, but the cap is now the deepest chain NTFS can name,
+    // so no real tree exceeds it and this depth resolves; only a synthetic index can still be deeper.
     const int DeepLevelCount = 140;
 
     string _tempDir = null!;
@@ -77,7 +78,7 @@ public class EnumerationDiscoverySelectionTests
     [TestCase("ordinary")]
     [TestCase("gitfile")]
     [TestCase("bare")]
-    public void Discover_ReportsRootIncomplete_ForDeepRepository(string layout)
+    public void Discover_FindsRepository_DeeperThanTheFormerParentChainCap(string layout)
     {
         var repository = CreateDeepDirectory(layout);
         switch (layout)
@@ -93,7 +94,7 @@ public class EnumerationDiscoverySelectionTests
                 break;
         }
 
-        AssertReportedIncomplete();
+        AssertDiscoveredCompletely(repository);
     }
 
     [Test]
@@ -185,17 +186,17 @@ public class EnumerationDiscoverySelectionTests
         return diagnostics.IndexScanCount;
     }
 
-    void AssertReportedIncomplete()
+    void AssertDiscoveredCompletely(string repository)
     {
         var diagnostics = new CandidateSelectionDiagnostics();
         var result = Discover(diagnostics);
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(diagnostics.UnresolvedPathCount, Is.GreaterThan(0));
-            Assert.That(result.Paths, Is.Empty);
-            Assert.That(result.FailedSubtrees, Has.Count.EqualTo(1));
-            Assert.That(result.Errors, Has.Count.EqualTo(1));
+            Assert.That(diagnostics.UnresolvedPathCount, Is.Zero);
+            Assert.That(result.Paths, Is.EqualTo([GitWizardApi.ResolveOnDiskPath(repository)]));
+            Assert.That(result.FailedSubtrees, Is.Empty);
+            Assert.That(result.Errors, Is.Empty);
         }
     }
 

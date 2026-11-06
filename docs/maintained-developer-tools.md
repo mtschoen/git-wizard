@@ -38,7 +38,10 @@ suite. Linux checks inventory, Bash/Python syntax, and Python behavior.
 PowerShell checks run on Linux when pwsh is available; otherwise they are
 explicitly skipped there. Windows CI requires PowerShell 7 and checks every
 PowerShell tool before running each helper self-test in a separate process.
-Missing required interpreters fail their host's gate.
+Missing required interpreters fail their host's gate. On Windows, run the shared
+command from Git Bash. For direct native-Python discovery from PowerShell, use
+the `usr\bin` setup in [CI and release](ci-and-release.md#local-ci-preflight);
+Git's `bin` launcher is not interchangeable for the extensionless fixtures.
 
 `-FunctionsOnly` on the CLI-smoke and UI-timing scripts loads reusable logic
 without starting attended work. These tests do not establish real UAC,

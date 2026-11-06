@@ -26,6 +26,24 @@ enforcement. Neither host proves the other host's platform-specific tests. macOS
 refused because there is no matching CI job. Missing required tools fail their gate.
 The contracts gate also validates the maintained-tools inventory, parses Bash/Python scripts, and tests hook logic on both hosts; Windows requires PowerShell parsing and isolated helper tests. Linux reports an explicit PowerShell skip when pwsh is absent.
 
+For direct native-Windows Python contract discovery, select Git Bash from Git's
+`usr\bin` directory, not its `bin` launcher. The `bin\bash.exe` launcher prepends
+`/mingw64/bin:/usr/bin` to the child `PATH`, ahead of the extensionless fixture
+doubles, so real `git` or `ssh` can be selected instead. With `git` already on
+`PATH`, this PowerShell setup changes only the current process:
+
+```powershell
+$gitExec = (git --exec-path).Trim()
+$gitRoot = (Resolve-Path -LiteralPath (Join-Path $gitExec '../../..')).Path
+$env:PATH = (Join-Path $gitRoot 'usr\bin') + [IO.Path]::PathSeparator + $env:PATH
+python -m unittest discover -s ci -v
+```
+
+The shared Bash entry is distinct: from Git Bash, run `bash ci/gates.sh contracts`
+or `bash tools/ci-preflight.sh --only contracts` to start Bash before native
+Python, using the same gate recipe as CI. Do not assume that direct native-Python
+discovery has the same executable lookup without the `usr\bin` setup above.
+
 CI and local execution share `ci/gates.sh`, `ci/windows-gates.ps1` and
 `ci/aislop-gate.sh`, including the pinned fork and C# file-count check. Prepare
 the scanner once with `bash ci/aislop-gate.sh prepare` (network required);

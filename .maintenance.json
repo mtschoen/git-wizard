@@ -107,6 +107,77 @@
               "kind": "empty_dir_husk"
             }
           ]
+        },
+        {
+          "automated": [
+            {
+              "action": "completed read-only maintenance and hygiene audit",
+              "detail": "unverified audit-session observation, no published receipt: project-tracker checklist, stale-memory scan, clean dry run, branch/worktree, temp/large-file, configuration and documentation checks; no stale memory, temp files, empty husks or oversized tracked binaries found",
+              "kind": "hygiene_survey"
+            },
+            {
+              "action": "restored generated agent files and checked init idempotence",
+              "detail": "unverified audit-session observation, no published receipt; the init-verify job runs on main pushes only, so head CI does not cover it: ./init.sh run twice; .claude/AISLOP.md and .claude/CLAUDE.md regenerated; second run up to date; no tracked settings diff",
+              "kind": "clean_init_aislop_docs_missing"
+            },
+            {
+              "action": "preserved the existing provisioner failure without retry or configuration edits",
+              "detail": "unverified audit-session observation, no published receipt: schoen-lab-onboard apply auto-memory reported no workspace root on both init runs",
+              "kind": "optional_provisioning"
+            },
+            {
+              "action": "recorded this maintenance run",
+              "detail": "manual .maintenance.json append after project-tracker rejected the unregistered isolated worktree location",
+              "kind": "maintenance_breadcrumb"
+            }
+          ],
+          "head": "df7b4fb4deb1c398b7f79b2c3023b88863af8ac7",
+          "rejected": [
+            {
+              "action": "no edit",
+              "detail": ".aislop/config.yml:16",
+              "kind": "todo_comment",
+              "reason": "TODO is an example in explanatory prose, not an actionable marker"
+            },
+            {
+              "action": "no registry or filesystem mutation",
+              "detail": "unverified machine-local state, outside this PR's tracked diff: missing README/LICENSE/.gitignore findings for stale Windows and toolchain-sweep locations",
+              "kind": "phantom_location",
+              "reason": "findings do not describe the audited checkout, which has README.md, LICENSE.txt and .gitignore; registry cleanup is outside the PR boundary"
+            },
+            {
+              "action": "kept local branch; no remote action",
+              "detail": "unverified machine-local state, outside this PR's tracked diff: agent/20025-default-cli-report-prints-json-a has five non-ancestor commits and a 25-file diff; its remote branch is absent",
+              "kind": "unmerged_branch",
+              "reason": "substantial unmerged work requires owner review; deletion cannot be represented in this PR"
+            },
+            {
+              "action": "kept local branch; no remote action",
+              "detail": "unverified machine-local state, outside this PR's tracked diff: agent/20027-hand-run-developer-scripts-are-n has four non-ancestor commits and a 14-file diff; its remote branch is absent",
+              "kind": "unmerged_branch",
+              "reason": "substantial unmerged work requires owner review; deletion cannot be represented in this PR"
+            },
+            {
+              "action": "kept task-runner files",
+              "detail": "unverified machine-local state, outside this PR's tracked diff: .llm-harness/ and .markdownlintignore",
+              "kind": "clean_init_load_bearing_untracked",
+              "reason": "task input and its generated ignore file are runner infrastructure, not project content to delete or track"
+            },
+            {
+              "action": "left the shared main checkout unchanged",
+              "detail": "unverified machine-local state, outside this PR's tracked diff: local main d4bb5d4 is behind origin/main df7b4fb; the task branch remains at the required base",
+              "kind": "branch_maintenance",
+              "reason": "this is a fixed-base isolated job; updating a shared checkout is outside the PR boundary"
+            }
+          ],
+          "timestamp": "2026-11-06T00:46:48Z",
+          "user_authorized": [
+            {
+              "action": "corrected the preview documentation target and source-of-truth filename",
+              "detail": "README.md now links to docs/ci-and-release.md#preview-builds; .aislop/config.yml now cites AGENTS.md",
+              "kind": "docs_content_drift"
+            }
+          ]
         }
       ]
     }

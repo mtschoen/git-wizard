@@ -8,7 +8,7 @@
 #
 # quality.maxFileLoc is held at aislop's default 400 (NOT the example's 500):
 # we conform to the widely-accepted default rather than git-wizard's looser
-# CLAUDE.md soft guideline. Oversized files are treated as real findings and
+# AGENTS.md soft guideline. Oversized files are treated as real findings and
 # split into partial-class files along real domain boundaries.
 #
 # The whole repo currently scores 100 (0 findings across every engine), so

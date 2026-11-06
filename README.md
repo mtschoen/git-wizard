@@ -298,7 +298,7 @@ See the [tag and branch inventory schemas](docs/report-schema.md#tag-inventory-o
 
 ### Preview a PR build
 
-`/preview` on a git-wizard PR builds and publishes the desktop app for Windows or Linux; `scripts/run-preview.ps1` / `scripts/run-preview.sh` download and launch a published preview. Set `GITEA_BASE_URL` to the Gitea origin before running either launcher. See **CI infrastructure -> Preview builds** in [AGENTS.md](AGENTS.md).
+`/preview` on a git-wizard PR builds and publishes the desktop app for Windows or Linux; `scripts/run-preview.ps1` / `scripts/run-preview.sh` download and launch a published preview. Set `GITEA_BASE_URL` to the Gitea origin before running either launcher. See [CI infrastructure -> Preview builds](docs/ci-and-release.md#preview-builds).
 
 ## Projects
 

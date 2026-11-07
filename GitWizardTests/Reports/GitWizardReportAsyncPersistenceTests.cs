@@ -40,11 +40,12 @@ public class GitWizardReportAsyncPersistenceTests
         await report.SaveAtomicAsync(path);
 
         var root = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+        string[] expectedFiles = [path];
         using (Assert.EnterMultipleScope())
         {
             Assert.That((string?)root["SchemaVersion"], Is.EqualTo(GitWizardReport.CurrentSchemaVersion));
             Assert.That(root["Repositories"]!.AsObject().ContainsKey("/new/repo"), Is.True);
-            Assert.That(Directory.GetFiles(Path.GetDirectoryName(path)!), Is.EqualTo(new[] { path }));
+            Assert.That(Directory.GetFiles(Path.GetDirectoryName(path)!), Is.EqualTo(expectedFiles));
         }
     }
 

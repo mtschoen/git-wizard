@@ -58,43 +58,6 @@ public partial class GitWizardReport
     }
 
     /// <summary>
-    /// Asynchronous counterpart of <see cref="MergeIntoFile"/>: identical merge contract and atomic
-    /// write, but the existing report is read and the merged report written with true asynchronous
-    /// file I/O so a caller on a UI or request thread is never blocked on the disk. The repository
-    /// refresh itself has no asynchronous API (it is process and CPU bound), so it runs on the
-    /// thread pool. Cancellation is honoured before any file is touched and during I/O; a cancelled
-    /// call leaves the existing file untouched and removes its temporary file.
-    /// </summary>
-    /// <param name="savePath">Path to the report JSON to read and write.</param>
-    /// <param name="configuration">Configuration used to refresh the supplied repos.</param>
-    /// <param name="repositoryPaths">The repository paths to refresh and upsert.</param>
-    /// <param name="updateHandler">Optional handler for progress updates.</param>
-    /// <param name="allBranches">When true, include all branches in each refreshed repo.</param>
-    /// <param name="computeLocalCommitCount">When false, skip the expensive per-branch local-commit-count iteration.</param>
-    /// <param name="cancellationToken">Cancels the read, refresh wait and write.</param>
-    /// <returns>The merged report (also written to <paramref name="savePath"/>).</returns>
-    public static async Task<GitWizardReport> MergeIntoFileAsync(string savePath, GitWizardConfiguration configuration,
-        ICollection<string> repositoryPaths, IUpdateHandler? updateHandler = null, bool allBranches = false,
-        bool computeLocalCommitCount = true, CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        // The report is IAsyncDisposable, so here it is disposed properly (see the CA2000 note in MergeIntoFile).
-        await using var refreshed = new GitWizardReport(configuration);
-        if (repositoryPaths.Count > 0)
-        {
-            await Task.Run(() => refreshed.Refresh(repositoryPaths, updateHandler, allBranches: allBranches,
-                computeLocalCommitCount: computeLocalCommitCount), cancellationToken).ConfigureAwait(false);
-        }
-
-        var root = await ReadJsonObjectFromFileAsync(savePath, cancellationToken).ConfigureAwait(false)
-                   ?? new JsonObject();
-        var jsonText = ApplyRefreshedEntries(root, refreshed, repositoryPaths);
-        await WriteAtomicAsync(savePath, jsonText, cancellationToken).ConfigureAwait(false);
-        return BuildMergeResult(jsonText, refreshed, configuration);
-    }
-
-    /// <summary>
     /// Upserts the refreshed repositories and probe entries into the existing report DOM, bounds the
     /// probe cache, stamps the schema version and returns the merged JSON text. Pure in-memory work
     /// shared by <see cref="MergeIntoFile"/> and <see cref="MergeIntoFileAsync"/>.
@@ -216,48 +179,6 @@ public partial class GitWizardReport
         }
     }
 
-    /// <summary>
-    /// Asynchronous counterpart of <see cref="ReadJsonObjectFromFile"/>: reads through an overlapped
-    /// file handle, returns null for a missing or unparseable file, and lets cancellation propagate.
-    /// </summary>
-    internal static async Task<JsonObject?> ReadJsonObjectFromFileAsync(string path,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (!File.Exists(path))
-        {
-            return null;
-        }
-
-        try
-        {
-            using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read, FileShare.Read,
-                FileOptions.Asynchronous);
-            var length = checked((int)RandomAccess.GetLength(handle));
-            var buffer = new byte[length];
-            var totalRead = 0;
-            while (totalRead < length)
-            {
-                var read = await RandomAccess.ReadAsync(handle, buffer.AsMemory(totalRead), totalRead, cancellationToken)
-                    .ConfigureAwait(false);
-                if (read == 0)
-                {
-                    break;
-                }
-
-                totalRead += read;
-            }
-
-            return JsonNode.Parse(buffer.AsSpan(0, totalRead)) as JsonObject;
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            GitWizardLog.LogException(exception,
-                $"Failed to read/parse report at {path}; starting merge from an empty report.");
-            return null;
-        }
-    }
-
     public void Save(string path)
     {
         if (DiscoveryInventory is { CanPublishFullInventory: false })
@@ -277,33 +198,6 @@ public partial class GitWizardReport
             var snapshot = CreateSnapshotForSerialization();
             using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
             JsonSerializer.Serialize(stream, snapshot, SerializerOptions);
-        }
-        catch (Exception exception)
-        {
-            GitWizardLog.LogException(exception, $"Failed to save report to path: {path}.");
-        }
-    }
-
-    public async Task SaveAsync(string path, CancellationToken cancellationToken = default)
-    {
-        if (DiscoveryInventory is { CanPublishFullInventory: false })
-        {
-            throw new InvalidOperationException("Incomplete discovery report cannot be saved.");
-        }
-
-        var directory = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        try
-        {
-            SchemaVersion = CurrentSchemaVersion;
-            var snapshot = CreateSnapshotForSerialization();
-            await using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None,
-                bufferSize: 4096, useAsync: true);
-            await JsonSerializer.SerializeAsync(stream, snapshot, SerializerOptions, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
@@ -371,25 +265,6 @@ public partial class GitWizardReport
     }
 
     /// <summary>
-    /// Asynchronous counterpart of <see cref="SaveAtomic"/>: same temp-file-then-rename contract, but
-    /// the report is serialized straight to the temp file with asynchronous I/O. Cancellation leaves
-    /// any existing file untouched and removes the temp file.
-    /// </summary>
-    public Task SaveAtomicAsync(string path, CancellationToken cancellationToken = default)
-    {
-        if (DiscoveryInventory is { CanPublishFullInventory: false })
-        {
-            throw new InvalidOperationException("Incomplete discovery report cannot be saved.");
-        }
-
-        SchemaVersion = CurrentSchemaVersion;
-        var snapshot = CreateSnapshotForSerialization();
-        return WriteAtomicAsync(path,
-            (stream, token) => JsonSerializer.SerializeAsync(stream, snapshot, SerializerOptions, token),
-            cancellationToken);
-    }
-
-    /// <summary>
     /// Write <paramref name="jsonText"/> to <paramref name="path"/> atomically: serialize to a
     /// temp file in the same directory, then rename it over the destination. The rename is atomic
     /// on a single volume, so a concurrent reader sees either the old file or the new one - never
@@ -423,52 +298,6 @@ public partial class GitWizardReport
             }
             // overwrite: true performs an atomic replace on the same volume.
             File.Move(tempPath, path, overwrite: true);
-        }
-        catch (Exception exception)
-        {
-            GitWizardLog.LogException(exception, $"Failed to atomically save report to path: {path}.");
-            TryDeleteTempFile(tempPath);
-        }
-    }
-
-    static Task WriteAtomicAsync(string path, string jsonText, CancellationToken cancellationToken)
-    {
-        return WriteAtomicAsync(path,
-            (stream, token) => stream.WriteAsync(System.Text.Encoding.UTF8.GetBytes(jsonText), token).AsTask(),
-            cancellationToken);
-    }
-
-    /// <summary>
-    /// Asynchronous atomic write: streams to a same-directory temp file with overlapped I/O, then
-    /// renames it over <paramref name="path"/>. Failures are logged and swallowed exactly like the
-    /// synchronous overload; cancellation removes the temp file and propagates.
-    /// </summary>
-    static async Task WriteAtomicAsync(string path, Func<Stream, CancellationToken, Task> writeContent,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var directory = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        var tempPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        try
-        {
-            await using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None,
-                             bufferSize: 4096, useAsync: true))
-            {
-                await writeContent(stream, cancellationToken).ConfigureAwait(false);
-            }
-
-            cancellationToken.ThrowIfCancellationRequested();
-            File.Move(tempPath, path, overwrite: true);
-        }
-        catch (OperationCanceledException)
-        {
-            TryDeleteTempFile(tempPath);
-            throw;
         }
         catch (Exception exception)
         {

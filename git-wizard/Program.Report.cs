@@ -186,10 +186,13 @@ public static partial class Program
 
         GitWizardLog.Log($"Merging {explicitPaths.Length} repo(s) into {savePath}");
         var updateHandler = new UpdateHandler(stderr);
+        var mergeOptions = new GitWizardReportOptions
+        {
+            AllBranches = runConfiguration.AllBranches,
+            ComputeLocalCommitCount = !runConfiguration.NoLocalCommitCount
+        };
         await GitWizardReport.MergeIntoFileAsync(savePath, configuration, explicitPaths, updateHandler,
-            allBranches: runConfiguration.AllBranches, computeLocalCommitCount: !runConfiguration.NoLocalCommitCount,
-            cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
+            mergeOptions, cancellationToken).ConfigureAwait(false);
     }
 
     static async Task SaveReportAsync(RunConfiguration runConfiguration, GitWizardReport report)

@@ -16,10 +16,9 @@ file was retired. Not yet scheduled; promote to Next Up / a Gitea issue when pic
       (`GitWizardApi.PrettyPrintPath` / `ExpandSearchPath`: `%VAR%` via
       `Environment.ExpandEnvironmentVariables`, `~/` and `~\` via `SpecialFolder.UserProfile`).
       Only the library exploration is open; cross out if the in-house version is good enough.*
-- [ ] **Async save/load for cached files** (configs and reports).
-      *Note (2026-08-28): partial. Configuration has `SaveGlobalConfigurationAsync` /
-      `LoadConfigurationAsync`; report persistence (`GitWizardReport.Persistence`:
-      `ReadJsonObjectFromFile` / `WriteAtomic`) is still synchronous.*
+- [x] **Async save/load for cached files** (configs and reports) - done: report persistence now has `ReadJsonObjectFromFileAsync`, `WriteAtomicAsync`, `SaveAtomicAsync` and `MergeIntoFileAsync`; the CLI merge path is async.
+      *Note (2026-11-06): configuration and report persistence are both async now; the
+      synchronous `Save`, `SaveAtomic` and `MergeIntoFile` remain for synchronous callers.*
 - [ ] **Make filters additive rather than mutually exclusive.**
 - [x] **Review refresh concurrency/timeout** - all six phases in
       `docs/refresh-concurrency-review.md` are done:

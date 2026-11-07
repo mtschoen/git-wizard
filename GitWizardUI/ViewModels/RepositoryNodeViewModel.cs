@@ -293,11 +293,28 @@ public sealed partial class RepositoryNodeViewModel : INotifyPropertyChanged
         Update();
     }
 
+    /// <summary>
+    /// True when this repository satisfies every flag set in <paramref name="filter"/>. Filters are
+    /// additive: each extra active flag narrows the match (intersection), and <see cref="FilterType.None"/>
+    /// matches everything.
+    /// </summary>
     public bool MatchesFilter(FilterType filter, string? userEmail = null)
+    {
+        foreach (var flag in Enum.GetValues<FilterType>())
+        {
+            if (flag != FilterType.None && filter.HasFlag(flag) && !MatchesSingleFilter(flag, userEmail))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    bool MatchesSingleFilter(FilterType filter, string? userEmail)
     {
         return filter switch
         {
-            FilterType.None => true,
             FilterType.PendingChanges => HasPendingChangesRecursive(),
             FilterType.SubmoduleCheckout => HasSubmoduleCheckoutIssues(),
             FilterType.SubmoduleUninitialized => HasUninitializedSubmodules(),
@@ -397,19 +414,21 @@ public enum SortMode
     StaleBranches = 5
 }
 
+/// <summary>Sidebar filters; values are bit flags so several can be active at once.</summary>
+[Flags]
 public enum FilterType
 {
     None = 0,
-    PendingChanges = 1,
-    SubmoduleCheckout = 2,
-    SubmoduleUninitialized = 3,
-    SubmoduleConfigIssue = 4,
-    DetachedHead = 5,
-    MyRepositories = 6,
-    LocalOnlyCommits = 7,
-    Stale = 8,
-    DownstreamBranches = 9,
-    BehindRemote = 10,
-    PublishReady = 11,
-    Stashes = 12
+    PendingChanges = 1 << 0,
+    SubmoduleCheckout = 1 << 1,
+    SubmoduleUninitialized = 1 << 2,
+    SubmoduleConfigIssue = 1 << 3,
+    DetachedHead = 1 << 4,
+    MyRepositories = 1 << 5,
+    LocalOnlyCommits = 1 << 6,
+    Stale = 1 << 7,
+    DownstreamBranches = 1 << 8,
+    BehindRemote = 1 << 9,
+    PublishReady = 1 << 10,
+    Stashes = 1 << 11
 }

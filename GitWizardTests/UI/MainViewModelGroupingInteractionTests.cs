@@ -95,7 +95,7 @@ public class MainViewModelGroupingInteractionTests
         Assert.That(vm.RepositoryList.ActiveFilter, Is.EqualTo(FilterType.None), "Re-clicking the active filter must clear it.");
 
         vm.RepositoryList.ToggleFilter(FilterType.PendingChanges);
-        Assert.That(vm.RepositoryList.ActiveFilter, Is.EqualTo(FilterType.PendingChanges), "Clicking a different filter must switch to it.");
+        Assert.That(vm.RepositoryList.ActiveFilter, Is.EqualTo(FilterType.PendingChanges), "Clicking a filter after clearing must activate it.");
     }
 
     [Test]

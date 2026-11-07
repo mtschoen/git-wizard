@@ -21,7 +21,8 @@ file was retired. Not yet scheduled; promote to Next Up / a Gitea issue when pic
       *Note (2026-08-28): partial. Configuration has `SaveGlobalConfigurationAsync` /
       `LoadConfigurationAsync`; report persistence (`GitWizardReport.Persistence`:
       `ReadJsonObjectFromFile` / `WriteAtomic`) is still synchronous.*
-- [ ] **Make filters additive rather than mutually exclusive.**
+- [x] **Make filters additive rather than mutually exclusive.** (`FilterType` is now a flags enum;
+      active filters intersect, so each one narrows the list.)
 - [x] **Review refresh concurrency/timeout** - all six phases in
       `docs/refresh-concurrency-review.md` are done:
       per-repository refresh gate (`_refreshGate`, phase 1,

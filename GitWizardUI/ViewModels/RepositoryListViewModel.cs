@@ -148,11 +148,12 @@ public sealed partial class RepositoryListViewModel : INotifyPropertyChanged, ID
     void UpdateHeaderWithFilterInfo() =>
         _statusHeader.ShowFilterInfo(_activeFilter, _activeGroupMode, AllRepositories.Count, Repositories);
 
-    // Sidebar semantics: clicking the active Filter/Group button clears it; Sort always keeps one
-    // mode active. The notifying Active* properties drive the sidebar's `.active` highlight class.
+    // Sidebar semantics: Filter buttons are additive toggles (each active filter narrows the list);
+    // clicking the active Group button clears it; Sort always keeps one mode active. The notifying
+    // Active* properties drive the sidebar's `.active` highlight class.
     public void ToggleFilter(FilterType filter)
     {
-        ActiveFilter = ActiveFilter == filter ? FilterType.None : filter;
+        ActiveFilter ^= filter;
         ApplyFilterAndGrouping();
     }
 

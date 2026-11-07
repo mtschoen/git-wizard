@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json.Nodes;
 using GitWizard;
 using GitWizardTests.TestSupport;
@@ -6,14 +7,16 @@ namespace GitWizardTests;
 
 /// <summary>
 /// Tests for the asynchronous report persistence paths: <c>SaveAtomicAsync</c>,
-/// <c>ReadJsonObjectFromFileAsync</c> and <c>MergeIntoFileAsync</c>. They mirror the synchronous
-/// contract (atomic temp-file-then-move write, merge keeps untouched entries) and add
+/// <c>ReadJsonObjectFromFileAsync</c>, <c>MergeIntoFileAsync</c> and the shared
+/// <c>WriteAtomicAsync</c> atomic write. They mirror the synchronous contract
+/// (atomic temp-file-then-move write, merge keeps untouched entries) and add
 /// cancellation behaviour.
 /// </summary>
 [TestFixture, NonParallelizable]
 public class GitWizardReportAsyncPersistenceTests
 {
     const string OldContent = "{\"old\": true}";
+    const string NewContent = "{\"new\": true}";
     bool _previousSilent;
 
     [SetUp]
@@ -99,6 +102,69 @@ public class GitWizardReportAsyncPersistenceTests
 
         using (Assert.EnterMultipleScope())
         {
+            Assert.That(await File.ReadAllTextAsync(path), Is.EqualTo(OldContent));
+            Assert.That(Directory.GetFiles(directory.Path), Has.Length.EqualTo(1));
+        }
+    }
+
+    [Test]
+    public async Task WriteAtomicAsync_WhenCancelledWhileWriting_ThrowsAndKeepsExistingFile()
+    {
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "report.json");
+        await File.WriteAllTextAsync(path, OldContent);
+        using var cancellation = new CancellationTokenSource();
+        string? tempPath = null;
+
+        // A controlled writer is the only deterministic boundary here: the first write proves the
+        // temp file exists, then cancellation lands before the second one can be issued.
+        async Task WritePartialContent(Stream stream, CancellationToken token)
+        {
+            await stream.WriteAsync(Encoding.UTF8.GetBytes("{\"new\": "), token);
+            tempPath = ((FileStream)stream).Name;
+            await cancellation.CancelAsync();
+            await stream.WriteAsync(Encoding.UTF8.GetBytes("true}"), token);
+        }
+
+        // A cancelled overlapped write surfaces as TaskCanceledException, so the contract asserted
+        // here is "a cancellation propagated", not one exact BCL exception type.
+        Assert.CatchAsync<OperationCanceledException>(
+            async () => await GitWizardReport.WriteAtomicAsync(path, WritePartialContent, cancellation.Token));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(tempPath, Is.Not.Null);
+            Assert.That(File.Exists(tempPath), Is.False);
+            Assert.That(await File.ReadAllTextAsync(path), Is.EqualTo(OldContent));
+            Assert.That(Directory.GetFiles(directory.Path), Has.Length.EqualTo(1));
+        }
+    }
+
+    [Test]
+    public async Task WriteAtomicAsync_WhenCancelledBeforeReplacement_ThrowsAndKeepsExistingFile()
+    {
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "report.json");
+        await File.WriteAllTextAsync(path, OldContent);
+        using var cancellation = new CancellationTokenSource();
+        string? tempPath = null;
+
+        // The content write completes and only then is the token cancelled, so this exercises the
+        // pre-rename check: without it the finished temp file would replace the destination.
+        async Task WriteFullContent(Stream stream, CancellationToken token)
+        {
+            await stream.WriteAsync(Encoding.UTF8.GetBytes(NewContent), token);
+            tempPath = ((FileStream)stream).Name;
+            await cancellation.CancelAsync();
+        }
+
+        Assert.ThrowsAsync<OperationCanceledException>(
+            async () => await GitWizardReport.WriteAtomicAsync(path, WriteFullContent, cancellation.Token));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(tempPath, Is.Not.Null);
+            Assert.That(File.Exists(tempPath), Is.False);
             Assert.That(await File.ReadAllTextAsync(path), Is.EqualTo(OldContent));
             Assert.That(Directory.GetFiles(directory.Path), Has.Length.EqualTo(1));
         }

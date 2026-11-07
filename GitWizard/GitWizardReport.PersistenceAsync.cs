@@ -158,7 +158,12 @@ public partial class GitWizardReport
     /// renames it over <paramref name="path"/>. Failures are logged and swallowed exactly like the
     /// synchronous overload; cancellation removes the temp file and propagates.
     /// </summary>
-    static async Task WriteAtomicAsync(string path, Func<Stream, CancellationToken, Task> writeContent,
+    /// <remarks>
+    /// Internal so tests can drive the two cancellation stages (mid-write and pre-rename) from a
+    /// controlled <paramref name="writeContent"/>; neither is reachable deterministically through
+    /// the public callers, whose writers are the JSON serializer and an in-memory string.
+    /// </remarks>
+    internal static async Task WriteAtomicAsync(string path, Func<Stream, CancellationToken, Task> writeContent,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

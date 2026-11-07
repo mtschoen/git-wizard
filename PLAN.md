@@ -11,11 +11,12 @@ Scheduled after MFTLib 0.3.0; items tracked on Gitea carry the `ship:mftlib-0.4.
 Still-live ideas migrated from the legacy `.plan` (2026-06-19) when that pre-Avalonia
 file was retired. Not yet scheduled; promote to Next Up / a Gitea issue when picked up.
 
-- [ ] **Explore a path-handling library** for `%USERPROFILE%` / `~` aliases.
-      *Note (2026-08-28): the aliases themselves are already handled in-house
-      (`GitWizardApi.PrettyPrintPath` / `ExpandSearchPath`: `%VAR%` via
-      `Environment.ExpandEnvironmentVariables`, `~/` and `~\` via `SpecialFolder.UserProfile`).
-      Only the library exploration is open; cross out if the in-house version is good enough.*
+- [ ] ~~**Explore a path-handling library** for `%USERPROFILE%` / `~` aliases.~~
+      *Closed (2026-11-06): in-house `GitWizardApi.ExpandSearchPath` / `PrettyPrintPath` /
+      `ExpandIgnoredPath` cover `%VAR%` and `~` aliases; no NuGet package expands `~` plus
+      environment variables cross-platform, so no library is adopted. The three expander
+      copies have drifted (`PrettyPrintPath` leaves a bare `~` alone); a shared helper is a
+      separate refactor, not a library question.*
 - [ ] **Async save/load for cached files** (configs and reports).
       *Note (2026-08-28): partial. Configuration has `SaveGlobalConfigurationAsync` /
       `LoadConfigurationAsync`; report persistence (`GitWizardReport.Persistence`:

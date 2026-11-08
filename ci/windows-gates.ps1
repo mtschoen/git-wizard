@@ -20,7 +20,7 @@ if (-not $directory) { throw 'Set CI_RESULTS_DIRECTORY or RUNNER_TEMP for inspec
 New-Item -ItemType Directory -Force -Path $directory | Out-Null
 $reportPath = Join-Path $directory 'jb-report.json'
 Remove-Item -LiteralPath $reportPath -ErrorAction SilentlyContinue
-& jb inspectcode git-wizard.slnx "-o=$reportPath" --settings=git-wizard.slnx.DotSettings --severity=WARNING --no-updates --properties:Configuration=Release
+& jb inspectcode git-wizard.slnx "-o=$reportPath" --settings=git-wizard.slnx.DotSettings --severity=WARNING --no-updates --properties:Configuration=Release --properties:NuGetLockFilePath=obj/packages.lock.json
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $report = Get-Content $reportPath -Raw | ConvertFrom-Json
 if (-not $report.runs -or $null -eq $report.runs[0].results) { throw 'Invalid InspectCode SARIF report' }

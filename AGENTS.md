@@ -133,13 +133,12 @@ keep skipped/applied success distinct from FAILED (stderr, exit 2).
 Deep inspection uses exactly:
 
 ```text
-jb inspectcode git-wizard.slnx -o=jb-report.json --settings=git-wizard.slnx.DotSettings --severity=WARNING --no-updates --properties:Configuration=Release
+jb inspectcode git-wizard.slnx -o=jb-report.json --settings=git-wizard.slnx.DotSettings --severity=WARNING --no-updates --properties:Configuration=Release --properties:NuGetLockFilePath=obj/packages.lock.json
 python ci/parse-jb-report.py jb-report.json
 ```
 
+Release inspection restores into per-project disposable locks under `obj/`; keep report artifacts outside the checkout.
 Inspect rejects any finding; match settings/severity and global ReSharper naming.
-Keep manually run tools and their contract tests, including parse-jb-report and
-verify-windows; lack of a production caller is not grounds for deletion.
 
 Use installed `aislop scan .` before completion and `aislop scan --staged` before
 commit. Preserve `failBelow: 100` and C# file-count validation. Fix findings, never

@@ -52,7 +52,18 @@ public partial class GitWizardReport
         // on the UNTOUCHED entries - defeating the "leave other entries intact" contract (#42).
         // Keeping untouched entries as their original JsonNode preserves them byte-for-byte.
         var root = ReadJsonObjectFromFile(savePath) ?? new JsonObject();
+        var jsonText = ApplyRefreshedEntries(root, refreshed, repositoryPaths);
+        WriteAtomic(savePath, jsonText);
+        return BuildMergeResult(jsonText, refreshed, configuration);
+    }
 
+    /// <summary>
+    /// Upserts the refreshed repositories and probe entries into the existing report DOM, bounds the
+    /// probe cache, stamps the schema version and returns the merged JSON text. Pure in-memory work
+    /// shared by <see cref="MergeIntoFile"/> and <see cref="MergeIntoFileAsync"/>.
+    /// </summary>
+    static string ApplyRefreshedEntries(JsonObject root, GitWizardReport refreshed, ICollection<string> repositoryPaths)
+    {
         if (root[nameof(Repositories)] is not JsonObject repositories)
         {
             repositories = new JsonObject();
@@ -88,9 +99,15 @@ public partial class GitWizardReport
 
         root[nameof(SchemaVersion)] = CurrentSchemaVersion;
 
-        var jsonText = root.ToJsonString(SerializerOptions);
-        WriteAtomic(savePath, jsonText);
+        return root.ToJsonString(SerializerOptions);
+    }
 
+    /// <summary>
+    /// Builds the report returned from a merge: deserializes the merged JSON and overlays the
+    /// freshly refreshed repositories so they carry their full in-memory state.
+    /// </summary>
+    static GitWizardReport BuildMergeResult(string jsonText, GitWizardReport refreshed, GitWizardConfiguration configuration)
+    {
         // Build the returned view: deserialize the merged DOM (gives every entry, though
         // private-set fields on the UNTOUCHED entries read back null - a pre-existing limitation
         // of reading a report into typed objects), then overlay the freshly-refreshed repos so
@@ -181,33 +198,6 @@ public partial class GitWizardReport
             var snapshot = CreateSnapshotForSerialization();
             using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
             JsonSerializer.Serialize(stream, snapshot, SerializerOptions);
-        }
-        catch (Exception exception)
-        {
-            GitWizardLog.LogException(exception, $"Failed to save report to path: {path}.");
-        }
-    }
-
-    public async Task SaveAsync(string path, CancellationToken cancellationToken = default)
-    {
-        if (DiscoveryInventory is { CanPublishFullInventory: false })
-        {
-            throw new InvalidOperationException("Incomplete discovery report cannot be saved.");
-        }
-
-        var directory = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        try
-        {
-            SchemaVersion = CurrentSchemaVersion;
-            var snapshot = CreateSnapshotForSerialization();
-            await using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None,
-                bufferSize: 4096, useAsync: true);
-            await JsonSerializer.SerializeAsync(stream, snapshot, SerializerOptions, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
@@ -312,17 +302,22 @@ public partial class GitWizardReport
         catch (Exception exception)
         {
             GitWizardLog.LogException(exception, $"Failed to atomically save report to path: {path}.");
-            try
+            TryDeleteTempFile(tempPath);
+        }
+    }
+
+    static void TryDeleteTempFile(string tempPath)
+    {
+        try
+        {
+            if (File.Exists(tempPath))
             {
-                if (File.Exists(tempPath))
-                {
-                    File.Delete(tempPath);
-                }
+                File.Delete(tempPath);
             }
-            catch (Exception cleanupException)
-            {
-                GitWizardLog.LogException(cleanupException, $"Failed to clean up temp file {tempPath}.");
-            }
+        }
+        catch (Exception cleanupException)
+        {
+            GitWizardLog.LogException(cleanupException, $"Failed to clean up temp file {tempPath}.");
         }
     }
 }

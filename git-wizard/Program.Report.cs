@@ -169,7 +169,8 @@ public static partial class Program
     /// Handle the --merge flag: validate required args, refresh the supplied repos, and merge
     /// them into the existing report at --save-path (atomic write, other entries preserved).
     /// </summary>
-    static void RunMerge(RunConfiguration runConfiguration, GitWizardConfiguration configuration, TextWriter stderr)
+    static async Task RunMergeAsync(RunConfiguration runConfiguration, GitWizardConfiguration configuration,
+        TextWriter stderr, CancellationToken cancellationToken)
     {
         var savePath = runConfiguration.SavePath;
         var explicitPaths = ParseExplicitPaths(runConfiguration);
@@ -185,8 +186,13 @@ public static partial class Program
 
         GitWizardLog.Log($"Merging {explicitPaths.Length} repo(s) into {savePath}");
         var updateHandler = new UpdateHandler(stderr);
-        GitWizardReport.MergeIntoFile(savePath, configuration, explicitPaths, updateHandler,
-            allBranches: runConfiguration.AllBranches, computeLocalCommitCount: !runConfiguration.NoLocalCommitCount);
+        var mergeOptions = new GitWizardReportOptions
+        {
+            AllBranches = runConfiguration.AllBranches,
+            ComputeLocalCommitCount = !runConfiguration.NoLocalCommitCount
+        };
+        await GitWizardReport.MergeIntoFileAsync(savePath, configuration, explicitPaths, updateHandler,
+            mergeOptions, cancellationToken).ConfigureAwait(false);
     }
 
     static async Task SaveReportAsync(RunConfiguration runConfiguration, GitWizardReport report)

@@ -120,7 +120,7 @@ public static partial class Program
                     return await RunPruneAsync(runConfiguration, configuration, coordinator, stdout, stderr, cancellationToken).ConfigureAwait(false);
                 case CommandKind.Merge:
                     configuration = await PrepareInteractiveRunAsync(runConfiguration, configuration).ConfigureAwait(false);
-                    RunMerge(runConfiguration, configuration, stderr);
+                    await RunMergeAsync(runConfiguration, configuration, stderr, cancellationToken).ConfigureAwait(false);
                     return 0;
                 case CommandKind.ScanOnly:
                     configuration = await PrepareInteractiveRunAsync(runConfiguration, configuration).ConfigureAwait(false);

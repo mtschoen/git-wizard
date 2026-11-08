@@ -17,10 +17,9 @@ file was retired. Not yet scheduled; promote to Next Up / a Gitea issue when pic
       environment variables cross-platform, so no library is adopted. The three expander
       copies have drifted (`PrettyPrintPath` leaves a bare `~` alone); a shared helper is a
       separate refactor, not a library question.*
-- [ ] **Async save/load for cached files** (configs and reports).
-      *Note (2026-08-28): partial. Configuration has `SaveGlobalConfigurationAsync` /
-      `LoadConfigurationAsync`; report persistence (`GitWizardReport.Persistence`:
-      `ReadJsonObjectFromFile` / `WriteAtomic`) is still synchronous.*
+- [x] **Async save/load for cached files** (configs and reports) - done: report persistence now has `ReadJsonObjectFromFileAsync`, `WriteAtomicAsync`, `SaveAtomicAsync` and `MergeIntoFileAsync`; the CLI merge path is async.
+      *Note (2026-11-06): configuration and report persistence are both async now; the
+      synchronous `Save`, `SaveAtomic` and `MergeIntoFile` remain for synchronous callers.*
 - [x] **Make filters additive rather than mutually exclusive.** (`FilterType` is now a flags enum;
       active filters intersect, so each one narrows the list.)
 - [x] **Review refresh concurrency/timeout** - all six phases in

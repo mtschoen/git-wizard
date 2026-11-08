@@ -224,6 +224,26 @@ jobs:
           path: TestResults/**/*.trx
           if-no-files-found: warn
 
+      - name: Post coverage status
+        if: always() && steps.changed-files.outputs.pin_only != 'true'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python ci/post-coverage-status.py --cobertura "TestResults/**/coverage.cobertura.xml" --context pr-crew/coverage-windows
+
+      - name: Upload coverage report
+        if: always() && steps.changed-files.outputs.pin_only != 'true'
+        uses: ChristopherHX/gitea-upload-artifact@81f940d004763f986ba3582c007fd842dd5cb0d7
+        with:
+          name: coverage-cobertura-windows
+          path: TestResults/**/coverage.cobertura.xml
+          if-no-files-found: warn
+
+      - name: Coverage gate
+        if: steps.changed-files.outputs.pin_only != 'true'
+        shell: bash
+        run: bash ci/gates.sh coverage
+
       # The screenshot generator is a manually run development tool; running it here keeps it
       # from rotting unseen. It renders the real window through headless Avalonia and writes to
       # an untracked path so the tracked docs image (and the clean-tree check below) stay intact.

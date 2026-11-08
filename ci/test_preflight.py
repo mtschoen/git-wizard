@@ -180,7 +180,7 @@ class PreflightTests(unittest.TestCase):
                     self.assertFalse(stamp.exists())
 
     def test_host_contract_and_stamp_lifecycle(self):
-        for host, skipped in (("Linux", "inspect"), ("Windows", "coverage")):
+        for host, skipped in (("Linux", {"inspect"}), ("Windows", set())):
             with self.subTest(host=host):
                 stamp = self.stamp
                 stamp.write_text("stale")
@@ -207,8 +207,8 @@ class PreflightTests(unittest.TestCase):
                     patch.object(preflight.subprocess, "run", side_effect=execute),
                 ):
                     self.assertEqual(0, preflight.run(["--changed-from", "main"]))
-                    self.assertNotIn(skipped, executed)
-                    self.assertEqual(set(preflight.GATES) - {skipped}, set(executed))
+                    self.assertIn("coverage", executed)
+                    self.assertEqual(set(preflight.GATES) - skipped, set(executed))
                     self.assertIn(head, stamp.read_text())
                     self.assertEqual(0, preflight.run(["--only", "format"]))
                     self.assertFalse(stamp.exists())

@@ -119,9 +119,6 @@ def run(arguments):
                 flush=True,
             )
             continue
-        if gate == "coverage" and host == "Windows":
-            print("SKIP coverage: enforced by the Linux job only", flush=True)
-            continue
         if gate == "coverage" and test_failed and not has_current_coverage(results):
             print(
                 "SKIP coverage: test failed and coverage input is missing", flush=True

@@ -45,11 +45,10 @@ case "${1:?gate required}" in
         rm -f "$results/current-test-directory"
         invocation=$(mktemp -d "$results/test-XXXXXXXX")
         basename "$invocation" > "$results/current-test-directory"
-        arguments=()
-        if ! $windows; then arguments=('--collect:XPlat Code Coverage'); fi
         # MSYS otherwise converts the semicolon in the logger argument to a path list.
         MSYS2_ARG_CONV_EXCL='*' dotnet test GitWizardTests/GitWizardTests.csproj -c Release --no-build \
-            --logger 'trx;LogFileName=TestResults.trx' --results-directory "$invocation" "${arguments[@]}"
+            --logger 'trx;LogFileName=TestResults.trx' --results-directory "$invocation" \
+            '--collect:XPlat Code Coverage'
         ;;
     coverage)
         results=${CI_RESULTS_DIRECTORY:-TestResults}

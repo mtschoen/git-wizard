@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Post the pr-crew/coverage commit status and (optionally) gate on coverage.
+"""Post a coverage commit status and (optionally) gate on coverage.
+
+The status context defaults to pr-crew/coverage (the exact context pr-crew's merge
+gate reads); --context overrides it, e.g. pr-crew/coverage-windows for the Windows job.
 
 Computes line-coverage percent from a coverage report and can:
   * POST it as a Gitea commit status (context=pr-crew/coverage) on $GITHUB_SHA
@@ -32,6 +35,8 @@ import sys
 import urllib.request
 from xml.etree import ElementTree
 
+DEFAULT_CONTEXT = "pr-crew/coverage"
+
 
 def _percent_from_coverage_json(path: str) -> float:
     with open(path) as handle:
@@ -46,7 +51,10 @@ def _cobertura_paths(patterns: list[str]) -> list[str]:
         if "/bin/" not in path and "/obj/" not in path
     ]
     if not paths:
-        raise FileNotFoundError("no Cobertura XML matched")
+        raise FileNotFoundError(
+            "no Cobertura XML matched "
+            + ", ".join(repr(pattern) for pattern in patterns)
+        )
     return paths
 
 
@@ -90,14 +98,14 @@ def _write_summary(line_percent: float, branch_percent: float) -> None:
         handle.write(f"| Branch | {branch_percent}% |\n")
 
 
-def _post(state: str, description: str) -> None:
+def _post(context: str, state: str, description: str) -> None:
     server = os.environ["GITHUB_SERVER_URL"]
     repository = os.environ["GITHUB_REPOSITORY"]
     sha = os.environ["GITHUB_SHA"]
     run_id = os.environ.get("GITHUB_RUN_ID", "")
     body = json.dumps(
         {
-            "context": "pr-crew/coverage",
+            "context": context,
             "state": state,
             "description": description,
             "target_url": f"{server}/{repository}/actions/runs/{run_id}",
@@ -119,6 +127,11 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--coverage-json", default="coverage.json")
     parser.add_argument("--cobertura", nargs="+")
+    parser.add_argument(
+        "--context",
+        default=DEFAULT_CONTEXT,
+        help="commit status context to post (default: %(default)s)",
+    )
     parser.add_argument(
         "--gate-line",
         type=float,
@@ -145,7 +158,7 @@ def main(argv: list[str]) -> int:
     except (OSError, ValueError, KeyError, TypeError, ElementTree.ParseError) as error:
         print(f"coverage measurement failed: {error}", file=sys.stderr)
         if not arguments.skip_post:
-            _post("error", "coverage measurement failed")
+            _post(arguments.context, "error", "coverage measurement failed")
         # A gate step treats an unreadable report as a failure; a plain status
         # post stays non-fatal so an `if: always()` step won't double-fail.
         return 1 if arguments.gate_line is not None else 0
@@ -153,8 +166,8 @@ def main(argv: list[str]) -> int:
     percent = round(percent, 2)
 
     if not arguments.skip_post:
-        _post("success", f"{percent}% line coverage")
-        print(f"posted pr-crew/coverage success: {percent}% line coverage")
+        _post(arguments.context, "success", f"{percent}% line coverage")
+        print(f"posted {arguments.context} success: {percent}% line coverage")
 
     if arguments.summary:
         branch_percent = (

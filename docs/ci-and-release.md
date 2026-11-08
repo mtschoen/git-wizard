@@ -17,12 +17,13 @@ The protocol's fixed gate-set labels (`gates`, `node`, `python`, `test-delta`)
 identify a complete publication run, not this repository's scope names.
 
 Linux runs the native/managed MFTLib build, project restore/build and analyzer gate,
-solution format check, NUnit with coverage, the existing 55% coverage gate,
+solution format check, NUnit with coverage, the 55% coverage gate,
 preflight contracts, and pinned aislop. Windows (Git Bash + Python 3 + PowerShell 7)
-runs its native/full-solution build, format, NUnit, contracts, pinned aislop and
-InspectCode; provision `jb` on PATH with the runner's global naming configuration.
-Linux explicitly skips Windows InspectCode; Windows explicitly skips Linux coverage
-enforcement. Neither host proves the other host's platform-specific tests. macOS is
+runs its native/full-solution build, format, NUnit with coverage, the 55% coverage gate,
+contracts, pinned aislop and InspectCode; provision `jb` on PATH with the runner's
+global naming configuration. Each platform gates its own Cobertura report at the same
+line threshold, and a missing or unreadable report fails that platform's gate.
+Linux explicitly skips Windows InspectCode. Neither host proves the other host's platform-specific tests. macOS is
 refused because there is no matching CI job. Missing required tools fail their gate.
 The contracts gate also validates the maintained-tools inventory, parses Bash/Python scripts, and tests hook logic on both hosts; Windows requires PowerShell parsing and isolated helper tests. Linux reports an explicit PowerShell skip when pwsh is absent.
 
@@ -103,8 +104,8 @@ test recipes. Release, preview and screenshot builds also use
 `bash ci/gates.sh native`; screenshots use Release consistently.
 
 - **Windows toolchain:** `windows-latest` is a host-mode runner; the .NET SDK is provisioned on the host, so Windows jobs in `ci.yml` carry no `actions/setup-dotnet` step under the runner provisioning policy (setup actions are permitted only in Linux containers; `preview.yml`, `release.yml`, and `screenshot.yml` still use setup-dotnet until updated).
-- **Runners:** `ci.yml` uses `ubuntu-latest` for cross-platform build and NUnit with coverage, and `windows-latest` for full-solution build and NUnit. Both runners run the suite; only Linux collects coverage.
-- **Coverage gate:** `ci/post-coverage-status.py` posts informational `pr-crew/coverage`, writes the summary table and enforces the 55% line threshold via `ci/gates.sh coverage`. Whole-assembly GitWizardUI coverage includes Avalonia glue. The Cobertura XML is uploaded as `coverage-cobertura`.
+- **Runners:** `ci.yml` uses `ubuntu-latest` for cross-platform build and NUnit with coverage, and `windows-latest` for full-solution build and NUnit with coverage. Both runners run the suite and collect coverage.
+- **Coverage gate:** `ci/post-coverage-status.py` posts informational `pr-crew/coverage` (Linux) and `pr-crew/coverage-windows` (Windows, via `--context`), writes the summary table and enforces the 55% line threshold on each platform via `ci/gates.sh coverage`. A missing or unreadable report fails the gate and the error names the searched glob. Gating both platforms independently is an owner ruling (2026-11-08), recorded in the [issue 531 owner-ruling and reproduction record](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/531#issuecomment-166167). The collector incident remains open: its cause is unknown, and the gate detects missing coverage rather than repairing the producer-side failure. Whole-assembly GitWizardUI coverage includes Avalonia glue. The Cobertura XML is uploaded as `coverage-cobertura` (Linux) and `coverage-cobertura-windows`; the report publisher reads only the Linux artifact.
 - **Release identity:** the release workflow reads `CI_GITEA_TOKEN` for repository releases/assets. Provision a write collaborator and a repository-scoped token. Rotate by replacing the repository Actions secret, not by editing code.
 - **GitHub release mirror:** after a tag push creates the Gitea release and uploads all assets, `release.yml` creates the matching GitHub release and uploads the same zip files. The mirror is deliberately skipped by PR publish-smoke runs. PR smoke runs create a draft Gitea release (which produces no Git tag), upload the staged zip assets, and run an `always()` cleanup step that deletes the draft release (accepting HTTP 204 or already-absent 404), verifies HTTP 404 absence for the release ID, `/releases/tags/{tag}` and `/tags/{tag}`, and fails on remaining resources or unexpected HTTP/transport errors. A mirror failure fails the release job loudly; the Gitea release may already exist, so repair or remove the partial releases before rerunning the tag workflow.
 - **GitHub mirror secret:** store a GitHub PAT with `repo` scope for the configured mirror repository as `GITHUB_RELEASE_TOKEN`. The workflow validates that credential before creating the Gitea release, so a missing or revoked token fails without leaving a Gitea-only release. Before first release, use a throwaway branch/version/tag to verify both prerelease pages and assets, then remove the test releases/tag.

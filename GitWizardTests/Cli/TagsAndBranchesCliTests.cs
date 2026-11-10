@@ -34,28 +34,16 @@ public class TagsAndBranchesCliTests
         }
     }
 
-    [Test]
-    public void Parse_TagsCommand_WithMatchOption()
+    [TestCase("-m", "archive/*")]
+    [TestCase("--match", "v1.*")]
+    public void Parse_TagsCommand_MatchOptionSetsPattern(string matchOption, string pattern)
     {
-        var result = CliParser.Parse(["tags", "-m", "archive/*"]);
+        var result = CliParser.Parse(["tags", matchOption, pattern]);
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(result.Command, Is.EqualTo(CommandKind.Tags));
-            Assert.That(result.TagMatchPattern, Is.EqualTo("archive/*"));
-            Assert.That(result.HasParseError, Is.False);
-        }
-    }
-
-    [Test]
-    public void Parse_TagsCommand_WithLongMatchOption()
-    {
-        var result = CliParser.Parse(["tags", "--match", "v1.*"]);
-
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(result.Command, Is.EqualTo(CommandKind.Tags));
-            Assert.That(result.TagMatchPattern, Is.EqualTo("v1.*"));
+            Assert.That(result.TagMatchPattern, Is.EqualTo(pattern));
             Assert.That(result.HasParseError, Is.False);
         }
     }
@@ -78,10 +66,11 @@ public class TagsAndBranchesCliTests
         }
     }
 
-    [Test]
-    public void Parse_TagsCommand_HelpOption_RequestsExit()
+    [TestCase("tags", "--help")]
+    [TestCase("branches", "-h")]
+    public void Parse_HelpOption_RequestsExit(string command, string helpOption)
     {
-        var result = CliParser.Parse(["tags", "--help"]);
+        var result = CliParser.Parse([command, helpOption]);
 
         Assert.That(result.Command, Is.EqualTo(CommandKind.HelpPrinted));
     }
@@ -101,30 +90,17 @@ public class TagsAndBranchesCliTests
         }
     }
 
-    [Test]
-    public void Parse_BranchesCommand_WithNotMergedBranch()
+    [TestCase("--not-merged", "main")]
+    [TestCase("--not", "develop")]
+    public void Parse_BranchesCommand_NotMergedOptionSetsBranch(string notMergedOption, string branch)
     {
-        var result = CliParser.Parse(["branches", "--not-merged", "main"]);
+        var result = CliParser.Parse(["branches", notMergedOption, branch]);
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(result.Command, Is.EqualTo(CommandKind.Branches));
             Assert.That(result.NotMergedOnly, Is.True);
-            Assert.That(result.NotMergedBranch, Is.EqualTo("main"));
-            Assert.That(result.HasParseError, Is.False);
-        }
-    }
-
-    [Test]
-    public void Parse_BranchesCommand_WithNotAlias()
-    {
-        var result = CliParser.Parse(["branches", "--not", "develop"]);
-
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(result.Command, Is.EqualTo(CommandKind.Branches));
-            Assert.That(result.NotMergedOnly, Is.True);
-            Assert.That(result.NotMergedBranch, Is.EqualTo("develop"));
+            Assert.That(result.NotMergedBranch, Is.EqualTo(branch));
             Assert.That(result.HasParseError, Is.False);
         }
     }
@@ -144,13 +120,5 @@ public class TagsAndBranchesCliTests
             Assert.That(result.Minified, Is.True);
             Assert.That(result.NoMft, Is.True);
         }
-    }
-
-    [Test]
-    public void Parse_BranchesCommand_HelpOption_RequestsExit()
-    {
-        var result = CliParser.Parse(["branches", "-h"]);
-
-        Assert.That(result.Command, Is.EqualTo(CommandKind.HelpPrinted));
     }
 }

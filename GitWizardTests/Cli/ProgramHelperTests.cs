@@ -73,61 +73,34 @@ public class ProgramHelperTests
 
     #region ReportNeedsAttention
 
-    [Test]
-    public void ReportNeedsAttention_EmptyReport_ReturnsFalse()
+    static IEnumerable<TestCaseData> ReportNeedsAttentionCases()
     {
-        var report = new GitWizardReport();
-        Assert.That(Program.ReportNeedsAttention(report), Is.False);
+        yield return new TestCaseData(Array.Empty<GitWizardRepository>(), false)
+            .SetName("ReportNeedsAttention_EmptyReport_ReturnsFalse");
+        yield return new TestCaseData(new[] { CreateRepoWithFlags(hasPendingChanges: true) }, true)
+            .SetName("ReportNeedsAttention_RepoWithPendingChanges_ReturnsTrue");
+        yield return new TestCaseData(new[] { CreateRepoWithFlags(localOnlyCommits: true) }, true)
+            .SetName("ReportNeedsAttention_RepoWithLocalOnlyCommits_ReturnsTrue");
+        yield return new TestCaseData(new[] { CreateRepoWithFlags(behindRemoteCount: 3) }, true)
+            .SetName("ReportNeedsAttention_RepoWithBehindRemote_ReturnsTrue");
+        yield return new TestCaseData(new[] { CreateRepoWithFlags() }, false)
+            .SetName("ReportNeedsAttention_RepoWithNoIssues_ReturnsFalse");
+        yield return new TestCaseData(new[] { CreateRepoWithFlags(), CreateRepoWithFlags(hasPendingChanges: true) }, true)
+            .SetName("ReportNeedsAttention_MultipleReposOneWithIssues_ReturnsTrue");
+        yield return new TestCaseData(new[] { CreateRepoWithFlags(), CreateRepoWithFlags() }, false)
+            .SetName("ReportNeedsAttention_MultipleReposAllClean_ReturnsFalse");
     }
 
-    [Test]
-    public void ReportNeedsAttention_RepoWithPendingChanges_ReturnsTrue()
+    [TestCaseSource(nameof(ReportNeedsAttentionCases))]
+    public void ReportNeedsAttention_ReflectsRepositoryFlags(GitWizardRepository[] repositories, bool expected)
     {
         var report = new GitWizardReport();
-        report.Repositories["/repo/a"] = CreateRepoWithFlags(hasPendingChanges: true);
-        Assert.That(Program.ReportNeedsAttention(report), Is.True);
-    }
+        for (var index = 0; index < repositories.Length; index++)
+        {
+            report.Repositories[$"/repo/{index}"] = repositories[index];
+        }
 
-    [Test]
-    public void ReportNeedsAttention_RepoWithLocalOnlyCommits_ReturnsTrue()
-    {
-        var report = new GitWizardReport();
-        report.Repositories["/repo/a"] = CreateRepoWithFlags(localOnlyCommits: true);
-        Assert.That(Program.ReportNeedsAttention(report), Is.True);
-    }
-
-    [Test]
-    public void ReportNeedsAttention_RepoWithBehindRemote_ReturnsTrue()
-    {
-        var report = new GitWizardReport();
-        report.Repositories["/repo/a"] = CreateRepoWithFlags(behindRemoteCount: 3);
-        Assert.That(Program.ReportNeedsAttention(report), Is.True);
-    }
-
-    [Test]
-    public void ReportNeedsAttention_RepoWithNoIssues_ReturnsFalse()
-    {
-        var report = new GitWizardReport();
-        report.Repositories["/repo/a"] = CreateRepoWithFlags();
-        Assert.That(Program.ReportNeedsAttention(report), Is.False);
-    }
-
-    [Test]
-    public void ReportNeedsAttention_MultipleReposOneWithIssues_ReturnsTrue()
-    {
-        var report = new GitWizardReport();
-        report.Repositories["/repo/clean"] = CreateRepoWithFlags();
-        report.Repositories["/repo/dirty"] = CreateRepoWithFlags(hasPendingChanges: true);
-        Assert.That(Program.ReportNeedsAttention(report), Is.True);
-    }
-
-    [Test]
-    public void ReportNeedsAttention_MultipleReposAllClean_ReturnsFalse()
-    {
-        var report = new GitWizardReport();
-        report.Repositories["/repo/a"] = CreateRepoWithFlags();
-        report.Repositories["/repo/b"] = CreateRepoWithFlags();
-        Assert.That(Program.ReportNeedsAttention(report), Is.False);
+        Assert.That(Program.ReportNeedsAttention(report), Is.EqualTo(expected));
     }
 
     #endregion
@@ -224,46 +197,39 @@ public class ProgramHelperTests
 
     #region ParseExplicitPaths
 
-    [Test]
-    public void ParseExplicitPaths_NullPathsArgument_ReturnsNull()
+    static IEnumerable<TestCaseData> ParseExplicitPathsCases()
     {
-        var rc = new RunConfiguration();
-        // PathsArgument is null by default
-        Assert.That(Program.ParseExplicitPaths(rc), Is.Null);
+        yield return new TestCaseData(null, null)
+            .SetName("ParseExplicitPaths_NullPathsArgument_ReturnsNull");
+        yield return new TestCaseData(string.Empty, null)
+            .SetName("ParseExplicitPaths_EmptyPathsArgument_ReturnsNull");
+        yield return new TestCaseData("path1,path2,path3", new[] { "path1", "path2", "path3" })
+            .SetName("ParseExplicitPaths_CommaSeparated_SplitsCorrectly");
+        yield return new TestCaseData("  path1 , path2 , path3  ", new[] { "path1", "path2", "path3" })
+            .SetName("ParseExplicitPaths_CommaSeparated_TrimsWhitespace");
+        yield return new TestCaseData("path1,,path2,  ,path3", new[] { "path1", "path2", "path3" })
+            .SetName("ParseExplicitPaths_CommaSeparated_SkipsEmptyEntries");
+        yield return new TestCaseData("/single/path", new[] { "/single/path" })
+            .SetName("ParseExplicitPaths_SinglePath_NoComma_ReturnsSingleElementArray");
     }
 
-    [Test]
-    public void ParseExplicitPaths_EmptyPathsArgument_ReturnsNull()
+    [TestCaseSource(nameof(ParseExplicitPathsCases))]
+    public void ParseExplicitPaths_InlineArgument_SplitsTrimsAndSkipsEmptyEntries(
+        string? pathsArgument,
+        string[]? expected)
     {
-        var rc = new RunConfiguration { PathsArgument = "" };
-        Assert.That(Program.ParseExplicitPaths(rc), Is.Null);
-    }
-
-    [Test]
-    public void ParseExplicitPaths_CommaSeparated_SplitsCorrectly()
-    {
-        var rc = new RunConfiguration { PathsArgument = "path1,path2,path3" };
+        var rc = new RunConfiguration { PathsArgument = pathsArgument };
 
         var result = Program.ParseExplicitPaths(rc);
-        Assert.That(result, Is.EqualTo(["path1", "path2", "path3"]));
-    }
 
-    [Test]
-    public void ParseExplicitPaths_CommaSeparated_TrimsWhitespace()
-    {
-        var rc = new RunConfiguration { PathsArgument = "  path1 , path2 , path3  " };
-
-        var result = Program.ParseExplicitPaths(rc);
-        Assert.That(result, Is.EqualTo(["path1", "path2", "path3"]));
-    }
-
-    [Test]
-    public void ParseExplicitPaths_CommaSeparated_SkipsEmptyEntries()
-    {
-        var rc = new RunConfiguration { PathsArgument = "path1,,path2,  ,path3" };
-
-        var result = Program.ParseExplicitPaths(rc);
-        Assert.That(result, Is.EqualTo(["path1", "path2", "path3"]));
+        if (expected is null)
+        {
+            Assert.That(result, Is.Null);
+        }
+        else
+        {
+            Assert.That(result, Is.EqualTo(expected));
+        }
     }
 
     [Test]
@@ -290,15 +256,6 @@ public class ProgramHelperTests
         Assert.That(result, Is.EqualTo(["/repo/a", "/repo/b"]));
     }
 
-    [Test]
-    public void ParseExplicitPaths_SinglePath_NoComma_ReturnsSingleElementArray()
-    {
-        var rc = new RunConfiguration { PathsArgument = "/single/path" };
-
-        var result = Program.ParseExplicitPaths(rc);
-        Assert.That(result, Is.EqualTo(["/single/path"]));
-    }
-
     #endregion
 
     #region SerializeReport
@@ -307,13 +264,18 @@ public class ProgramHelperTests
     public void SerializeReport_NotMinified_ProducesIndentedJson()
     {
         var report = new GitWizardReport();
+        report.SearchPaths.Add("/search");
         report.Repositories["/repo/a"] = CreateRepoWithFlags();
 
         var rc = new RunConfiguration();
 
         var json = Program.SerializeReport(rc, report);
         // Indented JSON has newlines
-        Assert.That(json, Does.Contain("\n"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(json, Does.Contain("\n"));
+            Assert.That(JsonSerializer.Deserialize<JsonElement>(json).ValueKind, Is.EqualTo(JsonValueKind.Object));
+        }
     }
 
     [Test]
@@ -326,7 +288,11 @@ public class ProgramHelperTests
 
         var json = Program.SerializeReport(rc, report);
         // Compact JSON should be a single line (no newlines)
-        Assert.That(json, Does.Not.Contain("\n"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(json, Does.Not.Contain("\n"));
+            Assert.That(JsonSerializer.Deserialize<JsonElement>(json).ValueKind, Is.EqualTo(JsonValueKind.Object));
+        }
     }
 
     [Test]
@@ -336,35 +302,13 @@ public class ProgramHelperTests
 
         var rc = new RunConfiguration();
 
-        Program.SerializeReport(rc, report);
-        Assert.That(report.SchemaVersion, Is.EqualTo(GitWizardReport.CurrentSchemaVersion));
-    }
-
-    [Test]
-    public void SerializeReport_OutputIsValidJson()
-    {
-        var report = new GitWizardReport();
-        report.SearchPaths.Add("/search");
-        report.Repositories["/repo/a"] = CreateRepoWithFlags();
-
-        var rc = new RunConfiguration();
-
         var json = Program.SerializeReport(rc, report);
-        // Should not throw
-        var deserialized = JsonSerializer.Deserialize<JsonElement>(json);
-        Assert.That(deserialized.ValueKind, Is.EqualTo(JsonValueKind.Object));
-    }
-
-    [Test]
-    public void SerializeReport_ContainsSchemaVersionInOutput()
-    {
-        var report = new GitWizardReport();
-
-        var rc = new RunConfiguration();
-
-        var json = Program.SerializeReport(rc, report);
-        Assert.That(json, Does.Contain("\"SchemaVersion\""));
-        Assert.That(json, Does.Contain(GitWizardReport.CurrentSchemaVersion));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(report.SchemaVersion, Is.EqualTo(GitWizardReport.CurrentSchemaVersion));
+            Assert.That(json, Does.Contain("\"SchemaVersion\""));
+            Assert.That(json, Does.Contain(GitWizardReport.CurrentSchemaVersion));
+        }
     }
 
     [Test]

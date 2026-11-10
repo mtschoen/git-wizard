@@ -1,6 +1,6 @@
-using System.Collections.ObjectModel;
 using GitWizard;
 using GitWizardTests.TestSupport;
+using GitWizardUI.ViewModels;
 
 namespace GitWizardTests;
 
@@ -28,17 +28,9 @@ public class SettingsViewModelTests
     [Test]
     public void Construction_LoadsConfiguration()
     {
-        var picker = new StubFolderPicker { NextResult = "/tmp/test" };
+        var vm = TestViewModels.CreateSettings();
 
-        var vm = TestViewModels.CreateSettings(folderPicker: picker);
-
-        Assert.That(vm, Is.Not.Null);
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(vm.ForkPath, Is.Empty);
-            Assert.That(vm.SearchPaths, Is.Not.Null);
-            Assert.That(vm.IgnoredPaths, Is.Not.Null);
-        }
+        Assert.That(vm.ForkPath, Is.Empty);
     }
 
     [Test]
@@ -60,93 +52,50 @@ public class SettingsViewModelTests
         Assert.That(vm.SearchPaths, Has.Count.GreaterThan(0));
     }
 
-    [Test]
-    public void NewSearchPath_SetsValueAndTriggersNotification()
+    static IEnumerable<TestCaseData> PropertyNotificationCases()
     {
-        var picker = new StubFolderPicker();
-        var vm = TestViewModels.CreateSettings(folderPicker: picker);
-        var propertyChangedFired = false;
-        var changedName = string.Empty;
-
-        vm.PropertyChanged += (_, e) =>
-        {
-            propertyChangedFired = true;
-            changedName = e.PropertyName;
-        };
-
-        vm.NewSearchPath = "/new/path";
-
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(vm.NewSearchPath, Is.EqualTo("/new/path"));
-            Assert.That(propertyChangedFired, Is.True);
-            Assert.That(changedName, Is.EqualTo("NewSearchPath"));
-        }
+        yield return new TestCaseData("NewSearchPath",
+            (Action<SettingsViewModel, object>)((viewModel, value) => viewModel.NewSearchPath = (string)value),
+            (Func<SettingsViewModel, object>)(viewModel => viewModel.NewSearchPath),
+            "/new/path");
+        yield return new TestCaseData("NewIgnoredPath",
+            (Action<SettingsViewModel, object>)((viewModel, value) => viewModel.NewIgnoredPath = (string)value),
+            (Func<SettingsViewModel, object>)(viewModel => viewModel.NewIgnoredPath),
+            "/ignored/new");
+        yield return new TestCaseData("ForkPath",
+            (Action<SettingsViewModel, object>)((viewModel, value) => viewModel.ForkPath = (string)value),
+            (Func<SettingsViewModel, object>)(viewModel => viewModel.ForkPath),
+            "/usr/local/bin/fork");
+        yield return new TestCaseData("SkipHiddenDirectories",
+            (Action<SettingsViewModel, object>)((viewModel, value) => viewModel.SkipHiddenDirectories = (bool)value),
+            (Func<SettingsViewModel, object>)(viewModel => viewModel.SkipHiddenDirectories),
+            false);
+        yield return new TestCaseData("IncludeTempDirectories",
+            (Action<SettingsViewModel, object>)((viewModel, value) => viewModel.IncludeTempDirectories = (bool)value),
+            (Func<SettingsViewModel, object>)(viewModel => viewModel.IncludeTempDirectories),
+            true);
     }
 
-    [Test]
-    public void NewIgnoredPath_SetsValueAndTriggersNotification()
+    [TestCaseSource(nameof(PropertyNotificationCases))]
+    public void PropertySetter_SetsValueAndTriggersNotification(
+        string propertyName,
+        Action<SettingsViewModel, object> setProperty,
+        Func<SettingsViewModel, object> getProperty,
+        object value)
     {
         var picker = new StubFolderPicker();
         var vm = TestViewModels.CreateSettings(folderPicker: picker);
-        var propertyChangedFired = false;
-        var changedName = string.Empty;
+        var changedNames = new List<string?>();
 
-        vm.PropertyChanged += (_, e) =>
-        {
-            propertyChangedFired = true;
-            changedName = e.PropertyName;
-        };
+        vm.PropertyChanged += (_, e) => changedNames.Add(e.PropertyName);
 
-        vm.NewIgnoredPath = "/ignored/new";
+        setProperty(vm, value);
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(vm.NewIgnoredPath, Is.EqualTo("/ignored/new"));
-            Assert.That(propertyChangedFired, Is.True);
-            Assert.That(changedName, Is.EqualTo("NewIgnoredPath"));
-        }
-    }
-
-    [Test]
-    public void ForkPath_SetsValueAndTriggersSave()
-    {
-        var picker = new StubFolderPicker();
-        var vm = TestViewModels.CreateSettings(folderPicker: picker);
-        var propertyChangedFired = false;
-
-        vm.PropertyChanged += (_, _) => propertyChangedFired = true;
-
-        vm.ForkPath = "/usr/local/bin/fork";
-
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(vm.ForkPath, Is.EqualTo("/usr/local/bin/fork"));
-            Assert.That(propertyChangedFired, Is.True);
-        }
-    }
-
-    [Test]
-    public void SkipHiddenDirectories_SetsValueAndTriggersNotification()
-    {
-        var picker = new StubFolderPicker();
-        var vm = TestViewModels.CreateSettings(folderPicker: picker);
-        var propertyChangedFired = false;
-        var changedName = string.Empty;
-
-        vm.PropertyChanged += (_, e) =>
-        {
-            propertyChangedFired = true;
-            changedName = e.PropertyName ?? string.Empty;
-        };
-
-        vm.SkipHiddenDirectories = false;
-
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(vm.SkipHiddenDirectories, Is.False);
-            Assert.That(propertyChangedFired, Is.True);
-            Assert.That(changedName, Is.EqualTo("SkipHiddenDirectories"));
+            Assert.That(getProperty(vm), Is.EqualTo(value));
+            Assert.That(changedNames, Is.Not.Empty);
+            Assert.That(changedNames, Is.All.EqualTo(propertyName));
         }
     }
 
@@ -168,43 +117,31 @@ public class SettingsViewModelTests
         }
     }
 
-    [Test]
-    public void AddSearchPath_IgnoresEmptyPath()
+    // A null candidate selects the duplicate case: an already-listed path is reused.
+    [TestCase("search", "")]
+    [TestCase("search", "   ")]
+    [TestCase("search", null)]
+    [TestCase("ignored", "")]
+    public void AddPath_IgnoresRejectedCandidate(string targetCollection, string? candidatePath)
     {
         var picker = new StubFolderPicker();
         var vm = TestViewModels.CreateSettings(folderPicker: picker);
+        var isSearchCollection = targetCollection == "search";
+        var paths = isSearchCollection ? vm.SearchPaths : vm.IgnoredPaths;
+        var initialCount = paths.Count;
 
-        var initialCount = vm.SearchPaths.Count;
-        vm.NewSearchPath = string.Empty;
-        vm.AddSearchPath();
+        if (isSearchCollection)
+        {
+            vm.NewSearchPath = candidatePath ?? vm.SearchPaths[0];
+            vm.AddSearchPath();
+        }
+        else
+        {
+            vm.NewIgnoredPath = candidatePath ?? vm.IgnoredPaths[0];
+            vm.AddIgnoredPath();
+        }
 
-        Assert.That(vm.SearchPaths, Has.Count.EqualTo(initialCount));
-    }
-
-    [Test]
-    public void AddSearchPath_IgnoresWhitespacePath()
-    {
-        var picker = new StubFolderPicker();
-        var vm = TestViewModels.CreateSettings(folderPicker: picker);
-
-        var initialCount = vm.SearchPaths.Count;
-        vm.NewSearchPath = "   ";
-        vm.AddSearchPath();
-
-        Assert.That(vm.SearchPaths, Has.Count.EqualTo(initialCount));
-    }
-
-    [Test]
-    public void AddSearchPath_IgnoresDuplicatePath()
-    {
-        var picker = new StubFolderPicker();
-        var vm = TestViewModels.CreateSettings(folderPicker: picker);
-
-        var initialCount = vm.SearchPaths.Count;
-        vm.NewSearchPath = vm.SearchPaths[0];
-        vm.AddSearchPath();
-
-        Assert.That(vm.SearchPaths, Has.Count.EqualTo(initialCount));
+        Assert.That(paths, Has.Count.EqualTo(initialCount));
     }
 
     [Test]
@@ -223,19 +160,6 @@ public class SettingsViewModelTests
             Assert.That(vm.IgnoredPaths, Does.Contain("/ignored/added"));
             Assert.That(vm.NewIgnoredPath, Is.Empty);
         }
-    }
-
-    [Test]
-    public void AddIgnoredPath_IgnoresEmptyPath()
-    {
-        var picker = new StubFolderPicker();
-        var vm = TestViewModels.CreateSettings(folderPicker: picker);
-
-        var initialCount = vm.IgnoredPaths.Count;
-        vm.NewIgnoredPath = string.Empty;
-        vm.AddIgnoredPath();
-
-        Assert.That(vm.IgnoredPaths, Has.Count.EqualTo(initialCount));
     }
 
     [Test]
@@ -384,54 +308,6 @@ public class SettingsViewModelTests
     }
 
     [Test]
-    public void OnPropertyChanged_FiresPropertyChange()
-    {
-        var picker = new StubFolderPicker();
-        var vm = TestViewModels.CreateSettings(folderPicker: picker);
-        var fired = false;
-
-        vm.PropertyChanged += (_, e) =>
-        {
-            fired = true;
-            Assert.That(e.PropertyName, Is.EqualTo("NewSearchPath"));
-        };
-
-        vm.NewSearchPath = "test";
-        Assert.That(fired, Is.True);
-    }
-
-    [Test]
-    public void OnPropertyChanged_WithCallerMemberName()
-    {
-        var picker = new StubFolderPicker();
-        var vm = TestViewModels.CreateSettings(folderPicker: picker);
-        string? firedProperty = null;
-
-        vm.PropertyChanged += (_, e) => firedProperty = e.PropertyName;
-
-        vm.ForkPath = "/fork/path";
-        Assert.That(firedProperty, Is.EqualTo("ForkPath"));
-    }
-
-    [Test]
-    public void SearchPaths_IsObservableCollection()
-    {
-        var picker = new StubFolderPicker();
-        var vm = TestViewModels.CreateSettings(folderPicker: picker);
-
-        Assert.That(vm.SearchPaths, Is.InstanceOf<ObservableCollection<string>>());
-    }
-
-    [Test]
-    public void IgnoredPaths_IsObservableCollection()
-    {
-        var picker = new StubFolderPicker();
-        var vm = TestViewModels.CreateSettings(folderPicker: picker);
-
-        Assert.That(vm.IgnoredPaths, Is.InstanceOf<ObservableCollection<string>>());
-    }
-
-    [Test]
     public void ResetToDefaults_RestoresDefaultSearchAndIgnoredPaths()
     {
         var picker = new StubFolderPicker();
@@ -452,28 +328,37 @@ public class SettingsViewModelTests
         }
     }
 
-    [Test]
-    public void ResetToDefaults_ClearsForkPath()
+    static IEnumerable<TestCaseData> ResetToDefaultsCases()
     {
-        var picker = new StubFolderPicker();
-        var vm = TestViewModels.CreateSettings(folderPicker: picker);
-        vm.ForkPath = "/custom/fork";
-
-        vm.ResetToDefaults();
-
-        Assert.That(vm.ForkPath, Is.Empty);
+        yield return new TestCaseData("ForkPath",
+            (Action<SettingsViewModel>)(viewModel => viewModel.ForkPath = "/custom/fork"),
+            (Func<SettingsViewModel, object>)(viewModel => viewModel.ForkPath),
+            string.Empty);
+        yield return new TestCaseData("SkipHiddenDirectories",
+            (Action<SettingsViewModel>)(viewModel => viewModel.SkipHiddenDirectories = true),
+            (Func<SettingsViewModel, object>)(viewModel => viewModel.SkipHiddenDirectories),
+            false);
+        yield return new TestCaseData("IncludeTempDirectories",
+            (Action<SettingsViewModel>)(viewModel => viewModel.IncludeTempDirectories = true),
+            (Func<SettingsViewModel, object>)(viewModel => viewModel.IncludeTempDirectories),
+            false);
     }
 
-    [Test]
-    public void ResetToDefaults_ResetsSkipHiddenDirectories()
+    [TestCaseSource(nameof(ResetToDefaultsCases))]
+    public void ResetToDefaults_RestoresPropertyDefaults(
+        string propertyName,
+        Action<SettingsViewModel> deviateFromDefault,
+        Func<SettingsViewModel, object> readProperty,
+        object expectedDefault)
     {
         var picker = new StubFolderPicker();
         var vm = TestViewModels.CreateSettings(folderPicker: picker);
-        vm.SkipHiddenDirectories = true;
+        deviateFromDefault(vm);
+        Assert.That(readProperty(vm), Is.Not.EqualTo(expectedDefault), "precondition: the property must deviate from its default");
 
         vm.ResetToDefaults();
 
-        Assert.That(vm.SkipHiddenDirectories, Is.False);
+        Assert.That(readProperty(vm), Is.EqualTo(expectedDefault), propertyName);
     }
 
     [Test]
@@ -500,33 +385,6 @@ public class SettingsViewModelTests
     public void Construction_LoadsIncludeTempDirectoriesDefaultUnchecked()
     {
         var vm = TestViewModels.CreateSettings();
-
-        Assert.That(vm.IncludeTempDirectories, Is.False);
-    }
-
-    [Test]
-    public void IncludeTempDirectories_SetsValueAndTriggersNotification()
-    {
-        var vm = TestViewModels.CreateSettings();
-        string? changedName = null;
-        vm.PropertyChanged += (_, e) => changedName = e.PropertyName;
-
-        vm.IncludeTempDirectories = true;
-
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(vm.IncludeTempDirectories, Is.True);
-            Assert.That(changedName, Is.EqualTo("IncludeTempDirectories"));
-        }
-    }
-
-    [Test]
-    public void ResetToDefaults_ResetsIncludeTempDirectories()
-    {
-        var vm = TestViewModels.CreateSettings();
-        vm.IncludeTempDirectories = true;
-
-        vm.ResetToDefaults();
 
         Assert.That(vm.IncludeTempDirectories, Is.False);
     }

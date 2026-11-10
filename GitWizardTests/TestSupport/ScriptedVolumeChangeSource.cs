@@ -11,7 +11,6 @@ sealed partial class ScriptedVolumeChangeSource(
         errors ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     readonly TaskCompletionSource _armStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
     readonly TaskCompletionSource _armed = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    readonly TaskCompletionSource _watchStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
     readonly Lock _gate = new();
 
     Action<string>? _sourceDied;
@@ -25,7 +24,6 @@ sealed partial class ScriptedVolumeChangeSource(
 
     public Task ArmStarted => _armStarted.Task;
     public Task Armed => _armed.Task;
-    public Task WatchStarted => _watchStarted.Task;
     public bool IsArmed => _armed.Task.IsCompletedSuccessfully;
     public int DisposeCount => Volatile.Read(ref _disposeCount);
 

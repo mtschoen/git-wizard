@@ -7,7 +7,6 @@ sealed partial class ScriptedVolumeChangeSource
 {
     public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync([EnumeratorCancellation] CancellationToken ct)
     {
-        _watchStarted.TrySetResult();
         foreach (var batch in _batches)
         {
             ct.ThrowIfCancellationRequested();

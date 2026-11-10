@@ -1,5 +1,37 @@
 # GitWizard - Plan
 
+## Goals
+
+- **Ship MFTLib 0.3 and its consumers** (milestone: 0.3, target: none)
+  Disposition: almost there. Immaculate code, an API that survives without
+  breaking changes for the foreseeable future, and performance limited only
+  by physics: MFTLib exists to be the fastest possible way to enumerate an
+  NTFS volume. If the comparative benchmarks do not hold up the way 0.2's did,
+  it is not ready, whatever else is done. Dogfood through file-wizard and
+  git-wizard; the owner mints the release and nobody proposes publishing.
+  Done when: the attended acceptance session passes, benchmarks beat 0.2's
+  comparison set, and both consumers have run on the API for a week without
+  an API change.
+
+- **git-wizard ready for the MFTLib 0.3 release** (milestone: git-wizard-0.3, target: none)
+  Disposition: the existing filters, sorting, UI and UX are fine as they are.
+  Nothing blocks the UI thread for more than 500 ms. Where possible the
+  initial scan stays under a minute, and no individual repository is still
+  updating more than a minute later; pathological edge cases like chromium
+  can remain outliers. Repository statuses update live via the watcher. The
+  one-shot scan works on Linux, where it can be a little slow, and the app is
+  testable on Linux.
+  Done when: nothing blocks the UI thread for more than 500 ms, the initial
+  scan finishes within a minute where possible with no repository still
+  updating a minute later (outliers like chromium aside), statuses update
+  live via the watcher, and the one-shot scan runs and is testable on Linux.
+
+- **Polished cleanup scenarios** (milestone: cleanup-scenarios, target: none)
+  Disposition: a goal beyond the 0.3 release. Polish the use-case and scenario
+  runs for cleaning up local-only branches, submodule sync and the like.
+  Done when: the use-case and scenario runs for cleaning up local-only
+  branches, submodule sync and similar jobs are polished.
+
 ## Infrastructure
 
 - [ ] **Retire the MFTLib submodule for a NuGet `PackageReference`** - repo-root `Directory.Build.targets` is a TEMPORARY source-build bridge that unblocks the build while MFTLib 0.3.0 is unpublished. Tracked as [#134](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/134); when 0.3.0 ships to NuGet, follow the retire steps in the `Directory.Build.targets` header and confirm CI stays green.

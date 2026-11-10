@@ -1,5 +1,7 @@
 # GitWizard
 
+@PLAN.md
+
 Cross-tool instructions for the core library, CLI, Avalonia desktop, headless
 screenshot tool and NUnit tests. Open the linked reference before changing its area.
 

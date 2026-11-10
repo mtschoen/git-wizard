@@ -200,6 +200,49 @@ function Wait-ForLogPattern {
     return $null
 }
 
+# Waits for the CLI's session-started banner, then for the ready: marker. The CLI writes the
+# banner to stderr (stdout is reserved for report and watch-event lines), while startup:, ready:
+# and created:/changed:/deleted: lines go to stdout. Returns the ready: match and the time the
+# outcome was determined; throws a message naming the real state (timeout vs client exit).
+function Wait-ForWatchReady {
+    param(
+        [Parameter(Mandatory)][string]$StandardOutputLog,
+        [Parameter(Mandatory)][string]$StandardErrorLog,
+        [Parameter(Mandatory)][int]$ClientProcessId,
+        [Parameter(Mandatory)][int]$BannerTimeoutSeconds,
+        [Parameter(Mandatory)][int]$ReadyTimeoutSeconds
+    )
+
+    $bannerResult = Wait-ForLogPattern -LogPath $StandardErrorLog -Pattern "git-wizard Session Started" `
+        -TimeoutSeconds $BannerTimeoutSeconds -ClientProcessId $ClientProcessId
+    if (-not $bannerResult) {
+        throw "session-started banner did not appear in $StandardErrorLog within $BannerTimeoutSeconds s (client still running)"
+    }
+    if ($bannerResult.ClientExited) {
+        throw "client exited before the session-started banner appeared in $StandardErrorLog; last startup phase: $($bannerResult.LastStartupLine)"
+    }
+
+    # The readiness wait performs NO broker lookup: it only checks the ready: log line and the
+    # client's exit, so a slow Get-CimInstance query can never land on a poll and delay either
+    # gate. Broker existence is diagnostic only (gw#247) and is identified after the outcome.
+    $readyResult = Wait-ForLogPattern -LogPath $StandardOutputLog -Pattern "${script:Stamp}ready: " `
+        -TimeoutSeconds $ReadyTimeoutSeconds -ClientProcessId $ClientProcessId
+    $readyOutcomeTime = Get-Date
+
+    if (-not $readyResult) {
+        $lastPhase = Get-LastStartupLine -LogPath $StandardOutputLog
+        throw "no 'ready:' line within $ReadyTimeoutSeconds s; last startup phase: $lastPhase"
+    }
+    if ($readyResult.ClientExited) {
+        throw "client exited before 'ready:'; last startup phase: $($readyResult.LastStartupLine); stderr: $StandardErrorLog"
+    }
+
+    return [pscustomobject]@{
+        ReadyResult = $readyResult
+        ReadyOutcomeTime = $readyOutcomeTime
+    }
+}
+
 function Add-StepResult {
     param(
         [Parameter(Mandatory)][string]$Step,
@@ -291,28 +334,11 @@ try {
     $client = Start-Process -FilePath $CliPath -ArgumentList @("--watch", "-v") `
         -RedirectStandardOutput $stdOutLog -RedirectStandardError $stdErrLog -PassThru -NoNewWindow
     try {
-        $bannerResult = Wait-ForLogPattern -LogPath $stdOutLog -Pattern "git-wizard Session Started" `
-            -TimeoutSeconds $UacTimeoutSeconds -ClientProcessId $client.Id
-        if (-not $bannerResult -or $bannerResult.ClientExited) {
-            throw "session-started banner did not appear in $stdOutLog within $UacTimeoutSeconds s (client exited: $($bannerResult.ClientExited))"
-        }
-        $logCursor = $bannerResult.NextStartLine
-
-        # The readiness wait below performs NO broker lookup: it only checks the ready: log
-        # line and the client's exit, so a slow Get-CimInstance query can never land on a poll
-        # and delay either gate. Broker existence is diagnostic only (gw#247), and identifying
-        # it is deferred until after the outcome is already determined and printed, below.
-        $readyResult = Wait-ForLogPattern -LogPath $stdOutLog -Pattern "${script:Stamp}ready: " `
-            -TimeoutSeconds $StartupTimeoutSeconds -StartLine $logCursor -ClientProcessId $client.Id
-        $readyOutcomeTime = Get-Date
-
-        if (-not $readyResult) {
-            $lastPhase = Get-LastStartupLine -LogPath $stdOutLog
-            throw "no 'ready:' line within $StartupTimeoutSeconds s; last startup phase: $lastPhase"
-        }
-        if ($readyResult.ClientExited) {
-            throw "client exited before 'ready:'; last startup phase: $($readyResult.LastStartupLine); stderr: $stdErrLog"
-        }
+        $watchReady = Wait-ForWatchReady -StandardOutputLog $stdOutLog -StandardErrorLog $stdErrLog `
+            -ClientProcessId $client.Id -BannerTimeoutSeconds $UacTimeoutSeconds `
+            -ReadyTimeoutSeconds $StartupTimeoutSeconds
+        $readyResult = $watchReady.ReadyResult
+        $readyOutcomeTime = $watchReady.ReadyOutcomeTime
         $logCursor = $readyResult.NextStartLine
         $readySeconds = [int]($readyOutcomeTime - $watchStartTime).TotalSeconds
 

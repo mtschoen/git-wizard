@@ -26,6 +26,13 @@
 *.sh text eol=lf
 
 ###############################################################################
+# AGENTS.md is character-budgeted by AgentInstructionsTests. Pinning it to LF
+# on every platform keeps the counted text identical, so one commit meets the
+# same limit on Windows and Linux.
+###############################################################################
+AGENTS.md text eol=lf
+
+###############################################################################
 # Batch files must check out with CRLF. cmd.exe tolerates LF for simple
 # line-by-line scripts, but mis-parses labels, goto targets, and multi-line
 # blocks, so an LF-only .bat works until someone adds one and then fails in a

@@ -38,6 +38,14 @@ public class AgentInstructionsTests
     }
 
     [Test]
+    public void Instructions_ContainNoCarriageReturn()
+    {
+        var bytes = File.ReadAllBytes(Path.Combine(SourceTree.RepositoryRoot, "AGENTS.md"));
+        Assert.That(bytes, Does.Not.Contain((byte)0x0D),
+            "AGENTS.md must check out with LF so the character budget is identical on every platform.");
+    }
+
+    [Test]
     public void Instructions_LinkToExistingDocumentation()
     {
         var links = AgentInstructionRegex.DocumentationLinks().Matches(Read("AGENTS.md"));

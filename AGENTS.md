@@ -70,7 +70,8 @@ MFTLib's linked test-isolation contract for the library behavior.
 
 `AgentInstructionsTests` guards this file below 15000 characters, every
 blank-line-delimited block below 3000, linked docs, documented CLI flags and
-the shared version. Run it after instruction changes. Preserve still-true rules;
+the shared version. `.gitattributes` pins this file to LF, so the limit is
+identical on every platform. Run it after instruction changes. Preserve still-true rules;
 move narrative verbatim into linked docs, correcting false claims in place.
 Do not cite source line numbers in prose.
 

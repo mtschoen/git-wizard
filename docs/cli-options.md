@@ -40,7 +40,7 @@ flag list. `AgentInstructionsTests` checks it against parser source and help.
 ## Inventory subcommands
 
 `tags`, `branches` and `prune` share paths, filter, save-path, config-path, print-minified,
-no-mft, verbose, silent and help from the table above.
+no-mft, verbose, silent and help from the table above. Root options are not accepted before a subcommand: `git-wizard --no-mft tags` exits 2; write `git-wizard tags --no-mft`.
 
 | Flag | Command | Meaning |
 | --- | --- | --- |

@@ -283,6 +283,68 @@ sealed class RunConfigurationTests
         }
     }
 
+    static readonly string[] Subcommands = ["tags", "branches", "prune"];
+
+    static IEnumerable<TestCaseData> RootOptionBeforeSubcommandCases()
+    {
+        string[] rootOptions =
+        [
+            "--verbose", "-v", "--silent", "-s", "--rebuild-report", "--no-refresh", "--rebuild-repo-list",
+            "--rebuild-all", "--setup-defender", "--scan-only", "--no-mft", "--no-local-commit-count", "--json",
+            "--sweep", "--merge", "--clear-cache", "--clear-index-cache", "--index-cache-status",
+            "--delete-all-local-files", "--print-minified", "--minified", "--db-size", "--all-branches", "--watch"
+        ];
+        string[] valueOptions = ["--filter", "-f", "--paths", "-p", "--save-path", "--config-path"];
+        foreach (var subcommand in Subcommands)
+        {
+            foreach (var option in rootOptions)
+            {
+                yield return new TestCaseData(new[] { option, subcommand }, subcommand, option).SetName($"RootOption_{option}_Before_{subcommand}");
+            }
+            foreach (var option in valueOptions)
+            {
+                yield return new TestCaseData(new[] { option, "value", subcommand }, subcommand, option).SetName($"RootOption_{option}_Before_{subcommand}");
+            }
+        }
+    }
+
+    [TestCaseSource(nameof(RootOptionBeforeSubcommandCases))]
+    public void Parse_RootOptionBeforeSubcommand_ReportsParseErrorNamingOptionAndSubcommand(string[] arguments, string subcommand, string option)
+    {
+        var messages = new List<string?>();
+        var originalTyped = GitWizardLog.TypedLogMethod;
+        GitWizardLog.TypedLogMethod = (message, _) => messages.Add(message);
+        try
+        {
+            var parsed = CliParser.Parse(arguments);
+            var longName = option.StartsWith("--", StringComparison.Ordinal) ? option : null;
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(parsed.HasParseError, Is.True);
+                Assert.That(messages, Has.Some.Contains($"'{subcommand}'"));
+                if (longName is not null)
+                {
+                    Assert.That(messages, Has.Some.Contains(longName));
+                }
+            }
+        }
+        finally
+        {
+            GitWizardLog.TypedLogMethod = originalTyped;
+        }
+    }
+
+    [Test]
+    public void Parse_SubcommandOptionAfterSubcommand_IsStillAccepted()
+    {
+        var parsed = CliParser.Parse(["tags", "--no-mft"]);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(parsed.HasParseError, Is.False);
+            Assert.That(parsed.NoMft, Is.True);
+        }
+    }
+
     [Test]
     public void Parse_UnknownFlag_ReportsParseErrorWithDefaultCommand()
     {

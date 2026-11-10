@@ -65,13 +65,15 @@ static partial class CliParser
         var rootOptions = SetupOptions(app);
         SubcommandHandle[] subcommands = [SetupTagsCommand(app), SetupBranchesCommand(app), SetupPruneCommand(app)];
         RunConfiguration? parsed;
+        CommandLineApplication? selectedSubcommand;
 
         try
         {
             var parseResult = app.Parse(NormalizeConsumerAliases(args));
-            parsed = parseResult.SelectedCommand == app
+            selectedSubcommand = parseResult.SelectedCommand == app ? null : parseResult.SelectedCommand;
+            parsed = selectedSubcommand is null
                 ? ExecuteHandler(rootOptions)
-                : subcommands.FirstOrDefault(subcommand => subcommand.Application == parseResult.SelectedCommand)?.Build();
+                : subcommands.FirstOrDefault(subcommand => subcommand.Application == selectedSubcommand)?.Build();
         }
         catch (CommandParsingException ex)
         {
@@ -90,6 +92,15 @@ static partial class CliParser
         if (helpOption.HasValue() || versionOption.HasValue() || subcommands.Any(subcommand => subcommand.HelpOption.HasValue()))
         {
             return new RunConfiguration { Command = CommandKind.HelpPrinted };
+        }
+
+        if (selectedSubcommand is not null && app.Options.FirstOrDefault(option => option != helpOption && option != versionOption && option.HasValue()) is { } misplaced)
+        {
+            // Root options are not inherited by subcommands; fail loudly (exit 2) instead of dropping them.
+            GitWizardLog.Log(
+                $"The root option --{misplaced.LongName} is not accepted before the '{selectedSubcommand.Name}' subcommand; place it after '{selectedSubcommand.Name}' if the subcommand supports it.",
+                GitWizardLog.LogType.Error);
+            return new RunConfiguration { HasParseError = true };
         }
 
         return parsed ?? new RunConfiguration();

@@ -3,6 +3,7 @@ using GitWizardUI.ViewModels;
 
 namespace GitWizardTests;
 
+[NonParallelizable]
 public class RepositoryNodeViewModelTests
 {
     [Test]

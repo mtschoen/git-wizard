@@ -13,6 +13,7 @@ using GitWizardUI.Views;
 namespace GitWizardTests.UI;
 
 // Covers MainWindow.axaml, SettingsWindow.axaml, and StatusHeaderViewModel.cs.
+[NonParallelizable]
 public class JournalSettingsWindowTests
 {
     [AvaloniaTest]

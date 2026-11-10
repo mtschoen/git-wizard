@@ -11,6 +11,7 @@ namespace GitWizardTests;
 /// deletion pruning, and JSON persistence round-tripping across report refreshes.
 /// </summary>
 [TestFixture]
+[NonParallelizable]
 public class GitWizardRepositoryBranchDivergenceCacheTests
 {
     [SetUp]

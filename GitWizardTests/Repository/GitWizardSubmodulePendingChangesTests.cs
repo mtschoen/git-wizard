@@ -8,6 +8,7 @@ namespace GitWizardTests;
 /// dirty only through the child's own refresh result (or a checked-out commit that differs from the
 /// recorded gitlink).
 /// </summary>
+[NonParallelizable]
 public class GitWizardSubmodulePendingChangesTests
 {
     [SetUp]

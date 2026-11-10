@@ -7,6 +7,7 @@ using static GitWizardTests.CliProcess;
 namespace GitWizardTests;
 
 [TestFixture]
+[NonParallelizable]
 public class PruneCliTests
 {
     bool _originalVerboseMode;

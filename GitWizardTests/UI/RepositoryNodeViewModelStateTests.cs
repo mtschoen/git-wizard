@@ -9,6 +9,7 @@ namespace GitWizardTests;
 /// uncovered: pending/stale/detached/merged display decorations, the filter predicates returning
 /// true, matching-branch checkout, and the submodule-issue tooltip.
 /// </summary>
+[NonParallelizable]
 public class RepositoryNodeViewModelStateTests
 {
     [SetUp]

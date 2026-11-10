@@ -6,6 +6,7 @@ using static GitWizardTests.CliProcess;
 namespace GitWizardTests;
 
 // Entry-point tests are separated by command concern because the combined fixture exceeds 500 lines.
+[NonParallelizable]
 public class ProgramIndexCacheEntryPointTests
 {
     [Test]

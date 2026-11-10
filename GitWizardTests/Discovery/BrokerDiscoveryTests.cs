@@ -4,6 +4,7 @@ using MFTLib.Index;
 
 namespace GitWizardTests;
 
+[NonParallelizable]
 public class BrokerDiscoveryTests
 {
     [SetUp]

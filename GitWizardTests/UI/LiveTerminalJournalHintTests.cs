@@ -14,6 +14,7 @@ namespace GitWizardTests.UI;
 // explanation vanished at exactly the moment it mattered.
 [TestFixture]
 // Covers LiveWatchViewModel.Startup.cs, LiveWatchViewModel.Journals.cs, and StatusHeaderViewModel.cs.
+[NonParallelizable]
 public class LiveTerminalJournalHintTests
 {
     LocalFilesSandbox? _sandbox;

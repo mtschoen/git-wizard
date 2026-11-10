@@ -8,6 +8,7 @@ namespace GitWizardTests;
 /// Sidebar filters are additive: every active filter narrows the list (intersection), and
 /// clearing every filter shows everything.
 /// </summary>
+[NonParallelizable]
 public class AdditiveFilterTests
 {
     [SetUp]

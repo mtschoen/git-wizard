@@ -11,6 +11,7 @@ namespace GitWizardTests;
 /// <see cref="GitWizardRepository.CheckoutBranch"/>.
 /// </summary>
 // Repository branches tests exercise branch and worktree inventory across tracking configurations.
+[NonParallelizable]
 public class GitWizardRepositoryBranchesTests
 {
     [SetUp]

@@ -31,6 +31,7 @@ namespace GitWizardTests;
 /// </summary>
 [Category("RequiresAdmin")]
 [Platform("Win")]
+[NonParallelizable]
 public class ElevationCoverageTests
 {
     LocalFilesSandbox? _sandbox;

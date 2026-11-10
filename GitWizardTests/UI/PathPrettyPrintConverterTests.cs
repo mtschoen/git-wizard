@@ -3,6 +3,7 @@ using GitWizardUI.Converters;
 
 namespace GitWizardTests;
 
+[NonParallelizable]
 public class PathPrettyPrintConverterTests
 {
     readonly PathPrettyPrintConverter _converter = new();

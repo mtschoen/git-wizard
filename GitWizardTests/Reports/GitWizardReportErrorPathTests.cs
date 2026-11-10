@@ -7,6 +7,7 @@ namespace GitWizardTests;
 /// Covers <see cref="GitWizardReport"/>'s defensive error paths: a refresh whose update handler
 /// throws from every callback (each must be swallowed so one bad handler can't abort a scan).
 /// </summary>
+[NonParallelizable]
 public class GitWizardReportErrorPathTests
 {
     [SetUp]

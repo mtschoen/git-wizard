@@ -7,6 +7,7 @@ using MFTLibTestExtensions;
 namespace GitWizardTests;
 
 [TestFixture]
+[NonParallelizable]
 public class MftIndexDiagnosticsTests
 {
     [Test]

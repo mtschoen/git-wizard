@@ -10,6 +10,7 @@ namespace GitWizardTests;
 /// ReportNeedsAttention, ApplyFilter, ParseExplicitPaths, SerializeReport,
 /// and SerializeInventoryReport.
 /// </summary>
+[NonParallelizable]
 public class ProgramHelperTests
 {
 

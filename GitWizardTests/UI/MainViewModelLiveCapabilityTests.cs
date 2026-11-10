@@ -7,6 +7,7 @@ namespace GitWizardTests.UI;
 
 // Live watch tests are split by concern because the combined fixture exceeds 500 lines.
 // Covers LiveWatchViewModel.cs and StatusHeaderViewModel.cs (CanToggleLive and header state).
+[NonParallelizable]
 public class MainViewModelLiveCapabilityTests
 {
     [SetUp]

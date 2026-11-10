@@ -8,6 +8,7 @@ namespace GitWizardTests;
 /// git-wizard#78 (the checked-out branch's divergence from its own upstream, independent of the
 /// "actionable branches vs local default" view covered by <see cref="GitWizardRepositoryBranchesTests"/>).
 /// </summary>
+[NonParallelizable]
 public class GitWizardRepositoryRemoteDivergenceTests
 {
     [SetUp]

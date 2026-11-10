@@ -28,6 +28,34 @@ required assembly is missing. Only `GitWizardTests` references `MFTLibTestExtens
 
 ## NUnit and evidence retention
 
+The assembly uses `ParallelScope.Fixtures` with four NUnit workers. Tests within
+each fixture remain sequential. A fixture that writes process-wide state carries
+`[NonParallelizable]` at class level, including writers reached through helpers or
+product entry points. Method-level attributes do not isolate the whole fixture.
+Process-wide state includes `GitWizardLog` sinks, modes and file-writer lifecycle;
+environment variables (including `GITWIZARD_HOME`, `GIT_TRACE2_EVENT` and `HOME`);
+`LocalFilesSandbox` and other local-files redirects; shared configuration/report
+caches and files; static hooks, overrides and journal observation scopes; console
+streams; the current directory; and Windows process-token privileges (including
+`DeniedDirectory`). Child-process environment changes on `ProcessStartInfo` alone
+do not change the parent process environment, but writes to inherited shared home
+files still require isolation.
+
+NUnit runs non-parallel fixtures in exclusive shifts, separate from parallel
+fixtures, so readers do not also need marking solely because an exclusive fixture
+writes the state they read. Assembly setup establishes the isolated fallback home
+before fixtures begin and tears it down after they finish. See NUnit's
+[parallel execution scheduling](https://docs.nunit.org/articles/nunit/technical-notes/usage/Framework-Parallel-Test-Execution.html).
+
+Windows measurement (CHONKERS, 2026-11-10, Release, `dotnet test --no-build -c Release`,
+runsettings-default coverage collection, `VSTEST_TESTHOST_SHUTDOWN_TIMEOUT=120000`):
+the serial baseline took 200.82 seconds (3m 20.82s). Ten consecutive four-worker
+full runs took a median 183.82 seconds (3m 03.82s), ranging from 171.55 to 211.23
+seconds; the final run took 182.58 seconds. Every run retained the baseline's exact
+test-name/outcome multiset: 2,322 passed and zero failed. The runner summary reports
+three skipped; TRX includes all 82 `NotExecuted` platform/explicit cases, for 2,404
+entries. These are local observations, not a cross-platform CI speedup claim.
+
 To **run the NUnit suite**, build first, then run tests with `--no-build` (a plain `dotnet test`
 re-invokes the build). Use the same configuration as the successful build. Assembly setup
 creates a temporary home under `Environment.SpecialFolder.UserProfile`; a sandbox with a
@@ -127,7 +155,11 @@ Expected: no output and successful exit.
 
 ## Shared test support (`GitWizardTests/TestSupport/`)
 
-Central test scaffolding lives in `GitWizardTests/TestSupport/`:
+Central test scaffolding lives in `GitWizardTests/TestSupport/` (`TempDirectory`, `LocalFilesSandbox`,
+`RecordingUpdateHandler`, `QueuedUiDispatcher`, `ThreadedUiDispatcher`, `TestViewModels`,
+`ScriptedVolumeChangeSource`, `FakeFanotifyNative`, `RootStatuses`, `TestTimeouts`, `AsyncCondition`);
+detailed doubles and fixtures are inventoried in [testing reference](testing.md).
+
 - `TempDirectory`: Owned temporary directory fixture providing disposable isolated filesystem trees and directory cleanup (`Path.GetTempPath()` is restricted to this fixture).
 - `LocalFilesSandbox`: Disposable test sandbox for `GITWIZARD_HOME` redirects, restoring prior environment state and clearing static caches on disposal.
 - `RecordingUpdateHandler`: Unified concurrent recording `IUpdateHandler` double with snapshot array properties and optional invocation hooks (`StartingProgress`, `CreatingRepository`, `CompletingRefresh`, etc.).

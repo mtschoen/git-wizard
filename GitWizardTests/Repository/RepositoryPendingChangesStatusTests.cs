@@ -4,6 +4,7 @@ using LibGit2Sharp;
 
 namespace GitWizardTests;
 
+[NonParallelizable]
 public class RepositoryPendingChangesStatusTests
 {
     [TestCase("", false, 0)]

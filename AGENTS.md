@@ -44,6 +44,10 @@ a second description of library contracts here.
 
 ## Testing
 
+NUnit uses `ParallelScope.Fixtures` and four workers. A fixture that writes
+process-wide state carries class-level `[NonParallelizable]`; see
+[testing](docs/testing.md) for the state list, helper rule and Windows timings.
+
 Build first, then run NUnit with `--no-build` and the same configuration. Keep
 results outside disposable checkouts, unique for every full-suite/stress run:
 
@@ -72,10 +76,7 @@ Do not cite source line numbers in prose.
 
 ### Shared test support (`GitWizardTests/TestSupport/`)
 
-Central test scaffolding lives in `GitWizardTests/TestSupport/` (`TempDirectory`, `LocalFilesSandbox`,
-`RecordingUpdateHandler`, `QueuedUiDispatcher`, `ThreadedUiDispatcher`, `TestViewModels`,
-`ScriptedVolumeChangeSource`, `FakeFanotifyNative`, `RootStatuses`, `TestTimeouts`, `AsyncCondition`);
-detailed doubles and fixtures are inventoried in [testing reference](docs/testing.md).
+Use the [shared test support inventory](docs/testing.md#shared-test-support-gitwizardteststestsupport).
 
 Run the [test scaffolding regression checks](docs/testing.md#scaffolding-regression-checks).
 

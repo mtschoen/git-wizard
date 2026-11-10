@@ -5,6 +5,7 @@ using MFTLibTestExtensions;
 
 namespace GitWizardTests;
 
+[NonParallelizable]
 public class MftIndexCacheInspectionTests
 {
     LocalFilesSandbox? _sandbox;

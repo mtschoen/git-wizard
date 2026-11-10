@@ -11,6 +11,7 @@ using MFTLibTestExtensions;
 namespace GitWizardTests.UI;
 
 // Covers LiveWatchViewModel.Journals.cs, SettingsViewModel.Journals.cs, and StatusHeaderViewModel.cs.
+[NonParallelizable]
 public class JournalSettingsIntegrationTests
 {
     LocalFilesSandbox? _sandbox;

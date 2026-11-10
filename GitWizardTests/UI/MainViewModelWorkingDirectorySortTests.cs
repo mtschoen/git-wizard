@@ -12,6 +12,7 @@ namespace GitWizardTests;
 /// groups actually shown.
 /// </summary>
 // Covers RepositoryListViewModel.cs, RepositoryListViewModel.Groups.cs, RepositoryListViewModel.Rows.cs, RepositoryListViewModel.CachedRows.cs, RepositoryGroupKeys.cs, RepositorySortOrder.cs, and StatusHeaderViewModel.cs.
+[NonParallelizable]
 public class MainViewModelWorkingDirectorySortTests
 {
     [SetUp]

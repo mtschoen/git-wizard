@@ -3,6 +3,7 @@ using GitWizardTests.TestSupport;
 
 namespace GitWizardTests;
 
+[NonParallelizable]
 public class GitWizardReportRefreshSchedulingTests
 {
     static readonly string[] Paths = ["/a", "/b", "/c", "/d", "/e", "/f"];

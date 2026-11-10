@@ -7,6 +7,7 @@ namespace GitWizardTests;
 
 // Refresh batch tests are split by concern because the combined fixture exceeds 500 lines.
 // Covers RepositoryListViewModel.Rows.cs, RepositoryListViewModel.CachedRows.cs, RefreshCoordinator.UiDrain.cs, RepositoryListViewModel.cs, RepositoryListViewModel.Groups.cs, and RepositorySortOrder.cs.
+[NonParallelizable]
 public class MainViewModelRefreshBatchTests
 {
     [SetUp]

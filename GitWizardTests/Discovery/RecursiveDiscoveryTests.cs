@@ -4,6 +4,7 @@ using GitWizardTests.TestSupport;
 namespace GitWizardTests.Discovery;
 
 [TestFixture]
+[NonParallelizable]
 public class RecursiveDiscoveryTests
 {
     TempDirectory? _tempDirectory;

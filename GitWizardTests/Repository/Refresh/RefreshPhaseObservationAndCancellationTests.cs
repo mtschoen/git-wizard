@@ -10,6 +10,7 @@ namespace GitWizardTests;
 /// Parallel.ForEach worker without blocking Task.Run + Wait to eliminate thread-pool starvation)
 /// and phase 2 cooperative cancellation between refresh phases.
 /// </summary>
+[NonParallelizable]
 public class RefreshPhaseObservationAndCancellationTests
 {
     [Test]

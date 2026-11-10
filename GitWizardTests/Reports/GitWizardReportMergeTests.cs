@@ -11,6 +11,7 @@ namespace GitWizardTests;
 /// repos, leave all other entries intact, stamp the schema version, write
 /// atomically.
 /// </summary>
+[NonParallelizable]
 public class GitWizardReportMergeTests
 {
     [Test]

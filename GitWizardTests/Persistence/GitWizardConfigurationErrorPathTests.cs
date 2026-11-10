@@ -7,6 +7,7 @@ namespace GitWizardTests;
 /// Covers <see cref="GitWizardConfiguration"/>'s save error handling (a write to an unwritable
 /// path is logged, not thrown).
 /// </summary>
+[NonParallelizable]
 public class GitWizardConfigurationErrorPathTests
 {
     [SetUp]

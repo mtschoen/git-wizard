@@ -13,6 +13,7 @@ namespace GitWizardTests.Discovery;
 /// </summary>
 [TestFixture]
 [Platform("Win")]
+[NonParallelizable]
 public class RepositorySizeCalculatorTests
 {
     const uint RootRow = 5;

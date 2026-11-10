@@ -3,6 +3,7 @@ using GitWizard;
 
 namespace GitWizardTests;
 
+[NonParallelizable]
 public class GitWizardRepositoryTests
 {
     [Test]

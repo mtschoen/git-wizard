@@ -9,6 +9,7 @@ namespace GitWizardTests;
 /// filters, the Prunable and Stale Branches sorts, the row badge and the Clean flow.
 /// </summary>
 [TestFixture]
+[NonParallelizable]
 public class RepositoryPruneViewModelTests
 {
     [SetUp]

@@ -10,6 +10,7 @@ namespace GitWizardTests;
 /// and the local-only branch count on <see cref="GitWizardRepository"/>.
 /// </summary>
 [TestFixture]
+[NonParallelizable]
 public class GitWizardRepositoryMergedByTests
 {
     [SetUp]

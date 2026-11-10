@@ -11,6 +11,7 @@ namespace GitWizardTests.UI;
 
 // Covers PreparedDiscoveryIndexStore.cs, MainViewModel.cs, IndexCacheViewModel.cs, and LiveWatchViewModel.Startup.cs.
 [TestFixture]
+[NonParallelizable]
 public class MainViewModelPreparedSessionTests
 {
     static MainViewModel NewViewModel() => TestViewModels.Create();

@@ -6,6 +6,7 @@ using MFTLib.Index;
 namespace GitWizardTests;
 
 [TestFixture]
+[NonParallelizable]
 public class ReportDiscoverySessionTests
 {
     [SetUp]

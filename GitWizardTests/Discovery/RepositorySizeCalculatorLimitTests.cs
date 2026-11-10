@@ -8,6 +8,7 @@ namespace GitWizardTests.Discovery;
 
 [TestFixture]
 [Platform("Win")]
+[NonParallelizable]
 public class RepositorySizeCalculatorLimitTests
 {
     [Test, NonParallelizable]

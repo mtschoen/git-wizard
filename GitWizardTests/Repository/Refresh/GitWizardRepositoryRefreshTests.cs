@@ -5,6 +5,7 @@ using LibGit2Sharp;
 namespace GitWizardTests;
 
 // Repository refresh tests exercise repository refresh outcomes and status transitions.
+[NonParallelizable]
 public class GitWizardRepositoryRefreshTests
 {
     [SetUp]

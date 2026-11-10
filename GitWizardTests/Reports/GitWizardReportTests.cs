@@ -5,6 +5,7 @@ using LibGit2Sharp;
 namespace GitWizardTests;
 
 // Report tests exercise report generation, aggregation contracts, and refresh orchestration.
+[NonParallelizable]
 public class GitWizardReportTests
 {
     [Test]

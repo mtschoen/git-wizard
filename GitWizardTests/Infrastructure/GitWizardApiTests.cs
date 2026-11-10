@@ -3,6 +3,7 @@ using GitWizardTests.TestSupport;
 
 namespace GitWizardTests;
 
+[NonParallelizable]
 public class GitWizardApiTests
 {
     TempDirectory? _tempDirectory;

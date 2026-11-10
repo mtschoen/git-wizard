@@ -10,6 +10,7 @@ namespace GitWizardTests;
 /// (e.g. a Live-watch refresh racing a batch refresh) must serialize rather than interleave their
 /// field writes.
 /// </summary>
+[NonParallelizable]
 public class RefreshConcurrencyGateTests
 {
     [Test]

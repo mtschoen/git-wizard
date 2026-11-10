@@ -8,6 +8,7 @@ namespace GitWizardTests.UI;
 
 // Live watch tests are split by concern because the combined fixture exceeds 500 lines.
 // Covers LiveWatchViewModel.cs (ApplyLiveEventAsync), RepositoryListViewModel.Rows.cs, and RepositoryListViewModel.CachedRows.cs.
+[NonParallelizable]
 public class MainViewModelLiveEventTests
 {
     [SetUp]

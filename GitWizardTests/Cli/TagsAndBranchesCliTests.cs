@@ -4,6 +4,7 @@ using GitWizard.CLI;
 namespace GitWizardTests;
 
 [TestFixture]
+[NonParallelizable]
 public class TagsAndBranchesCliTests
 {
     bool _originalVerboseMode;

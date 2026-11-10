@@ -5,6 +5,7 @@ using MFTLib;
 namespace GitWizardTests.Watch;
 
 [TestFixture]
+[NonParallelizable]
 public class VolumeChangeSourceFactoryTests
 {
     [TearDown]

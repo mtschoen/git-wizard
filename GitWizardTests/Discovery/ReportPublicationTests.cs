@@ -7,6 +7,7 @@ using LibGit2Sharp;
 namespace GitWizardTests.Discovery;
 
 [TestFixture]
+[NonParallelizable]
 public class ReportPublicationTests
 {
     LocalFilesSandbox? _sandbox;

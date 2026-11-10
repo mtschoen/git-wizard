@@ -12,6 +12,7 @@ namespace GitWizardTests;
 /// the search-path total. <see cref="RepeatAttribute"/> rather than a timing assertion makes the
 /// race observable without relying on wall-clock behavior.
 /// </summary>
+[NonParallelizable]
 public class GitWizardReportDiscoveryProgressTests
 {
     readonly List<string> _searchPaths = [];

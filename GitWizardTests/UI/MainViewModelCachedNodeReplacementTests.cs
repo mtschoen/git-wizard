@@ -6,6 +6,7 @@ namespace GitWizardTests;
 
 // Refresh tests are split by concern because the combined fixture exceeds 500 lines.
 // Covers RepositoryListViewModel.Rows.cs and RepositoryListViewModel.CachedRows.cs (cached node replacement).
+[NonParallelizable]
 public class MainViewModelCachedNodeReplacementTests
 {
     [SetUp]

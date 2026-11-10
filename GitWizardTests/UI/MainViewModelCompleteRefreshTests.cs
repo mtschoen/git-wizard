@@ -6,6 +6,7 @@ namespace GitWizardTests;
 
 // Refresh tests are split by concern because the combined fixture exceeds 500 lines.
 // Covers RefreshCoordinator.cs (CompleteRefresh), RepositoryListViewModel.cs (ApplyFilterAndGrouping), and RepositoryListViewModel.Rows.cs.
+[NonParallelizable]
 public class MainViewModelCompleteRefreshTests
 {
     [SetUp]

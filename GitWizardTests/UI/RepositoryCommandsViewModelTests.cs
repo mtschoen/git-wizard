@@ -10,6 +10,7 @@ namespace GitWizardTests;
 /// a failing alert dialog) as the user sees them: an alert and an error-log entry.
 /// </summary>
 [TestFixture]
+[NonParallelizable]
 public class RepositoryCommandsViewModelTests
 {
     sealed class ThrowingDialogs : IUserDialogs

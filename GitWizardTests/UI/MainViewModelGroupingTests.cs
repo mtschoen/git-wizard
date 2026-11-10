@@ -12,6 +12,7 @@ namespace GitWizardTests;
 /// </summary>
 // Grouping tests exercise shared group-publication and hierarchical view-model scenarios across display filters.
 // Covers RepositoryListViewModel.cs, RepositoryListViewModel.Groups.cs, RepositoryListViewModel.Rows.cs, RepositoryGroupKeys.cs, RepositorySortOrder.cs, RepositoryCommandsViewModel.cs, and StatusHeaderViewModel.cs.
+[NonParallelizable]
 public class MainViewModelGroupingTests
 {
     [SetUp]

@@ -8,6 +8,7 @@ namespace GitWizardTests;
 /// MFTLib's public <see cref="IElevationProvider"/> - including the already-elevated
 /// branch - without triggering real UAC. The fake controls every elevation answer.
 /// </summary>
+[NonParallelizable]
 public class ElevationDecisionTests
 {
     sealed class FakeElevationProvider : IElevationProvider

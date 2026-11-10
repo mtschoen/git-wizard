@@ -3,6 +3,7 @@ using GitWizardTests.TestSupport;
 
 namespace GitWizardTests;
 
+[NonParallelizable]
 public class AsyncFileIOTests
 {
     LocalFilesSandbox? _sandbox;

@@ -2,6 +2,7 @@ using GitWizard;
 
 namespace GitWizardTests;
 
+[NonParallelizable]
 public class GitWizardSummaryTests
 {
     [Test]

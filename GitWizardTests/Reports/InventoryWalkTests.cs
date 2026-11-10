@@ -5,6 +5,7 @@ using LibGit2Sharp;
 namespace GitWizardTests;
 
 [TestFixture]
+[NonParallelizable]
 public class InventoryWalkTests
 {
     TempDirectory? _tempDirectory;

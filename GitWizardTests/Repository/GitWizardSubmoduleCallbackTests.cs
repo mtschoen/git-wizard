@@ -7,6 +7,7 @@ namespace GitWizardTests;
 /// Verifies <c>Refresh</c> swallows a handler that throws from the worktree-creation and submodule-creation
 /// callbacks (initialized and uninitialized), so one bad handler can't abort a scan.
 /// </summary>
+[NonParallelizable]
 public class GitWizardSubmoduleCallbackTests
 {
     [SetUp]

@@ -10,6 +10,7 @@ namespace GitWizardTests;
 /// in <c>IndexCacheViewModel.cs</c>: clipboard actions, OpenInExplorer, DeepRefreshRepository,
 /// CheckoutMatchingBranch, OpenInFork, CleanDownstreamBranches, and ClearCacheAsync.
 /// </summary>
+[NonParallelizable]
 public class MainViewModelCommandTests
 {
     [SetUp]

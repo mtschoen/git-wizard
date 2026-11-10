@@ -4,6 +4,7 @@ using GitWizardUI.ViewModels;
 
 namespace GitWizardTests;
 
+[NonParallelizable]
 public class SettingsViewModelTests
 {
     LocalFilesSandbox? _sandbox;

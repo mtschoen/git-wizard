@@ -8,27 +8,21 @@ namespace GitWizardTests.Discovery;
 [NonParallelizable]
 public class EnumerationDiscoveryTests
 {
+    TempDirectory? _tempDirectory;
     string _root = null!;
 
     [SetUp]
     public void SetUp()
     {
-        _root = Path.Combine(Path.GetTempPath(), "GitWizardTests_Enum_" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_root);
+        _tempDirectory = new TempDirectory("GitWizardTests_Enum_");
+        _root = _tempDirectory.Path;
     }
 
     [TearDown]
     public void TearDown()
     {
         TempDirectories.IsTempPathOverride = null;
-        try
-        {
-            Directory.Delete(_root, true);
-        }
-        catch (IOException)
-        {
-            // Best effort cleanup in temp.
-        }
+        _tempDirectory?.Dispose();
     }
 
     [Test]

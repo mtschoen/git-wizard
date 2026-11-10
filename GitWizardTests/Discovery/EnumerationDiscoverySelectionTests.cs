@@ -1,5 +1,6 @@
 using System.Runtime.Versioning;
 using GitWizard;
+using GitWizardTests.TestSupport;
 
 namespace GitWizardTests.Discovery;
 
@@ -10,14 +11,15 @@ public class EnumerationDiscoverySelectionTests
     // so no real tree exceeds it and this depth resolves; only a synthetic index can still be deeper.
     const int DeepLevelCount = 140;
 
+    TempDirectory? _tempDirectory;
     string _tempDir = null!;
     readonly List<string> _restoreAccess = [];
 
     [SetUp]
     public void SetUp()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), "GitWizardTests_Select_" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_tempDir);
+        _tempDirectory = new TempDirectory("GitWizardTests_Select_");
+        _tempDir = _tempDirectory.Path;
     }
 
     [TearDown]
@@ -33,14 +35,7 @@ public class EnumerationDiscoverySelectionTests
 
         _restoreAccess.Clear();
 
-        try
-        {
-            Directory.Delete(_tempDir, true);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            // Best effort cleanup in temp
-        }
+        _tempDirectory?.Dispose();
     }
 
     [Test]

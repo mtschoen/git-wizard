@@ -10,7 +10,7 @@ static class AsyncCondition
         TimeSpan? timeout = null,
         [CallerArgumentExpression(nameof(condition))] string? expression = null)
     {
-        var limit = timeout ?? TimeSpan.FromSeconds(30);
+        var limit = timeout ?? TestTimeouts.BrokerHangGuard;
         var elapsed = Stopwatch.StartNew();
         var polls = 0;
         while (true)

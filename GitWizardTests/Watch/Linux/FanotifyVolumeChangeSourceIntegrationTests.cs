@@ -39,11 +39,11 @@ public class FanotifyVolumeChangeSourceIntegrationTests
                 "the tmpfs and its parent must be distinct filesystems for fsid matching to be exercised");
 
             await using var source = new FanotifyVolumeChangeSource();
-            using var armCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            using var armCts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
             var armResult = await source.ArmAndCatchUpAsync([tempDir, tmpfs.Path], armCts.Token);
             Assert.That(armResult.Errors, Is.Empty);
 
-            using var watchCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            using var watchCts = new CancellationTokenSource(TestTimeouts.HangGuard);
             var watchToken = watchCts.Token;
             var outerFile = Path.Combine(tempDir, "test.txt");
             var tmpfsFile = Path.Combine(tmpfs.Path, "test.txt");

@@ -58,7 +58,7 @@ public class JournalSettingsWindowTests
         SettingsWindow? window = null;
         try
         {
-            await source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+            await source.Started.WaitAsync(TestTimeouts.ShortHangGuard);
             Dispatcher.UIThread.RunJobs();
             window = new SettingsWindow(main.LiveWatch);
             window.Show();
@@ -97,7 +97,7 @@ public class JournalSettingsWindowTests
         SettingsWindow? window = null;
         try
         {
-            await source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+            await source.Started.WaitAsync(TestTimeouts.ShortHangGuard);
             Dispatcher.UIThread.RunJobs();
             window = new SettingsWindow(main.LiveWatch);
             window.Show();
@@ -123,7 +123,7 @@ public class JournalSettingsWindowTests
             };
 
             buttons[0].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await completed.Task.WaitAsync(TestTimeouts.ShortHangGuard);
 
             using (Assert.EnterMultipleScope())
             {

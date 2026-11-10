@@ -30,7 +30,7 @@ public class LiveWatchControllerTests
             [@"X:\repo", @"Y:\repo"], [], change => changed.TrySetResult(change), stopped.Add, () => true);
         var errorUpdates = new List<IReadOnlyDictionary<string, string>>();
         controller.ScanErrorsChanged += () => errorUpdates.Add(controller.ScanErrors);
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cancellation = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var running = controller.StartAsync(cancellation.Token);
         RepositoryWatchService service;
         try
@@ -113,7 +113,7 @@ public class LiveWatchControllerTests
             onStopped: _ => { },
             isElevated: () => false);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var startTask = controller.StartAsync(cts.Token);
 
         await WaitUntilAsync(() => events.Count >= 2);
@@ -141,7 +141,7 @@ public class LiveWatchControllerTests
             onStopped: stoppedReasons.Add,
             isElevated: () => false);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var startTask = controller.StartAsync(cts.Token);
 
         await WaitUntilAsync(() => source.IsArmed);
@@ -180,7 +180,7 @@ public class LiveWatchControllerTests
             onStopped: stoppedReasons.Add,
             isElevated: () => true);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var startTask = controller.StartAsync(cts.Token);
 
         await WaitUntilAsync(() => firstSource.IsArmed);
@@ -224,7 +224,7 @@ public class LiveWatchControllerTests
             onStopped: stoppedReasons.Add,
             isElevated: () => true);
 
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        using var cancellation = new CancellationTokenSource(TestTimeouts.BrokerHangGuard);
         var running = controller.StartAsync(cancellation.Token);
         try
         {
@@ -292,7 +292,7 @@ public class LiveWatchControllerTests
             onStopped: stoppedReasons.Add,
             isElevated: () => true);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var startTask = controller.StartAsync(cts.Token);
 
         await WaitUntilAsync(() => source.IsArmed);
@@ -335,7 +335,7 @@ public class LiveWatchControllerTests
             onStopped: stoppedReasons.Add,
             isElevated: () => true);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var startTask = controller.StartAsync(cts.Token);
 
         await WaitUntilAsync(() => firstSource.IsArmed);
@@ -377,7 +377,7 @@ public class LiveWatchControllerTests
             onStopped: _ => { },
             isElevated: () => false);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var startTask = controller.StartAsync(cts.Token);
 
         await WaitUntilAsync(() => source.IsArmed);
@@ -415,7 +415,7 @@ public class LiveWatchControllerTests
             onStopped: _ => { },
             isElevated: () => false);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var startTask = controller.StartAsync(cts.Token);
 
         await WaitUntilAsync(() => controller.ScanErrors.Count > 0);
@@ -445,7 +445,7 @@ public class LiveWatchControllerTests
             onStopped: stoppedReasons.Add,
             isElevated: () => false);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         await controller.StartAsync(cts.Token);
 
         Assert.That(stoppedReasons, Has.Count.EqualTo(1));
@@ -466,7 +466,7 @@ public class LiveWatchControllerTests
             isElevated: () => false);
         controller.ScanProgress += samples.Add;
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var startTask = controller.StartAsync(cts.Token);
         await WaitUntilAsync(() => source.IsArmed);
         var sample = new VolumeScanProgress("C", 1, 1, 600_000u, 1_200_000u);
@@ -497,7 +497,7 @@ public class LiveWatchControllerTests
             onStopped: _ => { },
             isElevated: () => false);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         await controller.StartAsync(cts.Token);
 
         Assert.That(events, Is.Empty);
@@ -521,7 +521,7 @@ public class LiveWatchControllerTests
             isElevated: () => false,
             includeTempDirectories: true);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         await controller.StartAsync(cts.Token);
 
         Assert.That(events, Is.EqualTo([
@@ -548,7 +548,7 @@ public class LiveWatchControllerTests
             ignoredPaths: [ignoredTempSubtree],
             includeTempDirectories: true);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         await controller.StartAsync(cts.Token);
 
         Assert.That(events, Is.Empty);
@@ -582,7 +582,7 @@ public class LiveWatchControllerTests
             isElevated: () => false,
             ignoredPaths: [ignoredRoot]);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         await controller.StartAsync(cts.Token);
 
         Assert.That(events, Is.EqualTo([
@@ -611,7 +611,7 @@ public class LiveWatchControllerTests
         var snapshots = new List<VolumeReadinessSnapshot>();
         controller.Ready += ready.Add;
         controller.VolumeReadinessChanged += snapshots.Add;
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cancellation = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var running = controller.StartAsync(cancellation.Token);
         RepositoryWatchService service;
         try
@@ -660,7 +660,7 @@ public class LiveWatchControllerTests
             },
             _ => { }, _ => { }, () => false);
         controller.StartupProgress += report => phases.Add(report.Phase);
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cancellation = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var running = controller.StartAsync(cancellation.Token);
         await WaitUntilAsync(() => controller.Readiness is not null);
         await controller.StopAsync();

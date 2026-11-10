@@ -48,8 +48,8 @@ public class MainViewModelLiveStartupTests
         try
         {
             running = viewModel.LiveWatch.ToggleLiveAsync();
-            var source = await sourceReady.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            await source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+            var source = await sourceReady.Task.WaitAsync(TestTimeouts.ShortHangGuard);
+            await source.Started.WaitAsync(TestTimeouts.ShortHangGuard);
             dispatcher.Drain();
             controller = WatchSubscriptionProbe.Controller(viewModel);
             Assert.That(WatchSubscriptionProbe.ScanErrorsSubscribers(controller), Is.EqualTo(1));

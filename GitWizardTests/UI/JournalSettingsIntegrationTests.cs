@@ -34,7 +34,7 @@ public class JournalSettingsIntegrationTests
             FakeLiveStartup.FromSourceArmedAsync(_source, request, cancellationToken);
         _main.LiveWatch.IsElevated = () => false;
         _running = _main.LiveWatch.ToggleLiveAsync();
-        await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        await _source.Started.WaitAsync(TestTimeouts.ShortHangGuard);
         _dispatcher.Drain();
         _settings = TestViewModels.CreateSettings(liveWatch: _main.LiveWatch, dispatcher: _dispatcher);
     }
@@ -85,7 +85,7 @@ public class JournalSettingsIntegrationTests
     {
         _source.GrowRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var first = _settings.EnlargeJournalAsync(_settings.JournalWarnings[0]);
-        await _source.GrowEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await _source.GrowEntered.Task.WaitAsync(TestTimeouts.ShortHangGuard);
         var duplicate = _settings.EnlargeJournalAsync(_settings.JournalWarnings[1]);
         try
         {
@@ -115,7 +115,7 @@ public class JournalSettingsIntegrationTests
         _source.CheckpointLosses.Clear();
         _source.CheckpointLosses.Add(FakeJournalSettingsSource.TrimmedLoss('D', 16L * 1024 * 1024, 48L * 1024 * 1024));
         _running = _main.LiveWatch.ToggleLiveAsync();
-        await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        await _source.Started.WaitAsync(TestTimeouts.ShortHangGuard);
         _dispatcher.Drain();
         Assert.That(_settings.JournalWarnings, Has.Count.EqualTo(1));
         using (Assert.EnterMultipleScope())
@@ -140,7 +140,7 @@ public class JournalSettingsIntegrationTests
         _source = new FakeJournalSettingsSource();
         _source.CheckpointLosses.Clear();
         _running = _main.LiveWatch.ToggleLiveAsync();
-        await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        await _source.Started.WaitAsync(TestTimeouts.ShortHangGuard);
         _dispatcher.Drain();
         using (Assert.EnterMultipleScope())
         {
@@ -219,7 +219,7 @@ public class JournalSettingsIntegrationTests
         _source.VolumeSerials['C'] = 999;
         _source.VolumeSerials['D'] = 'C';
         _running = _main.LiveWatch.ToggleLiveAsync();
-        await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        await _source.Started.WaitAsync(TestTimeouts.ShortHangGuard);
         _dispatcher.Drain();
         Assert.That(_settings.JournalWarnings, Has.Count.EqualTo(1));
         using (Assert.EnterMultipleScope())
@@ -303,7 +303,7 @@ public class JournalSettingsIntegrationTests
         _source.CheckpointLosses.Clear();
         _source.CheckpointLosses.Add(FakeJournalSettingsSource.RecreatedLoss('C', 64L * 1024 * 1024));
         _running = _main.LiveWatch.ToggleLiveAsync();
-        await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        await _source.Started.WaitAsync(TestTimeouts.ShortHangGuard);
         _dispatcher.Drain();
         Assert.That(_settings.JournalWarnings, Has.Count.EqualTo(1));
         Assert.That(_settings.JournalWarnings[0].HasGrowAction, Is.False);
@@ -326,7 +326,7 @@ public class JournalSettingsIntegrationTests
         _source.CheckpointLosses.Clear();
         _source.CheckpointLosses.Add(FakeJournalSettingsSource.RecreatedLoss('C', 64L * 1024 * 1024));
         _running = _main.LiveWatch.ToggleLiveAsync();
-        await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        await _source.Started.WaitAsync(TestTimeouts.ShortHangGuard);
         _dispatcher.Drain();
         var warning = _settings.JournalWarnings[0];
         await _settings.EnlargeJournalAsync(warning);
@@ -348,7 +348,7 @@ public class JournalSettingsIntegrationTests
         _source.CheckpointLosses.Clear();
         _source.CheckpointLosses.Add(SyntheticNotifications.CreateJournalCheckpointLoss('C', JournalCheckpointLossCause.CheckpointTrimmed, JournalCheckpointLossDetection.RootOpening, new UsnJournalSettings { MaximumSize = 32L * 1024 * 1024, AllocationDelta = missingSize ? 8 * 1024 * 1024 : 0 }) with { BytesBehind = 32L * 1024 * 1024, SizeThatWouldHaveRetained = missingSize ? null : 64L * 1024 * 1024 });
         _running = _main.LiveWatch.ToggleLiveAsync();
-        await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        await _source.Started.WaitAsync(TestTimeouts.ShortHangGuard);
         _dispatcher.Drain();
         var warning = _settings.JournalWarnings[0];
         Assert.That(warning.HasGrowAction, Is.False);
@@ -369,7 +369,7 @@ public class JournalSettingsIntegrationTests
         _source = new FakeJournalSettingsSource();
         _source.CheckpointLosses.Clear();
         _running = _main.LiveWatch.ToggleLiveAsync();
-        await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        await _source.Started.WaitAsync(TestTimeouts.ShortHangGuard);
         _dispatcher.Drain();
         using (Assert.EnterMultipleScope())
         {
@@ -388,7 +388,7 @@ public class JournalSettingsIntegrationTests
         _source.CheckpointLosses.Clear();
         _source.CheckpointLosses.Add(FakeJournalSettingsSource.TrimmedLoss('C', 128L * 1024 * 1024, 128L * 1024 * 1024));
         _running = _main.LiveWatch.ToggleLiveAsync();
-        await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        await _source.Started.WaitAsync(TestTimeouts.ShortHangGuard);
         _dispatcher.Drain();
         Assert.That(_settings.JournalWarnings, Has.Count.EqualTo(1));
         Assert.That(_settings.JournalWarnings[0].HasGrowAction, Is.False);

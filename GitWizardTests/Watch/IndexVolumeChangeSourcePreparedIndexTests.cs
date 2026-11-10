@@ -95,7 +95,7 @@ public class IndexVolumeChangeSourcePreparedIndexTests
         await using var source = new IndexVolumeChangeSource((_, _, _) =>
             throw new AssertionException("Must reuse owner"), owner);
         await source.ArmAndCatchUpAsync(["X"], CancellationToken.None);
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var timeout = new CancellationTokenSource(TestTimeouts.HangGuard);
         await using var reader = source.WatchAsync(timeout.Token).GetAsyncEnumerator();
         Assert.That(await reader.MoveNextAsync(), Is.True);
         using (Assert.EnterMultipleScope())

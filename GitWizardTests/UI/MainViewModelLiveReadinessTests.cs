@@ -48,10 +48,10 @@ public class MainViewModelLiveReadinessTests
         try
         {
             running = viewModel.LiveWatch.ToggleLiveAsync();
-            var source = await sourceReady.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var source = await sourceReady.Task.WaitAsync(TestTimeouts.ShortHangGuard);
             dispatcher.TakeNext()();
             Assert.That(viewModel.LiveWatch.LiveScanProgressText, Is.EqualTo("Requesting elevation..."));
-            await source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+            await source.Started.WaitAsync(TestTimeouts.ShortHangGuard);
             dispatcher.Drain();
             Assert.That(viewModel.LiveWatch.IsLive, Is.True, "Started still drives IsLive.");
             tooltipNotifications.Value = 0;
@@ -160,8 +160,8 @@ public class MainViewModelLiveReadinessTests
         try
         {
             running = viewModel.LiveWatch.ToggleLiveAsync();
-            var source = await sourceReady.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            await source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+            var source = await sourceReady.Task.WaitAsync(TestTimeouts.ShortHangGuard);
+            await source.Started.WaitAsync(TestTimeouts.ShortHangGuard);
             dispatcher.Drain();
 
             var session = Guid.NewGuid();

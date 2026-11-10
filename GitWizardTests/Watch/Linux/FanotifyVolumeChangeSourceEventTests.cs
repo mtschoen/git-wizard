@@ -50,7 +50,7 @@ public class FanotifyVolumeChangeSourceEventTests
         var source = new FanotifyVolumeChangeSource(native);
         await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var batches = new List<VolumeChangeBatch>();
         await foreach (var batch in source.WatchAsync(cts.Token))
         {
@@ -90,7 +90,7 @@ public class FanotifyVolumeChangeSourceEventTests
         var source = new FanotifyVolumeChangeSource(native);
         await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var batches = new List<VolumeChangeBatch>();
         await foreach (var batch in source.WatchAsync(cts.Token))
         {
@@ -123,7 +123,7 @@ public class FanotifyVolumeChangeSourceEventTests
         var source = new FanotifyVolumeChangeSource(native);
         await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var batches = new List<VolumeChangeBatch>();
         await foreach (var batch in source.WatchAsync(cts.Token))
         {
@@ -156,7 +156,7 @@ public class FanotifyVolumeChangeSourceEventTests
         var source = new FanotifyVolumeChangeSource(native);
         await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var batches = new List<VolumeChangeBatch>();
         await foreach (var batch in source.WatchAsync(cts.Token))
         {
@@ -189,7 +189,7 @@ public class FanotifyVolumeChangeSourceEventTests
         var source = new FanotifyVolumeChangeSource(native);
         await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var batches = new List<VolumeChangeBatch>();
         await foreach (var batch in source.WatchAsync(cts.Token))
         {
@@ -250,7 +250,7 @@ public class FanotifyVolumeChangeSourceEventTests
         var source = new FanotifyVolumeChangeSource(native);
         await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var batches = new List<VolumeChangeBatch>();
         await foreach (var batch in source.WatchAsync(cts.Token))
         {
@@ -287,7 +287,7 @@ public class FanotifyVolumeChangeSourceEventTests
         var source = new FanotifyVolumeChangeSource(native);
         await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var batches = new List<VolumeChangeBatch>();
         await foreach (var batch in source.WatchAsync(cts.Token))
         {
@@ -332,7 +332,7 @@ public class FanotifyVolumeChangeSourceEventTests
         var source = new FanotifyVolumeChangeSource(native);
         await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var batches = new List<VolumeChangeBatch>();
         await foreach (var batch in source.WatchAsync(cts.Token))
         {
@@ -363,7 +363,7 @@ public class FanotifyVolumeChangeSourceEventTests
         var source = new FanotifyVolumeChangeSource(native);
         await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var batches = new List<VolumeChangeBatch>();
         await foreach (var batch in source.WatchAsync(cts.Token))
         {

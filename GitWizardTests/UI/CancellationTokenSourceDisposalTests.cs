@@ -1,3 +1,4 @@
+using GitWizardTests.TestSupport;
 using GitWizardUI.ViewModels;
 
 namespace GitWizardTests;
@@ -21,7 +22,7 @@ public class CancellationTokenSourceDisposalTests
 #pragma warning restore MA0045
 
         var cleanupTask = CancellationTokenSourceDisposal.CancelAndDisposeAsync(source);
-        await callbackStarted.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+        await callbackStarted.Task.WaitAsync(TestTimeouts.ShortHangGuard, CancellationToken.None);
 
         using (Assert.EnterMultipleScope())
         {
@@ -32,7 +33,7 @@ public class CancellationTokenSourceDisposalTests
         }
 
         releaseCallback.TrySetResult();
-        await cleanupTask.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+        await cleanupTask.WaitAsync(TestTimeouts.ShortHangGuard, CancellationToken.None);
 
         Assert.Throws<ObjectDisposedException>(() => _ = source.Token);
     }

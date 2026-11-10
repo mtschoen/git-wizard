@@ -27,7 +27,7 @@ sealed class DiagnosticVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDi
     {
         get
         {
-            HandoffBarrier?.SignalAndWait(TimeSpan.FromSeconds(5));
+            HandoffBarrier?.SignalAndWait(TestTimeouts.ShortHangGuard);
             lock (_warningLock)
             {
                 return (JournalWarning[])[.. CurrentWarnings];
@@ -58,7 +58,7 @@ sealed class DiagnosticVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDi
         {
             CurrentWarnings.RemoveAll(w => string.Equals(w.DriveLetter, warning.DriveLetter, StringComparison.OrdinalIgnoreCase));
             CurrentWarnings.Add(warning);
-            HandoffBarrier?.SignalAndWait(TimeSpan.FromSeconds(5));
+            HandoffBarrier?.SignalAndWait(TestTimeouts.ShortHangGuard);
             JournalWarningDetected?.Invoke(warning);
         }
     }

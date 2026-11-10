@@ -16,7 +16,7 @@ public class RepositoryWatchServiceReadinessTests
         public readonly List<string> Stopped = [];
         public bool StartedRaised;
         public Task Pump = Task.CompletedTask;
-        readonly CancellationTokenSource _cancellation = new(TimeSpan.FromSeconds(10));
+        readonly CancellationTokenSource _cancellation = new(TestTimeouts.HangGuard);
 
         public static Run Start(RepositoryWatchService service, CancellationToken? token = null)
         {

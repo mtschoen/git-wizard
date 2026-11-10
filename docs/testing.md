@@ -154,9 +154,17 @@ grep -rnE 'class .*: IUpdateHandler' GitWizardTests
 
 # Hang guards must use TestTimeouts properties, not local static fields
 grep -rn 'static readonly TimeSpan HangGuard' GitWizardTests
+
+# Find inline 5s/10s/30s literals for hang-guard review; exclude canonical definitions
+grep -rnF --include='*.cs' --exclude=TestTimeouts.cs -e 'TimeSpan.FromSeconds(5)' -e 'TimeSpan.FromSeconds(10)' -e 'TimeSpan.FromSeconds(30)' GitWizardTests
 ```
 
 Expected: only `TestSupport/TempDirectory.cs` matches for temp path, only `TestSupport/RecordingUpdateHandler.cs` matches for `IUpdateHandler`, and zero matches for `static readonly TimeSpan HangGuard`.
+
+Expected for the inline-literal grep: zero matches (no 5s/10s/30s data sites remain).
+Review any future matches to distinguish hang guards from test data; intervals,
+debounces, asserted values, manual clock advances, ages and timestamps stay literal.
+Guards with other values stay unchanged when no same-value `TestTimeouts` member exists.
 
 ## Debugging
 

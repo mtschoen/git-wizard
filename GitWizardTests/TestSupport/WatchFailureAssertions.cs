@@ -16,12 +16,12 @@ static class WatchFailureAssertions
         Task? stopping = null;
         try
         {
-            await source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+            await source.Started.WaitAsync(TestTimeouts.ShortHangGuard);
             source.Publish(new VolumeChangeBatch("Y",
                 [new VolumeChangeEntry(@"Y:\repo\file", VolumeEntryKind.Modified)]));
-            Assert.That(await pending.WaitAsync(TimeSpan.FromSeconds(5)), Is.True);
+            Assert.That(await pending.WaitAsync(TestTimeouts.ShortHangGuard), Is.True);
             stopping = reader.DisposeAsync().AsTask();
-            await stopping.WaitAsync(TimeSpan.FromSeconds(5));
+            await stopping.WaitAsync(TestTimeouts.ShortHangGuard);
         }
         finally
         {
@@ -61,7 +61,7 @@ static class WatchFailureAssertions
                     break;
             }
 
-            using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            using var cancellation = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
             await using var reader = service.RunAsync(cancellation.Token).GetAsyncEnumerator();
             var pending = reader.MoveNextAsync().AsTask();
             if (scenario is "arm" or "started")
@@ -115,7 +115,7 @@ static class WatchFailureAssertions
             source.FailDrive("X", "newer watch failure");
         };
         var service = new RepositoryWatchService(source, [], []);
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cancellation = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         await using var reader = service.RunAsync(cancellation.Token).GetAsyncEnumerator();
         var pending = reader.MoveNextAsync().AsTask();
         await source.Started.WaitAsync(cancellation.Token);
@@ -157,7 +157,7 @@ static class WatchFailureAssertions
                 }
             };
             service.Stopped += deaths.Add;
-            using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            using var cancellation = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
             await using var reader = service.RunAsync(cancellation.Token).GetAsyncEnumerator();
             var pending = reader.MoveNextAsync().AsTask();
             await Task.WhenAll(scripted.WaitForStartAsync('X', 1, cancellation.Token),

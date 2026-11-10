@@ -42,7 +42,7 @@ public class IndexCacheStatusWindowTests
         {
             window.Show();
             window.FindControl<Button>("RefreshStatusButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await completed.Task.WaitAsync(TestTimeouts.ShortHangGuard);
             Dispatcher.UIThread.RunJobs();
             var text = window.FindControl<SelectableTextBlock>("CacheStatusText")!.Text;
             Assert.That(text, Does.Contain("Drive X: serial 0000002A"));

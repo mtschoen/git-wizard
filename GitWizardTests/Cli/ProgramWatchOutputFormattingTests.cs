@@ -46,7 +46,7 @@ public class ProgramWatchOutputFormattingTests
         var service = new RepositoryWatchService(source, [@"X:\repo", @"Y:\repo"], [], TimeSpan.Zero);
         var lines = new List<string>();
         var sink = new Lock();
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var cancellation = new CancellationTokenSource(TestTimeouts.HangGuard);
         var loop = Program.RunWatchLoopAsync(service, line =>
         {
             lock (sink)
@@ -55,7 +55,7 @@ public class ProgramWatchOutputFormattingTests
             }
         }, _ => { }, cancellation.Token,
             verbose: true, clock: new FrozenCacheClock());
-        await source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        await source.Started.WaitAsync(TestTimeouts.ShortHangGuard);
         source.SetVolume(VolumeWatchStatus.CatchingUp("X", VolumeBlockOrigin.Warm));
         source.SetVolume(VolumeWatchStatus.CatchingUp("Y", VolumeBlockOrigin.Cold));
         source.SetVolume(VolumeWatchStatus.CaughtUp("X", VolumeBlockOrigin.Warm));
@@ -115,7 +115,7 @@ public class ProgramWatchOutputFormattingTests
         var service = new RepositoryWatchService(source, [@"X:\repo"], [], TimeSpan.Zero);
         var lines = new List<string>();
         var sink = new Lock();
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var cancellation = new CancellationTokenSource(TestTimeouts.HangGuard);
         var loop = Program.RunWatchLoopAsync(service, line =>
         {
             lock (sink)
@@ -153,7 +153,7 @@ public class ProgramWatchOutputFormattingTests
         var service = new RepositoryWatchService(source, [@"X:\repo"], [], TimeSpan.Zero);
         var lines = new List<string>();
         var sink = new Lock();
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var cancellation = new CancellationTokenSource(TestTimeouts.HangGuard);
         var loop = Program.RunWatchLoopAsync(service, line =>
         {
             lock (sink)
@@ -161,7 +161,7 @@ public class ProgramWatchOutputFormattingTests
                 lines.Add(line);
             }
         }, _ => { }, cancellation.Token);
-        await source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        await source.Started.WaitAsync(TestTimeouts.ShortHangGuard);
         source.SetVolume(VolumeWatchStatus.CatchingUp("X", VolumeBlockOrigin.Warm));
         source.KillThenSettle("broker died", VolumeWatchStatus.CaughtUp("X", VolumeBlockOrigin.Warm));
         Assert.That(await loop, Is.True);

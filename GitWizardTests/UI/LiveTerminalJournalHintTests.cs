@@ -49,7 +49,7 @@ public class LiveTerminalJournalHintTests
     async Task StartLiveAsync()
     {
         _running = _main.LiveWatch.ToggleLiveAsync();
-        await _source.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        await _source.Started.WaitAsync(TestTimeouts.ShortHangGuard);
         _dispatcher.Drain();
     }
 
@@ -65,7 +65,7 @@ public class LiveTerminalJournalHintTests
 
         // With no usable drive the real source reports death as soon as the watch starts.
         _source.KillSource("No requested drives could be watched: cache declined");
-        await _running.WaitAsync(TimeSpan.FromSeconds(5));
+        await _running.WaitAsync(TestTimeouts.ShortHangGuard);
         _dispatcher.Drain();
 
         using (Assert.EnterMultipleScope())
@@ -88,7 +88,7 @@ public class LiveTerminalJournalHintTests
         _source.RaiseJournalWarning(new JournalWarning { DriveLetter = "C", VolumeSerial = 12345, Loss = loss });
         _source.FailDrive("C", "watch reached a position the journal no longer holds");
         _source.KillSource("watch reached a position the journal no longer holds");
-        await _running.WaitAsync(TimeSpan.FromSeconds(5));
+        await _running.WaitAsync(TestTimeouts.ShortHangGuard);
         _dispatcher.Drain();
 
         using (Assert.EnterMultipleScope())

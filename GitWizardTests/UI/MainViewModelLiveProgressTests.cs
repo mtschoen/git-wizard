@@ -35,7 +35,7 @@ public class MainViewModelLiveProgressTests
         viewModel.LiveWatch.IsElevated = () => false;
 
         var startTask = viewModel.LiveWatch.ToggleLiveAsync();
-        await source.ArmStarted.WaitAsync(TimeSpan.FromSeconds(5));
+        await source.ArmStarted.WaitAsync(TestTimeouts.ShortHangGuard);
 
         // Arming runs inside the startup prepare, before the service subscribes scan progress,
         // so the starting state shows without progress.
@@ -85,7 +85,7 @@ public class MainViewModelLiveProgressTests
         viewModel.LiveWatch.IsElevated = () => false;
 
         var startTask = viewModel.LiveWatch.ToggleLiveAsync();
-        await source.ArmStarted.WaitAsync(TimeSpan.FromSeconds(5));
+        await source.ArmStarted.WaitAsync(TestTimeouts.ShortHangGuard);
         armGate.SetResult();
         await startTask;
 
@@ -120,7 +120,7 @@ public class MainViewModelLiveProgressTests
         viewModel.LiveWatch.IsElevated = () => false;
 
         var startTask = viewModel.LiveWatch.ToggleLiveAsync();
-        await source.ArmStarted.WaitAsync(TimeSpan.FromSeconds(5));
+        await source.ArmStarted.WaitAsync(TestTimeouts.ShortHangGuard);
         await WaitUntilAsync(() => viewModel.LiveWatch.IsLiveScanProgressVisible);
 
         using (Assert.EnterMultipleScope())

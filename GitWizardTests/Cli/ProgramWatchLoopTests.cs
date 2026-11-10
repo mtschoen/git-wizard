@@ -29,7 +29,7 @@ public class ProgramWatchLoopTests
         var service = new RepositoryWatchService(source, [@"C:\repo"], [], TimeSpan.Zero);
         var lines = new System.Collections.Concurrent.ConcurrentQueue<string>();
         var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cancellation = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var running = Program.RunWatchLoopAsync(service, line =>
         {
             lines.Enqueue(line);
@@ -54,7 +54,7 @@ public class ProgramWatchLoopTests
         var service = new RepositoryWatchService(source, [@"X:\repo", @"Y:\repo"], [], TimeSpan.Zero);
         var lines = new System.Collections.Concurrent.ConcurrentQueue<string>();
         var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cancellation = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var running = Program.RunWatchLoopAsync(service, line =>
         {
             lines.Enqueue(line);
@@ -111,7 +111,7 @@ public class ProgramWatchLoopTests
         var service = new RepositoryWatchService(source, [@"X:\repo", @"Y:\repo"], [], TimeSpan.Zero);
         var lines = new System.Collections.Concurrent.ConcurrentQueue<string>();
         var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cancellation = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var running = Program.RunWatchLoopAsync(service, line =>
         {
             lines.Enqueue(line);
@@ -173,7 +173,7 @@ public class ProgramWatchLoopTests
             debounce: TimeSpan.FromMilliseconds(10));
 
         var lines = new List<string>();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var stopped = await Program.RunWatchLoopAsync(service, lines.Add, NoExit, cts.Token);
 
         using (Assert.EnterMultipleScope())
@@ -210,7 +210,7 @@ public class ProgramWatchLoopTests
             debounce: TimeSpan.FromMilliseconds(10));
 
         var lines = new List<string>();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var stopped = await Program.RunWatchLoopAsync(service, lines.Add, NoExit, cts.Token);
 
         using (Assert.EnterMultipleScope())
@@ -231,7 +231,7 @@ public class ProgramWatchLoopTests
             debounce: TimeSpan.FromMilliseconds(10));
 
         var lines = new List<string>();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var loopTask = Program.RunWatchLoopAsync(service, lines.Add, NoExit, cts.Token);
 
         source.KillSource("volume unmounted");
@@ -256,7 +256,7 @@ public class ProgramWatchLoopTests
 
         var lines = new List<string>();
         var exitCodes = new List<int>();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
 
         await Program.RunWatchLoopAsync(service, lines.Add, exitCodes.Add, cts.Token);
 
@@ -283,7 +283,7 @@ public class ProgramWatchLoopTests
             debounce: TimeSpan.FromMilliseconds(10));
 
         var lines = new List<string>();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var stopped = await Program.RunWatchLoopAsync(service, lines.Add, NoExit, cts.Token);
 
         Assert.That(stopped, Is.True);
@@ -313,7 +313,7 @@ public class ProgramWatchLoopTests
             debounce: TimeSpan.FromMilliseconds(10));
 
         var lines = new List<string>();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var stopped = await Program.RunWatchLoopAsync(service, lines.Add, NoExit, cts.Token);
 
         using (Assert.EnterMultipleScope())
@@ -332,7 +332,7 @@ public class ProgramWatchLoopTests
         source.ArmWarnings.Add(new JournalWarning { DriveLetter = "X", VolumeSerial = 12345, Loss = loss });
         var service = new RepositoryWatchService(source, [@"X:\repo"], [], TimeSpan.Zero);
         var lines = new System.Collections.Concurrent.ConcurrentQueue<string>();
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cancellation = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var running = Program.RunWatchLoopAsync(service, lines.Enqueue, NoExit, cancellation.Token);
         await source.Started;
 
@@ -358,7 +358,7 @@ public class ProgramWatchLoopTests
         var service = new RepositoryWatchService(source, [@"C:\repo"], [], TimeSpan.Zero);
         var lines = new System.Collections.Concurrent.ConcurrentQueue<string>();
         var liveHintPrinted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cancellation = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var running = Program.RunWatchLoopAsync(service, line =>
         {
             lines.Enqueue(line);
@@ -388,7 +388,7 @@ public class ProgramWatchLoopTests
         var service = new RepositoryWatchService(source, [@"C:\repo"], [], TimeSpan.Zero);
         var lines = new System.Collections.Concurrent.ConcurrentQueue<string>();
         var printed = System.Threading.Channels.Channel.CreateUnbounded<string>();
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cancellation = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var running = Program.RunWatchLoopAsync(service, line =>
         {
             lines.Enqueue(line);
@@ -431,7 +431,7 @@ public class ProgramWatchLoopTests
         });
         var service = new RepositoryWatchService(source, [@"C:\repo"], [], TimeSpan.Zero);
         var lines = new System.Collections.Concurrent.ConcurrentQueue<string>();
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cancellation = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var running = Program.RunWatchLoopAsync(service, lines.Enqueue, NoExit, cancellation.Token);
         await source.Started;
         source.Complete();
@@ -463,7 +463,7 @@ public class ProgramWatchLoopTests
             debounce: TimeSpan.FromMilliseconds(10));
 
         var lines = new List<string>();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var stopped = await Program.RunWatchLoopAsync(service, lines.Add, NoExit, cts.Token);
 
         using (Assert.EnterMultipleScope())

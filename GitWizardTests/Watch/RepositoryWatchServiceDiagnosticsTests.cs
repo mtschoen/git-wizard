@@ -12,7 +12,7 @@ public class RepositoryWatchServiceDiagnosticsTests
 {
     static async Task DrainAsync(RepositoryWatchService svc)
     {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         await foreach (var _ in svc.RunAsync(cts.Token)) { }
     }
 
@@ -23,7 +23,7 @@ public class RepositoryWatchServiceDiagnosticsTests
         var service = new RepositoryWatchService(source, [@"X:\repo", @"Y:\repo"], [], TimeSpan.Zero);
         var updates = new List<IReadOnlyDictionary<string, string>>();
         service.ScanErrorsChanged += () => updates.Add(service.ScanErrors);
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cancellation = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var reader = service.RunAsync(cancellation.Token).GetAsyncEnumerator();
         var pending = reader.MoveNextAsync().AsTask();
         try
@@ -81,7 +81,7 @@ public class RepositoryWatchServiceDiagnosticsTests
         var service = new RepositoryWatchService(source, [@"X:\repo"], [], TimeSpan.Zero);
         var notifications = 0;
         service.ScanWarningsChanged += () => notifications++;
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cancellation = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var reader = service.RunAsync(cancellation.Token).GetAsyncEnumerator();
         var pending = reader.MoveNextAsync().AsTask();
         try
@@ -177,7 +177,7 @@ public class RepositoryWatchServiceDiagnosticsTests
             service = new RepositoryWatchService(source, [@"C:\repo"], [], TimeSpan.Zero);
         }
 
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cancellation = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var reader = service.RunAsync(cancellation.Token).GetAsyncEnumerator();
 
         var publisherTask = Task.Run(() => source.RaiseJournalWarning(refreshedWarning));
@@ -185,7 +185,7 @@ public class RepositoryWatchServiceDiagnosticsTests
 
         try
         {
-            await Task.WhenAll(publisherTask, source.Started).WaitAsync(TimeSpan.FromSeconds(5));
+            await Task.WhenAll(publisherTask, source.Started).WaitAsync(TestTimeouts.ShortHangGuard);
 
             AssertRefreshedWarning(service.ScanWarnings, refreshedWarning);
         }
@@ -256,7 +256,7 @@ public class RepositoryWatchServiceDiagnosticsTests
         string? reason = null;
         svc.Stopped += r => reason = r;
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var enumerator = svc.RunAsync(cts.Token).GetAsyncEnumerator(cts.Token);
         var moveNextTask = enumerator.MoveNextAsync();
 
@@ -281,7 +281,7 @@ public class RepositoryWatchServiceDiagnosticsTests
             searchRoots: [],
             debounce: TimeSpan.FromMilliseconds(10));
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var enumerator = svc.RunAsync(cts.Token).GetAsyncEnumerator(cts.Token);
         var moveNextTask = enumerator.MoveNextAsync();
 

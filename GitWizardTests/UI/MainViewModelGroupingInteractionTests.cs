@@ -68,7 +68,7 @@ public class MainViewModelGroupingInteractionTests
 
         // The callback runs after the deferred collection swap, so its completion is the condition
         // this test needs. The timeout only bounds a broken test instead of controlling progress.
-        await swapCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await swapCompleted.Task.WaitAsync(TestTimeouts.ShortHangGuard);
 
         using (Assert.EnterMultipleScope())
         {

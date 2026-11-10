@@ -25,9 +25,9 @@ public class MftIndexDiagnosticsTests
         try
         {
             relay.Report("first");
-            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await entered.Task.WaitAsync(TestTimeouts.HangGuard);
             // Hang guard only: Report must return while the sink is still blocked on the first record.
-            await Task.Run(() => relay.Report("second")).WaitAsync(TimeSpan.FromSeconds(10));
+            await Task.Run(() => relay.Report("second")).WaitAsync(TestTimeouts.HangGuard);
         }
         finally
         {

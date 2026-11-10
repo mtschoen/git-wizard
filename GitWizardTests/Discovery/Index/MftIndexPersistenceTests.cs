@@ -165,7 +165,7 @@ public class MftIndexPersistenceTests
                 RecordNumber = 6,                ParentRecordNumber = 5,                SequenceNumber = 1,                FileName = "renamed",                Reason = SyntheticJournalReason.RenameNewName,                FileAttributes = FileAttributes.Directory,                Timestamp = PackedIndexFixture.CompletionTimestamp,                Usn = PackedIndexFixture.NextUsn + 1
             }
         ], new SyntheticJournalCursor(PackedIndexFixture.JournalIdentifier, PackedIndexFixture.NextUsn + 1));
-        await changed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await changed.Task.WaitAsync(TestTimeouts.HangGuard);
         Assert.That(index.Search(new SearchQuery("renamed", NameMatchMode.Exact)), Has.Count.EqualTo(1));
         await index.StopWatchingAsync(CancellationToken.None);
     }
@@ -184,7 +184,7 @@ public class MftIndexPersistenceTests
         {
             Assert.That(broker.ConnectionCount, Is.Zero);
             await session.Indices.Single().StartWatchingAsync(CancellationToken.None);
-            await broker.WatchStarted.WaitAsync(TimeSpan.FromSeconds(10));
+            await broker.WatchStarted.WaitAsync(TestTimeouts.HangGuard);
             using (Assert.EnterMultipleScope())
             {
                 Assert.That(broker.ConnectionCount, Is.EqualTo(1));
@@ -196,7 +196,7 @@ public class MftIndexPersistenceTests
             await session.DisposeAsync();
         }
         await session.DisposeAsync();
-        await broker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
+        await broker.Shutdown.WaitAsync(TestTimeouts.HangGuard);
     }
 
     [Test]
@@ -228,7 +228,7 @@ public class MftIndexPersistenceTests
         {
             await session.DisposeAsync();
         }
-        await broker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
+        await broker.Shutdown.WaitAsync(TestTimeouts.HangGuard);
     }
 
     [Test]

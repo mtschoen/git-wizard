@@ -47,12 +47,12 @@ public class IndexCacheViewModelTests
         var model = new IndexCacheViewModel(new StubUiDispatcher(), new StubUserDialogs(), new PreparedDiscoveryIndexStore(), () =>
         {
             entered.TrySetResult();
-            return !release.Task.Wait(TimeSpan.FromSeconds(5)) ? throw new TimeoutException("Test did not release inspection") : snapshot;
+            return !release.Task.Wait(TestTimeouts.ShortHangGuard) ? throw new TimeoutException("Test did not release inspection") : snapshot;
         }, NoClear);
         var first = model.RefreshAsync();
         try
         {
-            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await entered.Task.WaitAsync(TestTimeouts.ShortHangGuard);
             Assert.That(model.IsIdle, Is.False);
             await model.RefreshAsync();
             Assert.That(first.IsCompleted, Is.False);
@@ -82,12 +82,12 @@ public class IndexCacheViewModelTests
             {
                 Interlocked.Increment(ref clears);
                 entered.TrySetResult();
-                return !release.Task.Wait(TimeSpan.FromSeconds(5)) ? throw new TimeoutException("Test did not release clear") : NoClear();
+                return !release.Task.Wait(TestTimeouts.ShortHangGuard) ? throw new TimeoutException("Test did not release clear") : NoClear();
             });
         var first = model.ClearAsync();
         try
         {
-            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await entered.Task.WaitAsync(TestTimeouts.ShortHangGuard);
             Assert.That(model.IsIdle, Is.False);
             await model.RefreshAsync();
             Assert.That(inspections, Is.Zero,

@@ -1,4 +1,5 @@
 using System.Runtime.ExceptionServices;
+using GitWizardTests.TestSupport;
 using GitWizardUI;
 using UiProgram = GitWizardUI.Program;
 
@@ -27,7 +28,7 @@ public class DesktopStartupTests
             IsBackground = true
         };
         thread.Start();
-        Assert.That(thread.Join(TimeSpan.FromSeconds(10)), Is.True,
+        Assert.That(thread.Join(TestTimeouts.HangGuard), Is.True,
             "Startup did not finish; the guard must not block for ownership.");
         if (failure is not null)
         {

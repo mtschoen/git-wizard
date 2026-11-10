@@ -64,7 +64,7 @@ public class MftIndexSessionTests
         try
         {
             await session.Indices.Single().StartWatchingAsync(CancellationToken.None);
-            var watchedDrive = await broker.WatchStarted.WaitAsync(TimeSpan.FromSeconds(10));
+            var watchedDrive = await broker.WatchStarted.WaitAsync(TestTimeouts.HangGuard);
             using (Assert.EnterMultipleScope())
             {
                 Assert.That(watchedDrive.Drive, Is.EqualTo("X"));
@@ -74,9 +74,9 @@ public class MftIndexSessionTests
             var fault = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             session.Indices.Single().WatchFaulted += _ => fault.TrySetResult();
             await broker.DisconnectAsync();
-            await fault.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await fault.Task.WaitAsync(TestTimeouts.HangGuard);
             // WatchFaulted can fire before the broker session records its end, which IsFaulted reads.
-            await brokerSession.Ended.WaitAsync(TimeSpan.FromSeconds(10));
+            await brokerSession.Ended.WaitAsync(TestTimeouts.HangGuard);
             Assert.That(session.IsFaulted, Is.True);
         }
         finally
@@ -134,7 +134,7 @@ public class MftIndexSessionTests
             cacheDirectory, null, cancellationToken, configureOptions: broker.ConfigureOptions);
         try
         {
-            var reached = await Task.WhenAny(midWriteReached.Task, openTask).WaitAsync(TimeSpan.FromSeconds(10));
+            var reached = await Task.WhenAny(midWriteReached.Task, openTask).WaitAsync(TestTimeouts.HangGuard);
             if (reached == openTask)
             {
                 await using var earlySession = await openTask;
@@ -145,9 +145,9 @@ public class MftIndexSessionTests
         {
             await cancellation.CancelAsync();
         }
-        Assert.That(async () => await openTask.WaitAsync(TimeSpan.FromSeconds(10)),
+        Assert.That(async () => await openTask.WaitAsync(TestTimeouts.HangGuard),
             Throws.InstanceOf<OperationCanceledException>());
-        await broker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
+        await broker.Shutdown.WaitAsync(TestTimeouts.HangGuard);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(broker.ConnectionCount, Is.EqualTo(1));
@@ -160,12 +160,12 @@ public class MftIndexSessionTests
         var session = await MftIndexSession.OpenAsync([watchBroker.Drive('X')],
             watchBroker.CreateSession(), watchBroker.CacheDirectory, null, CancellationToken.None, configureOptions: watchBroker.ConfigureOptions);
         await session.Indices.Single().StartWatchingAsync(watchCancellation.Token);
-        await watchBroker.WatchStarted.WaitAsync(TimeSpan.FromSeconds(10));
+        await watchBroker.WatchStarted.WaitAsync(TestTimeouts.HangGuard);
         var cancelling = watchCancellation.CancelAsync();
         var firstDisposal = session.DisposeAsync().AsTask();
         var secondDisposal = session.DisposeAsync().AsTask();
         await Task.WhenAll(cancelling, firstDisposal, secondDisposal);
-        await watchBroker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
+        await watchBroker.Shutdown.WaitAsync(TestTimeouts.HangGuard);
         Assert.That(session.IsDisposed, Is.True);
         Assert.Throws<ObjectDisposedException>(() => session.IndexSet.Search(new SearchQuery(".git", NameMatchMode.Exact)));
         using (Assert.EnterMultipleScope())
@@ -227,7 +227,7 @@ public class MftIndexSessionTests
         Assert.That(async () =>
             await MftIndexSession.OpenAsync([drive], brokerSession,
                 cacheDirectory, null, cancellationToken, configureOptions: configureOptions), Throws.InstanceOf<OperationCanceledException>());
-        await broker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
+        await broker.Shutdown.WaitAsync(TestTimeouts.HangGuard);
         Assert.That(broker.ConnectionCount, Is.EqualTo(1));
     }
 
@@ -259,7 +259,7 @@ public class MftIndexSessionTests
                 broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None, configureOptions: broker.ConfigureOptions);
             Assert.That(session.ScanErrors.Keys, Is.EquivalentTo(["X", "Y"]));
             await session.DisposeAsync();
-            await broker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
+            await broker.Shutdown.WaitAsync(TestTimeouts.HangGuard);
         }
         await using (var broker = new BlockBrokerFixture { DisconnectOnScan = true })
         {
@@ -267,7 +267,7 @@ public class MftIndexSessionTests
                 broker.CreateSession(), broker.CacheDirectory, null, CancellationToken.None, configureOptions: broker.ConfigureOptions);
             // The drive channels and the control pipe read EOF independently, so the open can return
             // before the process end is observed; IsFaulted is defined once the end has completed.
-            await broker.Shutdown.WaitAsync(TimeSpan.FromSeconds(10));
+            await broker.Shutdown.WaitAsync(TestTimeouts.HangGuard);
             using (Assert.EnterMultipleScope())
             {
                 Assert.That(session.IsFaulted, Is.True, "Broker death during opening must remain latched.");

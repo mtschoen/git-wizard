@@ -26,14 +26,14 @@ public class FanotifyVolumeChangeSourceLifecycleTests
         Assert.That(source.PumpStarted.IsCompleted, Is.False,
             "Arming alone must not signal the pump; WatchAsync has not been called yet.");
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         await using var enumerator = source.WatchAsync(cts.Token).GetAsyncEnumerator(cts.Token);
         var moveNext = enumerator.MoveNextAsync().AsTask();
 
         // MoveNextAsync only queues PumpEventsAsync onto a pool thread (Task.Run); that queueing
         // alone is not the same as the pump having actually begun reading. PumpStarted must still
         // complete promptly once the queued work actually runs, with no batch required to prove it.
-        await source.PumpStarted.WaitAsync(TimeSpan.FromSeconds(5));
+        await source.PumpStarted.WaitAsync(TestTimeouts.ShortHangGuard);
 
         await cts.CancelAsync();
         try
@@ -61,7 +61,7 @@ public class FanotifyVolumeChangeSourceLifecycleTests
 
         await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var batches = new List<VolumeChangeBatch>();
         await foreach (var batch in source.WatchAsync(cts.Token))
         {
@@ -90,7 +90,7 @@ public class FanotifyVolumeChangeSourceLifecycleTests
 
         await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var batches = new List<VolumeChangeBatch>();
         await foreach (var batch in source.WatchAsync(cts.Token))
         {
@@ -119,7 +119,7 @@ public class FanotifyVolumeChangeSourceLifecycleTests
 
         await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var batches = new List<VolumeChangeBatch>();
         await foreach (var batch in source.WatchAsync(cts.Token))
         {
@@ -165,7 +165,7 @@ public class FanotifyVolumeChangeSourceLifecycleTests
 
         await source.ArmAndCatchUpAsync([ExistingDirectoryPath], CancellationToken.None);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var batches = new List<VolumeChangeBatch>();
         await foreach (var batch in source.WatchAsync(cts.Token))
         {

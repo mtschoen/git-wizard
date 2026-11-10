@@ -30,7 +30,7 @@ public class RepositoryWatchServiceTests
             startupBatches: startupBatches);
         var service = new RepositoryWatchService(startup, debounce: TimeSpan.Zero);
         var events = new List<RepositoryChangeEvent>();
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var cancellation = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         await foreach (var changeEvent in service.RunAsync(cancellation.Token))
         {
             events.Add(changeEvent);

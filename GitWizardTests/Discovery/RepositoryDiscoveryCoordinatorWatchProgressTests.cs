@@ -40,7 +40,7 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
         await scripted.WaitForStartAsync('X', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
         await AsyncCondition.WaitUntilAsync(() => reports.Any(r => r.Readiness?.TryGet("X", out var x) == true && x.State == VolumeWatchState.CatchingUp));
         await scripted.WatchFor('X').PublishCaughtUpAsync();
-        await using var startup = await preparing.WaitAsync(TimeSpan.FromSeconds(10));
+        await using var startup = await preparing.WaitAsync(TestTimeouts.HangGuard);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(reports.Select(r => r.Phase).Distinct(), Is.EqualTo([
@@ -132,7 +132,7 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
         await AsyncCondition.WaitUntilAsync(() => connectionFired);
         await AsyncCondition.WaitUntilAsync(() => reports.Any(r => r.Phase == WatchStartupPhase.BrokerConnected));
         await scripted.WatchFor('X').PublishCaughtUpAsync();
-        await using var startup = await preparing.WaitAsync(TimeSpan.FromSeconds(10));
+        await using var startup = await preparing.WaitAsync(TestTimeouts.HangGuard);
 
         Assert.That(reports.Select(r => r.Phase), Does.Contain(WatchStartupPhase.RequestingElevation));
         Assert.That(reports.Select(r => r.Phase), Does.Contain(WatchStartupPhase.BrokerConnected));

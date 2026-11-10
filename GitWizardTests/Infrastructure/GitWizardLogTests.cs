@@ -47,7 +47,7 @@ public class GitWizardLogTests
         var writerTask = GitWizardLog._writerTask!;
         Assert.That(channel.Writer.TryComplete(), Is.True,
             "Test must own a live channel before completing it.");
-        await writerTask.WaitAsync(TimeSpan.FromSeconds(30));
+        await writerTask.WaitAsync(TestTimeouts.BrokerHangGuard);
         GitWizardLog._logChannel = Channel.CreateBounded<string>(1);
     }
 

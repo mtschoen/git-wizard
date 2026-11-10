@@ -199,6 +199,40 @@ public class MainViewModelUiDrainTests
         Assert.That(drained, Is.False, "The queue holds nothing to wait for.");
     }
 
+    [Test]
+    public async Task EveryCommandKind_IsAppliedInOrderByOneDrain()
+    {
+        var dispatcher = new RecordingUiDispatcher();
+        var clock = new ControlledDelayClock();
+        var vm = CreateViewModel(dispatcher, clock);
+        try
+        {
+            var parent = Repo("C:/repos/parent");
+            var submodule = Repo("C:/repos/parent/vendor/lib");
+            var worktree = Repo("C:/repos/parent-worktree");
+            vm.Refresh.OnRepositoryCreated(parent);
+            vm.Refresh.OnSubmoduleCreated(parent, submodule);
+            vm.Refresh.OnWorktreeCreated(worktree);
+            vm.Refresh.OnUninitializedSubmoduleCreated(parent, "vendor/missing");
+            vm.Refresh.OnRepositoryRefreshCompleted(parent);
+
+            clock.Timer!.Fire();
+            dispatcher.RunAll();
+
+            var parentNode = vm.RepositoryList.Repositories.Single(node => node.WorkingDirectory == parent.WorkingDirectory);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(vm.RepositoryList.Repositories.Select(node => node.WorkingDirectory),
+                    Is.EquivalentTo([parent.WorkingDirectory, worktree.WorkingDirectory]));
+                Assert.That(parentNode.Children.Select(node => node.WorkingDirectory), Is.EqualTo([submodule.WorkingDirectory]));
+            }
+        }
+        finally
+        {
+            await vm.DisposeAsync();
+        }
+    }
+
     // The refresh's wait on the queue ends on disposal instead of polling a queue no drain empties.
     [Test]
     [CancelAfter(30000)]

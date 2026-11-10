@@ -442,4 +442,13 @@ public class RepositoryPendingChangesStatusTests
         public override long GetTimestamp() =>
             TimeSpan.FromSeconds(timestampsInSeconds[_index++]).Ticks;
     }
+
+    [TestCase("1 .M", "Invalid porcelain v2 status columns", TestName = "Parse_OrdinaryRecordWithTooFewColumns_IsRejected")]
+    [TestCase("2 R. N... 100644 100644 100644 a b R100 new.txt\0", "Missing porcelain v2 rename source", TestName = "Parse_RenameWithoutItsSourceRecord_IsRejected")]
+    public void Parse_MalformedRecord_IsRejectedWithTheReason(string output, string expectedMessage)
+    {
+        var failure = Assert.Throws<FormatException>(() => RepositoryPendingChangesStatus.Parse(output));
+
+        Assert.That(failure.Message, Is.EqualTo(expectedMessage));
+    }
 }

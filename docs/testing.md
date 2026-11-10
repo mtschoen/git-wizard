@@ -114,7 +114,7 @@ Before deleting a repeated test, record its surviving test/case and compare
 covered production line sets by assembly and file before and after the subject
 batch, using the same host, build configuration, filter, and
 `GitWizardTests/coverlet.runsettings`. Preserve the TRX and Cobertura results
-outside the checkout. A passing 55% aggregate gate alone does not prove that a
+outside the checkout. A passing 90% aggregate gate alone does not prove that a
 specific covered line or assertion survived.
 
 Filename check (PowerShell, repository root):

@@ -491,4 +491,23 @@ sealed class RunConfigurationTests
         Assert.ThrowsAsync<ArgumentOutOfRangeException>(
             () => Program.RunCommandCoreAsync(configuration, new GitWizardConfiguration()));
     }
+
+    [Test]
+    public void RunCommandCoreAsync_UnknownCommand_IsRejected()
+    {
+        var configuration = new RunConfiguration { Command = (CommandKind)999 };
+
+        Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            () => Program.RunCommandCoreAsync(configuration, new GitWizardConfiguration()));
+    }
+
+    [Test]
+    public void Parse_AliasAfterTheEndOfOptionsMarker_IsNotRewritten()
+    {
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(CliParser.Parse(["-silent"]).Silent, Is.True);
+            Assert.That(CliParser.Parse(["--", "-silent"]).Silent, Is.False);
+        }
+    }
 }

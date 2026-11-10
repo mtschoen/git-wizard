@@ -12,7 +12,8 @@ Computes line-coverage percent from a coverage report and can:
 
 Percent source:
   default                -> pytest-cov coverage.json ['totals']['percent_covered']
-  --cobertura "<glob>"   -> merge Cobertura XML line hits across matched files
+  --cobertura "<glob>"   -> merge Cobertura XML line hits across matched files,
+                            ignoring sources under external/ (vendored submodule)
                             (a line counts covered if any report shows hits>0)
 
 On a measurement failure it posts state=error (so pr-crew reads the gate as
@@ -58,11 +59,20 @@ def _cobertura_paths(patterns: list[str]) -> list[str]:
     return paths
 
 
+def _is_vendored(filename: str) -> bool:
+    """True for sources under external/ (the MFTLib submodule): a local build instruments
+    them while CI's report does not, and the figure is about first-party code."""
+    normalized = filename.replace("\\", "/")
+    return normalized.startswith("external/") or "/external/" in normalized
+
+
 def _percent_from_cobertura(patterns: list[str]) -> float:
     lines: dict[tuple[str, str], bool] = {}
     for path in _cobertura_paths(patterns):
         for class_node in ElementTree.parse(path).getroot().iter("class"):
             filename = class_node.get("filename", "")
+            if _is_vendored(filename):
+                continue
             for line_node in class_node.iter("line"):
                 key = (filename, line_node.get("number", ""))
                 lines[key] = (

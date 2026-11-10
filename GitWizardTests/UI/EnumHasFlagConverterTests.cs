@@ -26,4 +26,9 @@ public class EnumHasFlagConverterTests
             Assert.That(_converter.Convert(null, typeof(bool), "Stale", CultureInfo.InvariantCulture), Is.False);
         }
     }
+
+    [Test]
+    public void ConvertBack_IsNotSupported()
+        => Assert.Throws<NotSupportedException>(
+            () => _converter.ConvertBack(true, typeof(FilterType), "Stale", CultureInfo.InvariantCulture));
 }

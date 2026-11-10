@@ -173,4 +173,39 @@ public class GitWizardApiLocalFilesTests
         var cachedPath = GitWizardApi.GetCachedRepositoryListPath();
         Assert.That(cachedPath, Does.EndWith(Path.Combine(localPath, "repositories.txt")));
     }
+
+    [Test]
+    public void GetLocalFilesSize_UnreadableSubdirectory_IsSkippedAndTheRestStillCounted()
+    {
+        GitWizardApi.EnsureLocalFolderExists();
+        var localPath = GitWizardApi.GetLocalFilesPath();
+        File.WriteAllBytes(Path.Combine(localPath, "readable.txt"), "12345"u8);
+        var locked = Path.Combine(localPath, "locked");
+        Directory.CreateDirectory(locked);
+        File.WriteAllBytes(Path.Combine(locked, "hidden-from-count.txt"), "123456789"u8);
+        using var restore = DeniedDirectory.Deny(locked);
+
+        Assert.That(GitWizardApi.GetLocalFilesSize(), Is.EqualTo(5));
+    }
+
+    [Test]
+    public void TryDeleteAllLocalFiles_EntryThatCannotBeDeleted_RefusesWithTheReasonAndKeepsTheFolder()
+    {
+        GitWizardApi.EnsureLocalFolderExists();
+        var localPath = GitWizardApi.GetLocalFilesPath();
+        var locked = Path.Combine(localPath, "locked");
+        Directory.CreateDirectory(locked);
+        File.WriteAllText(Path.Combine(locked, "inside.txt"), "kept");
+        using (DeniedDirectory.Deny(locked))
+        {
+            var deleted = GitWizardApi.TryDeleteAllLocalFiles(out var refusal);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(deleted, Is.False);
+                Assert.That(refusal, Does.StartWith("Could not delete all local files: "));
+                Assert.That(Directory.Exists(localPath), Is.True);
+            }
+        }
+    }
 }

@@ -197,4 +197,19 @@ public class PrunerTests
             Assert.That(report.Errors, Is.Empty);
         }
     }
+
+    [Test]
+    public void Run_BaseBranchThatDoesNotExist_ReportsTheErrorAndPrunesNothing()
+    {
+        using var scenario = CreateWithSquashMergedBranch("feature");
+
+        var report = Pruner.Run([scenario.Path], new PruneOptions(Apply: true, BaseBranchName: "does-not-exist"), TextWriter.Null);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(report.Candidates, Is.Empty);
+            Assert.That(report.Errors.Single().Error, Is.EqualTo("Base branch 'does-not-exist' was not found."));
+            Assert.That(scenario.HasBranch("feature"), Is.True);
+        }
+    }
 }

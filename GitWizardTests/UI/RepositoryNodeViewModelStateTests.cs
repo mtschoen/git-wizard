@@ -242,4 +242,39 @@ public class RepositoryNodeViewModelStateTests
             Assert.That(errorNode.Status, Is.EqualTo(RefreshStatus.Error));
         }
     }
+
+    [Test]
+    public void UnknownStatus_FallsBackToTheNeutralPresentation()
+    {
+        var node = new RepositoryNodeViewModel(new GitWizardRepository("/x")) { Status = (RefreshStatus)99 };
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(node.StatusColorHex, Is.EqualTo("#808080"));
+            Assert.That(node.StatusIcon, Is.Empty);
+            Assert.That(node.StatusTooltip, Is.Empty);
+        }
+    }
+
+    [Test]
+    public void MatchesFilter_UnrecognizedFilter_AcceptsTheRepository()
+    {
+        var node = new RepositoryNodeViewModel(new GitWizardRepository("/x"));
+
+        Assert.That(node.MatchesFilter((FilterType)(1 << 20)), Is.True);
+    }
+
+    [Test]
+    public void JustCopied_SettingTheCurrentValueRaisesNoChange()
+    {
+        var node = new RepositoryNodeViewModel(new GitWizardRepository("/x"));
+        var changes = new List<string?>();
+        node.PropertyChanged += (_, arguments) => changes.Add(arguments.PropertyName);
+
+        node.JustCopied = false;
+        node.JustCopied = true;
+        node.JustCopied = true;
+
+        Assert.That(changes, Is.EqualTo([nameof(RepositoryNodeViewModel.JustCopied)]));
+    }
 }

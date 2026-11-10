@@ -51,4 +51,28 @@ public class GitWizardReportErrorPathTests
             Assert.That(updateProgressCalls, Is.GreaterThan(0));
         }
     }
+
+    [Test]
+    [NonParallelizable]
+    public void GetCachedReport_ReportFileLockedByAnotherWriter_ReturnsNull()
+    {
+        using var sandbox = new LocalFilesSandbox();
+        var reportPath = GitWizardReport.GetCachedReportPath();
+        File.WriteAllText(reportPath, "{}");
+        using var writerLock = new FileStream(reportPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+
+        Assert.That(GitWizardReport.GetCachedReport(), Is.Null);
+    }
+
+    [Test]
+    [NonParallelizable]
+    public async Task GetCachedReportAsync_ReportFileLockedByAnotherWriter_ReturnsNull()
+    {
+        using var sandbox = new LocalFilesSandbox();
+        var reportPath = GitWizardReport.GetCachedReportPath();
+        await File.WriteAllTextAsync(reportPath, "{}");
+        await using var writerLock = new FileStream(reportPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+
+        Assert.That(await GitWizardReport.GetCachedReportAsync(), Is.Null);
+    }
 }

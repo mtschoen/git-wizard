@@ -38,4 +38,23 @@ public class GitWizardRepositorySizeTests
         var size = GitWizardRepository.ComputeDirectorySize(dir);
         Assert.That(size, Is.EqualTo(10));
     }
+
+    [Test]
+    public void ComputeDirectorySize_UnreadableSubdirectory_ReturnsWhatWasCountedSoFarWithoutThrowing()
+    {
+        using var directory = new TempDirectory("gw-denied-");
+        var locked = Path.Combine(directory.Path, "locked");
+        Directory.CreateDirectory(locked);
+        using var restore = DeniedDirectory.Deny(locked);
+
+        Assert.That(GitWizardRepository.ComputeDirectorySize(directory.Path), Is.Zero);
+    }
+
+    [Test]
+    public void ComputeDirectorySize_MissingDirectory_ReturnsZero()
+    {
+        using var missing = new TempDirectory("gw-missing-", create: false);
+
+        Assert.That(GitWizardRepository.ComputeDirectorySize(missing.Path), Is.Zero);
+    }
 }

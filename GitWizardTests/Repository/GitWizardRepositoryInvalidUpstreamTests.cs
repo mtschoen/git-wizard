@@ -547,6 +547,24 @@ public class GitWizardRepositoryInvalidUpstreamTests
         }
     }
 
+    [Test]
+    public void Refresh_BareRepositoryBranchWithUrlValuedRemote_IsReportedAsUntrackedWithOneDiagnostic()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.CommitOnNewBranch("url-remote", "url-remote.txt");
+        using var bareDirectory = new TempDirectory("gw-bare-", create: false);
+        TempRepoFixture.RunGit(fixture.Path, "clone", "--bare", "--quiet", fixture.Path, bareDirectory.Path);
+        SetUpstreamRemote(bareDirectory.Path, "url-remote", "https://example.invalid/owner/repo.git");
+        var repo = new GitWizardRepository(bareDirectory.Path);
 
+        repo.Refresh(allBranches: true);
 
+        var branch = repo.Branches?.FirstOrDefault(b => b.Name == "url-remote");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(branch, Is.Not.Null);
+            Assert.That(branch!.HasUpstream, Is.False);
+            Assert.That(DiagnosticsFor("url-remote"), Is.EqualTo(1));
+        }
+    }
 }

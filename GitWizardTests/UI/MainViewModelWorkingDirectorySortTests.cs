@@ -276,5 +276,34 @@ public class MainViewModelWorkingDirectorySortTests
         Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain($"in {expectedGroupCount} groups"));
     }
 
+    static List<string> Paths(IEnumerable<RepositoryNodeViewModel> nodes) => [.. nodes.Select(node => node.WorkingDirectory)];
 
+    [Test]
+    public void ApplySort_UnrecognizedMode_KeepsTheArrivalOrder()
+    {
+        List<RepositoryNodeViewModel> nodes = [new(Repo("C:/b")), new(Repo("C:/a"))];
+
+        Assert.That(Paths(RepositorySortOrder.ApplySort(nodes, (SortMode)99)), Is.EqualTo(["C:/b", "C:/a"]));
+    }
+
+    [TestCase(SortMode.WorkingDirectory, new[] { "C:/a", "C:/b", "C:/c" }, TestName = "MergeBatchIntoDisplay_WorkingDirectoryMode_InsertsInPathOrder")]
+    [TestCase(SortMode.SizeOnDisk, new[] { "C:/b", "C:/a", "C:/c" }, TestName = "MergeBatchIntoDisplay_OtherModes_AppendInArrivalOrder")]
+    public void MergeBatchIntoDisplay_OrdersTheBatchByTheActiveMode(SortMode mode, string[] expected)
+    {
+        var display = new System.Collections.ObjectModel.ObservableCollection<RepositoryNodeViewModel> { new(Repo("C:/b")) };
+
+        RepositorySortOrder.MergeBatchIntoDisplay(display, [new(Repo("C:/a")), new(Repo("C:/c"))], mode);
+
+        Assert.That(Paths(display), Is.EqualTo(expected));
+    }
+
+    [Test]
+    public void MergeBatchIntoDisplay_EmptyBatch_ChangesNothing()
+    {
+        var display = new System.Collections.ObjectModel.ObservableCollection<RepositoryNodeViewModel> { new(Repo("C:/b")) };
+
+        RepositorySortOrder.MergeBatchIntoDisplay(display, [], SortMode.WorkingDirectory);
+
+        Assert.That(Paths(display), Is.EqualTo(["C:/b"]));
+    }
 }

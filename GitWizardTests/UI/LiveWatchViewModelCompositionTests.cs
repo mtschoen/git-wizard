@@ -109,4 +109,30 @@ public class LiveWatchViewModelCompositionTests
             Assert.That(viewModel.LiveWatch.IsLive, Is.False);
         }
     }
+
+    [Test]
+    public async Task ApplyLiveEventAsync_UnrecognizedChangeKind_IsRejected()
+    {
+        await using var viewModel = TestViewModels.Create();
+
+        Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => viewModel.LiveWatch.ApplyLiveEventAsync(
+            new RepositoryChangeEvent("C:/repos/a", (RepositoryChangeKind)99)));
+    }
+
+    [Test]
+    public async Task CapabilityProbe_WithoutAnOverride_ReportsTheHostsLiveCapability()
+    {
+        await using var viewModel = TestViewModels.Create();
+
+        var capability = viewModel.LiveWatch.CapabilityProbe();
+
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.That(capability.Status, Is.EqualTo(FanotifyCapabilityStatus.Available));
+        }
+        else
+        {
+            Assert.That(Enum.IsDefined(capability.Status), Is.True, "The Linux probe reports one of the known capability states.");
+        }
+    }
 }

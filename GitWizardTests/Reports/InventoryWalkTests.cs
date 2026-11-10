@@ -180,4 +180,32 @@ public class InventoryWalkTests
         var path = GitWizardApi.GetPrCrewReposPath();
         Assert.That(path, Does.EndWith(Path.Combine(".pr-crew", "repos")));
     }
+
+    [Test]
+    public void ExpandAllClonePaths_WorktreeWhoseDirectoryWasDeleted_IsSkippedAndTheRepositoryKept()
+    {
+        GitWizardLog.SilentMode = true;
+        using var repo = TempRepoFixture.CreateWithInitialCommit();
+        var worktreeDir = repo.AddWorktree("feature-worktree");
+        Directory.Delete(worktreeDir, recursive: true);
+
+        var expanded = GitWizardApi.ExpandAllClonePaths([repo.Path]);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(expanded, Does.Contain(GitWizardApi.ResolveOnDiskPath(repo.Path)));
+            Assert.That(expanded, Does.Not.Contain(GitWizardApi.ResolveOnDiskPath(worktreeDir)));
+        }
+    }
+
+    [Test]
+    public void ExpandAllClonePaths_UninitializedSubmodule_IsNotACloneYet()
+    {
+        using var repo = TempRepoFixture.CreateWithInitialCommit();
+        repo.AddUninitializedSubmodule("external/pending");
+
+        var expanded = GitWizardApi.ExpandAllClonePaths([repo.Path]);
+
+        Assert.That(expanded, Is.EqualTo([GitWizardApi.ResolveOnDiskPath(repo.Path)]));
+    }
 }

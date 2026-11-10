@@ -137,4 +137,45 @@ public class RepositoryChangeFilterMembershipTests
         Assert.That(filter.ClassifyEntry(Modified(@"C:\repos\temp\file.txt")),
             Is.EqualTo((RepositoryChangeKind.Changed, @"C:\repos\temp")));
     }
+
+    [Test]
+    public void RemoveRepositoryRoot_OneOfTwoRootsOfTheSameLength_KeepsTrackingTheOther()
+    {
+        var first = @"C:\repos\aaaa";
+        var second = @"C:\repos\bbbb";
+        var filter = new RepositoryChangeFilter([first, second], [@"C:\repos"]);
+
+        filter.RemoveRepositoryRoot(first);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(filter.ClassifyEntry(Modified($@"{first}\file.txt")), Is.Null);
+            Assert.That(filter.ClassifyEntry(Modified($@"{second}\file.txt")), Is.EqualTo((RepositoryChangeKind.Changed, second)));
+        }
+    }
+
+    [Test]
+    public void ClassifyEntry_MovedInFileUnderTrackedRoot_IsAChangeOfThatRoot()
+    {
+        var filter = new RepositoryChangeFilter([RepoRoot], [@"C:\repos"]);
+
+        Assert.That(filter.ClassifyEntry(new VolumeChangeEntry($@"{RepoRoot}\moved.txt", VolumeEntryKind.MovedIn)),
+            Is.EqualTo((RepositoryChangeKind.Changed, RepoRoot)));
+    }
+
+    [Test]
+    public void ClassifyEntry_CaseOnlyRenameOfATrackedRoot_IsLeftToTheMovedInCandidatePath()
+    {
+        var filter = new RepositoryChangeFilter([RepoRoot], [@"C:\repos"]);
+
+        Assert.That(filter.ClassifyEntry(new VolumeChangeEntry(@"C:\repos\Repo-A", VolumeEntryKind.MovedIn)), Is.Null);
+    }
+
+    [Test]
+    public void ClassifyEntry_UnrecognizedEntryKind_IsIgnored()
+    {
+        var filter = new RepositoryChangeFilter([RepoRoot], [@"C:\repos"]);
+
+        Assert.That(filter.ClassifyEntry(new VolumeChangeEntry($@"{RepoRoot}\file.txt", (VolumeEntryKind)99)), Is.Null);
+    }
 }

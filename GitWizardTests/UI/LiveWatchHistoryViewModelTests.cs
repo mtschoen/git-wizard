@@ -135,4 +135,18 @@ public class LiveWatchHistoryViewModelTests
         queuedAction();
         Assert.That(history.Events, Is.Empty);
     }
+
+    [Test]
+    public void AfterDispose_ApplyExpireAndDisposeChangeNothing()
+    {
+        var clock = new HistoryClock();
+        var history = new LiveWatchHistoryViewModel(action => action(), clock);
+        history.Dispose();
+
+        history.Apply([new VolumeWatchTransition(Guid.NewGuid(), "X", 1, "Faulted", "read failed", clock.Now)]);
+        history.Expire();
+        history.Dispose();
+
+        Assert.That(history.Events, Is.Empty);
+    }
 }

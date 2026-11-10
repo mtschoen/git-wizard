@@ -71,6 +71,17 @@ public class GitWizardApiTests
         Assert.That(result, Is.EqualTo(Path.Combine(profile, "Documents")));
     }
 
+    [TestCase("~/Documents", "Documents")]
+    [TestCase("~", "")]
+    public void ExpandIgnoredPath_ExpandsTheHomeDirectoryAlias(string input, string expectedSuffix)
+    {
+        var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+        var result = GitWizardApi.ExpandIgnoredPath(input);
+
+        Assert.That(result, Is.EqualTo(Path.Combine(profile, expectedSuffix)).IgnoreCase);
+    }
+
     [Test]
     public void PrettyPrintPath_PassesThroughStandaloneTilde()
     {

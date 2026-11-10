@@ -97,4 +97,16 @@ public class OnDiskPathCasingTests
 
         Assert.That(expanded, Is.EqualTo([repository]));
     }
+
+    [Test]
+    public void ResolveOnDiskPath_SegmentUnderAnUnlistableDirectory_KeepsTheTypedCasing()
+    {
+        var locked = Path.Combine(_storedRoot, "Locked");
+        Directory.CreateDirectory(locked);
+        using var restore = DeniedDirectory.Deny(locked);
+
+        var resolved = GitWizardApi.ResolveOnDiskPath(Path.Combine(locked, "ChIlD"));
+
+        Assert.That(resolved, Is.EqualTo(Path.Combine(GitWizardApi.ResolveOnDiskPath(locked), "ChIlD")));
+    }
 }

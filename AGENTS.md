@@ -109,7 +109,7 @@ Every selected gate finishes even after failure.
 
 Preserve preflight protocol 1: clean, unchanged-HEAD runs mint
 `pr-crew/preflight-stamp.json`; targeted runs invalidate it. Windows runs InspectCode;
-Linux and Windows each enforce the 55% line coverage floor independently. Share recipes in `ci/gates.sh`, `ci/windows-gates.ps1`,
+Linux and Windows each enforce the 90% line coverage floor independently. Share recipes in `ci/gates.sh`, `ci/windows-gates.ps1`,
 `ci/aislop-gate.sh`. Prepare pinned scanner: `bash ci/aislop-gate.sh prepare`.
 Keep tools outside the checkout (`AISLOP_TOOL_DIRECTORY` overrides state cache).
 Contract tests redirect stamp/state/results to owned temporary paths.

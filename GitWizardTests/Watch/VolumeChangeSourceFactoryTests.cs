@@ -116,4 +116,23 @@ public class VolumeChangeSourceFactoryTests
         }
         Assert.That(fixture.ConnectionDisposals, Is.EqualTo(1));
     }
+
+    [Test, Platform("Win")]
+    public async Task Create_OnWindows_OpensTheIndexThroughTheBrokerLauncherOnlyForRequestedDrives()
+    {
+        var launches = 0;
+        await using var source = VolumeChangeSourceFactory.Create(null, _ =>
+        {
+            launches++;
+            return true;
+        });
+
+        var result = await source.ArmAndCatchUpAsync([], CancellationToken.None);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Errors, Is.Empty);
+            Assert.That(launches, Is.Zero);
+        }
+    }
 }

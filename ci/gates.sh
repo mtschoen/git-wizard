@@ -59,7 +59,7 @@ case "${1:?gate required}" in
         invocation=$(cat "$results/current-test-directory")
         test -n "$invocation"
         "$python_command" ci/post-coverage-status.py --cobertura "$results/$invocation/**/coverage.cobertura.xml" \
-            --gate-line 55 --summary --skip-post
+            --gate-line 90 --summary --skip-post
         ;;
     aislop) bash ci/aislop-gate.sh ;;
     contracts) "$python_command" -m unittest discover -s ci -p 'test_*.py' -v ;;

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using GitWizard;
+using GitWizardTests.TestSupport;
 using LibGit2Sharp;
 
 namespace GitWizardTests;
@@ -166,5 +167,63 @@ public class TagInventoryReportTests
             Assert.That(presentTag.ExistsOnRemote, Is.True);
             Assert.That(presentTag.Remotes, Does.Contain("origin"));
         }
+    }
+
+    [Test]
+    public void Scan_BlankMatchPattern_ListsEveryTag()
+    {
+        using var repo = TempRepoFixture.CreateWithInitialCommit();
+        repo.AddTag("v1.0.0");
+
+        var report = TagInventoryReport.Scan([repo.Path], matchPattern: "  ", remoteTagFetcher: _ => Task.FromResult<IReadOnlySet<string>>(new HashSet<string>()));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(report.MatchPattern, Is.EqualTo("*"));
+            Assert.That(report.Repositories.Single().Tags.Single().Name, Is.EqualTo("v1.0.0"));
+        }
+    }
+
+    [Test]
+    public void Scan_PathThatIsNotARepository_IsOmitted()
+    {
+        using var notARepository = new TempDirectory();
+
+        var report = TagInventoryReport.Scan([notARepository.Path]);
+
+        Assert.That(report.Repositories, Is.Empty);
+    }
+
+    [Test]
+    public void Scan_RemoteLookupFailure_IsReportedOnTheRepositoryItem()
+    {
+        using var repo = TempRepoFixture.CreateWithInitialCommit();
+        repo.AddOriginRemoteAndPush();
+        repo.AddTag("v1.0.0");
+
+        var report = TagInventoryReport.Scan([repo.Path],
+            remoteTagFetcher: _ => throw new InvalidOperationException("remote exploded"));
+
+        Assert.That(report.Repositories.Single().Error, Is.EqualTo("remote exploded"));
+    }
+
+    [Test]
+    public async Task FetchRemoteTagsAsync_AlreadyCancelled_ReturnsNoTagsInsteadOfThrowing()
+    {
+        using var repo = TempRepoFixture.CreateWithInitialCommit();
+        repo.AddOriginRemoteAndPush();
+        repo.AddTagAndPush("v1.0.0");
+        string originUrl;
+        using (var libgitRepo = new Repository(repo.Path))
+        {
+            originUrl = libgitRepo.Network.Remotes["origin"].Url;
+        }
+
+        using var cancellation = new CancellationTokenSource();
+        await cancellation.CancelAsync();
+
+        var tags = await TagInventoryReport.FetchRemoteTagsAsync(originUrl, cancellation.Token);
+
+        Assert.That(tags, Is.Empty, "The tags a reachable remote has are not reported once the lookup was cancelled.");
     }
 }

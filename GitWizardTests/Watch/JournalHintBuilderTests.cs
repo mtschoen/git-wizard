@@ -206,4 +206,24 @@ public class JournalHintBuilderTests
         Assert.That(hint, Does.EndWith("No journal size change is needed."));
         Assert.That(hint, Does.Not.Contain("increase the journal size"));
     }
+
+    [TestCase(JournalCheckpointLossCause.JournalRecreated)]
+    [TestCase(JournalCheckpointLossCause.JournalAdvanced)]
+    [TestCase(JournalCheckpointLossCause.CheckpointTrimmed)]
+    public void BuildHint_UnrecognizedDetectionPhase_IsRejected(JournalCheckpointLossCause cause)
+    {
+        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('D', cause, (JournalCheckpointLossDetection)99,
+            new UsnJournalSettings { MaximumSize = 1024, AllocationDelta = 512 });
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => JournalHintBuilder.BuildHint(loss, WatchState.Recovering, false));
+    }
+
+    [Test]
+    public void BuildHint_UnrecognizedCause_StatesOnlyThatACheckpointWasLost()
+    {
+        var loss = SyntheticNotifications.CreateJournalCheckpointLoss('D', (JournalCheckpointLossCause)99,
+            JournalCheckpointLossDetection.LiveWatch, new UsnJournalSettings { MaximumSize = 1024, AllocationDelta = 512 });
+
+        Assert.That(JournalHintBuilder.BuildHint(loss, null, false), Is.EqualTo("Hint on D: Checkpoint loss detected."));
+    }
 }

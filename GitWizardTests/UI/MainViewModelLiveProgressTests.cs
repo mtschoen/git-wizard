@@ -98,4 +98,68 @@ public class MainViewModelLiveProgressTests
             Assert.That(viewModel.StatusHeader.HeaderText, Does.Contain("Live watch could not start: scan blew up"));
         }
     }
+
+    [TestCase(WatchStartupPhase.Opening, null, "Opening index...")]
+    [TestCase(WatchStartupPhase.RequestingElevation, null, "Requesting elevation...")]
+    [TestCase(WatchStartupPhase.BrokerConnected, null, "Broker connected")]
+    [TestCase(WatchStartupPhase.Scanning, "C", "Scanning C:")]
+    [TestCase(WatchStartupPhase.CatchingUp, null, "Catching up journal...")]
+    [TestCase(WatchStartupPhase.Discovering, null, "Discovering repositories...")]
+    [TestCase(WatchStartupPhase.Reconciling, null, "Reconciling repositories...")]
+    public async Task ToggleLiveAsync_StartupPhase_IsShownAsIndeterminateProgress(
+        WatchStartupPhase phase, string? volume, string expectedText)
+    {
+        var viewModel = NewViewModel();
+        var armGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var source = new ScriptedVolumeChangeSource { ArmGate = armGate.Task, KeepWatching = true };
+        viewModel.LiveWatch.PrepareWatchAsync = (request, _, progress, cancellationToken) =>
+        {
+            progress?.Report(new WatchStartupProgress(phase, volume));
+            return FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
+        };
+        viewModel.LiveWatch.IsElevated = () => false;
+
+        var startTask = viewModel.LiveWatch.ToggleLiveAsync();
+        await source.ArmStarted.WaitAsync(TimeSpan.FromSeconds(5));
+        await WaitUntilAsync(() => viewModel.LiveWatch.IsLiveScanProgressVisible);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.LiveWatch.LiveScanProgressText, Is.EqualTo(expectedText));
+            Assert.That(viewModel.LiveWatch.IsLiveScanProgressIndeterminate, Is.True);
+            Assert.That(viewModel.LiveWatch.LiveScanProgressValue, Is.Zero);
+        }
+
+        armGate.SetResult();
+        await WaitUntilAsync(() => viewModel.LiveWatch.IsLive);
+        await viewModel.LiveWatch.ToggleLiveAsync();
+        await startTask;
+    }
+
+    [TestCase(500u, null, "Scanning D: (1 of 2), 500 records")]
+    [TestCase(12_500u, null, "Scanning D: (1 of 2), 12.5k records")]
+    [TestCase(2_000u, 4_000u, "Scanning D: (1 of 2), 2.0k of 4.0k records")]
+    public async Task ToggleLiveAsync_ScanSample_FormatsRecordCountsAndKnownOrUnknownTotals(
+        uint rowsWritten, uint? totalRows, string expectedText)
+    {
+        var viewModel = NewViewModel();
+        var source = new ScriptedVolumeChangeSource { KeepWatching = true };
+        viewModel.LiveWatch.PrepareWatchAsync = (request, _, _, cancellationToken) =>
+            FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
+        viewModel.LiveWatch.IsElevated = () => false;
+        var startTask = viewModel.LiveWatch.ToggleLiveAsync();
+        await WaitUntilAsync(() => viewModel.LiveWatch.IsLive);
+
+        source.ReportScanProgress(new VolumeScanProgress("D", 1, 2, rowsWritten, totalRows));
+        await WaitUntilAsync(() => viewModel.LiveWatch.IsLiveScanProgressVisible);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.LiveWatch.LiveScanProgressText, Is.EqualTo(expectedText));
+            Assert.That(viewModel.LiveWatch.IsLiveScanProgressIndeterminate, Is.EqualTo(totalRows is null));
+        }
+
+        await viewModel.LiveWatch.ToggleLiveAsync();
+        await startTask;
+    }
 }

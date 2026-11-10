@@ -135,4 +135,22 @@ public class MftIndexCacheMaintenanceTests
             File.SetAttributes(files.FreePath, FileAttributes.Normal);
         }
     }
+
+    [TestCase(true, TestName = "Clear_UnlistableCacheRoot_ReportsTheListingFailure")]
+    [TestCase(false, TestName = "Clear_UnlistableCacheDirectory_ReportsTheDirectoryFailure")]
+    public void Clear_InaccessibleCacheLocation_IsReportedAsAnErrorInsteadOfThrowing(bool denyRoot)
+    {
+        using var files = new IndexCacheFixture();
+        var denied = denyRoot ? MftIndexCachePolicy.GetCacheRoot(files.Home) : files.Cache;
+        using var restore = DeniedDirectory.Deny(denied);
+
+        var result = MftIndexCacheMaintenance.Clear(files.Home);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Succeeded, Is.False);
+            Assert.That(result.Errors, Is.Not.Empty);
+            Assert.That(result.Errors.Any(error => error.Contains(denied, StringComparison.OrdinalIgnoreCase)), Is.True);
+        }
+    }
 }

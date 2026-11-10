@@ -307,6 +307,74 @@ public class RepositoryNodeViewModelSizeTests
         return weakReference;
     }
 
+    static RepositoryNodeViewModel CreateNodeWithStatus(RefreshStatus status, long? size = null)
+    {
+        var node = size is { } measured ? CreateMeasuredNode(measured) : new RepositoryNodeViewModel(new GitWizardRepository(string.Empty));
+        node.Status = status;
+        return node;
+    }
+
+    static IEnumerable<TestCaseData> ChildCollectionChanges()
+    {
+        yield return new TestCaseData(
+            (Action<System.Collections.ObjectModel.ObservableCollection<RepositoryNodeViewModel>>)(children => children.RemoveAt(0)),
+            "Group (3) - 2 warnings", "1.0 MB").SetName("GroupHeader_RemovingTheErroredChild_DropsTheErrorAndKeepsTheWarnings");
+        yield return new TestCaseData(
+            (Action<System.Collections.ObjectModel.ObservableCollection<RepositoryNodeViewModel>>)(children => children[0] = CreateNodeWithStatus(RefreshStatus.Success, 1048576)),
+            "Group (4) - 2 warnings", "2.0 MB").SetName("GroupHeader_ReplacingTheErroredChild_TracksTheReplacement");
+        yield return new TestCaseData(
+            (Action<System.Collections.ObjectModel.ObservableCollection<RepositoryNodeViewModel>>)(children => children.Clear()),
+            "Group (0)", string.Empty).SetName("GroupHeader_ClearingTheChildren_ResetsTheCounts");
+        yield return new TestCaseData(
+            (Action<System.Collections.ObjectModel.ObservableCollection<RepositoryNodeViewModel>>)(children => children.Move(0, 3)),
+            "Group (4) - 1 error 2 warnings", "2.0 MB").SetName("GroupHeader_MovingAChild_KeepsTheCounts");
+    }
+
+    [TestCaseSource(nameof(ChildCollectionChanges))]
+    [SetCulture("en-US")]
+    public void GroupHeader_ChildCollectionChange_RecomputesDisplayTextAndSize(
+        Action<System.Collections.ObjectModel.ObservableCollection<RepositoryNodeViewModel>> change,
+        string expectedDisplayText, string expectedSizeText)
+    {
+        var header = RepositoryNodeViewModel.CreateGroupHeader("Group");
+        header.Children.Add(CreateNodeWithStatus(RefreshStatus.Error, 1048576));
+        header.Children.Add(CreateNodeWithStatus(RefreshStatus.Timeout));
+        header.Children.Add(CreateNodeWithStatus(RefreshStatus.SubmoduleIssue, 1048576));
+        header.Children.Add(CreateNodeWithStatus(RefreshStatus.Success));
+        Assert.That(header.DisplayText, Is.EqualTo("Group (4) - 1 error 2 warnings"), "precondition");
+
+        change(header.Children);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(header.DisplayText, Is.EqualTo(expectedDisplayText));
+            Assert.That(header.SizeText, Is.EqualTo(expectedSizeText));
+        }
+    }
+
+    [Test]
+    [SetCulture("en-US")]
+    public void GroupHeader_ChildStatusAndSizeChanges_AreFoldedIntoTheTotals()
+    {
+        var header = RepositoryNodeViewModel.CreateGroupHeader("Group");
+        var errored = CreateNodeWithStatus(RefreshStatus.Error, 1048576);
+        var timedOut = CreateNodeWithStatus(RefreshStatus.Timeout);
+        header.Children.Add(errored);
+        header.Children.Add(timedOut);
+
+        errored.Status = RefreshStatus.Success;
+        timedOut.Status = RefreshStatus.Error;
+        errored.Repository.SizeOnDisk = 3145728;
+        errored.UpdateDisplayText();
+        header.Children.Add(CreateNodeWithStatus(RefreshStatus.SubmoduleIssue));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(header.DisplayText, Is.EqualTo("Group (3) - 1 error 1 warning"));
+            Assert.That(header.SizeText, Is.EqualTo("3.0 MB"));
+        }
+    }
+
     static RepositoryNodeViewModel CreateMeasuredNode(long size)
     {
         var repository = new GitWizardRepository(string.Empty) { SizeOnDisk = size };

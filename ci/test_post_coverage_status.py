@@ -60,7 +60,7 @@ class PostCoverageStatusTests(unittest.TestCase):
             "--cobertura",
             missing,
             "--gate-line",
-            "55",
+            "90",
             "--context",
             "pr-crew/coverage-windows",
         )
@@ -80,12 +80,35 @@ class PostCoverageStatusTests(unittest.TestCase):
 
     def test_gate_fails_below_the_threshold_and_passes_at_it(self):
         failing, _, _ = self.run_main(
-            "--cobertura", self.pattern, "--gate-line", "55", "--skip-post"
+            "--cobertura", self.pattern, "--gate-line", "50.01", "--skip-post"
         )
         passing, _, _ = self.run_main(
             "--cobertura", self.pattern, "--gate-line", "50", "--skip-post"
         )
         self.assertEqual((1, 0), (failing, passing))
+
+    def test_sources_under_external_do_not_count_toward_the_percent(self):
+        vendored = (
+            '<coverage><packages><package><classes>'
+            '<class filename="C:/work/external/MFTLib/Vendored.cs"><lines>'
+            '<line number="1" hits="0"/><line number="2" hits="0"/>'
+            '<line number="3" hits="0"/><line number="4" hits="0"/>'
+            "</lines></class></classes></package></packages></coverage>"
+        )
+        other = self.directory / "vendored"
+        other.mkdir()
+        (other / "coverage.cobertura.xml").write_text(vendored)
+
+        code, posts, _ = self.run_main("--cobertura", self.pattern)
+
+        self.assertEqual(0, code)
+        self.assertEqual(
+            [("pr-crew/coverage", "success", "50.0% line coverage")], posts
+        )
+
+    def test_the_gates_recipe_enforces_ninety_percent(self):
+        recipe = (ROOT / "ci/gates.sh").read_text()
+        self.assertIn("--gate-line 90 ", recipe)
 
 
 if __name__ == "__main__":

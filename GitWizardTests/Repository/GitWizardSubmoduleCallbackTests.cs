@@ -4,7 +4,7 @@ using GitWizardTests.TestSupport;
 namespace GitWizardTests;
 
 /// <summary>
-/// Verifies <c>RefreshSubmodules</c> swallows a handler that throws from the submodule-creation
+/// Verifies <c>Refresh</c> swallows a handler that throws from the worktree-creation and submodule-creation
 /// callbacks (initialized and uninitialized), so one bad handler can't abort a scan.
 /// </summary>
 public class GitWizardSubmoduleCallbackTests
@@ -52,5 +52,26 @@ public class GitWizardSubmoduleCallbackTests
         Assert.DoesNotThrow(() => repo.Refresh(handler));
         Assert.That(submoduleCreatedCalls, Is.GreaterThan(0),
             "The submodule-created callback must fire (and its throw must be swallowed).");
+    }
+
+    [Test]
+    public void Refresh_SwallowsThrowingWorktreeCreatedCallback()
+    {
+        using var fixture = TempRepoFixture.CreateWithInitialCommit();
+        fixture.AddWorktree("feature-worktree");
+        var repo = new GitWizardRepository(fixture.Path);
+        var worktreeCreatedCalls = 0;
+        var handler = new RecordingUpdateHandler
+        {
+            CreatingWorktree = _ =>
+            {
+                worktreeCreatedCalls++;
+                throw new InvalidOperationException("worktree-created failure");
+            }
+        };
+
+        Assert.DoesNotThrow(() => repo.Refresh(handler));
+        Assert.That(worktreeCreatedCalls, Is.GreaterThan(0),
+            "The worktree-created callback must fire (and its throw must be swallowed).");
     }
 }

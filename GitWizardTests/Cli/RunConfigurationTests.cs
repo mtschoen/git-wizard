@@ -285,31 +285,131 @@ sealed class RunConfigurationTests
 
     static readonly string[] Subcommands = ["tags", "branches", "prune"];
 
-    static IEnumerable<TestCaseData> RootOptionBeforeSubcommandCases()
+    static readonly string ExistingConfigFile = typeof(RunConfigurationTests).Assembly.Location;
+
+    static readonly string SavePathInExistingDirectory = Path.Combine(AppContext.BaseDirectory, "report.json");
+
+    static IEnumerable<TestCaseData> SharedRootOptionCases()
     {
-        string[] rootOptions =
+        (string[] Tokens, string Name)[] sharedOptions =
         [
-            "--verbose", "-v", "--silent", "-s", "--rebuild-report", "--no-refresh", "--rebuild-repo-list",
-            "--rebuild-all", "--setup-defender", "--scan-only", "--no-mft", "--no-local-commit-count", "--json",
-            "--sweep", "--merge", "--clear-cache", "--clear-index-cache", "--index-cache-status",
-            "--delete-all-local-files", "--print-minified", "--minified", "--db-size", "--all-branches", "--watch"
+            (["--paths", "a,b"], "--paths"), (["-p", "a,b"], "-p"),
+            (["--filter", "needle"], "--filter"), (["-f", "needle"], "-f"),
+            (["--save-path", SavePathInExistingDirectory], "--save-path"),
+            (["--config-path", ExistingConfigFile], "--config-path"),
+            (["--minified"], "--minified"), (["--print-minified"], "--print-minified"),
+            (["--no-mft"], "--no-mft"),
+            (["--verbose"], "--verbose"), (["-v"], "-v"),
+            (["--silent"], "--silent"), (["-s"], "-s")
         ];
-        string[] valueOptions = ["--filter", "-f", "--paths", "-p", "--save-path", "--config-path"];
         foreach (var subcommand in Subcommands)
         {
-            foreach (var option in rootOptions)
+            foreach (var (tokens, name) in sharedOptions)
             {
-                yield return new TestCaseData(new[] { option, subcommand }, subcommand, option).SetName($"RootOption_{option}_Before_{subcommand}");
-            }
-            foreach (var option in valueOptions)
-            {
-                yield return new TestCaseData(new[] { option, "value", subcommand }, subcommand, option).SetName($"RootOption_{option}_Before_{subcommand}");
+                yield return new TestCaseData(subcommand, tokens).SetName($"SharedRootOption_{name}_{subcommand}");
             }
         }
     }
 
-    [TestCaseSource(nameof(RootOptionBeforeSubcommandCases))]
-    public void Parse_RootOptionBeforeSubcommand_ReportsParseErrorNamingOptionAndSubcommand(string[] arguments, string subcommand, string option)
+    static IEnumerable<TestCaseData> RejectedRootOptionCases()
+    {
+        string[] flags =
+        [
+            "--rebuild-report", "--no-refresh", "--rebuild-repo-list", "--rebuild-all", "--setup-defender",
+            "--scan-only", "--no-local-commit-count", "--json", "--sweep", "--merge", "--clear-cache",
+            "--clear-index-cache", "--index-cache-status", "--delete-all-local-files", "--db-size",
+            "--all-branches", "--watch"
+        ];
+        foreach (var subcommand in Subcommands)
+        {
+            foreach (var option in flags)
+            {
+                yield return new TestCaseData(new[] { option, subcommand }, subcommand, option).SetName($"RootOption_{option}_Before_{subcommand}");
+            }
+        }
+    }
+
+    [TestCaseSource(nameof(SharedRootOptionCases))]
+    public void Parse_SharedRootOptionBeforeSubcommand_EqualsTheOptionAfterIt(string subcommand, string[] optionTokens)
+    {
+        var before = CliParser.Parse([.. optionTokens, subcommand]);
+        var after = CliParser.Parse([subcommand, .. optionTokens]);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(after.HasParseError, Is.False);
+            Assert.That(before, Is.EqualTo(after));
+        }
+    }
+
+    [TestCase("tags")]
+    [TestCase("branches")]
+    [TestCase("prune")]
+    public void Parse_FlagInBothPositions_IsOn(string subcommand)
+    {
+        var parsed = CliParser.Parse(["--no-mft", subcommand, "--no-mft"]);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(parsed.HasParseError, Is.False);
+            Assert.That(parsed.NoMft, Is.True);
+        }
+    }
+
+    [TestCase("tags")]
+    [TestCase("branches")]
+    [TestCase("prune")]
+    public void Parse_ValueOptionInBothPositions_TheValueAfterTheSubcommandWins(string subcommand)
+    {
+        var parsed = CliParser.Parse(["--filter", "first", subcommand, "--filter", "second"]);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(parsed.HasParseError, Is.False);
+            Assert.That(parsed.FilterPattern, Is.EqualTo("second"));
+        }
+    }
+
+    [TestCase("tags")]
+    [TestCase("branches")]
+    [TestCase("prune")]
+    public void Parse_InvalidSavePathBeforeSubcommand_ReportsParseError(string subcommand)
+    {
+        var parsed = CliParser.Parse(["--save-path", "/no/such/dir/out.json", subcommand]);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(parsed.HasParseError, Is.True);
+            Assert.That(parsed.SavePath, Is.Null);
+        }
+    }
+
+    [TestCase("tags")]
+    [TestCase("branches")]
+    [TestCase("prune")]
+    public void Parse_MissingConfigPathBeforeSubcommand_ReportsParseError(string subcommand)
+    {
+        var parsed = CliParser.Parse(["--config-path", "/no/such/config.json", subcommand]);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(parsed.HasParseError, Is.True);
+            Assert.That(parsed.CustomConfigurationPath, Is.Null);
+        }
+    }
+
+    [Test]
+    public void Parse_VerboseBeforeSubcommand_SetsTheVerboseLogMode()
+    {
+        CliParser.Parse(["--verbose", "tags"]);
+        Assert.That(GitWizardLog.VerboseMode, Is.True);
+    }
+
+    [Test]
+    public void Parse_SilentBeforeSubcommand_SetsTheSilentLogMode()
+    {
+        GitWizardLog.SilentMode = false;
+        CliParser.Parse(["--silent", "tags"]);
+        Assert.That(GitWizardLog.SilentMode, Is.True);
+    }
+
+    [TestCaseSource(nameof(RejectedRootOptionCases))]
+    public void Parse_RootOptionTheSubcommandLacks_ReportsParseErrorNamingOptionAndSubcommand(string[] arguments, string subcommand, string option)
     {
         var messages = new List<string?>();
         var originalTyped = GitWizardLog.TypedLogMethod;
@@ -317,15 +417,11 @@ sealed class RunConfigurationTests
         try
         {
             var parsed = CliParser.Parse(arguments);
-            var longName = option.StartsWith("--", StringComparison.Ordinal) ? option : null;
             using (Assert.EnterMultipleScope())
             {
                 Assert.That(parsed.HasParseError, Is.True);
                 Assert.That(messages, Has.Some.Contains($"'{subcommand}'"));
-                if (longName is not null)
-                {
-                    Assert.That(messages, Has.Some.Contains(longName));
-                }
+                Assert.That(messages, Has.Some.Contains(option));
             }
         }
         finally

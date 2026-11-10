@@ -63,6 +63,7 @@ static partial class CliParser
         var versionOption = app.VersionOption("--version", version);
 
         var rootOptions = SetupOptions(app);
+        CommandOption[] rootOnlyOptions = [.. app.Options.Where(option => option != helpOption && option != versionOption)];
         SubcommandHandle[] subcommands = [SetupTagsCommand(app), SetupBranchesCommand(app), SetupPruneCommand(app)];
         RunConfiguration? parsed;
         CommandLineApplication? selectedSubcommand;
@@ -71,6 +72,11 @@ static partial class CliParser
         {
             var parseResult = app.Parse(NormalizeConsumerAliases(args));
             selectedSubcommand = parseResult.SelectedCommand == app ? null : parseResult.SelectedCommand;
+            if (selectedSubcommand is not null)
+            {
+                MergeRootOptionsIntoSubcommand(selectedSubcommand, rootOnlyOptions);
+            }
+
             parsed = selectedSubcommand is null
                 ? ExecuteHandler(rootOptions)
                 : subcommands.FirstOrDefault(subcommand => subcommand.Application == selectedSubcommand)?.Build();
@@ -94,16 +100,43 @@ static partial class CliParser
             return new RunConfiguration { Command = CommandKind.HelpPrinted };
         }
 
-        if (selectedSubcommand is not null && app.Options.FirstOrDefault(option => option != helpOption && option != versionOption && option.HasValue()) is { } misplaced)
+        if (selectedSubcommand is not null
+            && rootOnlyOptions.FirstOrDefault(option => option.HasValue() && !AcceptsOption(selectedSubcommand, option)) is { } unaccepted)
         {
-            // Root options are not inherited by subcommands; fail loudly (exit 2) instead of dropping them.
             GitWizardLog.Log(
-                $"The root option --{misplaced.LongName} is not accepted before the '{selectedSubcommand.Name}' subcommand; place it after '{selectedSubcommand.Name}' if the subcommand supports it.",
+                $"The root option --{unaccepted.LongName} is not accepted by the '{selectedSubcommand.Name}' subcommand.",
                 GitWizardLog.LogType.Error);
             return new RunConfiguration { HasParseError = true };
         }
 
         return parsed ?? new RunConfiguration();
+    }
+
+    static bool AcceptsOption(CommandLineApplication subcommand, CommandOption rootOption) =>
+        subcommand.Options.Any(option => option.LongName == rootOption.LongName);
+
+    /// <summary>
+    /// Hands the values of a root option given before the subcommand to the subcommand's own
+    /// option of the same long name, so the subcommand reads it as if it followed the subcommand.
+    /// A value given after the subcommand wins, so the root values are dropped when the
+    /// subcommand option already has one. Root options the subcommand does not register are
+    /// left for the caller to reject.
+    /// </summary>
+    static void MergeRootOptionsIntoSubcommand(CommandLineApplication subcommand, IEnumerable<CommandOption> rootOptions)
+    {
+        foreach (var rootOption in rootOptions.Where(option => option.HasValue()))
+        {
+            var subcommandOption = subcommand.Options.FirstOrDefault(option => option.LongName == rootOption.LongName);
+            if (subcommandOption is null || subcommandOption.HasValue())
+            {
+                continue;
+            }
+
+            foreach (var value in rootOption.Values)
+            {
+                subcommandOption.TryParse(value);
+            }
+        }
     }
 
     sealed record RootOptions(

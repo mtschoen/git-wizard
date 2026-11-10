@@ -30,14 +30,13 @@ public class DirectoryRootAliasReconciliationTests
         var source = SyntheticIndexSource.Create(files.Producer);
         var configureOptions = files.ConfigureOptions;
         var defaults = RepositoryDiscoveryDependencies.CreateDefault(options =>
-            configureOptions(options) with { CacheMode = CacheMode.Disabled, MftSource = source }, () => []);
+            configureOptions(options) with { CacheMode = CacheMode.Disabled, MftSource = source });
         var coordinator = new RepositoryDiscoveryCoordinator(new RepositoryDiscoveryDependencies
         {
             IsWindows = defaults.IsWindows && !crawl,
             IsLinux = defaults.IsLinux,
             CrawlRootAsync = defaults.CrawlRootAsync,
             ConfigureOptions = defaults.ConfigureOptions,
-            AdditionalCloneRoots = defaults.AdditionalCloneRoots,
             ReadListAsync = _ => Task.FromResult<string[]?>([stale, failedRootEntry]),
             WriteListAsync = (paths, _) => { listWrites.Add(paths); return Task.CompletedTask; },
             CandidateExists = defaults.CandidateExists,

@@ -110,39 +110,37 @@ public class InventoryWalkTests
     }
 
     [Test]
-    public async Task DiscoverAllCloneInventoryAsync_FindsOwnedCrewClones()
+    public async Task DiscoverAllCloneInventoryAsync_FindsClonesUnderAConfiguredSearchPath()
     {
-        // Set up a mock structure simulating ~/.pr-crew/repos and normal search paths
-        var crewReposDir = Path.Combine(_tempRoot!, "crew_repos");
-        Directory.CreateDirectory(crewReposDir);
+        var cloneRoot = Path.Combine(_tempRoot!, "clone_root");
+        Directory.CreateDirectory(cloneRoot);
 
-        var crewRepoPath = Path.Combine(crewReposDir, "schoen_test_repo");
-        Directory.CreateDirectory(crewRepoPath);
-        Repository.Init(crewRepoPath);
-        using (var repo = new Repository(crewRepoPath))
+        var firstClonePath = Path.Combine(cloneRoot, "test_repo");
+        Directory.CreateDirectory(firstClonePath);
+        Repository.Init(firstClonePath);
+        using (var repo = new Repository(firstClonePath))
         {
-            var readme = Path.Combine(crewRepoPath, "README.md");
-            await File.WriteAllTextAsync(readme, "crew repo").ConfigureAwait(false);
+            var readme = Path.Combine(firstClonePath, "README.md");
+            await File.WriteAllTextAsync(readme, "first clone").ConfigureAwait(false);
             Commands.Stage(repo, "README.md");
             var sig = new Signature("Test", "test@example.com", DateTimeOffset.Now);
             repo.Commit("initial", sig, sig);
         }
 
-        // Also create a bare-ish clone in crewReposDir
-        var bareRepoPath = Path.Combine(crewReposDir, "schoen_bare.git");
+        // Also create a bare-ish clone in cloneRoot
+        var bareRepoPath = Path.Combine(cloneRoot, "bare_repo.git");
         Directory.CreateDirectory(bareRepoPath);
         Repository.Init(bareRepoPath, isBare: true);
 
-        var config = new GitWizardConfiguration();
-        var coordinator = new RepositoryDiscoveryCoordinator(RepositoryDiscoveryDependencies.CreateDefault(
-            additionalCloneRoots: () => [crewReposDir]));
+        var config = new GitWizardConfiguration { SearchPaths = { cloneRoot } };
+        var coordinator = new RepositoryDiscoveryCoordinator(RepositoryDiscoveryDependencies.CreateDefault());
         await using var inventory = await GitWizardApi.DiscoverAllCloneInventoryAsync(config, null, true, coordinator);
         var allClones = inventory.Inventory.Paths;
 
-        var normalizedCrewRepo = GitWizardApi.ResolveOnDiskPath(crewRepoPath);
+        var normalizedFirstClone = GitWizardApi.ResolveOnDiskPath(firstClonePath);
         var normalizedBareRepo = GitWizardApi.ResolveOnDiskPath(bareRepoPath);
 
-        Assert.That(allClones, Does.Contain(normalizedCrewRepo));
+        Assert.That(allClones, Does.Contain(normalizedFirstClone));
         Assert.That(allClones, Does.Contain(normalizedBareRepo));
     }
 
@@ -165,20 +163,12 @@ public class InventoryWalkTests
             IgnoredPaths = { ignoredDir }
         };
 
-        var coordinator = new RepositoryDiscoveryCoordinator(RepositoryDiscoveryDependencies.CreateDefault(
-            additionalCloneRoots: () => []));
+        var coordinator = new RepositoryDiscoveryCoordinator(RepositoryDiscoveryDependencies.CreateDefault());
         await using var inventory = await GitWizardApi.DiscoverAllCloneInventoryAsync(config, null, true, coordinator);
         var allClones = inventory.Inventory.Paths;
         var normalizedBareRepo = GitWizardApi.ResolveOnDiskPath(bareRepoPath);
 
         Assert.That(allClones, Does.Not.Contain(normalizedBareRepo));
-    }
-
-    [Test]
-    public void GetPrCrewReposPath_ReturnsStandardPath()
-    {
-        var path = GitWizardApi.GetPrCrewReposPath();
-        Assert.That(path, Does.EndWith(Path.Combine(".pr-crew", "repos")));
     }
 
     [Test]

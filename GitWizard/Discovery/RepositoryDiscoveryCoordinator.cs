@@ -8,8 +8,6 @@ public partial class RepositoryDiscoveryCoordinator
     RepositoryDiscoveryDependencies Dependencies =>
         _dependencies ?? throw new InvalidOperationException("Dependencies are required for discovery.");
 
-    internal IReadOnlyList<string> AdditionalCloneRoots => Dependencies.AdditionalCloneRoots();
-
     public Task<RepositoryDiscoveryResult> DiscoverAsync(
         DiscoveryRequest request,
         IUpdateHandler? updateHandler,

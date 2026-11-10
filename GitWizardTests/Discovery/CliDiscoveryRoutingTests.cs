@@ -1,5 +1,4 @@
 using System.Runtime.ExceptionServices;
-using GitWizard;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
 using MFTLib.Index;
@@ -10,13 +9,6 @@ namespace GitWizardTests.Discovery;
 [NonParallelizable]
 public class CliDiscoveryRoutingTests
 {
-    static IEnumerable<string> ExpectedRoots(CliDiscoveryFixture fixture, string command)
-    {
-        var shared = GitWizardApi.GetPrCrewReposPath();
-        return command is "tags" or "branches" && Directory.Exists(shared)
-            ? fixture.Configuration.SearchPaths.Append(shared) : fixture.Configuration.SearchPaths;
-    }
-
     static DriveInfo[] EnumerateWorkerDrives(
         ref int enumerations,
         DriveInfo[] initialSnapshot,
@@ -284,7 +276,7 @@ public class CliDiscoveryRoutingTests
         }
         foreach (var drives in fixture.OpenedDriveSets)
         {
-            Assert.That(drives, Is.EquivalentTo(ExpectedRoots(fixture, command)).IgnoreCase);
+            Assert.That(drives, Is.EquivalentTo(fixture.Configuration.SearchPaths).IgnoreCase);
         }
     }
 
@@ -310,7 +302,7 @@ public class CliDiscoveryRoutingTests
         }
         foreach (var drives in fixture.OpenedDriveSets)
         {
-            Assert.That(drives, Is.EquivalentTo(ExpectedRoots(fixture, command)).IgnoreCase);
+            Assert.That(drives, Is.EquivalentTo(fixture.Configuration.SearchPaths).IgnoreCase);
         }
     }
 

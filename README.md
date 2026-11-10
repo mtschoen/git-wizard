@@ -180,7 +180,7 @@ filesystem-scan latency and uses no MFT cache.
 
 Discovery (MFT and recursive) and Live monitoring include directories whose name
 starts with `.` or that carry the Windows Hidden attribute by default, so clones under dot-directories such as `~/.agents`
-or `~/.pr-crew` are found. Set `"skipHiddenDirectories": true` in
+are found. Set `"skipHiddenDirectories": true` in
 `~/.GitWizard/config.json` (or enable **Skip hidden directories** in Settings) to skip
 them again. Explicit ignored paths and the temp-directory exclusion apply either way,
 and a `.git` marker itself is always recognized.
@@ -256,7 +256,7 @@ It emits stable JSON containing each repository path, dirty tracked files, local
 
 ### Fleet-wide tag and branch inventory
 
-Scan every clone on the machine (including submodule checkouts, nested worktrees, and `~/.pr-crew/repos` when present):
+Scan every clone on the machine (including submodule checkouts and nested worktrees) under the configured search paths and ignored paths:
 
 ```bash
 # Inventory matching tags and verify whether they still exist on any remote

@@ -13,12 +13,24 @@ public static partial class GitWizardApi
     // (CA1861: avoid allocating the array on every call).
     static readonly string[] LineSeparators = ["\r\n", "\n"];
 
+    /// <summary>
+    /// The non-empty GITWIZARD_HOME value marking an isolated run, or null. The only reader of the variable.
+    /// </summary>
+    internal static string? HomeOverride
+    {
+        get
+        {
+            var value = Environment.GetEnvironmentVariable("GITWIZARD_HOME");
+            return string.IsNullOrEmpty(value) ? null : value;
+        }
+    }
+
     public static string GetLocalFilesPath()
     {
         // A non-empty GITWIZARD_HOME env var redirects the data dir. Tests use it to isolate
         // off the real ~/.GitWizard (see TestUtilities.RedirectLocalFilesToTemp); it also makes
         // the config relocatable for any user who wants it elsewhere.
-        var overridePath = Environment.GetEnvironmentVariable("GITWIZARD_HOME");
+        var overridePath = HomeOverride;
         if (!string.IsNullOrEmpty(overridePath))
         {
             return overridePath;

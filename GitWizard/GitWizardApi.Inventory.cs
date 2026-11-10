@@ -6,17 +6,8 @@ namespace GitWizard;
 public static partial class GitWizardApi
 {
     /// <summary>
-    /// Path to the standard pr-crew clones directory (~/.pr-crew/repos).
-    /// </summary>
-    public static string GetPrCrewReposPath()
-    {
-        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".pr-crew", "repos");
-    }
-
-    /// <summary>
     /// Discovers all git clones across the machine or explicit paths, expanding to include:
     /// - Standard repositories discovered across all search paths
-    /// - Repositories in ~/.pr-crew/repos when present
     /// - Submodule checkouts (including nested submodules)
     /// - Linked worktrees (including worktree submodules)
     /// </summary>
@@ -71,19 +62,6 @@ public static partial class GitWizardApi
             IncludeTempDirectories = configuration.IncludeTempDirectories,
             ForkPath = configuration.ForkPath
         };
-
-        foreach (var prCrewReposPath in coordinator.AdditionalCloneRoots)
-        {
-            var normalizedPrCrewPath = NormalizePath(prCrewReposPath);
-            var alreadyCovered = searchConfig.SearchPaths
-                .Select(ExpandSearchPath)
-                .Any(searchPath => !string.IsNullOrEmpty(searchPath) && IsSameOrChildPath(normalizedPrCrewPath, searchPath));
-
-            if (!alreadyCovered)
-            {
-                searchConfig.SearchPaths.Add(prCrewReposPath);
-            }
-        }
 
         var request = new DiscoveryRequest(
             searchConfig,

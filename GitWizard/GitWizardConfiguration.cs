@@ -155,14 +155,6 @@ public class GitWizardConfiguration
             configuration.SearchPaths.Add("~");
         }
 
-        var prCrewReposPath = GitWizardApi.GetPrCrewReposPath();
-        if (Directory.Exists(prCrewReposPath))
-        {
-            configuration.SearchPaths.Add(RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-                ? @"%USERPROFILE%\.pr-crew\repos"
-                : "~/.pr-crew/repos");
-        }
-
         return configuration;
     }
 

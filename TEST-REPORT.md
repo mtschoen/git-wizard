@@ -1,20 +1,20 @@
 # Test report: generated on main by CI; must not be edited in a pull request
 
-Source commit: 5a422182b1fcf25f9bcf3a76a3dbcafc845d2523
-Workflow run: 57038
-Generated at: 2026-11-10T14:22:16Z (workflow run creation time).
+Source commit: 710e6fa4819ca0d15e7ae47c07d19f3e715d8b7e
+Workflow run: 57113
+Generated at: 2026-11-10T19:38:22Z (workflow run creation time).
 
 ## Windows
 
 | Test project | Total | Passed | Failed | Skipped |
 | --- | ---: | ---: | ---: | ---: |
-| GitWizardTests | 2414 | 2332 | 0 | 82 |
+| GitWizardTests | 2415 | 2333 | 0 | 82 |
 
 ## Linux
 
 | Test project | Total | Passed | Failed | Skipped |
 | --- | ---: | ---: | ---: | ---: |
-| GitWizardTests | 2414 | 2344 | 0 | 70 |
+| GitWizardTests | 2415 | 2345 | 0 | 70 |
 
 | Managed coverage | Line | Branch |
 | --- | ---: | ---: |

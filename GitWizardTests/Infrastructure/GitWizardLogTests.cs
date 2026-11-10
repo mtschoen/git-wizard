@@ -107,6 +107,8 @@ public class GitWizardLogTests
 
     [TestCase(false, "Test message", GitWizardLog.LogType.Info)]
     [TestCase(true, "should not appear", GitWizardLog.LogType.Verbose)]
+    [TestCase(false, "Error occurred", GitWizardLog.LogType.Error)]
+    [TestCase(false, "Warning message", GitWizardLog.LogType.Warning)]
     public void Log_SilentMode_DoesNotOutput(bool verbose, string message, GitWizardLog.LogType logType)
     {
         GitWizardLog.VerboseMode = verbose;
@@ -119,29 +121,31 @@ public class GitWizardLogTests
         Assert.That(output, Is.Empty);
     }
 
-    [Test]
-    public void Log_VerboseMode_DoesNotOutputVerbose()
+    [TestCase(false, "Verbose message", GitWizardLog.LogType.Verbose, null)]
+    [TestCase(true, "Verbose message", GitWizardLog.LogType.Verbose, "Verbose")]
+    [TestCase(false, "Debug message", GitWizardLog.LogType.Debug, null)]
+    [TestCase(true, "Debug message", GitWizardLog.LogType.Debug, "Debug")]
+    [TestCase(false, "Error occurred", GitWizardLog.LogType.Error, "Error")]
+    [TestCase(false, "Warning message", GitWizardLog.LogType.Warning, "Warning")]
+    public void Log_VerboseModeAndLogType_GateOutput(bool verbose, string message, GitWizardLog.LogType logType, string? expectedLabel)
     {
-        GitWizardLog.VerboseMode = false;
+        GitWizardLog.VerboseMode = verbose;
         var output = string.Empty;
         GitWizardLog.LogMethod = msg => output = msg!;
 
-        GitWizardLog.Log("Verbose message", GitWizardLog.LogType.Verbose);
+        GitWizardLog.Log(message, logType);
 
-        Assert.That(output, Is.Empty);
-    }
+        if (expectedLabel is null)
+        {
+            Assert.That(output, Is.Empty);
+            return;
+        }
 
-    [Test]
-    public void Log_VerboseMode_OutputsVerbose()
-    {
-        GitWizardLog.VerboseMode = true;
-        var output = string.Empty;
-        GitWizardLog.LogMethod = msg => output = msg!;
-
-        GitWizardLog.Log("Verbose message", GitWizardLog.LogType.Verbose);
-
-        Assert.That(output, Is.Not.Empty);
-        Assert.That(output, Does.Contain("Verbose message"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(output, Does.Contain(expectedLabel));
+            Assert.That(output, Does.Contain(message));
+        }
     }
 
     [Test]
@@ -168,32 +172,6 @@ public class GitWizardLogTests
         Assert.That(output, Does.Contain("Hello world"));
         Assert.That(output, Does.Contain("Info"));
         Assert.That(output, Does.Contain("["));
-    }
-
-    [Test]
-    public void Log_ErrorType_OutputsError()
-    {
-        var output = string.Empty;
-        GitWizardLog.LogMethod = msg => output = msg!;
-
-        GitWizardLog.Log("Error occurred", GitWizardLog.LogType.Error);
-
-        Assert.That(output, Does.Contain("Error"));
-    }
-
-    [Test]
-    public void Log_WarningType_OutputsWarning()
-    {
-        var output = string.Empty;
-        GitWizardLog.LogMethod = msg => output = msg!;
-
-        GitWizardLog.Log("Warning message", GitWizardLog.LogType.Warning);
-
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(output, Does.Contain("Warning"));
-            Assert.That(output, Does.Contain("Warning message"));
-        }
     }
 
     [Test]
@@ -302,17 +280,6 @@ public class GitWizardLogTests
     }
 
     [Test]
-    public void Log_DoesNotThrowWithCustomLogMethod()
-    {
-        var captured = string.Empty;
-        GitWizardLog.LogMethod = msg => captured = msg!;
-
-        GitWizardLog.Log("Test");
-
-        Assert.That(captured, Does.Contain("Test"));
-    }
-
-    [Test]
     public void Log_MultipleMessages_CanBeCaptured()
     {
         var outputs = new List<string>();
@@ -335,26 +302,6 @@ public class GitWizardLogTests
             Assert.That(outputs[1], Does.Contain("Second"));
             Assert.That(outputs[2], Does.Contain("Third"));
         }
-    }
-
-    [Test]
-    public void Log_SilentMode_DisablesAllTypes()
-    {
-        GitWizardLog.SilentMode = true;
-        var output = string.Empty;
-        GitWizardLog.LogMethod = msg => output = msg!;
-
-        GitWizardLog.Log("Info");
-        Assert.That(output, Is.Empty);
-
-        GitWizardLog.Log("Error", GitWizardLog.LogType.Error);
-        Assert.That(output, Is.Empty);
-
-        GitWizardLog.Log("Verbose", GitWizardLog.LogType.Verbose);
-        Assert.That(output, Is.Empty);
-
-        GitWizardLog.Log("Warning", GitWizardLog.LogType.Warning);
-        Assert.That(output, Is.Empty);
     }
 
     [Test]
@@ -590,49 +537,6 @@ public class GitWizardLogTests
         Assert.That(recordEndsAfterHeader, Is.True);
         var exceptionRecord = content[header..end];
         Assert.That(exceptionRecord, Does.Contain(exception.ToString()));
-    }
-
-    [Test]
-    public void Log_OutputAppearsInLogMethod()
-    {
-        GitWizardLog.SilentMode = false;
-        var output = string.Empty;
-        GitWizardLog.LogMethod = msg =>
-        {
-            if (msg is not null)
-            {
-                output = msg;
-            }
-        };
-
-        GitWizardLog.Log("Test message for log file");
-
-        Assert.That(output, Does.Contain("Test message for log file"));
-    }
-
-    [Test]
-    public void Log_VerboseMode_DoesNotOutputDebug()
-    {
-        GitWizardLog.VerboseMode = false;
-        var output = string.Empty;
-        GitWizardLog.LogMethod = msg => output = msg!;
-
-        GitWizardLog.Log("Debug message", GitWizardLog.LogType.Debug);
-
-        Assert.That(output, Is.Empty);
-    }
-
-    [Test]
-    public void Log_VerboseMode_OutputsDebug()
-    {
-        GitWizardLog.VerboseMode = true;
-        var output = string.Empty;
-        GitWizardLog.LogMethod = msg => output = msg!;
-
-        GitWizardLog.Log("Debug message", GitWizardLog.LogType.Debug);
-
-        Assert.That(output, Does.Contain("Debug message"));
-        Assert.That(output, Does.Contain("Debug"));
     }
 
     [Test]

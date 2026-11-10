@@ -71,17 +71,6 @@ public class GitWizardConfigurationTests
     }
 
     [Test]
-    public void Save_CreatesDirectoryIfNeeded()
-    {
-        var config = GitWizardConfiguration.CreateDefaultConfiguration();
-        var nestedPath = Path.Combine(_tempRoot!, "sub", "dir", "config.json");
-
-        config.Save(nestedPath);
-
-        Assert.That(File.Exists(nestedPath), Is.True);
-    }
-
-    [Test]
     public void Save_WritesValidJson()
     {
         var config = new GitWizardConfiguration
@@ -97,131 +86,109 @@ public class GitWizardConfigurationTests
         Assert.That(json, Does.Contain("custom/search"));
     }
 
-    [Test]
-    public void Save_SerializesForkPath()
+    public sealed record RoundTripCase(
+        string Name,
+        Action<GitWizardConfiguration> Configure,
+        Func<GitWizardConfiguration, object?> Read,
+        string ExpectedJsonKey,
+        string? ExpectedJsonValue,
+        object? ExpectedValue)
     {
-        var config = new GitWizardConfiguration
-        {
-            ForkPath = "/custom/fork"
-        };
-        var jsonPath = Path.Combine(_tempRoot!, "fork_test.json");
-
-        config.Save(jsonPath);
-
-        var json = File.ReadAllText(jsonPath);
-        Assert.That(json, Does.Contain("forkPath"));
+        public override string ToString() => Name;
     }
 
-    [Test]
-    public void Save_SerializesSearchPaths()
+    static IEnumerable<RoundTripCase> RoundTripCases()
     {
-        var config = new GitWizardConfiguration
-        {
-            SearchPaths = { "/path/one", "/path/two" }
-        };
-        var jsonPath = Path.Combine(_tempRoot!, "search_test.json");
-
-        config.Save(jsonPath);
-
-        var json = File.ReadAllText(jsonPath);
-        Assert.That(json, Does.Contain("\"SearchPaths\""));
+        yield return new RoundTripCase("ForkPath",
+            config => config.ForkPath = "/custom/fork",
+            config => config.ForkPath,
+            "\"forkPath\"", null, "/custom/fork");
+        yield return new RoundTripCase("SearchPaths",
+            config => config.SearchPaths.Add("/path/one"),
+            config => config.SearchPaths,
+            "\"SearchPaths\"", null, new SortedSet<string> { "/path/one" });
+        yield return new RoundTripCase("IgnoredPaths",
+            config => config.IgnoredPaths.Add("/ignored/one"),
+            config => config.IgnoredPaths,
+            "\"IgnoredPaths\"", null, new SortedSet<string> { "/ignored/one" });
+        yield return new RoundTripCase("SkipHiddenDirectoriesTrue",
+            config => config.SkipHiddenDirectories = true,
+            config => config.SkipHiddenDirectories,
+            "\"skipHiddenDirectories\"", "true", true);
+        yield return new RoundTripCase("SkipHiddenDirectoriesFalse",
+            config => config.SkipHiddenDirectories = false,
+            config => config.SkipHiddenDirectories,
+            "\"skipHiddenDirectories\"", "false", false);
+        yield return new RoundTripCase("IncludeTempDirectoriesTrue",
+            config => config.IncludeTempDirectories = true,
+            config => config.IncludeTempDirectories,
+            "\"includeTempDirectories\"", "true", true);
+        yield return new RoundTripCase("IncludeTempDirectoriesFalse",
+            config => config.IncludeTempDirectories = false,
+            config => config.IncludeTempDirectories,
+            "\"includeTempDirectories\"", "false", false);
     }
 
-    [Test]
-    public void Save_SerializesIgnoredPaths()
-    {
-        var config = new GitWizardConfiguration
-        {
-            IgnoredPaths = { "/ignored/one" }
-        };
-        var jsonPath = Path.Combine(_tempRoot!, "ignore_test.json");
-
-        config.Save(jsonPath);
-
-        var json = File.ReadAllText(jsonPath);
-        Assert.That(json, Does.Contain("\"IgnoredPaths\""));
-    }
-
-    [Test]
-    public void Save_SerializesSkipHiddenDirectories_True()
-    {
-        var config = new GitWizardConfiguration
-        {
-            SkipHiddenDirectories = true
-        };
-        var jsonPath = Path.Combine(_tempRoot!, "skip_hidden_true.json");
-
-        config.Save(jsonPath);
-
-        var json = File.ReadAllText(jsonPath);
-        Assert.That(json, Does.Contain("skipHiddenDirectories"));
-        Assert.That(json, Does.Contain("true"));
-    }
-
-    [Test]
-    public void Save_OmitsSkipHiddenDirectories_WhenNull()
+    [TestCaseSource(nameof(RoundTripCases))]
+    public void Save_RoundTripsProperty(RoundTripCase roundTripCase)
     {
         var config = new GitWizardConfiguration();
-        var jsonPath = Path.Combine(_tempRoot!, "skip_hidden_default.json");
+        roundTripCase.Configure(config);
+        var jsonPath = Path.Combine(_tempRoot!, "round_trip.json");
 
         config.Save(jsonPath);
-
         var json = File.ReadAllText(jsonPath);
-        // DefaultIgnoreCondition = WhenWritingDefault omits null (the default for bool?)
-        Assert.That(json, Does.Not.Contain("skipHiddenDirectories"));
-    }
-
-    [Test]
-    public void GetConfigurationAtPath_DeserializesSkipHiddenDirectories_True()
-    {
-        var config = new GitWizardConfiguration { SkipHiddenDirectories = true };
-        var jsonPath = Path.Combine(_tempRoot!, "load_skip_hidden_true.json");
-        config.Save(jsonPath);
-
         var loaded = GitWizardConfiguration.GetConfigurationAtPath(jsonPath);
 
-        Assert.That(loaded, Is.Not.Null);
-        Assert.That(loaded!.SkipHiddenDirectories, Is.True);
-    }
+        Assert.That(loaded, Is.Not.Null, "GetConfigurationAtPath returned null for a saved configuration.");
 
-    [Test]
-    public void GetConfigurationAtPath_DeserializesSkipHiddenDirectories_False()
-    {
-        var config = new GitWizardConfiguration { SkipHiddenDirectories = false };
-        var jsonPath = Path.Combine(_tempRoot!, "load_skip_hidden_false.json");
-        config.Save(jsonPath);
-
-        var loaded = GitWizardConfiguration.GetConfigurationAtPath(jsonPath);
-
-        Assert.That(loaded, Is.Not.Null);
-        Assert.That(loaded!.SkipHiddenDirectories, Is.False);
-    }
-
-    [Test]
-    public void Save_SerializesNullForkPath_IgnoresNull()
-    {
-        var config = new GitWizardConfiguration
+        using (Assert.EnterMultipleScope())
         {
-            ForkPath = null
-        };
-        var jsonPath = Path.Combine(_tempRoot!, "null_fork.json");
+            Assert.That(json, Does.Contain(roundTripCase.ExpectedJsonKey));
+            if (roundTripCase.ExpectedJsonValue is not null)
+            {
+                Assert.That(json, Does.Contain(roundTripCase.ExpectedJsonValue));
+            }
 
-        config.Save(jsonPath);
-
-        var json = File.ReadAllText(jsonPath);
-        // ForkPath is null and should be omitted (DefaultIgnoreCondition = WhenWritingDefault)
-        Assert.That(json, Does.Not.Contain("forkPath"));
+            Assert.That(roundTripCase.Read(loaded!), Is.EqualTo(roundTripCase.ExpectedValue));
+        }
     }
 
     [Test]
-    public void Save_CreatesNestedDirectoryStructure()
+    public void Save_OmitsNullProperties()
     {
         var config = new GitWizardConfiguration();
-        var deepPath = Path.Combine(_tempRoot!, "a", "b", "c", "d", "config.json");
+        var jsonPath = Path.Combine(_tempRoot!, "null_omission.json");
 
-        config.Save(deepPath);
+        config.Save(jsonPath);
 
-        Assert.That(Directory.Exists(Path.Combine(_tempRoot!, "a", "b", "c", "d")), Is.True);
+        var json = File.ReadAllText(jsonPath);
+        // DefaultIgnoreCondition = WhenWritingDefault omits null (the default for the
+        // nullable properties), and reading the file back pins that Save created it.
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(json, Does.Not.Contain("forkPath"));
+            Assert.That(json, Does.Not.Contain("skipHiddenDirectories"));
+            Assert.That(json, Does.Not.Contain("includeTempDirectories"));
+        }
+    }
+
+    [TestCase(2)]
+    [TestCase(4)]
+    public void Save_CreatesMissingDirectories(int depth)
+    {
+        var config = new GitWizardConfiguration();
+        var segments = Enumerable.Range(1, depth).Select(level => $"level{level}").ToArray();
+        var directory = Path.Combine([_tempRoot!, .. segments]);
+        var jsonPath = Path.Combine(directory, "config.json");
+
+        config.Save(jsonPath);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(Directory.Exists(directory), Is.True);
+            Assert.That(File.Exists(jsonPath), Is.True);
+        }
     }
 
     [Test]
@@ -298,59 +265,12 @@ public class GitWizardConfigurationTests
     }
 
     [Test]
-    public void ForkPath_ProducesJsonValue()
-    {
-        var config = new GitWizardConfiguration { ForkPath = "/fork/exe" };
-        var jsonPath = Path.Combine(_tempRoot!, "forkpath_test.json");
-        config.Save(jsonPath);
-
-        var json = File.ReadAllText(jsonPath);
-        Assert.That(json, Does.Contain("forkPath"));
-    }
-
-    [Test]
-    public void Save_EmptyConfiguration()
-    {
-        var config = new GitWizardConfiguration();
-        var jsonPath = Path.Combine(_tempRoot!, "empty.json");
-
-        config.Save(jsonPath);
-
-        Assert.That(File.Exists(jsonPath), Is.True);
-    }
-
-    [Test]
-    public void SearchPaths_IsSortedSet()
-    {
-        var config = new GitWizardConfiguration();
-        Assert.That(config.SearchPaths, Is.InstanceOf<SortedSet<string>>());
-    }
-
-    [Test]
-    public void IgnoredPaths_IsSortedSet()
-    {
-        var config = new GitWizardConfiguration();
-        Assert.That(config.IgnoredPaths, Is.InstanceOf<SortedSet<string>>());
-    }
-
-    [Test]
     public void GetGlobalConfigurationPath_ReturnsNonEmpty()
     {
         var path = GitWizardConfiguration.GetGlobalConfigurationPath();
         Assert.That(path, Is.Not.Null);
         Assert.That(path, Is.Not.Empty);
         Assert.That(path, Does.EndWith("config.json"));
-    }
-
-    [Test]
-    public void Save_CreatesDirectoryStructure()
-    {
-        var config = new GitWizardConfiguration();
-        var nestedPath = Path.Combine(_tempRoot!, "sub", "dir", "config.json");
-
-        config.Save(nestedPath);
-
-        Assert.That(File.Exists(nestedPath), Is.True);
     }
 
     [Test]
@@ -399,45 +319,6 @@ public class GitWizardConfigurationTests
         var loaded = GitWizardConfiguration.GetConfigurationAtPath(configPath);
         Assert.That(loaded, Is.Not.Null);
         Assert.That(loaded!.SearchPaths, Does.Contain("/dup"));
-    }
-
-    [Test]
-    public void Save_SerializesIncludeTempDirectories_True()
-    {
-        var config = new GitWizardConfiguration { IncludeTempDirectories = true };
-        var jsonPath = Path.Combine(_tempRoot!, "include_temp_true.json");
-
-        config.Save(jsonPath);
-
-        var json = File.ReadAllText(jsonPath);
-        Assert.That(json, Does.Contain("includeTempDirectories"));
-        Assert.That(json, Does.Contain("true"));
-    }
-
-    [Test]
-    public void Save_OmitsIncludeTempDirectories_WhenNull()
-    {
-        var config = new GitWizardConfiguration();
-        var jsonPath = Path.Combine(_tempRoot!, "include_temp_default.json");
-
-        config.Save(jsonPath);
-
-        var json = File.ReadAllText(jsonPath);
-        // DefaultIgnoreCondition = WhenWritingDefault omits null (the default for bool?)
-        Assert.That(json, Does.Not.Contain("includeTempDirectories"));
-    }
-
-    [Test]
-    public void GetConfigurationAtPath_DeserializesIncludeTempDirectories_False()
-    {
-        var config = new GitWizardConfiguration { IncludeTempDirectories = false };
-        var jsonPath = Path.Combine(_tempRoot!, "load_include_temp_false.json");
-        config.Save(jsonPath);
-
-        var loaded = GitWizardConfiguration.GetConfigurationAtPath(jsonPath);
-
-        Assert.That(loaded, Is.Not.Null);
-        Assert.That(loaded!.IncludeTempDirectories, Is.False);
     }
 }
 

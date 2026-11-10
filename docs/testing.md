@@ -72,6 +72,35 @@ Tests supply owned temporary cache directories. `GitWizardTests/JournalIsolation
 activates journal isolation; `GlobalTestSetup` independently redirects `GITWIZARD_HOME`.
 For cache and journal contracts, read MFTLib's [test isolation](../external/MFTLib/docs/test-isolation.md).
 
+## Coverage collection
+
+The Coverlet collector (`coverlet.collector`) instruments the assemblies in the test output
+directory. Each instrumented module writes its hit counts to a hits file in the temporary
+directory, and the collector reads those files once the session ends. Its in-process
+companion flushes every module loaded at session end before the testhost reports completion.
+A module it misses (one first loaded after that flush, or one whose flush failed) is flushed
+only by its `ProcessExit` handler, while the testhost exits. vstest.console waits
+`VSTEST_TESTHOST_SHUTDOWN_TIMEOUT` milliseconds (default 100) for the testhost to exit, kills
+it, and only then lets the collector read. A write cut short leaves a hits file shorter than its
+header count. The collector then logs `Failed to get coverage result` with an
+`EndOfStreamException` from `Coverage.CalculateCoverage` and produces no report, even though
+every test passed ([issue 531](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/531)).
+
+This is a demonstrated possible mechanism, not the established cause of issue 531. The incident
+remains open because its historical module and hit files cannot be recovered; a write that fails
+during the in-process flush would not be helped by the timeout.
+
+To mitigate that mechanism, every coverage-collecting `dotnet test` sets
+`VSTEST_TESTHOST_SHUTDOWN_TIMEOUT=120000`:
+the `ci/gates.sh test` gate used by CI and preflight on both platforms, both runs of
+`scripts/run-coverage.ps1`, and the before/after procedure in
+[test organization](test-organization.md). The elevated run sets the value inside its own runner
+script, because UAC does not pass the caller's environment to the elevated process. The value is
+an upper bound: vstest stops waiting as soon as the testhost exits. `ci/test_coverage_collection.py`
+and `ci/script-tests/run-coverage.tests.ps1` fail if a collecting run loses the setting. A plain
+`dotnet test` still collects through `GitWizardTests/coverlet.runsettings` without it, so read
+coverage only from those runs.
+
 ## Test organization and consolidation
 
 Tests live under production-area folders in `GitWizardTests/`. Each fixture has a unique simple class name and one matching `<ClassName>.cs` file. Large fixture families split into independent concern-named classes with a one-line rationale. Shared helpers live in `TestSupport`; file moves preserve namespace-scoped setup. See [test organization](test-organization.md) for the area/partial map, layout check, and before/after per-file coverage procedure. `AgentInstructionsTests` verifies that test classes named here exist. Cite test classes and members by name, without source line numbers.

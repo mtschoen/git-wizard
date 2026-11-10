@@ -131,6 +131,7 @@ function Invoke-LayoutBatch([string]$Label, [string]$Filter) {
     git rev-parse HEAD | Set-Content (Join-Path $directory 'revision.txt')
     $filterArguments = @()
     if ($Filter) { $filterArguments = @('--filter', $Filter) }
+    $env:VSTEST_TESTHOST_SHUTDOWN_TIMEOUT = '120000' # testing.md, Coverage collection
     dotnet test GitWizardTests/GitWizardTests.csproj -c Release --no-build --nologo `
         --settings GitWizardTests/coverlet.runsettings --collect 'XPlat Code Coverage' `
         @filterArguments --logger 'trx;LogFileName=tests.trx' --results-directory $directory | Out-Host

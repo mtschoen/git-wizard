@@ -45,8 +45,12 @@ case "${1:?gate required}" in
         rm -f "$results/current-test-directory"
         invocation=$(mktemp -d "$results/test-XXXXXXXX")
         basename "$invocation" > "$results/current-test-directory"
+        # vstest.console kills the testhost 100 ms after ending the session, before the
+        # Coverlet collector reads the hits files; a module flushed at process exit is cut
+        # short (docs/testing.md, Coverage collection). The wait is an upper bound: a
+        # testhost that exits promptly is not delayed.
         # MSYS otherwise converts the semicolon in the logger argument to a path list.
-        MSYS2_ARG_CONV_EXCL='*' dotnet test GitWizardTests/GitWizardTests.csproj -c Release --no-build \
+        VSTEST_TESTHOST_SHUTDOWN_TIMEOUT=120000 MSYS2_ARG_CONV_EXCL='*' dotnet test GitWizardTests/GitWizardTests.csproj -c Release --no-build \
             --logger 'trx;LogFileName=TestResults.trx' --results-directory "$invocation" \
             '--collect:XPlat Code Coverage'
         ;;

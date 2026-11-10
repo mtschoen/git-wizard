@@ -33,6 +33,11 @@ try {
     # coverlet collector wants the data-collector name as a single token; build it as a variable so
     # PowerShell does not split on the embedded space when passing it to dotnet.
     $collectArg  = "--collect:XPlat Code Coverage"
+    # vstest.console kills the testhost 100 ms after ending the session, before Coverlet reads
+    # the hits files; a module flushed at process exit is cut short (docs/testing.md, Coverage
+    # collection). The elevated runner sets the same value itself because UAC does not pass
+    # this environment to it.
+    $env:VSTEST_TESTHOST_SHUTDOWN_TIMEOUT = "120000"
 
     if (-not $NoBuild) {
         Write-Host "Building ($Configuration)..." -ForegroundColor Cyan
@@ -64,6 +69,7 @@ try {
         $template = @'
 $ErrorActionPreference = "Stop"
 Set-Location "REPO_ROOT"
+$env:VSTEST_TESTHOST_SHUTDOWN_TIMEOUT = "120000"
 try {
     dotnet test "TEST_PROJECT" --no-build -c CONFIGURATION `
         --filter "Category=RequiresAdmin" `

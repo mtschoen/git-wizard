@@ -27,15 +27,17 @@ public sealed partial class IndexVolumeChangeSource
                 ApplyWatchState(change);
                 return;
             }
-            AcceptWatchState(change.Volume.Letter, AggregateWatch(owner, change.Volume, change.Watch),
+            AcceptWatchState(change.Volume.Letter, AggregateWatch(owner, change.Volume, change.Watch,
+                    _watchedIndices.Select(index => index.Status)),
                 change.Fault, recordTransition: true);
         }
     }
 
-    RootWatchStatus AggregateWatch(MftIndexSession owner, VolumeKey volume, RootWatchStatus current)
+    RootWatchStatus AggregateWatch(MftIndexSession owner, VolumeKey volume, RootWatchStatus current,
+        IEnumerable<RootStatus> statuses)
     {
-        var states = _watchedIndices.Where(index => !owner.TryGetVolume(index.Status.Root, out var observed) || observed == volume)
-            .Select(index => index.Status.Watch.State).ToArray();
+        var states = statuses.Where(status => !owner.TryGetVolume(status.Root, out var observed) || observed == volume)
+            .Select(status => status.Watch.State).ToArray();
         var state = WatchState.CatchingUp;
         if (states.Contains(WatchState.Faulted))
         {
@@ -61,10 +63,18 @@ public sealed partial class IndexVolumeChangeSource
             {
                 return;
             }
-            foreach (var index in _watchedIndices.DistinctBy(index => owner.VolumeFor(index.Status.Root)))
+            var statuses = _watchedIndices.Select(index => index.Status).ToArray();
+            // A startup snapshot can precede its notification; seed both state and version
+            // so that a delayed duplicate cannot reopen catch-up after the arm completes.
+            foreach (var status in statuses)
             {
-                var volume = owner.VolumeFor(index.Status.Root);
-                AcceptWatchState(volume.Letter, AggregateWatch(owner, volume, index.Status.Watch), null, recordTransition: false);
+                _rootWatchVersions[status.Root] = Math.Max(_rootWatchVersions.GetValueOrDefault(status.Root),
+                    status.Watch.StateVersion);
+            }
+            foreach (var status in statuses.DistinctBy(status => owner.VolumeFor(status.Root)))
+            {
+                var volume = owner.VolumeFor(status.Root);
+                AcceptWatchState(volume.Letter, AggregateWatch(owner, volume, status.Watch, statuses), null, recordTransition: false);
             }
         }
     }

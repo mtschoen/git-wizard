@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using GitWizard;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
@@ -167,6 +168,67 @@ new Dictionary<string, string>());
         }
         await cancellation.CancelAsync();
         try { await pending; } catch (OperationCanceledException) { }
+    }
+
+    [Test]
+    public async Task DelayedCatchUpNotificationDoesNotRegressSeededReadiness()
+    {
+        using var files = new PackedIndexFixture();
+        files.AddMarker("repo");
+        var releaseStart = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseNotification = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var starting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var notifying = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var scripted = new ScriptedWatchSource
+        {
+            StartFailure = volume =>
+            {
+                if (volume == 'Y')
+                {
+                    starting.TrySetResult();
+                    Assert.That(releaseStart.Task.Wait(TestTimeouts.HangGuard), Is.True);
+                }
+                return null;
+            }
+        };
+        var indices = await files.OpenMftIndicesAsync(scripted, 'X', 'Y');
+        var owner = Owner(indices, "X", "Y");
+        var first = indices[0];
+        await first.StartWatchingAsync(CancellationToken.None);
+        first.WatchStateChanged += change =>
+        {
+            if (change.Watch.State == WatchState.CaughtUp)
+            {
+                notifying.TrySetResult();
+                Assert.That(releaseNotification.Task.Wait(TestTimeouts.HangGuard), Is.True);
+            }
+        };
+        await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner));
+        var snapshots = new ConcurrentQueue<VolumeReadinessSnapshot>();
+        try
+        {
+            var arming = source.ArmAndCatchUpAsync(["X", "Y"], CancellationToken.None);
+            await starting.Task.WaitAsync(TestTimeouts.HangGuard);
+            var publishing = scripted.WatchFor('X').PublishCaughtUpAsync();
+            await notifying.Task.WaitAsync(TestTimeouts.HangGuard);
+            releaseStart.TrySetResult();
+            var second = await scripted.WaitForStartAsync('Y', 1, CancellationToken.None).WaitAsync(TestTimeouts.HangGuard);
+            await second.PublishCaughtUpAsync();
+            await arming.WaitAsync(TestTimeouts.HangGuard);
+            Assert.That(source.Readiness.CaughtUpVolumes, Is.EquivalentTo(["X", "Y"]));
+            source.ReadinessChanged += snapshots.Enqueue;
+
+            releaseNotification.TrySetResult();
+            await publishing.WaitAsync(TestTimeouts.HangGuard);
+            await source.WaitForCatchUpWorkForTestAsync().WaitAsync(TestTimeouts.HangGuard);
+            Assert.That(snapshots.Select(snapshot => snapshot.CaughtUpVolumes),
+                Is.All.EquivalentTo(new[] { "X", "Y" }));
+        }
+        finally
+        {
+            releaseStart.TrySetResult();
+            releaseNotification.TrySetResult();
+        }
     }
 
     [Test]

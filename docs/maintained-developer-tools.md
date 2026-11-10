@@ -13,6 +13,9 @@ purpose, operator, and executable CI check.
 | --- | --- | --- | --- |
 | `scripts/update-screenshots.ps1` | Regenerate the Avalonia screenshot from three synthetic repositories | Maintainers and Windows CI | PowerShell parser; Generate headless screenshot with 180-second capture timeout; required GitWizardUI-screenshot artifact |
 | `scripts/cli-live-smoke.ps1` | Verify elevated CLI watch behavior against scratch repositories | Attended Windows operator | PowerShell parser; ci/script-tests/cli-live-smoke.tests.ps1 |
+| `scripts/cli-verb-matrix.ps1` | Run every unelevated git-wizard CLI command and option against throwaway repositories and a throwaway `GITWIZARD_HOME`, failing when the help text lists a command or option with no row or reasoned exclusion | Maintainers and reviewers after CLI parsing, dispatch or command changes | PowerShell parser; ci/script-tests/cli-verb-matrix.tests.ps1 |
+| `scripts/cli-verb-matrix.helpers.ps1` | Job-object process launcher, usage and coverage parsing, row scope guard and git fixture builder, dot-sourced by the matrix | Dot-sourced by the matrix and its self-tests | PowerShell parser; ci/script-tests/cli-verb-matrix.tests.ps1 |
+| `scripts/cli-verb-matrix.rows.ps1` | The matrix rows and the reasoned exclusions (`--watch` and `--setup-defender` elevate) | Dot-sourced by the matrix and its self-tests | PowerShell parser; ci/script-tests/cli-verb-matrix.tests.ps1 |
 | `scripts/ui-live-timing.ps1` | Measure Live readiness and check toolbar layout | Attended Windows operator | PowerShell parser; ci/script-tests/ui-live-timing.tests.ps1 |
 | `scripts/run-coverage.ps1` | Run local NUnit coverage with optional attended elevated tests, behind the elevation heads-up | Maintainers | PowerShell parser; ci/script-tests/elevation-heads-up.tests.ps1; ci/script-tests/run-coverage.tests.ps1 |
 | `scripts/elevation-heads-up.ps1` | Show the system-modal heads-up dialog and make the single elevated launch for the scripts | Dot-sourced by scripts that elevate | PowerShell parser; ci/script-tests/elevation-heads-up.tests.ps1 |
@@ -21,6 +24,25 @@ purpose, operator, and executable CI check.
 | `scripts/verify-windows.sh` | Run remote Windows non-admin verification | Maintainers with an authorized Windows host | bash -n; ci/test_verify_windows.py |
 | `scripts/format-on-save.py` | Apply C# whitespace formatting after edits | Claude/AGY hooks and maintainers | python -m py_compile; ci/test_format_on_save.py |
 | `scripts/generate-test-report.ps1` | Generate the deterministic CI summary from TRX and Cobertura artifacts | CI publish-report and maintainers with an explicit output path | PowerShell parser; ci/script-tests/generate-test-report.tests.ps1 |
+
+## CLI verb matrix
+
+`scripts/cli-verb-matrix.ps1` runs a Release `git-wizard.exe` (build it with
+`dotnet build git-wizard/git-wizard.csproj -c Release`; `-p:Platform` moves the output) once per row in
+`scripts/cli-verb-matrix.rows.ps1` and checks each exit code and output. It sets `GITWIZARD_HOME` to a
+temporary folder seeded with a configuration that searches only three throwaway repositories (`clean`,
+`dirty`, `prunable`), each with its own bare remote, and deletes that folder on every exit path. A job
+object terminates every process the run starts. It fails when `--help` (root and each subcommand) lists a
+command or option that no row runs and no exclusion explains, and when a row or exclusion names something
+no longer listed.
+
+Safety rules, enforced when the rows are defined: every discovering row carries `--no-mft`, because an MFT
+scan starts MFTLib's elevated journal broker. Shared options work before or after a subcommand. Rows
+without `--paths` use only the isolated home's seeded search paths; no built-in `~/.pr-crew/repos`
+clone root is added. `--watch` and
+`--setup-defender` are excluded because they elevate. The `--delete-all-local-files` row removes the seeded
+configuration, so it is the last row. Self-tests are `ci/script-tests/cli-verb-matrix.tests.ps1`, run by
+`ci/check-developer-tools.ps1`.
 
 ## Dispatcher watchdog
 

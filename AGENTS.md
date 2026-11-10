@@ -249,9 +249,11 @@ capture, never real repositories. Preserve CI capture/upload verification.
 
 [Maintained developer tools](docs/maintained-developer-tools.md) inventories every
 script under `scripts/`.
-Only redundant code is deleted. Add CI coverage for a hand-run tool instead of
-deleting it, and add a row when adding a tool. Keep the `UpdateHandler`
-ordering checks.
+
+Only redundant code is deleted. Add a row when adding a tool, and CI coverage
+instead of deleting a hand-run one. Keep the `UpdateHandler` ordering checks.
+
+**CLI verb matrix:** after changing or reviewing CLI parsing, dispatch or a command, run `pwsh scripts/cli-verb-matrix.ps1` on a Release `git-wizard.exe`. Unelevated, throwaway `GITWIZARD_HOME`; each new verb or flag needs a row or reasoned exclusion.
 
 ## Release and CLI reference
 
@@ -264,9 +266,5 @@ tag `v<Version>`. CLI help/version and desktop metadata inherit that property;
 release rejects a mismatched tag. Preserve Gitea/GitHub asset mirroring, secret
 validation, TLS verification and failure reporting. Repair partial releases
 before retrying. Never treat a tolerated coverage-artifact upload as gate success.
-
-Windows preview uses `PREVIEW_REGISTRY_TOKEN`. Enrollment is an operator step.
-Keep no-display artifact fallback and DISPLAY for XWayland; run-preview scripts
-launch artifacts. Do not edit live deployment configuration from this checkout.
 
 [Prior-art notes](docs/notes/prior-art-multi-repo-dashboards.md) are dated research.

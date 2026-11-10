@@ -124,8 +124,18 @@ public class GitWizardApiTests
     [Test]
     public void PrettyPrintPath_DoesNotRequireDirectoryToExist()
     {
-        var result = GitWizardApi.PrettyPrintPath("%HOME%");
-        Assert.That(result, Is.Not.Null);
+        var originalHome = Environment.GetEnvironmentVariable("HOME");
+        var nonExistentHome = Path.Combine(_tempRoot!, "no-such-home");
+        Environment.SetEnvironmentVariable("HOME", nonExistentHome);
+        try
+        {
+            var result = GitWizardApi.PrettyPrintPath("%HOME%");
+            Assert.That(result, Is.EqualTo(nonExistentHome));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("HOME", originalHome);
+        }
     }
 
     [Test]
@@ -167,24 +177,7 @@ public class GitWizardApiTests
     {
         var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         var result = GitWizardApi.ExpandSearchPath(profile);
-        Assert.That(result, Is.Not.Null);
-    }
-
-    [Test]
-    public void ExpandSearchPath_TildePrefix_ExpandsToUserProfile()
-    {
-        var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        if (Directory.Exists(Path.Combine(profile, "Documents")))
-        {
-            var result = GitWizardApi.ExpandSearchPath("~/Documents");
-            Assert.That(result, Is.Not.Null);
-            Assert.That(result, Does.Contain("Documents").IgnoreCase);
-        }
-        else
-        {
-            var result = GitWizardApi.ExpandSearchPath("~/Documents");
-            Assert.That(result, Is.Null);
-        }
+        Assert.That(result, Is.EqualTo(GitWizardApi.ResolveOnDiskPath(profile)));
     }
 
     static readonly string[] BareAndNativeSeparatorTildeInputs = ["~", "~" + Path.DirectorySeparatorChar];
@@ -195,6 +188,36 @@ public class GitWizardApiTests
         var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         var result = GitWizardApi.ExpandSearchPath(input);
         Assert.That(result, Is.EqualTo(GitWizardApi.ResolveOnDiskPath(profile)));
+    }
+
+    [Test]
+    public void ExpandSearchPath_TildeRelativeExistingDirectory_KeepsTheSuffix()
+    {
+        // The bare-tilde pins above cannot see the suffix: dropping the AsSpan(1) that appends
+        // everything after "~" still maps "~" to the profile. This is the only pin that requires a
+        // tilde-relative child to resolve below the profile, so it is the regression guard for that
+        // collapse. The owned directory lives under the user profile (as GlobalTestSetup places its
+        // temp home) so "~" reaches it on every host, and it is deleted again below.
+        var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var ownedLeaf = "gw-tilde-existing-" + Guid.NewGuid().ToString("N");
+        var ownedDirectory = Path.Combine(profile, ownedLeaf);
+        Directory.CreateDirectory(ownedDirectory);
+        try
+        {
+            var result = GitWizardApi.ExpandSearchPath(Path.Combine("~", ownedLeaf));
+            Assert.That(result, Is.EqualTo(GitWizardApi.ResolveOnDiskPath(ownedDirectory)));
+        }
+        finally
+        {
+            TempDirectory.DeleteTree(ownedDirectory);
+        }
+    }
+
+    [Test]
+    public void ExpandSearchPath_TildeRelativeMissingDirectory_ReturnsNull()
+    {
+        var result = GitWizardApi.ExpandSearchPath(Path.Combine("~", "gw-tilde-missing-" + Guid.NewGuid().ToString("N")));
+        Assert.That(result, Is.Null);
     }
 
     [Test]

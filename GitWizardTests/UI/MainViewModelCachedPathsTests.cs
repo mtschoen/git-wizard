@@ -100,12 +100,12 @@ public class MainViewModelCachedPathsTests
     public async Task UpdateCachedPathsAfterScan_NoCachedFile_IsNoOp()
     {
         using var sandbox = new LocalFilesSandbox();
-        // No repositories.txt exists; the method should not throw.
+        // No repositories.txt exists; the method must not throw or create the cache file.
         await RefreshCoordinator.UpdateCachedPathsAfterScanAsync(
             deletedPaths: ["/some/deleted"],
             renamedOldPaths: [],
             nonRepositoryPaths: []);
-        // If we got here without an exception, the test passes.
 
+        Assert.That(File.Exists(GitWizardApi.GetCachedRepositoryListPath()), Is.False);
     }
 }

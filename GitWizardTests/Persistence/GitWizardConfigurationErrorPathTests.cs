@@ -17,8 +17,27 @@ public class GitWizardConfigurationErrorPathTests
     {
         using var directory = new TempDirectory("gw-cfg-dir-");
         var directoryAsPath = directory.Path;
-        var configuration = new GitWizardConfiguration();
-        configuration.Save(directoryAsPath);
+        var loggedErrors = new List<string?>();
+        var previousTypedSink = GitWizardLog.TypedLogMethod;
+        GitWizardLog.TypedLogMethod = (message, type) =>
+        {
+            if (type == GitWizardLog.LogType.Error)
+            {
+                loggedErrors.Add(message);
+            }
+        };
+        try
+        {
+            var configuration = new GitWizardConfiguration();
+            configuration.Save(directoryAsPath);
+        }
+        finally
+        {
+            GitWizardLog.TypedLogMethod = previousTypedSink;
+        }
+
+        Assert.That(loggedErrors, Has.Some.Contains("Failed to save configuration"),
+            "Save must report the swallowed write failure through the log.");
     }
 
     [Test]

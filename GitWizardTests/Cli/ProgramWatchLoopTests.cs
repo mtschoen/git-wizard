@@ -448,35 +448,28 @@ public class ProgramWatchLoopTests
     [Test]
     public async Task RunWatchLoopAsync_MovedInRepository_PrintsCreatedLine()
     {
-        var searchRoot = Path.Combine(TestContext.CurrentContext.WorkDirectory,
-            $"watch-moved-in-{Guid.NewGuid():N}");
+        using var temporaryRoot = new TempDirectory("watch-moved-in-");
+        var searchRoot = temporaryRoot.Path;
         var repoPath = Path.Combine(searchRoot, "repo-renamed");
         Directory.CreateDirectory(Path.Combine(repoPath, ".git"));
-        try
-        {
-            var volume = WatchPath.Parse(repoPath).Volume!;
-            var batch = new VolumeChangeBatch(volume,
-                [new VolumeChangeEntry(repoPath, VolumeEntryKind.MovedIn)]);
-            var source = new ScriptedVolumeChangeSource([batch]);
-            var service = new RepositoryWatchService(
-                source,
-                trackedRoots: [],
-                searchRoots: [searchRoot],
-                debounce: TimeSpan.FromMilliseconds(10));
+        var volume = WatchPath.Parse(repoPath).Volume!;
+        var batch = new VolumeChangeBatch(volume,
+            [new VolumeChangeEntry(repoPath, VolumeEntryKind.MovedIn)]);
+        var source = new ScriptedVolumeChangeSource([batch]);
+        var service = new RepositoryWatchService(
+            source,
+            trackedRoots: [],
+            searchRoots: [searchRoot],
+            debounce: TimeSpan.FromMilliseconds(10));
 
-            var lines = new List<string>();
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            var stopped = await Program.RunWatchLoopAsync(service, lines.Add, NoExit, cts.Token);
+        var lines = new List<string>();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var stopped = await Program.RunWatchLoopAsync(service, lines.Add, NoExit, cts.Token);
 
-            using (Assert.EnterMultipleScope())
-            {
-                Assert.That(stopped, Is.False);
-                Assert.That(lines, Is.EqualTo([$"ready: mode=pump caught-up={volume} excluded=-", $"created: {repoPath}"]));
-            }
-        }
-        finally
+        using (Assert.EnterMultipleScope())
         {
-            Directory.Delete(searchRoot, recursive: true);
+            Assert.That(stopped, Is.False);
+            Assert.That(lines, Is.EqualTo([$"ready: mode=pump caught-up={volume} excluded=-", $"created: {repoPath}"]));
         }
     }
 }

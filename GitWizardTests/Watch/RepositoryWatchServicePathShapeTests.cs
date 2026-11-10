@@ -1,5 +1,6 @@
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
+using static GitWizardTests.TestSupport.WatchEventDrain;
 
 namespace GitWizardTests.Watch;
 
@@ -8,18 +9,6 @@ namespace GitWizardTests.Watch;
 [TestFixture]
 public class RepositoryWatchServicePathShapeTests
 {
-    static async Task<List<RepositoryChangeEvent>> DrainAsync(RepositoryWatchService svc)
-    {
-        var events = new List<RepositoryChangeEvent>();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        await foreach (var ev in svc.RunAsync(cts.Token))
-        {
-            events.Add(ev);
-        }
-
-        return events;
-    }
-
     [Test]
     public async Task PosixCaseDistinctRootsWithinDebounceWindow_EmitSeparateEvents()
     {

@@ -1,5 +1,6 @@
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
+using static GitWizardTests.TestSupport.WatchEventDrain;
 
 namespace GitWizardTests.Watch;
 
@@ -37,17 +38,5 @@ public class RepositoryWatchServiceRepeatedBatchTests
         var events = await DrainAsync(service);
 
         Assert.That(events, Is.EqualTo([new RepositoryChangeEvent(@"C:\repo\a", RepositoryChangeKind.Deleted)]));
-    }
-
-    static async Task<List<RepositoryChangeEvent>> DrainAsync(RepositoryWatchService service)
-    {
-        var events = new List<RepositoryChangeEvent>();
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        await foreach (var change in service.RunAsync(cancellation.Token))
-        {
-            events.Add(change);
-        }
-
-        return events;
     }
 }

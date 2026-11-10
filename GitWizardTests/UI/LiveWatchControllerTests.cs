@@ -93,45 +93,38 @@ public class LiveWatchControllerTests
     public async Task Start_ForwardsEventsInOrder()
     {
         // The search root must exist: startup scope expansion drops search roots that do not.
-        var searchRoot = Path.Combine(TestContext.CurrentContext.WorkDirectory, $"live-order-{Guid.NewGuid():N}");
+        using var temporaryRoot = new TempDirectory("live-order-");
+        var searchRoot = temporaryRoot.Path;
         var trackedRoot = Path.Combine(searchRoot, "a");
         var newRepository = Path.Combine(searchRoot, "newrepo");
-        Directory.CreateDirectory(searchRoot);
-        try
+        var volume = WatchPath.Parse(searchRoot).Volume!;
+        var source = new ScriptedVolumeChangeSource(
+            [
+                new VolumeChangeBatch(volume, [new VolumeChangeEntry(Path.Combine(trackedRoot, "one.txt"), VolumeEntryKind.Modified)]),
+                new VolumeChangeBatch(volume, [new VolumeChangeEntry(Path.Combine(newRepository, ".git"), VolumeEntryKind.Created)]),
+            ]);
+
+        var events = new List<RepositoryChangeEvent>();
+        var controller = NewController(
+            () => source,
+            trackedRoots: [trackedRoot],
+            searchRoots: [searchRoot],
+            onEvent: events.Add,
+            onStopped: _ => { },
+            isElevated: () => false);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var startTask = controller.StartAsync(cts.Token);
+
+        await WaitUntilAsync(() => events.Count >= 2);
+        await controller.StopAsync();
+        await startTask;
+
+        Assert.That(events, Has.Count.EqualTo(2));
+        using (Assert.EnterMultipleScope())
         {
-            var volume = WatchPath.Parse(searchRoot).Volume!;
-            var source = new ScriptedVolumeChangeSource(
-                [
-                    new VolumeChangeBatch(volume, [new VolumeChangeEntry(Path.Combine(trackedRoot, "one.txt"), VolumeEntryKind.Modified)]),
-                    new VolumeChangeBatch(volume, [new VolumeChangeEntry(Path.Combine(newRepository, ".git"), VolumeEntryKind.Created)]),
-                ]);
-
-            var events = new List<RepositoryChangeEvent>();
-            var controller = NewController(
-                () => source,
-                trackedRoots: [trackedRoot],
-                searchRoots: [searchRoot],
-                onEvent: events.Add,
-                onStopped: _ => { },
-                isElevated: () => false);
-
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            var startTask = controller.StartAsync(cts.Token);
-
-            await WaitUntilAsync(() => events.Count >= 2);
-            await controller.StopAsync();
-            await startTask;
-
-            Assert.That(events, Has.Count.EqualTo(2));
-            using (Assert.EnterMultipleScope())
-            {
-                Assert.That(events[0], Is.EqualTo(new RepositoryChangeEvent(trackedRoot, RepositoryChangeKind.Changed)));
-                Assert.That(events[1], Is.EqualTo(new RepositoryChangeEvent(newRepository, RepositoryChangeKind.Created)));
-            }
-        }
-        finally
-        {
-            Directory.Delete(searchRoot, recursive: true);
+            Assert.That(events[0], Is.EqualTo(new RepositoryChangeEvent(trackedRoot, RepositoryChangeKind.Changed)));
+            Assert.That(events[1], Is.EqualTo(new RepositoryChangeEvent(newRepository, RepositoryChangeKind.Created)));
         }
     }
     [Test]
@@ -564,44 +557,37 @@ public class LiveWatchControllerTests
     [Test]
     public async Task Start_ForwardsIgnoredRootsToService()
     {
-        var searchRoot = Path.Combine(TestContext.CurrentContext.WorkDirectory,
-            $"live-ignored-{Guid.NewGuid():N}");
+        using var temporaryRoot = new TempDirectory("live-ignored-");
+        var searchRoot = temporaryRoot.Path;
         var ignoredRoot = Path.Combine(searchRoot, "ignored");
         var ignoredRepo = Path.Combine(ignoredRoot, "repo");
         var visibleRepo = Path.Combine(searchRoot, "visible-repo");
         Directory.CreateDirectory(Path.Combine(ignoredRepo, ".git"));
         Directory.CreateDirectory(Path.Combine(visibleRepo, ".git"));
-        try
-        {
-            var volume = WatchPath.Parse(searchRoot).Volume!;
-            var source = new ScriptedVolumeChangeSource([
-                new VolumeChangeBatch(volume,
-                [
-                    new VolumeChangeEntry(ignoredRepo, VolumeEntryKind.MovedIn),
-                    new VolumeChangeEntry(visibleRepo, VolumeEntryKind.MovedIn),
-                ])
-            ]);
-            var events = new List<RepositoryChangeEvent>();
-            var controller = NewController(
-                () => source,
-                trackedRoots: [],
-                searchRoots: [searchRoot],
-                onEvent: events.Add,
-                onStopped: _ => { },
-                isElevated: () => false,
-                ignoredPaths: [ignoredRoot]);
+        var volume = WatchPath.Parse(searchRoot).Volume!;
+        var source = new ScriptedVolumeChangeSource([
+            new VolumeChangeBatch(volume,
+            [
+                new VolumeChangeEntry(ignoredRepo, VolumeEntryKind.MovedIn),
+                new VolumeChangeEntry(visibleRepo, VolumeEntryKind.MovedIn),
+            ])
+        ]);
+        var events = new List<RepositoryChangeEvent>();
+        var controller = NewController(
+            () => source,
+            trackedRoots: [],
+            searchRoots: [searchRoot],
+            onEvent: events.Add,
+            onStopped: _ => { },
+            isElevated: () => false,
+            ignoredPaths: [ignoredRoot]);
 
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            await controller.StartAsync(cts.Token);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await controller.StartAsync(cts.Token);
 
-            Assert.That(events, Is.EqualTo([
-                new RepositoryChangeEvent(visibleRepo, RepositoryChangeKind.Created),
-            ]));
-        }
-        finally
-        {
-            Directory.Delete(searchRoot, recursive: true);
-        }
+        Assert.That(events, Is.EqualTo([
+            new RepositoryChangeEvent(visibleRepo, RepositoryChangeKind.Created),
+        ]));
     }
 
     [Test]

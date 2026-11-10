@@ -1,5 +1,6 @@
 using System.Text.Json;
 using GitWizard;
+using GitWizardTests.TestSupport;
 using static GitWizardTests.CliProcess;
 
 namespace GitWizardTests;
@@ -64,97 +65,70 @@ public class ProgramInventoryEntryPointTests
     public async Task Main_ScanOnly_PrintsRepositoryPathsToStdoutAndDiagnosticsToStderr()
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        var tempConfigFile = Path.GetTempFileName();
-        try
+        using var configDirectory = new TempDirectory("gw-inventory-config-");
+        var tempConfigFile = Path.Combine(configDirectory.Path, "config.json");
+        var config = new GitWizardConfiguration
         {
-            var config = new GitWizardConfiguration
-            {
-                SearchPaths = { fixture.Path }
-            };
-            await config.SaveAsync(tempConfigFile);
+            SearchPaths = { fixture.Path }
+        };
+        await config.SaveAsync(tempConfigFile);
 
-            var result = await RunCliAsync("--config-path", tempConfigFile, "--scan-only", "--no-mft");
+        var result = await RunCliAsync("--config-path", tempConfigFile, "--scan-only", "--no-mft");
 
-            using (Assert.EnterMultipleScope())
-            {
-                Assert.That(result.ExitCode, Is.Zero);
-                // Stdout contains ONLY discovered repository paths, no session banner or log lines
-                Assert.That(result.StandardOutput.Trim(), Is.EqualTo(fixture.Path).IgnoreCase);
-                Assert.That(result.StandardOutput, Does.Not.Contain("Session Start Message"));
-                Assert.That(result.StandardOutput, Does.Not.Contain("git-wizard Session Started"));
-                // Stderr contains session banner / diagnostics
-                Assert.That(result.StandardError, Does.Contain("Session Start Message"));
-                Assert.That(result.StandardError, Does.Contain("git-wizard Session Started"));
-            }
-        }
-        finally
+        using (Assert.EnterMultipleScope())
         {
-            if (File.Exists(tempConfigFile))
-            {
-                File.Delete(tempConfigFile);
-            }
+            Assert.That(result.ExitCode, Is.Zero);
+            // Stdout contains ONLY discovered repository paths, no session banner or log lines
+            Assert.That(result.StandardOutput.Trim(), Is.EqualTo(fixture.Path).IgnoreCase);
+            Assert.That(result.StandardOutput, Does.Not.Contain("Session Start Message"));
+            Assert.That(result.StandardOutput, Does.Not.Contain("git-wizard Session Started"));
+            // Stderr contains session banner / diagnostics
+            Assert.That(result.StandardError, Does.Contain("Session Start Message"));
+            Assert.That(result.StandardError, Does.Contain("git-wizard Session Started"));
         }
     }
 
     [Test]
     public async Task Main_ScanOnly_AllInvalidSearchPaths_ExitsNonZeroWithUsableSummary()
     {
-        var tempConfigFile = Path.GetTempFileName();
-        try
+        using var configDirectory = new TempDirectory("gw-inventory-config-");
+        var tempConfigFile = Path.Combine(configDirectory.Path, "config.json");
+        var config = new GitWizardConfiguration
         {
-            var config = new GitWizardConfiguration
-            {
-                SearchPaths = { "/nonexistent/search/one", "/nonexistent/search/two", "/nonexistent/search/three" }
-            };
-            await config.SaveAsync(tempConfigFile);
+            SearchPaths = { "/nonexistent/search/one", "/nonexistent/search/two", "/nonexistent/search/three" }
+        };
+        await config.SaveAsync(tempConfigFile);
 
-            var result = await RunCliAsync("--config-path", tempConfigFile, "--scan-only", "--no-mft");
+        var result = await RunCliAsync("--config-path", tempConfigFile, "--scan-only", "--no-mft");
 
-            using (Assert.EnterMultipleScope())
-            {
-                Assert.That(result.ExitCode, Is.EqualTo(1));
-                // Stdout is completely empty
-                Assert.That(result.StandardOutput.Trim(), Is.Empty);
-                // Stderr contains per-path errors and summary message
-                Assert.That(result.StandardError, Does.Contain("0 of 3 configured search paths are usable"));
-                Assert.That(result.StandardError, Does.Contain("Could not get repository paths at /nonexistent/search/one"));
-            }
-        }
-        finally
+        using (Assert.EnterMultipleScope())
         {
-            if (File.Exists(tempConfigFile))
-            {
-                File.Delete(tempConfigFile);
-            }
+            Assert.That(result.ExitCode, Is.EqualTo(1));
+            // Stdout is completely empty
+            Assert.That(result.StandardOutput.Trim(), Is.Empty);
+            // Stderr contains per-path errors and summary message
+            Assert.That(result.StandardError, Does.Contain("0 of 3 configured search paths are usable"));
+            Assert.That(result.StandardError, Does.Contain("Could not get repository paths at /nonexistent/search/one"));
         }
     }
 
     [Test]
     public async Task Main_DefaultReportMode_AllInvalidSearchPaths_ExitsNonZero()
     {
-        var tempConfigFile = Path.GetTempFileName();
-        try
+        using var configDirectory = new TempDirectory("gw-inventory-config-");
+        var tempConfigFile = Path.Combine(configDirectory.Path, "config.json");
+        var config = new GitWizardConfiguration
         {
-            var config = new GitWizardConfiguration
-            {
-                SearchPaths = { "/nonexistent/search/one", "/nonexistent/search/two" }
-            };
-            await config.SaveAsync(tempConfigFile);
+            SearchPaths = { "/nonexistent/search/one", "/nonexistent/search/two" }
+        };
+        await config.SaveAsync(tempConfigFile);
 
-            var result = await RunCliAsync("--config-path", tempConfigFile, "--rebuild-report", "--no-mft");
+        var result = await RunCliAsync("--config-path", tempConfigFile, "--rebuild-report", "--no-mft");
 
-            using (Assert.EnterMultipleScope())
-            {
-                Assert.That(result.ExitCode, Is.EqualTo(1));
-                Assert.That(result.StandardOutput, Does.Not.Contain("\"Repositories\""));
-            }
-        }
-        finally
+        using (Assert.EnterMultipleScope())
         {
-            if (File.Exists(tempConfigFile))
-            {
-                File.Delete(tempConfigFile);
-            }
+            Assert.That(result.ExitCode, Is.EqualTo(1));
+            Assert.That(result.StandardOutput, Does.Not.Contain("\"Repositories\""));
         }
     }
 
@@ -162,30 +136,21 @@ public class ProgramInventoryEntryPointTests
     public async Task Main_ScanOnly_WithFilter_FiltersStdout()
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        var tempConfigFile = Path.GetTempFileName();
-        try
+        using var configDirectory = new TempDirectory("gw-inventory-config-");
+        var tempConfigFile = Path.Combine(configDirectory.Path, "config.json");
+        var config = new GitWizardConfiguration
         {
-            var config = new GitWizardConfiguration
-            {
-                SearchPaths = { fixture.Path }
-            };
-            await config.SaveAsync(tempConfigFile);
+            SearchPaths = { fixture.Path }
+        };
+        await config.SaveAsync(tempConfigFile);
 
-            var result = await RunCliAsync("--config-path", tempConfigFile, "--scan-only", "--filter", "nonexistentfilterpattern", "--no-mft");
+        var result = await RunCliAsync("--config-path", tempConfigFile, "--scan-only", "--filter", "nonexistentfilterpattern", "--no-mft");
 
-            using (Assert.EnterMultipleScope())
-            {
-                Assert.That(result.ExitCode, Is.Zero);
-                Assert.That(result.StandardOutput.Trim(), Is.Empty);
-                Assert.That(result.StandardError, Does.Contain("Session Start Message"));
-            }
-        }
-        finally
+        using (Assert.EnterMultipleScope())
         {
-            if (File.Exists(tempConfigFile))
-            {
-                File.Delete(tempConfigFile);
-            }
+            Assert.That(result.ExitCode, Is.Zero);
+            Assert.That(result.StandardOutput.Trim(), Is.Empty);
+            Assert.That(result.StandardError, Does.Contain("Session Start Message"));
         }
     }
 

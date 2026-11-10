@@ -88,8 +88,12 @@ public class MainViewModelCommandTests
     [Test]
     public void DeepRefreshRepository_NullNode_DoesNothing()
     {
-        var vm = TestViewModels.Create();
+        var dialogs = new StubUserDialogs();
+        var vm = TestViewModels.Create(dialogs: dialogs);
+
         vm.Commands.DeepRefreshRepository(null);
+
+        Assert.That(dialogs.AlertCalls, Is.Empty);
     }
 
     [Test]
@@ -128,8 +132,12 @@ public class MainViewModelCommandTests
     [Test]
     public void CheckoutMatchingBranch_NullNode_DoesNothing()
     {
-        var vm = TestViewModels.Create();
+        var dialogs = new StubUserDialogs();
+        var vm = TestViewModels.Create(dialogs: dialogs);
+
         vm.Commands.CheckoutMatchingBranch(null);
+
+        Assert.That(dialogs.AlertCalls, Is.Empty);
     }
 
     [Test]

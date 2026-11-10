@@ -1,5 +1,6 @@
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
+using static GitWizardTests.TestSupport.WatchEventDrain;
 
 namespace GitWizardTests.Watch;
 
@@ -8,18 +9,6 @@ namespace GitWizardTests.Watch;
 [TestFixture]
 public class RepositoryWatchServiceMembershipTests
 {
-    static async Task<List<RepositoryChangeEvent>> DrainAsync(RepositoryWatchService svc)
-    {
-        var events = new List<RepositoryChangeEvent>();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        await foreach (var ev in svc.RunAsync(cts.Token))
-        {
-            events.Add(ev);
-        }
-
-        return events;
-    }
-
     [Test]
     public async Task DotGitCreatedUnderTempDirectory_ExcludedByDefault()
     {
@@ -216,80 +205,66 @@ public class RepositoryWatchServiceMembershipTests
     [Test]
     public async Task MovedInAfterCreatedAndDeletedInSameBatch_EmitsCreatedDeletedCreated()
     {
-        var searchRoot = Path.Combine(TestContext.CurrentContext.WorkDirectory,
-            $"watch-recreate-{Guid.NewGuid():N}");
+        using var temporaryRoot = new TempDirectory("watch-recreate-");
+        var searchRoot = temporaryRoot.Path;
         var repoPath = Path.Combine(searchRoot, "repo");
         var gitPath = Path.Combine(repoPath, ".git");
         Directory.CreateDirectory(gitPath);
-        try
-        {
-            var volume = WatchPath.Parse(repoPath).Volume!;
-            var batch = new VolumeChangeBatch(volume, [
-                    new VolumeChangeEntry(gitPath, VolumeEntryKind.Created),
-                    new VolumeChangeEntry(repoPath, VolumeEntryKind.Deleted),
-                    new VolumeChangeEntry(repoPath, VolumeEntryKind.MovedIn),
-                ]);
-            var service = new RepositoryWatchService(
-                new ScriptedVolumeChangeSource([batch]),
-                trackedRoots: [],
-                searchRoots: [searchRoot],
-                debounce: TimeSpan.FromMilliseconds(10));
+        var volume = WatchPath.Parse(repoPath).Volume!;
+        var batch = new VolumeChangeBatch(volume, [
+                new VolumeChangeEntry(gitPath, VolumeEntryKind.Created),
+                new VolumeChangeEntry(repoPath, VolumeEntryKind.Deleted),
+                new VolumeChangeEntry(repoPath, VolumeEntryKind.MovedIn),
+            ]);
+        var service = new RepositoryWatchService(
+            new ScriptedVolumeChangeSource([batch]),
+            trackedRoots: [],
+            searchRoots: [searchRoot],
+            debounce: TimeSpan.FromMilliseconds(10));
 
-            var events = await DrainAsync(service);
+        var events = await DrainAsync(service);
 
-            Assert.That(events, Is.EqualTo([
-                    new RepositoryChangeEvent(repoPath, RepositoryChangeKind.Created),
-                    new RepositoryChangeEvent(repoPath, RepositoryChangeKind.Deleted),
-                    new RepositoryChangeEvent(repoPath, RepositoryChangeKind.Created),
-                ]));
-        }
-        finally
-        {
-            Directory.Delete(searchRoot, recursive: true);
-        }
+        Assert.That(events, Is.EqualTo([
+                new RepositoryChangeEvent(repoPath, RepositoryChangeKind.Created),
+                new RepositoryChangeEvent(repoPath, RepositoryChangeKind.Deleted),
+                new RepositoryChangeEvent(repoPath, RepositoryChangeKind.Created),
+            ]));
     }
 
     [Test]
     public async Task MovedInAfterCreatedAndDeleted_EmitsChangedOnSubsequentBatch()
     {
-        var searchRoot = Path.Combine(TestContext.CurrentContext.WorkDirectory,
-            $"watch-recreate-changed-{Guid.NewGuid():N}");
+        using var temporaryRoot = new TempDirectory("watch-recreate-changed-");
+        var searchRoot = temporaryRoot.Path;
         var repoPath = Path.Combine(searchRoot, "repo");
         var gitPath = Path.Combine(repoPath, ".git");
         Directory.CreateDirectory(gitPath);
-        try
+        var volume = WatchPath.Parse(repoPath).Volume!;
+        var batches = new[]
         {
-            var volume = WatchPath.Parse(repoPath).Volume!;
-            var batches = new[]
-            {
-                    new VolumeChangeBatch(volume, [
-                        new VolumeChangeEntry(gitPath, VolumeEntryKind.Created),
-                        new VolumeChangeEntry(repoPath, VolumeEntryKind.Deleted),
-                        new VolumeChangeEntry(repoPath, VolumeEntryKind.MovedIn),
-                    ]),
-                    new VolumeChangeBatch(volume, [
-                        new VolumeChangeEntry(Path.Combine(repoPath, "file.txt"), VolumeEntryKind.Modified),
-                    ]),
-                };
-            var service = new RepositoryWatchService(
-                new DelayedVolumeChangeSource(batches, TimeSpan.FromMilliseconds(60)),
-                trackedRoots: [],
-                searchRoots: [searchRoot],
-                debounce: TimeSpan.FromMilliseconds(10));
+                new VolumeChangeBatch(volume, [
+                    new VolumeChangeEntry(gitPath, VolumeEntryKind.Created),
+                    new VolumeChangeEntry(repoPath, VolumeEntryKind.Deleted),
+                    new VolumeChangeEntry(repoPath, VolumeEntryKind.MovedIn),
+                ]),
+                new VolumeChangeBatch(volume, [
+                    new VolumeChangeEntry(Path.Combine(repoPath, "file.txt"), VolumeEntryKind.Modified),
+                ]),
+            };
+        var service = new RepositoryWatchService(
+            new DelayedVolumeChangeSource(batches, TimeSpan.FromMilliseconds(60)),
+            trackedRoots: [],
+            searchRoots: [searchRoot],
+            debounce: TimeSpan.FromMilliseconds(10));
 
-            var events = await DrainAsync(service);
+        var events = await DrainAsync(service);
 
-            Assert.That(events, Is.EqualTo([
-                    new RepositoryChangeEvent(repoPath, RepositoryChangeKind.Created),
-                    new RepositoryChangeEvent(repoPath, RepositoryChangeKind.Deleted),
-                    new RepositoryChangeEvent(repoPath, RepositoryChangeKind.Created),
-                    new RepositoryChangeEvent(repoPath, RepositoryChangeKind.Changed),
-                ]));
-        }
-        finally
-        {
-            Directory.Delete(searchRoot, recursive: true);
-        }
+        Assert.That(events, Is.EqualTo([
+                new RepositoryChangeEvent(repoPath, RepositoryChangeKind.Created),
+                new RepositoryChangeEvent(repoPath, RepositoryChangeKind.Deleted),
+                new RepositoryChangeEvent(repoPath, RepositoryChangeKind.Created),
+                new RepositoryChangeEvent(repoPath, RepositoryChangeKind.Changed),
+            ]));
     }
 
     [Test]
@@ -300,37 +275,30 @@ public class RepositoryWatchServiceMembershipTests
             Assert.Ignore("Case-only Windows rename test is Windows-only.");
         }
 
-        var searchRoot = Path.Combine(TestContext.CurrentContext.WorkDirectory,
-            $"watch-case-rename-create-{Guid.NewGuid():N}");
+        using var temporaryRoot = new TempDirectory("watch-case-rename-create-");
+        var searchRoot = temporaryRoot.Path;
         var lowerPath = Path.Combine(searchRoot, "repo");
         var upperPath = Path.Combine(searchRoot, "Repo");
         var gitPath = Path.Combine(upperPath, ".git");
         Directory.CreateDirectory(gitPath);
-        try
-        {
-            var volume = WatchPath.Parse(upperPath).Volume!;
-            var batch = new VolumeChangeBatch(volume, [
-                    new VolumeChangeEntry(Path.Combine(lowerPath, ".git"), VolumeEntryKind.Created),
-                    new VolumeChangeEntry(lowerPath, VolumeEntryKind.Deleted),
-                    new VolumeChangeEntry(upperPath, VolumeEntryKind.MovedIn),
-                ]);
-            var service = new RepositoryWatchService(
-                new ScriptedVolumeChangeSource([batch]),
-                trackedRoots: [],
-                searchRoots: [searchRoot],
-                debounce: TimeSpan.FromMilliseconds(10));
+        var volume = WatchPath.Parse(upperPath).Volume!;
+        var batch = new VolumeChangeBatch(volume, [
+                new VolumeChangeEntry(Path.Combine(lowerPath, ".git"), VolumeEntryKind.Created),
+                new VolumeChangeEntry(lowerPath, VolumeEntryKind.Deleted),
+                new VolumeChangeEntry(upperPath, VolumeEntryKind.MovedIn),
+            ]);
+        var service = new RepositoryWatchService(
+            new ScriptedVolumeChangeSource([batch]),
+            trackedRoots: [],
+            searchRoots: [searchRoot],
+            debounce: TimeSpan.FromMilliseconds(10));
 
-            var events = await DrainAsync(service);
+        var events = await DrainAsync(service);
 
-            Assert.That(events, Is.EqualTo([
-                    new RepositoryChangeEvent(lowerPath, RepositoryChangeKind.Created),
-                    new RepositoryChangeEvent(lowerPath, RepositoryChangeKind.Deleted),
-                    new RepositoryChangeEvent(upperPath, RepositoryChangeKind.Created),
-                ]));
-        }
-        finally
-        {
-            Directory.Delete(searchRoot, recursive: true);
-        }
+        Assert.That(events, Is.EqualTo([
+                new RepositoryChangeEvent(lowerPath, RepositoryChangeKind.Created),
+                new RepositoryChangeEvent(lowerPath, RepositoryChangeKind.Deleted),
+                new RepositoryChangeEvent(upperPath, RepositoryChangeKind.Created),
+            ]));
     }
 }

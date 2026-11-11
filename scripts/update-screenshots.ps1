@@ -13,6 +13,8 @@ param(
     # Relative paths resolve against the repository root. CI passes an untracked path so the
     # tracked documentation image is not modified.
     [string]$OutputPath = 'Screenshots/GitWizardUI.png',
+    # Optional ordered JSON interactions; relative paths resolve against the repository root.
+    [string]$StepsPath,
     [int]$TimeoutSeconds = 180
 )
 
@@ -23,6 +25,13 @@ try {
     $screenshotPath = $OutputPath
     if (-not [System.IO.Path]::IsPathRooted($screenshotPath)) { $screenshotPath = Join-Path $repositoryRoot $screenshotPath }
     $screenshotPath = [System.IO.Path]::GetFullPath($screenshotPath)
+    $stepsArguments = @()
+    if ($StepsPath) {
+        $resolvedStepsPath = $StepsPath
+        if (-not [System.IO.Path]::IsPathRooted($resolvedStepsPath)) { $resolvedStepsPath = Join-Path $repositoryRoot $resolvedStepsPath }
+        $resolvedStepsPath = (Resolve-Path -LiteralPath $resolvedStepsPath).Path
+        $stepsArguments = @('--steps', "`"$resolvedStepsPath`"")
+    }
     Remove-Item -LiteralPath $screenshotPath -ErrorAction SilentlyContinue
 
     # Fixture lives under the untracked artifacts directory (never %TEMP%: discovery skips it).
@@ -49,8 +58,9 @@ try {
     $env:GITWIZARD_HOME = $homeDirectory
     # Walk the filesystem: MFT discovery would launch an elevated broker and raise a UAC prompt.
     $env:GITWIZARD_NO_MFT = '1'
-    $process = Start-Process -FilePath dotnet -PassThru -NoNewWindow -ArgumentList @(
-        'run', '--no-build', '--project', 'GitWizardUI.Screenshot', '-c', $Configuration, '--', "`"$screenshotPath`"")
+    $captureArguments = @(
+        'run', '--no-build', '--project', 'GitWizardUI.Screenshot', '-c', $Configuration, '--', "`"$screenshotPath`"") + $stepsArguments
+    $process = Start-Process -FilePath dotnet -PassThru -NoNewWindow -ArgumentList $captureArguments
     # Touching Handle caches it; Windows PowerShell 5.1 otherwise reports a null ExitCode.
     $null = $process.Handle
     if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {

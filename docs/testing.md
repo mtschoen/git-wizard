@@ -221,6 +221,43 @@ Run `scripts/update-screenshots.ps1` (any shell with PowerShell; no display, ele
 
 The Windows job in `ci.yml` runs the script to `artifacts/GitWizardUI-ci.png` on every non-pin-only run and uploads it as the `GitWizardUI-screenshot` artifact, so the generator cannot rot unseen. Both CI capture entry points call the same fixture wrapper, a 10-minute step deadline also covers build/setup, and missing screenshot artifacts fail their upload step. Manually run development tools are kept and exercised in CI, never deleted for lacking a CI caller; `ci/test_parse_jb_report.py` and `ci/test_verify_windows.py` do this for `ci/parse-jb-report.py` and `scripts/verify-windows.sh` in the contracts gate.
 
+#### Scripted interaction frames
+
+Pass `-StepsPath steps.json` to the wrapper (or `--steps steps.json` after the
+optional output path when running the capture tool directly). The file is an
+ordered JSON array, for example:
+
+```json
+[
+  { "action": "setText", "watermark": "Search repositories...", "text": "beta" },
+  { "action": "capture", "name": "search-beta" },
+  { "action": "setText", "watermark": "Search repositories...", "text": "" },
+  { "action": "click", "name": "SortByRecentlyUsed" },
+  { "action": "click", "name": "GroupByDrive" },
+  { "action": "capture", "name": "group-drive-sort-recent" }
+]
+```
+
+```powershell
+pwsh -NoProfile -File scripts/update-screenshots.ps1 -OutputPath artifacts/frame.png -StepsPath steps.json
+```
+
+`setText` selects a TextBox by exactly one of `name` or `watermark`, and requires
+`text` (empty clears it). `click` selects a Button by `name` and invokes its normal
+click path, including enabled command bindings. `capture` writes
+`<output-stem>-<name>.png` beside the initial frame. Capture names contain only
+ASCII letters, digits, hyphens and underscores. Properties and action values are
+case-sensitive; unknown properties, invalid steps, and missing or ambiguous
+controls fail with a diagnostic and a nonzero exit code.
+
+The initial frame is always captured before any steps. With no steps file, the
+tool writes only the original frame as before. Each interaction uses the same
+fixed 15 dispatcher-pump/100 ms pause cycles as the trial to allow queued bindings,
+search debounce and rendering to settle; captures pump once more before rendering.
+This is a bounded synthetic interaction sequence, not a wait-for-background-work
+protocol or a substitute for headed layout checks. `ScreenshotStepsTests` uses the
+existing headless NUnit setup and a dispatcher drain without real sleeps.
+
 ### CI (recommended for release prep)
 
 Trigger `.gitea/workflows/screenshot.yml` manually from the Actions tab or the

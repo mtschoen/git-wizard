@@ -11,6 +11,8 @@ static class Program
     {
         try
         {
+            var options = ScreenshotOptions.Parse(args);
+            var steps = options.StepsPath == null ? null : ScreenshotSteps.Load(options.StepsPath);
             // SetupWithClassicDesktopLifetime initializes the application without running the
             // blocking main loop (StartWithClassicDesktopLifetime never returns until shutdown).
             AppBuilder.Configure<App>()
@@ -38,9 +40,8 @@ static class Program
                 Thread.Sleep(100);
             }
 
-            // The first argument overrides the output path; the default is the file the docs reference.
-            var screenshotPath = Path.GetFullPath(
-                args.Length > 0 ? args[0] : Path.Combine("Screenshots", "GitWizardUI.png"));
+            // The output path still defaults to the file the docs reference.
+            var screenshotPath = Path.GetFullPath(options.OutputPath);
             var screenshotDir = Path.GetDirectoryName(screenshotPath);
             if (!string.IsNullOrEmpty(screenshotDir) && !Directory.Exists(screenshotDir))
             {
@@ -63,6 +64,20 @@ static class Program
             var fileInfo = new FileInfo(screenshotPath);
             Console.WriteLine($"Screenshot captured: {screenshotPath} ({fileInfo.Length / 1024} KB)");
 
+            if (steps != null)
+            {
+                var stem = Path.ChangeExtension(screenshotPath, null);
+                ScreenshotSteps.Run(window, steps, Settle, name =>
+                {
+                    Dispatcher.UIThread.RunJobs();
+                    using var frame = window.CaptureRenderedFrame()
+                        ?? throw new InvalidOperationException($"CaptureRenderedFrame returned null for '{name}'.");
+                    var path = $"{stem}-{name}.png";
+                    frame.Save(path);
+                    Console.WriteLine($"Step frame captured: {path} ({new FileInfo(path).Length} bytes)");
+                });
+            }
+
             window.Close();
             return 0;
         }
@@ -71,6 +86,16 @@ static class Program
             Console.Error.WriteLine($"ERROR: {ex.Message}");
             Console.Error.WriteLine(ex.StackTrace);
             return 2;
+        }
+    }
+
+    static void Settle()
+    {
+        // Match the bounded trial pump window, including time for the search debounce.
+        for (var pump = 0; pump < 15; pump++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            Thread.Sleep(100);
         }
     }
 }

@@ -11,7 +11,7 @@ purpose, operator, and executable CI check.
 
 | Tool | Purpose | Who runs it | CI coverage |
 | --- | --- | --- | --- |
-| `scripts/update-screenshots.ps1` | Regenerate the Avalonia screenshot from three synthetic repositories | Maintainers and Windows CI | PowerShell parser; Generate headless screenshot with 180-second capture timeout; required GitWizardUI-screenshot artifact |
+| `scripts/update-screenshots.ps1` | Regenerate the Avalonia screenshot from three synthetic repositories, with optional JSON interaction frames via `-StepsPath` (see [steps format](testing.md#scripted-interaction-frames)) | Maintainers and Windows CI | PowerShell parser; ScreenshotStepsTests; Generate headless screenshot with 180-second capture timeout; required GitWizardUI-screenshot artifact |
 | `scripts/cli-live-smoke.ps1` | Verify elevated CLI watch behavior against scratch repositories | Attended Windows operator | PowerShell parser; ci/script-tests/cli-live-smoke.tests.ps1 |
 | `scripts/cli-verb-matrix.ps1` | Run every unelevated git-wizard CLI command and option against throwaway repositories and a throwaway `GITWIZARD_HOME`, failing when the help text lists a command or option with no row or reasoned exclusion | Maintainers and reviewers after CLI parsing, dispatch or command changes | PowerShell parser; ci/script-tests/cli-verb-matrix.tests.ps1 |
 | `scripts/cli-verb-matrix.helpers.ps1` | Job-object process launcher, usage and coverage parsing, row scope guard and git fixture builder, dot-sourced by the matrix | Dot-sourced by the matrix and its self-tests | PowerShell parser; ci/script-tests/cli-verb-matrix.tests.ps1 |

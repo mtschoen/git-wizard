@@ -399,6 +399,13 @@
           "LibGit2Sharp": "[0.32.0, )"
         }
       },
+      "gitwizardui.screenshot": {
+        "type": "Project",
+        "dependencies": {
+          "Avalonia.Headless": "[11.2.8, )",
+          "GitWizardUI": "[0.4.1, )"
+        }
+      },
       "gitwizardui": {
         "type": "Project",
         "dependencies": {

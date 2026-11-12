@@ -51,7 +51,7 @@ sealed class BlockBrokerFixture : IAsyncDisposable
     public int ConnectionCount { get; private set; }
 
     /// <summary>Answers the host's grow requests; unset refuses the grow, as a host without a source does.</summary>
-    public Func<string, long, long, UsnJournalSettings>? GrowUsnJournal { get; set; }
+    public Func<VolumeKey, UsnJournalSettings, bool, UsnJournalGrowthResult>? GrowUsnJournal { get; set; }
 
     /// <summary>A broker session whose launch starts an in-process broker of this fixture.</summary>
     public BrokerSession CreateSession() => BrokerTestHarness.CreateSession(ConnectAsync);
@@ -223,9 +223,75 @@ sealed class BlockBrokerFixture : IAsyncDisposable
         await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
     }
 
-    UsnJournalSettings GrowJournal(VolumeKey drive, UsnJournalSettings target) =>
-        GrowUsnJournal?.Invoke(drive.ToString(), target.MaximumSize, target.AllocationDelta)
+    UsnJournalGrowthResult GrowJournal(VolumeKey drive, UsnJournalSettings target, bool allowAboveMaximumRecommendedSize) =>
+        GrowUsnJournal?.Invoke(drive, target, allowAboveMaximumRecommendedSize)
         ?? throw new InvalidOperationException("The fixture has no grow handler.");
+
+    public static UsnJournalGrowthResult SimulateGrow(
+        UsnJournalSettings target,
+        bool allowAboveMaximumRecommendedSize,
+        long currentMaximumSize = 0,
+        long maximumRecommendedSize = 8192,
+        long? readBackMaximumSize = null)
+    {
+        var exceedsMaximumRecommended = target.MaximumSize > maximumRecommendedSize;
+        var effectiveMaximumSize = exceedsMaximumRecommended && !allowAboveMaximumRecommendedSize
+            ? maximumRecommendedSize
+            : target.MaximumSize;
+        if (currentMaximumSize >= effectiveMaximumSize)
+        {
+            return new UsnJournalGrowthResult
+            {
+                Outcome = UsnJournalGrowthOutcome.AlreadyAtOrAboveTarget,
+                RequestedMaximumSize = target.MaximumSize,
+                MaximumRecommendedSize = maximumRecommendedSize,
+                JournalSettings = new UsnJournalSettings
+                {
+                    MaximumSize = currentMaximumSize,
+                    AllocationDelta = target.AllocationDelta
+                }
+            };
+        }
+
+        var appliedMaximumSize = readBackMaximumSize ?? effectiveMaximumSize;
+        var outcome = ClassifyGrowthOutcome(
+            appliedMaximumSize,
+            currentMaximumSize,
+            exceedsMaximumRecommended,
+            allowAboveMaximumRecommendedSize);
+        return new UsnJournalGrowthResult
+        {
+            Outcome = outcome,
+            RequestedMaximumSize = target.MaximumSize,
+            MaximumRecommendedSize = maximumRecommendedSize,
+            JournalSettings = new UsnJournalSettings
+            {
+                MaximumSize = appliedMaximumSize,
+                AllocationDelta = target.AllocationDelta
+            }
+        };
+    }
+
+    static UsnJournalGrowthOutcome ClassifyGrowthOutcome(
+        long appliedMaximumSize,
+        long currentMaximumSize,
+        bool exceedsMaximumRecommended,
+        bool allowAboveMaximumRecommendedSize)
+    {
+        if (appliedMaximumSize <= currentMaximumSize)
+        {
+            return UsnJournalGrowthOutcome.Unchanged;
+        }
+
+        if (!exceedsMaximumRecommended)
+        {
+            return UsnJournalGrowthOutcome.GrewAsRequested;
+        }
+
+        return allowAboveMaximumRecommendedSize
+            ? UsnJournalGrowthOutcome.GrewAboveMaximumRecommendedByOverride
+            : UsnJournalGrowthOutcome.GrewClampedToMaximumRecommended;
+    }
 
     public async ValueTask DisposeAsync()
     {

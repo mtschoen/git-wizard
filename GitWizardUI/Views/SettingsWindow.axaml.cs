@@ -28,6 +28,15 @@ public partial class SettingsWindow : Window
         }
     }
 
+    void EnlargeJournalAboveRecommended_Click(object? sender, RoutedEventArgs eventArguments)
+    {
+        if (sender is Button { DataContext: JournalWarningViewModel warning })
+        {
+            _ = _viewModel.EnlargeJournalAsync(warning, allowAboveMaximumRecommendedSize: true)
+                .RunAndLogFaults("Enlarging the change journal above the recommended maximum");
+        }
+    }
+
     void IgnoreJournalWarning_Click(object? sender, RoutedEventArgs eventArguments)
     {
         if (sender is Button { DataContext: JournalWarningViewModel warning })

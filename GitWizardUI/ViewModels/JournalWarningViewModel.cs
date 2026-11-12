@@ -8,6 +8,7 @@ public sealed class JournalWarningViewModel(JournalWarning warning) : INotifyPro
 {
     public JournalWarning Warning { get; private set; } = warning;
     public bool HasGrowAction => Warning.HasGrowAction;
+    public bool CanGrowAboveMaximumRecommended => Warning.CanGrowAboveMaximumRecommended;
     public string? GrowUnavailableReason => Warning.GrowUnavailableReason;
 
     public void ApplyLoss(JournalWarning warning)
@@ -15,6 +16,7 @@ public sealed class JournalWarningViewModel(JournalWarning warning) : INotifyPro
         Warning = warning;
         OnPropertyChanged(nameof(Warning));
         OnPropertyChanged(nameof(HasGrowAction));
+        OnPropertyChanged(nameof(CanGrowAboveMaximumRecommended));
         OnPropertyChanged(nameof(GrowUnavailableReason));
     }
 

@@ -67,6 +67,7 @@ public class JournalWarningViewModelTests
         {
             Assert.That(recreated.GrowUnavailableReason, Is.Null);
             Assert.That(changes, Does.Contain(nameof(JournalWarningViewModel.GrowUnavailableReason)));
+            Assert.That(changes, Does.Contain(nameof(JournalWarningViewModel.CanGrowAboveMaximumRecommended)));
         }
     }
 }

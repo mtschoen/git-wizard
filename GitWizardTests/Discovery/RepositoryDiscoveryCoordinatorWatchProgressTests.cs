@@ -56,11 +56,8 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
     {
         var events = new List<string>();
         await using var broker = new BlockBrokerFixture();
-        broker.GrowUsnJournal = (_, maximumSize, allocationDelta) => new UsnJournalSettings
-        {
-            MaximumSize = maximumSize,
-            AllocationDelta = allocationDelta
-        };
+        broker.GrowUsnJournal = (_, target, allowAboveMaximumRecommendedSize) =>
+            BlockBrokerFixture.SimulateGrow(target, allowAboveMaximumRecommendedSize);
         var connectAsync = broker.ConnectAsync;
         await using var session = BrokerTestHarness.CreateSession(async cancellationToken =>
         {
@@ -87,11 +84,8 @@ public class RepositoryDiscoveryCoordinatorWatchProgressTests
         var treePath = files.TreePath;
         var connectionFired = false;
         await using var broker = new BlockBrokerFixture();
-        broker.GrowUsnJournal = (_, maximumSize, allocationDelta) => new UsnJournalSettings
-        {
-            MaximumSize = maximumSize,
-            AllocationDelta = allocationDelta
-        };
+        broker.GrowUsnJournal = (_, target, allowAboveMaximumRecommendedSize) =>
+            BlockBrokerFixture.SimulateGrow(target, allowAboveMaximumRecommendedSize);
         var connectAsync = broker.ConnectAsync;
         // Not using-declared: the catch-up trigger below captures the session in a continuation,
         // and the fixture disposes the in-process process it launched.

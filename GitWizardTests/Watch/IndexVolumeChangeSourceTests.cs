@@ -12,14 +12,27 @@ namespace GitWizardTests.Watch;
 public class IndexVolumeChangeSourceTests
 {
 
-    [Test]
-    public async Task GrowUsnJournalAsyncLaunchesBrokerOnFirstUse()
+    [TestCase(true, 1024L, 12288L, 12288L, UsnJournalGrowthOutcome.GrewAboveMaximumRecommendedByOverride)]
+    [TestCase(false, 2048L, 4096L, 2048L, UsnJournalGrowthOutcome.Unchanged)]
+    [TestCase(false, 1024L, 4096L, 3584L, UsnJournalGrowthOutcome.GrewAsRequested)]
+    public async Task GrowUsnJournalAsyncLaunchesBrokerOnFirstUseAndForwardsReadBackOutcome(
+        bool allowAboveMaximumRecommendedSize,
+        long currentMaximumSize,
+        long requestedMaximumSize,
+        long readBackMaximumSize,
+        UsnJournalGrowthOutcome expectedOutcome)
     {
         await using var broker = new BlockBrokerFixture();
-        broker.GrowUsnJournal = (_, maximumSize, allocationDelta) => new UsnJournalSettings
+        var observedOverride = false;
+        broker.GrowUsnJournal = (_, target, allowOverride) =>
         {
-            MaximumSize = maximumSize,
-            AllocationDelta = allocationDelta
+            observedOverride = allowOverride;
+            return BlockBrokerFixture.SimulateGrow(
+                target,
+                allowOverride,
+                currentMaximumSize: currentMaximumSize,
+                maximumRecommendedSize: 8192,
+                readBackMaximumSize: readBackMaximumSize);
         };
         // Opening no drives never launches the broker; the grow is the session's first use.
         // The source owns the prepared owner, so it is not using-declared here.
@@ -27,14 +40,37 @@ public class IndexVolumeChangeSourceTests
             broker.CacheDirectory, null, CancellationToken.None, configureOptions: broker.ConfigureOptions);
         await using var source = new IndexVolumeChangeSource((_, _, _) => Task.FromResult(owner), owner);
         Assert.That(broker.ConnectionCount, Is.Zero);
-        var settings = await source.GrowUsnJournalAsync('X',
-                new UsnJournalSettings { MaximumSize = 4096, AllocationDelta = 512 }, CancellationToken.None)
+        var growth = await source.GrowUsnJournalAsync('X',
+                new UsnJournalSettings { MaximumSize = requestedMaximumSize, AllocationDelta = 512 }, CancellationToken.None,
+                allowAboveMaximumRecommendedSize: allowAboveMaximumRecommendedSize)
             .WaitAsync(TestTimeouts.HangGuard);
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(settings.MaximumSize, Is.EqualTo(4096));
-            Assert.That(settings.AllocationDelta, Is.EqualTo(512));
+            Assert.That(growth.Outcome, Is.EqualTo(expectedOutcome));
+            Assert.That(growth.RequestedMaximumSize, Is.EqualTo(requestedMaximumSize));
+            Assert.That(growth.MaximumRecommendedSize, Is.EqualTo(8192));
+            Assert.That(growth.JournalSettings.MaximumSize, Is.EqualTo(readBackMaximumSize));
+            Assert.That(growth.JournalSettings.AllocationDelta, Is.EqualTo(512));
+            Assert.That(observedOverride, Is.EqualTo(allowAboveMaximumRecommendedSize));
             Assert.That(broker.ConnectionCount, Is.EqualTo(1));
+        }
+    }
+
+    [Test]
+    [Platform("Win")]
+    public async Task QueryMaximumRecommendedSizeReadsHostVolumeCap()
+    {
+        await using var source = new IndexVolumeChangeSource((_, _, _) =>
+            throw new AssertionException("QueryMaximumRecommendedSize must not require or open a session."));
+        var hostDrive = Path.GetPathRoot(TempDirectory.SystemTempPath)![0];
+
+        var recommendedMaximum = source.QueryMaximumRecommendedSize(hostDrive);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(recommendedMaximum, Is.Positive.And.LessThanOrEqualTo(8L * 1024 * 1024 * 1024));
+            Assert.That(recommendedMaximum % (1024L * 1024), Is.Zero);
+            Assert.That(recommendedMaximum, Is.EqualTo(UsnJournalSettings.QueryMaximumRecommendedSize(hostDrive)));
         }
     }
 

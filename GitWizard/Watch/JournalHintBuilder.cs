@@ -7,13 +7,23 @@ static class JournalHintBuilder
     // The retained loss says what happened and when it was found; the watch state and the
     // recovery-stopped flag say where recovery stands now. A null state means the caller does not
     // know it, and the hint then makes no claim about recovery.
-    public static string BuildHint(JournalCheckpointLoss loss, WatchState? watchState, bool recoveryStopped)
+    public static string BuildHint(
+        JournalCheckpointLoss loss,
+        WatchState? watchState,
+        bool recoveryStopped,
+        long? maximumRecommendedSize = null,
+        long? currentMaximumSize = null)
     {
         return loss.Cause switch
         {
             JournalCheckpointLossCause.JournalRecreated => BuildRecreatedHint(loss, watchState, recoveryStopped),
 
-            JournalCheckpointLossCause.CheckpointTrimmed => BuildTrimmedHint(loss, watchState, recoveryStopped),
+            JournalCheckpointLossCause.CheckpointTrimmed => BuildTrimmedHint(
+                loss,
+                watchState,
+                recoveryStopped,
+                maximumRecommendedSize,
+                currentMaximumSize),
 
             JournalCheckpointLossCause.JournalAdvanced => BuildAdvancedHint(loss, watchState, recoveryStopped),
 
@@ -61,7 +71,12 @@ static class JournalHintBuilder
         };
     }
 
-    static string BuildTrimmedHint(JournalCheckpointLoss loss, WatchState? watchState, bool recoveryStopped)
+    static string BuildTrimmedHint(
+        JournalCheckpointLoss loss,
+        WatchState? watchState,
+        bool recoveryStopped,
+        long? maximumRecommendedSize,
+        long? currentMaximumSize)
     {
         var rescan = BuildRescanClause(loss, watchState, recoveryStopped);
         if (loss.SizeThatWouldHaveRetained is not { } suggestedSize)
@@ -70,9 +85,27 @@ static class JournalHintBuilder
                    "rescan is too large to represent, so no new size is suggested.";
         }
 
+        var capClause = BuildCapClause(suggestedSize, maximumRecommendedSize);
+        var appliedClause = currentMaximumSize is { } current && current > loss.JournalSettings.MaximumSize
+            ? $"; applied {ByteSizeFormatter.Format(current)}"
+            : string.Empty;
+
         return $"Hint on {loss.Volume}: {rescan}To prevent this, increase the journal size: " +
                $"a journal of at least {ByteSizeFormatter.Format(suggestedSize)} would have avoided " +
-               $"this rescan (it was {ByteSizeFormatter.Format(loss.JournalSettings.MaximumSize)} when this was detected).";
+               $"this rescan (it was {ByteSizeFormatter.Format(loss.JournalSettings.MaximumSize)} when this was detected" +
+               $"{capClause}{appliedClause}).";
+    }
+
+    static string BuildCapClause(long suggestedSize, long? maximumRecommendedSize)
+    {
+        if (maximumRecommendedSize is not { } maximumRecommended)
+        {
+            return string.Empty;
+        }
+
+        return suggestedSize > maximumRecommended
+            ? $"; recommended maximum is {ByteSizeFormatter.Format(maximumRecommended)}, so Enlarge clamps to {ByteSizeFormatter.Format(maximumRecommended)} unless overridden"
+            : $"; recommended maximum is {ByteSizeFormatter.Format(maximumRecommended)}";
     }
 
     // What the loss means for the drive depends on when it was found: at open the cold scan has

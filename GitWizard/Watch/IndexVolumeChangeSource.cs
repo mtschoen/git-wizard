@@ -62,13 +62,20 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
         return index.QueryUsnJournalSettings();
     }
 
-    public Task<UsnJournalSettings> GrowUsnJournalAsync(VolumeKey volume, UsnJournalSettings target, CancellationToken cancellationToken)
+    public long QueryMaximumRecommendedSize(VolumeKey volume) =>
+        UsnJournalSettings.QueryMaximumRecommendedSize(volume);
+
+    public Task<UsnJournalGrowthResult> GrowUsnJournalAsync(
+        VolumeKey volume,
+        UsnJournalSettings target,
+        CancellationToken cancellationToken,
+        bool allowAboveMaximumRecommendedSize = false)
     {
         // The session launches the broker on first use, so a grow never needs a connected process up front.
         var owner = Session ?? throw new InvalidOperationException("No index session available.");
         var brokerSession = owner.BrokerSession
             ?? throw new InvalidOperationException("The index session has no broker session.");
-        return brokerSession.GrowUsnJournalAsync(volume, target, cancellationToken);
+        return brokerSession.GrowUsnJournalAsync(volume, target, cancellationToken, allowAboveMaximumRecommendedSize);
     }
 
     public Task<VolumeArmResult> ArmAndCatchUpAsync(IReadOnlyCollection<string> volumes, CancellationToken ct)

@@ -226,4 +226,29 @@ public class JournalHintBuilderTests
 
         Assert.That(JournalHintBuilder.BuildHint(loss, null, false), Is.EqualTo("Hint on D: Checkpoint loss detected."));
     }
+
+    [Test]
+    public void CheckpointTrimmed_WithMaximumRecommendedAndAppliedSize_DescribesCapClampingAndAppliedSize()
+    {
+        const long eightGigabytes = 8L * 1024 * 1024 * 1024;
+        const long tenGigabytes = 10L * 1024 * 1024 * 1024;
+        var withinCapLoss = FakeJournalSettingsSource.TrimmedLoss('C', 32L * 1024 * 1024, 130L * 1024 * 1024);
+        var aboveCapLoss = FakeJournalSettingsSource.TrimmedLoss('C', 32L * 1024 * 1024, tenGigabytes);
+
+        var withinCapHint = JournalHintBuilder.BuildHint(withinCapLoss, WatchState.CaughtUp, false, eightGigabytes);
+        var aboveCapHint = JournalHintBuilder.BuildHint(aboveCapLoss, WatchState.CaughtUp, false, eightGigabytes);
+        var appliedHint = JournalHintBuilder.BuildHint(aboveCapLoss, WatchState.CaughtUp, false, eightGigabytes, eightGigabytes);
+        var unchangedHint = JournalHintBuilder.BuildHint(aboveCapLoss, WatchState.CaughtUp, false, eightGigabytes, 32L * 1024 * 1024);
+        var smallerCurrentHint = JournalHintBuilder.BuildHint(aboveCapLoss, WatchState.CaughtUp, false, eightGigabytes, 16L * 1024 * 1024);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(withinCapHint, Does.Contain("at least 130 MB").And.Contain("recommended maximum is 8 GB"));
+            Assert.That(withinCapHint, Does.Not.Contain("clamps to"));
+            Assert.That(aboveCapHint, Does.Contain("at least 10 GB").And.Contain("recommended maximum is 8 GB").And.Contain("Enlarge clamps to 8 GB unless overridden"));
+            Assert.That(appliedHint, Does.Contain("at least 10 GB").And.Contain("recommended maximum is 8 GB").And.Contain("applied 8 GB"));
+            Assert.That(unchangedHint, Does.Not.Contain("applied"));
+            Assert.That(smallerCurrentHint, Does.Not.Contain("applied"));
+        }
+    }
 }

@@ -59,14 +59,20 @@ public class IndexVolumeChangeSourceWindowsTests
 
         var requested = checked(before.MaximumSize + before.AllocationDelta);
 
-        var after = await source.GrowUsnJournalAsync(
+        var grown = await source.GrowUsnJournalAsync(
             drive[0], new UsnJournalSettings { MaximumSize = requested, AllocationDelta = before.AllocationDelta }, cancellation.Token);
+        var after = grown.JournalSettings;
 
-        Assert.That(after.MaximumSize, Is.GreaterThanOrEqualTo(requested));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(grown.Outcome, Is.EqualTo(UsnJournalGrowthOutcome.GrewAsRequested));
+            Assert.That(after.MaximumSize, Is.GreaterThan(before.MaximumSize));
+        }
         var queriedAfterGrowth = source.QueryUsnJournalSettings(drive[0]);
         Assert.That(queriedAfterGrowth.MaximumSize, Is.EqualTo(after.MaximumSize));
-        Assert.ThrowsAsync<InvalidOperationException>(() => source.GrowUsnJournalAsync(
-            drive[0], before, cancellation.Token));
+        var unchanged = await source.GrowUsnJournalAsync(
+            drive[0], before, cancellation.Token);
+        Assert.That(unchanged.Outcome, Is.EqualTo(UsnJournalGrowthOutcome.AlreadyAtOrAboveTarget));
         var afterRejectedShrink = source.QueryUsnJournalSettings(drive[0]);
         Assert.That(afterRejectedShrink.MaximumSize, Is.EqualTo(after.MaximumSize));
         var launchCount = launches;

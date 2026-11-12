@@ -1,6 +1,6 @@
-# Self-tests for scripts/cli-verb-matrix.ps1 and its helpers. They run the real helper functions against
-# stub executables (pwsh itself and a generated .cmd file), never the real git-wizard.exe, so they need
-# no build, no administrator rights and no state folder. Run: pwsh -NoProfile -File ci/script-tests/cli-verb-matrix.tests.ps1
+# Self-tests for scripts/cli-verb-matrix.ps1 and its helpers. Portable checks use pwsh stubs everywhere;
+# Windows job-object and generated .cmd checks run only on Windows. They never run the real git-wizard.exe,
+# so they need no build, no administrator rights and no state folder. Run: pwsh -NoProfile -File ci/script-tests/cli-verb-matrix.tests.ps1
 $ErrorActionPreference = 'Stop'
 $scriptsRoot = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'scripts'
 
@@ -78,102 +78,108 @@ try {
     while ((Get-Process -Id $grandchildId -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 100 }
     Assert-True ($null -eq (Get-Process -Id $grandchildId -ErrorAction SilentlyContinue)) 'the timed-out grandchild process is still alive'
 
-    # A parent that exits before its own child: ownership must not depend on the parent still being
-    # alive, and the child must be gone before the pipes are read, or the launch would be judged on
-    # text that never drained. -NoNewWindow is what makes the child inherit those pipes.
-    $orphanPidFile = Join-Path $scratch 'orphan.pid'
-    $orphanCommand = "`$child = Start-Process -FilePath '$pwshPath' -ArgumentList '-NoProfile','-Command','Start-Sleep -Seconds 120' -NoNewWindow -PassThru; " +
-        "Set-Content -LiteralPath '$orphanPidFile' -Value `$child.Id; exit 0"
-    $run = Invoke-MatrixProcess -ExecutablePath $pwshPath -Arguments @('-NoProfile', '-Command', $orphanCommand) -TimeoutSeconds 30
-    Assert-Equal 0 $run.ExitCode 'the parent exits on its own'
-    Assert-True (-not $run.TimedOut) 'the parent did not time out'
-    Assert-True (-not $run.OutputTruncated) 'the orphaned child kept the captured pipes open'
-    $orphanId = [int](Get-Content -LiteralPath $orphanPidFile)
-    $deadline = (Get-Date).AddSeconds(10)
-    while ((Get-Process -Id $orphanId -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 100 }
-    Assert-True ($null -eq (Get-Process -Id $orphanId -ErrorAction SilentlyContinue)) 'a child of an exited parent survived its launch'
+    if ($IsWindows) {
+        # A parent that exits before its own child: ownership must not depend on the parent still being
+        # alive, and the child must be gone before the pipes are read, or the launch would be judged on
+        # text that never drained. -NoNewWindow is what makes the child inherit those pipes.
+        $orphanPidFile = Join-Path $scratch 'orphan.pid'
+        $orphanCommand = "`$child = Start-Process -FilePath '$pwshPath' -ArgumentList '-NoProfile','-Command','Start-Sleep -Seconds 120' -NoNewWindow -PassThru; " +
+            "Set-Content -LiteralPath '$orphanPidFile' -Value `$child.Id; exit 0"
+        $run = Invoke-MatrixProcess -ExecutablePath $pwshPath -Arguments @('-NoProfile', '-Command', $orphanCommand) -TimeoutSeconds 30
+        Assert-Equal 0 $run.ExitCode 'the parent exits on its own'
+        Assert-True (-not $run.TimedOut) 'the parent did not time out'
+        Assert-True (-not $run.OutputTruncated) 'the orphaned child kept the captured pipes open'
+        $orphanId = [int](Get-Content -LiteralPath $orphanPidFile)
+        $deadline = (Get-Date).AddSeconds(10)
+        while ((Get-Process -Id $orphanId -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 100 }
+        Assert-True ($null -eq (Get-Process -Id $orphanId -ErrorAction SilentlyContinue)) 'a child of an exited parent survived its launch'
 
-    # The same launch as a row: incomplete capture fails a row on its own, so this passes only
-    # because the orphan was torn down and the pipes drained.
-    $result = Invoke-StubRow @{ Name = 'exited-parent'; Command = $orphanCommand }
-    Assert-Equal 'PASS' $result.Status 'a row whose parent exits before its child'
-    $orphanId = [int](Get-Content -LiteralPath $orphanPidFile)
-    $deadline = (Get-Date).AddSeconds(10)
-    while ((Get-Process -Id $orphanId -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 100 }
-    Assert-True ($null -eq (Get-Process -Id $orphanId -ErrorAction SilentlyContinue)) 'a row left a child of an exited parent behind'
+        # The same launch as a row: incomplete capture fails a row on its own, so this passes only
+        # because the orphan was torn down and the pipes drained.
+        $result = Invoke-StubRow @{ Name = 'exited-parent'; Command = $orphanCommand }
+        Assert-Equal 'PASS' $result.Status 'a row whose parent exits before its child'
+        $orphanId = [int](Get-Content -LiteralPath $orphanPidFile)
+        $deadline = (Get-Date).AddSeconds(10)
+        while ((Get-Process -Id $orphanId -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 100 }
+        Assert-True ($null -eq (Get-Process -Id $orphanId -ErrorAction SilentlyContinue)) 'a row left a child of an exited parent behind'
 
-    # Force the launch/assignment interleaving from the file-wizard matrix review. A suspended primary thread cannot
-    # spawn before assignment; the old running launch is held here until it has spawned a child.
-    $readyName = 'Local\gw-matrix-ready-' + [guid]::NewGuid().ToString('N')
-    $releaseName = 'Local\gw-matrix-release-' + [guid]::NewGuid().ToString('N')
-    $ready = [System.Threading.EventWaitHandle]::new($false, 'ManualReset', $readyName)
-    $release = [System.Threading.EventWaitHandle]::new($false, 'ManualReset', $releaseName)
-    $racePidFile = Join-Path $scratch 'pre-assignment.pid'
-    $raceCommand = $orphanCommand.Replace($orphanPidFile, $racePidFile).Replace('exit 0',
-        "`$ready = [System.Threading.EventWaitHandle]::OpenExisting('$readyName'); `$null = `$ready.Set(); " +
-        "`$release = [System.Threading.EventWaitHandle]::OpenExisting('$releaseName'); if (-not `$release.WaitOne(30000)) { exit 9 }; exit 0")
-    $helperPath = Join-Path $scriptsRoot 'cli-verb-matrix.helpers.ps1'
-    $trackingLine = (Select-String -LiteralPath $helperPath -SimpleMatch '$script:MatrixStartedProcesses.Add($process)').LineNumber
-    $inputLine = (Select-String -LiteralPath $helperPath -SimpleMatch '$capture.StandardInput.Close()').LineNumber
-    $script:launchProbe = @{ Reached = $false; Suspended = $false; Ready = $ready; Release = $release }
-    $breakpoints = @(
-        Set-PSBreakpoint -Script $helperPath -Line $trackingLine -Action {
-            $script:launchProbe.Reached = $true
-            $thread = $process.Threads[0]
-            $script:launchProbe.Suspended = $thread.ThreadState -eq 'Wait' -and $thread.WaitReason -eq 'Suspended'
-            if (-not $script:launchProbe.Suspended) { $null = $script:launchProbe.Ready.WaitOne(30000) }
+        # Force the launch/assignment interleaving from the file-wizard matrix review. A suspended primary thread cannot
+        # spawn before assignment; the old running launch is held here until it has spawned a child.
+        $readyName = 'Local\gw-matrix-ready-' + [guid]::NewGuid().ToString('N')
+        $releaseName = 'Local\gw-matrix-release-' + [guid]::NewGuid().ToString('N')
+        $ready = [System.Threading.EventWaitHandle]::new($false, 'ManualReset', $readyName)
+        $release = [System.Threading.EventWaitHandle]::new($false, 'ManualReset', $releaseName)
+        $racePidFile = Join-Path $scratch 'pre-assignment.pid'
+        $raceCommand = $orphanCommand.Replace($orphanPidFile, $racePidFile).Replace('exit 0',
+            "`$ready = [System.Threading.EventWaitHandle]::OpenExisting('$readyName'); `$null = `$ready.Set(); " +
+            "`$release = [System.Threading.EventWaitHandle]::OpenExisting('$releaseName'); if (-not `$release.WaitOne(30000)) { exit 9 }; exit 0")
+        $helperPath = Join-Path $scriptsRoot 'cli-verb-matrix.helpers.ps1'
+        $trackingLine = (Select-String -LiteralPath $helperPath -SimpleMatch '$script:MatrixStartedProcesses.Add($process)').LineNumber
+        $inputLine = (Select-String -LiteralPath $helperPath -SimpleMatch '$capture.StandardInput.Close()').LineNumber
+        $script:launchProbe = @{ Reached = $false; Suspended = $false; Ready = $ready; Release = $release }
+        $breakpoints = @(
+            Set-PSBreakpoint -Script $helperPath -Line $trackingLine -Action {
+                $script:launchProbe.Reached = $true
+                $thread = $process.Threads[0]
+                $script:launchProbe.Suspended = $thread.ThreadState -eq 'Wait' -and $thread.WaitReason -eq 'Suspended'
+                if (-not $script:launchProbe.Suspended) { $null = $script:launchProbe.Ready.WaitOne(30000) }
+            }
+            Set-PSBreakpoint -Script $helperPath -Line $inputLine -Action { $null = $script:launchProbe.Release.Set() }
+        )
+        try {
+            $run = Invoke-MatrixProcess -ExecutablePath $pwshPath -Arguments @('-NoProfile', '-Command', $raceCommand) -TimeoutSeconds 30
+            Stop-MatrixStartedProcesses
+            Assert-True $script:launchProbe.Reached 'the pre-assignment scheduling probe did not run'
+            Assert-Equal 0 $run.ExitCode 'the race parent exits on its own'
+            Assert-True (-not $run.OutputTruncated) 'a pre-assignment child escaped the job and kept the pipes open'
+            Assert-True $script:launchProbe.Suspended 'the launch was runnable before job assignment'
+            Assert-True $ready.WaitOne(0) 'the resumed parent did not create its child'
+            Assert-True ($null -eq (Get-Process -Id ([int](Get-Content $racePidFile)) -ErrorAction SilentlyContinue)) 'the pre-assignment child survived cleanup'
         }
-        Set-PSBreakpoint -Script $helperPath -Line $inputLine -Action { $null = $script:launchProbe.Release.Set() }
-    )
-    try {
-        $run = Invoke-MatrixProcess -ExecutablePath $pwshPath -Arguments @('-NoProfile', '-Command', $raceCommand) -TimeoutSeconds 30
-        Stop-MatrixStartedProcesses
-        Assert-True $script:launchProbe.Reached 'the pre-assignment scheduling probe did not run'
-        Assert-Equal 0 $run.ExitCode 'the race parent exits on its own'
-        Assert-True (-not $run.OutputTruncated) 'a pre-assignment child escaped the job and kept the pipes open'
-        Assert-True $script:launchProbe.Suspended 'the launch was runnable before job assignment'
-        Assert-True $ready.WaitOne(0) 'the resumed parent did not create its child'
-        Assert-True ($null -eq (Get-Process -Id ([int](Get-Content $racePidFile)) -ErrorAction SilentlyContinue)) 'the pre-assignment child survived cleanup'
-    }
-    finally {
-        $breakpoints | Remove-PSBreakpoint
-        $null = $release.Set()
-        if (Test-Path $racePidFile) {
-            $child = Get-Process -Id ([int](Get-Content $racePidFile)) -ErrorAction SilentlyContinue
-            if ($child) { $child.Kill(); $child.WaitForExit(); $child.Dispose() }
+        finally {
+            $breakpoints | Remove-PSBreakpoint
+            $null = $release.Set()
+            if (Test-Path $racePidFile) {
+                $child = Get-Process -Id ([int](Get-Content $racePidFile)) -ErrorAction SilentlyContinue
+                if ($child) { $child.Kill(); $child.WaitForExit(); $child.Dispose() }
+            }
+            $ready.Dispose()
+            $release.Dispose()
+            Remove-Variable launchProbe -Scope Script
         }
-        $ready.Dispose()
-        $release.Dispose()
-        Remove-Variable launchProbe -Scope Script
-    }
 
-    # Refusing job assignment must terminate the still-suspended launch, without executing it.
-    $script:refusedProcess = $null
-    $script:refusedJob = [System.IntPtr]::Zero
-    $breakpoint = Set-PSBreakpoint -Script $helperPath -Line $trackingLine -Action {
-        $script:refusedProcess = [System.Diagnostics.Process]::GetProcessById($process.Id)
-        $null = $script:refusedProcess.Handle
-        $script:refusedJob = $job
-        Set-Variable -Name job -Value ([System.IntPtr]::new(-1)) -Scope 1
-    }
-    $refusedMarker = Join-Path $scratch 'refused-launch.txt'
-    try {
-        $result = Invoke-StubRow @{ Name = 'assignment-refused'; Command = "Set-Content '$refusedMarker' 'ran'" }
-        Assert-Equal 'FAIL' $result.Status 'job assignment refusal fails the row'
-        Assert-Contains ($result.Problems -join ';') 'AssignProcessToJobObject failed' 'assignment failure diagnostic'
-        Assert-True ($null -ne $script:refusedProcess) 'assignment failure probe did not run'
-        Assert-True $script:refusedProcess.WaitForExit(30000) 'assignment failure left a suspended process behind'
-        Assert-True (-not (Test-Path $refusedMarker)) 'an unowned process executed after assignment failed'
-    }
-    finally {
-        Remove-PSBreakpoint $breakpoint
-        Stop-MatrixJob $script:refusedJob
-        if ($script:refusedProcess) {
-            if (-not $script:refusedProcess.HasExited) { $script:refusedProcess.Kill(); $script:refusedProcess.WaitForExit() }
-            $script:refusedProcess.Dispose()
+        # Refusing job assignment must terminate the still-suspended launch, without executing it.
+        $script:refusedProcess = $null
+        $script:refusedJob = [System.IntPtr]::Zero
+        $breakpoint = Set-PSBreakpoint -Script $helperPath -Line $trackingLine -Action {
+            $script:refusedProcess = [System.Diagnostics.Process]::GetProcessById($process.Id)
+            $null = $script:refusedProcess.Handle
+            $script:refusedJob = $job
+            Set-Variable -Name job -Value ([System.IntPtr]::new(-1)) -Scope 1
         }
-        Remove-Variable refusedProcess -Scope Script
-        Remove-Variable refusedJob -Scope Script
+        $refusedMarker = Join-Path $scratch 'refused-launch.txt'
+        try {
+            $result = Invoke-StubRow @{ Name = 'assignment-refused'; Command = "Set-Content '$refusedMarker' 'ran'" }
+            Assert-Equal 'FAIL' $result.Status 'job assignment refusal fails the row'
+            Assert-Contains ($result.Problems -join ';') 'AssignProcessToJobObject failed' 'assignment failure diagnostic'
+            Assert-True ($null -ne $script:refusedProcess) 'assignment failure probe did not run'
+            Assert-True $script:refusedProcess.WaitForExit(30000) 'assignment failure left a suspended process behind'
+            Assert-True (-not (Test-Path $refusedMarker)) 'an unowned process executed after assignment failed'
+        }
+        finally {
+            Remove-PSBreakpoint $breakpoint
+            Stop-MatrixJob $script:refusedJob
+            if ($script:refusedProcess) {
+                if (-not $script:refusedProcess.HasExited) { $script:refusedProcess.Kill(); $script:refusedProcess.WaitForExit() }
+                $script:refusedProcess.Dispose()
+            }
+            Remove-Variable refusedProcess -Scope Script
+            Remove-Variable refusedJob -Scope Script
+        }
+        Write-Host 'Windows job-object self-tests passed'
+    }
+    else {
+        Write-Host 'SKIP: Windows job-object assertions require Windows'
     }
 
     # Stop-MatrixStartedProcesses kills a process the matrix started and left running.
@@ -339,26 +345,33 @@ Options:
         }
     }
 
-    # The whole script against a stub executable whose help lists an option with no row: it must fail
-    # naming the option, run no row, and leave no temporary folder behind.
-    $stubHelp = Join-Path $scratch 'help.txt'
-    Set-Content -LiteralPath $stubHelp -Value "Usage: git-wizard [command] [options]`n`nOptions:`n  -?|-h|--help   Show help.`n  --brand-new-verb   Not in the matrix.`n"
-    $stub = Join-Path $scratch 'stub.cmd'
-    Set-Content -LiteralPath $stub -Value "@echo off`r`nif ""%~1""==""--help"" (type ""%~dp0help.txt"" & exit /b 0)`r`nexit /b 2`r`n"
     $temporaryRoot = Join-Path $scratch 'temporary-root'
     $null = New-Item -ItemType Directory -Path $temporaryRoot
     $matrixScript = Join-Path $scriptsRoot 'cli-verb-matrix.ps1'
-    $output = & $pwshPath -NoProfile -File $matrixScript -ExecutablePath $stub -TemporaryRoot $temporaryRoot 2>&1 | Out-String
-    Assert-Equal 1 $LASTEXITCODE 'unlisted verb exit code'
-    Assert-Contains $output "lists '--brand-new-verb'" 'script reports the unlisted verb'
-    Assert-True ($output -notmatch 'PASS\s') 'no row may run after a coverage failure'
-    Assert-Equal 0 @(Get-ChildItem -LiteralPath $temporaryRoot -Force).Count 'the temporary folder is deleted on failure'
+    if ($IsWindows) {
+        # The whole script against a stub executable whose help lists an option with no row: it must fail
+        # naming the option, run no row, and leave no temporary folder behind.
+        $stubHelp = Join-Path $scratch 'help.txt'
+        Set-Content -LiteralPath $stubHelp -Value "Usage: git-wizard [command] [options]`n`nOptions:`n  -?|-h|--help   Show help.`n  --brand-new-verb   Not in the matrix.`n"
+        $stub = Join-Path $scratch 'stub.cmd'
+        Set-Content -LiteralPath $stub -Value "@echo off`r`nif ""%~1""==""--help"" (type ""%~dp0help.txt"" & exit /b 0)`r`nexit /b 2`r`n"
+        $output = & $pwshPath -NoProfile -File $matrixScript -ExecutablePath $stub -TemporaryRoot $temporaryRoot 2>&1 | Out-String
+        Assert-Equal 1 $LASTEXITCODE 'unlisted verb exit code'
+        Assert-Contains $output "lists '--brand-new-verb'" 'script reports the unlisted verb'
+        Assert-True ($output -notmatch 'PASS\s') 'no row may run after a coverage failure'
+        Assert-Equal 0 @(Get-ChildItem -LiteralPath $temporaryRoot -Force).Count 'the temporary folder is deleted on failure'
+        Write-Host 'Windows .cmd integration self-test passed'
+    }
+    else {
+        Write-Host 'SKIP: .cmd integration assertion requires Windows'
+    }
 
     # A missing executable exits 2 and creates nothing.
     $output = & $pwshPath -NoProfile -File $matrixScript -ExecutablePath (Join-Path $scratch 'absent.exe') -TemporaryRoot $temporaryRoot 2>&1 | Out-String
     Assert-Equal 2 $LASTEXITCODE 'missing executable exit code'
     Assert-Equal 0 @(Get-ChildItem -LiteralPath $temporaryRoot -Force).Count 'nothing is created for a missing executable'
 
+    Write-Host 'Portable cli-verb-matrix self-tests passed'
     Write-Host 'cli-verb-matrix self-tests passed'
 }
 finally {

@@ -57,10 +57,15 @@ output. CI gates only the deterministic `DispatcherWatchdogTests` using
 
 Run `bash tools/ci-preflight.sh --only contracts` for the shared contract
 suite. Linux checks inventory, Bash/Python syntax, and Python behavior.
-PowerShell checks run on Linux when pwsh is available; otherwise they are
-explicitly skipped there. Windows CI requires PowerShell 7 and checks every
-PowerShell tool before running each helper self-test in a separate process.
-Missing required interpreters fail their host's gate. On Windows, run the shared
+PowerShell syntax and portable helper checks run on Linux when pwsh is available;
+otherwise they are explicitly skipped there. Windows CI requires PowerShell 7 and
+checks every PowerShell tool before running each helper self-test in a separate
+process. The matrix's Windows job-object, exited-parent orphan cleanup,
+suspended-launch, and generated `.cmd` integration assertions run only on Windows.
+Non-Windows process-tree cleanup cannot terminate an orphaned descendant after its
+parent has exited, so those ownership guarantees remain Windows-only; live-parent
+timeout and tracked-process cleanup checks remain portable. Missing required
+interpreters fail their host's gate. On Windows, run the shared
 command from Git Bash. For direct native-Python discovery from PowerShell, use
 the `usr\bin` setup in [CI and release](ci-and-release.md#local-ci-preflight);
 Git's `bin` launcher is not interchangeable for the extensionless fixtures.

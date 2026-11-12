@@ -93,7 +93,27 @@ class DeveloperToolsTests(unittest.TestCase):
             text=True,
             check=False,
         )
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        output = result.stdout + result.stderr
+        self.assertEqual(0, result.returncode, output)
+        self.assertIn("Portable cli-verb-matrix self-tests passed", output)
+        windows_markers = (
+            "Windows job-object self-tests passed",
+            "Windows .cmd integration self-test passed",
+        )
+        skip_markers = (
+            "SKIP: Windows job-object assertions require Windows",
+            "SKIP: .cmd integration assertion requires Windows",
+        )
+        if os.name == "nt":
+            for marker in windows_markers:
+                self.assertIn(marker, output)
+            for marker in skip_markers:
+                self.assertNotIn(marker, output)
+        else:
+            for marker in windows_markers:
+                self.assertNotIn(marker, output)
+            for marker in skip_markers:
+                self.assertIn(marker, output)
 
     def test_powershell_gate_rejects_parse_and_self_test_failures(self):
         executable = self.require_powershell()

@@ -418,7 +418,7 @@ public class IndexVolumeChangeSourceTests
         await source.ArmAndCatchUpAsync([@"x:\", "Y:"], CancellationToken.None);
 
         Assert.That(capturedProgress, Is.Not.Null);
-        capturedProgress!.Report(SyntheticNotifications.CreateIndexScanProgress(new VolumeKey('y'), IndexScanPhase.ParsingMft, 600_000, expectedRowCount: 1_200_000));
+        capturedProgress!.Report(SyntheticNotifications.CreateIndexScanProgress(new VolumeKey('y'), IndexScanPhase.Scanning, 600_000, expectedRowCount: 1_200_000));
         Assert.That(samples, Is.EqualTo([
             new VolumeScanProgress("Y", 2, 2, 600_000u, 1_200_000u)
         ]));

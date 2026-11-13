@@ -358,17 +358,17 @@ public class MftIndexSessionTests
         // The host keeps only the newest unsent progress sample, so hold the scan until the client has
         // relayed the parse sample; the block writer's own progress would otherwise replace it.
         broker.AfterParseProgressAsync = _ => AsyncCondition.WaitUntilAsync(
-            () => samples.Any(sample => sample.Phase == IndexScanPhase.ParsingMft));
+            () => samples.Any(sample => sample.Phase == IndexScanPhase.Scanning));
         await using var session = await MftIndexSession.OpenAsync([broker.Drive('X')],
             broker.CreateSession(), broker.CacheDirectory, new ProgressSink<IndexScanProgress>(samples.Enqueue),
             CancellationToken.None, configureOptions: broker.ConfigureOptions);
 
-        Assert.That(samples.Where(sample => sample.Phase == IndexScanPhase.ParsingMft).ToArray(), Has.Length.EqualTo(1));
-        var sample = samples.Single(candidate => candidate.Phase == IndexScanPhase.ParsingMft);
+        Assert.That(samples.Where(sample => sample.Phase == IndexScanPhase.Scanning).ToArray(), Has.Length.EqualTo(1));
+        var sample = samples.Single(candidate => candidate.Phase == IndexScanPhase.Scanning);
         using (Assert.EnterMultipleScope())
         {
             Assert.That(sample.Root, Is.EqualTo((RootKey)new VolumeKey('X')));
-            Assert.That(sample.Phase, Is.EqualTo(IndexScanPhase.ParsingMft));
+            Assert.That(sample.Phase, Is.EqualTo(IndexScanPhase.Scanning));
             Assert.That(sample.WrittenRowCount, Is.EqualTo(600_000u));
             Assert.That(sample.ExpectedRowCount, Is.EqualTo(1_200_000u));
         }

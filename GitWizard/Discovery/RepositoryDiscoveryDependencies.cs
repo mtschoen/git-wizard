@@ -26,6 +26,17 @@ public sealed class RepositoryDiscoveryDependencies
         ComputeRepositorySizes
     { get; set; } = RepositorySizeCalculator.Compute;
 
+    /// <summary>Entries between progress reports while the startup buffer reconciles.</summary>
+    internal int ReconcileProgressInterval
+    {
+        get => _reconcileProgressInterval;
+        init => _reconcileProgressInterval = value >= 1
+            ? value
+            : throw new ArgumentOutOfRangeException(nameof(value), value, "The progress interval must be at least 1.");
+    }
+
+    int _reconcileProgressInterval = 50_000;
+
     internal Task<MftIndexSession> OpenAsync(DiscoveryScope scope, CacheMode cacheMode,
         IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken)
     {

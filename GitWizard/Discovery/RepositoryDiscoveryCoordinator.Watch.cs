@@ -73,7 +73,7 @@ public partial class RepositoryDiscoveryCoordinator
             if (source is not null)
             {
                 progress?.Report(new WatchStartupProgress(WatchStartupPhase.Reconciling));
-                startupBatches = ReconcileBufferedBatches(source, accumulator, cancellationToken);
+                startupBatches = ReconcileBufferedBatches(source, accumulator, progress, cancellationToken);
             }
 
             accumulator.AddIndexedObservations(false, DiscoverySource.Replay, null);
@@ -235,17 +235,37 @@ public partial class RepositoryDiscoveryCoordinator
     // watch service can deliver them through its normal ordered event path once its filters
     // are built from the reconciled inventory.
     IReadOnlyList<VolumeChangeBatch> ReconcileBufferedBatches(
-        IndexVolumeChangeSource source, DiscoveryAccumulator accumulator, CancellationToken cancellationToken)
+        IndexVolumeChangeSource source, DiscoveryAccumulator accumulator,
+        IProgress<WatchStartupProgress>? progress, CancellationToken cancellationToken)
     {
         var batches = source.CompleteStartupBuffer();
+        ReconcileBatches(batches, source.IndexSet, accumulator, progress, cancellationToken);
+        return batches;
+    }
+
+    // Collects every entry's reconciliation targets first and probes each distinct target once:
+    // a probe reads the current disk state, so the last probe of a repeated target is the only
+    // one that decides membership, and a replay of N entries touches far fewer than N paths.
+    // Targets are probed in first-seen order. Cancellation is observed per batch and per target,
+    // and progress counts probed targets against the distinct total.
+    internal void ReconcileBatches(
+        IReadOnlyList<VolumeChangeBatch> batches, FileIndexSet? index, DiscoveryAccumulator accumulator,
+        IProgress<WatchStartupProgress>? progress, CancellationToken cancellationToken)
+    {
         var movedRoots = new List<WatchPath>();
+        var seenTargets = new HashSet<string>(WatchPath.StringComparer);
+        var targets = new List<string>();
         foreach (var batch in batches)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             foreach (var entry in batch.Entries)
             {
                 foreach (var target in GetReconciliationTargets(entry.FullPath))
                 {
-                    ReconcileCandidateInvalidation(target, accumulator);
+                    if (seenTargets.Add(target))
+                    {
+                        targets.Add(target);
+                    }
                 }
 
                 if (entry.Kind != VolumeEntryKind.MovedIn)
@@ -261,9 +281,21 @@ public partial class RepositoryDiscoveryCoordinator
             }
         }
 
-        if (movedRoots.Count == 0 || source.IndexSet is not { } index)
+        var interval = Dependencies.ReconcileProgressInterval;
+        for (var probed = 0; probed < targets.Count; probed++)
         {
-            return batches;
+            cancellationToken.ThrowIfCancellationRequested();
+            ReconcileCandidateInvalidation(targets[probed], accumulator);
+            if (progress is not null && (probed + 1) % interval == 0)
+            {
+                progress.Report(new WatchStartupProgress(
+                    WatchStartupPhase.Reconciling, Completed: probed + 1, Total: targets.Count));
+            }
+        }
+
+        if (movedRoots.Count == 0 || index is null)
+        {
+            return;
         }
 
         // One candidate selection covers every moved-in subtree; re-enumerating the full
@@ -276,8 +308,6 @@ public partial class RepositoryDiscoveryCoordinator
                 ReconcileCandidateInvalidation(candidate.Path, accumulator);
             }
         }
-
-        return batches;
     }
 
     static HashSet<string> GetReconciliationTargets(string entryPath)

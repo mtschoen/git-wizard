@@ -36,6 +36,7 @@ public class ProgramWatchOutputFormattingTests
             Assert.That(Program.FormatVolumeLine(VolumeWatchStatus.Excluded("D", VolumeBlockOrigin.Cold, "x \"y\"")), Is.EqualTo("drive: D state=excluded origin=cold reason=\"x \\u0022y\\u0022\""));
             Assert.That(Program.FormatStartupLine(new WatchStartupProgress(WatchStartupPhase.RequestingElevation)), Is.EqualTo("startup: requesting-elevation"));
             Assert.That(Program.FormatStartupLine(new WatchStartupProgress(WatchStartupPhase.Scanning, "C")), Is.EqualTo("startup: scanning C"));
+            Assert.That(Program.FormatStartupLine(new WatchStartupProgress(WatchStartupPhase.Reconciling, Completed: 50000, Total: 184211)), Is.EqualTo("startup: reconciling 50000/184211"));
         }
     }
 

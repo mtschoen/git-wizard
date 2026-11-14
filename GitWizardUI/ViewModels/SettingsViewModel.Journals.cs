@@ -22,41 +22,41 @@ public partial class SettingsViewModel
             return;
         }
 
+        // The guard is released before the final status is published, so a click made in response to that status
+        // is never dropped by a guard the finishing operation still holds.
+        string finalStatus;
         try
         {
             await _journalDispatcher.InvokeAsync(() => warning.StatusMessage = "Enlarging...").ConfigureAwait(false);
             if (_liveWatch is null)
             {
-                await _journalDispatcher.InvokeAsync(() =>
-                    warning.StatusMessage = "Failed: Start Live watching before enlarging a journal.").ConfigureAwait(false);
-                return;
+                finalStatus = "Failed: Start Live watching before enlarging a journal.";
             }
-
-            if (_liveWatch.GetGrowRefusalMessage(warning.Warning) is { } refusalMessage)
+            else if (_liveWatch.GetGrowRefusalMessage(warning.Warning) is { } refusalMessage)
             {
-                await _journalDispatcher.InvokeAsync(() =>
-                    warning.StatusMessage = $"Failed: {refusalMessage}").ConfigureAwait(false);
-                return;
+                finalStatus = $"Failed: {refusalMessage}";
             }
-
-            var result = await _liveWatch.EnlargeJournalAsync(
-                warning.Warning,
-                allowAboveMaximumRecommendedSize).ConfigureAwait(false);
-            await _journalDispatcher.InvokeAsync(() =>
-                warning.StatusMessage = FormatResizeStatus(result)).ConfigureAwait(false);
+            else
+            {
+                var result = await _liveWatch.EnlargeJournalAsync(
+                    warning.Warning,
+                    allowAboveMaximumRecommendedSize).ConfigureAwait(false);
+                finalStatus = FormatResizeStatus(result);
+            }
         }
         catch (Exception exception)
         {
             GitWizardLog.LogException(exception, $"Enlarging the journal on {warning.DriveLetter} failed.");
-            var failureMessage = _liveWatch?.GetGrowRefusalMessage(warning.Warning) is { } refusalMessage
+            finalStatus = _liveWatch?.GetGrowRefusalMessage(warning.Warning) is { } refusalMessage
                 ? $"Failed: {refusalMessage}"
                 : $"Failed: Could not enlarge the change journal on {warning.DriveLetter}:. Check the log for details.";
-            await _journalDispatcher.InvokeAsync(() => warning.StatusMessage = failureMessage).ConfigureAwait(false);
         }
         finally
         {
             Volatile.Write(ref _journalOperationInProgress, 0);
         }
+
+        await _journalDispatcher.InvokeAsync(() => warning.StatusMessage = finalStatus).ConfigureAwait(false);
     }
 
     static string FormatResizeStatus(JournalResizeResult result)

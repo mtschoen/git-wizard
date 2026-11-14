@@ -83,7 +83,7 @@ public sealed class RepositoryChangeFilter
     public (RepositoryChangeKind Kind, string Root)? ClassifyEntry(VolumeChangeEntry entry)
     {
         var path = WatchPath.Parse(entry.FullPath);
-        if (IsIgnored(path))
+        if (IsIgnored(path) || IsGitDirectoryLockFile(path))
         {
             return null;
         }
@@ -260,6 +260,15 @@ public sealed class RepositoryChangeFilter
 
     bool IsIgnored(WatchPath path) =>
         FindContainingRoot(path, _orderedIgnoredPaths) is not null;
+
+    // Git takes and releases lock files in a tracked repository's .git directory for read-only
+    // commands such as `git status`, and the journal records each one. They are never a change:
+    // a real write renames the lock onto its target, and that target is a separate entry.
+    bool IsGitDirectoryLockFile(WatchPath path)
+    {
+        var root = FindContainingTrackedRoot(path);
+        return root is not null && path.IsLockFileInGitDirectoryOf(root.Value);
+    }
 
     bool IsExcludedTempPath(WatchPath path)
     {

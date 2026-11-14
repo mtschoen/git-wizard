@@ -72,6 +72,36 @@ readonly record struct WatchPath
         return Comparison.Equals(childComparison, parent.ComparisonKind);
     }
 
+    /// <summary>
+    /// True when this path lies inside <paramref name="root"/>'s <c>.git</c> directory at any depth
+    /// and its final component ends with <c>.lock</c>: a transient lock file git takes and releases
+    /// (<c>index.lock</c>, <c>HEAD.lock</c>, <c>refs/heads/x.lock</c>). A <c>.lock</c> file in the
+    /// working tree is not one. Case follows the path's syntax, like every other comparison here.
+    /// </summary>
+    public bool IsLockFileInGitDirectoryOf(WatchPath root)
+    {
+        if (IsWindows != root.IsWindows)
+        {
+            return false;
+        }
+
+        var prefixLength = root.Comparison.EndsWith('/') ? root.Comparison.Length : root.Comparison.Length + 1;
+        if (Comparison.Length <= prefixLength || !IsUnderOrEqual(root))
+        {
+            return false;
+        }
+
+        var relative = Comparison.AsSpan(prefixLength);
+        var firstSeparator = relative.IndexOf('/');
+        if (firstSeparator < 0 || !relative[..firstSeparator].Equals(".git", ComparisonKind))
+        {
+            return false;
+        }
+
+        var lastSeparator = relative.LastIndexOf('/');
+        return relative[(lastSeparator + 1)..].EndsWith(".lock", ComparisonKind);
+    }
+
     public bool TryGetGitDirectoryParent(out WatchPath parent)
     {
         var separatorIndex = IsWindows

@@ -153,7 +153,9 @@ A cache-only block with an unresumable checkpoint is rescanned before its drive 
 
 - **Output format:** `--watch` prints one line per event: `created: <path>`,
   `changed: <path>`, or `deleted: <path>` (see
-  `git-wizard/Program.Watch.cs`'s `FormatChangeEvent`). The session-started
+  `git-wizard/Program.Watch.cs`'s `FormatChangeEvent`). `changed:` never comes from
+  git lock files alone: running `git status` in a tracked repository prints no line,
+  while a commit does. With `-v`, the verbose log names the first triggering path. The session-started
   banner is printed once at startup, before the broker is even launched.
 - **Readiness has an explicit marker.** ready: (README grammar) is the gate;
   ParentProcessId matching remains a diagnostic for locating the broker child.

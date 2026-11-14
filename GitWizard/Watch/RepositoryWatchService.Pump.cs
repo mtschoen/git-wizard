@@ -199,7 +199,12 @@ public sealed partial class RepositoryWatchService
                     throw new ArgumentOutOfRangeException(nameof(batch), kind, "Unknown repository change kind.");
             }
 
-            pending.Add(root, kind);
+            if (pending.Add(root, kind) && kind == RepositoryChangeKind.Changed)
+            {
+                GitWizardLog.Log(
+                    $"Live watch: {root} changed; first triggering path {entry.FullPath}",
+                    GitWizardLog.LogType.Verbose);
+            }
         }
 
         return hasRelevantChanges;
@@ -283,7 +288,8 @@ public sealed partial class RepositoryWatchService
         public bool HasDeletedRoot(WatchPath candidate) =>
             _stateByRoot.Any(pair => pair.Value.LastEvent == RepositoryChangeKind.Deleted && candidate.IsEqualTo(WatchPath.Parse(pair.Key)));
 
-        public void Add(string root, RepositoryChangeKind kind)
+        // Returns true when the call queued a new event rather than coalescing into a queued one.
+        public bool Add(string root, RepositoryChangeKind kind)
         {
             if (!_stateByRoot.TryGetValue(root, out var state))
             {
@@ -294,23 +300,24 @@ public sealed partial class RepositoryWatchService
             {
                 if (state.HasChangedSinceLifecycle)
                 {
-                    return;
+                    return false;
                 }
 
                 state.LastEvent = RepositoryChangeKind.Changed;
                 state.HasChangedSinceLifecycle = true;
                 _events.Add(new RepositoryChangeEvent(root, RepositoryChangeKind.Changed));
-                return;
+                return true;
             }
 
             if (state.LastEvent == kind)
             {
-                return;
+                return false;
             }
 
             state.LastEvent = kind;
             state.HasChangedSinceLifecycle = false;
             _events.Add(new RepositoryChangeEvent(root, kind));
+            return true;
         }
 
         public RepositoryChangeEvent[] DrainEvents()

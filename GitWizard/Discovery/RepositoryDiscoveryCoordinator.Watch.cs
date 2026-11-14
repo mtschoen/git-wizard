@@ -260,7 +260,7 @@ public partial class RepositoryDiscoveryCoordinator
             cancellationToken.ThrowIfCancellationRequested();
             foreach (var entry in batch.Entries)
             {
-                foreach (var target in GetReconciliationTargets(entry.FullPath))
+                foreach (var target in GetReconciliationTargets(entry.FullPath, accumulator.Paths))
                 {
                     if (seenTargets.Add(target))
                     {
@@ -310,20 +310,27 @@ public partial class RepositoryDiscoveryCoordinator
         }
     }
 
-    static HashSet<string> GetReconciliationTargets(string entryPath)
+    // Prototype of remedy E: only a path that can be a repository root is a target: the parent of a
+    // .git entry, and the nearest already-known repository root at or above the entry.
+    static HashSet<string> GetReconciliationTargets(string entryPath, ICollection<string> knownRoots)
     {
         var targets = new HashSet<string>(WatchPath.StringComparer);
-
-        if (WatchPath.Parse(entryPath).TryGetGitDirectoryParent(out var parent))
+        var path = WatchPath.Parse(entryPath);
+        if (path.TryGetGitDirectoryParent(out var parent))
         {
             targets.Add(parent.Original);
         }
 
-        targets.Add(entryPath);
-        var directory = Path.GetDirectoryName(entryPath);
-        if (!string.IsNullOrEmpty(directory))
+        var directory = entryPath;
+        while (!string.IsNullOrEmpty(directory))
         {
-            targets.Add(directory);
+            if (knownRoots.Contains(directory))
+            {
+                targets.Add(directory);
+                break;
+            }
+
+            directory = Path.GetDirectoryName(directory);
         }
 
         return targets;

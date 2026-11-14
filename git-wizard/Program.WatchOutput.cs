@@ -84,6 +84,11 @@ public static partial class Program
     internal static string FormatStartupLine(WatchStartupProgress progress)
     {
         var phase = progress.Phase.Token();
+        if (progress.Completed is { } completed && progress.Total is { } total)
+        {
+            return $"startup: {phase} {completed}/{total}";
+        }
+
         return progress.Volume is null ? $"startup: {phase}" : $"startup: {phase} {progress.Volume}";
     }
 

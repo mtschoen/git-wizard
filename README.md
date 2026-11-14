@@ -227,7 +227,7 @@ root path on Linux. Total failure, an empty usable drive set, cancellation and s
 (`2026-09-23T12:00:00.000Z changed: C:\repo`), and the stream also carries
 `startup: <opening|requesting-elevation|broker-connected|scanning <V>|catching-up|discovering|reconciling>`
 and `drive: <V> state=<catching-up|caught-up|excluded> origin=<warm|cold|unknown> [reason=<json-string>]`
-lines. `changed: <root>` means a tracked repository saw activity other than transient git lock files: an entry under its `.git` directory whose name ends in `.lock` is never reported, while a `.lock` file in the working tree is. With `-v`, each `changed:` event also logs `first triggering path <path>` to the verbose log. Without `-v`, `changed:`, `created:` and `deleted:` payloads are unchanged. The broker child
+lines. While the startup buffer reconciles, `startup: reconciling <probed>/<total>` repeats every 50,000 probed paths, so a large journal backlog shows progress. `changed: <root>` means a tracked repository saw activity other than transient git lock files: an entry under its `.git` directory whose name ends in `.lock` is never reported, while a `.lock` file in the working tree is. With `-v`, each `changed:` event also logs `first triggering path <path>` to the verbose log. Without `-v`, `changed:`, `created:` and `deleted:` payloads are unchanged. The broker child
 process is diagnostic information only; `ready:` is the readiness evidence.
 
 On Windows, discovery and the transfer into Live share one UAC prompt when the prepared index

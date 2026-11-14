@@ -26,6 +26,9 @@ public sealed class RepositoryDiscoveryDependencies
         ComputeRepositorySizes
     { get; set; } = RepositorySizeCalculator.Compute;
 
+    /// <summary>Entries between progress reports while the startup buffer reconciles.</summary>
+    internal int ReconcileProgressInterval { get; init; } = 50_000;
+
     internal Task<MftIndexSession> OpenAsync(DiscoveryScope scope, CacheMode cacheMode,
         IProgress<IndexScanProgress>? progress, CancellationToken cancellationToken)
     {

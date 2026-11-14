@@ -27,9 +27,13 @@ public readonly record struct FilterResult(
 /// </remarks>
 public sealed class RepositoryChangeFilter
 {
-    readonly Dictionary<int, List<WatchPath>> _rootsByLength = new();
-    readonly SortedSet<int> _descendingLengths = new(Comparer<int>.Create((a, b) => b.CompareTo(a)));
-    readonly HashSet<string> _trackedRootsSet = new(WatchPath.StringComparer);
+    // Tracked roots keyed by comparison form, one table per path syntax because Windows paths fold
+    // case and POSIX paths do not. A path's containing root is found by looking up its ancestors,
+    // so classification costs the path's depth instead of the number of tracked repositories.
+    readonly Dictionary<string, WatchPath> _windowsRoots = new(StringComparer.OrdinalIgnoreCase);
+    readonly Dictionary<string, WatchPath> _posixRoots = new(StringComparer.Ordinal);
+    readonly Dictionary<string, WatchPath>.AlternateLookup<ReadOnlySpan<char>> _windowsRootLookup;
+    readonly Dictionary<string, WatchPath>.AlternateLookup<ReadOnlySpan<char>> _posixRootLookup;
     readonly WatchPath[] _orderedSearchRoots;
     readonly WatchPath[] _orderedIgnoredPaths;
     readonly bool _includeTempDirectories;
@@ -55,6 +59,8 @@ public sealed class RepositoryChangeFilter
         IReadOnlyCollection<string>? ignoredPaths = null,
         bool includeTempDirectories = false)
     {
+        _windowsRootLookup = _windowsRoots.GetAlternateLookup<ReadOnlySpan<char>>();
+        _posixRootLookup = _posixRoots.GetAlternateLookup<ReadOnlySpan<char>>();
         foreach (var rootPath in repositoryRootPaths)
         {
             AddRepositoryRoot(rootPath);
@@ -118,17 +124,11 @@ public sealed class RepositoryChangeFilter
                 }
             case VolumeEntryKind.Deleted:
                 {
-                    foreach (var length in _descendingLengths)
+                    if (FindDeletedRoot(path) is { } deletedRoot)
                     {
-                        foreach (var root in _rootsByLength[length])
-                        {
-                            if (path.IsEqualTo(root) || path.IsEqualToChildOf(root, ".git"))
-                            {
-                                return !IsExcludedTempPath(root)
-                                    ? (RepositoryChangeKind.Deleted, root.Original)
-                                    : null;
-                            }
-                        }
+                        return !IsExcludedTempPath(deletedRoot)
+                            ? (RepositoryChangeKind.Deleted, deletedRoot.Original)
+                            : null;
                     }
 
                     var rootChanged = FindContainingTrackedRoot(path);
@@ -290,91 +290,75 @@ public sealed class RepositoryChangeFilter
     /// Adds <paramref name="rootPath"/> to the tracked repository roots mid-run. The watch
     /// service calls this when a repository is created under a search root, so later edits
     /// inside it classify as Changed without a watch restart. A root that is already tracked
-    /// is not added twice. Bucketing roots by length avoids shifting an accumulated list
-    /// of roots while preserving descending length precedence across distinct lengths.
+    /// is not added twice.
     /// </summary>
     public void AddRepositoryRoot(string rootPath)
     {
-        if (!_trackedRootsSet.Add(rootPath))
-        {
-            return;
-        }
-
         var root = WatchPath.Parse(rootPath);
-        var length = root.Comparison.Length;
-        if (_rootsByLength.TryGetValue(length, out var list))
-        {
-            list.Add(root);
-        }
-        else
-        {
-            _descendingLengths.Add(length);
-            _rootsByLength[length] = [root];
-        }
+        (root.IsWindows ? _windowsRoots : _posixRoots).TryAdd(root.Comparison, root);
     }
 
     /// <summary>
-    /// Removes <paramref name="rootPath"/> from the tracked repository roots mid-run. The
-    /// watch service calls this when a tracked repository's root or .git directory is
+    /// Removes <paramref name="rootPath"/> from the tracked repository roots mid-run. The watch
+    /// service calls this when a tracked repository's root or .git directory is
     /// deleted, so a later re-creation under a search root classifies as Created again
     /// instead of a Changed no consumer can apply. Removing an untracked root is a no-op.
     /// </summary>
     public void RemoveRepositoryRoot(string rootPath)
     {
-        if (!_trackedRootsSet.Remove(rootPath))
-        {
-            return;
-        }
-
         var root = WatchPath.Parse(rootPath);
-        var length = root.Comparison.Length;
-        if (!_rootsByLength.TryGetValue(length, out var list))
-        {
-            return;
-        }
-
-        for (var index = 0; index < list.Count; index++)
-        {
-            if (!list[index].IsEqualTo(root))
-            {
-                continue;
-            }
-
-            var lastIndex = list.Count - 1;
-            if (index != lastIndex)
-            {
-                list[index] = list[lastIndex];
-            }
-            list.RemoveAt(lastIndex);
-
-            if (list.Count != 0)
-            {
-                return;
-            }
-
-            _rootsByLength.Remove(length);
-            _descendingLengths.Remove(length);
-            return;
-        }
+        (root.IsWindows ? _windowsRoots : _posixRoots).Remove(root.Comparison);
     }
 
+    // The longest tracked root the path is under or equal to: the path itself, then each ancestor
+    // from the deepest up. A root keeps its trailing separator only as a drive or filesystem
+    // root, so each ancestor is tried with its separator before without it.
     WatchPath? FindContainingTrackedRoot(WatchPath path)
     {
-        var pathLength = path.Comparison.Length;
-        foreach (var length in _descendingLengths)
+        var lookup = path.IsWindows ? _windowsRootLookup : _posixRootLookup;
+        var comparison = path.Comparison;
+        if (lookup.TryGetValue(comparison, out var root))
         {
-            if (length > pathLength)
+            return root;
+        }
+
+        var separator = comparison.LastIndexOf('/');
+        while (separator >= 0)
+        {
+            if (lookup.TryGetValue(comparison.AsSpan(0, separator + 1), out root) ||
+                lookup.TryGetValue(comparison.AsSpan(0, separator), out root))
             {
-                continue;
+                return root;
             }
 
-            foreach (var root in _rootsByLength[length])
-            {
-                if (path.IsUnderOrEqual(root))
-                {
-                    return root;
-                }
-            }
+            separator = separator == 0 ? -1 : comparison.LastIndexOf('/', separator - 1);
+        }
+
+        return null;
+    }
+
+    // The longest tracked root the path equals or names the .git child of: the path itself, then
+    // the root before "/.git", or before ".git" when the root keeps its trailing separator.
+    WatchPath? FindDeletedRoot(WatchPath path)
+    {
+        var lookup = path.IsWindows ? _windowsRootLookup : _posixRootLookup;
+        var comparison = path.Comparison;
+        if (lookup.TryGetValue(comparison, out var root))
+        {
+            return root;
+        }
+
+        var kind = path.IsWindows ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        if (!comparison.EndsWith(GitWizardApi.GitEntryName, kind))
+        {
+            return null;
+        }
+
+        var parent = comparison.AsSpan(0, comparison.Length - GitWizardApi.GitEntryName.Length);
+        if (parent.EndsWith("/") &&
+            (lookup.TryGetValue(parent, out root) || lookup.TryGetValue(parent[..^1], out root)))
+        {
+            return root;
         }
 
         return null;

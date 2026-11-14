@@ -19,4 +19,6 @@ public enum WatchStartupPhase
 public sealed record WatchStartupProgress(
     WatchStartupPhase Phase,
     string? Volume = null,
-    VolumeReadinessSnapshot? Readiness = null);
+    VolumeReadinessSnapshot? Readiness = null,
+    int? Completed = null,
+    int? Total = null);

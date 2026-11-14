@@ -20,6 +20,7 @@ public sealed partial class RepositoryWatchService
             {
                 foreach (var batch in _startup.StartupBatches)
                 {
+                    ct.ThrowIfCancellationRequested();
                     ApplyBatch(filtersByVolume, batch, pending);
                 }
 

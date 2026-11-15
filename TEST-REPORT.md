@@ -1,8 +1,8 @@
 # Test report: generated on main by CI; must not be edited in a pull request
 
-Source commit: be9ae3ebd558e96305bcd8ea900593b3b1986d6e
-Workflow run: 58965
-Generated at: 2026-11-15T12:29:50Z (workflow run creation time).
+Source commit: 1a4f05ecfbeb04fec41d5f82aad61a159afd89bb
+Workflow run: 59132
+Generated at: 2026-11-15T15:06:55Z (workflow run creation time).
 
 ## Windows
 

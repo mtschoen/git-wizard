@@ -184,7 +184,7 @@ sealed class DiscoveryAccumulator
     {
         if (indexStatus.Block is { IsCapacityExhausted: true })
         {
-            return $"The index block for {indexStatus.Root} ran out of capacity before the scan finished.";
+            return $"The index block for {indexStatus.Root} could not store a journal change and needs a rescan.";
         }
         if (indexStatus.Block is { AccessDeniedSubtreeCount: > 0 } block)
         {

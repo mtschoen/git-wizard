@@ -350,7 +350,7 @@ public class IndexVolumeChangeSourceFaultTests
         Assert.That(caughtUp, Is.EqualTo(VolumeWatchState.CaughtUp));
     }
 
-    sealed class FaultHarness : IAsyncDisposable
+    internal sealed class FaultHarness : IAsyncDisposable
     {
         readonly CancellationTokenSource _cancellation = new(TestTimeouts.HangGuard);
         readonly List<VolumeReadinessSnapshot> _snapshots = [];

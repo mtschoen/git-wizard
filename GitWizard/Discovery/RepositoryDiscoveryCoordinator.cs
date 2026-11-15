@@ -280,7 +280,7 @@ public partial class RepositoryDiscoveryCoordinator
         return mftCount == session.Indices.Count ? DiscoveryRoute.Indexed : DiscoveryRoute.Mixed;
     }
 
-    static bool NeedsScan(DiscoveryPurpose purpose, MftRootStatus drive)
+    internal static bool NeedsScan(DiscoveryPurpose purpose, MftRootStatus drive)
     {
         if (drive.IndexStatus is not { } status || status.State == RootState.Offline ||
             status.Failure?.Kind == RootFailureKind.InUse)
@@ -294,6 +294,11 @@ public partial class RepositoryDiscoveryCoordinator
         }
 
         if (status.Failure?.Kind is RootFailureKind.CacheDeclined or RootFailureKind.CacheIdentityMismatch)
+        {
+            return true;
+        }
+
+        if (purpose == DiscoveryPurpose.Watch && status.Block is { IsCapacityExhausted: true })
         {
             return true;
         }

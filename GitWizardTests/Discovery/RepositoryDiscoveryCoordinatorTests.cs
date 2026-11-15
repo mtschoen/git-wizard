@@ -74,6 +74,47 @@ public class RepositoryDiscoveryCoordinatorTests
         }
     }
 
+    [Test]
+    public void CapacityExhaustedBlock_IsFailedWithAMessageThatNamesTheStoreFailureAndTheRescan()
+    {
+        using var files = new PackedIndexFixture();
+        var request = new DiscoveryRequest(new GitWizardConfiguration(), DiscoveryPurpose.Ordinary, false, false, []);
+        var scope = DiscoveryScope.CreateExpanded(request, [files.TreePath], [], []);
+        var accumulator = new DiscoveryAccumulator(scope, new List<string>());
+        accumulator.RecordDriveStatuses([CapacityStatus(RootKey.FromDirectory(files.TreePath), true)]);
+        accumulator.AddIndexedObservations(false, DiscoverySource.Scan, null);
+
+        var observation = accumulator.Observations.Single();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(observation.Complete, Is.False);
+            Assert.That(observation.Error, Does.Contain("could not store a journal change"));
+            Assert.That(observation.Error, Does.Contain("needs a rescan"));
+            Assert.That(observation.Error, Does.Not.Contain("ran out of capacity"));
+        }
+    }
+
+    [TestCase(DiscoveryPurpose.Watch, true, true)]
+    [TestCase(DiscoveryPurpose.Watch, false, false)]
+    [TestCase(DiscoveryPurpose.Ordinary, true, false)]
+    public void NeedsScan_RescansACapacityExhaustedBlockOnlyForAWatch(DiscoveryPurpose purpose, bool exhausted, bool expected)
+    {
+        using var files = new PackedIndexFixture();
+        var status = CapacityStatus(RootKey.FromDirectory(files.TreePath), exhausted);
+
+        Assert.That(RepositoryDiscoveryCoordinator.NeedsScan(purpose, status), Is.EqualTo(expected));
+    }
+
+    static MftRootStatus CapacityStatus(RootKey root, bool exhausted)
+    {
+        var block = MFTLibTestExtensions.SyntheticNotifications.CreateRootBlockStatus(
+            BlockOrigin.ProducedByScan, 1, exhausted, PackedIndexFixture.CompletionTimestamp);
+        var status = MFTLibTestExtensions.SyntheticNotifications.CreateRootStatus(root, RootState.Ready, block, null) with
+        { Producer = ProducerKind.Mft };
+        return new MftRootStatus(root.ToString(), status, null);
+    }
+
     static MftRootStatus ReadyStatus(string drive, RootKey root)
     {
         var block = MFTLibTestExtensions.SyntheticNotifications.CreateRootBlockStatus(

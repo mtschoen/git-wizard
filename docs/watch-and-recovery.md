@@ -31,6 +31,8 @@ Otherwise the observation stays pending: a recoverable fault is followed, and a 
 
 When the faulted drive reports a `JournalCheckpointLossDetection.LiveWatch` or `ScanCatchUp` loss the source first raises `IVolumeChangeDiagnostics.JournalWarningDetected` with the drive's refreshed hint; an unrelated fault raises no warning and leaves the open's standing report untouched. Arm-time `JournalCheckpointLossDetection.RootOpening` losses, including a cache-declined drive's discarded checkpoint, reach the arm result as `JournalWarning`s.
 
+A `WatchFaultKind.CapacityExhausted` fault means the drive's block could not store at least one journal change even after growing (`RootBlockStatus.IsCapacityExhausted` reads true). It is not a watch failure: the source logs a warning that names the drive and says a rescan restores a complete index, keeps the drive usable and keeps delivering later changes, and neither excludes the drive nor raises `DriveFailed`. Discovery reports such a root as failed with the message that its index block could not store a journal change and needs a rescan, and a watch preparation rescans it (`RepositoryDiscoveryCoordinator.NeedsScan` is true for `DiscoveryPurpose.Watch`).
+
 When the last usable drive is excluded the source raises `SourceDied` once and closes the output channel; a recovering drive keeps the source alive. Subscriber faults reach the reader as errors. Shutdown detaches index handlers and stops the pump before disposing its owner.
 
 ## Linux adapter

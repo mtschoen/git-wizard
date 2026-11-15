@@ -124,6 +124,42 @@ readonly record struct WatchPath
         return true;
     }
 
+    /// <summary>
+    /// True when this path can be the evidence of a bare repository beside it: its leaf is one of the
+    /// bare layout names (<c>HEAD</c>, <c>objects</c>, <c>refs</c>), or its directory's name ends in
+    /// <c>.git</c> (other than the working-tree marker <c>.git</c> itself). Such a path carries no
+    /// <c>.git</c> leaf, so <see cref="TryGetGitDirectoryParent"/> cannot name the repository.
+    /// <paramref name="directory"/> is the entry's directory, the bare-repository candidate.
+    /// </summary>
+    public bool TryGetBareRepositoryCandidate(out WatchPath directory)
+    {
+        directory = default;
+        var leafSeparator = LastSeparatorIndex(Original);
+        if (leafSeparator <= 0)
+        {
+            return false;
+        }
+
+        var leaf = Original.AsSpan(leafSeparator + 1);
+        var directoryName = Original.AsSpan(0, leafSeparator);
+        directoryName = directoryName[(LastSeparatorIndex(directoryName) + 1)..];
+        var isBareLayoutName = leaf.Equals("HEAD", ComparisonKind) || leaf.Equals("objects", ComparisonKind) ||
+                               leaf.Equals("refs", ComparisonKind);
+        var isBareDirectoryName = directoryName.EndsWith(".git", ComparisonKind) &&
+                                  !directoryName.Equals(".git", ComparisonKind);
+        if (!isBareLayoutName && !isBareDirectoryName)
+        {
+            return false;
+        }
+
+        var directoryLength = IsDriveRootSeparator(leafSeparator) ? leafSeparator + 1 : leafSeparator;
+        directory = Parse(Original[..directoryLength]);
+        return true;
+    }
+
+    int LastSeparatorIndex(ReadOnlySpan<char> text) =>
+        IsWindows ? text.LastIndexOfAny('\\', '/') : text.LastIndexOf('/');
+
     static bool IsWindowsSyntax(string path)
     {
         if (path.StartsWith('/'))

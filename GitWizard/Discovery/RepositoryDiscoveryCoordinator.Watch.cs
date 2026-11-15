@@ -247,7 +247,8 @@ public partial class RepositoryDiscoveryCoordinator
     // a probe reads the current disk state, so the last probe of a repeated target is the only
     // one that decides membership, and a replay of N entries touches far fewer than N paths.
     // Targets are probed in first-seen order. Cancellation is observed per batch and per target,
-    // and progress counts probed targets against the distinct total.
+    // and progress counts probed targets against the distinct total. Only a path that can be a
+    // repository root is a target (see GetReconciliationTargets), so an ordinary file costs no probe.
     internal void ReconcileBatches(
         IReadOnlyList<VolumeChangeBatch> batches, FileIndexSet? index, DiscoveryAccumulator accumulator,
         IProgress<WatchStartupProgress>? progress, CancellationToken cancellationToken)
@@ -260,7 +261,7 @@ public partial class RepositoryDiscoveryCoordinator
             cancellationToken.ThrowIfCancellationRequested();
             foreach (var entry in batch.Entries)
             {
-                foreach (var target in GetReconciliationTargets(entry.FullPath))
+                foreach (var target in GetReconciliationTargets(entry.FullPath, accumulator.Paths))
                 {
                     if (seenTargets.Add(target))
                     {
@@ -310,20 +311,35 @@ public partial class RepositoryDiscoveryCoordinator
         }
     }
 
-    static HashSet<string> GetReconciliationTargets(string entryPath)
+    // A path is a target when it can be a repository root: the parent of a .git entry, the entry's
+    // directory when the entry looks like part of a bare repository (one created in the window
+    // journals only HEAD, objects, refs and siblings, never a .git leaf), and the nearest
+    // already-known repository root at or above the entry, whose existence a deep child can end.
+    static HashSet<string> GetReconciliationTargets(string entryPath, ICollection<string> knownRoots)
     {
         var targets = new HashSet<string>(WatchPath.StringComparer);
-
-        if (WatchPath.Parse(entryPath).TryGetGitDirectoryParent(out var parent))
+        var path = WatchPath.Parse(entryPath);
+        if (path.TryGetGitDirectoryParent(out var parent))
         {
             targets.Add(parent.Original);
         }
 
-        targets.Add(entryPath);
-        var directory = Path.GetDirectoryName(entryPath);
-        if (!string.IsNullOrEmpty(directory))
+        if (path.TryGetBareRepositoryCandidate(out var bareDirectory) &&
+            !RepositoryCandidateProbe.IsInsideGitDirectory(bareDirectory.Original))
         {
-            targets.Add(directory);
+            targets.Add(bareDirectory.Original);
+        }
+
+        var directory = entryPath;
+        while (!string.IsNullOrEmpty(directory))
+        {
+            if (knownRoots.Contains(directory))
+            {
+                targets.Add(directory);
+                break;
+            }
+
+            directory = Path.GetDirectoryName(directory);
         }
 
         return targets;

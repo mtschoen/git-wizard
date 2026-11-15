@@ -46,6 +46,32 @@ public class WatchPathTests
         Assert.That(WatchPath.Parse(path).Volume, Is.EqualTo(expectedVolume));
     }
 
+    [TestCase(@"C:\repos\bare\HEAD", @"C:\repos\bare", TestName = "BareCandidate_HeadLeaf")]
+    [TestCase(@"C:\repos\bare\OBJECTS", @"C:\repos\bare", TestName = "BareCandidate_ObjectsLeaf_FoldsCase")]
+    [TestCase(@"C:\repos\bare\refs", @"C:\repos\bare", TestName = "BareCandidate_RefsLeaf")]
+    [TestCase(@"C:\repos\foo.git\config", @"C:\repos\foo.git", TestName = "BareCandidate_GitSuffixedDirectory")]
+    [TestCase(@"C:\HEAD", @"C:\", TestName = "BareCandidate_AtDriveRoot")]
+    [TestCase("/repos/foo.git/description", "/repos/foo.git", TestName = "BareCandidate_PosixGitSuffixedDirectory")]
+    public void TryGetBareRepositoryCandidate_BareLayoutEvidence_NamesTheDirectory(string path, string expected)
+    {
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(WatchPath.Parse(path).TryGetBareRepositoryCandidate(out var directory), Is.True);
+            Assert.That(directory.Original, Is.EqualTo(expected));
+        }
+    }
+
+    [TestCase(@"C:\repos\work\file.cs", TestName = "NotBareCandidate_OrdinaryFile")]
+    [TestCase(@"C:\repos\work\.git", TestName = "NotBareCandidate_GitMarker")]
+    [TestCase(@"C:\repos\work\.git\index", TestName = "NotBareCandidate_InsideTheMarkerDirectory")]
+    [TestCase(@"C:\repos\work\notgit\file.cs", TestName = "NotBareCandidate_SuffixMustBeDotGit")]
+    [TestCase("/repos/Foo.GIT/config", TestName = "NotBareCandidate_PosixSuffixIsCaseSensitive")]
+    [TestCase("relative", TestName = "NotBareCandidate_NoDirectory")]
+    public void TryGetBareRepositoryCandidate_OtherPaths_AreNotCandidates(string path)
+    {
+        Assert.That(WatchPath.Parse(path).TryGetBareRepositoryCandidate(out _), Is.False);
+    }
+
     [Test]
     public void StringComparer_TreatsMissingPathsAsEqualOnlyToEachOther()
     {

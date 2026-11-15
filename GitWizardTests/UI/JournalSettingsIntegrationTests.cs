@@ -256,6 +256,43 @@ public class JournalSettingsIntegrationTests
     }
 
     [Test]
+    public async Task IgnoreClickMadeWhenTheRowDisappearsIsNotDropped()
+    {
+        var dispatcher = new ReentrantUiDispatcher();
+        var settings = TestViewModels.CreateSettings(liveWatch: _main.LiveWatch, dispatcher: dispatcher);
+        var first = settings.JournalWarnings[0];
+        var second = settings.JournalWarnings[1];
+        Task? secondIgnore = null;
+        dispatcher.RunOnceWhen(
+            () => !settings.JournalWarnings.Contains(first),
+            () => secondIgnore = settings.IgnoreJournalWarningAsync(second));
+        await settings.IgnoreJournalWarningAsync(first);
+        Assert.That(secondIgnore, Is.Not.Null);
+        await secondIgnore!;
+        Assert.That(settings.JournalWarnings, Is.Empty);
+    }
+
+    [Test]
+    public async Task IgnoreRetryMadeWhenTheFailureIsVisibleIsNotDropped()
+    {
+        var configurationPath = GitWizardConfiguration.GetGlobalConfigurationPath();
+        File.Delete(configurationPath);
+        Directory.CreateDirectory(configurationPath);
+        var dispatcher = new ReentrantUiDispatcher();
+        var settings = TestViewModels.CreateSettings(liveWatch: _main.LiveWatch, dispatcher: dispatcher);
+        var first = settings.JournalWarnings[0];
+        var second = settings.JournalWarnings[1];
+        Task? secondIgnore = null;
+        dispatcher.RunOnceWhen(
+            () => first.StatusMessage.StartsWith("Failed:", StringComparison.Ordinal),
+            () => secondIgnore = settings.IgnoreJournalWarningAsync(second));
+        await settings.IgnoreJournalWarningAsync(first);
+        Assert.That(secondIgnore, Is.Not.Null);
+        await secondIgnore!;
+        Assert.That(second.StatusMessage, Does.StartWith("Failed:"));
+    }
+
+    [Test]
     public async Task SettingsOpenedBeforeStopCannotReportSuccessfulEnlarge()
     {
         var warning = _settings.JournalWarnings[0];

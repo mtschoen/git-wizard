@@ -94,30 +94,38 @@ public partial class SettingsViewModel
             return;
         }
 
+        // The guard is released before the outcome is published, so a click made in response to the removed row or
+        // the failure message is never dropped by a guard the finishing operation still holds. A repeat Ignore of the
+        // same row in that window is harmless: saving the preference is idempotent and removing a row twice is a no-op.
+        string? failureStatus = null;
         try
         {
             await _configuration.IgnoreJournalWarningAsync(warning.Warning.VolumeSerial).ConfigureAwait(false);
-            await _journalDispatcher.InvokeAsync(() =>
-            {
-                if (_liveWatch is null)
-                {
-                    JournalWarnings.Remove(warning);
-                }
-                else
-                {
-                    _liveWatch.RemoveJournalWarning(warning);
-                }
-            }).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
             GitWizardLog.LogException(exception, $"Saving the journal warning preference for {warning.DriveLetter} failed.");
-            await _journalDispatcher.InvokeAsync(() =>
-                warning.StatusMessage = "Failed: Could not save the journal warning preference. Check the log for details.").ConfigureAwait(false);
+            failureStatus = "Failed: Could not save the journal warning preference. Check the log for details.";
         }
         finally
         {
             Volatile.Write(ref _journalOperationInProgress, 0);
         }
+
+        await _journalDispatcher.InvokeAsync(() =>
+        {
+            if (failureStatus is not null)
+            {
+                warning.StatusMessage = failureStatus;
+            }
+            else if (_liveWatch is null)
+            {
+                JournalWarnings.Remove(warning);
+            }
+            else
+            {
+                _liveWatch.RemoveJournalWarning(warning);
+            }
+        }).ConfigureAwait(false);
     }
 }

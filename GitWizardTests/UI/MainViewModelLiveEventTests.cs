@@ -316,20 +316,42 @@ public class MainViewModelLiveEventTests
     public async Task ApplyLiveEvent_DeletedThenCreatedSamePath_CancelsExpiryAndRetainsNode()
     {
         using var fixture = TempRepoFixture.CreateWithInitialCommit();
-        var viewModel = NewViewModel();
+        var dispatcher = new QueuedUiDispatcher();
+        var clock = new ControlledDelayClock();
+        await using var viewModel = TestViewModels.Create(dispatcher: dispatcher, timeProvider: clock);
+        viewModel.LiveWatch.IsLive = true;
         viewModel.RepositoryList.AddRepository(new GitWizardRepository(fixture.Path), streaming: false);
         viewModel.RepositoryList.AddRepository(Repo("/marker"), streaming: false);
 
         await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Deleted));
+        dispatcher.Drain();
+        // Keep the recreated path's own deletion timer: the clock's Timer property is overwritten by the
+        // marker's timer below, so only this reference can show that Created cancelled the first delete.
+        var repositoryDeletionTimer = clock.Timer!;
         await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent(fixture.Path, RepositoryChangeKind.Created));
+        dispatcher.Drain();
+        await WaitUntilAsync(() => repositoryDeletionTimer.IsDisposed);
         await viewModel.LiveWatch.ApplyLiveEventAsync(new RepositoryChangeEvent("/marker", RepositoryChangeKind.Deleted));
+        dispatcher.Drain();
+        var markerDeletionTimer = clock.Timer!;
 
-        // When the marker repository's correlation window expires and it is removed,
-        // the earlier correlation window for the recreated repository has also elapsed.
-        await WaitUntilAsync(() => viewModel.RepositoryList.Repositories.All(node => node.WorkingDirectory != "/marker"));
+        Assert.That(markerDeletionTimer, Is.Not.SameAs(repositoryDeletionTimer));
 
-        Assert.That(viewModel.RepositoryList.Repositories, Has.Count.EqualTo(1));
-        Assert.That(viewModel.RepositoryList.Repositories.Single().WorkingDirectory, Is.EqualTo(fixture.Path));
+        // A cancelled timer must not run its expiry callback.
+        repositoryDeletionTimer.Fire();
+        Assert.That(dispatcher.QueuedCount, Is.Zero);
+
+        // The expiry callback is queued on the dispatcher and runs only inside Drain on this thread, so the
+        // collection is never read while a thread-pool timer continuation writes it (issue 583).
+        markerDeletionTimer.Fire();
+        await WaitUntilAsync(() => dispatcher.QueuedCount == 1);
+        dispatcher.Drain();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(viewModel.RepositoryList.Repositories, Has.Count.EqualTo(1));
+            Assert.That(viewModel.RepositoryList.Repositories.Single().WorkingDirectory, Is.EqualTo(fixture.Path));
+        }
     }
 
     [Test]

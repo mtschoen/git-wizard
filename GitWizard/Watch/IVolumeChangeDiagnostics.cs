@@ -18,4 +18,16 @@ public interface IVolumeChangeDiagnostics
     /// published before it subscribed is not lost.
     /// </summary>
     IReadOnlyList<JournalWarning> CurrentJournalWarnings => [];
+
+    /// <summary>
+    /// Raised when a drive's capacity warning appears or clears. A subscriber reads
+    /// <see cref="CurrentCapacityWarnings"/> for the drives that currently carry one.
+    /// </summary>
+    event Action? CapacityWarningsChanged;
+
+    /// <summary>
+    /// One warning per drive whose index block could not store a journal change and has not been
+    /// rescanned since. Read it after subscribing to <see cref="CapacityWarningsChanged"/>.
+    /// </summary>
+    IReadOnlyList<CapacityWarning> CurrentCapacityWarnings => [];
 }

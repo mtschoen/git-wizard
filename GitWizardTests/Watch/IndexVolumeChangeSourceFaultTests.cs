@@ -389,7 +389,7 @@ public class IndexVolumeChangeSourceFaultTests
         public ScriptedWatchSource Scripted { get; }
         public PackedIndexFixture Files { get; }
         public MftIndexSession Owner { get; }
-        IndexVolumeChangeSource Source { get; }
+        public IndexVolumeChangeSource Source { get; }
         readonly List<string> _deaths = [];
         readonly List<(string Drive, string Message)> _failures = [];
 
@@ -424,7 +424,9 @@ public class IndexVolumeChangeSourceFaultTests
         /// <summary>Opens, arms and starts reading a source over a scripted MFT index.</summary>
         /// <param name="drives">The drives to open and watch.</param>
         /// <param name="beforeRescan">Awaited before every production after the open: the recoveries' rescans.</param>
-        public static async Task<FaultHarness> StartAsync(char[] drives, Func<CancellationToken, Task>? beforeRescan)
+        /// <param name="beforeArm">Awaited with the opened indices before the source arms.</param>
+        public static async Task<FaultHarness> StartAsync(char[] drives, Func<CancellationToken, Task>? beforeRescan,
+            Func<IReadOnlyList<FileIndex>, Task>? beforeArm = null)
         {
             var files = new PackedIndexFixture();
             files.AddMarker("repo");
@@ -434,6 +436,11 @@ public class IndexVolumeChangeSourceFaultTests
             if (beforeRescan is not null)
             {
                 files.BeforeProduceAsync = (_, token) => beforeRescan(token);
+            }
+
+            if (beforeArm is not null)
+            {
+                await beforeArm(index);
             }
 
             var owner = PackedIndexFixture.Owner(index, names);

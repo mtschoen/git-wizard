@@ -45,6 +45,14 @@ public partial class SettingsWindow : Window
         }
     }
 
+    void RescanCapacityWarning_Click(object? sender, RoutedEventArgs eventArguments)
+    {
+        if (sender is Button { DataContext: CapacityWarningViewModel warning })
+        {
+            _ = _viewModel.RescanCapacityWarningAsync(warning).RunAndLogFaults("Rescanning a drive's index");
+        }
+    }
+
     void AddSearchPath_Click(object? sender, RoutedEventArgs e)
         => _ = _viewModel.AddSearchPathAsync().RunAndLogFaults("Adding a search path");
 

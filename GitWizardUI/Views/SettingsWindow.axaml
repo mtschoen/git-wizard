@@ -58,7 +58,8 @@
     <StackPanel Grid.Row="8" Margin="0,15,0,5">
       <TextBlock Text="Journal Warnings" FontSize="16" FontWeight="Bold" Foreground="Orange" />
     </StackPanel>
-    <ItemsControl Grid.Row="9" ItemsSource="{Binding JournalWarnings}" Margin="0,0,0,10">
+    <StackPanel Grid.Row="9" Margin="0,0,0,10">
+    <ItemsControl ItemsSource="{Binding JournalWarnings}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:JournalWarningViewModel">
           <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,5">
@@ -75,6 +76,22 @@
         </DataTemplate>
       </ItemsControl.ItemTemplate>
     </ItemsControl>
+    <ItemsControl x:Name="CapacityWarningList" ItemsSource="{Binding CapacityWarnings}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:CapacityWarningViewModel">
+          <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,5">
+            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding DriveLetter, StringFormat='Drive {0}: index'}" FontWeight="Bold" />
+              <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Text="{Binding Warning.Message}" TextWrapping="Wrap" />
+              <TextBlock Grid.Row="2" Grid.Column="0" Text="{Binding Warning.RescanEffect, StringFormat='{}{0} Rescanning restarts Live watching.'}" TextWrapping="Wrap" Foreground="Gray" VerticalAlignment="Center" />
+              <Button Grid.Row="2" Grid.Column="1" Content="Rescan" Click="RescanCapacityWarning_Click" Margin="5,0,0,0" />
+              <TextBlock Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" TextWrapping="Wrap" Text="{Binding StatusMessage}" Foreground="Gray" FontStyle="Italic" />
+            </Grid>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+    </StackPanel>
 
     <StackPanel Grid.Row="10" Margin="0,15,0,5">
       <TextBlock Text="Scan Options" FontSize="16" FontWeight="Bold" />

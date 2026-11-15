@@ -191,6 +191,7 @@ public sealed partial class LiveWatchViewModel
             ClearLiveScanProgress();
             ClearLiveReadiness();
             JournalWarnings.Clear();
+            CapacityWarnings.Clear();
             if (inventory.Outcome == DiscoveryOutcome.Unusable)
             {
                 foreach (var (root, message) in inventory.Errors)
@@ -224,6 +225,7 @@ public sealed partial class LiveWatchViewModel
                 ClearLiveScanProgress();
                 ClearLiveReadiness();
                 JournalWarnings.Clear();
+                CapacityWarnings.Clear();
                 _statusHeader.ShowLiveMessage($"Live watch could not start: {exception.Message}");
             }).ConfigureAwait(false);
         }
@@ -244,6 +246,7 @@ public sealed partial class LiveWatchViewModel
             ClearLiveScanProgress();
             ClearLiveReadiness();
             JournalWarnings.Clear();
+            CapacityWarnings.Clear();
         }).ConfigureAwait(false);
     }
 
@@ -262,7 +265,7 @@ public sealed partial class LiveWatchViewModel
 
             _statusHeader.ShowLiveMessage($"Live scan error on {drive}: {message}");
         }
-        if (JournalWarnings.Count > 0)
+        if (JournalWarnings.Count > 0 || CapacityWarnings.Count > 0)
         {
             UpdateJournalWarningHeader();
         }

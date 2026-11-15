@@ -26,6 +26,7 @@ public sealed partial class IndexVolumeChangeSource
                 GitWizardLog.Log($"Live watch on {drive}: a journal change could not be stored in the index block " +
                                  $"({fault.Exception.Message}). Watching continues; rescan {drive}: to restore a " +
                                  "complete index.", GitWizardLog.LogType.Warning);
+                RaiseCapacityWarning(drive, fault.Exception.Message);
                 RaiseFaultJournalWarning(drive);
             }
             catch (Exception exception)

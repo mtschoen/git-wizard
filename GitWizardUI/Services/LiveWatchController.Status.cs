@@ -48,6 +48,17 @@ public sealed partial class LiveWatchController
         }
     }
 
+    public IReadOnlyCollection<CapacityWarning> CapacityWarnings
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _service?.CapacityWarnings ?? [];
+            }
+        }
+    }
+
     public IVolumeChangeSource? Source
     {
         get

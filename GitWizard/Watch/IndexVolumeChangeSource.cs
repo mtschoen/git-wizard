@@ -141,6 +141,7 @@ public sealed partial class IndexVolumeChangeSource : IVolumeChangeSource, IVolu
             // The warnings above were built before watching started: report the drives as they are now.
             warnings.Clear();
             warnings.AddRange(CollectArmedJournalWarnings(Session, configuration));
+            CollectArmedCapacityWarnings(Session);
             return new VolumeArmResult(errors, warnings);
         }
         catch

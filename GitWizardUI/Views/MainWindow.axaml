@@ -121,6 +121,13 @@
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
+        <ItemsControl x:Name="CapacityWarningList" ItemsSource="{Binding LiveWatch.CapacityWarnings}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:CapacityWarningViewModel">
+              <TextBlock Text="{Binding Warning.Message, StringFormat='{}{0} Rescan it from Settings.'}" TextWrapping="Wrap" Foreground="Orange" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
       </StackPanel>
       <TextBox Grid.Row="2" Margin="10,2" Watermark="Search repositories..." Text="{Binding RepositoryList.SearchText, Mode=TwoWay}" />
 

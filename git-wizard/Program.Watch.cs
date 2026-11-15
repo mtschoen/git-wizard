@@ -165,6 +165,7 @@ public static partial class Program
         var stopped = false;
         var reported = new ScanErrorChangeFilter();
         var reportedWarnings = new ScanErrorChangeFilter();
+        var reportedCapacity = new ScanErrorChangeFilter();
         var reportingLock = new Lock();
         void OnStopped(string reason)
         {
@@ -198,6 +199,15 @@ public static partial class Program
                     }
 
                     writer.Write(warning.Message);
+                }
+
+                foreach (var warning in service.CapacityWarnings)
+                {
+                    var line = FormatCapacityWarningLine(warning);
+                    if (reportedCapacity.TryReport(warning.DriveLetter, line))
+                    {
+                        writer.Write(line);
+                    }
                 }
             }
         }
@@ -278,6 +288,11 @@ public static partial class Program
             return false;
         }
     }
+
+    // A --watch start rescans every drive whose block is flagged before it arms
+    // (RepositoryDiscoveryCoordinator.NeedsScan), so the rescan step is a restart; nothing prompts.
+    static string FormatCapacityWarningLine(CapacityWarning warning) =>
+        $"{warning.Message} Restart git-wizard --watch to rescan {warning.DriveLetter}:.";
 
     static string FormatChangeEvent(RepositoryChangeEvent changeEvent) =>
         changeEvent.Kind switch

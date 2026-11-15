@@ -19,6 +19,7 @@ sealed class ReadinessVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDia
     public event Action<string>? SourceDied;
     public event Action<string, string>? DriveFailed;
     public event Action<JournalWarning>? JournalWarningDetected;
+    public event Action? CapacityWarningsChanged { add { } remove { } }
     public event Action<VolumeReadinessSnapshot>? ReadinessChanged;
 
     /// <summary>

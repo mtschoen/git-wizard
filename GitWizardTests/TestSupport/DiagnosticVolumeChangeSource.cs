@@ -16,7 +16,8 @@ sealed class DiagnosticVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDi
     public event Action<JournalWarning>? JournalWarningDetected;
     public Task Started => _started.Task;
     public int DiagnosticSubscribers => (DriveFailed?.GetInvocationList().Length ?? 0)
-        + (JournalWarningDetected?.GetInvocationList().Length ?? 0);
+        + (JournalWarningDetected?.GetInvocationList().Length ?? 0)
+        + (CapacityWarningsChanged?.GetInvocationList().Length ?? 0);
     public Dictionary<string, string> ArmErrors { get; } = [];
     public List<JournalWarning> ArmWarnings { get; } = [];
     // What the source holds now; newer than ArmWarnings once a state change landed after the arm.
@@ -35,6 +36,38 @@ sealed class DiagnosticVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDi
         }
     }
     public Action? Arming { get; set; }
+
+    readonly List<CapacityWarning> _capacityWarnings = [];
+    readonly Lock _capacityLock = new();
+    event Action? CapacityWarningsChanged;
+
+    event Action? IVolumeChangeDiagnostics.CapacityWarningsChanged
+    {
+        add => CapacityWarningsChanged += value;
+        remove => CapacityWarningsChanged -= value;
+    }
+
+    IReadOnlyList<CapacityWarning> IVolumeChangeDiagnostics.CurrentCapacityWarnings
+    {
+        get
+        {
+            lock (_capacityLock)
+            {
+                return (CapacityWarning[])[.. _capacityWarnings];
+            }
+        }
+    }
+
+    /// <summary>Replaces the drives' capacity warnings, as the real source does on a fault, an arm or a rescan.</summary>
+    public void SetCapacityWarnings(params CapacityWarning[] warnings)
+    {
+        lock (_capacityLock)
+        {
+            _capacityWarnings.Clear();
+            _capacityWarnings.AddRange(warnings);
+        }
+        CapacityWarningsChanged?.Invoke();
+    }
 
     public Task<VolumeArmResult> ArmAndCatchUpAsync(IReadOnlyCollection<string> volumes, CancellationToken ct)
     {

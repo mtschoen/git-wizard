@@ -109,9 +109,9 @@ static class WatchFailureAssertions
         source.ArmErrors["X"] = "scan failed";
         source.Arming = () =>
         {
-            // DriveFailed and JournalWarningDetected: the service holds both diagnostics
-            // subscriptions for the run's lifetime.
-            Assert.That(source.DiagnosticSubscribers, Is.EqualTo(2));
+            // DriveFailed, JournalWarningDetected and CapacityWarningsChanged: the service holds
+            // every diagnostics subscription for the run's lifetime.
+            Assert.That(source.DiagnosticSubscribers, Is.EqualTo(3));
             source.FailDrive("X", "newer watch failure");
         };
         var service = new RepositoryWatchService(source, [], []);

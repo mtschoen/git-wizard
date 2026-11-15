@@ -57,6 +57,12 @@ sealed class FakeJournalSettingsSource : IVolumeChangeSource, IVolumeChangeDiagn
         remove => _changes.JournalWarningDetected -= value;
     }
 
+    public event Action? CapacityWarningsChanged
+    {
+        add => ((IVolumeChangeDiagnostics)_changes).CapacityWarningsChanged += value;
+        remove => ((IVolumeChangeDiagnostics)_changes).CapacityWarningsChanged -= value;
+    }
+
     public void RaiseJournalWarning(JournalWarning warning) => _changes.RaiseJournalWarning(warning);
 
     public Task<VolumeArmResult> ArmAndCatchUpAsync(IReadOnlyCollection<string> volumes, CancellationToken ct)

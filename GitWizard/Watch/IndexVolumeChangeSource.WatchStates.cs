@@ -94,5 +94,6 @@ public sealed partial class IndexVolumeChangeSource
             PulseWatchStateLocked();
         }
         RefreshJournalWarningForState(drive, watch);
+        ClearCapacityWarningIfRescanned(drive);
     }
 }

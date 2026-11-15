@@ -90,6 +90,7 @@ public sealed partial class SettingsViewModel : INotifyPropertyChanged
         _configuration = GitWizardConfiguration.GetGlobalConfiguration();
 
         JournalWarnings = liveWatch?.JournalWarnings ?? [];
+        CapacityWarnings = liveWatch?.CapacityWarnings ?? [];
 
         foreach (var path in _configuration.SearchPaths)
         {

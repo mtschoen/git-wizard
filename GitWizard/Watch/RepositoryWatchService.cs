@@ -31,6 +31,7 @@ public sealed partial class RepositoryWatchService
     readonly Lock _errorsLock = new();
     FrozenDictionary<string, string> _scanErrors = FrozenDictionary<string, string>.Empty;
     FrozenSet<JournalWarning> _scanWarnings = [];
+    CapacityWarning[] _capacityWarnings = [];
 
     public event Action? ScanErrorsChanged;
 
@@ -49,6 +50,13 @@ public sealed partial class RepositoryWatchService
 
     [UsedImplicitly]
     public IReadOnlyCollection<JournalWarning> ScanWarnings { get { lock (_errorsLock) { return _scanWarnings; } } }
+
+    /// <summary>
+    /// Immutable snapshot of the drives whose index block could not store a journal change and
+    /// has not been rescanned. Changes raise <see cref="ScanWarningsChanged"/>.
+    /// </summary>
+    [UsedImplicitly]
+    public IReadOnlyCollection<CapacityWarning> CapacityWarnings { get { lock (_errorsLock) { return _capacityWarnings; } } }
 
     public RepositoryWatchService(
         IVolumeChangeSource source,
@@ -73,6 +81,7 @@ public sealed partial class RepositoryWatchService
         {
             _scanErrors = FrozenDictionary<string, string>.Empty;
             _scanWarnings = [];
+            _capacityWarnings = [];
         }
         var readinessSource = _source as IVolumeReadiness;
         ResetReadiness(readinessSource?.Mode ?? WatchReadinessMode.PumpActive);
@@ -81,6 +90,7 @@ public sealed partial class RepositoryWatchService
         {
             diagnostics.DriveFailed += OnDriveFailed;
             diagnostics.JournalWarningDetected += OnJournalWarningDetected;
+            diagnostics.CapacityWarningsChanged += OnCapacityWarningsChanged;
         }
         var scanProgress = _source as IVolumeScanProgress;
         if (scanProgress is not null)
@@ -114,6 +124,7 @@ public sealed partial class RepositoryWatchService
             {
                 diagnostics.DriveFailed -= OnDriveFailed;
                 diagnostics.JournalWarningDetected -= OnJournalWarningDetected;
+                diagnostics.CapacityWarningsChanged -= OnCapacityWarningsChanged;
             }
             if (scanProgress is not null)
             {
@@ -201,6 +212,20 @@ public sealed partial class RepositoryWatchService
         ScanWarningsChanged?.Invoke();
     }
 
+    // The source holds every drive's current capacity warning, so its snapshot replaces ours. The
+    // source raises the event outside its own lock, so reading it under ours cannot invert.
+    void OnCapacityWarningsChanged()
+    {
+        lock (_errorsLock)
+        {
+            ReadCapacityWarningsLocked();
+        }
+        ScanWarningsChanged?.Invoke();
+    }
+
+    void ReadCapacityWarningsLocked() =>
+        _capacityWarnings = [.. (_source as IVolumeChangeDiagnostics)?.CurrentCapacityWarnings ?? []];
+
     void SetArmResult(VolumeArmResult armResult)
     {
         // The arm snapshot is the baseline; the source's current warnings are newer than it
@@ -225,6 +250,7 @@ public sealed partial class RepositoryWatchService
                 .GroupBy(warning => warning.DriveLetter, StringComparer.OrdinalIgnoreCase)
                 .Select(group => group.Last());
             _scanWarnings = warnings.ToFrozenSet();
+            ReadCapacityWarningsLocked();
         }
         ScanErrorsChanged?.Invoke();
         ScanWarningsChanged?.Invoke();

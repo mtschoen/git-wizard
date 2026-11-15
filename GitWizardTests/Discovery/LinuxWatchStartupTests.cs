@@ -29,6 +29,7 @@ public class LinuxWatchStartupTests
         public event Action<string>? SourceDied { add { } remove { } }
         public event Action<string, string>? DriveFailed { add { } remove { } }
         public event Action<JournalWarning>? JournalWarningDetected { add { } remove { } }
+        public event Action? CapacityWarningsChanged { add { } remove { } }
 
         public TaskCompletionSource MarksInstalled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public Dictionary<string, string> ArmErrors { get; } = new(StringComparer.OrdinalIgnoreCase);

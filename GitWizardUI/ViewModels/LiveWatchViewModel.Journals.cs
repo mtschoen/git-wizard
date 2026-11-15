@@ -187,6 +187,7 @@ public sealed partial class LiveWatchViewModel
             var previous = previousWarnings.FirstOrDefault(candidate => HasSameLossIdentity(candidate, warning));
             JournalWarnings.Add(new JournalWarningViewModel(EnrichWarning(warning, grower, previous)));
         }
+        SurfaceCapacityWarnings(controller);
         UpdateJournalWarningHeader();
     }
 
@@ -241,9 +242,20 @@ public sealed partial class LiveWatchViewModel
         }
 
         var messages = new List<string>();
+        var notes = new List<string>();
         if (JournalWarnings.Count > 0)
         {
-            messages.Add("Live watch active (journal hints)");
+            notes.Add("journal hints");
+        }
+
+        if (CapacityWarnings.Count > 0)
+        {
+            notes.Add("rescan offered");
+        }
+
+        if (notes.Count > 0)
+        {
+            messages.Add($"Live watch active ({string.Join(", ", notes)})");
         }
 
         if (Controller is { } controller)

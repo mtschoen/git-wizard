@@ -91,7 +91,7 @@ public static class GitWizardLog
     static GitWizardLog()
     {
         CleanLogFolder();
-        _writerTask = WriteLogToFileAsync();
+        _writerTask = StartWriter();
         AppDomain.CurrentDomain.ProcessExit += (_, _) => FlushForProcessExit();
     }
 
@@ -228,24 +228,36 @@ public static class GitWizardLog
 
         // Wait for old writer task to finish draining
         // Invariant: _writerTask is a fire-and-forget background task that never throws;
-        // blocking here is safe because there is no synchronization context to deadlock.
+        // blocking here is safe because StartWriter runs the writer on the thread pool, so its
+        // continuations never post to the caller's synchronization context, even when the
+        // caller's context is not pumped or this thread is that context's own thread.
         oldTask?.GetAwaiter().GetResult();
 
         // Start the replacement writer only after the old one released the log file, because the
         // file is opened without write sharing.
         lock (LogFileLock)
         {
-            _writerTask = WriteLogToFileAsync();
+            _writerTask = StartWriter();
             oldCts.Dispose();
         }
     }
 
-    static async Task WriteLogToFileAsync()
+    // The caller may be on a UI synchronization context that is no longer pumped at shutdown;
+    // starting on the thread pool keeps every writer continuation off that context. The reader
+    // and token are captured here, under the caller's lock or the static constructor, so a
+    // later channel swap cannot hand this writer a different channel.
+    static Task StartWriter()
     {
         var reader = _logChannel.Reader;
+        var token = _writerCts.Token;
+        return Task.Run(() => WriteLogToFileAsync(reader, token));
+    }
+
+    static async Task WriteLogToFileAsync(ChannelReader<string> reader, CancellationToken token)
+    {
         try
         {
-            await foreach (var message in reader.ReadAllAsync(_writerCts.Token))
+            await foreach (var message in reader.ReadAllAsync(token))
             {
                 await WriteMessageAsync(message);
             }

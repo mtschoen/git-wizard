@@ -1,23 +1,23 @@
 # Test report: generated on main by CI; must not be edited in a pull request
 
-Source commit: 7682db56ee28a4e745e3ba7ca2aa99251133ffab
-Workflow run: 59706
-Generated at: 2026-11-18T03:23:29Z (workflow run creation time).
+Source commit: c1df47fc5a6010c4d098258f96e3b51552cd29b1
+Workflow run: 59713
+Generated at: 2026-11-18T05:35:43Z (workflow run creation time).
 
 ## Windows
 
 | Test project | Total | Passed | Failed | Skipped |
 | --- | ---: | ---: | ---: | ---: |
-| GitWizardTests | 2547 | 2465 | 0 | 82 |
+| GitWizardTests | 2567 | 2477 | 0 | 90 |
 
 ## Linux
 
 | Test project | Total | Passed | Failed | Skipped |
 | --- | ---: | ---: | ---: | ---: |
-| GitWizardTests | 2547 | 2476 | 0 | 71 |
+| GitWizardTests | 2567 | 2496 | 0 | 71 |
 
 | Managed coverage | Line | Branch |
 | --- | ---: | ---: |
-| coverage.cobertura.xml | 91.96% | 87.13% |
+| coverage.cobertura.xml | 92.01% | 87.15% |
 
 Full TRX and coverage reports are retained as CI artifacts.

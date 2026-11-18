@@ -36,7 +36,7 @@ public static class FanotifyInterop
     /// <summary>
     /// Probes fanotify support for the filesystem containing the existing directory
     /// identified by <paramref name="path"/>. A result requiring elevation remains supported
-    /// so callers can offer a pkexec path.
+    /// so callers can offer to elevate.
     /// </summary>
     /// <exception cref="ArgumentException">
     /// <paramref name="path"/> is blank or does not identify an existing directory.

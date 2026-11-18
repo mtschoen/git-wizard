@@ -3,10 +3,10 @@ using System.Runtime.InteropServices;
 namespace GitWizard.CLI;
 
 /// <summary>
-/// The pkexec-elevated watch child runs as root against the invoking user's data folder
+/// The sudo-elevated watch child runs as root against the invoking user's data folder
 /// (GITWIZARD_HOME), so every file it creates there (log, report, configuration, caches) would be
 /// root-owned and lock the user's later runs out. Holding one of these for the life of the child
-/// hands everything under that folder back to the invoking user (pkexec supplies PKEXEC_UID):
+/// hands everything under that folder back to the invoking user (sudo supplies SUDO_UID):
 /// on entry (the log exists by then, and a killed child may have left residue), on disposal, and
 /// when SIGTERM or SIGHUP end the child without unwinding the watch. SIGKILL cannot be caught; the
 /// next elevated start repairs what it leaves. One seam covers every write site, so no
@@ -14,7 +14,7 @@ namespace GitWizard.CLI;
 /// </summary>
 internal sealed class ElevatedDataFolderOwnership : IDisposable
 {
-    internal const string InvokingUserVariable = "PKEXEC_UID";
+    internal const string InvokingUserVariable = "SUDO_UID";
 
     readonly string _dataFolder;
     readonly uint _invokingUserId;
@@ -31,7 +31,7 @@ internal sealed class ElevatedDataFolderOwnership : IDisposable
     }
 
     /// <summary>
-    /// Begins ownership repair for a pkexec child. Returns null when there is no invoking user to
+    /// Begins ownership repair for a sudo child. Returns null when there is no invoking user to
     /// give files back to: the variable is absent or not a number, or names root itself.
     /// <paramref name="reassign"/> hands the folder's contents to the user id and returns the number
     /// of entries it could not reassign. <paramref name="registerTermination"/> runs the given

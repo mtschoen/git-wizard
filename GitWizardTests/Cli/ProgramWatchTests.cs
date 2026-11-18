@@ -8,33 +8,27 @@ namespace GitWizardTests.Watch;
 public class ProgramWatchTests
 {
     [Test]
-    public async Task RunElevatedWatchViaPkexecAsync_LaunchesPkexecWithProcessPathAndArguments()
+    public async Task RunElevatedWatchViaSudoAsync_LaunchesSudoWithProcessPathAndArguments()
     {
         ProcessStartInfo? capturedStartInfo = null;
 
-        var exitCode = await Program.RunElevatedWatchViaPkexecAsync(
+        var exitCode = await Program.RunElevatedWatchViaSudoAsync(
             "/custom/bin/git-wizard",
             "/custom/home/.GitWizard",
             ["--watch", "--config-path", "test.json"],
-            startInfo =>
+            (startInfo, _) =>
             {
                 capturedStartInfo = startInfo;
-                // Return a completed process (e.g. echo)
-                return Process.Start(new ProcessStartInfo
-                {
-                    FileName = OperatingSystem.IsWindows() ? "cmd.exe" : "true",
-                    Arguments = OperatingSystem.IsWindows() ? "/c exit 0" : "",
-                    UseShellExecute = false
-                });
+                return Task.FromResult<int?>(37);
             },
             _ => { },
             CancellationToken.None);
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(exitCode, Is.Zero);
+            Assert.That(exitCode, Is.EqualTo(37));
             Assert.That(capturedStartInfo, Is.Not.Null);
-            Assert.That(capturedStartInfo!.FileName, Is.EqualTo("pkexec"));
+            Assert.That(capturedStartInfo!.FileName, Is.EqualTo("sudo"));
             Assert.That(capturedStartInfo.UseShellExecute, Is.False);
             Assert.That(capturedStartInfo.ArgumentList, Is.EqualTo([
                 "env",
@@ -48,15 +42,15 @@ public class ProgramWatchTests
     }
 
     [Test]
-    public async Task RunElevatedWatchViaPkexecAsync_MissingProcessPath_LogsErrorAndReturnsOne()
+    public async Task RunElevatedWatchViaSudoAsync_MissingProcessPath_LogsErrorAndReturnsOne()
     {
         var loggedErrors = new List<string>();
 
-        var exitCode = await Program.RunElevatedWatchViaPkexecAsync(
+        var exitCode = await Program.RunElevatedWatchViaSudoAsync(
             null,
             "/home/.GitWizard",
             ["--watch"],
-            _ => throw new AssertionException("A missing process path must not start a process."),
+            (_, _) => throw new AssertionException("A missing process path must not start a process."),
             loggedErrors.Add,
             CancellationToken.None);
 
@@ -69,15 +63,15 @@ public class ProgramWatchTests
     }
 
     [Test]
-    public async Task RunElevatedWatchViaPkexecAsync_ProcessStartReturnsNull_LogsErrorAndReturnsOne()
+    public async Task RunElevatedWatchViaSudoAsync_ProcessStartReturnsNull_LogsErrorAndReturnsOne()
     {
         var loggedErrors = new List<string>();
 
-        var exitCode = await Program.RunElevatedWatchViaPkexecAsync(
+        var exitCode = await Program.RunElevatedWatchViaSudoAsync(
             "/usr/bin/git-wizard",
             "/home/.GitWizard",
             ["--watch"],
-            _ => null,
+            (_, _) => Task.FromResult<int?>(null),
             loggedErrors.Add,
             CancellationToken.None);
 
@@ -85,20 +79,20 @@ public class ProgramWatchTests
         {
             Assert.That(exitCode, Is.EqualTo(1));
             Assert.That(loggedErrors, Has.Count.EqualTo(1));
-            Assert.That(loggedErrors[0], Does.Contain("Failed to start pkexec process"));
+            Assert.That(loggedErrors[0], Does.Contain("Failed to start sudo process"));
         }
     }
 
     [Test]
-    public async Task RunElevatedWatchViaPkexecAsync_ProcessThrows_LogsErrorAndReturnsOne()
+    public async Task RunElevatedWatchViaSudoAsync_ProcessThrows_LogsErrorAndReturnsOne()
     {
         var loggedErrors = new List<string>();
 
-        var exitCode = await Program.RunElevatedWatchViaPkexecAsync(
+        var exitCode = await Program.RunElevatedWatchViaSudoAsync(
             "/usr/bin/git-wizard",
             "/home/.GitWizard",
             ["--watch"],
-            _ => throw new InvalidOperationException("pkexec failed to launch"),
+            (_, _) => throw new InvalidOperationException("sudo failed to launch"),
             loggedErrors.Add,
             CancellationToken.None);
 
@@ -106,7 +100,7 @@ public class ProgramWatchTests
         {
             Assert.That(exitCode, Is.EqualTo(1));
             Assert.That(loggedErrors, Has.Count.EqualTo(1));
-            Assert.That(loggedErrors[0], Does.Contain("Could not start pkexec: pkexec failed to launch"));
+            Assert.That(loggedErrors[0], Does.Contain("Could not start sudo: sudo failed to launch"));
         }
     }
 }

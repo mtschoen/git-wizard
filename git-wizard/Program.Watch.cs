@@ -19,7 +19,7 @@ public static partial class Program
 
     /// <summary>
     /// --watch: auto-detect changes in tracked repositories via platform volume change detection
-    /// (Windows USN journal broker with single UAC prompt, or Linux fanotify with single pkexec prompt),
+    /// (Windows USN journal broker with single UAC prompt, or Linux fanotify with a single sudo prompt),
     /// driven through <see cref="RepositoryWatchService"/>.
     /// Prints one line per repository event as it arrives and runs until Ctrl-C or the broker dies.
     /// </summary>
@@ -42,11 +42,11 @@ public static partial class Program
 
         if (OperatingSystem.IsLinux() && !VolumeChangeSourceFactory.IsElevated())
         {
-            return await RunElevatedWatchViaPkexecAsync(
+            return await RunElevatedWatchViaSudoAsync(
                 Environment.ProcessPath,
                 GitWizardApi.GetLocalFilesPath(),
                 Environment.GetCommandLineArgs().Skip(1),
-                Process.Start,
+                StartAndWaitForExitAsync,
                 message => GitWizardLog.Log(message, GitWizardLog.LogType.Error),
                 cancellationToken).ConfigureAwait(false);
         }
@@ -114,23 +114,35 @@ public static partial class Program
                 ElevatedDataFolderOwnership.RegisterTerminationSignals)
             : null;
 
-    internal static async Task<int> RunElevatedWatchViaPkexecAsync(
+    static async Task<int?> StartAndWaitForExitAsync(ProcessStartInfo startInfo, CancellationToken cancellationToken)
+    {
+        using var process = Process.Start(startInfo);
+        if (process == null)
+        {
+            return null;
+        }
+
+        await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+        return process.ExitCode;
+    }
+
+    internal static async Task<int> RunElevatedWatchViaSudoAsync(
         string? processPath,
         string localFilesPath,
         IEnumerable<string> arguments,
-        Func<ProcessStartInfo, Process?> startProcess,
+        Func<ProcessStartInfo, CancellationToken, Task<int?>> runProcess,
         Action<string> logError,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(processPath))
         {
-            logError("Cannot determine the current executable path to launch pkexec.");
+            logError("Cannot determine the current executable path to launch sudo.");
             return 1;
         }
 
         var startInfo = new ProcessStartInfo
         {
-            FileName = "pkexec",
+            FileName = "sudo",
             UseShellExecute = false
         };
 
@@ -144,19 +156,17 @@ public static partial class Program
 
         try
         {
-            using var process = startProcess(startInfo);
-            if (process == null)
+            if (await runProcess(startInfo, cancellationToken).ConfigureAwait(false) is { } exitCode)
             {
-                logError("Failed to start pkexec process.");
-                return 1;
+                return exitCode;
             }
 
-            await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
-            return process.ExitCode;
+            logError("Failed to start sudo process. Run git-wizard --watch as root instead; the elevation step is skipped when already root.");
+            return 1;
         }
         catch (Exception exception)
         {
-            logError($"Could not start pkexec: {exception.Message}");
+            logError($"Could not start sudo: {exception.Message}. Install sudo, or run git-wizard --watch as root instead; the elevation step is skipped when already root.");
             return 1;
         }
     }

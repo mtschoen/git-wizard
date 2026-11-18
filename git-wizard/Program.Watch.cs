@@ -51,6 +51,9 @@ public static partial class Program
                 cancellationToken).ConfigureAwait(false);
         }
 
+        // Files the elevated child creates in the invoking user's data folder go back to that user.
+        using var dataFolderOwnership = BeginDataFolderOwnership();
+
         coordinator ??= new RepositoryDiscoveryCoordinator();
 
         // Retained exact roots keep cached repositories outside the configured search roots in
@@ -100,6 +103,16 @@ public static partial class Program
 
         return stopped ? 1 : 0;
     }
+
+    static ElevatedDataFolderOwnership? BeginDataFolderOwnership() =>
+        OperatingSystem.IsLinux()
+            ? ElevatedDataFolderOwnership.Begin(
+                GitWizardApi.GetLocalFilesPath(),
+                Environment.GetEnvironmentVariable(ElevatedDataFolderOwnership.InvokingUserVariable),
+                LinuxOwnershipRepair.Reassign,
+                message => GitWizardLog.Log(message, GitWizardLog.LogType.Error),
+                ElevatedDataFolderOwnership.RegisterTerminationSignals)
+            : null;
 
     internal static async Task<int> RunElevatedWatchViaPkexecAsync(
         string? processPath,

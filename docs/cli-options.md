@@ -54,4 +54,4 @@ no-mft, verbose, silent and help from the table above. Those root options mean t
 | `--base` | prune | Base branch to compare against (default: origin's default branch, then local main/master/develop). |
 
 Implementation: `git-wizard/CliParser.cs`, `CliParser.Subcommands.cs` and
-`RunConfiguration.cs`. Elevated child dispatch is internal and is not a user option.
+`RunConfiguration.cs`. Elevated child dispatch is internal and is not a user option. On Linux the pkexec-elevated `--watch` child returns every file it creates under the data folder to the invoking user (`PKEXEC_UID`), so later unelevated runs can write there.

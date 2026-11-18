@@ -6,6 +6,8 @@
     <RootNamespace>GitWizard.CLI</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- LibraryImport (LinuxOwnershipRepair) generates unsafe code. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

@@ -98,7 +98,7 @@ public sealed partial class IndexVolumeChangeSource
             RefreshJournalWarning(letter, drive.Watch, configuration);
             return;
         }
-        if (BuildJournalWarning(drive, configuration) is not { } warning)
+        if (BuildJournalWarning(drive, owner, configuration) is not { } warning)
         {
             return;
         }
@@ -121,6 +121,8 @@ public sealed partial class IndexVolumeChangeSource
     // never keeps describing a recovery that has since finished or stopped. The loss instance is
     // the episode: a state change carrying another loss is a new episode for the fault path, an
     // episode the user dismissed stays dismissed, and a stale version never overwrites a newer one.
+    // An opening loss the session retained past its clearing rescan is not refreshed: the library
+    // no longer reports it, and its hint makes no claim about recovery state.
     internal void RefreshJournalWarning(char letter, RootWatchStatus watch, GitWizardConfiguration configuration)
     {
         lock (_publishedWarningsLock)
@@ -166,7 +168,7 @@ public sealed partial class IndexVolumeChangeSource
                     continue;
                 }
 
-                if (BuildJournalWarning(drive, configuration) is not { } warning)
+                if (BuildJournalWarning(drive, owner, configuration) is not { } warning)
                 {
                     continue;
                 }
@@ -195,16 +197,16 @@ public sealed partial class IndexVolumeChangeSource
     static void AddJournalWarning(RootStatus drive, MftIndexSession owner,
         GitWizardConfiguration configuration, List<JournalWarning> warnings)
     {
-        if (BuildJournalWarning(drive, configuration) is { } warning)
+        if (BuildJournalWarning(drive, owner, configuration) is { } warning)
         {
             owner.ObserveVolume(drive.Root, warning.Loss.Volume);
             warnings.Add(warning);
         }
     }
 
-    static JournalWarning? BuildJournalWarning(RootStatus drive, GitWizardConfiguration configuration)
+    static JournalWarning? BuildJournalWarning(RootStatus drive, MftIndexSession owner, GitWizardConfiguration configuration)
     {
-        if (drive.Watch.CheckpointLoss is not { } loss)
+        if (owner.CheckpointLossFor(drive) is not { } loss)
         {
             return null;
         }

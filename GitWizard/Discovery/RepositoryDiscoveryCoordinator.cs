@@ -210,9 +210,13 @@ public partial class RepositoryDiscoveryCoordinator
         }
 
         var rootsNeedingScan = RootKeyProjection.ParseRootKeys(drivesNeedingScan).ToHashSet();
-        var results = await Task.WhenAll(session.Indices
-            .Where(index => rootsNeedingScan.Contains(index.Status.Root))
-            .Select(index => index.RescanAsync(cancellationToken))).ConfigureAwait(false);
+        var rescanning = session.Indices.Where(index => rootsNeedingScan.Contains(index.Status.Root)).ToArray();
+        foreach (var index in rescanning)
+        {
+            session.RetainOpeningLossBeforeRescan(index.Status);
+        }
+
+        var results = await Task.WhenAll(rescanning.Select(index => index.RescanAsync(cancellationToken))).ConfigureAwait(false);
         foreach (var result in results)
         {
             var drive = result.Root.ToString();
@@ -310,6 +314,7 @@ public partial class RepositoryDiscoveryCoordinator
     // CheckpointLoss is a standing report. An ordinary open that met an unresumable block already
     // cold-scanned it and keeps the RootOpening report as the explanation; only a cache-only open
     // adopts the unresumable block itself (WarmStartedFromCache), which a watch must replace first.
+    // That replacing rescan clears the library's report, so the session retains it beforehand.
     static bool IsResolvedByOpeningScan(JournalCheckpointLoss loss, RootStatus status) =>
         loss.DetectedDuring == JournalCheckpointLossDetection.RootOpening &&
         status.Block?.Origin == BlockOrigin.ProducedByScan;

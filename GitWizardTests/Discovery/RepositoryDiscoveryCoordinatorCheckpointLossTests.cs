@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using GitWizard;
+using GitWizard.Watch;
 using GitWizardTests.TestSupport;
 using MFTLib.Index;
 using MFTLibTestExtensions;
@@ -107,6 +108,38 @@ new Dictionary<string, string>());
             Assert.That(_productions - productionsBeforeWatch, Is.EqualTo(expectedAdditionalProductions));
             Assert.That(source.Starts, Has.Count.EqualTo(1));
             Assert.That(startup.WatchVolumes, Is.EquivalentTo(["X"]));
+        }
+    }
+
+    // The watch replaces a cache-only adoption with a rescan, and the library's manual rescan
+    // clears the opening report; the journal warning must still explain why the drive rescanned.
+    [Test]
+    public async Task CacheOnlyUnresumableDrive_KeepsItsOpeningLossAsTheArmedJournalWarning()
+    {
+        var source = new ScriptedWatchSource { CatchUpOnStart = true };
+        await SeedCacheAsync();
+        _windows['X'] = Lost;
+        var session = await OpenSessionAsync(cacheOnly: true, source);
+        var index = session.Indices.Single();
+        var openingLoss = index.Status.Watch.CheckpointLoss;
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(openingLoss?.DetectedDuring, Is.EqualTo(JournalCheckpointLossDetection.RootOpening));
+            Assert.That(openingLoss?.SizeThatWouldHaveRetained, Is.Not.Null);
+        }
+        using var cancellation = new CancellationTokenSource(TestTimeouts.HangGuard);
+
+        await using var startup = await CreateCoordinator()
+            .PrepareWatchAsync(CreateWatchRequest(), session, cancellation.Token);
+
+        var warning = startup.ArmResult.JournalWarnings.SingleOrDefault();
+        var current = ((IndexVolumeChangeSource)startup.Source!).CurrentJournalWarnings;
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(index.Status.Watch.CheckpointLoss, Is.Null, "The watch rescan clears the library's report.");
+            Assert.That(warning?.Loss, Is.SameAs(openingLoss));
+            Assert.That(warning?.Loss.SizeThatWouldHaveRetained, Is.EqualTo(openingLoss!.SizeThatWouldHaveRetained));
+            Assert.That(current.Select(published => published.Loss), Is.EqualTo([openingLoss]));
         }
     }
 }

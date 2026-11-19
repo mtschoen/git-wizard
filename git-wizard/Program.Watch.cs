@@ -42,12 +42,11 @@ public static partial class Program
 
         if (OperatingSystem.IsLinux() && !VolumeChangeSourceFactory.IsElevated())
         {
-            return await RunElevatedWatchViaSudoAsync(
-                Environment.ProcessPath,
-                GitWizardApi.GetLocalFilesPath(),
-                Environment.GetCommandLineArgs().Skip(1),
+            return await RunUnelevatedWatchAsync(
+                new DiscoveryRequest(configuration, DiscoveryPurpose.Watch, false, runConfiguration.NoMft,
+                    await ReadRetainedRootsAsync(cancellationToken).ConfigureAwait(false)),
+                stderr,
                 StartAndWaitForExitAsync,
-                message => GitWizardLog.Log(message, GitWizardLog.LogType.Error),
                 cancellationToken).ConfigureAwait(false);
         }
 
@@ -124,6 +123,84 @@ public static partial class Program
 
         await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
         return process.ExitCode;
+    }
+
+    // An unelevated existence failure is not proof of absence: root may traverse directories
+    // this caller cannot. Only conclusive failures can rule out the elevated scope.
+    internal static async Task<int> RunUnelevatedWatchAsync(
+        DiscoveryRequest request,
+        TextWriter stderr,
+        Func<ProcessStartInfo, CancellationToken, Task<int?>> runProcess,
+        CancellationToken cancellationToken,
+        Func<string, FileAttributes>? getAttributes = null,
+        Func<string, IEnumerable<string>>? enumerateEntries = null)
+    {
+        var scope = DiscoveryScope.Create(request);
+        if (scope.HasNoRoots && request.Configuration.SearchPaths.All(path => IsSearchPathConclusivelyInvalid(
+                path, getAttributes ?? File.GetAttributes, enumerateEntries ?? Directory.EnumerateFileSystemEntries)))
+        {
+            WriteDiscoveryErrors(scope.GetNoRootsErrors(), stderr);
+            return 1;
+        }
+
+        return await RunElevatedWatchViaSudoAsync(
+            Environment.ProcessPath,
+            GitWizardApi.GetLocalFilesPath(),
+            Environment.GetCommandLineArgs().Skip(1),
+            runProcess,
+            message => GitWizardLog.Log(message, GitWizardLog.LogType.Error),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    static bool IsSearchPathConclusivelyInvalid(string rawPath,
+        Func<string, FileAttributes> getAttributes, Func<string, IEnumerable<string>> enumerateEntries)
+    {
+        try
+        {
+            var currentPath = GitWizardApi.ExpandIgnoredPath(rawPath);
+            if (currentPath == null)
+            {
+                return true;
+            }
+            string? missingChild = null;
+            while (true)
+            {
+                try
+                {
+                    var attributes = getAttributes(currentPath);
+                    if ((attributes & FileAttributes.ReparsePoint) != 0)
+                    {
+                        return false;
+                    }
+                    if ((attributes & FileAttributes.Directory) == 0)
+                    {
+                        return true;
+                    }
+
+                    // Stat on an ancestor need not imply permission to traverse it. Enumeration
+                    // must complete and omit the next component before absence is established.
+                    return missingChild != null && !enumerateEntries(currentPath).Contains(missingChild,
+                        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+                }
+                catch (IOException exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
+                {
+                    missingChild = currentPath;
+                    currentPath = Path.GetDirectoryName(currentPath);
+                    if (currentPath == null)
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return true;
+        }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or IOException or System.Security.SecurityException)
+        {
+            return false;
+        }
     }
 
     internal static async Task<int> RunElevatedWatchViaSudoAsync(

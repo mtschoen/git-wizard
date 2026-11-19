@@ -70,12 +70,17 @@ public static partial class Program
         WatchExcludedRoots = []
     };
 
-    static void WriteDiscoveryDiagnostics(DiscoveryInventory inventory, TextWriter writer)
+    static void WriteDiscoveryErrors(IReadOnlyDictionary<string, string> errors, TextWriter writer)
     {
-        foreach (var (key, error) in inventory.Errors)
+        foreach (var (key, error) in errors)
         {
             writer.WriteLine($"Discovery error ({key}): {error}");
         }
+    }
+
+    static void WriteDiscoveryDiagnostics(DiscoveryInventory inventory, TextWriter writer)
+    {
+        WriteDiscoveryErrors(inventory.Errors, writer);
         foreach (var root in inventory.WatchExcludedRoots)
         {
             writer.WriteLine($"Watch excluded root: {root}");

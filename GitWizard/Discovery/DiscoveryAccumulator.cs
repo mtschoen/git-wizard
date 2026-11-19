@@ -160,9 +160,9 @@ sealed class DiscoveryAccumulator
 
     DiscoveryOutcome DetermineOutcome(int pathCount)
     {
-        if (Scope.SearchRoots.Count == 0 && Scope.RetainedRoots.Count == 0)
+        if (Scope.HasNoRoots)
         {
-            Errors["*"] = "No search roots configured.";
+            Errors[DiscoveryScope.NoRootsErrorKey] = DiscoveryScope.NoRootsErrorMessage;
             return DiscoveryOutcome.Unusable;
         }
 

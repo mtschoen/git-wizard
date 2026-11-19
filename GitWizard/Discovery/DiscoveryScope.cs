@@ -27,6 +27,33 @@ public sealed class DiscoveryScope
             new Dictionary<string, string>(errors, WatchPath.StringComparer));
     }
 
+    // Inventory error key and text for a scope that names no root at all (see HasNoRoots).
+    public const string NoRootsErrorKey = "*";
+    public const string NoRootsErrorMessage = "No search roots configured.";
+
+    /// <summary>
+    /// True when neither a usable search root nor a retained root remains, so discovery is
+    /// <see cref="DiscoveryOutcome.Unusable"/> without scanning anything.
+    /// </summary>
+    public bool HasNoRoots => SearchRoots.Count == 0 && RetainedRoots.Count == 0;
+
+    /// <summary>
+    /// The errors discovery reports for a scope with <see cref="HasNoRoots"/>: every search path that
+    /// could not be expanded, then <see cref="NoRootsErrorMessage"/>. Empty when any root remains.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> GetNoRootsErrors()
+    {
+        if (!HasNoRoots)
+        {
+            return new Dictionary<string, string>();
+        }
+
+        return new Dictionary<string, string>(ExpansionErrors, StringComparer.OrdinalIgnoreCase)
+        {
+            [NoRootsErrorKey] = NoRootsErrorMessage
+        };
+    }
+
     public static DiscoveryScope Create(DiscoveryRequest request)
     {
         var searchRoots = new List<string>();

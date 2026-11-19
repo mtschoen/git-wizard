@@ -20,6 +20,12 @@ public partial class SettingsWindow : Window
         DataContext = _viewModel;
     }
 
+    protected override void OnClosed(EventArgs e)
+    {
+        _viewModel.CloseJournalWarnings();
+        base.OnClosed(e);
+    }
+
     void EnlargeJournal_Click(object? sender, RoutedEventArgs eventArguments)
     {
         if (sender is Button { DataContext: JournalWarningViewModel warning })

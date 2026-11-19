@@ -84,7 +84,8 @@ public class JournalSettingsIntegrationTests
                 $"Needed: {neededSize:N0} bytes (130 MB). " +
                 $"Recommended maximum: {FakeJournalSettingsSource.DefaultMaximumRecommendedSize:N0} bytes (8 GB). " +
                 "Enlarged to the needed size."));
-            Assert.That(HintText, Does.Not.Contain("Hint on C:").And.Contain("Hint on D:"));
+            Assert.That(HintText, Does.Contain("Hint on D:"));
+            Assert.That(warning.IsResolved, Is.True);
         }
     }
 
@@ -511,7 +512,8 @@ public class JournalSettingsIntegrationTests
                 .And.Contain($"Needed: {tenGigabytes:N0} bytes (10 GB)")
                 .And.Contain($"Recommended maximum: {eightGigabytes:N0} bytes (8 GB)")
                 .And.Contain("Enlarged above the recommended maximum by override."));
-            Assert.That(_settings.JournalWarnings, Is.Empty);
+            Assert.That(_settings.JournalWarnings, Is.EqualTo([warning]));
+            Assert.That(warning.IsResolved, Is.True);
         }
     }
 
@@ -654,7 +656,7 @@ public class JournalSettingsIntegrationTests
                 .And.Contain($"applied {ByteSizeFormatter.Format(eightGigabytes)}"));
             Assert.That(rebuiltD.HasGrowAction, Is.False);
             Assert.That(rebuiltD.CanGrowAboveMaximumRecommended, Is.False);
-            Assert.That(rebuiltD.GrowUnavailableReason, Does.Contain("already at least as large"));
+            Assert.That(rebuiltD.IsResolved, Is.True);
         }
     }
 
@@ -802,7 +804,174 @@ public class JournalSettingsIntegrationTests
                 $"Needed: {requestedBytes:N0} bytes ({ByteSizeFormatter.Format(requestedBytes)}). " +
                 $"Recommended maximum: {FakeJournalSettingsSource.DefaultMaximumRecommendedSize:N0} bytes (8 GB). " +
                 "Enlarged to the needed size."));
-            Assert.That(_settings.JournalWarnings, Is.Empty);
+            Assert.That(_settings.JournalWarnings, Is.EqualTo([warning]));
+        }
+    }
+
+    [Test]
+    public async Task ResolvingEnlargeKeepsRowWithFinalStatusAndDisabledGrowActions()
+    {
+        var warning = _settings.JournalWarnings[0];
+        await _settings.EnlargeJournalAsync(warning);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_settings.JournalWarnings, Does.Contain(warning));
+            Assert.That(warning.IsResolved, Is.True);
+            Assert.That(warning.StatusMessage, Does.StartWith("Before: ").And.EndWith("Enlarged to the needed size."));
+            Assert.That(warning.HasGrowAction, Is.False);
+            Assert.That(warning.CanGrowAboveMaximumRecommended, Is.False);
+            Assert.That(_main.StatusHeader.HeaderText, Does.Contain("journal hints"));
+        }
+    }
+
+    [Test]
+    public async Task ResolvedRowCannotBeGrownAgainAndKeepsItsStatus()
+    {
+        var warning = _settings.JournalWarnings[0];
+        await _settings.EnlargeJournalAsync(warning);
+        var finalStatus = warning.StatusMessage;
+
+        await _settings.EnlargeJournalAsync(warning);
+        await _settings.EnlargeJournalAsync(warning, allowAboveMaximumRecommendedSize: true);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_source.GrowCalls, Is.EqualTo(1));
+            Assert.That(warning.StatusMessage, Is.EqualTo(finalStatus));
+        }
+    }
+
+    [Test]
+    public async Task DoNotWarnAgainDismissesResolvedRow()
+    {
+        var warning = _settings.JournalWarnings[0];
+        await _settings.EnlargeJournalAsync(warning);
+        await _settings.IgnoreJournalWarningAsync(warning);
+
+        Assert.That(_settings.JournalWarnings, Does.Not.Contain(warning));
+    }
+
+    [Test]
+    public async Task ClosingSettingsClearsResolvedRowsOnly()
+    {
+        var resolved = _settings.JournalWarnings[0];
+        var untouched = _settings.JournalWarnings[1];
+        await _settings.EnlargeJournalAsync(resolved);
+
+        _settings.CloseJournalWarnings();
+        var reopened = TestViewModels.CreateSettings(liveWatch: _main.LiveWatch, dispatcher: _dispatcher);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_main.LiveWatch.JournalWarnings, Is.EqualTo([untouched]));
+            Assert.That(reopened.JournalWarnings, Is.EqualTo([untouched]));
+        }
+    }
+
+    [Test]
+    public async Task ClosingSettingsDuringGrowClearsRowWhenResolutionCompletes()
+    {
+        var resolved = _settings.JournalWarnings[0];
+        var untouched = _settings.JournalWarnings[1];
+        _source.GrowRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var growTask = _settings.EnlargeJournalAsync(resolved);
+        await _source.GrowEntered.Task.WaitAsync(TestTimeouts.ShortHangGuard);
+
+        _settings.CloseJournalWarnings();
+        _source.GrowRelease.SetResult();
+        await growTask;
+        var reopened = TestViewModels.CreateSettings(liveWatch: _main.LiveWatch, dispatcher: _dispatcher);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_main.LiveWatch.JournalWarnings, Is.EqualTo([untouched]));
+            Assert.That(reopened.JournalWarnings, Is.EqualTo([untouched]));
+        }
+    }
+
+    [Test]
+    public async Task RebuildingWarningsDuringGrowKeepsVisibleFinalStatus()
+    {
+        var warning = _settings.JournalWarnings[0];
+        _source.GrowRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var growTask = _settings.EnlargeJournalAsync(warning);
+        await _source.GrowEntered.Task.WaitAsync(TestTimeouts.ShortHangGuard);
+
+        var otherDrive = _settings.JournalWarnings[1];
+        _source.RaiseJournalWarning(otherDrive.Warning with
+        {
+            Loss = otherDrive.Warning.Loss with { SizeThatWouldHaveRetained = 160L * 1024 * 1024 }
+        });
+        _dispatcher.Drain();
+        _source.GrowRelease.SetResult();
+        await growTask;
+
+        var visible = _settings.JournalWarnings.Single(row => row.DriveLetter == "C");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(visible, Is.SameAs(warning));
+            Assert.That(visible.IsResolved, Is.True);
+            Assert.That(visible.StatusMessage, Is.EqualTo(
+                $"Before: {32L * 1024 * 1024:N0} bytes (32 MB). " +
+                $"After: {138L * 1024 * 1024:N0} bytes (138 MB). " +
+                $"Needed: {130L * 1024 * 1024:N0} bytes (130 MB). " +
+                $"Recommended maximum: {FakeJournalSettingsSource.DefaultMaximumRecommendedSize:N0} bytes (8 GB). " +
+                "Enlarged to the needed size."));
+            Assert.That(visible.HasGrowAction, Is.False);
+            Assert.That(visible.CanGrowAboveMaximumRecommended, Is.False);
+        }
+    }
+
+    [Test]
+    public async Task ClosingSettingsAfterRebuildDuringGrowClearsResolvedRow()
+    {
+        var warning = _settings.JournalWarnings[0];
+        _source.GrowRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var growTask = _settings.EnlargeJournalAsync(warning);
+        await _source.GrowEntered.Task.WaitAsync(TestTimeouts.ShortHangGuard);
+
+        var otherDrive = _settings.JournalWarnings[1];
+        _source.RaiseJournalWarning(otherDrive.Warning with
+        {
+            Loss = otherDrive.Warning.Loss with { SizeThatWouldHaveRetained = 160L * 1024 * 1024 }
+        });
+        _dispatcher.Drain();
+        var unresolved = _settings.JournalWarnings.Single(row => row.DriveLetter == "D");
+        _settings.CloseJournalWarnings();
+        _source.GrowRelease.SetResult();
+        await growTask;
+        var reopened = TestViewModels.CreateSettings(liveWatch: _main.LiveWatch, dispatcher: _dispatcher);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_main.LiveWatch.JournalWarnings, Is.EqualTo([unresolved]));
+            Assert.That(reopened.JournalWarnings, Is.EqualTo([unresolved]));
+            Assert.That(unresolved.IsResolved, Is.False);
+        }
+    }
+
+    [Test]
+    public async Task RebuildingWarningsWhileSettingsStaysOpenKeepsResolvedRow()
+    {
+        var resolved = _settings.JournalWarnings[0];
+        await _settings.EnlargeJournalAsync(resolved);
+        var finalStatus = resolved.StatusMessage;
+
+        var otherDrive = _settings.JournalWarnings[1];
+        _source.RaiseJournalWarning(otherDrive.Warning with
+        {
+            Loss = otherDrive.Warning.Loss with { SizeThatWouldHaveRetained = 160L * 1024 * 1024 }
+        });
+        _dispatcher.Drain();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_settings.JournalWarnings.Select(row => row.DriveLetter).ToArray(), Is.EqualTo(["C", "D"]));
+            Assert.That(_settings.JournalWarnings[0], Is.SameAs(resolved));
+            Assert.That(_settings.JournalWarnings[1], Is.Not.SameAs(otherDrive));
+            Assert.That(resolved.StatusMessage, Is.EqualTo(finalStatus));
+            Assert.That(resolved.HasGrowAction, Is.False);
         }
     }
 }

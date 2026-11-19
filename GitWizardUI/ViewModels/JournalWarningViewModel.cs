@@ -7,9 +7,16 @@ namespace GitWizardUI.ViewModels;
 public sealed class JournalWarningViewModel(JournalWarning warning) : INotifyPropertyChanged
 {
     public JournalWarning Warning { get; private set; } = warning;
-    public bool HasGrowAction => Warning.HasGrowAction;
-    public bool CanGrowAboveMaximumRecommended => Warning.CanGrowAboveMaximumRecommended;
-    public string? GrowUnavailableReason => Warning.GrowUnavailableReason;
+    public bool IsResolved { get; private set; }
+    public bool HasGrowAction => !IsResolved && Warning.HasGrowAction;
+    public bool CanGrowAboveMaximumRecommended => !IsResolved && Warning.CanGrowAboveMaximumRecommended;
+    public string? GrowUnavailableReason => IsResolved ? null : Warning.GrowUnavailableReason;
+
+    public void MarkResolved(JournalWarning warning)
+    {
+        IsResolved = true;
+        ApplyLoss(warning);
+    }
 
     public void ApplyLoss(JournalWarning warning)
     {

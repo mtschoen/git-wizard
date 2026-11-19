@@ -116,8 +116,7 @@ public sealed partial class LiveWatchViewModel
                 return;
             }
 
-            var resolved = new List<JournalWarningViewModel>();
-            foreach (var row in JournalWarnings.Where(row => HasSameLossIdentity(row.Warning, warning)))
+            foreach (var row in JournalWarnings.Where(row => !row.IsResolved && HasSameLossIdentity(row.Warning, warning)).ToArray())
             {
                 var updatedWarning = row.Warning with
                 {
@@ -127,18 +126,13 @@ public sealed partial class LiveWatchViewModel
                 };
                 if (IsWarningResolved(growth.Outcome, updatedWarning))
                 {
-                    resolved.Add(row);
+                    row.MarkResolved(updatedWarning);
                 }
                 else
                 {
                     row.ApplyLoss(updatedWarning);
                 }
             }
-            foreach (var row in resolved)
-            {
-                JournalWarnings.Remove(row);
-            }
-
             UpdateJournalWarningHeader();
         }).ConfigureAwait(false);
         return new JournalResizeResult(
@@ -173,7 +167,8 @@ public sealed partial class LiveWatchViewModel
 
     void SurfaceNewLiveScanWarnings(LiveWatchController controller)
     {
-        var previousWarnings = JournalWarnings.Select(row => row.Warning).ToArray();
+        var previousRows = JournalWarnings.ToArray();
+        var resolvedRows = previousRows.Where(row => row.IsResolved).ToList();
         JournalWarnings.Clear();
         var ignoredSerials = GitWizardConfiguration.GetGlobalConfiguration().IgnoredJournalWarnings;
         var grower = controller.Source as IUsnJournalGrower;
@@ -184,9 +179,26 @@ public sealed partial class LiveWatchViewModel
                 continue;
             }
 
-            var previous = previousWarnings.FirstOrDefault(candidate => HasSameLossIdentity(candidate, warning));
-            JournalWarnings.Add(new JournalWarningViewModel(EnrichWarning(warning, grower, previous)));
+            var keptRow = previousRows.FirstOrDefault(row => HasSameLossIdentity(row.Warning, warning));
+            if (keptRow is not null)
+            {
+                if (!keptRow.IsResolved)
+                {
+                    keptRow.ApplyLoss(EnrichWarning(warning, grower, keptRow.Warning));
+                }
+
+                resolvedRows.Remove(keptRow);
+                JournalWarnings.Add(keptRow);
+                continue;
+            }
+
+            JournalWarnings.Add(new JournalWarningViewModel(EnrichWarning(warning, grower)));
         }
+        foreach (var keptRow in resolvedRows)
+        {
+            JournalWarnings.Add(keptRow);
+        }
+
         SurfaceCapacityWarnings(controller);
         UpdateJournalWarningHeader();
     }
@@ -234,6 +246,16 @@ public sealed partial class LiveWatchViewModel
         UpdateJournalWarningHeader();
     }
 
+    internal void ClearResolvedJournalWarnings()
+    {
+        foreach (var row in JournalWarnings.Where(row => row.IsResolved).ToArray())
+        {
+            JournalWarnings.Remove(row);
+        }
+
+        UpdateJournalWarningHeader();
+    }
+
     void UpdateJournalWarningHeader()
     {
         if (!IsLive)
@@ -243,7 +265,7 @@ public sealed partial class LiveWatchViewModel
 
         var messages = new List<string>();
         var notes = new List<string>();
-        if (JournalWarnings.Count > 0)
+        if (JournalWarnings.Any(row => !row.IsResolved))
         {
             notes.Add("journal hints");
         }

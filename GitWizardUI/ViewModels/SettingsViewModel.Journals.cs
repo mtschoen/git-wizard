@@ -10,6 +10,7 @@ public partial class SettingsViewModel
     readonly LiveWatchViewModel? _liveWatch;
     readonly IUiDispatcher _journalDispatcher;
     int _journalOperationInProgress;
+    bool _journalWarningsClosed;
 
     public ObservableCollection<JournalWarningViewModel> JournalWarnings { get; }
 
@@ -17,6 +18,11 @@ public partial class SettingsViewModel
         JournalWarningViewModel warning,
         bool allowAboveMaximumRecommendedSize = false)
     {
+        if (warning.IsResolved)
+        {
+            return;
+        }
+
         if (Interlocked.CompareExchange(ref _journalOperationInProgress, 1, 0) != 0)
         {
             return;
@@ -56,7 +62,23 @@ public partial class SettingsViewModel
             Volatile.Write(ref _journalOperationInProgress, 0);
         }
 
-        await _journalDispatcher.InvokeAsync(() => warning.StatusMessage = finalStatus).ConfigureAwait(false);
+        await _journalDispatcher.InvokeAsync(() =>
+        {
+            warning.StatusMessage = finalStatus;
+            if (!_journalWarningsClosed || !warning.IsResolved)
+            {
+                return;
+            }
+
+            if (_liveWatch is null)
+            {
+                JournalWarnings.Remove(warning);
+            }
+            else
+            {
+                _liveWatch.RemoveJournalWarning(warning);
+            }
+        }).ConfigureAwait(false);
     }
 
     static string FormatResizeStatus(JournalResizeResult result)
@@ -86,6 +108,12 @@ public partial class SettingsViewModel
 
     static string FormatBytes(long bytes) =>
         $"{bytes:N0} bytes ({ByteSizeFormatter.Format(bytes)})";
+
+    public void CloseJournalWarnings()
+    {
+        _journalWarningsClosed = true;
+        _liveWatch?.ClearResolvedJournalWarnings();
+    }
 
     public async Task IgnoreJournalWarningAsync(JournalWarningViewModel warning)
     {

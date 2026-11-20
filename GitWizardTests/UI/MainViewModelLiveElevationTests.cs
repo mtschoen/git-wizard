@@ -54,6 +54,27 @@ public class MainViewModelLiveElevationTests
         new(new GitWizardConfiguration { SearchPaths = { root } }, DiscoveryPurpose.Watch, false, false, []);
 
     [Test]
+    [Platform("Win,Linux")]
+    public async Task DefaultWatchPreparation_WithAMissingSearchRoot_PreservesCachedMembership()
+    {
+        using var home = new LocalFilesSandbox();
+        var missing = Path.Combine(home.Path, "missing");
+        var cached = Path.Combine(home.Path, "previous-repository");
+        await GitWizardApi.SaveCachedRepositoryPathsAsync([cached]);
+
+        var live = TestViewModels.Create().LiveWatch;
+        await using var startup = await live.PrepareWatchAsync(WatchRequest(missing), null, null, CancellationToken.None);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(startup.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Unusable));
+            Assert.That(startup.Inventory.Errors, Does.ContainKey(missing));
+            Assert.That(startup.Source, Is.Null);
+            Assert.That(await GitWizardApi.GetCachedRepositoryPathsAsync(), Is.EqualTo([cached]));
+        }
+    }
+
+    [Test]
     public async Task DeclinedAuthentication_LeavesLiveOffWithTheWordedMessage_AndPromptsOnce()
     {
         using var root = new TempDirectory("gw-live-elevation-");

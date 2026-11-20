@@ -221,12 +221,14 @@ public class ElevatedHelperVolumeChangeSourceLifetimeTests
         Assert.That(LinuxWatchHelperLaunch.IsDotnetHost(path), Is.EqualTo(expected));
 
     [Test]
-    [Platform("Linux")]
     public async Task AlreadyExitedHelper_PreservesItsPipesAndExitCode()
     {
-        var startInfo = LinuxWatchHelperLaunch.CreateRedirectedStartInfo("/bin/sh");
-        startInfo.ArgumentList.Add("-c");
-        startInfo.ArgumentList.Add("echo output; echo diagnostic >&2; exit 127");
+        var windows = OperatingSystem.IsWindows();
+        var startInfo = LinuxWatchHelperLaunch.CreateRedirectedStartInfo(
+            windows ? Path.Combine(Environment.SystemDirectory, "cmd.exe") : "/bin/sh");
+        startInfo.Arguments = windows
+            ? "/d /c \"(echo output)&(echo diagnostic) 1>&2&exit /b 127\""
+            : "-c \"echo output; echo diagnostic >&2; exit 127\"";
         using var child = Process.Start(startInfo)!;
         await child.WaitForExitAsync().WaitAsync(TestTimeouts.ShortHangGuard);
 

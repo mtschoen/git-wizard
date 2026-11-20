@@ -97,7 +97,7 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
             _readiness = VolumeReadinessSnapshot.Empty;
         }
 
-        var errors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var errors = new Dictionary<string, string>(WatchKeyComparer.Instance);
         if (volumes.Count == 0)
         {
             return new VolumeArmResult(errors, []);

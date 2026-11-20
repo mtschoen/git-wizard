@@ -140,6 +140,72 @@ public class LinuxWatchHelperHostTests
     }
 
     [Test]
+    [Platform("Linux")]
+    [SupportedOSPlatform("linux")]
+    public async Task Arm_WithRootsThatDifferOnlyInCaseAndBothMarksFailing_ReportsEachExactRoot()
+    {
+        using var parent = new TempDirectory("gw-helper-host-case-");
+        var upper = Path.Combine(parent.Path, "Repos");
+        var lower = Path.Combine(parent.Path, "repos");
+        Directory.CreateDirectory(upper);
+        Directory.CreateDirectory(lower);
+        await using var pipes = new HelperPipes();
+        var native = new FakeFanotifyNative(1, new FanotifyNativeCallResult(-1, FanotifyError.NotPermitted),
+            new FanotifyNativeCallResult(-1, FanotifyError.NotPermitted));
+        await using var source = new FanotifyVolumeChangeSource(native);
+        var host = RunHost(pipes, source);
+
+        Assert.That(await pipes.ReadFrameAsync(), Is.EqualTo(new HelloFrame(LinuxWatchHelperProtocol.Version)));
+        await pipes.SendRequestAsync(new ArmRequestFrame([upper, lower]));
+        var (armResult, _) = await pipes.ReadFrameAsync<ArmResultFrame>();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(armResult.Errors.Keys, Is.EquivalentTo([upper, lower]));
+            Assert.That(armResult.Errors[upper], Does.Contain(upper));
+            Assert.That(armResult.Errors[lower], Does.Contain(lower));
+        }
+
+        await pipes.CloseClientInputAsync();
+        await FinishAsync(host);
+    }
+
+    [Test]
+    [Platform("Linux")]
+    [SupportedOSPlatform("linux")]
+    public async Task Arm_WithRootsThatDifferOnlyInCase_KeepsTheHealthyRootsReadinessBesideTheFailedOne()
+    {
+        using var parent = new TempDirectory("gw-helper-host-case-");
+        var upper = Path.Combine(parent.Path, "Repos");
+        var lower = Path.Combine(parent.Path, "repos");
+        Directory.CreateDirectory(upper);
+        Directory.CreateDirectory(lower);
+        await using var pipes = new HelperPipes();
+        var native = new FakeFanotifyNative(1, new FanotifyNativeCallResult(0, 0),
+            new FanotifyNativeCallResult(-1, FanotifyError.NotPermitted));
+        await using var source = new FanotifyVolumeChangeSource(native);
+        var host = RunHost(pipes, source);
+
+        Assert.That(await pipes.ReadFrameAsync(), Is.EqualTo(new HelloFrame(LinuxWatchHelperProtocol.Version)));
+        await pipes.SendRequestAsync(new ArmRequestFrame([upper, lower]));
+        var (armResult, before) = await pipes.ReadFrameAsync<ArmResultFrame>();
+        var finalReadiness = before.OfType<ReadinessFrame>().Last();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(armResult.Errors.Keys, Is.EqualTo([lower]));
+            Assert.That(finalReadiness.Volumes.Select(volume => (volume.Volume, volume.State)), Is.EquivalentTo(
+            [
+                (upper, VolumeWatchState.CaughtUp),
+                (lower, VolumeWatchState.Excluded)
+            ]));
+        }
+
+        await pipes.CloseClientInputAsync();
+        await FinishAsync(host);
+    }
+
+    [Test]
     public async Task Watch_StreamsPumpStartAndBatchesInOrder_ThenDriveFailureAndDeath()
     {
         await using var pipes = new HelperPipes();

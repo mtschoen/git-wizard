@@ -7,7 +7,7 @@ namespace GitWizard.Watch;
 public sealed class ScanErrorChangeFilter
 {
     readonly Lock _gate = new();
-    readonly Dictionary<string, string> _reported = new(ScanErrorKeyComparer.Instance);
+    readonly Dictionary<string, string> _reported = new(WatchKeyComparer.Instance);
 
     /// <summary>True when the error is new or differs from the drive's last reported one.</summary>
     public bool TryReport(string drive, string message)

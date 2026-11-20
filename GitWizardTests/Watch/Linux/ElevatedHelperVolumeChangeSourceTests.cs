@@ -158,6 +158,33 @@ public class ElevatedHelperVolumeChangeSourceTests
         }));
     }
 
+    [Test]
+    [Platform("Linux")]
+    public async Task HelperReadiness_ForRootsThatDifferOnlyInCase_KeepsTheHealthyRootBesideALocalExclusion()
+    {
+        using var parent = new TempDirectory("gw-helper-case-");
+        var upper = Path.Combine(parent.Path, "Repos");
+        var lower = Path.Combine(parent.Path, "repos");
+        Directory.CreateDirectory(upper);
+        Directory.CreateDirectory(lower);
+        await using var pipes = new HelperPipes();
+        await using var source = CreateSource(new RecordingLauncher(pipes).Launch);
+
+        var arm = source.ArmAndCatchUpAsync([upper, lower, "relative/root"], CancellationToken.None);
+        await AnswerArmAsync(pipes, new Dictionary<string, string> { [lower] = "mark failed" },
+            VolumeWatchStatus.CaughtUp(upper, VolumeBlockOrigin.Unknown),
+            VolumeWatchStatus.Excluded(lower, VolumeBlockOrigin.Unknown, "mark failed"));
+        await arm.WaitAsync(TestTimeouts.ShortHangGuard);
+        await AsyncCondition.WaitUntilAsync(() => source.Readiness.Volumes.Count == 3, TestTimeouts.ShortHangGuard);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo([upper]));
+            Assert.That(source.Readiness.ExcludedVolumes.Select(volume => volume.Volume), Is.EquivalentTo([lower, "relative/root"]));
+            Assert.That(source.Readiness.IsSettled, Is.True);
+        }
+    }
+
     [TestCase(2, ElevatedHelperVolumeChangeSource.PkexecMissingMessage)]
     [TestCase(13, ElevatedHelperVolumeChangeSource.LaunchFailedMessage)]
     public async Task PkexecCannotStart_ReportsItInWords(int errorNumber, string expected)

@@ -1,13 +1,13 @@
 namespace GitWizard.Watch;
 
 /// <summary>
-/// Compares the keys of scan-error maps. A key is a Windows drive ("X") or a Linux watch root
+/// Compares the keys of watch maps (scan errors, volume readiness). A key is a Windows drive ("X") or a Linux watch root
 /// ("/srv/Repos"): POSIX paths are case-sensitive, so a key beginning with a slash compares
 /// ordinally, while every other key (a bare drive letter or Windows-rooted path) folds case.
 /// </summary>
-sealed class ScanErrorKeyComparer : IEqualityComparer<string>
+sealed class WatchKeyComparer : IEqualityComparer<string>
 {
-    public static ScanErrorKeyComparer Instance { get; } = new();
+    public static WatchKeyComparer Instance { get; } = new();
 
     public bool Equals(string? x, string? y)
     {

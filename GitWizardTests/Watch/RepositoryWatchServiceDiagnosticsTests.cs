@@ -110,8 +110,7 @@ public class RepositoryWatchServiceDiagnosticsTests
     {
         await using var source = new DiagnosticVolumeChangeSource();
         source.ArmErrors["X"] = "arm failed";
-        var service = new RepositoryWatchService(source, [@"X:
-epo"], [], TimeSpan.Zero);
+        var service = new RepositoryWatchService(source, [@"X:\repo"], [], TimeSpan.Zero);
         using var cancellation = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
         var reader = service.RunAsync(cancellation.Token).GetAsyncEnumerator();
         var pending = reader.MoveNextAsync().AsTask();

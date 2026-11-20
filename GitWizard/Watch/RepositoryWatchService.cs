@@ -190,8 +190,8 @@ public sealed partial class RepositoryWatchService
                 return;
             }
 
-            var errors = new Dictionary<string, string>(_scanErrors, StringComparer.OrdinalIgnoreCase) { [drive] = message };
-            _scanErrors = errors.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+            var errors = new Dictionary<string, string>(_scanErrors, ScanErrorKeyComparer.Instance) { [drive] = message };
+            _scanErrors = errors.ToFrozenDictionary(ScanErrorKeyComparer.Instance);
         }
         ScanErrorsChanged?.Invoke();
     }
@@ -236,13 +236,13 @@ public sealed partial class RepositoryWatchService
 
         lock (_errorsLock)
         {
-            var errors = new Dictionary<string, string>(armResult.Errors, StringComparer.OrdinalIgnoreCase);
+            var errors = new Dictionary<string, string>(armResult.Errors, ScanErrorKeyComparer.Instance);
             foreach (var (drive, message) in _scanErrors)
             {
                 errors[drive] = message;
             }
 
-            _scanErrors = errors.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+            _scanErrors = errors.ToFrozenDictionary(ScanErrorKeyComparer.Instance);
 
             var warnings = armResult.JournalWarnings
                 .Concat(current)

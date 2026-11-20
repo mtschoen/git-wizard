@@ -73,6 +73,74 @@ public class RepositoryWatchServiceDiagnosticsTests
     }
 
     [Test]
+    public async Task ArmErrorsForRootsThatDifferOnlyInCase_AreBothKeptAndTheRunStarts()
+    {
+        await using var source = new DiagnosticVolumeChangeSource();
+        source.ArmErrors["/srv/Repos"] = "Directory does not exist: /srv/Repos";
+        source.ArmErrors["/srv/repos"] = "Directory does not exist: /srv/repos";
+        var service = new RepositoryWatchService(source, ["/srv/healthy/repo"], [], TimeSpan.Zero);
+        using var cancellation = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
+        var reader = service.RunAsync(cancellation.Token).GetAsyncEnumerator();
+        var pending = reader.MoveNextAsync().AsTask();
+        try
+        {
+            await Task.WhenAny(source.Started, pending).WaitAsync(TestTimeouts.ShortHangGuard);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(source.Started.IsCompleted, Is.True, "The run must reach Started.");
+                Assert.That(service.ScanErrors.Keys, Is.EquivalentTo(["/srv/Repos", "/srv/repos"]));
+            }
+        }
+        finally
+        {
+            source.Complete();
+            try
+            {
+                await pending;
+            }
+            finally
+            {
+                await reader.DisposeAsync();
+            }
+        }
+    }
+
+    [Test]
+    public async Task DriveLetterScanErrors_StillFoldCase()
+    {
+        await using var source = new DiagnosticVolumeChangeSource();
+        source.ArmErrors["X"] = "arm failed";
+        var service = new RepositoryWatchService(source, [@"X:
+epo"], [], TimeSpan.Zero);
+        using var cancellation = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
+        var reader = service.RunAsync(cancellation.Token).GetAsyncEnumerator();
+        var pending = reader.MoveNextAsync().AsTask();
+        try
+        {
+            await Task.WhenAny(source.Started, pending).WaitAsync(TestTimeouts.ShortHangGuard);
+            Assert.That(source.Started.IsCompleted, Is.True, "The run must reach Started.");
+            source.FailDrive("x", "watch failed");
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(service.ScanErrors, Has.Count.EqualTo(1));
+                Assert.That(service.ScanErrors["x"], Is.EqualTo("watch failed"));
+            }
+        }
+        finally
+        {
+            source.Complete();
+            try
+            {
+                await pending;
+            }
+            finally
+            {
+                await reader.DisposeAsync();
+            }
+        }
+    }
+
+    [Test]
     public async Task JournalWarningDetectedMidRun_ReplacesArmWarningAndNotifies()
     {
         await using var source = new DiagnosticVolumeChangeSource();

@@ -1,8 +1,8 @@
 # Test report: generated on main by CI; must not be edited in a pull request
 
-Source commit: 3962b9a08103ae4664ec6c4e0fecd7c7605560e0
-Workflow run: 59847
-Generated at: 2026-11-19T05:17:06Z (workflow run creation time).
+Source commit: da51b2edd829018f0fcfb6ed960ea471519c71c1
+Workflow run: 59865
+Generated at: 2026-11-20T03:23:29Z (workflow run creation time).
 
 ## Windows
 
@@ -18,6 +18,6 @@ Generated at: 2026-11-19T05:17:06Z (workflow run creation time).
 
 | Managed coverage | Line | Branch |
 | --- | ---: | ---: |
-| coverage.cobertura.xml | 92.01% | 87.15% |
+| coverage.cobertura.xml | 92.05% | 87.16% |
 
 Full TRX and coverage reports are retained as CI artifacts.

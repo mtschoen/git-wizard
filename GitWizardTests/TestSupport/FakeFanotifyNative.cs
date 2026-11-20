@@ -26,6 +26,8 @@ sealed class FakeFanotifyNative : IFanotifyNative
 
     public Queue<FanotifyNativeCallResult> MarkResults { get; } = new();
     public Action? OnMark { get; init; }
+    public Action? OnPoll { get; init; }
+    public Action<int>? OnClose { get; init; }
     public List<FanotifyMarkCall> MarkCalls { get; } = [];
     public List<int> ClosedDescriptors { get; } = [];
 
@@ -61,11 +63,13 @@ sealed class FakeFanotifyNative : IFanotifyNative
     {
         ClosedDescriptors.Add(descriptor);
         OpenMountDescriptors.Remove(descriptor);
+        OnClose?.Invoke(descriptor);
         return 0;
     }
 
     public int Poll(int descriptor, int timeoutMilliseconds)
     {
+        OnPoll?.Invoke();
         if (PollResult < 0)
         {
             return PollResult;

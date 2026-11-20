@@ -11,7 +11,6 @@ namespace GitWizard.Watch.Linux;
 sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVolumeChangeSource source) : IDisposable
 {
     static readonly UTF8Encoding Utf8WithoutMarker = new(false);
-    static readonly TimeSpan ArmShutdownGrace = TimeSpan.FromMilliseconds(250);
 
     readonly Lock _requestGate = new();
     readonly Channel<string> _outbound = Channel.CreateUnbounded<string>(new UnboundedChannelOptions { SingleReader = true });
@@ -23,26 +22,18 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
     WatchPath[] _rootParents = [];
     volatile bool _armed;
 
-    public async Task<int> RunAsync(Stream input)
+    public async Task<int> RunAsync(Stream input, Action onInputEnded)
     {
         Subscribe();
         var writerTask = WriteOutboundAsync();
         Enqueue(new HelloFrame(LinuxWatchHelperProtocol.Version));
 
-        // The read is not awaited at shutdown: a blocking stdin read need not observe cancellation,
-        // and the process exits from under it once this method returns.
-        var inputEnded = ReadRequestsAsync(input);
+        // A blocking stdin read need not observe cancellation. Only join it when it reported EOF.
+        var inputEnded = ReadRequestsAsync(input, onInputEnded);
 
         var exitCode = await _finished.Task.ConfigureAwait(false);
         await _stop.CancelAsync().ConfigureAwait(false);
         _outbound.Writer.TryComplete();
-        if (exitCode == LinuxWatchHelperHost.ExitCodeSourceEnded)
-        {
-            // Deliver the ordered terminal frame while the client is connected. EOF releases
-            // the process even if the kernel write on the unbuffered stdout descriptor is stuck.
-            await Task.WhenAny(writerTask, inputEnded).ConfigureAwait(false);
-        }
-
         Task? arm;
         lock (_requestGate)
         {
@@ -50,12 +41,15 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
             arm = _armTask;
         }
         var cleanup = DisposeSourceWhenStoppedAsync(arm);
-        if (arm is { IsCompleted: false } &&
-            await Task.WhenAny(arm, Task.Delay(ArmShutdownGrace)).ConfigureAwait(false) != arm)
+        if (exitCode == LinuxWatchHelperHost.ExitCodeSourceEnded)
         {
-            // A filesystem mark cannot be interrupted. Returning to Main releases it by process
-            // exit; never dispose its descriptor underneath a syscall still using it.
-            return exitCode;
+            // Half-closing stdin does not disconnect the stdout reader. Deliver the terminal
+            // frame in order while the same EOF deadline bounds both the drain and cleanup.
+            await writerTask.ConfigureAwait(false);
+        }
+        else if (exitCode == LinuxWatchHelperHost.ExitCodeEndOfInput)
+        {
+            await inputEnded.ConfigureAwait(false);
         }
 
         await cleanup.ConfigureAwait(false);
@@ -145,8 +139,9 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
         }
     }
 
-    async Task ReadRequestsAsync(Stream input)
+    async Task ReadRequestsAsync(Stream input, Action onInputEnded)
     {
+        Exception? failure = null;
         try
         {
             using var reader = new StreamReader(input, Utf8WithoutMarker, false, 4096, leaveOpen: true);
@@ -167,11 +162,14 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
         }
         catch (Exception exception)
         {
-            await diagnostics.WriteLineAsync($"Reading helper requests failed: {exception}").ConfigureAwait(false);
+            failure = exception;
         }
-        finally
+
+        onInputEnded();
+        Finish(LinuxWatchHelperHost.ExitCodeEndOfInput);
+        if (failure is not null)
         {
-            Finish(LinuxWatchHelperHost.ExitCodeEndOfInput);
+            await diagnostics.WriteLineAsync($"Reading helper requests failed: {failure}").ConfigureAwait(false);
         }
     }
 

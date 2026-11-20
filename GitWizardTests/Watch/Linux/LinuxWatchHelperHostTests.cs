@@ -187,40 +187,76 @@ public class LinuxWatchHelperHostTests
         }
     }
 
-    [Test]
+    [TestCase(false, TestName = "EndOfInput_ExitsWhileNativeMarkIsStillHeld")]
+    [TestCase(true, TestName = "EndOfInput_ExitsWhileNativePumpIsStillHeld")]
     [SupportedOSPlatform("linux")]
-    public async Task EndOfInput_ExitsWhileNativeMarkIsStillHeld()
+    public async Task EndOfInput_ExitsWhileNativeOperationIsStillHeld(bool holdPump)
     {
         using var root = new TempDirectory();
         await using var pipes = new HelperPipes();
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var deadlineStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var expire = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void Hold()
+        {
+            entered.TrySetResult();
+            release.Task.GetAwaiter().GetResult();
+        }
+
+        const int descriptor = 9;
         var native = new FakeFanotifyNative
         {
-            OnMark = () =>
+            InitializeResult = new FanotifyNativeCallResult(descriptor, 0),
+            OnMark = holdPump ? null : Hold,
+            OnPoll = holdPump ? Hold : null,
+            OnClose = value =>
             {
-                entered.SetResult();
-                release.Task.GetAwaiter().GetResult();
+                if (value == descriptor)
+                {
+                    closed.SetResult();
+                }
             }
         };
         var source = new FanotifyVolumeChangeSource(native);
-        var marked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        source.ReadinessChanged += _ => marked.TrySetResult();
-        var host = RunHost(pipes, source);
+        var host = LinuxWatchHelperHost.RunAsync(pipes.HelperInput, pipes.HelperOutput, TextWriter.Null,
+            () => true, () => source, () =>
+            {
+                deadlineStarted.SetResult();
+                return expire.Task;
+            });
         try
         {
             await pipes.ReadFrameAsync<HelloFrame>();
             await pipes.SendRequestAsync(new ArmRequestFrame([root.Path]));
+            if (holdPump)
+            {
+                var (arm, _) = await pipes.ReadFrameAsync<ArmResultFrame>();
+                Assert.That(arm.Errors, Is.Empty);
+                await pipes.SendRequestAsync(new WatchRequestFrame());
+                await pipes.ReadFrameAsync<PumpStartedFrame>();
+            }
+
             await entered.Task.WaitAsync(TestTimeouts.ShortHangGuard);
+            Assert.That(deadlineStarted.Task.IsCompleted, Is.False);
             await pipes.CloseClientInputAsync();
-            Assert.That(await FinishAsync(host), Is.EqualTo(LinuxWatchHelperHost.ExitCodeEndOfInput));
+            await deadlineStarted.Task.WaitAsync(TestTimeouts.ShortHangGuard);
+            Assert.That(host.IsCompleted, Is.False);
+            expire.SetResult();
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(await FinishAsync(host), Is.EqualTo(LinuxWatchHelperHost.ExitCodeShutdownTimedOut));
+                Assert.That(closed.Task.IsCompleted, Is.False, "The native call still owns its descriptor.");
+            }
         }
         finally
         {
             release.TrySetResult();
+            expire.TrySetResult();
             if (entered.Task.IsCompleted)
             {
-                await marked.Task.WaitAsync(TestTimeouts.ShortHangGuard);
+                await closed.Task.WaitAsync(TestTimeouts.ShortHangGuard);
             }
         }
     }
@@ -247,6 +283,48 @@ public class LinuxWatchHelperHostTests
         finally
         {
             await output.Reader.CompleteAsync();
+        }
+    }
+
+    [TestCase(true)]
+    [TestCase(false)]
+    public async Task TerminalFrames_AfterInputCloses_DrainUntilTheShutdownDeadline(bool drain)
+    {
+        await using var pipes = new HelperPipes();
+        var output = new Pipe(new PipeOptions(pauseWriterThreshold: 1, resumeWriterThreshold: 1));
+        await using var writer = output.Writer.AsStream();
+        await using var reader = output.Reader.AsStream();
+        using var lines = new StreamReader(reader);
+        var deadlineStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var expire = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var source = new ReadinessVolumeChangeSource();
+        var host = LinuxWatchHelperHost.RunAsync(pipes.HelperInput, writer, TextWriter.Null, () => true, () => source,
+            () =>
+            {
+                deadlineStarted.SetResult();
+                return expire.Task;
+            });
+        await lines.ReadLineAsync().WaitAsync(TestTimeouts.ShortHangGuard);
+        source.FailDrive("/repos", "drive failed");
+        source.KillSource("source ended");
+        await pipes.CloseClientInputAsync();
+        await deadlineStarted.Task.WaitAsync(TestTimeouts.ShortHangGuard);
+
+        if (drain)
+        {
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(await lines.ReadLineAsync().WaitAsync(TestTimeouts.ShortHangGuard),
+                    Is.EqualTo(LinuxWatchHelperProtocol.Serialize(new DriveFailedFrame("/repos", "drive failed"))));
+                Assert.That(await lines.ReadLineAsync().WaitAsync(TestTimeouts.ShortHangGuard),
+                    Is.EqualTo(LinuxWatchHelperProtocol.Serialize(new DiedFrame("source ended"))));
+                Assert.That(await FinishAsync(host), Is.EqualTo(LinuxWatchHelperHost.ExitCodeSourceEnded));
+            }
+        }
+        else
+        {
+            expire.SetResult();
+            Assert.That(await FinishAsync(host), Is.EqualTo(LinuxWatchHelperHost.ExitCodeShutdownTimedOut));
         }
     }
 

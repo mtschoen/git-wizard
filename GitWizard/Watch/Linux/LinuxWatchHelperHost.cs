@@ -23,6 +23,7 @@ public static class LinuxWatchHelperHost
     internal const int ExitCodeNotRoot = 1;
     internal const int ExitCodeOutputFailed = 2;
     internal const int ExitCodeSourceEnded = 3;
+    internal const int ExitCodeShutdownTimedOut = 4;
 
     const int StandardInputDescriptor = 0;
     const int StandardOutputDescriptor = 1;
@@ -59,10 +60,18 @@ public static class LinuxWatchHelperHost
         using var outputHandle = new SafeFileHandle(StandardOutputDescriptor, false);
         await using var input = new FileStream(inputHandle, FileAccess.Read, 1);
         await using var output = new FileStream(outputHandle, FileAccess.Write, 1);
-        return await RunAsync(input, output, Console.Error,
+        var exitCode = await RunAsync(input, output, Console.Error,
                 () => VolumeChangeSourceFactory.LinuxNative.GetEffectiveUserId() == 0,
                 () => new FanotifyVolumeChangeSource())
             .ConfigureAwait(false);
+        if (exitCode == ExitCodeShutdownTimedOut)
+        {
+            // The kernel releases descriptors on exit. Do not unwind streams or native handles
+            // on this thread while a blocked write, mark or pump can still be using them.
+            Environment.Exit(exitCode);
+        }
+
+        return exitCode;
     }
 
     /// <summary>
@@ -70,7 +79,7 @@ public static class LinuxWatchHelperHost
     /// Refuses to run unless <paramref name="isRoot"/> holds, before any source is created.
     /// </summary>
     internal static async Task<int> RunAsync(Stream input, Stream output, TextWriter diagnostics,
-        Func<bool> isRoot, Func<IVolumeChangeSource> createSource)
+        Func<bool> isRoot, Func<IVolumeChangeSource> createSource, Func<Task>? startShutdownDeadline = null)
     {
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(output);
@@ -84,7 +93,17 @@ public static class LinuxWatchHelperHost
             return ExitCodeNotRoot;
         }
 
-        using var session = new LinuxWatchHelperSession(output, TextWriter.Synchronized(diagnostics), createSource());
-        return await session.RunAsync(input).ConfigureAwait(false);
+        var deadline = new TaskCompletionSource<Task>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var expired = deadline.Task.Unwrap();
+        void OnInputEnded() => deadline.SetResult(startShutdownDeadline?.Invoke() ?? Task.Delay(TimeSpan.FromSeconds(1)));
+
+        var stopped = Task.Run(async () =>
+        {
+            using var session = new LinuxWatchHelperSession(output, TextWriter.Synchronized(diagnostics), createSource());
+            return await session.RunAsync(input, OnInputEnded).ConfigureAwait(false);
+        });
+        return await Task.WhenAny(stopped, expired).ConfigureAwait(false) == stopped
+            ? await stopped.ConfigureAwait(false)
+            : ExitCodeShutdownTimedOut;
     }
 }

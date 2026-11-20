@@ -8,7 +8,7 @@ namespace GitWizard.Watch;
 
 /// <summary>
 /// Platform-aware factory for creating the appropriate <see cref="IVolumeChangeSource"/> implementation
-/// (<see cref="IndexVolumeChangeSource"/> on Windows; on Linux see <see cref="CreateLinux"/>)
+/// (<see cref="IndexVolumeChangeSource"/> on Windows, <see cref="FanotifyVolumeChangeSource"/> on Linux)
 /// and checking process elevation status across platforms.
 /// </summary>
 public static partial class VolumeChangeSourceFactory
@@ -83,20 +83,11 @@ public static partial class VolumeChangeSourceFactory
 
         if (IsLinux() && OperatingSystem.IsLinux())
         {
-            return CreateLinux();
+            return new FanotifyVolumeChangeSource();
         }
 
         throw new PlatformNotSupportedException("Live mode currently requires Windows or Linux.");
     }
-
-    /// <summary>
-    /// The Linux source for this process: the in-process <see cref="FanotifyVolumeChangeSource"/>
-    /// when root, otherwise an <see cref="ElevatedHelperVolumeChangeSource"/> that runs it in a
-    /// pkexec-started root helper. Creating either starts nothing; the helper starts when armed.
-    /// </summary>
-    [SupportedOSPlatform("linux")]
-    public static IVolumeChangeSource CreateLinux() =>
-        IsElevated() ? new FanotifyVolumeChangeSource() : ElevatedHelperVolumeChangeSource.CreatePkexec();
 
     static async Task<MftIndexSession> OpenWindowsIndexAsync(IReadOnlyList<string> drives,
         Func<string, bool>? brokerLauncher, IProgress<IndexScanProgress> progress,

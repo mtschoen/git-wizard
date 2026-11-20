@@ -114,10 +114,25 @@ sealed class ReadinessVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDia
     public void Complete() => _batches.Writer.TryComplete();
     public void Fail(Exception exception) => _batches.Writer.TryComplete(exception);
 
-    public ValueTask DisposeAsync()
+    readonly TaskCompletionSource _disposeCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>Completes once <see cref="DisposeAsync"/> and its <see cref="DisposeGate"/> have finished.</summary>
+    public Task DisposeCompleted => _disposeCompleted.Task;
+
+    public async ValueTask DisposeAsync()
     {
         Interlocked.Increment(ref _disposeCount);
         Complete();
-        return DisposeGate?.Invoke() ?? ValueTask.CompletedTask;
+        try
+        {
+            if (DisposeGate is { } gate)
+            {
+                await gate().ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            _disposeCompleted.TrySetResult();
+        }
     }
 }

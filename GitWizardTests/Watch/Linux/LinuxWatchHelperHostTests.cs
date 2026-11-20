@@ -28,8 +28,16 @@ public class LinuxWatchHelperHostTests
     sealed class BreakableWriteStream : Stream
     {
         volatile bool _broken;
+        int _writes;
+        readonly TaskCompletionSource _firstWrite = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        /// <summary>Completes when the first frame (hello) has been written.</summary>
+        public Task FirstWrite => _firstWrite.Task;
 
         public void BreakPipe() => _broken = true;
+
+        /// <summary>Lets the hello frame through, then fails every later write.</summary>
+        public bool FailWritesAfterTheFirst { get; init; }
 
         public override bool CanRead => false;
         public override bool CanSeek => false;
@@ -40,7 +48,17 @@ public class LinuxWatchHelperHostTests
         public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
         public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
         public override void SetLength(long value) => throw new NotSupportedException();
-        public override void Write(byte[] buffer, int offset, int count) => ThrowWhenBroken();
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            if (FailWritesAfterTheFirst && Interlocked.Increment(ref _writes) > 1)
+            {
+                throw new IOException("Broken pipe");
+            }
+
+            _firstWrite.TrySetResult();
+
+            ThrowWhenBroken();
+        }
 
         void ThrowWhenBroken()
         {
@@ -380,15 +398,24 @@ public class LinuxWatchHelperHostTests
         var output = new BreakableWriteStream();
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var deadlineStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var expire = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        const int descriptor = 9;
         var native = new FakeFanotifyNative
         {
-            InitializeResult = new FanotifyNativeCallResult(9, 0),
+            InitializeResult = new FanotifyNativeCallResult(descriptor, 0),
             OnMark = () =>
             {
                 entered.TrySetResult();
                 release.Task.GetAwaiter().GetResult();
+            },
+            OnClose = value =>
+            {
+                if (value == descriptor)
+                {
+                    closed.TrySetResult();
+                }
             }
         };
         var host = LinuxWatchHelperHost.RunAsync(pipes.HelperInput, output, TextWriter.Null,
@@ -415,6 +442,11 @@ public class LinuxWatchHelperHostTests
         {
             release.TrySetResult();
             expire.TrySetResult();
+            if (entered.Task.IsCompleted)
+            {
+                // Join the abandoned cleanup so nothing touches the scratch root after it is deleted.
+                await closed.Task.WaitAsync(TestTimeouts.ShortHangGuard);
+            }
         }
     }
 
@@ -456,7 +488,26 @@ public class LinuxWatchHelperHostTests
         {
             release.TrySetResult();
             expire.TrySetResult();
+            if (cleanupEntered.Task.IsCompleted)
+            {
+                // Join the abandoned cleanup so no work outlives the test.
+                await source.DisposeCompleted.WaitAsync(TestTimeouts.ShortHangGuard);
+            }
         }
+    }
+
+    [Test]
+    public async Task SourceDeath_WhenTheDiedFrameCannotBeDelivered_StillExitsWithTheSourceReason()
+    {
+        await using var pipes = new HelperPipes();
+        var source = new ReadinessVolumeChangeSource();
+        var output = new BreakableWriteStream { FailWritesAfterTheFirst = true };
+        var host = LinuxWatchHelperHost.RunAsync(pipes.HelperInput, output, TextWriter.Null, () => true, () => source);
+        await output.FirstWrite.WaitAsync(TestTimeouts.ShortHangGuard);
+
+        source.KillSource("source ended");
+
+        Assert.That(await FinishAsync(host), Is.EqualTo(LinuxWatchHelperHost.ExitCodeSourceEnded));
     }
 
     [Test]

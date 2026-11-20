@@ -191,7 +191,7 @@ Desktop admission stays in `GitWizardUI.Program.Run`/`DesktopInstance`, before
 Avalonia, not MFTLib/CLI/App/screenshot. Hold the per-user mutex through lifetime,
 release on its thread; duplicates exit 1. Tests use distinct threads/unique names.
 
-Unelevated Linux Live: one pkexec prompt starts a root `--linux-watch-helper`; it exits on
+Unelevated Linux Live (composed by GitWizardUI's `DesktopLinuxWatchSource`; library defaults stay in-process fanotify): one pkexec prompt starts a root `--linux-watch-helper`; it exits on
 stdin end or stdout failure, is signalled only as pkexec before hello, and nothing respawns.
 
 Defender excludes process names only (dotnet/git/git-lfs/git-wizard/GitWizardUI),

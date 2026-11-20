@@ -111,6 +111,8 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
 
     void Enqueue(LinuxWatchHelperFrame frame) => _outbound.Writer.TryWrite(LinuxWatchHelperProtocol.Serialize(frame));
 
+    volatile bool _sourceDeathSelected;
+
     void Finish(int exitCode) => _finished.TrySetResult(exitCode);
 
     // Reports the end of the watch once, unless the session is already ending for another reason.
@@ -121,6 +123,9 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
             return;
         }
 
+        // Recorded before the frame is queued: the writer may fail on that very frame, and the
+        // first stop reason must still select the exit code.
+        _sourceDeathSelected = true;
         Enqueue(new DiedFrame(reason));
         Finish(LinuxWatchHelperHost.ExitCodeSourceEnded);
     }
@@ -139,7 +144,7 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
         catch (Exception exception) when (exception is IOException or ObjectDisposedException or NotSupportedException)
         {
             // The reader is gone: nobody can be told anything more, so the session ends now.
-            Finish(LinuxWatchHelperHost.ExitCodeOutputFailed);
+            Finish(_sourceDeathSelected ? LinuxWatchHelperHost.ExitCodeSourceEnded : LinuxWatchHelperHost.ExitCodeOutputFailed);
         }
     }
 

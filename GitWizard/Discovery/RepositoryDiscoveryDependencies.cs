@@ -1,4 +1,5 @@
 using GitWizard.Watch;
+using GitWizard.Watch.Linux;
 using MFTLib;
 using MFTLib.Index;
 
@@ -68,7 +69,7 @@ public sealed class RepositoryDiscoveryDependencies
             WriteListAsync = GitWizardApi.SaveCachedRepositoryPathsAsync,
             CandidateExists = RepositoryCandidateProbe.Exists,
             CreateLinuxSource = () => OperatingSystem.IsLinux()
-                ? VolumeChangeSourceFactory.CreateLinux()
+                ? new FanotifyVolumeChangeSource()
                 : throw new PlatformNotSupportedException("Linux source requires Linux.")
         };
     }

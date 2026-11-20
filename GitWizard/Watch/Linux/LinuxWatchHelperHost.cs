@@ -16,6 +16,8 @@ namespace GitWizard.Watch.Linux;
 /// stdout write fails, and after reporting a terminal <c>died</c> frame. Whatever stops the
 /// session starts one shutdown deadline; if cleanup is still pending when it expires the helper
 /// exits with <see cref="ExitCodeShutdownTimedOut"/>.
+/// The first stop reason selects the exit code, including when the terminal <c>died</c> frame
+/// cannot be delivered: source death exits <see cref="ExitCodeSourceEnded"/> even if that write fails.
 /// </remarks>
 public static class LinuxWatchHelperHost
 {

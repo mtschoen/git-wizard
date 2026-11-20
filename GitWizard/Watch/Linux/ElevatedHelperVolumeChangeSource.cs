@@ -86,10 +86,15 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
         _isConclusivelyMissing = isConclusivelyMissing ?? IsConclusivelyMissing;
     }
 
-    /// <summary>A source whose helper is this executable, started through pkexec.</summary>
-    public static ElevatedHelperVolumeChangeSource CreatePkexec() => CreatePkexec(Environment.ProcessPath);
+    /// <summary>The helper's launch command, or null when no helper can start.</summary>
+    internal ProcessStartInfo? StartInfo => _startInfo;
 
-    internal static ElevatedHelperVolumeChangeSource CreatePkexec(string? executablePath)
+    /// <summary>
+    /// A source whose helper is <paramref name="executablePath"/>, started through pkexec. The host
+    /// must dispatch <see cref="LinuxWatchHelperHost.Flag"/>; the library never assumes the current
+    /// process is that host, so the caller names the executable explicitly.
+    /// </summary>
+    public static ElevatedHelperVolumeChangeSource CreatePkexec(string? executablePath)
     {
         var unavailableReason = DescribeUnusableExecutable(executablePath);
         return new ElevatedHelperVolumeChangeSource(

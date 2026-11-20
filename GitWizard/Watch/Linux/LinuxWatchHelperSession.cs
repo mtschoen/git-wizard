@@ -170,7 +170,8 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
             return;
         }
 
-        if (roots.Count == 0 || roots.Any(root => !Path.IsPathFullyQualified(root) || root.Contains('\0', StringComparison.Ordinal)))
+        if (roots.Count == 0 || roots.Any(root =>
+                !Path.IsPathFullyQualified(root) && !root.StartsWith('/') || root.Contains('\0', StringComparison.Ordinal)))
         {
             Enqueue(new ErrorFrame("Rejected request: an arm request needs one or more absolute root paths."));
             return;

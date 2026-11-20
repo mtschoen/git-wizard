@@ -5,8 +5,7 @@ using GitWizardTests.TestSupport;
 namespace GitWizardTests.Watch.Linux;
 
 [TestFixture]
-// POSIX roots: Path.IsPathFullyQualified rejects them on Windows, and the helper is Linux-only.
-[Platform("Linux")]
+[NonParallelizable]
 public class LinuxWatchHelperHostTests
 {
     sealed class FailingWriteStream : Stream
@@ -56,8 +55,14 @@ public class LinuxWatchHelperHostTests
     }
 
     [Test]
-    public void TryRun_WithoutTheFlag_LeavesNormalStartupAlone() =>
+    public void TryRun_WithoutTheFlag_LeavesNormalStartupAlone()
+    {
         Assert.That(LinuxWatchHelperHost.TryRun(["--broker", "-v"]), Is.Null);
+        if (!OperatingSystem.IsLinux())
+        {
+            Assert.That(LinuxWatchHelperHost.TryRun([LinuxWatchHelperHost.Flag]), Is.EqualTo(LinuxWatchHelperHost.ExitCodeNotRoot));
+        }
+    }
 
     [Test]
     public async Task Arm_ReportsHelloReadinessAndArmResult()

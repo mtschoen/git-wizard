@@ -9,8 +9,6 @@ namespace GitWizardTests.Watch.Linux;
 // The pkexec dialog window before the helper's hello, request writes, and local readiness, split
 // from ElevatedHelperVolumeChangeSourceTests to keep each fixture under 500 lines.
 [TestFixture]
-// POSIX roots: Path.IsPathFullyQualified rejects them on Windows, and the helper is Linux-only.
-[Platform("Linux")]
 public class ElevatedHelperVolumeChangeSourceLifetimeTests
 {
     [SetUp]

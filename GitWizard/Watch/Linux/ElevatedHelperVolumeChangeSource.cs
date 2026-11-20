@@ -296,7 +296,7 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
     }
 
     static bool IsAbsoluteRoot(string? volume) =>
-        !string.IsNullOrWhiteSpace(volume) && Path.IsPathFullyQualified(volume) &&
+        !string.IsNullOrWhiteSpace(volume) && (Path.IsPathFullyQualified(volume) || volume.StartsWith('/')) &&
         !volume.Contains('\0', StringComparison.Ordinal);
 
     // Only absence this process can prove: a root it may not traverse is left for root to judge.

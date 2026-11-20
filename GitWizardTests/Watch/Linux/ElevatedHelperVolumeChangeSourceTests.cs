@@ -8,8 +8,6 @@ using GitWizardTests.TestSupport;
 namespace GitWizardTests.Watch.Linux;
 
 [TestFixture]
-// POSIX roots: Path.IsPathFullyQualified rejects them on Windows, and the helper is Linux-only.
-[Platform("Linux")]
 public class ElevatedHelperVolumeChangeSourceTests
 {
     [SetUp]
@@ -98,6 +96,7 @@ public class ElevatedHelperVolumeChangeSourceTests
     }
 
     [Test]
+    [Platform("Linux")]
     public async Task Arm_WithOnlyConclusivelyMissingRoots_RaisesNoPrompt()
     {
         using var parent = new TempDirectory("gw-helper-missing-");

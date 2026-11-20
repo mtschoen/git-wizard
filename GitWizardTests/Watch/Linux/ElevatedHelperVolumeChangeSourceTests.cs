@@ -338,7 +338,7 @@ public class ElevatedHelperVolumeChangeSourceTests
     [Test]
     public async Task Dispose_ClosesStdinAndWaitsForTheHelper_WithoutReportingADeath()
     {
-        await using var pipes = new HelperPipes();
+        await using var pipes = new HelperPipes { ExitWhenClientInputCloses = false };
         var source = CreateSource(new RecordingLauncher(pipes).Launch);
         var deaths = new List<string>();
         source.SourceDied += deaths.Add;
@@ -363,7 +363,7 @@ public class ElevatedHelperVolumeChangeSourceTests
     [Test]
     public async Task Dispose_GivesUpOnAHelperThatDoesNotExit_AfterTheBoundedWait()
     {
-        await using var pipes = new HelperPipes();
+        await using var pipes = new HelperPipes { ExitWhenClientInputCloses = false };
         var clock = new ControlledDelayClock();
         var source = CreateSource(new RecordingLauncher(pipes).Launch, clock);
         var arm = source.ArmAndCatchUpAsync(["/repos"], CancellationToken.None);

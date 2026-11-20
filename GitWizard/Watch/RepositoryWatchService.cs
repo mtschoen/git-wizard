@@ -298,7 +298,7 @@ public sealed partial class RepositoryWatchService
         }
         else
         {
-            volumes = (string[])[.. trackedByVolume.Keys.Union(searchByVolume.Keys, StringComparer.OrdinalIgnoreCase)];
+            volumes = (string[])[.. trackedByVolume.Keys.Union(searchByVolume.Keys, WatchKeyComparer.Instance)];
             var armResult = await _source.ArmAndCatchUpAsync(volumes, ct).ConfigureAwait(false);
             SetArmResult(armResult);
         }
@@ -318,7 +318,7 @@ public sealed partial class RepositoryWatchService
                 searchByVolume.GetValueOrDefault(volume) ?? [],
                 ignoredByVolume.GetValueOrDefault(volume) ?? [],
                 _includeTempDirectories),
-            StringComparer.OrdinalIgnoreCase);
+            WatchKeyComparer.Instance);
     }
 
     Dictionary<string, List<string>> GroupRootsByVolume(IReadOnlyCollection<string> roots)

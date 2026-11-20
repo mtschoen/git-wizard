@@ -53,6 +53,29 @@ public class LiveWatchHistoryViewModelTests
     }
 
     [Test]
+    public void PosixCaseDistinctRootsTrackVersionsIndependently()
+    {
+        var clock = new HistoryClock();
+        using var history = new LiveWatchHistoryViewModel(action => action(), clock);
+        var session = Guid.NewGuid();
+        history.Apply([new VolumeWatchTransition(session, "/srv/Repos", 5, "Faulted", "first", clock.Now)]);
+        history.Apply([new VolumeWatchTransition(session, "/srv/repos", 1, "Recovering", "second", clock.Now)]);
+        Assert.That(history.Events.Select(item => (item.Volume, item.State)),
+            Is.EqualTo([("/srv/Repos", "Faulted"), ("/srv/repos", "Recovering")]));
+    }
+
+    [Test]
+    public void WindowsDriveCaseVariantsShareOneVersionSlot()
+    {
+        var clock = new HistoryClock();
+        using var history = new LiveWatchHistoryViewModel(action => action(), clock);
+        var session = Guid.NewGuid();
+        history.Apply([new VolumeWatchTransition(session, "X", 5, "Faulted", "first", clock.Now)]);
+        history.Apply([new VolumeWatchTransition(session, "x", 4, "Recovering", "stale", clock.Now)]);
+        Assert.That(history.Events.Select(item => item.State), Is.EqualTo(["Faulted"]));
+    }
+
+    [Test]
     public void CapacityIsBoundedToSixtyFourEntries()
     {
         var clock = new HistoryClock();

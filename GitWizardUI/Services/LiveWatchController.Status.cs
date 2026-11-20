@@ -32,7 +32,7 @@ public sealed partial class LiveWatchController
         {
             lock (_gate)
             {
-                return _service?.ScanErrors ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                return _service?.ScanErrors ?? new Dictionary<string, string>(WatchKeyComparer.Instance);
             }
         }
     }

@@ -48,6 +48,39 @@ sealed class HelperPipes : IAsyncDisposable
         }
     }
 
+    /// <summary>Reports the client's stdin closing, as a helper sees end of input and exits.</summary>
+    sealed class CloseNotifyingStream(Stream inner, Action closed) : Stream
+    {
+        int _closeCount;
+        public override bool CanRead => inner.CanRead;
+        public override bool CanSeek => inner.CanSeek;
+        public override bool CanWrite => inner.CanWrite;
+        public override long Length => inner.Length;
+        public override long Position { get => inner.Position; set => inner.Position = value; }
+        public override void Flush() => inner.Flush();
+        public override Task FlushAsync(CancellationToken cancellationToken) => inner.FlushAsync(cancellationToken);
+        public override int Read(byte[] buffer, int offset, int count) => inner.Read(buffer, offset, count);
+        public override long Seek(long offset, SeekOrigin origin) => inner.Seek(offset, origin);
+        public override void SetLength(long value) => inner.SetLength(value);
+        public override void Write(byte[] buffer, int offset, int count) => inner.Write(buffer, offset, count);
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) =>
+            inner.WriteAsync(buffer, cancellationToken);
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                inner.Dispose();
+                if (Interlocked.Increment(ref _closeCount) == 1)
+                {
+                    closed();
+                }
+            }
+
+            base.Dispose(disposing);
+        }
+    }
+
     readonly Pipe _stdin = new();
     readonly Pipe _stdout = new();
     readonly Pipe _stderr = new();
@@ -63,7 +96,8 @@ sealed class HelperPipes : IAsyncDisposable
     {
         HelperInput = _stdin.Reader.AsStream();
         HelperOutput = _stdout.Writer.AsStream();
-        ClientInput = holdClientWrites ? new HeldWriteStream(_stdin.Writer.AsStream(), _releaseWrites.Task, _clientWriteStarted) : _stdin.Writer.AsStream();
+        var clientInput = holdClientWrites ? new HeldWriteStream(_stdin.Writer.AsStream(), _releaseWrites.Task, _clientWriteStarted) : _stdin.Writer.AsStream();
+        ClientInput = new CloseNotifyingStream(clientInput, OnClientInputClosed);
         ClientOutput = _stdout.Reader.AsStream();
         Process = new LinuxWatchHelperProcess(ClientInput, ClientOutput, _stderr.Reader.AsStream(), _exit.Task, OnTerminate);
         _requests = new StreamReader(HelperInput, Encoding.UTF8);
@@ -81,6 +115,17 @@ sealed class HelperPipes : IAsyncDisposable
 
     /// <summary>Completes when a held client write has begun.</summary>
     public Task ClientWriteStarted => _clientWriteStarted.Task;
+
+    /// <summary>False models a helper that ignores end of input and stays alive until terminated.</summary>
+    public bool ExitWhenClientInputCloses { get; init; } = true;
+
+    void OnClientInputClosed()
+    {
+        if (ExitWhenClientInputCloses)
+        {
+            _ = ExitAsync(0);
+        }
+    }
 
     void OnTerminate()
     {

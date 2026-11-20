@@ -7,7 +7,7 @@ public sealed class LiveWatchHistoryViewModel : IDisposable
 {
     readonly Action<Action> _post;
     readonly TimeProvider _clock;
-    readonly Dictionary<(Guid Session, string Volume), long> _versions = [];
+    readonly Dictionary<(Guid Session, string Volume), long> _versions = new(VersionKeyComparer.Instance);
     ITimer? _timer;
     int _timerGeneration;
     bool _disposed;
@@ -31,7 +31,7 @@ public sealed class LiveWatchHistoryViewModel : IDisposable
         var cutoff = _clock.GetUtcNow() - TimeSpan.FromSeconds(30);
         foreach (var item in transitions)
         {
-            var key = (item.SessionId, item.Volume.ToUpperInvariant());
+            var key = (item.SessionId, item.Volume);
             if (_versions.TryGetValue(key, out var version) && item.Version <= version)
             {
                 continue;

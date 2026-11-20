@@ -5,7 +5,7 @@ namespace GitWizard.Watch;
 /// ("/srv/Repos"): POSIX paths are case-sensitive, so a key beginning with a slash compares
 /// ordinally, while every other key (a bare drive letter or Windows-rooted path) folds case.
 /// </summary>
-sealed class WatchKeyComparer : IEqualityComparer<string>
+public sealed class WatchKeyComparer : IEqualityComparer<string>
 {
     public static WatchKeyComparer Instance { get; } = new();
 

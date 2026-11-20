@@ -1,3 +1,4 @@
+using GitWizard;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
 using static GitWizardTests.TestSupport.WatchEventDrain;
@@ -33,6 +34,33 @@ public class RepositoryWatchServicePathShapeTests
                 new RepositoryChangeEvent("/repo/A", RepositoryChangeKind.Changed),
                 new RepositoryChangeEvent("/repo/a", RepositoryChangeKind.Changed),
             ]));
+    }
+
+    [Test]
+    public async Task PosixCaseDistinctWatchVolumes_BuildSeparateFiltersAndKeepErrorsPerRoot()
+    {
+        var errors = new Dictionary<string, string>(StringComparer.Ordinal) { ["/srv/Repos"] = "mark failed" };
+        var source = new ScriptedVolumeChangeSource([], errors);
+        var request = new DiscoveryRequest(new GitWizardConfiguration(), DiscoveryPurpose.Watch, false, false, []);
+        var scope = DiscoveryScope.CreateExpanded(request, [], [], []);
+        var inventory = new DiscoveryInventory
+        {
+            Outcome = DiscoveryOutcome.CompleteEmpty,
+            Route = DiscoveryRoute.Indexed,
+            Paths = [],
+            RequestedNtfsDrives = [],
+            Observations = [],
+            RootStatuses = [],
+            Errors = new Dictionary<string, string>(),
+            WatchExcludedRoots = []
+        };
+        await using var startup = new WatchStartupResult(
+            inventory, new VolumeArmResult(errors, []), source, ["/srv/Repos", "/srv/repos"], scope);
+        var service = new RepositoryWatchService(startup, debounce: TimeSpan.Zero);
+
+        await DrainAsync(service);
+
+        Assert.That(service.ScanErrors, Is.EqualTo(new Dictionary<string, string> { ["/srv/Repos"] = "mark failed" }));
     }
 
     [Test]

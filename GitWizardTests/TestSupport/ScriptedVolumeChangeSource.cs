@@ -8,7 +8,7 @@ sealed partial class ScriptedVolumeChangeSource(
 {
     readonly IReadOnlyList<VolumeChangeBatch> _batches = batches ?? [];
     readonly IReadOnlyDictionary<string, string> _errors =
-        errors ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        errors ?? new Dictionary<string, string>(WatchKeyComparer.Instance);
     readonly TaskCompletionSource _armStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
     readonly TaskCompletionSource _armed = new(TaskCreationOptions.RunContinuationsAsynchronously);
     readonly Lock _gate = new();

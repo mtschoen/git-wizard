@@ -142,6 +142,62 @@ public class MainViewModelLiveReadinessTests
     }
 
     [Test]
+    public async Task PosixCaseDistinctRootsKeepSeparateRowsAndDriveCaseVariantsShareOne()
+    {
+        var sourceReady = new TaskCompletionSource<ReadinessVolumeChangeSource>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var dispatcher = new QueuedUiDispatcher();
+        var viewModel = TestViewModels.Create(dispatcher: dispatcher);
+        viewModel.LiveWatch.CapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.Available, 0);
+        viewModel.LiveWatch.PrepareWatchAsync = (request, _, _, cancellationToken) =>
+        {
+            var source = new ReadinessVolumeChangeSource();
+            sourceReady.TrySetResult(source);
+            return FakeLiveStartup.FromSourceArmedAsync(source, request, cancellationToken);
+        };
+        viewModel.LiveWatch.IsElevated = () => false;
+        Task? running = null;
+        try
+        {
+            running = viewModel.LiveWatch.ToggleLiveAsync();
+            var source = await sourceReady.Task.WaitAsync(TestTimeouts.ShortHangGuard);
+            await source.Started.WaitAsync(TestTimeouts.ShortHangGuard);
+            dispatcher.Drain();
+
+            source.SetVolume(VolumeWatchStatus.CaughtUp("/srv/Repos", VolumeBlockOrigin.Cold));
+            source.SetVolume(VolumeWatchStatus.Excluded("/srv/repos", VolumeBlockOrigin.Cold, "mark failed"));
+            source.SetVolume(VolumeWatchStatus.CatchingUp("X", VolumeBlockOrigin.Cold));
+            source.SetVolume(VolumeWatchStatus.CaughtUp("x", VolumeBlockOrigin.Cold));
+            dispatcher.Drain();
+
+            var expected = new[]
+            {
+                "/srv/Repos: caught up (cold)",
+                "/srv/repos: excluded (cold): mark failed",
+                "x: caught up (cold)"
+            };
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(viewModel.LiveWatch.LiveVolumes.Select(row => row.DisplayText), Is.EquivalentTo(expected));
+                Assert.That(viewModel.IndexCache.LiveVolumes.Select(row => row.DisplayText), Is.EquivalentTo(expected));
+                Assert.That(viewModel.LiveWatch.LiveReadinessTooltip, Does.Contain("/srv/Repos: caught up (cold)"));
+                Assert.That(viewModel.LiveWatch.LiveReadinessTooltip, Does.Contain("/srv/repos: excluded (cold): mark failed"));
+            }
+        }
+        finally
+        {
+            try { await viewModel.DisposeAsync(); }
+            finally
+            {
+                if (running is not null)
+                {
+                    await running;
+                }
+            }
+        }
+        dispatcher.Drain();
+    }
+
+    [Test]
     public async Task LiveWatchTransitionsReachTooltipAndPanelThroughDispatcherAndClearOnStop()
     {
         var sourceReady = new TaskCompletionSource<ReadinessVolumeChangeSource>(TaskCreationOptions.RunContinuationsAsynchronously);

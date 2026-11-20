@@ -39,7 +39,7 @@ public class DesktopStartupTests
 
     static int Start(string name, Func<string[], int> desktop, Action<string> notice)
         => UiProgram.Run([], _ => false,
-            _ => null,
+            [_ => null, _ => null],
             () => name, desktop, notice);
 
     [Test]
@@ -130,7 +130,8 @@ public class DesktopStartupTests
             ? ["--broker", "--pipe", "test-pipe", "--elevated-defender"]
             : ["--elevated-defender"];
         var result = UiProgram.Run(arguments, values => { brokerArguments = values; return broker; },
-            _ => { defenderCalls++; return defenderSuccess ? 0 : 1; },
+            [_ => { defenderCalls++; return defenderSuccess ? 0 : 1; },
+                _ => throw new AssertionException("Defender child reached the Linux watch helper")],
             () => throw new AssertionException("Child evaluated mutex name"),
             _ => throw new AssertionException("Child started desktop"),
             _ => throw new AssertionException("Child displayed notice"));
@@ -139,6 +140,37 @@ public class DesktopStartupTests
             Assert.That(result, Is.EqualTo(expectedExitCode));
             Assert.That(brokerArguments, Is.SameAs(arguments));
             Assert.That(defenderCalls, Is.EqualTo(broker ? 0 : 1));
+        }
+    }
+
+    [Test]
+    public void LinuxWatchHelperDispatch_PrecedesAnyMutexWork()
+    {
+        string[]? helperArguments = null;
+        string[] arguments = [GitWizard.Watch.Linux.LinuxWatchHelperHost.Flag];
+        var result = UiProgram.Run(arguments, _ => false,
+            [_ => null, values => { helperArguments = values; return 3; }],
+            () => throw new AssertionException("Helper evaluated mutex name"),
+            _ => throw new AssertionException("Helper started desktop"),
+            _ => throw new AssertionException("Helper displayed notice"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Is.EqualTo(3));
+            Assert.That(helperArguments, Is.SameAs(arguments));
+        }
+    }
+
+    [Test]
+    public void NormalLaunch_AsksTheLinuxWatchHelperAndStartsTheDesktop()
+    {
+        var helperCalls = 0;
+        var result = UiProgram.Run([], _ => false,
+            [_ => null, _ => { helperCalls++; return null; }],
+            UniqueName, _ => 5, _ => throw new AssertionException("Unexpected notice"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Is.EqualTo(5));
+            Assert.That(helperCalls, Is.EqualTo(1));
         }
     }
 

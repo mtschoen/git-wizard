@@ -54,8 +54,19 @@ sealed class ReadinessVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDia
         }
     }
 
-    public Task<VolumeArmResult> ArmAndCatchUpAsync(IReadOnlyCollection<string> volumes, CancellationToken ct) =>
-        Task.FromResult(new VolumeArmResult(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), []));
+    /// <summary>Per-volume failures every arm reports.</summary>
+    public IReadOnlyDictionary<string, string>? ArmErrors { get; init; }
+    public IReadOnlyCollection<string>? ArmedVolumes { get; private set; }
+    public int DisposeCount => Volatile.Read(ref _disposeCount);
+
+    int _disposeCount;
+
+    public Task<VolumeArmResult> ArmAndCatchUpAsync(IReadOnlyCollection<string> volumes, CancellationToken ct)
+    {
+        ArmedVolumes = [.. volumes];
+        return Task.FromResult(new VolumeArmResult(
+            new Dictionary<string, string>(ArmErrors ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase), []));
+    }
 
     public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync([EnumeratorCancellation] CancellationToken ct)
     {
@@ -103,6 +114,7 @@ sealed class ReadinessVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDia
 
     public ValueTask DisposeAsync()
     {
+        Interlocked.Increment(ref _disposeCount);
         Complete();
         return ValueTask.CompletedTask;
     }

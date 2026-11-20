@@ -69,12 +69,33 @@ public class VolumeChangeSourceFactoryTests
         }
         else if (OperatingSystem.IsLinux())
         {
-            Assert.That(source.GetType().Name, Is.EqualTo("FanotifyVolumeChangeSource"));
+            Assert.That(source.GetType().Name, Is.EqualTo(VolumeChangeSourceFactory.IsElevated()
+                ? "FanotifyVolumeChangeSource"
+                : "ElevatedHelperVolumeChangeSource"));
         }
         else
         {
             Assert.Ignore("Unsupported platform.");
         }
+    }
+
+    [TestCase(true, "FanotifyVolumeChangeSource")]
+    [TestCase(false, "ElevatedHelperVolumeChangeSource")]
+    [Platform("Linux")]
+    public async Task CreateLinux_SelectsInProcessFanotifyOnlyForRoot(bool isRoot, string expected)
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            Assert.Ignore("Linux-only test.");
+            return;
+        }
+
+        VolumeChangeSourceFactory._isElevatedOverride = () => isRoot;
+
+        // Creating either source starts nothing: no fanotify descriptor and no pkexec prompt.
+        await using var source = VolumeChangeSourceFactory.CreateLinux();
+
+        Assert.That(source.GetType().Name, Is.EqualTo(expected));
     }
 
     [Test]

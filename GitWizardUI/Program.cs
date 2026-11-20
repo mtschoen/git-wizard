@@ -1,5 +1,6 @@
 using Avalonia;
 using GitWizard;
+using GitWizard.Watch.Linux;
 using MFTLib;
 
 namespace GitWizardUI;
@@ -11,13 +12,13 @@ static class Program
     // yet and stuff might break.
     [STAThread]
     public static int Main(string[] args) => Run(args,
-        ElevatedEntryPoint.RunBrokerIfRequested, WindowsDefender.TryRunElevatedHelper,
+        ElevatedEntryPoint.RunBrokerIfRequested, [WindowsDefender.TryRunElevatedHelper, LinuxWatchHelperHost.TryRun],
         DesktopInstance.CreateName,
         arguments => BuildAvaloniaApp().StartWithClassicDesktopLifetime(arguments),
         StartupNotice.Show);
 
     internal static int Run(string[] arguments, Func<string[], bool> tryHandleBroker,
-        Func<string[], int?> tryRunDefenderHelper, Func<string> getMutexName,
+        IReadOnlyList<Func<string[], int?>> tryRunHelpers, Func<string> getMutexName,
         Func<string[], int> startDesktop, Action<string> showNotice)
     {
         if (tryHandleBroker(arguments))
@@ -25,9 +26,14 @@ static class Program
             return 0;
         }
 
-        if (tryRunDefenderHelper(arguments) is { } helperExitCode)
+        // Child modes run in order (Defender, then the Linux watch helper); the first that claims
+        // the arguments owns the process.
+        foreach (var tryRunHelper in tryRunHelpers)
         {
-            return helperExitCode;
+            if (tryRunHelper(arguments) is { } helperExitCode)
+            {
+                return helperExitCode;
+            }
         }
 
         return DesktopInstance.Run(getMutexName(), () =>

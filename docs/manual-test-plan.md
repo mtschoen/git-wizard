@@ -238,6 +238,27 @@ Run the existing CLI live smoke pass first on any attended re-test.
 5. Verify field readability and scrolling at 500-pixel and 850-pixel window widths. Refresh has no elevation prompt. The window has no delete/clear action.
 6. On Linux run the same flag and open the panel: not applicable, no Windows-cache initialization. Retain the screenshot/terminal evidence outside the disposable checkout.
 
+## Linux desktop Live elevation (pkexec)
+
+Run on a Linux desktop session with a polkit authentication agent running (on Hyprland,
+start `hyprpolkitagent` first) and a Release GitWizardUI, started as the desktop user with
+an isolated `GITWIZARD_HOME` whose search path holds a seed repository outside `/tmp`.
+
+1. Click Live once. Expect exactly one polkit dialog. Authenticate. Expect `Requesting
+   elevation...`, then the readiness line `Ready (marks): <root>`, and Live green.
+2. In the seed repository, edit and commit a file (row refreshes as changed), create a new
+   repository under the search root (row appears), rename a repository directory (old row
+   leaves, new row appears), and delete one (row leaves).
+3. Stop Live. Run `pgrep -a GitWizardUI`: only the desktop process remains. Repeat with
+   Live running and close the window instead. Run `sudo find "$GITWIZARD_HOME" -uid 0`:
+   expect no output.
+4. Click Live and dismiss the dialog. Expect `Live watch could not start: Authentication
+   was cancelled, so Live stays off.`, Live off, and no second dialog.
+5. Start GitWizardUI as root (where the display accepts a root client) and click Live.
+   Expect no dialog and the same ready state.
+
+Record the desktop, polkit agent, build and observed outcomes on the issue.
+
 ## Desktop single instance
 
 Run the existing CLI live smoke pass first, as required by this document.

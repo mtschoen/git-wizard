@@ -211,6 +211,15 @@ launch an additional MFT broker or elevation prompt. An empty discovery clears t
 repository-list cache and the CLI reports that there is nothing to watch; an unusable
 discovery preserves the previous list and exits nonzero.
 
+On Linux, fanotify marks need root. `git-wizard --watch` relaunches itself through `sudo`
+when it is not root. GitWizardUI started without root shows one polkit (pkexec)
+authentication dialog when Live is clicked; the dialog's helper is a windowless copy of
+GitWizardUI running as root, and it exits when Live stops or the window closes. A polkit
+authentication agent must be running in the desktop session. Dismissing the dialog, failed
+authorization or a missing pkexec leaves Live off with a message saying which, and Live
+does not ask again until it is clicked again. GitWizardUI started as root watches without a
+prompt.
+
 `--watch` prints one `ready:` line when the run is ready and never a second one for the same run:
 
 ```

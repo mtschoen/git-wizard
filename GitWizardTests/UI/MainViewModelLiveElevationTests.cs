@@ -103,11 +103,11 @@ public class MainViewModelLiveElevationTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(phases, Is.EqualTo(new[]
-            {
+            Assert.That(phases, Is.EqualTo(
+            [
                 WatchStartupPhase.Opening, WatchStartupPhase.RequestingElevation, WatchStartupPhase.BrokerConnected,
                 WatchStartupPhase.Discovering
-            }));
+            ]));
             Assert.That(_launches, Is.EqualTo(1));
         }
 

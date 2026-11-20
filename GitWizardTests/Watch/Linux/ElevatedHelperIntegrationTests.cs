@@ -38,7 +38,7 @@ public class ElevatedHelperIntegrationTests
             using (Assert.EnterMultipleScope())
             {
                 Assert.That(result.Errors, Is.Empty, string.Join("; ", result.Errors.Values));
-                Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo(new[] { root.Path }));
+                Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo([root.Path]));
             }
 
             await using var enumerator = source.WatchAsync(cancellation.Token).GetAsyncEnumerator(cancellation.Token);

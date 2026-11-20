@@ -78,9 +78,9 @@ public class LinuxWatchHelperHostTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(source.ArmedVolumes, Is.EqualTo(new[] { "/repos", "/missing" }));
+            Assert.That(source.ArmedVolumes, Is.EqualTo(["/repos", "/missing"]));
             Assert.That(armResult.Errors, Is.EqualTo(source.ArmErrors));
-            Assert.That(readiness.Volumes, Is.EqualTo(new[] { VolumeWatchStatus.CaughtUp("/repos", VolumeBlockOrigin.Unknown) }));
+            Assert.That(readiness.Volumes, Is.EqualTo([VolumeWatchStatus.CaughtUp("/repos", VolumeBlockOrigin.Unknown)]));
         }
 
         await pipes.CloseClientInputAsync();
@@ -148,12 +148,12 @@ public class LinuxWatchHelperHostTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(before, Is.Empty, "A batch with no relevant entry is not sent.");
-            Assert.That(batch.Batch.Entries, Is.EqualTo(new[]
-            {
+            Assert.That(batch.Batch.Entries, Is.EqualTo(
+            [
                 new VolumeChangeEntry("/srv/data/repos/a/.git/index", VolumeEntryKind.Modified),
                 new VolumeChangeEntry("/srv/data/repos", VolumeEntryKind.Deleted),
                 new VolumeChangeEntry("/srv/data/repos-moved", VolumeEntryKind.MovedIn)
-            }));
+            ]));
         }
 
         await pipes.CloseClientInputAsync();
@@ -218,7 +218,7 @@ public class LinuxWatchHelperHostTests
             Assert.That(rejection, Is.TypeOf<ErrorFrame>());
             Assert.That(((ErrorFrame)rejection!).Message, Does.StartWith("Rejected request:"));
             Assert.That(armResult.Errors, Is.Empty);
-            Assert.That(source.ArmedVolumes, Is.EqualTo(new[] { "/repos" }));
+            Assert.That(source.ArmedVolumes, Is.EqualTo(["/repos"]));
         }
 
         await pipes.CloseClientInputAsync();

@@ -23,7 +23,7 @@ public class LinuxWatchHelperProtocolTests
     public void ArmRequest_RoundTrips()
     {
         var parsed = RoundTrip(new ArmRequestFrame(["/repos", "/srv/data/line\nbreak"]));
-        Assert.That(parsed.Roots, Is.EqualTo(new[] { "/repos", "/srv/data/line\nbreak" }));
+        Assert.That(parsed.Roots, Is.EqualTo(["/repos", "/srv/data/line\nbreak"]));
     }
 
     [Test]

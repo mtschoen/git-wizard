@@ -65,15 +65,15 @@ public class ElevatedHelperVolumeChangeSourceTests
         {
             Assert.That(launcher.Starts, Has.Count.EqualTo(1));
             Assert.That(launcher.Starts[0].FileName, Is.EqualTo("pkexec"));
-            Assert.That(launcher.Starts[0].ArgumentList, Is.EqualTo(new[] { "/opt/git-wizard/GitWizardUI", LinuxWatchHelperHost.Flag }));
+            Assert.That(launcher.Starts[0].ArgumentList, Is.EqualTo(["/opt/git-wizard/GitWizardUI", LinuxWatchHelperHost.Flag]));
             Assert.That(launcher.Starts[0].RedirectStandardInput && launcher.Starts[0].RedirectStandardOutput &&
                         launcher.Starts[0].RedirectStandardError, Is.True);
-            Assert.That(roots, Is.EqualTo(new[] { "/repos", "/missing" }));
+            Assert.That(roots, Is.EqualTo(["/repos", "/missing"]));
             Assert.That(result.Errors, Is.EqualTo(new Dictionary<string, string> { ["/missing"] = "Directory does not exist: /missing" }));
-            Assert.That(events, Is.EqualTo(new[] { "connecting", "connected" }));
+            Assert.That(events, Is.EqualTo(["connecting", "connected"]));
             Assert.That(source.Mode, Is.EqualTo(WatchReadinessMode.FilesystemMarks));
-            Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo(new[] { "/repos" }));
-            Assert.That(source.Readiness.ExcludedVolumes.Select(volume => volume.Volume), Is.EqualTo(new[] { "/missing" }));
+            Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo(["/repos"]));
+            Assert.That(source.Readiness.ExcludedVolumes.Select(volume => volume.Volume), Is.EqualTo(["/missing"]));
         }
     }
 
@@ -93,7 +93,7 @@ public class ElevatedHelperVolumeChangeSourceTests
         {
             Assert.That(launches, Is.Zero);
             Assert.That(result.Errors.Values, Is.All.EqualTo(ElevatedHelperVolumeChangeSource.RelativeRootMessage));
-            Assert.That(result.Errors.Keys, Is.EquivalentTo(new[] { "relative/path", " " }));
+            Assert.That(result.Errors.Keys, Is.EquivalentTo(["relative/path", " "]));
         }
     }
 
@@ -136,7 +136,7 @@ public class ElevatedHelperVolumeChangeSourceTests
         {
             Assert.That(result.Errors, Is.EqualTo(new Dictionary<string, string> { ["/repos"] = expected }));
             Assert.That(source.Readiness.ExcludedVolumes.Single().ExclusionReason, Is.EqualTo(expected));
-            Assert.That(deaths, Is.EqualTo(new[] { expected }));
+            Assert.That(deaths, Is.EqualTo([expected]));
         }
     }
 
@@ -239,7 +239,7 @@ public class ElevatedHelperVolumeChangeSourceTests
         await pipes.SendFrameAsync(new DriveFailedFrame("/repos", "watch failed"));
         await failed.Task.WaitAsync(TestTimeouts.ShortHangGuard);
 
-        Assert.That(failures, Is.EqualTo(new[] { ("/repos", "watch failed") }));
+        Assert.That(failures, Is.EqualTo([("/repos", "watch failed")]));
     }
 
     [Test]
@@ -266,8 +266,8 @@ public class ElevatedHelperVolumeChangeSourceTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(deaths, Is.EqualTo(new[] { "fanotify event queue overflowed." }));
-            Assert.That(late, Is.EqualTo(new[] { "fanotify event queue overflowed." }));
+            Assert.That(deaths, Is.EqualTo(["fanotify event queue overflowed."]));
+            Assert.That(late, Is.EqualTo(["fanotify event queue overflowed."]));
             Assert.That(batches, Is.Empty, "A dead helper's watch ends instead of hanging.");
             Assert.That(source.Readiness.ExcludedVolumes.Single().ExclusionReason, Is.EqualTo("fanotify event queue overflowed."));
         }
@@ -287,7 +287,7 @@ public class ElevatedHelperVolumeChangeSourceTests
         await pipes.ExitAsync(0);
         await AsyncCondition.WaitUntilAsync(() => deaths.Count > 0, TestTimeouts.ShortHangGuard);
 
-        Assert.That(deaths, Is.EqualTo(new[] { "The elevated Live helper ended unexpectedly (exit code 0)." }));
+        Assert.That(deaths, Is.EqualTo(["The elevated Live helper ended unexpectedly (exit code 0)."]));
     }
 
     [Test]

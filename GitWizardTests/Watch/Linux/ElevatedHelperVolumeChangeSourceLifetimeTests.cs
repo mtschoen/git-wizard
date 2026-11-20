@@ -163,11 +163,11 @@ public class ElevatedHelperVolumeChangeSourceLifetimeTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo(new[] { "/repos" }));
-            Assert.That(source.Readiness.ExcludedVolumes, Is.EqualTo(new[]
-            {
+            Assert.That(source.Readiness.CaughtUpVolumes, Is.EqualTo(["/repos"]));
+            Assert.That(source.Readiness.ExcludedVolumes, Is.EqualTo(
+            [
                 VolumeWatchStatus.Excluded("relative/path", VolumeBlockOrigin.Unknown, ElevatedHelperVolumeChangeSource.RelativeRootMessage)
-            }));
+            ]));
         }
     }
 

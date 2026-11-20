@@ -8,10 +8,46 @@ namespace GitWizardTests.TestSupport;
 /// In-memory stdin, stdout and stderr between a Linux watch helper client and its helper, with
 /// the helper's exit code under test control. The client side is <see cref="Process"/>; the
 /// helper side reads requests from <see cref="HelperInput"/> and writes frames to
-/// <see cref="HelperOutput"/>.
+/// <see cref="HelperOutput"/>. <see cref="LinuxWatchHelperProcess.Terminate"/> is recorded; by
+/// default it ends the fake as a signalled pkexec would (exit 143).
 /// </summary>
 sealed class HelperPipes : IAsyncDisposable
 {
+    public const int TerminatedExitCode = 143;
+
+    /// <summary>A client stdin whose writes stay pending, ignoring cancellation, until released.</summary>
+    sealed class HeldWriteStream(Stream inner, Task release, TaskCompletionSource writeStarted) : Stream
+    {
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() => inner.Flush();
+        public override Task FlushAsync(CancellationToken cancellationToken) => inner.FlushAsync(CancellationToken.None);
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            writeStarted.TrySetResult();
+            await release;
+            await inner.WriteAsync(buffer, CancellationToken.None);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                inner.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+    }
+
     readonly Pipe _stdin = new();
     readonly Pipe _stdout = new();
     readonly Pipe _stderr = new();
@@ -19,20 +55,41 @@ sealed class HelperPipes : IAsyncDisposable
     readonly StreamReader _requests;
     readonly StreamReader _frames;
     readonly StreamWriter _helperWriter;
+    readonly TaskCompletionSource _releaseWrites = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    readonly TaskCompletionSource _clientWriteStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    int _terminateCount;
 
-    public HelperPipes()
+    public HelperPipes(bool holdClientWrites = false)
     {
         HelperInput = _stdin.Reader.AsStream();
         HelperOutput = _stdout.Writer.AsStream();
-        ClientInput = _stdin.Writer.AsStream();
+        ClientInput = holdClientWrites ? new HeldWriteStream(_stdin.Writer.AsStream(), _releaseWrites.Task, _clientWriteStarted) : _stdin.Writer.AsStream();
         ClientOutput = _stdout.Reader.AsStream();
-        Process = new LinuxWatchHelperProcess(ClientInput, ClientOutput, _stderr.Reader.AsStream(), _exit.Task);
+        Process = new LinuxWatchHelperProcess(ClientInput, ClientOutput, _stderr.Reader.AsStream(), _exit.Task, OnTerminate);
         _requests = new StreamReader(HelperInput, Encoding.UTF8);
         _frames = new StreamReader(ClientOutput, Encoding.UTF8);
         _helperWriter = new StreamWriter(HelperOutput, new UTF8Encoding(false)) { AutoFlush = true, NewLine = "\n" };
     }
 
     public LinuxWatchHelperProcess Process { get; }
+    public int TerminateCount => Volatile.Read(ref _terminateCount);
+
+    /// <summary>False models a process that already became root: the signal is refused and nothing ends.</summary>
+    public bool ExitOnTerminate { get; init; } = true;
+
+    public void ReleaseWrites() => _releaseWrites.TrySetResult();
+
+    /// <summary>Completes when a held client write has begun.</summary>
+    public Task ClientWriteStarted => _clientWriteStarted.Task;
+
+    void OnTerminate()
+    {
+        Interlocked.Increment(ref _terminateCount);
+        if (ExitOnTerminate)
+        {
+            _ = ExitAsync(TerminatedExitCode);
+        }
+    }
     public Stream HelperInput { get; }
     public Stream HelperOutput { get; }
     public Stream ClientInput { get; }
@@ -87,6 +144,7 @@ sealed class HelperPipes : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        _releaseWrites.TrySetResult();
         await _stdin.Writer.CompleteAsync();
         await _stdout.Writer.CompleteAsync();
         await _stderr.Writer.CompleteAsync();

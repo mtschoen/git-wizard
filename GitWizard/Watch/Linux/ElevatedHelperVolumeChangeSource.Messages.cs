@@ -37,13 +37,14 @@ public sealed partial class ElevatedHelperVolumeChangeSource
                 return $"The elevated Live helper speaks protocol {hello.ProtocolVersion}, not {LinuxWatchHelperProtocol.Version}.";
             case HelloFrame:
                 _helloReceived = true;
+                _hello.TrySetResult();
                 Connected?.Invoke();
                 break;
             case ArmResultFrame armResult:
                 _armResult.TrySetResult(armResult.Errors);
                 break;
             case ReadinessFrame readiness:
-                PublishReadiness(_ => readiness.Volumes.Aggregate(VolumeReadinessSnapshot.Empty, (snapshot, status) => snapshot.With(status)));
+                PublishReadiness(_ => MergeOverLocalExclusions(readiness.Volumes));
                 break;
             case PumpStartedFrame:
                 _pumpStarted.TrySetResult();
@@ -71,11 +72,14 @@ public sealed partial class ElevatedHelperVolumeChangeSource
 
     async Task EndAsync(LinuxWatchHelperProcess process, string? diedReason)
     {
-        var reason = diedReason ?? DescribeEnd(await TryGetExitCodeAsync(process).ConfigureAwait(false));
+        var stoppedHere = _disposing || _terminated;
+        var reason = stoppedHere ? StoppedMessage
+            : diedReason ?? DescribeEnd(await TryGetExitCodeAsync(process).ConfigureAwait(false));
         _batches.Writer.TryComplete();
         // The death is recorded before the arm can observe the end, so an arm that fails on it
-        // returns to a source whose readiness and death already describe that failure.
-        if (!_disposing)
+        // returns to a source whose readiness and death already describe that failure. An end this
+        // source caused (disposal, or terminating pkexec on cancellation) is not a death.
+        if (!stoppedHere)
         {
             ReportDeath(reason);
         }

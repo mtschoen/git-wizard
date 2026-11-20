@@ -5,6 +5,8 @@ using GitWizardTests.TestSupport;
 namespace GitWizardTests.Watch.Linux;
 
 [TestFixture]
+// POSIX roots: Path.IsPathFullyQualified rejects them on Windows, and the helper is Linux-only.
+[Platform("Linux")]
 public class LinuxWatchHelperHostTests
 {
     sealed class FailingWriteStream : Stream

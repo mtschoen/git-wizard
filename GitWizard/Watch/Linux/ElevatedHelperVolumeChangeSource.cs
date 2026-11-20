@@ -11,7 +11,10 @@ namespace GitWizard.Watch.Linux;
 /// this executable's <see cref="LinuxWatchHelperHost.Flag"/> mode through pkexec (one polkit
 /// prompt), which runs <see cref="FanotifyVolumeChangeSource"/> as root; this source replays the
 /// helper's arm result, readiness, pump start, batches and failures from its stdout. The helper is
-/// started once per source and exits when this source closes its stdin.
+/// started once per source. Until the helper's <c>hello</c> arrives, the launched process is still
+/// pkexec running as the caller, showing its dialog: cancelling the arm or disposing terminates it,
+/// which closes the dialog. After <c>hello</c> it is root and is never signalled; it exits when
+/// this source closes its stdin.
 /// </summary>
 /// <remarks>
 /// Every helper end this source did not ask for (a <c>died</c> frame, stdout ending, the process
@@ -29,6 +32,9 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
         "polkit's pkexec is not installed, so Live cannot request elevation. Starting GitWizardUI as root needs no prompt.";
     internal const string LaunchFailedMessage = "The elevated Live helper could not be started.";
     internal const string UnknownExecutableMessage = "The GitWizardUI executable path is unknown, so the elevated Live helper cannot be started.";
+    internal const string DotnetHostMessage =
+        "Live elevation needs the GitWizardUI executable itself; it cannot be started through the dotnet host.";
+    internal const string StoppedMessage = "The Live watch was stopped.";
     internal const string RelativeRootMessage = "Live watch roots must be absolute paths.";
     internal const string RejectedRequestMessage = "The elevated Live helper rejected the watch request.";
     const int PkexecDismissedExitCode = 126;
@@ -49,6 +55,10 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
     readonly TaskCompletionSource _pumpStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
     readonly TaskCompletionSource<IReadOnlyDictionary<string, string>> _armResult = new(TaskCreationOptions.RunContinuationsAsynchronously);
     readonly TaskCompletionSource<string> _ended = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    readonly TaskCompletionSource _hello = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    readonly CancellationTokenSource _disposal = new();
+    readonly string? _unavailableReason;
+    readonly List<VolumeWatchStatus> _localExclusions = [];
 
     LinuxWatchHelperProcess? _process;
     Task? _readTask;
@@ -60,11 +70,14 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
     int _watchRequested;
     bool _inputClosed;
     volatile bool _helloReceived;
+    volatile bool _terminated;
     volatile bool _disposing;
 
     internal ElevatedHelperVolumeChangeSource(ProcessStartInfo? startInfo, LinuxWatchHelperLauncher launcher,
-        TimeProvider timeProvider, TimeSpan exitWait, Func<string, bool>? isConclusivelyMissing = null)
+        TimeProvider timeProvider, TimeSpan exitWait, Func<string, bool>? isConclusivelyMissing = null,
+        string? unavailableReason = null)
     {
+        _unavailableReason = unavailableReason;
         _startInfo = startInfo;
         _launcher = launcher ?? throw new ArgumentNullException(nameof(launcher));
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
@@ -73,9 +86,25 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
     }
 
     /// <summary>A source whose helper is this executable, started through pkexec.</summary>
-    public static ElevatedHelperVolumeChangeSource CreatePkexec() =>
-        new(LinuxWatchHelperLaunch.CreatePkexecStartInfo(Environment.ProcessPath), LinuxWatchHelperLaunch.Start,
-            TimeProvider.System, DefaultExitWait);
+    public static ElevatedHelperVolumeChangeSource CreatePkexec() => CreatePkexec(Environment.ProcessPath);
+
+    internal static ElevatedHelperVolumeChangeSource CreatePkexec(string? executablePath)
+    {
+        var unavailableReason = DescribeUnusableExecutable(executablePath);
+        return new ElevatedHelperVolumeChangeSource(
+            unavailableReason is null ? LinuxWatchHelperLaunch.CreatePkexecStartInfo(executablePath) : null,
+            LinuxWatchHelperLaunch.Start, TimeProvider.System, DefaultExitWait, null, unavailableReason);
+    }
+
+    static string? DescribeUnusableExecutable(string? executablePath)
+    {
+        if (string.IsNullOrEmpty(executablePath))
+        {
+            return UnknownExecutableMessage;
+        }
+
+        return LinuxWatchHelperLaunch.IsDotnetHost(executablePath) ? DotnetHostMessage : null;
+    }
 
     public event Action? Connecting;
     public event Action? Connected;
@@ -172,7 +201,21 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
             return new VolumeArmResult(errors, []);
         }
 
-        await SendAsync(new ArmRequestFrame(roots)).ConfigureAwait(false);
+        // pkexec reads no stdin before it authenticates, so the arm waits for the helper's hello;
+        // a large arm line could otherwise fill the pipe and block behind the dialog.
+        try
+        {
+            if (await Task.WhenAny(_hello.Task, _ended.Task).WaitAsync(ct).ConfigureAwait(false) == _hello.Task)
+            {
+                await SendAsync(new ArmRequestFrame(roots), ct).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (!_helloReceived)
+        {
+            TerminateBeforeHello();
+            throw;
+        }
+
         var completed = await Task.WhenAny(_armResult.Task, _ended.Task).WaitAsync(ct).ConfigureAwait(false);
         if (completed == _armResult.Task)
         {
@@ -202,7 +245,7 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
 
         if (Interlocked.Exchange(ref _watchRequested, 1) == 0)
         {
-            await SendAsync(new WatchRequestFrame()).ConfigureAwait(false);
+            await SendAsync(new WatchRequestFrame(), ct).ConfigureAwait(false);
         }
 
         await foreach (var batch in _batches.Reader.ReadAllAsync(ct).ConfigureAwait(false))
@@ -212,9 +255,8 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
     }
 
     /// <summary>
-    /// Closes the helper's stdin and waits, bounded, for it to exit. The helper is never killed:
-    /// one still waiting on its authentication dialog exits as soon as it starts and reads the
-    /// end of its input.
+    /// Terminates pkexec while its dialog is still open (before <c>hello</c>); otherwise closes the
+    /// root helper's stdin and waits, bounded, for it to exit without signalling it.
     /// </summary>
     public async ValueTask DisposeAsync()
     {
@@ -230,6 +272,12 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
 
         if (_process is { } process)
         {
+            if (!_helloReceived)
+            {
+                TerminateBeforeHello();
+            }
+
+            await _disposal.CancelAsync().ConfigureAwait(false);
             await CloseInputAsync(process).ConfigureAwait(false);
             try
             {
@@ -244,7 +292,7 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
         }
 
         _batches.Writer.TryComplete();
-        _ended.TrySetResult("The Live watch was stopped.");
+        _ended.TrySetResult(StoppedMessage);
     }
 
     static bool IsAbsoluteRoot(string? volume) =>
@@ -274,7 +322,7 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
     {
         if (_startInfo is null)
         {
-            return UnknownExecutableMessage;
+            return _unavailableReason ?? UnknownExecutableMessage;
         }
 
         LinuxWatchHelperProcess process;
@@ -302,7 +350,24 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
     void Exclude(Dictionary<string, string> errors, string volume, string message)
     {
         errors[volume] = message;
-        PublishReadiness(snapshot => snapshot.With(VolumeWatchStatus.Excluded(volume, VolumeBlockOrigin.Unknown, message)));
+        var status = VolumeWatchStatus.Excluded(volume, VolumeBlockOrigin.Unknown, message);
+        lock (_gate)
+        {
+            _localExclusions.Add(status);
+        }
+
+        PublishReadiness(snapshot => snapshot.With(status));
+    }
+
+    // A helper readiness frame describes only the roots it was sent, so the roots this source
+    // excluded itself stay in the snapshot beneath it.
+    VolumeReadinessSnapshot MergeOverLocalExclusions(IReadOnlyList<VolumeWatchStatus> helperVolumes)
+    {
+        lock (_gate)
+        {
+            return _localExclusions.Concat(helperVolumes)
+                .Aggregate(VolumeReadinessSnapshot.Empty, (snapshot, status) => snapshot.With(status));
+        }
     }
 
     void PublishReadiness(Func<VolumeReadinessSnapshot, VolumeReadinessSnapshot> update)
@@ -312,53 +377,6 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
             var snapshot = _readiness = update(_readiness);
             try { ReadinessChanged?.Invoke(snapshot); }
             catch (Exception exception) { GitWizardLog.LogException(exception, "A Live readiness subscriber failed."); }
-        }
-    }
-
-    async Task SendAsync(LinuxWatchHelperFrame frame)
-    {
-        if (_process is not { } process)
-        {
-            return;
-        }
-
-        var bytes = Utf8WithoutMarker.GetBytes(LinuxWatchHelperProtocol.Serialize(frame) + "\n");
-        await _inputGate.WaitAsync().ConfigureAwait(false);
-        try
-        {
-            if (_inputClosed)
-            {
-                return;
-            }
-
-            await process.Input.WriteAsync(bytes).ConfigureAwait(false);
-            await process.Input.FlushAsync().ConfigureAwait(false);
-        }
-        catch (Exception exception) when (exception is IOException or ObjectDisposedException)
-        {
-            // The helper is gone; the output reader reports the end.
-        }
-        finally
-        {
-            _inputGate.Release();
-        }
-    }
-
-    async Task CloseInputAsync(LinuxWatchHelperProcess process)
-    {
-        await _inputGate.WaitAsync().ConfigureAwait(false);
-        try
-        {
-            _inputClosed = true;
-            await process.Input.DisposeAsync().ConfigureAwait(false);
-        }
-        catch (Exception exception) when (exception is IOException or ObjectDisposedException)
-        {
-            // Closing a pipe the helper already left still tells it nothing more is coming.
-        }
-        finally
-        {
-            _inputGate.Release();
         }
     }
 }

@@ -8,6 +8,8 @@ namespace GitWizardTests.UI;
 // Covers the unelevated Linux Live path end to end below the pkexec process boundary: the real
 // coordinator arms an ElevatedHelperVolumeChangeSource whose helper process is in-memory pipes.
 [NonParallelizable]
+// POSIX roots: Path.IsPathFullyQualified rejects them on Windows, and the helper is Linux-only.
+[Platform("Linux")]
 public class MainViewModelLiveElevationTests
 {
     readonly List<HelperPipes> _helpers = [];

@@ -213,12 +213,20 @@ discovery preserves the previous list and exits nonzero.
 
 On Linux, fanotify marks need root. `git-wizard --watch` relaunches itself through `sudo`
 when it is not root. GitWizardUI started without root shows one polkit (pkexec)
-authentication dialog when Live is clicked; the dialog's helper is a windowless copy of
-GitWizardUI running as root, and it exits when Live stops or the window closes. A polkit
+authentication dialog when Live is clicked; after authentication a windowless copy of
+GitWizardUI runs as root and exits when Live stops or the window closes. Stopping Live or
+closing the window while the dialog is still open ends pkexec and closes the dialog. A polkit
 authentication agent must be running in the desktop session. Dismissing the dialog, failed
 authorization or a missing pkexec leaves Live off with a message saying which, and Live
-does not ask again until it is clicked again. GitWizardUI started as root watches without a
-prompt.
+does not ask again until it is clicked again. GitWizardUI started as `dotnet GitWizardUI.dll`
+cannot elevate; start the GitWizardUI executable. GitWizardUI started as root watches without
+a prompt.
+
+The root helper watches the directories the desktop names (search roots and tracked
+repositories) and reports only change paths at or under them, or directly beside them. It
+is the GitWizardUI executable at its own path, so, as with the Windows broker under UAC, an
+installation directory the user can write lets any program running as that user replace what
+the password prompt elevates; install GitWizardUI to a root-owned location to avoid that.
 
 `--watch` prints one `ready:` line when the run is ready and never a second one for the same run:
 

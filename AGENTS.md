@@ -192,7 +192,7 @@ Avalonia, not MFTLib/CLI/App/screenshot. Hold the per-user mutex through lifetim
 release on its thread; duplicates exit 1. Tests use distinct threads/unique names.
 
 Unelevated Linux Live: one pkexec prompt starts a root `--linux-watch-helper`; it exits on
-stdin end or stdout failure, is never killed, and a declined prompt or its death never respawns.
+stdin end or stdout failure, is signalled only as pkexec before hello, and nothing respawns.
 
 Defender excludes process names only (dotnet/git/git-lfs/git-wizard/GitWizardUI),
 never cache/temp/volumes. Preserve the protection warning and successful setup

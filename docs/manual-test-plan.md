@@ -250,11 +250,15 @@ an isolated `GITWIZARD_HOME` whose search path holds a seed repository outside `
    repository under the search root (row appears), rename a repository directory (old row
    leaves, new row appears), and delete one (row leaves).
 3. Stop Live. Run `pgrep -a GitWizardUI`: only the desktop process remains. Repeat with
-   Live running and close the window instead. Run `sudo find "$GITWIZARD_HOME" -uid 0`:
-   expect no output.
+   Live running and close the window instead. pkexec wipes `GITWIZARD_HOME`, so a stray
+   helper write would land in root's home: run `sudo ls -la /root/.GitWizard` and expect
+   that it does not exist.
 4. Click Live and dismiss the dialog. Expect `Live watch could not start: Authentication
    was cancelled, so Live stays off.`, Live off, and no second dialog.
-5. Start GitWizardUI as root (where the display accepts a root client) and click Live.
+5. Click Live, leave the dialog open, and click Live again to stop. Expect the dialog to
+   disappear within about a second, Live off without an error message, and `pgrep -a pkexec`
+   to print nothing. Click Live once more: exactly one new dialog appears.
+6. Start GitWizardUI as root (where the display accepts a root client) and click Live.
    Expect no dialog and the same ready state.
 
 Record the desktop, polkit agent, build and observed outcomes on the issue.

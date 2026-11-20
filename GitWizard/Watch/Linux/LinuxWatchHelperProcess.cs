@@ -39,6 +39,7 @@ public static partial class LinuxWatchHelperLaunch
         }
 
         var startInfo = CreateRedirectedStartInfo(PkexecFileName);
+        startInfo.ArgumentList.Add("--disable-internal-agent");
         startInfo.ArgumentList.Add(executablePath);
         startInfo.ArgumentList.Add(LinuxWatchHelperHost.Flag);
         return startInfo;

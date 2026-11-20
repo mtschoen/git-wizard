@@ -50,6 +50,7 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
     readonly TimeSpan _exitWait;
     readonly Func<string, bool> _isConclusivelyMissing;
     readonly Lock _gate = new();
+    readonly Lock _launchGate = new();
     readonly SemaphoreSlim _inputGate = new(1, 1);
     readonly Channel<VolumeChangeBatch> _batches = Channel.CreateUnbounded<VolumeChangeBatch>();
     readonly TaskCompletionSource _pumpStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -66,7 +67,7 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
     IReadOnlyList<string> _roots = [];
     Action<string>? _sourceDied;
     string? _deathReason;
-    int _armStarted;
+    bool _armStarted;
     int _watchRequested;
     bool _inputClosed;
     volatile bool _helloReceived;
@@ -159,10 +160,15 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
     {
         ArgumentNullException.ThrowIfNull(volumes);
         ct.ThrowIfCancellationRequested();
-        ObjectDisposedException.ThrowIf(_disposing, this);
-        if (Interlocked.Exchange(ref _armStarted, 1) != 0)
+        lock (_launchGate)
         {
-            throw new InvalidOperationException("An elevated helper source is armed once.");
+            ObjectDisposedException.ThrowIf(_disposing, this);
+            if (_armStarted)
+            {
+                throw new InvalidOperationException("An elevated helper source is armed once.");
+            }
+
+            _armStarted = true;
         }
 
         var errors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -190,8 +196,10 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
         }
 
         _roots = roots;
+        ct.ThrowIfCancellationRequested();
         Connecting?.Invoke();
-        if (Launch() is { } launchFailure)
+        using var onCancel = ct.Register(TerminateBeforeHello);
+        if (LaunchUnlessStopped(ct) is { } launchFailure)
         {
             foreach (var root in roots)
             {
@@ -217,6 +225,7 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
         }
 
         var completed = await Task.WhenAny(_armResult.Task, _ended.Task).WaitAsync(ct).ConfigureAwait(false);
+        ct.ThrowIfCancellationRequested();
         if (completed == _armResult.Task)
         {
             foreach (var (root, message) in await _armResult.Task.ConfigureAwait(false))
@@ -260,7 +269,7 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
     /// </summary>
     public async ValueTask DisposeAsync()
     {
-        lock (_gate)
+        lock (_launchGate)
         {
             if (_disposing)
             {
@@ -272,11 +281,7 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
 
         if (_process is { } process)
         {
-            if (!_helloReceived)
-            {
-                TerminateBeforeHello();
-            }
-
+            TerminateBeforeHello();
             await _disposal.CancelAsync().ConfigureAwait(false);
             await CloseInputAsync(process).ConfigureAwait(false);
             try
@@ -314,6 +319,17 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
         catch (Exception exception) when (exception is UnauthorizedAccessException or IOException)
         {
             return false;
+        }
+    }
+
+    string? LaunchUnlessStopped(CancellationToken ct)
+    {
+        lock (_launchGate)
+        {
+            // Stop either wins admission or takes ownership of the published pkexec process.
+            ct.ThrowIfCancellationRequested();
+            ObjectDisposedException.ThrowIf(_disposing, this);
+            return Launch();
         }
     }
 

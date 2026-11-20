@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using GitWizard;
 using GitWizard.Watch;
 using GitWizard.Watch.Linux;
 using GitWizardTests.TestSupport;
@@ -11,9 +10,6 @@ namespace GitWizardTests.Watch.Linux;
 [TestFixture]
 public class ElevatedHelperVolumeChangeSourceLifetimeTests
 {
-    [SetUp]
-    public void SetUp() => GitWizardLog.SilentMode = true;
-
     sealed class RecordingLauncher(HelperPipes pipes)
     {
         public int Starts { get; private set; }
@@ -28,6 +24,44 @@ public class ElevatedHelperVolumeChangeSourceLifetimeTests
     static ElevatedHelperVolumeChangeSource CreateSource(HelperPipes pipes, TimeProvider? clock = null) =>
         new(LinuxWatchHelperLaunch.CreatePkexecStartInfo("/opt/git-wizard/GitWizardUI"), new RecordingLauncher(pipes).Launch,
             clock ?? TimeProvider.System, TestTimeouts.ShortHangGuard, _ => false);
+
+    [Test]
+    public async Task CancelDuringRootValidation_DoesNotLaunchAfterTheProbeReturns()
+    {
+        await using var pipes = new HelperPipes();
+        var launcher = new RecordingLauncher(pipes);
+        using var cancellation = new CancellationTokenSource();
+        var token = cancellation.Token;
+        var probing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var resume = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        bool Probe(string root)
+        {
+            probing.SetResult();
+            return resume.Task.WaitAsync(TestTimeouts.HangGuard).GetAwaiter().GetResult();
+        }
+
+        var arm = Task.Run(async () =>
+        {
+            await using var source = new ElevatedHelperVolumeChangeSource(LinuxWatchHelperLaunch.CreatePkexecStartInfo("/opt/git-wizard/GitWizardUI"),
+                launcher.Launch, TimeProvider.System, TestTimeouts.ShortHangGuard, Probe);
+            await source.ArmAndCatchUpAsync(["/repos"], token);
+        }, token);
+        try
+        {
+            await probing.Task.WaitAsync(TestTimeouts.ShortHangGuard);
+            await cancellation.CancelAsync();
+        }
+        finally
+        {
+            resume.SetResult(false);
+        }
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(async () => await arm.WaitAsync(TestTimeouts.ShortHangGuard), Throws.InstanceOf<OperationCanceledException>());
+            Assert.That(launcher.Starts, Is.Zero);
+        }
+    }
 
     [Test]
     public async Task CancelWhileTheDialogIsOpen_TerminatesPkexec_WithoutAWrittenRequestOrADeath()

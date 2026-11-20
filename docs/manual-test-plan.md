@@ -241,8 +241,11 @@ Run the existing CLI live smoke pass first on any attended re-test.
 ## Linux desktop Live elevation (pkexec)
 
 Run on a Linux desktop session with a polkit authentication agent running (on Hyprland,
-start `hyprpolkitagent` first) and a Release GitWizardUI, started as the desktop user with
+start `hyprpolkitagent` first) and the published single-file linux-x64 GitWizardUI, started as the desktop user with
 an isolated `GITWIZARD_HOME` whose search path holds a seed repository outside `/tmp`.
+Before starting Live, record whether root's `$HOME/.GitWizard` exists and the contents of
+root's `$HOME/.net/GitWizardUI` (use `$DOTNET_BUNDLE_EXTRACT_BASE_DIR/GitWizardUI` instead
+if the override is set in the helper's effective environment).
 
 1. Click Live once. Expect exactly one polkit dialog. Authenticate. Expect `Requesting
    elevation...`, then the readiness line `Ready (marks): <root>`, and Live green.
@@ -250,9 +253,9 @@ an isolated `GITWIZARD_HOME` whose search path holds a seed repository outside `
    repository under the search root (row appears), rename a repository directory (old row
    leaves, new row appears), and delete one (row leaves).
 3. Stop Live. Run `pgrep -a GitWizardUI`: only the desktop process remains. Repeat with
-   Live running and close the window instead. pkexec wipes `GITWIZARD_HOME`, so a stray
-   helper write would land in root's home: run `sudo ls -la /root/.GitWizard` and expect
-   that it does not exist.
+   Live running and close the window instead. Expect no new or changed root GitWizard state.
+   In the extraction directory, expect a bundle-id subdirectory containing `libSkiaSharp.so`,
+   `libHarfBuzzSharp.so` and the bundled `libgit2-*.so`. A repeat run can reuse the same files.
 4. Click Live and dismiss the dialog. Expect `Live watch could not start: Authentication
    was cancelled, so Live stays off.`, Live off, and no second dialog.
 5. Click Live, leave the dialog open, and click Live again to stop. Expect the dialog to

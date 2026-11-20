@@ -36,7 +36,11 @@ public sealed partial class ElevatedHelperVolumeChangeSource
             case HelloFrame hello when hello.ProtocolVersion != LinuxWatchHelperProtocol.Version:
                 return $"The elevated Live helper speaks protocol {hello.ProtocolVersion}, not {LinuxWatchHelperProtocol.Version}.";
             case HelloFrame:
-                _helloReceived = true;
+                lock (_launchGate)
+                {
+                    _helloReceived = true;
+                }
+
                 _hello.TrySetResult();
                 Connected?.Invoke();
                 break;

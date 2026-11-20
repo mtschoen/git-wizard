@@ -1,3 +1,4 @@
+using System.IO.Pipelines;
 using GitWizard.Watch;
 using GitWizard.Watch.Linux;
 using GitWizardTests.TestSupport;
@@ -182,6 +183,31 @@ public class LinuxWatchHelperHostTests
         {
             Assert.That(await FinishAsync(host), Is.EqualTo(LinuxWatchHelperHost.ExitCodeEndOfInput));
             Assert.That(source.DisposeCount, Is.EqualTo(1));
+        }
+    }
+
+    [Test]
+    public async Task EndOfInput_WithAnOpenStalledOutput_StillDisposesAndExits()
+    {
+        await using var pipes = new HelperPipes();
+        var output = new Pipe(new PipeOptions(pauseWriterThreshold: 1, resumeWriterThreshold: 1));
+        await using var writer = output.Writer.AsStream();
+        var source = new ReadinessVolumeChangeSource();
+        var host = LinuxWatchHelperHost.RunAsync(pipes.HelperInput, writer, TextWriter.Null, () => true, () => source);
+        try
+        {
+            // Observe hello without consuming it: the writer cannot finish flushing this frame.
+            await output.Reader.ReadAsync().AsTask().WaitAsync(TestTimeouts.ShortHangGuard);
+            await pipes.CloseClientInputAsync();
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(await FinishAsync(host), Is.EqualTo(LinuxWatchHelperHost.ExitCodeEndOfInput));
+                Assert.That(source.DisposeCount, Is.EqualTo(1));
+            }
+        }
+        finally
+        {
+            await output.Reader.CompleteAsync();
         }
     }
 

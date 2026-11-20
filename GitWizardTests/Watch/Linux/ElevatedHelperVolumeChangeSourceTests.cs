@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Diagnostics;
-using GitWizard;
 using GitWizard.Watch;
 using GitWizard.Watch.Linux;
 using GitWizardTests.TestSupport;
@@ -10,9 +9,6 @@ namespace GitWizardTests.Watch.Linux;
 [TestFixture]
 public class ElevatedHelperVolumeChangeSourceTests
 {
-    [SetUp]
-    public void SetUp() => GitWizardLog.SilentMode = true;
-
     sealed class RecordingLauncher(HelperPipes pipes)
     {
         public List<ProcessStartInfo> Starts { get; } = [];
@@ -63,7 +59,7 @@ public class ElevatedHelperVolumeChangeSourceTests
         {
             Assert.That(launcher.Starts, Has.Count.EqualTo(1));
             Assert.That(launcher.Starts[0].FileName, Is.EqualTo("pkexec"));
-            Assert.That(launcher.Starts[0].ArgumentList, Is.EqualTo(["/opt/git-wizard/GitWizardUI", LinuxWatchHelperHost.Flag]));
+            Assert.That(launcher.Starts[0].ArgumentList, Is.EqualTo(["--disable-internal-agent", "/opt/git-wizard/GitWizardUI", LinuxWatchHelperHost.Flag]));
             Assert.That(launcher.Starts[0].RedirectStandardInput && launcher.Starts[0].RedirectStandardOutput &&
                         launcher.Starts[0].RedirectStandardError, Is.True);
             Assert.That(roots, Is.EqualTo(["/repos", "/missing"]));

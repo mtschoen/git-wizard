@@ -91,12 +91,15 @@ public sealed partial class ElevatedHelperVolumeChangeSource
     // which the process seam swallows, and closing stdin ends the helper instead.
     void TerminateBeforeHello()
     {
-        if (_process is not { } process || _helloReceived)
+        lock (_launchGate)
         {
-            return;
-        }
+            if (_process is not { } process || _helloReceived || _terminated)
+            {
+                return;
+            }
 
-        _terminated = true;
-        process.Terminate();
+            _terminated = true;
+            process.Terminate();
+        }
     }
 }

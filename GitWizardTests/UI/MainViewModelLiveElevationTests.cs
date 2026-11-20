@@ -14,11 +14,7 @@ public class MainViewModelLiveElevationTests
     int _launches;
 
     [SetUp]
-    public void SetUp()
-    {
-        GitWizardLog.SilentMode = true;
-        _launches = 0;
-    }
+    public void SetUp() => _launches = 0;
 
     [TearDown]
     public async Task TearDown()

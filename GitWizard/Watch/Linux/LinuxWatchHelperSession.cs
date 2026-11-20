@@ -29,7 +29,7 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
 
         // The read is not awaited at shutdown: a blocking stdin read need not observe cancellation,
         // and the process exits from under it once this method returns.
-        _ = ReadRequestsAsync(input);
+        var inputEnded = ReadRequestsAsync(input);
 
         var exitCode = await _finished.Task.ConfigureAwait(false);
         await _stop.CancelAsync().ConfigureAwait(false);
@@ -46,7 +46,13 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
         }
 
         _outbound.Writer.TryComplete();
-        await writerTask.ConfigureAwait(false);
+        if (exitCode == LinuxWatchHelperHost.ExitCodeSourceEnded)
+        {
+            // Deliver the ordered terminal frame while the client is connected. EOF releases
+            // the process even if the kernel write on the unbuffered stdout descriptor is stuck.
+            await Task.WhenAny(writerTask, inputEnded).ConfigureAwait(false);
+        }
+
         return exitCode;
     }
 
@@ -123,14 +129,13 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
         try
         {
             using var reader = new StreamReader(input, Utf8WithoutMarker, false, 4096, leaveOpen: true);
-            while (await reader.ReadLineAsync(_stop.Token).ConfigureAwait(false) is { } line)
+            while (await reader.ReadLineAsync().ConfigureAwait(false) is { } line)
             {
-                HandleRequest(line);
+                if (!_finished.Task.IsCompleted)
+                {
+                    HandleRequest(line);
+                }
             }
-        }
-        catch (OperationCanceledException)
-        {
-            return;
         }
         catch (Exception exception) when (exception is IOException or ObjectDisposedException)
         {

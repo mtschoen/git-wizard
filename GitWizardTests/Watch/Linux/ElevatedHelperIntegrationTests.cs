@@ -1,5 +1,4 @@
 using System.Runtime.Versioning;
-using GitWizard;
 using GitWizard.Watch;
 using GitWizard.Watch.Linux;
 using GitWizardTests.TestSupport;
@@ -19,7 +18,6 @@ public class ElevatedHelperIntegrationTests
     [Platform("Linux")]
     public async Task RealHelperUnderSudo_ArmsWatchesAndExitsOnEndOfInput()
     {
-        GitWizardLog.SilentMode = true;
         var executable = Path.Combine(TestContext.CurrentContext.TestDirectory, "GitWizardUI");
         var startInfo = LinuxWatchHelperLaunch.CreateRedirectedStartInfo("sudo");
         startInfo.ArgumentList.Add("-n");

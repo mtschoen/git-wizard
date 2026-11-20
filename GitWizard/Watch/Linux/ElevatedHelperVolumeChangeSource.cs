@@ -177,22 +177,7 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
         }
 
         var errors = new Dictionary<string, string>(WatchPath.StringComparer);
-        var roots = new List<string>();
-        foreach (var volume in volumes)
-        {
-            if (!IsAbsoluteRoot(volume))
-            {
-                Exclude(errors, volume, RelativeRootMessage);
-            }
-            else if (_isConclusivelyMissing(volume))
-            {
-                Exclude(errors, volume, $"Directory does not exist: {volume}");
-            }
-            else
-            {
-                roots.Add(volume);
-            }
-        }
+        var roots = ExcludeUnwatchable(volumes, errors);
 
         // Nothing watchable raises no prompt.
         if (roots.Count == 0)
@@ -206,11 +191,7 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
         using var onCancel = ct.Register(TerminateBeforeHello);
         if (LaunchUnlessStopped(ct) is { } launchFailure)
         {
-            foreach (var root in roots)
-            {
-                Exclude(errors, root, launchFailure);
-            }
-
+            ExcludeAll(errors, roots, launchFailure);
             return new VolumeArmResult(errors, []);
         }
 
@@ -368,7 +349,45 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
         return null;
     }
 
-    void Exclude(Dictionary<string, string> errors, string volume, string message)
+    // Excludes, in one readiness snapshot, the roots this process can tell are unwatchable; returns the rest.
+    List<string> ExcludeUnwatchable(IReadOnlyCollection<string> volumes, Dictionary<string, string> errors)
+    {
+        var roots = new List<string>();
+        var excluded = new List<VolumeWatchStatus>();
+        foreach (var volume in volumes)
+        {
+            if (!IsAbsoluteRoot(volume))
+            {
+                Exclude(errors, excluded, volume, RelativeRootMessage);
+            }
+            else if (_isConclusivelyMissing(volume))
+            {
+                Exclude(errors, excluded, volume, $"Directory does not exist: {volume}");
+            }
+            else
+            {
+                roots.Add(volume);
+            }
+        }
+
+        PublishExclusions(excluded);
+        return roots;
+    }
+
+    void ExcludeAll(Dictionary<string, string> errors, IReadOnlyList<string> roots, string message)
+    {
+        var excluded = new List<VolumeWatchStatus>();
+        foreach (var root in roots)
+        {
+            Exclude(errors, excluded, root, message);
+        }
+
+        PublishExclusions(excluded);
+    }
+
+    // Records the exclusion; PublishExclusions then publishes a batch of them as one snapshot, because a
+    // per-root publish would raise N snapshots that each list N roots.
+    void Exclude(Dictionary<string, string> errors, List<VolumeWatchStatus> batch, string volume, string message)
     {
         errors[volume] = message;
         var status = VolumeWatchStatus.Excluded(volume, VolumeBlockOrigin.Unknown, message);
@@ -377,7 +396,15 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
             _localExclusions.Add(status);
         }
 
-        PublishReadiness(snapshot => snapshot.With(status));
+        batch.Add(status);
+    }
+
+    void PublishExclusions(List<VolumeWatchStatus> batch)
+    {
+        if (batch.Count > 0)
+        {
+            PublishReadiness(snapshot => snapshot.WithAll(batch));
+        }
     }
 
     // A helper readiness frame describes only the roots it was sent, so the roots this source

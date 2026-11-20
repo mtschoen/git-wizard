@@ -213,6 +213,58 @@ public class ElevatedHelperVolumeChangeSourceTests
         }
     }
 
+    [Test]
+    public async Task LocalAndLaunchExclusions_OverManyRoots_RaiseOneReadinessEventEach()
+    {
+        await using var source = CreateSource(_ => throw new Win32Exception(2));
+        var snapshots = new List<VolumeReadinessSnapshot>();
+        source.ReadinessChanged += snapshots.Add;
+
+        await source.ArmAndCatchUpAsync(["relative/a", "relative/b", "/x/Repos", "/x/repos", "/y/other"], CancellationToken.None);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(snapshots, Has.Count.EqualTo(2), "One event for the local exclusions and one for the launch failure.");
+            Assert.That(snapshots[0].Volumes.Select(volume => volume.Volume), Is.EquivalentTo(["relative/a", "relative/b"]));
+            Assert.That(snapshots[1].Volumes, Has.Count.EqualTo(5));
+            Assert.That(snapshots[1].ExcludedVolumes, Has.Count.EqualTo(5));
+        }
+    }
+
+    [Test]
+    public async Task HelperDeath_OverManyRoots_RaisesOneReadinessEventWithEveryRootExcluded()
+    {
+        await using var pipes = new HelperPipes();
+        await using var source = CreateSource(new RecordingLauncher(pipes).Launch);
+        var deaths = new List<string>();
+        source.SourceDied += deaths.Add;
+        var arm = source.ArmAndCatchUpAsync(["/x/Repos", "/x/repos", "/y/other"], CancellationToken.None);
+        await AnswerArmAsync(pipes, readiness:
+        [
+            VolumeWatchStatus.CaughtUp("/x/Repos", VolumeBlockOrigin.Unknown),
+            VolumeWatchStatus.CaughtUp("/x/repos", VolumeBlockOrigin.Unknown),
+            VolumeWatchStatus.CaughtUp("/y/other", VolumeBlockOrigin.Unknown)
+        ]);
+        await arm.WaitAsync(TestTimeouts.ShortHangGuard);
+        var snapshots = new List<VolumeReadinessSnapshot>();
+        source.ReadinessChanged += snapshots.Add;
+
+        await pipes.SendFrameAsync(new DiedFrame("fanotify poll failed."));
+        await pipes.ExitAsync(LinuxWatchHelperHost.ExitCodeSourceEnded);
+        await AsyncCondition.WaitUntilAsync(() => deaths.Count > 0, TestTimeouts.ShortHangGuard);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(snapshots, Has.Count.EqualTo(1));
+            Assert.That(snapshots[0].Volumes.Select(volume => (volume.Volume, volume.State, volume.ExclusionReason)), Is.EquivalentTo(
+            [
+                ("/x/Repos", VolumeWatchState.Excluded, "fanotify poll failed."),
+                ("/x/repos", VolumeWatchState.Excluded, "fanotify poll failed."),
+                ("/y/other", VolumeWatchState.Excluded, "fanotify poll failed.")
+            ]));
+        }
+    }
+
     [TestCase(2, ElevatedHelperVolumeChangeSource.PkexecMissingMessage)]
     [TestCase(13, ElevatedHelperVolumeChangeSource.LaunchFailedMessage)]
     public async Task PkexecCannotStart_ReportsItInWords(int errorNumber, string expected)

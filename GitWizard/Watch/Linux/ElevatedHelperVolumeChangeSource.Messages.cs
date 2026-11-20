@@ -93,10 +93,9 @@ public sealed partial class ElevatedHelperVolumeChangeSource
 
     void ReportDeath(string reason)
     {
-        foreach (var root in _roots)
-        {
-            PublishReadiness(snapshot => snapshot.With(VolumeWatchStatus.Excluded(root, VolumeBlockOrigin.Unknown, reason)));
-        }
+        // One snapshot for every root: a per-root loop would publish N snapshots that each list N roots.
+        var excluded = _roots.Select(root => VolumeWatchStatus.Excluded(root, VolumeBlockOrigin.Unknown, reason)).ToArray();
+        PublishReadiness(snapshot => snapshot.WithAll(excluded));
 
         Action<string>? handlers;
         lock (_gate)

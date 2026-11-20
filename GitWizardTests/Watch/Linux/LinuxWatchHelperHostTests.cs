@@ -233,6 +233,41 @@ public class LinuxWatchHelperHostTests
     }
 
     [Test]
+    [Platform("Linux")]
+    [SupportedOSPlatform("linux")]
+    public async Task TerminalPollFailure_OverManyRoots_SendsOneReadinessFrameThenDiedAndExits3()
+    {
+        using var parent = new TempDirectory("gw-helper-host-death-");
+        var parentPath = parent.Path;
+        string[] roots = [.. new[] { "Repos", "repos", "other", "third" }.Select(name => Path.Combine(parentPath, name))];
+        foreach (var root in roots)
+        {
+            Directory.CreateDirectory(root);
+        }
+
+        await using var pipes = new HelperPipes();
+        var native = new FakeFanotifyNative { InitializeResult = new FanotifyNativeCallResult(7, 0), PollResult = -1 };
+        await using var source = new FanotifyVolumeChangeSource(native);
+        var host = RunHost(pipes, source);
+        Assert.That(await pipes.ReadFrameAsync(), Is.EqualTo(new HelloFrame(LinuxWatchHelperProtocol.Version)));
+        await pipes.SendRequestAsync(new ArmRequestFrame(roots));
+        await pipes.ReadFrameAsync<ArmResultFrame>();
+
+        await pipes.SendRequestAsync(new WatchRequestFrame());
+        var (died, before) = await pipes.ReadFrameAsync<DiedFrame>();
+        var readiness = before.OfType<ReadinessFrame>().Single();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(before.OfType<ReadinessFrame>(), Has.Exactly(1).Items);
+            Assert.That(readiness.Volumes.Select(volume => (volume.Volume, volume.State, volume.ExclusionReason)), Is.EquivalentTo(
+                roots.Select(root => (root, VolumeWatchState.Excluded, (string?)"fanotify poll failed."))));
+            Assert.That(died, Is.EqualTo(new DiedFrame("fanotify poll failed.")));
+            Assert.That(await FinishAsync(host), Is.EqualTo(LinuxWatchHelperHost.ExitCodeSourceEnded));
+        }
+    }
+
+    [Test]
     public async Task Watch_StreamsPumpStartAndBatchesInOrder_ThenDriveFailureAndDeath()
     {
         await using var pipes = new HelperPipes();

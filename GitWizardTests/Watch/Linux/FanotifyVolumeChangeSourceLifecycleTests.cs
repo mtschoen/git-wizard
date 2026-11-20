@@ -76,6 +76,37 @@ public class FanotifyVolumeChangeSourceLifecycleTests
     }
 
     [Test]
+    public async Task WatchAsync_PollFailsOverManyRoots_RaisesOneReadinessEventWithEveryRootExcluded()
+    {
+        using var parent = new TempDirectory("gw-fanotify-death-");
+        var parentPath = parent.Path;
+        string[] roots = [.. new[] { "Repos", "repos", "other", "third" }.Select(name => Path.Combine(parentPath, name))];
+        foreach (var root in roots)
+        {
+            Directory.CreateDirectory(root);
+        }
+
+        var native = new FakeFanotifyNative { InitializeResult = new FanotifyNativeCallResult(7, 0), PollResult = -1 };
+        var source = new FanotifyVolumeChangeSource(native);
+        await source.ArmAndCatchUpAsync(roots, CancellationToken.None);
+        var snapshots = new List<VolumeReadinessSnapshot>();
+        source.ReadinessChanged += snapshots.Add;
+
+        using var cts = new CancellationTokenSource(TestTimeouts.ShortHangGuard);
+        await foreach (var _ in source.WatchAsync(cts.Token))
+        {
+        }
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(snapshots, Has.Count.EqualTo(1));
+            Assert.That(snapshots[0].Volumes.Select(volume => volume.Volume), Is.EquivalentTo(roots));
+            Assert.That(snapshots[0].Volumes.Select(volume => (volume.State, volume.ExclusionReason)),
+                Is.All.EqualTo((VolumeWatchState.Excluded, "fanotify poll failed.")));
+        }
+    }
+
+    [Test]
     public async Task WatchAsync_ReadReturnsZero_RaisesSourceDied()
     {
         var native = new FakeFanotifyNative

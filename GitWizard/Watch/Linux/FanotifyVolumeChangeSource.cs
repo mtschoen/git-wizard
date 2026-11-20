@@ -44,11 +44,18 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
     /// <summary>Completes once <see cref="PumpEventsAsync"/> has actually begun executing on its pool thread.</summary>
     public Task PumpStarted => Volatile.Read(ref _pumpStarted).Task;
 
-    void PublishVolumeState(VolumeWatchStatus status)
+    // A transition over several roots is one snapshot and one event, however many roots there are:
+    // a per-root loop would publish N snapshots that each carry all N roots.
+    void PublishVolumeStates(List<VolumeWatchStatus> statuses)
     {
+        if (statuses.Count == 0)
+        {
+            return;
+        }
+
         lock (_readinessGate)
         {
-            var snapshot = _readiness = _readiness.With(status);
+            var snapshot = _readiness = _readiness.WithAll(statuses);
             try { ReadinessChanged?.Invoke(snapshot); }
             catch (Exception exception) { GitWizardLog.LogException(exception, "A Live readiness subscriber failed."); }
         }
@@ -56,10 +63,7 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
 
     void ReportSourceDeath(string reason)
     {
-        foreach (var volume in _watchedVolumes)
-        {
-            PublishVolumeState(VolumeWatchStatus.Excluded(volume, VolumeBlockOrigin.Unknown, reason));
-        }
+        PublishVolumeStates([.. _watchedVolumes.Select(volume => VolumeWatchStatus.Excluded(volume, VolumeBlockOrigin.Unknown, reason))]);
 
         SourceDied?.Invoke(reason);
     }
@@ -113,20 +117,24 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
             foreach (var volume in volumes)
             {
                 errors[volume] = message;
-                PublishVolumeState(VolumeWatchStatus.Excluded(volume, VolumeBlockOrigin.Unknown, message));
             }
+
+            PublishVolumeStates([.. volumes.Select(volume => VolumeWatchStatus.Excluded(volume, VolumeBlockOrigin.Unknown, message))]);
 
             return new VolumeArmResult(errors, []);
         }
 
         _descriptor = new SafeUnixFileDescriptor(initializeResult.Value, _native);
 
-        var watched = MarkVolumes(volumes, errors, _descriptor.Value);
+        var statuses = new List<VolumeWatchStatus>();
+        var watched = MarkVolumes(volumes, errors, _descriptor.Value, statuses);
+        PublishVolumeStates(statuses);
         _watchedVolumes = [.. watched.OrderByDescending(volume => volume.Length)];
         return new VolumeArmResult(errors, []);
     }
 
-    List<string> MarkVolumes(IReadOnlyCollection<string> volumes, Dictionary<string, string> errors, int descriptor)
+    List<string> MarkVolumes(IReadOnlyCollection<string> volumes, Dictionary<string, string> errors, int descriptor,
+        List<VolumeWatchStatus> statuses)
     {
         var watched = new List<string>();
         foreach (var volume in volumes)
@@ -134,12 +142,12 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
             if (string.IsNullOrWhiteSpace(volume))
             {
                 errors[volume] = "Volume path cannot be null or whitespace.";
-                PublishVolumeState(VolumeWatchStatus.Excluded(volume, VolumeBlockOrigin.Unknown, errors[volume]));
+                statuses.Add(VolumeWatchStatus.Excluded(volume, VolumeBlockOrigin.Unknown, errors[volume]));
             }
             else if (!Directory.Exists(volume))
             {
                 errors[volume] = $"Directory does not exist: {volume}";
-                PublishVolumeState(VolumeWatchStatus.Excluded(volume, VolumeBlockOrigin.Unknown, errors[volume]));
+                statuses.Add(VolumeWatchStatus.Excluded(volume, VolumeBlockOrigin.Unknown, errors[volume]));
             }
             else
             {
@@ -153,17 +161,17 @@ public sealed partial class FanotifyVolumeChangeSource : IVolumeChangeSource, IV
                 if (markResult.Value < 0)
                 {
                     errors[volume] = $"fanotify_mark failed on {volume} (errno {markResult.ErrorNumber}).";
-                    PublishVolumeState(VolumeWatchStatus.Excluded(volume, VolumeBlockOrigin.Unknown, errors[volume]));
+                    statuses.Add(VolumeWatchStatus.Excluded(volume, VolumeBlockOrigin.Unknown, errors[volume]));
                 }
                 else if (_mounts.TryAdd(volume) is { } mountFailure)
                 {
                     errors[volume] = mountFailure;
-                    PublishVolumeState(VolumeWatchStatus.Excluded(volume, VolumeBlockOrigin.Unknown, mountFailure));
+                    statuses.Add(VolumeWatchStatus.Excluded(volume, VolumeBlockOrigin.Unknown, mountFailure));
                 }
                 else
                 {
                     watched.Add(volume);
-                    PublishVolumeState(VolumeWatchStatus.CaughtUp(volume, VolumeBlockOrigin.Unknown));
+                    statuses.Add(VolumeWatchStatus.CaughtUp(volume, VolumeBlockOrigin.Unknown));
                 }
             }
         }

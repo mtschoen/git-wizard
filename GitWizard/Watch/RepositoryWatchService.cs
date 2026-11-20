@@ -323,7 +323,7 @@ public sealed partial class RepositoryWatchService
 
     Dictionary<string, List<string>> GroupRootsByVolume(IReadOnlyCollection<string> roots)
     {
-        var result = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        var result = new Dictionary<string, List<string>>(WatchKeyComparer.Instance);
         foreach (var root in roots)
         {
             var volume = _startup?.GetObservedVolume(root) ?? GetVolume(root);

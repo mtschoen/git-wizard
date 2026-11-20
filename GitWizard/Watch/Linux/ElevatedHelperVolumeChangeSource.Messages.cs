@@ -125,8 +125,7 @@ public sealed partial class ElevatedHelperVolumeChangeSource
         }
     }
 
-    // Before the helper's hello, the exit code is pkexec's: 126 means the dialog was dismissed,
-    // 127 that authorization failed or no authentication agent could be reached.
+    // Some desktop agents report a dismissed dialog as 127 rather than 126.
     string DescribeEnd(int? exitCode)
     {
         var suffix = exitCode is { } code ? $" (exit code {code})" : string.Empty;

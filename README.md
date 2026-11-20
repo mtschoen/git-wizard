@@ -216,11 +216,17 @@ when it is not root. GitWizardUI started without root shows one polkit (pkexec)
 authentication dialog when Live is clicked; after authentication a windowless copy of
 GitWizardUI runs as root and exits when Live stops or the window closes. Stopping Live or
 closing the window while the dialog is still open ends pkexec and closes the dialog. A polkit
-authentication agent must be running in the desktop session; there is no terminal prompt. Dismissing the dialog, failed
-authorization or a missing pkexec leaves Live off with a message saying which, and Live
-does not ask again until it is clicked again. GitWizardUI started as `dotnet GitWizardUI.dll`
+authentication agent must be running in the desktop session; there is no terminal prompt.
+Exit 126 means the dialog was cancelled. Exit 127 can mean the dialog was cancelled,
+authorization failed, or no agent is available. In each case, or if pkexec is missing,
+Live stays off until clicked again. GitWizardUI started as `dotnet GitWizardUI.dll`
 cannot elevate; start the GitWizardUI executable. GitWizardUI started as root watches without
 a prompt.
+
+On hosts using `pam_faillock`, dismissing the dialog or stopping Live while the prompt
+is open can count as a failed authentication. Repeated attempts can lock the account
+out of other password checks too. Use a test account for repeated cancellation tests
+rather than accumulating failures on your regular account.
 
 The root helper watches the directories the desktop names (search roots and tracked
 repositories) and reports only change paths at or under them, or directly beside them. It

@@ -240,6 +240,11 @@ public sealed partial class LiveWatchViewModel
 
         await _ui.InvokeAsync(() =>
         {
+            if (IsLiveStarting)
+            {
+                _statusHeader.ShowLiveMessage("Live watch stopped.");
+            }
+
             IsLiveStarting = false;
             IsLive = false;
             ClearPendingDeletes();

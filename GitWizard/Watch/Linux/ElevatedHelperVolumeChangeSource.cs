@@ -27,7 +27,7 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
 {
     internal const string AuthenticationCancelledMessage = "Authentication was cancelled, so Live stays off.";
     internal const string AuthorizationFailedMessage =
-        "Authorization failed, or no polkit authentication agent is running in this session, so Live stays off.";
+        "Live stays off. The dialog may have been cancelled, authorization may have failed, or no polkit authentication agent may be available.";
     internal const string PkexecMissingMessage =
         "polkit's pkexec is not installed, so Live cannot request elevation. Starting GitWizardUI as root needs no prompt.";
     internal const string LaunchFailedMessage = "The elevated Live helper could not be started.";

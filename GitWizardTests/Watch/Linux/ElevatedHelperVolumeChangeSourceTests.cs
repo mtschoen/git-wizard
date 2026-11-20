@@ -114,7 +114,7 @@ public class ElevatedHelperVolumeChangeSourceTests
     }
 
     [TestCase(126, ElevatedHelperVolumeChangeSource.AuthenticationCancelledMessage)]
-    [TestCase(127, ElevatedHelperVolumeChangeSource.AuthorizationFailedMessage)]
+    [TestCase(127, "Live stays off. The dialog may have been cancelled, authorization may have failed, or no polkit authentication agent may be available.")]
     [TestCase(1, "The elevated Live helper ended before it started (exit code 1).")]
     public async Task PkexecEndsBeforeTheHelperStarts_ReportsItInWords(int exitCode, string expected)
     {

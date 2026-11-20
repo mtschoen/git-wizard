@@ -247,6 +247,11 @@ Before starting Live, record whether root's `$HOME/.GitWizard` exists and the co
 root's `$HOME/.net/GitWizardUI` (use `$DOTNET_BUNDLE_EXTRACT_BASE_DIR/GitWizardUI` instead
 if the override is set in the helper's effective environment).
 
+Use a test account for the cancellation steps. Depending on the polkit agent and the
+host's `pam_faillock` policy, dismissing the dialog or stopping Live with it open can
+count as a failed authentication and lock the account out of other password checks.
+Avoid accumulating retries on your regular account.
+
 1. Click Live once. Expect exactly one polkit dialog. Authenticate. Expect `Requesting
    elevation...`, then the readiness line `Ready (marks): <root>`, and Live green.
 2. In the seed repository, edit and commit a file (row refreshes as changed), create a new
@@ -256,10 +261,11 @@ if the override is set in the helper's effective environment).
    Live running and close the window instead. Expect no new or changed root GitWizard state.
    In the extraction directory, expect a bundle-id subdirectory containing `libSkiaSharp.so`,
    `libHarfBuzzSharp.so` and the bundled `libgit2-*.so`. A repeat run can reuse the same files.
-4. Click Live and dismiss the dialog. Expect `Live watch could not start: Authentication
-   was cancelled, so Live stays off.`, Live off, and no second dialog.
+4. Click Live and dismiss the dialog. Expect Live off and no second dialog. The header
+   reports cancellation for pkexec exit 126. For exit 127 it lists possible cancellation,
+   failed authorization, or an unavailable polkit agent; either result is valid on dismissal.
 5. Click Live, leave the dialog open, and click Live again to stop. Expect the dialog to
-   disappear within about a second, Live off without an error message, and `pgrep -a pkexec`
+   disappear within about a second, Live off, the header `Live watch stopped.`, and `pgrep -a pkexec`
    to print nothing. Click Live once more: exactly one new dialog appears.
 6. Start GitWizardUI as root (where the display accepts a root client) and click Live.
    Expect no dialog and the same ready state.

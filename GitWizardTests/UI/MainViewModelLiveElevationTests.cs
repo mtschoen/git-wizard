@@ -85,6 +85,34 @@ public class MainViewModelLiveElevationTests
     }
 
     [Test]
+    public async Task StopWhilePromptIsOpen_ReplacesStartingHeaderWithStoppedStatus()
+    {
+        using var root = new TempDirectory("gw-live-elevation-");
+        var rootPath = root.Path;
+        var promptOpened = new TaskCompletionSource<HelperPipes>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var coordinator = CreateCoordinator(promptOpened.SetResult);
+        var viewModel = TestViewModels.Create();
+        var live = viewModel.LiveWatch;
+        live.CapabilityProbe = () => new FanotifyCapabilityResult(FanotifyCapabilityStatus.RequiresElevation, 1);
+        live.IsElevated = () => false;
+        live.PrepareWatchAsync = (_, prepared, progress, cancellationToken) =>
+            coordinator.PrepareWatchAsync(WatchRequest(rootPath), prepared, progress, cancellationToken);
+
+        var starting = live.ToggleLiveAsync();
+        var prompt = await promptOpened.Task.WaitAsync(TestTimeouts.HangGuard);
+        await live.ToggleLiveAsync().WaitAsync(TestTimeouts.HangGuard);
+        await starting.WaitAsync(TestTimeouts.HangGuard);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(prompt.TerminateCount, Is.EqualTo(1));
+            Assert.That(live.IsLiveStarting, Is.False);
+            Assert.That(live.IsLive, Is.False);
+            Assert.That(viewModel.StatusHeader.HeaderText, Is.EqualTo("Live watch stopped."));
+        }
+    }
+
+    [Test]
     public async Task UnelevatedLinuxWatchStartup_ReportsTheElevationRequestBeforeDiscovery()
     {
         using var root = new TempDirectory("gw-live-elevation-");

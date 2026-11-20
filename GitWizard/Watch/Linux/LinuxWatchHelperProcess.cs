@@ -64,10 +64,18 @@ public static partial class LinuxWatchHelperLaunch
         }
 
         var process = Process.Start(startInfo) ?? throw new InvalidOperationException("The helper process did not start.");
+        return Attach(process);
+    }
+
+    internal static LinuxWatchHelperProcess Attach(Process process)
+    {
         var processId = process.Id;
+        // An already-exited child can be disposed synchronously by the waiter.
+        var input = process.StandardInput.BaseStream;
+        var output = process.StandardOutput.BaseStream;
+        var error = process.StandardError.BaseStream;
         var exited = WaitForExitAsync(process);
-        return new LinuxWatchHelperProcess(process.StandardInput.BaseStream, process.StandardOutput.BaseStream,
-            process.StandardError.BaseStream, exited, () => TerminateUnlessExited(processId, exited));
+        return new LinuxWatchHelperProcess(input, output, error, exited, () => TerminateUnlessExited(processId, exited));
     }
 
     // SIGTERM, the signal pkexec ends on with its dialog closing; refused (EPERM) once the process

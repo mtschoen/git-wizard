@@ -222,6 +222,28 @@ public class ElevatedHelperVolumeChangeSourceLifetimeTests
 
     [Test]
     [Platform("Linux")]
+    public async Task AlreadyExitedHelper_PreservesItsPipesAndExitCode()
+    {
+        var startInfo = LinuxWatchHelperLaunch.CreateRedirectedStartInfo("/bin/sh");
+        startInfo.ArgumentList.Add("-c");
+        startInfo.ArgumentList.Add("echo output; echo diagnostic >&2; exit 127");
+        using var child = Process.Start(startInfo)!;
+        await child.WaitForExitAsync().WaitAsync(TestTimeouts.ShortHangGuard);
+
+        var helper = LinuxWatchHelperLaunch.Attach(child);
+        await using var input = helper.Input;
+        using var output = new StreamReader(helper.Output);
+        using var error = new StreamReader(helper.Error);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(await helper.Exited, Is.EqualTo(127));
+            Assert.That(await output.ReadLineAsync(), Is.EqualTo("output"));
+            Assert.That(await error.ReadLineAsync(), Is.EqualTo("diagnostic"));
+        }
+    }
+
+    [Test]
+    [Platform("Linux")]
     public async Task RealTerminate_EndsAProcessStillRunningAsTheCaller()
     {
         var startInfo = LinuxWatchHelperLaunch.CreateRedirectedStartInfo("sleep");

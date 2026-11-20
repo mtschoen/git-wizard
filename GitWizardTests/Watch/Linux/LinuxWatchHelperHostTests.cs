@@ -171,6 +171,33 @@ public class LinuxWatchHelperHostTests
     }
 
     [Test]
+    public async Task Arm_PublishesOneSettledReadinessFrameBeforeTheArmResult()
+    {
+        const string upper = "/x/Repos";
+        const string lower = "/x/repos";
+        var statuses = (VolumeWatchStatus[])
+        [
+            VolumeWatchStatus.CaughtUp(upper, VolumeBlockOrigin.Unknown),
+            VolumeWatchStatus.Excluded(lower, VolumeBlockOrigin.Unknown, "mark failed"),
+            VolumeWatchStatus.CaughtUp("/x/other", VolumeBlockOrigin.Unknown),
+            VolumeWatchStatus.CaughtUp("/y/third", VolumeBlockOrigin.Unknown)
+        ];
+        await using var pipes = new HelperPipes();
+        var source = new ReadinessVolumeChangeSource { Mode = WatchReadinessMode.FilesystemMarks, ArmStatuses = statuses };
+        var host = RunHost(pipes, source);
+
+        Assert.That(await pipes.ReadFrameAsync(), Is.EqualTo(new HelloFrame(LinuxWatchHelperProtocol.Version)));
+        await pipes.SendRequestAsync(new ArmRequestFrame([upper, lower, "/x/other", "/y/third"]));
+        var (_, before) = await pipes.ReadFrameAsync<ArmResultFrame>();
+
+        var readiness = before.OfType<ReadinessFrame>().Single();
+        Assert.That(readiness.Volumes, Is.EquivalentTo(statuses));
+
+        await pipes.CloseClientInputAsync();
+        await FinishAsync(host);
+    }
+
+    [Test]
     [Platform("Linux")]
     [SupportedOSPlatform("linux")]
     public async Task Arm_WithRootsThatDifferOnlyInCase_KeepsTheHealthyRootsReadinessBesideTheFailedOne()
@@ -189,7 +216,7 @@ public class LinuxWatchHelperHostTests
         Assert.That(await pipes.ReadFrameAsync(), Is.EqualTo(new HelloFrame(LinuxWatchHelperProtocol.Version)));
         await pipes.SendRequestAsync(new ArmRequestFrame([upper, lower]));
         var (armResult, before) = await pipes.ReadFrameAsync<ArmResultFrame>();
-        var finalReadiness = before.OfType<ReadinessFrame>().Last();
+        var finalReadiness = before.OfType<ReadinessFrame>().Single();
 
         using (Assert.EnterMultipleScope())
         {

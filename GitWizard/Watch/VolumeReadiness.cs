@@ -81,6 +81,31 @@ public sealed record VolumeReadinessSnapshot
         return new VolumeReadinessSnapshot(volumes, RecentTransitions);
     }
 
+    /// <summary>
+    /// Returns a snapshot with every status in <paramref name="statuses"/> replacing (or appending) its volume's
+    /// entry, as repeated <see cref="With"/> calls would (a later status for the same volume wins), but sorting once.
+    /// </summary>
+    public VolumeReadinessSnapshot WithAll(IEnumerable<VolumeWatchStatus> statuses)
+    {
+        ArgumentNullException.ThrowIfNull(statuses);
+        var byVolume = new Dictionary<string, VolumeWatchStatus>(WatchKeyComparer.Instance);
+        foreach (var existing in Volumes)
+        {
+            byVolume[existing.Volume] = existing;
+        }
+
+        foreach (var status in statuses)
+        {
+            ArgumentNullException.ThrowIfNull(status);
+            byVolume[status.Volume] = status;
+        }
+
+        var volumes = (VolumeWatchStatus[])[.. byVolume.Values
+            .OrderBy(existing => existing.Volume, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(existing => existing.Volume, StringComparer.Ordinal)];
+        return new VolumeReadinessSnapshot(volumes, RecentTransitions);
+    }
+
     public VolumeReadinessSnapshot WithTransition(VolumeWatchTransition transition)
     {
         ArgumentNullException.ThrowIfNull(transition);

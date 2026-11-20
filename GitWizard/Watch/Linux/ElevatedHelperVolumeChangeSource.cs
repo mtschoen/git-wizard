@@ -386,8 +386,7 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
     {
         lock (_gate)
         {
-            return _localExclusions.Concat(helperVolumes)
-                .Aggregate(VolumeReadinessSnapshot.Empty, (snapshot, status) => snapshot.With(status));
+            return VolumeReadinessSnapshot.Empty.WithAll(_localExclusions.Concat(helperVolumes));
         }
     }
 

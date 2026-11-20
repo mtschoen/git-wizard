@@ -185,6 +185,34 @@ public class ElevatedHelperVolumeChangeSourceTests
         }
     }
 
+    [Test]
+    public async Task HelperReadiness_WithManyStatuses_IsAppliedOnceWithEachExactRootSorted()
+    {
+        const string upper = "/x/Repos";
+        const string lower = "/x/repos";
+        await using var pipes = new HelperPipes();
+        await using var source = CreateSource(new RecordingLauncher(pipes).Launch);
+        var snapshots = new List<VolumeReadinessSnapshot>();
+        source.ReadinessChanged += snapshots.Add;
+
+        var arm = source.ArmAndCatchUpAsync([upper, lower, "/b/two", "/a/one", "relative/root"], CancellationToken.None);
+        await AnswerArmAsync(pipes, null,
+            VolumeWatchStatus.CaughtUp(upper, VolumeBlockOrigin.Unknown),
+            VolumeWatchStatus.Excluded(lower, VolumeBlockOrigin.Unknown, "mark failed"),
+            VolumeWatchStatus.CaughtUp("/b/two", VolumeBlockOrigin.Unknown),
+            VolumeWatchStatus.CaughtUp("/a/one", VolumeBlockOrigin.Unknown));
+        await arm.WaitAsync(TestTimeouts.ShortHangGuard);
+        await AsyncCondition.WaitUntilAsync(() => source.Readiness.Volumes.Count == 5, TestTimeouts.ShortHangGuard);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(source.Readiness.Volumes.Select(volume => volume.Volume),
+                Is.EqualTo(["/a/one", "/b/two", upper, lower, "relative/root"]));
+            Assert.That(snapshots[^1].Volumes, Is.EqualTo(source.Readiness.Volumes));
+            Assert.That(source.Readiness.ExcludedVolumes.Select(volume => volume.Volume), Is.EquivalentTo([lower, "relative/root"]));
+        }
+    }
+
     [TestCase(2, ElevatedHelperVolumeChangeSource.PkexecMissingMessage)]
     [TestCase(13, ElevatedHelperVolumeChangeSource.LaunchFailedMessage)]
     public async Task PkexecCannotStart_ReportsItInWords(int errorNumber, string expected)

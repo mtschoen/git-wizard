@@ -20,6 +20,9 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
     Task? _watchTask;
     WatchPath[] _roots = [];
     WatchPath[] _rootParents = [];
+    readonly Lock _readinessGate = new();
+    VolumeReadinessSnapshot? _latestReadiness;
+    bool _readinessSettled;
     volatile bool _armed;
 
     public async Task<int> RunAsync(Stream input, Action onStopping)
@@ -106,7 +109,36 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
     }
 
     void OnSourceDied(string reason) => Die(reason);
-    void OnReadinessChanged(VolumeReadinessSnapshot snapshot) => Enqueue(new ReadinessFrame(snapshot.Volumes));
+    // Arming publishes a status per root, and the desktop lists every tracked repository, so the
+    // changes during the arm are coalesced: ArmAsync sends the settled list once, before armResult.
+    void OnReadinessChanged(VolumeReadinessSnapshot snapshot)
+    {
+        lock (_readinessGate)
+        {
+            _latestReadiness = snapshot;
+            if (_readinessSettled)
+            {
+                Enqueue(new ReadinessFrame(snapshot.Volumes));
+            }
+        }
+    }
+
+    void PublishSettledReadiness()
+    {
+        if (source is not IVolumeReadiness readiness)
+        {
+            return;
+        }
+
+        // Read outside the gate: the source raises its event under its own lock, so taking the
+        // gate while holding the source's lock (and the reverse) must not both happen.
+        var current = readiness.Readiness;
+        lock (_readinessGate)
+        {
+            _readinessSettled = true;
+            Enqueue(new ReadinessFrame((_latestReadiness ?? current).Volumes));
+        }
+    }
     void OnDriveFailed(string volume, string message) => Enqueue(new DriveFailedFrame(volume, message));
 
     void Enqueue(LinuxWatchHelperFrame frame) => _outbound.Writer.TryWrite(LinuxWatchHelperProtocol.Serialize(frame));
@@ -229,6 +261,7 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
         {
             var result = await source.ArmAndCatchUpAsync(roots, _stop.Token).ConfigureAwait(false);
             _armed = true;
+            PublishSettledReadiness();
             Enqueue(new ArmResultFrame(result.Errors));
         }
         catch (OperationCanceledException) when (_stop.IsCancellationRequested)

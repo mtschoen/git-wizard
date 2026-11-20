@@ -56,6 +56,8 @@ sealed class ReadinessVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDia
 
     /// <summary>Per-volume failures every arm reports.</summary>
     public IReadOnlyDictionary<string, string>? ArmErrors { get; init; }
+    /// <summary>Statuses published one at a time while an arm runs, as a source does per root.</summary>
+    public IReadOnlyList<VolumeWatchStatus>? ArmStatuses { get; init; }
     public IReadOnlyCollection<string>? ArmedVolumes { get; private set; }
     /// <summary>Awaited by <see cref="DisposeAsync"/> after it counts the call, to hold cleanup open.</summary>
     public Func<ValueTask>? DisposeGate { get; init; }
@@ -66,6 +68,11 @@ sealed class ReadinessVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDia
     public Task<VolumeArmResult> ArmAndCatchUpAsync(IReadOnlyCollection<string> volumes, CancellationToken ct)
     {
         ArmedVolumes = [.. volumes];
+        foreach (var status in ArmStatuses ?? [])
+        {
+            SetVolume(status);
+        }
+
         return Task.FromResult(new VolumeArmResult(
             new Dictionary<string, string>(ArmErrors ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase), []));
     }

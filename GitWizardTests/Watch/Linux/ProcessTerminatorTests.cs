@@ -17,7 +17,7 @@ public class ProcessTerminatorTests
         protected override bool ReleaseHandle() => true;
     }
 
-    sealed class FakeSignaller(bool canOpen = true, int signalResult = 0) : IProcessSignaller
+    sealed class FakeSignaller(bool canOpen = true, int signalResult = 0, int verifyResult = 0) : IProcessSignaller
     {
         public int Opens { get; private set; }
         public List<SafeHandle> Signalled { get; } = [];
@@ -31,6 +31,8 @@ public class ProcessTerminatorTests
             identity = Opened;
             return canOpen;
         }
+
+        public int VerifyChild(SafeHandle identity) => verifyResult;
 
         public int Terminate(SafeHandle identity)
         {
@@ -70,6 +72,26 @@ public class ProcessTerminatorTests
             Assert.That(terminator.HasIdentity, Is.True);
             Assert.That(signaller.Signalled, Has.Count.EqualTo(1));
             Assert.That(signaller.Signalled[0], Is.SameAs(signaller.Opened));
+        }
+    }
+
+    [TestCase(10)]
+    [TestCase(22)]
+    public void IdentityNotVerifiedAsOurChild_NeverSignals_ReleasesTheIdentity_AndLogs(int verifyErrno)
+    {
+        var signaller = new FakeSignaller(verifyResult: verifyErrno);
+        var log = new List<string>();
+
+        using var terminator = ProcessTerminator.Create(42, () => false, signaller, log.Add);
+        terminator.Terminate();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(terminator.HasIdentity, Is.False);
+            Assert.That(signaller.Signalled, Is.Empty);
+            Assert.That(signaller.Opened!.IsClosed, Is.True);
+            Assert.That(log, Has.Count.EqualTo(1));
+            Assert.That(log[0], Does.Contain("will not be signalled"));
         }
     }
 

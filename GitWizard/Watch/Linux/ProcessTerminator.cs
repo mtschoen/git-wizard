@@ -13,6 +13,12 @@ internal interface IProcessSignaller
     /// <summary>Opens an identity for <paramref name="processId"/>; false (with an errno) when none can be had.</summary>
     bool TryOpen(int processId, out SafeHandle? identity, out int errorNumber);
 
+    /// <summary>
+    /// Checks without reaping that <paramref name="identity"/> refers to a child of this process;
+    /// returns 0, or an errno (ECHILD: not our child) meaning the identity must not be used.
+    /// </summary>
+    int VerifyChild(SafeHandle identity);
+
     /// <summary>Sends SIGTERM through <paramref name="identity"/>; returns 0 or an errno.</summary>
     int Terminate(SafeHandle identity);
 }
@@ -64,6 +70,16 @@ internal sealed class ProcessTerminator : IDisposable
             if (hasExited())
             {
                 log("The pkexec process had already exited when its identity was acquired; nothing to signal.");
+                return new ProcessTerminator(signaller, null, log);
+            }
+
+            // HasExited can read false for a child .NET's reap-all path has already reaped, so the
+            // PID may have been reused by now; a pidfd for a non-child fails the check. A PID reused
+            // by another child of this same process within that window would still pass.
+            var verifyError = signaller.VerifyChild(identity);
+            if (verifyError != 0)
+            {
+                log($"The pkexec process identity could not be verified as our child ({new Win32Exception(verifyError).Message}); it will not be signalled.");
                 return new ProcessTerminator(signaller, null, log);
             }
 
@@ -128,6 +144,11 @@ internal sealed partial class PidfdProcessSignaller : IProcessSignaller
     const long PidfdSendSignalNumber = 424;
     const int TerminateSignal = 15;
     const int NotSupported = 38;
+    const int PidfdIdType = 3; // P_PIDFD, linux/wait.h
+    const int WaitNoHang = 0x00000001; // WNOHANG
+    const int WaitExited = 0x00000004; // WEXITED
+    const int WaitNoWait = 0x01000000; // WNOWAIT: poll only, never reap
+    const int SignalInformationSize = 128; // sizeof(siginfo_t) on Linux
 
     public static PidfdProcessSignaller Instance { get; } = new();
 
@@ -153,6 +174,26 @@ internal sealed partial class PidfdProcessSignaller : IProcessSignaller
 
         identity = new PidDescriptor((int)descriptor);
         return true;
+    }
+
+    public int VerifyChild(SafeHandle identity)
+    {
+        var added = false;
+        try
+        {
+            identity.DangerousAddRef(ref added);
+            var information = new byte[SignalInformationSize];
+            var result = WaitIdentifier(PidfdIdType, (uint)identity.DangerousGetHandle().ToInt32(), information,
+                WaitExited | WaitNoHang | WaitNoWait);
+            return result == 0 ? 0 : Marshal.GetLastPInvokeError();
+        }
+        finally
+        {
+            if (added)
+            {
+                identity.DangerousRelease();
+            }
+        }
     }
 
     public int Terminate(SafeHandle identity)
@@ -183,6 +224,9 @@ internal sealed partial class PidfdProcessSignaller : IProcessSignaller
         [LibraryImport("libc", EntryPoint = "close")]
         private static partial int CloseDescriptor(int descriptor);
     }
+
+    [LibraryImport("libc", EntryPoint = "waitid", SetLastError = true)]
+    private static partial int WaitIdentifier(int identifierType, uint identifier, byte[] information, int options);
 
     [LibraryImport("libc", EntryPoint = "syscall", SetLastError = true)]
     private static partial long PidfdOpen(long number, long processId, long flags);

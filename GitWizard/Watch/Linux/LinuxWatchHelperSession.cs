@@ -11,7 +11,9 @@ namespace GitWizard.Watch.Linux;
 sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVolumeChangeSource source) : IDisposable
 {
     static readonly UTF8Encoding Utf8WithoutMarker = new(false);
+    static readonly TimeSpan ArmShutdownGrace = TimeSpan.FromMilliseconds(250);
 
+    readonly Lock _requestGate = new();
     readonly Channel<string> _outbound = Channel.CreateUnbounded<string>(new UnboundedChannelOptions { SingleReader = true });
     readonly CancellationTokenSource _stop = new();
     readonly TaskCompletionSource<int> _finished = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -33,7 +35,36 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
 
         var exitCode = await _finished.Task.ConfigureAwait(false);
         await _stop.CancelAsync().ConfigureAwait(false);
-        await ObserveAsync(_armTask).ConfigureAwait(false);
+        _outbound.Writer.TryComplete();
+        if (exitCode == LinuxWatchHelperHost.ExitCodeSourceEnded)
+        {
+            // Deliver the ordered terminal frame while the client is connected. EOF releases
+            // the process even if the kernel write on the unbuffered stdout descriptor is stuck.
+            await Task.WhenAny(writerTask, inputEnded).ConfigureAwait(false);
+        }
+
+        Task? arm;
+        lock (_requestGate)
+        {
+            // A terminal callback can win while the reader is still assigning the task.
+            arm = _armTask;
+        }
+        var cleanup = DisposeSourceWhenStoppedAsync(arm);
+        if (arm is { IsCompleted: false } &&
+            await Task.WhenAny(arm, Task.Delay(ArmShutdownGrace)).ConfigureAwait(false) != arm)
+        {
+            // A filesystem mark cannot be interrupted. Returning to Main releases it by process
+            // exit; never dispose its descriptor underneath a syscall still using it.
+            return exitCode;
+        }
+
+        await cleanup.ConfigureAwait(false);
+        return exitCode;
+    }
+
+    async Task DisposeSourceWhenStoppedAsync(Task? arm)
+    {
+        await ObserveAsync(arm).ConfigureAwait(false);
         await ObserveAsync(_watchTask).ConfigureAwait(false);
         Unsubscribe();
         try
@@ -44,16 +75,6 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
         {
             await diagnostics.WriteLineAsync($"Disposing the watch source failed: {exception}").ConfigureAwait(false);
         }
-
-        _outbound.Writer.TryComplete();
-        if (exitCode == LinuxWatchHelperHost.ExitCodeSourceEnded)
-        {
-            // Deliver the ordered terminal frame while the client is connected. EOF releases
-            // the process even if the kernel write on the unbuffered stdout descriptor is stuck.
-            await Task.WhenAny(writerTask, inputEnded).ConfigureAwait(false);
-        }
-
-        return exitCode;
     }
 
     public void Dispose() => _stop.Dispose();
@@ -131,9 +152,12 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
             using var reader = new StreamReader(input, Utf8WithoutMarker, false, 4096, leaveOpen: true);
             while (await reader.ReadLineAsync().ConfigureAwait(false) is { } line)
             {
-                if (!_finished.Task.IsCompleted)
+                lock (_requestGate)
                 {
-                    HandleRequest(line);
+                    if (!_finished.Task.IsCompleted)
+                    {
+                        HandleRequest(line);
+                    }
                 }
             }
         }
@@ -190,7 +214,7 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
 
         _roots = [.. roots.Select(WatchPath.Parse)];
         _rootParents = [.. roots.Select(Path.GetDirectoryName).OfType<string>().Select(WatchPath.Parse)];
-        _armTask = ArmAsync(roots);
+        _armTask = Task.Run(() => ArmAsync(roots), _stop.Token);
     }
 
     async Task ArmAsync(IReadOnlyList<string> roots)

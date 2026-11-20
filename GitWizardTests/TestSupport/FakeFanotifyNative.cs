@@ -25,6 +25,7 @@ sealed class FakeFanotifyNative : IFanotifyNative
     public uint EventFileFlags { get; private set; }
 
     public Queue<FanotifyNativeCallResult> MarkResults { get; } = new();
+    public Action? OnMark { get; init; }
     public List<FanotifyMarkCall> MarkCalls { get; } = [];
     public List<int> ClosedDescriptors { get; } = [];
 
@@ -52,6 +53,7 @@ sealed class FakeFanotifyNative : IFanotifyNative
         string path)
     {
         MarkCalls.Add(new FanotifyMarkCall(descriptor, flags, mask, directoryDescriptor, path));
+        OnMark?.Invoke();
         return MarkResults.Count > 0 ? MarkResults.Dequeue() : new FanotifyNativeCallResult(0, 0);
     }
 

@@ -1,4 +1,5 @@
 using System.IO.Pipelines;
+using System.Runtime.Versioning;
 using GitWizard.Watch;
 using GitWizard.Watch.Linux;
 using GitWizardTests.TestSupport;
@@ -183,6 +184,44 @@ public class LinuxWatchHelperHostTests
         {
             Assert.That(await FinishAsync(host), Is.EqualTo(LinuxWatchHelperHost.ExitCodeEndOfInput));
             Assert.That(source.DisposeCount, Is.EqualTo(1));
+        }
+    }
+
+    [Test]
+    [SupportedOSPlatform("linux")]
+    public async Task EndOfInput_ExitsWhileNativeMarkIsStillHeld()
+    {
+        using var root = new TempDirectory();
+        await using var pipes = new HelperPipes();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var native = new FakeFanotifyNative
+        {
+            OnMark = () =>
+            {
+                entered.SetResult();
+                release.Task.GetAwaiter().GetResult();
+            }
+        };
+        var source = new FanotifyVolumeChangeSource(native);
+        var marked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        source.ReadinessChanged += _ => marked.TrySetResult();
+        var host = RunHost(pipes, source);
+        try
+        {
+            await pipes.ReadFrameAsync<HelloFrame>();
+            await pipes.SendRequestAsync(new ArmRequestFrame([root.Path]));
+            await entered.Task.WaitAsync(TestTimeouts.ShortHangGuard);
+            await pipes.CloseClientInputAsync();
+            Assert.That(await FinishAsync(host), Is.EqualTo(LinuxWatchHelperHost.ExitCodeEndOfInput));
+        }
+        finally
+        {
+            release.TrySetResult();
+            if (entered.Task.IsCompleted)
+            {
+                await marked.Task.WaitAsync(TestTimeouts.ShortHangGuard);
+            }
         }
     }
 

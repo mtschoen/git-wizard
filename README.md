@@ -230,9 +230,9 @@ rather than accumulating failures on your regular account.
 
 The root helper watches the directories the desktop names (search roots and tracked
 repositories) and reports only change paths at or under them, or directly beside them. It
-is the GitWizardUI executable at its own path, so, as with the Windows broker under UAC, an
-installation directory the user can write lets any program running as that user replace what
-the password prompt elevates; install GitWizardUI to a root-owned location to avoid that.
+is the GitWizardUI executable at its own path. To prevent a program running as the user from
+replacing what the password prompt elevates, root must control the executable and its entire
+resolution path, including every parent directory and any symbolic links.
 
 The helper writes no GitWizard configuration, cache or logs to disk. Before the helper starts,
 .NET extracts the published Linux executable's native libraries under root's

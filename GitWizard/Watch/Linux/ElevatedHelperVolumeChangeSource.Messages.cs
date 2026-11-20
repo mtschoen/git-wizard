@@ -93,9 +93,19 @@ public sealed partial class ElevatedHelperVolumeChangeSource
 
     void ReportDeath(string reason)
     {
-        // One snapshot for every root: a per-root loop would publish N snapshots that each list N roots.
-        var excluded = _roots.Select(root => VolumeWatchStatus.Excluded(root, VolumeBlockOrigin.Unknown, reason)).ToArray();
-        PublishReadiness(snapshot => snapshot.WithAll(excluded));
+        // A fallback for a helper that died without reporting its own terminal readiness: only roots
+        // that are missing or not already Excluded take the death reason, so a root excluded earlier
+        // (at arming, or by the helper's terminal frame) keeps its own reason. One snapshot, and none
+        // when nothing changed.
+        PublishReadiness(snapshot =>
+        {
+            var alreadyExcluded = snapshot.ExcludedVolumes.Select(status => status.Volume).ToHashSet(WatchKeyComparer.Instance);
+            var excluded = _roots
+                .Where(root => !alreadyExcluded.Contains(root))
+                .Select(root => VolumeWatchStatus.Excluded(root, VolumeBlockOrigin.Unknown, reason))
+                .ToArray();
+            return excluded.Length == 0 ? snapshot : snapshot.WithAll(excluded);
+        });
 
         Action<string>? handlers;
         lock (_gate)

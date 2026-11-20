@@ -265,6 +265,88 @@ public class ElevatedHelperVolumeChangeSourceTests
         }
     }
 
+    static readonly string[] DeathRoots = ["/x/Repos", "/x/repos", "/y/other"];
+
+    // Arms DeathRoots with /x/repos excluded at startup, as the helper's settled arm readiness reports it.
+    static async Task<ElevatedHelperVolumeChangeSource> ArmWithOneRootExcludedAsync(HelperPipes pipes, List<string> deaths)
+    {
+        var source = CreateSource(new RecordingLauncher(pipes).Launch);
+        source.SourceDied += deaths.Add;
+        var arm = source.ArmAndCatchUpAsync(DeathRoots, CancellationToken.None);
+        await AnswerArmAsync(pipes, new Dictionary<string, string> { ["/x/repos"] = "mark failed at startup" }, readiness:
+        [
+            VolumeWatchStatus.CaughtUp("/x/Repos", VolumeBlockOrigin.Unknown),
+            VolumeWatchStatus.Excluded("/x/repos", VolumeBlockOrigin.Unknown, "mark failed at startup"),
+            VolumeWatchStatus.CaughtUp("/y/other", VolumeBlockOrigin.Unknown)
+        ]);
+        await arm.WaitAsync(TestTimeouts.ShortHangGuard);
+        return source;
+    }
+
+    [Test]
+    public async Task HelperTerminalReadinessThenDied_KeepsAnEarlierExclusionAndRaisesOneReadinessEvent()
+    {
+        await using var pipes = new HelperPipes();
+        var deaths = new List<string>();
+        await using var source = await ArmWithOneRootExcludedAsync(pipes, deaths);
+        var snapshots = new List<VolumeReadinessSnapshot>();
+        source.ReadinessChanged += snapshots.Add;
+
+        // The host sends its whole snapshot: the root excluded at arming keeps its reason beside the watched roots.
+        await pipes.SendFrameAsync(new ReadinessFrame(
+        [
+            VolumeWatchStatus.Excluded("/x/Repos", VolumeBlockOrigin.Unknown, "fanotify poll failed."),
+            VolumeWatchStatus.Excluded("/x/repos", VolumeBlockOrigin.Unknown, "mark failed at startup"),
+            VolumeWatchStatus.Excluded("/y/other", VolumeBlockOrigin.Unknown, "fanotify poll failed.")
+        ]));
+        await pipes.SendFrameAsync(new DiedFrame("fanotify poll failed."));
+        await pipes.ExitAsync(LinuxWatchHelperHost.ExitCodeSourceEnded);
+        await AsyncCondition.WaitUntilAsync(() => deaths.Count > 0, TestTimeouts.ShortHangGuard);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(snapshots, Has.Count.EqualTo(1));
+            Assert.That(source.Readiness.Volumes.Select(volume => (volume.Volume, volume.State, volume.ExclusionReason)), Is.EquivalentTo(
+            [
+                ("/x/Repos", VolumeWatchState.Excluded, "fanotify poll failed."),
+                ("/x/repos", VolumeWatchState.Excluded, "mark failed at startup"),
+                ("/y/other", VolumeWatchState.Excluded, "fanotify poll failed.")
+            ]));
+            Assert.That(deaths, Is.EqualTo(["fanotify poll failed."]));
+        }
+    }
+
+    [TestCase(true)]
+    [TestCase(false)]
+    public async Task HelperDeathWithoutTerminalReadiness_ExcludesOnlyTheActiveRootsInOneReadinessEvent(bool diedFrame)
+    {
+        await using var pipes = new HelperPipes();
+        var deaths = new List<string>();
+        await using var source = await ArmWithOneRootExcludedAsync(pipes, deaths);
+        var snapshots = new List<VolumeReadinessSnapshot>();
+        source.ReadinessChanged += snapshots.Add;
+
+        if (diedFrame)
+        {
+            await pipes.SendFrameAsync(new DiedFrame("fanotify poll failed."));
+        }
+
+        await pipes.ExitAsync(diedFrame ? LinuxWatchHelperHost.ExitCodeSourceEnded : 0);
+        await AsyncCondition.WaitUntilAsync(() => deaths.Count > 0, TestTimeouts.ShortHangGuard);
+        var reason = deaths.Single();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(snapshots, Has.Count.EqualTo(1));
+            Assert.That(source.Readiness.Volumes.Select(volume => (volume.Volume, volume.State, volume.ExclusionReason)), Is.EquivalentTo(
+            [
+                ("/x/Repos", VolumeWatchState.Excluded, reason),
+                ("/x/repos", VolumeWatchState.Excluded, "mark failed at startup"),
+                ("/y/other", VolumeWatchState.Excluded, reason)
+            ]));
+        }
+    }
+
     [TestCase(2, ElevatedHelperVolumeChangeSource.PkexecMissingMessage)]
     [TestCase(13, ElevatedHelperVolumeChangeSource.LaunchFailedMessage)]
     public async Task PkexecCannotStart_ReportsItInWords(int errorNumber, string expected)

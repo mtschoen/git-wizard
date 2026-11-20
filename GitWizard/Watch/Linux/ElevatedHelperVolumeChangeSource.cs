@@ -417,11 +417,18 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
         }
     }
 
+    // An update that returns its input unchanged publishes nothing.
     void PublishReadiness(Func<VolumeReadinessSnapshot, VolumeReadinessSnapshot> update)
     {
         lock (_gate)
         {
-            var snapshot = _readiness = update(_readiness);
+            var snapshot = update(_readiness);
+            if (ReferenceEquals(snapshot, _readiness))
+            {
+                return;
+            }
+
+            _readiness = snapshot;
             try { ReadinessChanged?.Invoke(snapshot); }
             catch (Exception exception) { GitWizardLog.LogException(exception, "A Live readiness subscriber failed."); }
         }

@@ -24,6 +24,33 @@ public class LinuxWatchHelperHostTests
         public override void Write(byte[] buffer, int offset, int count) => throw new IOException("Broken pipe");
     }
 
+    /// <summary>Accepts writes until <see cref="BreakPipe"/>, then fails them like a closed stdout pipe.</summary>
+    sealed class BreakableWriteStream : Stream
+    {
+        volatile bool _broken;
+
+        public void BreakPipe() => _broken = true;
+
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() => ThrowWhenBroken();
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => ThrowWhenBroken();
+
+        void ThrowWhenBroken()
+        {
+            if (_broken)
+            {
+                throw new IOException("Broken pipe");
+            }
+        }
+    }
+
     static Task<int> RunHost(HelperPipes pipes, IVolumeChangeSource source, TextWriter? diagnostics = null) =>
         Task.Run(() => LinuxWatchHelperHost.RunAsync(pipes.HelperInput, pipes.HelperOutput, diagnostics ?? TextWriter.Null,
             () => true, () => source));
@@ -341,6 +368,94 @@ public class LinuxWatchHelperHostTests
         {
             Assert.That(exitCode, Is.EqualTo(LinuxWatchHelperHost.ExitCodeOutputFailed));
             Assert.That(source.DisposeCount, Is.EqualTo(1));
+        }
+    }
+
+    [Test]
+    [SupportedOSPlatform("linux")]
+    public async Task OutputWriteFailure_WithInputStillOpen_ExitsWhileNativeMarkIsStillHeld()
+    {
+        using var root = new TempDirectory();
+        await using var pipes = new HelperPipes();
+        var output = new BreakableWriteStream();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var deadlineStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var expire = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var native = new FakeFanotifyNative
+        {
+            InitializeResult = new FanotifyNativeCallResult(9, 0),
+            OnMark = () =>
+            {
+                entered.TrySetResult();
+                release.Task.GetAwaiter().GetResult();
+            }
+        };
+        var host = LinuxWatchHelperHost.RunAsync(pipes.HelperInput, output, TextWriter.Null,
+            () => true, () => new FanotifyVolumeChangeSource(native), () =>
+            {
+                deadlineStarted.TrySetResult();
+                return expire.Task;
+            });
+        try
+        {
+            await pipes.SendRequestAsync(new ArmRequestFrame([root.Path]));
+            await entered.Task.WaitAsync(TestTimeouts.ShortHangGuard);
+            Assert.That(deadlineStarted.Task.IsCompleted, Is.False);
+
+            // Stdin stays open; a rejected request makes the writer try the broken pipe.
+            output.BreakPipe();
+            await pipes.SendRequestLineAsync("not json");
+            await deadlineStarted.Task.WaitAsync(TestTimeouts.ShortHangGuard);
+            Assert.That(host.IsCompleted, Is.False);
+            expire.SetResult();
+            Assert.That(await FinishAsync(host), Is.EqualTo(LinuxWatchHelperHost.ExitCodeShutdownTimedOut));
+        }
+        finally
+        {
+            release.TrySetResult();
+            expire.TrySetResult();
+        }
+    }
+
+    [Test]
+    public async Task SourceDeath_WithInputStillOpen_ExitsWhileCleanupIsStillHeld()
+    {
+        await using var pipes = new HelperPipes();
+        var cleanupEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var deadlineStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var expire = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var source = new ReadinessVolumeChangeSource
+        {
+            DisposeGate = () =>
+            {
+                cleanupEntered.TrySetResult();
+                return new ValueTask(release.Task);
+            }
+        };
+        var host = LinuxWatchHelperHost.RunAsync(pipes.HelperInput, pipes.HelperOutput, TextWriter.Null,
+            () => true, () => source, () =>
+            {
+                deadlineStarted.TrySetResult();
+                return expire.Task;
+            });
+        try
+        {
+            await pipes.ReadFrameAsync<HelloFrame>();
+            Assert.That(deadlineStarted.Task.IsCompleted, Is.False);
+
+            source.KillSource("source ended");
+            await cleanupEntered.Task.WaitAsync(TestTimeouts.ShortHangGuard);
+            await deadlineStarted.Task.WaitAsync(TestTimeouts.ShortHangGuard);
+            Assert.That(host.IsCompleted, Is.False);
+            expire.SetResult();
+            Assert.That(await FinishAsync(host), Is.EqualTo(LinuxWatchHelperHost.ExitCodeShutdownTimedOut));
+        }
+        finally
+        {
+            release.TrySetResult();
+            expire.TrySetResult();
         }
     }
 

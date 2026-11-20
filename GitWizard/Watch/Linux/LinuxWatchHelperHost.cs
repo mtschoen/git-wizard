@@ -13,7 +13,9 @@ namespace GitWizard.Watch.Linux;
 /// <remarks>
 /// After pkexec authenticates, the helper is fully root and the unprivileged parent cannot signal
 /// it, so its lifetime is tied to its pipes: it exits as soon as stdin reaches end-of-input or a
-/// stdout write fails, and after reporting a terminal <c>died</c> frame.
+/// stdout write fails, and after reporting a terminal <c>died</c> frame. Whatever stops the
+/// session starts one shutdown deadline; if cleanup is still pending when it expires the helper
+/// exits with <see cref="ExitCodeShutdownTimedOut"/>.
 /// </remarks>
 public static class LinuxWatchHelperHost
 {
@@ -95,12 +97,12 @@ public static class LinuxWatchHelperHost
 
         var deadline = new TaskCompletionSource<Task>(TaskCreationOptions.RunContinuationsAsynchronously);
         var expired = deadline.Task.Unwrap();
-        void OnInputEnded() => deadline.SetResult(startShutdownDeadline?.Invoke() ?? Task.Delay(TimeSpan.FromSeconds(1)));
+        void OnStopping() => deadline.TrySetResult(startShutdownDeadline?.Invoke() ?? Task.Delay(TimeSpan.FromSeconds(1)));
 
         var stopped = Task.Run(async () =>
         {
             using var session = new LinuxWatchHelperSession(output, TextWriter.Synchronized(diagnostics), createSource());
-            return await session.RunAsync(input, OnInputEnded).ConfigureAwait(false);
+            return await session.RunAsync(input, OnStopping).ConfigureAwait(false);
         });
         return await Task.WhenAny(stopped, expired).ConfigureAwait(false) == stopped
             ? await stopped.ConfigureAwait(false)

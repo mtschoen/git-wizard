@@ -22,16 +22,20 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
     WatchPath[] _rootParents = [];
     volatile bool _armed;
 
-    public async Task<int> RunAsync(Stream input, Action onInputEnded)
+    public async Task<int> RunAsync(Stream input, Action onStopping)
     {
         Subscribe();
         var writerTask = WriteOutboundAsync();
         Enqueue(new HelloFrame(LinuxWatchHelperProtocol.Version));
 
         // A blocking stdin read need not observe cancellation. Only join it when it reported EOF.
-        var inputEnded = ReadRequestsAsync(input, onInputEnded);
+        var inputEnded = ReadRequestsAsync(input);
 
         var exitCode = await _finished.Task.ConfigureAwait(false);
+
+        // Every stop trigger (stdin end, stdout failure, source death) passes here, so the host's
+        // shutdown deadline covers all of the cleanup below whatever started the stop.
+        onStopping();
         await _stop.CancelAsync().ConfigureAwait(false);
         _outbound.Writer.TryComplete();
         Task? arm;
@@ -44,7 +48,7 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
         if (exitCode == LinuxWatchHelperHost.ExitCodeSourceEnded)
         {
             // Half-closing stdin does not disconnect the stdout reader. Deliver the terminal
-            // frame in order while the same EOF deadline bounds both the drain and cleanup.
+            // frame in order while the same shutdown deadline bounds both the drain and cleanup.
             await writerTask.ConfigureAwait(false);
         }
         else if (exitCode == LinuxWatchHelperHost.ExitCodeEndOfInput)
@@ -139,7 +143,7 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
         }
     }
 
-    async Task ReadRequestsAsync(Stream input, Action onInputEnded)
+    async Task ReadRequestsAsync(Stream input)
     {
         Exception? failure = null;
         try
@@ -165,7 +169,6 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
             failure = exception;
         }
 
-        onInputEnded();
         Finish(LinuxWatchHelperHost.ExitCodeEndOfInput);
         if (failure is not null)
         {

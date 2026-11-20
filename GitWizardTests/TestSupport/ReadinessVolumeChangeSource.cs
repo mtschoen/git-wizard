@@ -57,6 +57,8 @@ sealed class ReadinessVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDia
     /// <summary>Per-volume failures every arm reports.</summary>
     public IReadOnlyDictionary<string, string>? ArmErrors { get; init; }
     public IReadOnlyCollection<string>? ArmedVolumes { get; private set; }
+    /// <summary>Awaited by <see cref="DisposeAsync"/> after it counts the call, to hold cleanup open.</summary>
+    public Func<ValueTask>? DisposeGate { get; init; }
     public int DisposeCount => Volatile.Read(ref _disposeCount);
 
     int _disposeCount;
@@ -116,6 +118,6 @@ sealed class ReadinessVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDia
     {
         Interlocked.Increment(ref _disposeCount);
         Complete();
-        return ValueTask.CompletedTask;
+        return DisposeGate?.Invoke() ?? ValueTask.CompletedTask;
     }
 }

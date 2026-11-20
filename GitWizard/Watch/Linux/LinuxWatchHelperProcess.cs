@@ -1,6 +1,4 @@
-using System.ComponentModel;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 
 namespace GitWizard.Watch.Linux;
 
@@ -16,10 +14,9 @@ public sealed record LinuxWatchHelperProcess(Stream Input, Stream Output, Stream
 public delegate LinuxWatchHelperProcess LinuxWatchHelperLauncher(ProcessStartInfo startInfo);
 
 /// <summary>Production start-up for the elevated Linux watch helper.</summary>
-public static partial class LinuxWatchHelperLaunch
+public static class LinuxWatchHelperLaunch
 {
     const string PkexecFileName = "pkexec";
-    const int TerminateSignal = 15;
 
     static volatile bool _pkexecForbidden;
 
@@ -67,31 +64,19 @@ public static partial class LinuxWatchHelperLaunch
         return Attach(process);
     }
 
-    internal static LinuxWatchHelperProcess Attach(Process process)
+    internal static LinuxWatchHelperProcess Attach(Process process) => Attach(process, PidfdProcessSignaller.Instance);
+
+    internal static LinuxWatchHelperProcess Attach(Process process, IProcessSignaller signaller)
     {
-        var processId = process.Id;
+        // The identity is acquired before anything else can let the child be reaped and its id reused.
+        var terminator = ProcessTerminator.Create(process.Id, () => process.HasExited, signaller,
+            message => GitWizardLog.Log(message, GitWizardLog.LogType.Verbose));
         // An already-exited child can be disposed synchronously by the waiter.
         var input = process.StandardInput.BaseStream;
         var output = process.StandardOutput.BaseStream;
         var error = process.StandardError.BaseStream;
-        var exited = WaitForExitAsync(process);
-        return new LinuxWatchHelperProcess(input, output, error, exited, () => TerminateUnlessExited(processId, exited));
-    }
-
-    // SIGTERM, the signal pkexec ends on with its dialog closing; refused (EPERM) once the process
-    // has become root, which is the expected outcome after authentication.
-    static void TerminateUnlessExited(int processId, Task exited)
-    {
-        if (exited.IsCompleted || !OperatingSystem.IsLinux())
-        {
-            return;
-        }
-
-        if (LinuxNative.SendSignal(processId, TerminateSignal) != 0)
-        {
-            GitWizardLog.Log($"Ending the pkexec process was refused: {new Win32Exception(Marshal.GetLastPInvokeError()).Message}",
-                GitWizardLog.LogType.Verbose);
-        }
+        var exited = WaitForExitAsync(process, terminator);
+        return new LinuxWatchHelperProcess(input, output, error, exited, terminator.Terminate);
     }
 
     /// <summary>
@@ -100,14 +85,9 @@ public static partial class LinuxWatchHelperLaunch
     /// </summary>
     internal static void ForbidPkexec() => _pkexecForbidden = true;
 
-    static partial class LinuxNative
+    static async Task<int> WaitForExitAsync(Process process, ProcessTerminator terminator)
     {
-        [LibraryImport("libc", EntryPoint = "kill", SetLastError = true)]
-        public static partial int SendSignal(int processId, int signal);
-    }
-
-    static async Task<int> WaitForExitAsync(Process process)
-    {
+        using (terminator)
         using (process)
         {
             await process.WaitForExitAsync().ConfigureAwait(false);

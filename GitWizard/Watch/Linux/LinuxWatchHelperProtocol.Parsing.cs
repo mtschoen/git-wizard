@@ -28,8 +28,9 @@ static partial class LinuxWatchHelperProtocol
             error = frame is null ? $"Unknown or incomplete frame of type '{type.GetString()}'." : null;
             return frame is not null;
         }
-        catch (JsonException)
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException)
         {
+            // JsonElement decodes escaped strings on access, after the document has been parsed.
             error = "The line is not valid JSON.";
             return false;
         }

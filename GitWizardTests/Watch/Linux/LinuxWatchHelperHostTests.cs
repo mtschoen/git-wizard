@@ -227,7 +227,27 @@ public class LinuxWatchHelperHostTests
         }
     }
 
+    [Test]
+    public async Task UnexpectedInputFailure_ExitsAndDisposesTheSource()
+    {
+        var input = new Pipe();
+        await using var reader = input.Reader.AsStream();
+        await using var diagnostics = new StringWriter();
+        var source = new ReadinessVolumeChangeSource();
+        var host = LinuxWatchHelperHost.RunAsync(reader, Stream.Null, diagnostics, () => true, () => source);
+
+        await input.Writer.CompleteAsync(new InvalidOperationException("Synthetic reader failure"));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(await FinishAsync(host), Is.EqualTo(LinuxWatchHelperHost.ExitCodeEndOfInput));
+            Assert.That(source.DisposeCount, Is.EqualTo(1));
+            Assert.That(diagnostics.ToString(), Does.Contain("Synthetic reader failure"));
+        }
+    }
+
     [TestCase("not json")]
+    [TestCase(LinuxWatchHelperProtocolTests.UndecodableFrame)]
     [TestCase("{\"type\":\"arm\",\"roots\":[\"relative/path\"]}")]
     [TestCase("{\"type\":\"arm\",\"roots\":[]}")]
     [TestCase("{\"type\":\"watch\"}")]

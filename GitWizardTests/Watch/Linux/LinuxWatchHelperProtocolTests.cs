@@ -6,6 +6,8 @@ namespace GitWizardTests.Watch.Linux;
 [TestFixture]
 public class LinuxWatchHelperProtocolTests
 {
+    internal const string UndecodableFrame = """{"type":"error","message":"\uD800"}""";
+
     static T RoundTrip<T>(T frame) where T : LinuxWatchHelperFrame
     {
         var line = LinuxWatchHelperProtocol.Serialize(frame);
@@ -91,6 +93,7 @@ public class LinuxWatchHelperProtocolTests
 
     [TestCase("")]
     [TestCase("not json")]
+    [TestCase(UndecodableFrame)]
     [TestCase("[]")]
     [TestCase("{}")]
     [TestCase("{\"type\":7}")]

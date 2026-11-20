@@ -141,8 +141,14 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
         {
             // An unreadable stdin is treated like its end: the parent can no longer reach the helper.
         }
-
-        Finish(LinuxWatchHelperHost.ExitCodeEndOfInput);
+        catch (Exception exception)
+        {
+            await diagnostics.WriteLineAsync($"Reading helper requests failed: {exception}").ConfigureAwait(false);
+        }
+        finally
+        {
+            Finish(LinuxWatchHelperHost.ExitCodeEndOfInput);
+        }
     }
 
     void HandleRequest(string line)

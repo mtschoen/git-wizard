@@ -106,6 +106,37 @@ public class MainViewModelLiveElevationTests
     }
 
     [Test]
+    [Platform("Linux")]
+    public async Task DeclinedAuthentication_WithRootsThatDifferOnlyInCase_IsUnusableAndNeverDiscovers()
+    {
+        using var parent = new TempDirectory("gw-live-elevation-case-");
+        var upper = Path.Combine(parent.Path, "Repos");
+        var lower = Path.Combine(parent.Path, "repos");
+        Directory.CreateDirectory(upper);
+        Directory.CreateDirectory(lower);
+        var coordinator = CreateCoordinator(helper => _ = helper.ExitAsync(126));
+        var phases = new List<WatchStartupPhase>();
+        var request = new DiscoveryRequest(new GitWizardConfiguration { SearchPaths = { upper, lower } },
+            DiscoveryPurpose.Watch, false, false, []);
+
+        await using var startup = await coordinator.PrepareWatchAsync(request, null,
+            new PhaseRecorder(phases), CancellationToken.None);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(startup.Inventory.Outcome, Is.EqualTo(DiscoveryOutcome.Unusable));
+            Assert.That(startup.ArmResult.Errors, Does.ContainKey(upper).And.ContainKey(lower));
+            Assert.That(startup.Source, Is.Null);
+            Assert.That(phases, Does.Not.Contain(WatchStartupPhase.Discovering));
+        }
+    }
+
+    sealed class PhaseRecorder(List<WatchStartupPhase> phases) : IProgress<WatchStartupProgress>
+    {
+        public void Report(WatchStartupProgress value) => phases.Add(value.Phase);
+    }
+
+    [Test]
     public async Task StopWhilePromptIsOpen_ReplacesStartingHeaderWithStoppedStatus()
     {
         using var root = new TempDirectory("gw-live-elevation-");

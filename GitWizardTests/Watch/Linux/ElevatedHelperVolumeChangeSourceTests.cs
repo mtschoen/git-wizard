@@ -135,6 +135,29 @@ public class ElevatedHelperVolumeChangeSourceTests
         }
     }
 
+    [Test]
+    [Platform("Linux")]
+    public async Task PkexecEndsBeforeTheHelperStarts_KeepsAnErrorForRootsThatDifferOnlyInCase()
+    {
+        using var parent = new TempDirectory("gw-helper-case-");
+        var upper = Path.Combine(parent.Path, "Repos");
+        var lower = Path.Combine(parent.Path, "repos");
+        Directory.CreateDirectory(upper);
+        Directory.CreateDirectory(lower);
+        await using var pipes = new HelperPipes();
+        await using var source = CreateSource(new RecordingLauncher(pipes).Launch);
+
+        var arm = source.ArmAndCatchUpAsync([upper, lower], CancellationToken.None);
+        await pipes.ExitAsync(126);
+        var result = await arm.WaitAsync(TestTimeouts.ShortHangGuard);
+
+        Assert.That(result.Errors, Is.EqualTo(new Dictionary<string, string>
+        {
+            [upper] = ElevatedHelperVolumeChangeSource.AuthenticationCancelledMessage,
+            [lower] = ElevatedHelperVolumeChangeSource.AuthenticationCancelledMessage
+        }));
+    }
+
     [TestCase(2, ElevatedHelperVolumeChangeSource.PkexecMissingMessage)]
     [TestCase(13, ElevatedHelperVolumeChangeSource.LaunchFailedMessage)]
     public async Task PkexecCannotStart_ReportsItInWords(int errorNumber, string expected)

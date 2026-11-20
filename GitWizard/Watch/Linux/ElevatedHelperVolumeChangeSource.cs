@@ -176,7 +176,7 @@ public sealed partial class ElevatedHelperVolumeChangeSource :
             _armStarted = true;
         }
 
-        var errors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var errors = new Dictionary<string, string>(WatchPath.StringComparer);
         var roots = new List<string>();
         foreach (var volume in volumes)
         {

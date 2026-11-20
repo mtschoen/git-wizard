@@ -43,6 +43,13 @@ public class LinuxWatchHelperProtocolTests
     }
 
     [Test]
+    public void ArmResult_KeepsRootsThatDifferOnlyInCase()
+    {
+        var parsed = RoundTrip(new ArmResultFrame(new Dictionary<string, string> { ["/Repos"] = "first", ["/repos"] = "second" }));
+        Assert.That(parsed.Errors, Is.EqualTo(new Dictionary<string, string> { ["/Repos"] = "first", ["/repos"] = "second" }));
+    }
+
+    [Test]
     public void Readiness_RoundTrips()
     {
         VolumeWatchStatus[] volumes =

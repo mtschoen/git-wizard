@@ -87,7 +87,7 @@ static partial class LinuxWatchHelperProtocol
             return null;
         }
 
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var result = new Dictionary<string, string>(WatchPath.StringComparer);
         foreach (var property in errors.EnumerateObject())
         {
             if (property.Value.ValueKind != JsonValueKind.String || property.Value.GetString() is not { } message)

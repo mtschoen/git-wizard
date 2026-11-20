@@ -62,7 +62,7 @@ public sealed partial class ElevatedHelperVolumeChangeSource
             case ErrorFrame error:
                 GitWizardLog.Log($"The elevated Live helper rejected a request: {error.Message}", GitWizardLog.LogType.Error);
                 // Only the arm can be waiting on an answer; a rejected arm must not hang it.
-                _armResult.TrySetResult(_roots.ToDictionary(root => root, _ => RejectedRequestMessage, StringComparer.OrdinalIgnoreCase));
+                _armResult.TrySetResult(_roots.ToDictionary(root => root, _ => RejectedRequestMessage, WatchPath.StringComparer));
                 break;
             case DiedFrame died:
                 return died.Reason;

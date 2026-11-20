@@ -1,4 +1,3 @@
-using GitWizard.Discovery;
 using GitWizard.Watch;
 using GitWizardTests.TestSupport;
 using MFTLib;

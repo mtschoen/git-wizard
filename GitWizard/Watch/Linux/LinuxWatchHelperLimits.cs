@@ -6,8 +6,10 @@ namespace GitWizard.Watch.Linux;
 /// </summary>
 /// <param name="MaximumRequestBytes">
 /// Largest request line accepted from stdin, in UTF-8 bytes excluding the newline. A longer line is
-/// rejected without being buffered. The default of 16 MiB fits well over 4,000 roots at the Linux
-/// PATH_MAX of 4,096 bytes.
+/// rejected without being buffered. The default is 16 MiB (16,777,216 bytes) of UTF-8 encoded JSON per
+/// request line, excluding the newline: roughly 4,000 maximum-length (4,095-byte) unescaped paths, fewer
+/// when paths need JSON escaping, far more at typical path lengths. This is an estimate, not a
+/// supported root count.
 /// </param>
 /// <param name="MaximumQueuedOutputBytes">
 /// Largest total of serialized frames queued for stdout and not yet written. When the next frame

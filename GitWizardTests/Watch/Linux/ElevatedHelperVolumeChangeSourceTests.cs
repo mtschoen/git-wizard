@@ -347,6 +347,59 @@ public class ElevatedHelperVolumeChangeSourceTests
         }
     }
 
+    // The watch service detaches its death handler when enumeration ends, so the death must be
+    // published before the batch stream is allowed to complete. A readiness subscriber that blocks
+    // holds the death mid-publication, which makes the interleaving observable without timing.
+    [TestCase(true)]
+    [TestCase(false)]
+    public async Task HelperDeath_IsPublishedBeforeTheBatchStreamEnds(bool diedFrame)
+    {
+        await using var pipes = new HelperPipes();
+        await using var source = CreateSource(new RecordingLauncher(pipes).Launch);
+        var arm = source.ArmAndCatchUpAsync(["/repos"], CancellationToken.None);
+        await AnswerArmAsync(pipes, readiness: VolumeWatchStatus.CaughtUp("/repos", VolumeBlockOrigin.Unknown));
+        await arm.WaitAsync(TestTimeouts.ShortHangGuard);
+        var sequence = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var hold = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        source.ReadinessChanged += _ =>
+        {
+            entered.TrySetResult();
+            hold.Task.Wait(TestTimeouts.ShortHangGuard);
+            sequence.Enqueue("readiness");
+        };
+        source.SourceDied += reason => sequence.Enqueue($"died: {reason}");
+        await using var enumerator = source.WatchAsync(CancellationToken.None).GetAsyncEnumerator();
+        var pending = enumerator.MoveNextAsync().AsTask();
+        var streamEnded = pending.ContinueWith(_ => sequence.Enqueue("stream ended"), TaskScheduler.Default);
+        Assert.That(await pipes.ReadRequestAsync(), Is.TypeOf<WatchRequestFrame>());
+
+        try
+        {
+            if (diedFrame)
+            {
+                await pipes.SendFrameAsync(new DiedFrame("fanotify poll failed."));
+            }
+
+            await pipes.ExitAsync(diedFrame ? LinuxWatchHelperHost.ExitCodeSourceEnded : 0);
+            await entered.Task.WaitAsync(TestTimeouts.ShortHangGuard);
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(pending.IsCompleted, Is.False, "The batch stream must not end while the death is still being published.");
+                Assert.That(sequence, Is.Empty);
+            }
+        }
+        finally
+        {
+            hold.TrySetResult();
+        }
+
+        Assert.That(await pending.WaitAsync(TestTimeouts.ShortHangGuard), Is.False);
+        await streamEnded.WaitAsync(TestTimeouts.ShortHangGuard);
+        var expectedReason = diedFrame ? "fanotify poll failed." : "The elevated Live helper ended unexpectedly (exit code 0).";
+        Assert.That(sequence, Is.EqualTo(["readiness", $"died: {expectedReason}", "stream ended"]));
+    }
+
     [TestCase(2, ElevatedHelperVolumeChangeSource.PkexecMissingMessage)]
     [TestCase(13, ElevatedHelperVolumeChangeSource.LaunchFailedMessage)]
     public async Task PkexecCannotStart_ReportsItInWords(int errorNumber, string expected)

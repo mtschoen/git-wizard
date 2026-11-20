@@ -79,15 +79,17 @@ public sealed partial class ElevatedHelperVolumeChangeSource
         var stoppedHere = _disposing || _terminated;
         var reason = stoppedHere ? StoppedMessage
             : diedReason ?? DescribeEnd(await TryGetExitCodeAsync(process).ConfigureAwait(false));
-        _batches.Writer.TryComplete();
         // The death is recorded before the arm can observe the end, so an arm that fails on it
-        // returns to a source whose readiness and death already describe that failure. An end this
-        // source caused (disposal, or terminating pkexec on cancellation) is not a death.
+        // returns to a source whose readiness and death already describe that failure. It is also
+        // published before the batch stream ends: the watch service detaches its death handler when
+        // enumeration ends, so completing first could lose the reason. An end this source caused
+        // (disposal, or terminating pkexec on cancellation) is not a death.
         if (!stoppedHere)
         {
             ReportDeath(reason);
         }
 
+        _batches.Writer.TryComplete();
         _ended.TrySetResult(reason);
     }
 

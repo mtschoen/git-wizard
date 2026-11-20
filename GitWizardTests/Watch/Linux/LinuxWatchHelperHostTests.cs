@@ -8,7 +8,7 @@ namespace GitWizardTests.Watch.Linux;
 
 [TestFixture]
 [NonParallelizable]
-public class LinuxWatchHelperHostTests
+public partial class LinuxWatchHelperHostTests
 {
     sealed class FailingWriteStream : Stream
     {
@@ -69,9 +69,10 @@ public class LinuxWatchHelperHostTests
         }
     }
 
-    static Task<int> RunHost(HelperPipes pipes, IVolumeChangeSource source, TextWriter? diagnostics = null) =>
+    static Task<int> RunHost(HelperPipes pipes, IVolumeChangeSource source, TextWriter? diagnostics = null,
+        LinuxWatchHelperLimits? limits = null) =>
         Task.Run(() => LinuxWatchHelperHost.RunAsync(pipes.HelperInput, pipes.HelperOutput, diagnostics ?? TextWriter.Null,
-            () => true, () => source));
+            () => true, () => source, new LinuxWatchHelperOptions(null, limits ?? LinuxWatchHelperLimits.Default)));
 
     static async Task<int> FinishAsync(Task<int> host)
     {

@@ -82,14 +82,24 @@ public static class LinuxWatchHelperHost
     /// Serves one helper session over <paramref name="input"/> and <paramref name="output"/>.
     /// Refuses to run unless <paramref name="isRoot"/> holds, before any source is created.
     /// </summary>
+    internal static Task<int> RunAsync(Stream input, Stream output, TextWriter diagnostics,
+        Func<bool> isRoot, Func<IVolumeChangeSource> createSource, Func<Task>? startShutdownDeadline = null) =>
+        RunAsync(input, output, diagnostics, isRoot, createSource,
+            new LinuxWatchHelperOptions(startShutdownDeadline, LinuxWatchHelperLimits.Default));
+
+    /// <summary>
+    /// As the overload without options, with the shutdown-deadline starter and the session's memory
+    /// limits supplied by the caller.
+    /// </summary>
     internal static async Task<int> RunAsync(Stream input, Stream output, TextWriter diagnostics,
-        Func<bool> isRoot, Func<IVolumeChangeSource> createSource, Func<Task>? startShutdownDeadline = null)
+        Func<bool> isRoot, Func<IVolumeChangeSource> createSource, LinuxWatchHelperOptions options)
     {
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(diagnostics);
         ArgumentNullException.ThrowIfNull(isRoot);
         ArgumentNullException.ThrowIfNull(createSource);
+        var (startShutdownDeadline, limits) = options;
 
         if (!isRoot())
         {
@@ -103,7 +113,8 @@ public static class LinuxWatchHelperHost
 
         var stopped = Task.Run(async () =>
         {
-            using var session = new LinuxWatchHelperSession(output, TextWriter.Synchronized(diagnostics), createSource());
+            using var session = new LinuxWatchHelperSession(output, TextWriter.Synchronized(diagnostics), createSource(),
+                limits);
             return await session.RunAsync(input, OnStopping).ConfigureAwait(false);
         });
         return await Task.WhenAny(stopped, expired).ConfigureAwait(false) == stopped

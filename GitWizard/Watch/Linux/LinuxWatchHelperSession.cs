@@ -8,18 +8,20 @@ namespace GitWizard.Watch.Linux;
 /// is queued and written to stdout by a single writer, so source callbacks never block on the pipe
 /// and frames keep their order. The session owns and disposes the source.
 /// </summary>
-sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVolumeChangeSource source) : IDisposable
+sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVolumeChangeSource source,
+    LinuxWatchHelperLimits limits) : IDisposable
 {
     static readonly UTF8Encoding Utf8WithoutMarker = new(false);
 
     readonly Lock _requestGate = new();
-    readonly Channel<string> _outbound = Channel.CreateUnbounded<string>(new UnboundedChannelOptions { SingleReader = true });
+    readonly Channel<byte[]> _outbound = Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions { SingleReader = true });
     readonly CancellationTokenSource _stop = new();
     readonly TaskCompletionSource<int> _finished = new(TaskCreationOptions.RunContinuationsAsynchronously);
     Task? _armTask;
     Task? _watchTask;
-    WatchPath[] _roots = [];
-    WatchPath[] _rootParents = [];
+    LinuxWatchHelperRootFilter _rootFilter = new([]);
+    long _queuedOutputBytes;
+    string? _outputOverflowDiagnostic;
     readonly Lock _readinessGate = new();
     VolumeReadinessSnapshot? _latestReadiness;
     bool _readinessSettled;
@@ -39,6 +41,11 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
         // Every stop trigger (stdin end, stdout failure, source death) passes here, so the host's
         // shutdown deadline covers all of the cleanup below whatever started the stop.
         onStopping();
+        if (_outputOverflowDiagnostic is { } overflow)
+        {
+            await diagnostics.WriteLineAsync(overflow).ConfigureAwait(false);
+        }
+
         await _stop.CancelAsync().ConfigureAwait(false);
         _outbound.Writer.TryComplete();
         Task? arm;
@@ -141,7 +148,34 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
     }
     void OnDriveFailed(string volume, string message) => Enqueue(new DriveFailedFrame(volume, message));
 
-    void Enqueue(LinuxWatchHelperFrame frame) => _outbound.Writer.TryWrite(LinuxWatchHelperProtocol.Serialize(frame));
+    // Queued output is bounded by bytes. A frame that would exceed the bound is not queued: the
+    // desktop has stopped reading, so the session stops as for a failed write rather than dropping
+    // the frame and carrying on, or retaining output in the root process without end.
+    void Enqueue(LinuxWatchHelperFrame frame)
+    {
+        var bytes = Utf8WithoutMarker.GetBytes(LinuxWatchHelperProtocol.Serialize(frame) + "\n");
+        var queued = Interlocked.Add(ref _queuedOutputBytes, bytes.Length);
+        if (queued > limits.MaximumQueuedOutputBytes)
+        {
+            Interlocked.Add(ref _queuedOutputBytes, -bytes.Length);
+            StopForOutputOverflow(queued - bytes.Length);
+            return;
+        }
+
+        if (!_outbound.Writer.TryWrite(bytes))
+        {
+            Interlocked.Add(ref _queuedOutputBytes, -bytes.Length);
+        }
+    }
+
+    void StopForOutputOverflow(long queuedBytes)
+    {
+        // The diagnostic is written by RunAsync, off the callback thread that is enqueueing.
+        Interlocked.CompareExchange(ref _outputOverflowDiagnostic,
+            $"Desktop stopped reading; {queuedBytes} bytes queued (limit {LinuxWatchHelperLimits.Describe(limits.MaximumQueuedOutputBytes)}). Stopping the watch.",
+            null);
+        Finish(_sourceDeathSelected ? LinuxWatchHelperHost.ExitCodeSourceEnded : LinuxWatchHelperHost.ExitCodeOutputFailed);
+    }
 
     volatile bool _sourceDeathSelected;
 
@@ -166,11 +200,11 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
     {
         try
         {
-            await foreach (var line in _outbound.Reader.ReadAllAsync().ConfigureAwait(false))
+            await foreach (var bytes in _outbound.Reader.ReadAllAsync().ConfigureAwait(false))
             {
-                var bytes = Utf8WithoutMarker.GetBytes(line + "\n");
                 await output.WriteAsync(bytes).ConfigureAwait(false);
                 await output.FlushAsync().ConfigureAwait(false);
+                Interlocked.Add(ref _queuedOutputBytes, -bytes.Length);
             }
         }
         catch (Exception exception) when (exception is IOException or ObjectDisposedException or NotSupportedException)
@@ -185,14 +219,14 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
         Exception? failure = null;
         try
         {
-            using var reader = new StreamReader(input, Utf8WithoutMarker, false, 4096, leaveOpen: true);
-            while (await reader.ReadLineAsync().ConfigureAwait(false) is { } line)
+            var reader = new LinuxWatchHelperRequestReader(input, limits.MaximumRequestBytes);
+            while (await reader.ReadLineAsync().ConfigureAwait(false) is { Status: not RequestLineStatus.EndOfInput } request)
             {
                 lock (_requestGate)
                 {
                     if (!_finished.Task.IsCompleted)
                     {
-                        HandleRequest(line);
+                        HandleRequest(request);
                     }
                 }
             }
@@ -213,9 +247,15 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
         }
     }
 
-    void HandleRequest(string line)
+    void HandleRequest(RequestLine request)
     {
-        if (!LinuxWatchHelperProtocol.TryParse(line, out var frame, out var error))
+        if (request.Status == RequestLineStatus.TooLong)
+        {
+            Enqueue(new ErrorFrame($"Rejected request: the request exceeds {LinuxWatchHelperLimits.Describe(limits.MaximumRequestBytes)}."));
+            return;
+        }
+
+        if (!LinuxWatchHelperProtocol.TryParse(request.Text, out var frame, out var error))
         {
             Enqueue(new ErrorFrame($"Rejected request: {error}"));
             return;
@@ -250,8 +290,7 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
             return;
         }
 
-        _roots = [.. roots.Select(WatchPath.Parse)];
-        _rootParents = [.. roots.Select(Path.GetDirectoryName).OfType<string>().Select(WatchPath.Parse)];
+        _rootFilter = new LinuxWatchHelperRootFilter(roots);
         _armTask = Task.Run(() => ArmAsync(roots), _stop.Token);
     }
 
@@ -341,20 +380,8 @@ sealed class LinuxWatchHelperSession(Stream output, TextWriter diagnostics, IVol
     // nothing else crosses from root to the unprivileged parent.
     VolumeChangeBatch? FilterToRoots(VolumeChangeBatch batch)
     {
-        var entries = (VolumeChangeEntry[])[.. batch.Entries.Where(entry => IsRelevant(entry.FullPath))];
+        var entries = (VolumeChangeEntry[])[.. batch.Entries.Where(entry => _rootFilter.IsRelevant(entry.FullPath))];
         return entries.Length == 0 ? null : batch with { Entries = entries };
-    }
-
-    bool IsRelevant(string fullPath)
-    {
-        var path = WatchPath.Parse(fullPath);
-        if (_roots.Any(path.IsUnderOrEqual))
-        {
-            return true;
-        }
-
-        return Path.GetDirectoryName(fullPath) is { } directory &&
-               _rootParents.Any(WatchPath.Parse(directory).IsEqualTo);
     }
 
     static async Task ObserveAsync(Task? task)

@@ -190,8 +190,8 @@ public sealed partial class RepositoryWatchService
                 return;
             }
 
-            var errors = new Dictionary<string, string>(_scanErrors, StringComparer.OrdinalIgnoreCase) { [drive] = message };
-            _scanErrors = errors.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+            var errors = new Dictionary<string, string>(_scanErrors, WatchKeyComparer.Instance) { [drive] = message };
+            _scanErrors = errors.ToFrozenDictionary(WatchKeyComparer.Instance);
         }
         ScanErrorsChanged?.Invoke();
     }
@@ -236,13 +236,13 @@ public sealed partial class RepositoryWatchService
 
         lock (_errorsLock)
         {
-            var errors = new Dictionary<string, string>(armResult.Errors, StringComparer.OrdinalIgnoreCase);
+            var errors = new Dictionary<string, string>(armResult.Errors, WatchKeyComparer.Instance);
             foreach (var (drive, message) in _scanErrors)
             {
                 errors[drive] = message;
             }
 
-            _scanErrors = errors.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+            _scanErrors = errors.ToFrozenDictionary(WatchKeyComparer.Instance);
 
             var warnings = armResult.JournalWarnings
                 .Concat(current)
@@ -298,7 +298,7 @@ public sealed partial class RepositoryWatchService
         }
         else
         {
-            volumes = (string[])[.. trackedByVolume.Keys.Union(searchByVolume.Keys, StringComparer.OrdinalIgnoreCase)];
+            volumes = (string[])[.. trackedByVolume.Keys.Union(searchByVolume.Keys, WatchKeyComparer.Instance)];
             var armResult = await _source.ArmAndCatchUpAsync(volumes, ct).ConfigureAwait(false);
             SetArmResult(armResult);
         }
@@ -318,12 +318,12 @@ public sealed partial class RepositoryWatchService
                 searchByVolume.GetValueOrDefault(volume) ?? [],
                 ignoredByVolume.GetValueOrDefault(volume) ?? [],
                 _includeTempDirectories),
-            StringComparer.OrdinalIgnoreCase);
+            WatchKeyComparer.Instance);
     }
 
     Dictionary<string, List<string>> GroupRootsByVolume(IReadOnlyCollection<string> roots)
     {
-        var result = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        var result = new Dictionary<string, List<string>>(WatchKeyComparer.Instance);
         foreach (var root in roots)
         {
             var volume = _startup?.GetObservedVolume(root) ?? GetVolume(root);

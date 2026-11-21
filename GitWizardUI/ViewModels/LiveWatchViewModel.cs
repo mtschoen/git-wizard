@@ -123,7 +123,7 @@ public sealed partial class LiveWatchViewModel : INotifyPropertyChanged, IAsyncD
     internal Func<DiscoveryRequest, MftIndexSession?, IProgress<WatchStartupProgress>?, CancellationToken, Task<WatchStartupResult>> PrepareWatchAsync
     {
         get => field ??= static (request, prepared, progress, cancellationToken) =>
-            new RepositoryDiscoveryCoordinator().PrepareWatchAsync(request, prepared, progress, cancellationToken);
+            DesktopLinuxWatchSource.CreateCoordinator().PrepareWatchAsync(request, prepared, progress, cancellationToken);
         set;
     }
 

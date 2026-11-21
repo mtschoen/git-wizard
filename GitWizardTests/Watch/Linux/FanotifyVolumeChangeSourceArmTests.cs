@@ -166,7 +166,7 @@ public class FanotifyVolumeChangeSourceArmTests
     }
 
     [Test]
-    public async Task ArmPublishesMarkReadinessPerRoot()
+    public async Task ArmPublishesMarkReadinessForAllRootsAsOneSnapshot()
     {
         var native = new FakeFanotifyNative
         {
@@ -197,7 +197,8 @@ public class FanotifyVolumeChangeSourceArmTests
         {
             Assert.That(excluded.Volume, Is.EqualTo(brokenPath));
             Assert.That(excluded.ExclusionReason, Is.EqualTo(result.Errors[brokenPath]));
-            Assert.That(snapshots, Has.Count.EqualTo(2));
+            Assert.That(snapshots, Has.Count.EqualTo(1));
+            Assert.That(snapshots[0].Volumes, Is.EqualTo(source.Readiness.Volumes));
         }
     }
     [Test]

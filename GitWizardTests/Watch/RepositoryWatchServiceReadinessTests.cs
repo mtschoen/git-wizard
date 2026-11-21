@@ -9,6 +9,26 @@ namespace GitWizardTests.Watch;
 public class RepositoryWatchServiceReadinessTests
 {
 
+    [Test]
+    public void Snapshot_KeepsPosixKeysThatDifferOnlyInCase_AndFoldsDriveLetters()
+    {
+        var posix = VolumeReadinessSnapshot.Empty
+            .With(VolumeWatchStatus.CaughtUp("/srv/Repos", VolumeBlockOrigin.Unknown))
+            .With(VolumeWatchStatus.Excluded("/srv/repos", VolumeBlockOrigin.Unknown, "mark failed"));
+        var drives = VolumeReadinessSnapshot.Empty
+            .With(VolumeWatchStatus.Excluded("X", VolumeBlockOrigin.Unknown, "first"))
+            .With(VolumeWatchStatus.CaughtUp("x", VolumeBlockOrigin.Unknown));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(posix.Volumes, Has.Count.EqualTo(2));
+            Assert.That(posix.TryGet("/srv/Repos", out var upper) && upper.State == VolumeWatchState.CaughtUp, Is.True);
+            Assert.That(posix.TryGet("/srv/repos", out var lower) && lower.State == VolumeWatchState.Excluded, Is.True);
+            Assert.That(drives.Volumes, Has.Count.EqualTo(1));
+            Assert.That(drives.TryGet("X", out var drive) && drive.State == VolumeWatchState.CaughtUp, Is.True);
+        }
+    }
+
     sealed class Run : IAsyncDisposable
     {
         public readonly List<WatchReadiness> Ready = [];

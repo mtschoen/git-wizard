@@ -54,8 +54,28 @@ sealed class ReadinessVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDia
         }
     }
 
-    public Task<VolumeArmResult> ArmAndCatchUpAsync(IReadOnlyCollection<string> volumes, CancellationToken ct) =>
-        Task.FromResult(new VolumeArmResult(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), []));
+    /// <summary>Per-volume failures every arm reports.</summary>
+    public IReadOnlyDictionary<string, string>? ArmErrors { get; init; }
+    /// <summary>Statuses published one at a time while an arm runs, as a source does per root.</summary>
+    public IReadOnlyList<VolumeWatchStatus>? ArmStatuses { get; init; }
+    public IReadOnlyCollection<string>? ArmedVolumes { get; private set; }
+    /// <summary>Awaited by <see cref="DisposeAsync"/> after it counts the call, to hold cleanup open.</summary>
+    public Func<ValueTask>? DisposeGate { get; init; }
+    public int DisposeCount => Volatile.Read(ref _disposeCount);
+
+    int _disposeCount;
+
+    public Task<VolumeArmResult> ArmAndCatchUpAsync(IReadOnlyCollection<string> volumes, CancellationToken ct)
+    {
+        ArmedVolumes = [.. volumes];
+        foreach (var status in ArmStatuses ?? [])
+        {
+            SetVolume(status);
+        }
+
+        return Task.FromResult(new VolumeArmResult(
+            new Dictionary<string, string>(ArmErrors ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase), []));
+    }
 
     public async IAsyncEnumerable<VolumeChangeBatch> WatchAsync([EnumeratorCancellation] CancellationToken ct)
     {
@@ -101,9 +121,25 @@ sealed class ReadinessVolumeChangeSource : IVolumeChangeSource, IVolumeChangeDia
     public void Complete() => _batches.Writer.TryComplete();
     public void Fail(Exception exception) => _batches.Writer.TryComplete(exception);
 
-    public ValueTask DisposeAsync()
+    readonly TaskCompletionSource _disposeCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>Completes once <see cref="DisposeAsync"/> and its <see cref="DisposeGate"/> have finished.</summary>
+    public Task DisposeCompleted => _disposeCompleted.Task;
+
+    public async ValueTask DisposeAsync()
     {
+        Interlocked.Increment(ref _disposeCount);
         Complete();
-        return ValueTask.CompletedTask;
+        try
+        {
+            if (DisposeGate is { } gate)
+            {
+                await gate().ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            _disposeCompleted.TrySetResult();
+        }
     }
 }

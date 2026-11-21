@@ -122,7 +122,7 @@ public sealed partial class LiveWatchViewModel
         LiveWatchHistory.Apply(snapshot.RecentTransitions);
         foreach (var status in snapshot.Volumes)
         {
-            var existing = LiveVolumes.FirstOrDefault(row => string.Equals(row.Volume, status.Volume, StringComparison.OrdinalIgnoreCase));
+            var existing = LiveVolumes.FirstOrDefault(row => WatchKeyComparer.Instance.Equals(row.Volume, status.Volume));
             if (existing is null)
             {
                 LiveVolumes.Add(new LiveVolumeStatusViewModel(status));

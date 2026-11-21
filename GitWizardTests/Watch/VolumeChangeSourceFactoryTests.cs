@@ -77,6 +77,19 @@ public class VolumeChangeSourceFactoryTests
         }
     }
 
+    [TestCase(true)]
+    [TestCase(false)]
+    [Platform("Linux")]
+    public async Task LibraryDefaultDependencies_CreateTheInProcessSource_RegardlessOfElevation(bool isRoot)
+    {
+        VolumeChangeSourceFactory._isElevatedOverride = () => isRoot;
+
+        // Only GitWizardUI dispatches the helper flag, so the library must never select pkexec itself.
+        await using var source = RepositoryDiscoveryDependencies.CreateDefault().CreateLinuxSource();
+
+        Assert.That(source.GetType().Name, Is.EqualTo("FanotifyVolumeChangeSource"));
+    }
+
     [Test]
     public async Task Create_WithOverride_ReturnsConfiguredSource()
     {

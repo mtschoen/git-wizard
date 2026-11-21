@@ -238,6 +238,42 @@ Run the existing CLI live smoke pass first on any attended re-test.
 5. Verify field readability and scrolling at 500-pixel and 850-pixel window widths. Refresh has no elevation prompt. The window has no delete/clear action.
 6. On Linux run the same flag and open the panel: not applicable, no Windows-cache initialization. Retain the screenshot/terminal evidence outside the disposable checkout.
 
+## Linux desktop Live elevation (pkexec)
+
+Run on a Linux desktop session with a polkit authentication agent running (on Hyprland,
+start `hyprpolkitagent` first) and the published single-file linux-x64 GitWizardUI, started as the desktop user with
+an isolated `GITWIZARD_HOME` whose search path holds a seed repository outside `/tmp`.
+Before starting Live, record whether root's `$HOME/.GitWizard` exists and the contents of
+root's `$HOME/.net/GitWizardUI` (use `$DOTNET_BUNDLE_EXTRACT_BASE_DIR/GitWizardUI` instead
+if the override is set in the helper's effective environment).
+
+Use a test account for the cancellation steps. Depending on the polkit agent and the
+host's `pam_faillock` policy, dismissing the dialog or stopping Live with it open can
+count as a failed authentication and lock the account out of other password checks.
+Avoid accumulating retries on your regular account.
+
+1. Click Live once. Expect exactly one polkit dialog. Authenticate. Expect `Requesting
+   elevation...`, then the readiness line `Ready (marks): <root>`, and Live green.
+2. In the seed repository, edit and commit a file (row refreshes as changed), create a new
+   repository under the search root (row appears), rename a repository directory (old row
+   leaves, new row appears), and delete one (row leaves).
+3. Stop Live. Run `pgrep -a GitWizardUI`: only the desktop process remains. Repeat with
+   Live running and close the window instead. Expect no new or changed root GitWizard state.
+   In the extraction directory, expect a bundle-id subdirectory containing `libSkiaSharp.so`,
+   `libHarfBuzzSharp.so` and the bundled `libgit2-*.so`. A repeat run can reuse the same files.
+4. Click Live and dismiss the dialog. Expect Live off and no second dialog. The header
+   reports cancellation for pkexec exit 126. For exit 127 it lists possible cancellation,
+   failed authorization, or an unavailable polkit agent; either result is valid on dismissal.
+5. Click Live, leave the dialog open, and click Live again to stop. Expect the dialog to
+   disappear within about a second, Live off, the header `Live watch stopped.`, and `pgrep -a pkexec`
+   to print nothing. Click Live once more: exactly one new dialog appears. (This holds when a
+   process identity was acquired for pkexec, the normal case; without one the dialog stays until
+   dismissed. Verbose logs say `No process identity for the pkexec process`.)
+6. Start GitWizardUI as root (where the display accepts a root client) and click Live.
+   Expect no dialog and the same ready state.
+
+Record the desktop, polkit agent, build and observed outcomes on the issue.
+
 ## Desktop single instance
 
 Run the existing CLI live smoke pass first, as required by this document.

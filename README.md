@@ -211,6 +211,37 @@ launch an additional MFT broker or elevation prompt. An empty discovery clears t
 repository-list cache and the CLI reports that there is nothing to watch; an unusable
 discovery preserves the previous list and exits nonzero.
 
+On Linux, fanotify marks need root. `git-wizard --watch` relaunches itself through `sudo`
+when it is not root. GitWizardUI started without root shows one polkit (pkexec)
+authentication dialog when Live is clicked; after authentication a windowless copy of
+GitWizardUI runs as root and exits when Live stops or the window closes. Stopping Live or
+closing the window while the dialog is still open ends pkexec and closes the dialog, provided
+GitWizardUI could acquire a process identity for it (the normal case); without one nothing is
+signalled, the dialog stays until it is dismissed or answered, and the app still reports Live
+stopped. A polkit
+authentication agent must be running in the desktop session; there is no terminal prompt.
+Exit 126 means the dialog was cancelled. Exit 127 can mean the dialog was cancelled,
+authorization failed, or no agent is available. In each case, or if pkexec is missing,
+Live stays off until clicked again. GitWizardUI started as `dotnet GitWizardUI.dll`
+cannot elevate; start the GitWizardUI executable. GitWizardUI started as root watches without
+a prompt.
+
+On hosts using `pam_faillock`, dismissing the dialog or stopping Live while the prompt
+is open can count as a failed authentication. Repeated attempts can lock the account
+out of other password checks too. Use a test account for repeated cancellation tests
+rather than accumulating failures on your regular account.
+
+The root helper watches the directories the desktop names (search roots and tracked
+repositories) and reports only change paths at or under them, or directly beside them. It
+is the GitWizardUI executable at its own path. To prevent a program running as the user from
+replacing what the password prompt elevates, root must control the executable and its entire
+resolution path, including every parent directory and any symbolic links.
+
+The helper writes no GitWizard configuration, cache or logs to disk. Before the helper starts,
+.NET extracts the published Linux executable's native libraries under root's
+`$HOME/.net/GitWizardUI/<bundle-id>/`. If `DOTNET_BUNDLE_EXTRACT_BASE_DIR` is set in the
+helper's environment, it replaces `$HOME/.net`. The extracted libraries remain after Live stops.
+
 `--watch` prints one `ready:` line when the run is ready and never a second one for the same run:
 
 ```

@@ -22,7 +22,7 @@ public partial class RepositoryDiscoveryCoordinator
                 .Distinct(WatchPath.StringComparer)
                 .ToArray();
 
-            var armResult = await source.ArmAndCatchUpAsync(allRoots, cancellationToken).ConfigureAwait(false);
+            var armResult = await ArmLinuxSourceAsync(source, allRoots, progress, cancellationToken).ConfigureAwait(false);
             foreach (var (root, message) in armResult.Errors)
             {
                 accumulator.Errors[root] = message;
@@ -56,6 +56,31 @@ public partial class RepositoryDiscoveryCoordinator
             {
                 await source.DisposeAsync().ConfigureAwait(false);
             }
+        }
+    }
+
+    // A source that elevates while arming (the pkexec helper) reports the prompt and the answer
+    // as the same startup phases the Windows broker connection does.
+    static async Task<VolumeArmResult> ArmLinuxSourceAsync(IVolumeChangeSource source, string[] roots,
+        IProgress<WatchStartupProgress>? progress, CancellationToken cancellationToken)
+    {
+        if (source is not IElevationConnection connection)
+        {
+            return await source.ArmAndCatchUpAsync(roots, cancellationToken).ConfigureAwait(false);
+        }
+
+        void OnConnecting() => progress?.Report(new WatchStartupProgress(WatchStartupPhase.RequestingElevation));
+        void OnConnected() => progress?.Report(new WatchStartupProgress(WatchStartupPhase.BrokerConnected));
+        connection.Connecting += OnConnecting;
+        connection.Connected += OnConnected;
+        try
+        {
+            return await source.ArmAndCatchUpAsync(roots, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            connection.Connecting -= OnConnecting;
+            connection.Connected -= OnConnected;
         }
     }
 

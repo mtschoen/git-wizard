@@ -176,6 +176,13 @@ sealed class HelperPipes : IAsyncDisposable
         }
     }
 
+    /// <summary>Writes one line to the helper's stderr.</summary>
+    public Task SendErrorLineAsync(string line) =>
+        _stderr.Writer.WriteAsync(Encoding.UTF8.GetBytes(line + "\n")).AsTask().WaitAsync(TestTimeouts.ShortHangGuard);
+
+    /// <summary>Closes the helper's stdout without reporting an exit code, as a helper whose exit never arrives.</summary>
+    public Task EndOutputAsync() => _stdout.Writer.CompleteAsync().AsTask();
+
     /// <summary>Ends the helper: its stdout and stderr close, then it exits with <paramref name="exitCode"/>.</summary>
     public async Task ExitAsync(int exitCode)
     {

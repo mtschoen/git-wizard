@@ -17,7 +17,9 @@ namespace GitWizardTests;
 /// </para>
 /// <para>
 /// The temp home is placed under the user profile so path-shape assertions still hold cross-platform
-/// (e.g. GitWizardApiTests.GetLocalFilesPath_ContainsUserProfile). Per-class redirects via
+/// (e.g. GitWizardApiTests.GetLocalFilesPath_ContainsUserProfile). When the run arrives with an explicit
+/// GITWIZARD_HOME (an isolated writer profile), the temp home is created beneath that directory instead,
+/// because the real profile folder cannot be redirected on Windows and must not be written. Per-class redirects via
 /// <see cref="GitWizardTests.TestSupport.LocalFilesSandbox"/> still override this for their own isolation;
 /// their teardown restores this fallback (see <see cref="TestUtilities.ClearLocalFilesRedirect"/>).
 /// </para>
@@ -27,11 +29,28 @@ public class GlobalTestSetup
 {
     string? _home;
 
+    /// <summary>
+    /// True when the run arrived with an explicit GITWIZARD_HOME, so the temp home lives under that
+    /// directory rather than under the real user profile.
+    /// </summary>
+    internal static bool UsesExplicitIsolation { get; private set; }
+
+    /// <summary>
+    /// Builds the unique per-run home. An explicit isolated home is the only parent used when one is given;
+    /// otherwise the home goes under the user profile. Nothing is created here.
+    /// </summary>
+    internal static string ResolveRunHome(string? explicitIsolatedHome, string userProfile) =>
+        string.IsNullOrEmpty(explicitIsolatedHome)
+            ? Path.Combine(userProfile, ".GitWizardTestHome", Guid.NewGuid().ToString("N"))
+            : Path.Combine(explicitIsolatedHome, Guid.NewGuid().ToString("N"));
+
     [OneTimeSetUp]
     public void RedirectDataDirForWholeAssembly()
     {
+        var explicitIsolatedHome = Environment.GetEnvironmentVariable("GITWIZARD_HOME");
+        UsesExplicitIsolation = !string.IsNullOrEmpty(explicitIsolatedHome);
         var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        _home = Path.Combine(profile, ".GitWizardTestHome", Guid.NewGuid().ToString("N"));
+        _home = ResolveRunHome(explicitIsolatedHome, profile);
         Directory.CreateDirectory(_home);
         Environment.SetEnvironmentVariable("GITWIZARD_HOME", _home);
         TestUtilities.DefaultHome = _home;

@@ -33,6 +33,11 @@ public class GitWizardApiTests
     [Test]
     public void GetLocalFilesPath_ContainsUserProfile()
     {
+        if (GlobalTestSetup.UsesExplicitIsolation)
+        {
+            Assert.Ignore("An explicitly isolated run keeps its data directory under the supplied GITWIZARD_HOME, not the user profile.");
+        }
+
         var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         var path = GitWizardApi.GetLocalFilesPath();
         Assert.That(path, Does.Contain(profile));

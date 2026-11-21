@@ -22,6 +22,9 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+# The SDK's first-run setup would otherwise install a development certificate in the
+# current-user certificate store, which an isolated profile does not redirect.
+$env:DOTNET_GENERATE_ASPNET_CERTIFICATE = 'false'
 
 . (Join-Path $PSScriptRoot "elevation-heads-up.ps1")
 
@@ -69,6 +72,7 @@ try {
         $template = @'
 $ErrorActionPreference = "Stop"
 Set-Location "REPO_ROOT"
+$env:DOTNET_GENERATE_ASPNET_CERTIFICATE = 'false'
 $env:VSTEST_TESTHOST_SHUTDOWN_TIMEOUT = "120000"
 try {
     dotnet test "TEST_PROJECT" --no-build -c CONFIGURATION `

@@ -17,6 +17,10 @@
 set -eu
 set -o pipefail
 
+# The SDK's first-run setup would otherwise install a development certificate in the
+# current-user certificate store, which an isolated profile does not redirect.
+export DOTNET_GENERATE_ASPNET_CERTIFICATE=false
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD=0
 

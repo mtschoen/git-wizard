@@ -8,7 +8,15 @@ platform recipe; Windows delegates native compilation to `ci/windows-gates.ps1`.
 `Directory.Build.targets` owns the assembly-reference bridge and native copying.
 Use these files rather than copying a machine-specific MSBuild path.
 
+`init.ps1`, `init.sh`, `ci/gates.sh`, `scripts/run-coverage.ps1` and `scripts/update-screenshots.ps1`
+set `DOTNET_GENERATE_ASPNET_CERTIFICATE=false` before invoking the SDK. The coverage script
+also sets it inside its elevated runner. This opt-out applies to those script invocations.
+For direct `dotnet` commands in an isolated run, set the variable in the calling environment
+before the first SDK invocation, including restore or build. Redirecting the profile does
+not isolate the Windows current-user certificate store.
+
 ```bash
+export DOTNET_GENERATE_ASPNET_CERTIFICATE=false
 git submodule update --init
 bash ci/gates.sh native
 dotnet restore git-wizard.slnx
@@ -58,12 +66,18 @@ entries. These are local observations, not a cross-platform CI speedup claim.
 
 To **run the NUnit suite**, build first, then run tests with `--no-build` (a plain `dotnet test`
 re-invokes the build). Use the same configuration as the successful build. Assembly setup
-creates a temporary home under `Environment.SpecialFolder.UserProfile`; a sandbox with a
-read-only user profile cannot execute the suite, even when loopback sockets are allowed. In
-that environment, the controller runs the suite outside the sandbox:
+creates a unique run directory beneath an explicit, writable `GITWIZARD_HOME` and teardown
+attempts to remove that child. Without the override, setup uses `Environment.SpecialFolder.UserProfile`;
+on Windows, changing `HOME` or `USERPROFILE` does not move that known folder. The override
+redirects the assembly setup and teardown writes only. The full suite still needs a writable
+profile because the [tilde-relative path test](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/issues/644)
+creates a directory there.
+
+For a full Windows run, use a writable test profile and point `TEMP` at writable scratch
+outside the checkout. Give each run its own results directory:
 
 ```powershell
-$results = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) ("GitWizard/test-results/" + [Guid]::NewGuid().ToString('N'))
+$results = Join-Path $env:TEMP ("GitWizard/test-results/" + [Guid]::NewGuid().ToString('N'))
 dotnet test GitWizardTests/GitWizardTests.csproj --no-build -c Release --nologo --results-directory "$results"
 ```
 

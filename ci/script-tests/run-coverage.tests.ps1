@@ -15,16 +15,19 @@ try {
 function Start-ElevatedProcess {
     param([string]$ScriptName, [string]$Reason, [string[]]$ArgumentList)
     $callerValue = $env:VSTEST_TESTHOST_SHUTDOWN_TIMEOUT
+    $callerCertificateValue = $env:DOTNET_GENERATE_ASPNET_CERTIFICATE
     $env:VSTEST_TESTHOST_SHUTDOWN_TIMEOUT = '100'
+    $env:DOTNET_GENERATE_ASPNET_CERTIFICATE = $null
     try {
         Start-Process -FilePath (Join-Path $PSHOME 'pwsh') -ArgumentList (@('-NoProfile') + $ArgumentList) -NoNewWindow -Wait -PassThru
     } finally {
         $env:VSTEST_TESTHOST_SHUTDOWN_TIMEOUT = $callerValue
+        $env:DOTNET_GENERATE_ASPNET_CERTIFICATE = $callerCertificateValue
     }
 }
 '@
     Set-Content -LiteralPath (Join-Path $executables 'dotnet.ps1') -Value @'
-Add-Content -LiteralPath $env:RUN_COVERAGE_RECORD -Value ("$env:VSTEST_TESTHOST_SHUTDOWN_TIMEOUT|" + ($args -join ' '))
+Add-Content -LiteralPath $env:RUN_COVERAGE_RECORD -Value ("$env:VSTEST_TESTHOST_SHUTDOWN_TIMEOUT|$env:DOTNET_GENERATE_ASPNET_CERTIFICATE|" + ($args -join ' '))
 $index = [Array]::IndexOf([string[]]$args, '--results-directory')
 $report = Join-Path $args[$index + 1] ([Guid]::NewGuid().ToString('N'))
 $null = New-Item -ItemType Directory -Path $report -Force
@@ -46,7 +49,7 @@ exit 0
     foreach ($filter in 'Category!=RequiresAdmin', 'Category=RequiresAdmin') {
         $call = @($calls | Where-Object { $_.Contains("--filter $filter ") })
         if ($call.Count -ne 1) { throw "Expected one run with filter $filter in: $($calls -join ' / ')" }
-        if (-not $call[0].StartsWith('120000|test ')) { throw "Run with filter $filter did not extend the shutdown wait: $($call[0])" }
+        if (-not $call[0].StartsWith('120000|false|test ')) { throw "Run with filter $filter did not extend the shutdown wait or disable certificate generation: $($call[0])" }
         if (-not $call[0].Contains('--collect:XPlat Code Coverage')) { throw "Run with filter $filter does not collect coverage: $($call[0])" }
     }
 } finally {

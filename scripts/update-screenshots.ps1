@@ -19,6 +19,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# The SDK's first-run setup would otherwise install a development certificate in the
+# current-user certificate store, which an isolated profile does not redirect.
+$env:DOTNET_GENERATE_ASPNET_CERTIFICATE = 'false'
 $repositoryRoot = Split-Path $PSScriptRoot -Parent
 Push-Location $repositoryRoot
 try {

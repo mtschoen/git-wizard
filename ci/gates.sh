@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Gate recipes shared by CI and tools/ci-preflight.sh.
 set -euo pipefail
+# The SDK's first-run setup would otherwise install a development certificate in the
+# current-user certificate store, which an isolated profile does not redirect.
+export DOTNET_GENERATE_ASPNET_CERTIFICATE=false
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 projects=(GitWizard/GitWizard.csproj git-wizard/git-wizard.csproj GitWizardUI/GitWizardUI.csproj GitWizardTests/GitWizardTests.csproj)
 windows=false

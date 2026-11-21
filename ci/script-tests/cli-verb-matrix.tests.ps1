@@ -23,11 +23,11 @@ $pwshPath = (Get-Command pwsh).Source
 $scratch = Join-Path ([System.IO.Path]::GetTempPath()) ('gw-verb-matrix-tests-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
 $null = New-Item -ItemType Directory -Path $scratch -Force
 
-function Invoke-StubRow([hashtable]$Row, [int]$TimeoutSeconds = 30) {
+function Invoke-StubRow([hashtable]$Row, [hashtable]$Context = @{}, [int]$TimeoutSeconds = 30) {
     $stubRow = $Row.Clone()
     $stubRow.Arguments = @('-NoProfile', '-Command', $Row.Command)
     $stubRow.Remove('Command')
-    Invoke-MatrixRow -Row $stubRow -ExecutablePath $pwshPath -Context @{} -Environment @{} -TimeoutSeconds $TimeoutSeconds
+    Invoke-MatrixRow -Row $stubRow -ExecutablePath $pwshPath -Context $Context -Environment @{} -TimeoutSeconds $TimeoutSeconds
 }
 
 try {
@@ -70,7 +70,7 @@ try {
     $pidFile = Join-Path $scratch 'grandchild.pid'
     $command = "`$child = Start-Process -FilePath '$pwshPath' -ArgumentList '-NoProfile','-Command','Start-Sleep -Seconds 120' -PassThru; " +
         "Set-Content -LiteralPath '$pidFile' -Value `$child.Id; Start-Sleep -Seconds 120"
-    $result = Invoke-StubRow @{ Name = 'timeout'; Command = $command } 3
+    $result = Invoke-StubRow @{ Name = 'timeout'; Command = $command } -TimeoutSeconds 3
     Assert-Equal 'FAIL' $result.Status 'timed out row'
     Assert-Contains ($result.Problems -join ';') 'timed out after 3 seconds' 'timeout message'
     $grandchildId = [int](Get-Content -LiteralPath $pidFile)
@@ -345,8 +345,8 @@ Options:
         }
     }
 
-    $temporaryRoot = Join-Path $scratch 'temporary-root'
-    $null = New-Item -ItemType Directory -Path $temporaryRoot
+    $temporaryRoot = Join-Path $scratch '.pr-crew\temporary-root'
+    $null = New-Item -ItemType Directory -Path $temporaryRoot -Force
     $matrixScript = Join-Path $scriptsRoot 'cli-verb-matrix.ps1'
     if ($IsWindows) {
         # The whole script against a stub executable whose help lists an option with no row: it must fail
@@ -354,16 +354,80 @@ Options:
         $stubHelp = Join-Path $scratch 'help.txt'
         Set-Content -LiteralPath $stubHelp -Value "Usage: git-wizard [command] [options]`n`nOptions:`n  -?|-h|--help   Show help.`n  --brand-new-verb   Not in the matrix.`n"
         $stub = Join-Path $scratch 'stub.cmd'
-        Set-Content -LiteralPath $stub -Value "@echo off`r`nif ""%~1""==""--help"" (type ""%~dp0help.txt"" & exit /b 0)`r`nexit /b 2`r`n"
-        $output = & $pwshPath -NoProfile -File $matrixScript -ExecutablePath $stub -TemporaryRoot $temporaryRoot 2>&1 | Out-String
+        Set-Content -LiteralPath $stub -Value "@echo off`r`nset GITWIZARD_HOME > ""%~dp0home.txt""`r`nif ""%~1""==""--help"" (type ""%~dp0help.txt"" & exit /b 0)`r`nexit /b 2`r`n"
+        $output = & $pwshPath -NoProfile -File $matrixScript -ExecutablePath $stub -TemporaryRoot (Join-Path $temporaryRoot 'inner\..') 2>&1 | Out-String
         Assert-Equal 1 $LASTEXITCODE 'unlisted verb exit code'
         Assert-Contains $output "lists '--brand-new-verb'" 'script reports the unlisted verb'
         Assert-True ($output -notmatch 'PASS\s') 'no row may run after a coverage failure'
+        $homePath = (Get-Content -LiteralPath (Join-Path $scratch 'home.txt')).Substring('GITWIZARD_HOME='.Length)
+        Assert-Equal $temporaryRoot (Split-Path (Split-Path $homePath)) 'the CLI receives a normalized fixture path for a dot-segment root'
         Assert-Equal 0 @(Get-ChildItem -LiteralPath $temporaryRoot -Force).Count 'the temporary folder is deleted on failure'
         Write-Host 'Windows .cmd integration self-test passed'
     }
     else {
         Write-Host 'SKIP: .cmd integration assertion requires Windows'
+    }
+
+    # The fixture builder works when the matrix runs as a script (`& script.ps1`), where its helper
+    # functions live in the script scope rather than the global scope (issue 622). Stub Git here;
+    # the preceding fixture integration already verifies real repositories.
+    $scopeScript = Join-Path $scratch 'fixture-scope.ps1'
+    $scopeRoot = Join-Path $scratch 'fixture-scope-root'
+    Set-Content -LiteralPath $scopeScript -Value @(
+        "param([string]`$Root)",
+        "`$ErrorActionPreference = 'Stop'",
+        ". '$(Join-Path $scriptsRoot 'cli-verb-matrix.helpers.ps1')'",
+        "`$script:fixtureProcessCalls = 0",
+        "function Invoke-MatrixProcess { param([string[]]`$Arguments) `$script:fixtureProcessCalls += 1; if (`$Arguments -contains 'init') { `$null = New-Item -ItemType Directory -Path `$Arguments[-1] -Force }; [pscustomobject]@{ ExitCode = 0; TimedOut = `$false; Combined = '' } }",
+        ". '$(Join-Path $scriptsRoot 'cli-verb-matrix.rows.ps1')'",
+        "`$fixture = New-MatrixFixture -Root `$Root -GitPath 'unused.exe'",
+        "Write-Output ('git-stubs:[' + `$script:fixtureProcessCalls + ']')",
+        "`$check = New-MatrixFileCheck -Path '{repos}/clean/a.txt'",
+        "Write-Output ('file-check:[' + (& `$check @{ repos = `$fixture.Repositories } `$null) + ']')",
+        "`$branch = New-MatrixBranchCheck -Repository '{repos}/prunable' -Branch 'done' -ShouldExist `$false",
+        "Write-Output ('branch-check:[' + (& `$branch @{ repos = `$fixture.Repositories } `$null) + ']')")
+    $null = New-Item -ItemType Directory -Path $scopeRoot -Force
+    $scopeOutput = & $pwshPath -NoProfile -Command "& '$scopeScript' -Root '$scopeRoot'" 2>&1 | Out-String
+    Assert-Equal 0 $LASTEXITCODE "fixture under script scope: $scopeOutput"
+    Assert-True ($scopeOutput -notmatch 'git-stubs:\[0\]') 'fixture under script scope uses the stubbed process boundary'
+    Assert-Contains $scopeOutput 'file-check:[]' 'file check resolves the expander under script scope'
+    Assert-Contains $scopeOutput 'branch-check:[]' 'branch check resolves the expander under script scope'
+
+    # A working folder under a .pr-crew ancestor is exempt from NotContains, including its actual
+    # System.Text.Json spelling. Same-prefix siblings and unrelated paths still fail (issue 638).
+    $realMatrixProcess = ${function:Invoke-MatrixProcess}
+    $script:matrixStubOutput = ''
+    function Invoke-MatrixProcess {
+        [pscustomobject]@{ ExitCode = 0; TimedOut = $false; OutputTruncated = $false; Combined = $script:matrixStubOutput }
+    }
+    function Invoke-StubOutputRow([string]$Output, [hashtable]$Context) {
+        $script:matrixStubOutput = $Output
+        Invoke-MatrixRow -Row @{ Name = 'output'; Arguments = @(); NotContains = @('.pr-crew') } -ExecutablePath 'unused.exe' -Context $Context
+    }
+    $prCrewRoot = Join-Path $scratch '.pr-crew\gw-verb-matrix-x'
+    $prCrewContext = @{ workroot = $prCrewRoot }
+    try {
+        $fixturePath = Join-Path $prCrewRoot 'repos\clean'
+        $jsonPath = [System.Text.Json.JsonSerializer]::Serialize[string]($fixturePath)
+        $result = Invoke-StubOutputRow "$fixturePath`n$jsonPath" $prCrewContext
+        Assert-Equal 'PASS' $result.Status "fixture path under a .pr-crew ancestor is exempt: $($result.Problems -join ';')"
+
+        $encodedRoot = Join-Path $scratch '.pr-crew\a&b'
+        $encodedJsonPath = [System.Text.Json.JsonSerializer]::Serialize[string]((Join-Path $encodedRoot 'repos\clean'))
+        $result = Invoke-StubOutputRow $encodedJsonPath @{ workroot = $encodedRoot }
+        Assert-Equal 'PASS' $result.Status "JSON-escaped fixture path is exempt: $($result.Problems -join ';')"
+
+        $sibling = "$prCrewRoot-sibling\repos\unintended"
+        $jsonSibling = [System.Text.Json.JsonSerializer]::Serialize[string]($sibling).Trim('"')
+        foreach ($outside in @($sibling, $jsonSibling, 'C:\Users\someone\.pr-crew\repos\other')) {
+            $result = Invoke-StubOutputRow $outside $prCrewContext
+            Assert-Equal 'FAIL' $result.Status "outside path must fail: $outside"
+            Assert-Equal "output contains '.pr-crew'" ($result.Problems -join ';') "outside path diagnostic: $outside"
+        }
+    }
+    finally {
+        Set-Item -Path Function:\Invoke-MatrixProcess -Value $realMatrixProcess
+        Remove-Variable matrixStubOutput -Scope Script
     }
 
     # A missing executable exits 2 and creates nothing.

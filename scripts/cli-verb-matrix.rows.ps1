@@ -13,9 +13,11 @@
 function New-MatrixFileCheck {
     # A Verify block asserting the file at the placeholder path exists and is not empty.
     param([Parameter(Mandatory)][string]$Path)
+    # A closure cannot see script-scoped functions, so the expander is captured as a value.
+    $expand = ${function:Expand-MatrixText}
     return {
         param($context, $result)
-        $expanded = Expand-MatrixText $Path $context
+        $expanded = & $expand $Path $context
         if (-not (Test-Path -LiteralPath $expanded) -or (Get-Item -LiteralPath $expanded).Length -eq 0) { "file '$expanded' is missing or empty" }
     }.GetNewClosure()
 }
@@ -32,9 +34,10 @@ function New-MatrixJsonCheck {
 function New-MatrixBranchCheck {
     # A Verify block asserting whether a local branch exists in a fixture repository afterwards.
     param([Parameter(Mandatory)][string]$Repository, [Parameter(Mandatory)][string]$Branch, [Parameter(Mandatory)][bool]$ShouldExist)
+    $expand = ${function:Expand-MatrixText}
     return {
         param($context, $result)
-        $path = Expand-MatrixText $Repository $context
+        $path = & $expand $Repository $context
         $listed = Test-Path -LiteralPath (Join-Path $path ".git/refs/heads/$Branch") -PathType Leaf
         if ($listed -ne $ShouldExist) { "branch '$Branch' in $path should " + $(if ($ShouldExist) { 'exist' } else { 'be gone' }) }
     }.GetNewClosure()

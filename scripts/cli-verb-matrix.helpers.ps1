@@ -386,6 +386,20 @@ function Expand-MatrixText {
     return $Text
 }
 
+function Remove-MatrixWorkRoot {
+    # Returns the text without complete working-folder paths, in plain and System.Text.Json spelling.
+    param([Parameter(Mandatory)][string]$Text, [Parameter(Mandatory)][hashtable]$Context)
+    if (-not $Context.ContainsKey('workroot') -or -not $Context.workroot) { return $Text }
+    $root = [string]$Context.workroot
+    $jsonRoot = [System.Text.Json.JsonSerializer]::Serialize[string]($root)
+    $jsonRoot = $jsonRoot.Substring(1, $jsonRoot.Length - 2)
+    foreach ($spelling in @($root, $jsonRoot)) {
+        $pattern = [regex]::Escape($spelling) + '(?=$|[\\/])'
+        $Text = [regex]::Replace($Text, $pattern, '', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    }
+    return $Text
+}
+
 function Get-MatrixOptionName {
     param([Parameter(Mandatory)][string]$Argument)
     if ($Argument -match '^(-{1,2}(?:[A-Za-z][\w-]*|\?))') { return $Matches[1] }
@@ -532,7 +546,7 @@ function New-MatrixFixture {
         param([string]$Directory, [string[]]$GitArguments)
         $run = Invoke-MatrixProcess -ExecutablePath $GitPath -Arguments (@('-C', $Directory) + $identity + $GitArguments) -Environment $environment -TimeoutSeconds 60
         if ($run.TimedOut -or $run.ExitCode -ne 0) { throw "git $($GitArguments -join ' ') failed in ${Directory}: $($run.Combined)" }
-    }.GetNewClosure()
+    }
     $write = { param([string]$Directory, [string]$Name, [string]$Content) [System.IO.File]::WriteAllText((Join-Path $Directory $Name), "$Content`n") }
     $repositories = Join-Path $Root 'repos'
     $remotes = Join-Path $Root 'remotes'
@@ -610,8 +624,11 @@ function Invoke-MatrixRow {
         foreach ($expected in @($Row['Contains'])) {
             if ($expected -and -not $result.Combined.Contains((Expand-MatrixText $expected $Context))) { $problems.Add("output lacks '$expected'") }
         }
+        # The matrix's own working folder is exempt: a temporary root may legitimately sit under an
+        # ancestor such as .pr-crew, and the forbidden text is meant to catch repositories outside it.
+        $forbiddenSearchText = Remove-MatrixWorkRoot $result.Combined $Context
         foreach ($unexpected in @($Row['NotContains'])) {
-            if ($unexpected -and $result.Combined.Contains((Expand-MatrixText $unexpected $Context))) { $problems.Add("output contains '$unexpected'") }
+            if ($unexpected -and $forbiddenSearchText.Contains((Expand-MatrixText $unexpected $Context))) { $problems.Add("output contains '$unexpected'") }
         }
         if ($Row.ContainsKey('Verify') -and -not $result.TimedOut) {
             $message = & $Row.Verify $Context $result

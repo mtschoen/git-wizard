@@ -41,9 +41,10 @@ $ExecutablePath = [string](Resolve-Path -LiteralPath $ExecutablePath)
 if (-not $TemporaryRoot) { $TemporaryRoot = [System.IO.Path]::GetTempPath() }
 
 $workName = 'gw-verb-matrix-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
-$workRoot = Join-Path $TemporaryRoot $workName
+$workRoot = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath((Join-Path $TemporaryRoot $workName))
 $context = @{
     workname = $workName
+    workroot = $workRoot
     home = Join-Path $workRoot 'home'
     out = Join-Path $workRoot 'out'
 }

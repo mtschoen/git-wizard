@@ -28,8 +28,8 @@ public class GitWizardConfiguration
     public SortedSet<string> SearchPaths { get; set; } = [];
     public SortedSet<string> IgnoredPaths { get; init; } = [];
 
-    [JsonPropertyName("ignoredJournalWarnings")]
-    public SortedSet<uint> IgnoredJournalWarnings { get; init; } = [];
+    [JsonPropertyName("ignoredJournalWarningsV2")]
+    public SortedSet<ulong> IgnoredJournalWarnings { get; init; } = [];
 
     /// <summary>
     /// Whether to skip directories whose last path segment starts with '.' during
@@ -80,7 +80,7 @@ public class GitWizardConfiguration
         return configuration.SaveAsync(GetGlobalConfigurationPath());
     }
 
-    public async Task IgnoreJournalWarningAsync(uint volumeSerial)
+    public async Task IgnoreJournalWarningAsync(ulong volumeSerial)
     {
         var added = IgnoredJournalWarnings.Add(volumeSerial);
         try

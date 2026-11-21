@@ -86,7 +86,10 @@ GitWizard stores config and cache in `~/.GitWizard/` (overridable by `GITWIZARD_
   every profile's `AppData\Local\Temp` on Windows, the process's %TEMP%/%TMP%, and `/tmp` plus
   `$TMPDIR` on Linux - are excluded from discovery and Live by default; set true to include
   them), `skipHiddenDirectories` (directories whose name starts with `.`, or on Windows carries the Hidden attribute, are
-  included in discovery and Live by default; set true to skip them)
+  included in discovery and Live by default; set true to skip them).
+  `ignoredJournalWarningsV2` stores full 64-bit volume serials for dismissed journal
+  warnings. The upgrade resets the former 32-bit `ignoredJournalWarnings` set;
+  dismiss those warnings again after upgrading. Other settings are preserved.
 - `repositories.txt` - Cached repo list
 - `report.json` - Cached report
 - `mft-index/blocks` - Persistent all-name index metadata (Windows), versioned by the

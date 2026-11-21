@@ -134,6 +134,24 @@ including after successful block clearing. Configuration and report/list files
 are not removed by **Clear Index Cache**. Recursive discovery on Linux and with
 `--no-mft` walks the root into an uncached enumeration index on every run.
 
+#### Clearing pre-upgrade index blocks
+
+The new CLI reports canonical eight-digit cache blocks as skipped and returns 1;
+it does not lock or delete them. To clear them before or after upgrading, close
+index-owning GitWizard instances and build the [pre-pin revision `44dfbbcb`](https://gitea.fleet.sticktoitive.net/schoen/git-wizard/commit/44dfbbcb76d4292ae93ceac489265fbda9d642ef)
+in a separate checkout. This revision has both the clear command and the MFTLib
+version that locks eight-digit blocks. In Git Bash on Windows with the .NET 10
+SDK, PowerShell 7 and Visual Studio's MSVC C++ workload, run as the cache owner:
+
+```bash
+git clone https://gitea.fleet.sticktoitive.net/schoen/git-wizard.git git-wizard-pre-pin
+cd git-wizard-pre-pin
+git checkout --detach 44dfbbcb76d4292ae93ceac489265fbda9d642ef
+git submodule update --init --recursive
+bash ci/gates.sh native
+dotnet run --project git-wizard/git-wizard.csproj -c Release -- --clear-index-cache
+```
+
 `git-wizard --index-cache-status` reports the current Windows index cache directory, requested and stored cache tags, volume serial, size, directory-entry last-write time and age, validation and availability, then exits without discovery or elevation. Active sessions also report the observed producer and MFT-unavailability reason; an unreported serial prints `unavailable`. Linux and other platforms report that this cache is not applicable. Do not combine the status flag with cache deletion flags. Exit 0 means inspection succeeded, including invalid or busy blocks; exit 1 means inspection failed, and exit 2 means the arguments were invalid.
 
 The desktop **Index Cache Status** window provides the same read-only observation and can additionally identify backing owned by its active session. Refresh status updates the observation and age. Inspection can create persistent `.lock` siblings. Availability is point-in-time, not a reservation; an in-use slot does not expose its holder's PID, name, user, or whether it is CLI or UI. Directory-entry last-write time is not the scan timestamp or last successful catch-up. A normal concurrent open may cold-scan into a private block, while a cache-only open refuses with `InUse`.
@@ -268,8 +286,10 @@ While Live is running, Settings shows an **Enlarge** button next to each drive h
 elevated broker session without another broker or UAC prompt, rechecks the current size, and
 refuses before elevating when the journal already meets the effective target. The warning text and result message state the needed size, the recommended maximum, and the before/after sizes read back from Windows in bytes;
 NTFS may round the stored maximum, and if Windows accepts the request while keeping the existing maximum, Settings reports the kept size and disables **Enlarge** with the reason rather than claiming the size was applied. **Do not warn again** saves the volume serial in
-`config.json` under `ignoredJournalWarnings`, so the preference follows the volume rather than
-its drive letter. Re-arming refreshes each drive's hint. Stopping Live releases its resources;
+`config.json` under `ignoredJournalWarningsV2`, so the preference follows the volume rather than
+its drive letter. The full-width serial upgrade resets dismissals saved under the former
+`ignoredJournalWarnings` key; set them again after upgrading. Other settings are preserved.
+Re-arming refreshes each drive's hint. Stopping Live releases its resources;
 restarting can require a new scan and elevation prompt. Linux fanotify monitoring is unchanged.
 
 If a drive's index block cannot store a journal change even after growing, Live keeps watching the drive and shows an orange `Index on <drive>:` warning naming what could not be stored; searches of that drive can miss that change until it is rescanned. Settings shows the warning with a **Rescan** button, which restarts Live: every Live start rescans each such drive before watching it, and the warning clears once a rescan of the drive has completed. CLI `--watch` prints the warning once with the same remedy, `Restart git-wizard --watch to rescan <drive>:.`, and never prompts. **Do not warn again** does not apply to this warning.

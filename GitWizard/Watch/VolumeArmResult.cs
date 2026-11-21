@@ -7,7 +7,7 @@ namespace GitWizard.Watch;
 public sealed record JournalWarning
 {
     public required string DriveLetter { get; init; }
-    public required uint VolumeSerial { get; init; }
+    public required ulong VolumeSerial { get; init; }
     public required JournalCheckpointLoss Loss { get; init; }
     // The drive's watch state and recovery flag when the warning was raised; a null state is unknown.
     public WatchState? WatchState { get; init; }

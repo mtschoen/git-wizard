@@ -235,6 +235,41 @@ public class GitWizardConfigurationTests
     }
 
     [Test]
+    public async Task LegacyDismissalsAreResetWithoutLosingOtherSettings()
+    {
+        var path = GitWizardConfiguration.GetGlobalConfigurationPath();
+        await File.WriteAllTextAsync(path, "{\"ignoredJournalWarnings\":[1],\"forkPath\":\"fixture\"}");
+
+        var loaded = await GitWizardConfiguration.GetConfigurationAtPathAsync(path);
+
+        Assert.That(loaded, Is.Not.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(loaded!.IgnoredJournalWarnings, Is.Empty);
+            Assert.That(loaded.ForkPath, Is.EqualTo("fixture"));
+        }
+    }
+
+    [Test]
+    public async Task FullWidthDismissalsRoundTripWithoutLowHalfCollisions()
+    {
+        const ulong first = 0x0000000100000001;
+        const ulong second = 0x0000000200000001;
+        var configuration = new GitWizardConfiguration { IgnoredJournalWarnings = [first, second] };
+        var path = Path.Combine(_tempRoot!, "full-width-dismissals.json");
+
+        await configuration.SaveAsync(path);
+        var loaded = await GitWizardConfiguration.GetConfigurationAtPathAsync(path);
+
+        Assert.That(loaded, Is.Not.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(loaded!.IgnoredJournalWarnings, Is.EqualTo([first, second]));
+            Assert.That(loaded.IgnoredJournalWarnings, Does.Not.Contain(1UL));
+        }
+    }
+
+    [Test]
     public void GetGlobalConfiguration_ReturnsSameInstance()
     {
         var first = GitWizardConfiguration.GetGlobalConfiguration();

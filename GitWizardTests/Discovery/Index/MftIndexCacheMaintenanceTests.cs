@@ -62,6 +62,35 @@ public class MftIndexCacheMaintenanceTests
         Assert.That(MftIndexCacheMaintenance.Clear(files.Home).Deletions, Is.Empty);
     }
 
+    [TestCase("X-00000001.mlix", true)]
+    [TestCase("x-00000001.mlix", false)]
+    public async Task ClearReportsOnlyCanonicalLegacyBlockWithoutDeletingOrLockingIt(string name, bool reportsLegacy)
+    {
+        using var files = new PackedIndexFixture();
+        var cache = MftIndexCachePolicy.GetCacheDirectory(files.DirectoryPath);
+        Directory.CreateDirectory(cache);
+        var legacyBlock = Path.Combine(cache, name);
+        await File.WriteAllTextAsync(legacyBlock, "legacy 32-bit cache block");
+
+        var result = MftIndexCacheMaintenance.Clear(files.DirectoryPath);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result.Succeeded, Is.EqualTo(!reportsLegacy));
+            if (reportsLegacy)
+            {
+                Assert.That(result.Errors.Single(), Does.Contain(legacyBlock).And.Contain("44dfbbcb"));
+                Assert.That(result.ToClearText(), Does.Contain(legacyBlock));
+            }
+            else
+            {
+                Assert.That(result.Errors, Is.Empty);
+            }
+            Assert.That(File.Exists(legacyBlock), Is.True);
+            Assert.That(File.Exists(legacyBlock + ".lock"), Is.False);
+        }
+    }
+
     [TestCase(false)]
     [TestCase(true)]
     public void AbsentCacheDoesNotCreateAnIndexDirectory(bool legacyOnly)

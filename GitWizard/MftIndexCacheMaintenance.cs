@@ -10,6 +10,7 @@ public static class MftIndexCacheMaintenance
     const string LegacyDirectoryPrefix = "v1-";
     const int LegacyDirectoryNameLength = 67;
     static readonly SearchValues<char> HexDigits = SearchValues.Create("0123456789ABCDEF");
+    static readonly SearchValues<char> LowercaseHexDigits = SearchValues.Create("0123456789abcdef");
 
     public static MftIndexCacheMaintenanceResult Clear(string localFilesPath) =>
         ClearCore(localFilesPath, includeCurrent: true);
@@ -52,7 +53,8 @@ public static class MftIndexCacheMaintenance
 
             try
             {
-                inventory.AddRange(CacheDirectory.InspectCached(directory));
+                inventory.AddRange(CacheDirectory.InspectCached(directory,
+                    rejectedFile: rejection => ReportLegacy32BitBlock(rejection, errors)));
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
@@ -64,6 +66,27 @@ public static class MftIndexCacheMaintenance
             Array.AsReadOnly<CachedBlockDeletionResult>([.. deletions.OrderBy(row => row.File.Path, StringComparer.Ordinal)]),
             Array.AsReadOnly<CachedBlockStatus>([.. inventory.OrderBy(row => row.File.Path, StringComparer.Ordinal)]),
             errors.AsReadOnly());
+    }
+
+    static void ReportLegacy32BitBlock(CachedBlockRejection rejection, List<string> errors)
+    {
+        var name = Path.GetFileName(rejection.Path);
+        var separator = name.IndexOf('-');
+        if (separator < 0 || !name.EndsWith(".mlix", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var stem = name.AsSpan(0, separator);
+        var serial = name.AsSpan(separator + 1, name.Length - separator - 6);
+        var volumeStem = stem.Length == 1 && char.IsAsciiLetterUpper(stem[0]);
+        var directoryStem = stem.Length == 17 && stem[0] == 'D' &&
+            stem[1..].IndexOfAnyExcept(LowercaseHexDigits) < 0;
+        if ((volumeStem || directoryStem) && serial.Length == 8 && serial.IndexOfAnyExcept(HexDigits) < 0)
+        {
+            errors.Add($"Legacy 32-bit index cache block was not inspected or deleted: {rejection.Path}. " +
+                "Use --clear-index-cache from GitWizard revision 44dfbbcb; see 'Clearing pre-upgrade index blocks' in the README.");
+        }
     }
 
     static string[] GetCacheDirectories(string localFilesPath, List<string> errors, bool includeCurrent)

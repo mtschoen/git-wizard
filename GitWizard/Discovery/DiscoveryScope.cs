@@ -48,7 +48,7 @@ public sealed class DiscoveryScope
             return new Dictionary<string, string>();
         }
 
-        return new Dictionary<string, string>(ExpansionErrors, StringComparer.OrdinalIgnoreCase)
+        return new Dictionary<string, string>(ExpansionErrors, WatchPath.StringComparer)
         {
             [NoRootsErrorKey] = NoRootsErrorMessage
         };

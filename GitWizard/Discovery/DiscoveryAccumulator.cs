@@ -14,7 +14,7 @@ sealed class DiscoveryAccumulator
         Scope = scope;
         CandidateScope = scope;
         Paths = paths;
-        Errors = new Dictionary<string, string>(scope.ExpansionErrors, StringComparer.OrdinalIgnoreCase);
+        Errors = new Dictionary<string, string>(scope.ExpansionErrors, WatchPath.StringComparer);
     }
 
     public DiscoveryScope Scope { get; }

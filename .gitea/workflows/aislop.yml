@@ -89,13 +89,6 @@ jobs:
         run: |
           bash ci/gates.sh native
           pwsh -NoProfile -File ci/windows-gates.ps1 native -Configuration Debug
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: ~\.nuget\packages
-          key: windows-nuget-${{ hashFiles('**/*.csproj') }}
-          restore-keys: |
-            windows-nuget-
       - name: Restore (full solution)
         shell: bash
         # roslynator cannot load .slnx on .NET 10 and analyzes the restored

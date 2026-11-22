@@ -22,6 +22,7 @@ CONTRACT_INPUT_FILES = frozenset(
     {
         "AGENTS.md",
         ".gitignore",
+        ".gitattributes",
         "TEST-REPORT.md",
         "Directory.Build.props",
         "git-wizard.slnx",
@@ -32,7 +33,12 @@ CONTRACT_INPUT_NAMES = frozenset({"packages.lock.json"})
 
 def git(*arguments):
     return subprocess.run(
-        ["git", *arguments], capture_output=True, text=True, check=False
+        ["git", *arguments],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="surrogateescape",
+        check=False,
     )
 
 
@@ -66,11 +72,11 @@ def changed_paths():
     if git("fetch", "--depth=1", "origin", reference).returncode:
         print("Changed-file fetch failed; running all gates.")
         return None
-    changed = git("diff", "--name-only", *comparison)
-    print(changed.stdout)
+    changed = git("diff", "--name-only", "--no-renames", "-z", *comparison)
+    print(ascii(changed.stdout))
     if changed.returncode:
         return None
-    return changed.stdout.splitlines()
+    return [path for path in changed.stdout.split("\0") if path]
 
 
 def pin_only():

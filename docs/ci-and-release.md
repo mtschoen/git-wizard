@@ -99,11 +99,12 @@ containing exactly `.aislop/fork-commit` or `TEST-REPORT.md` skips expensive ste
 run the job in full. The same command writes `run_contracts`, which is `false` only
 when the diff succeeded, is nonempty and touches none of the contract tests' inputs
 (`CONTRACT_INPUT_*` in `ci/checkout.py`: `ci/`, `scripts/`, `tools/`, `.gitea/workflows/`,
-`.preview/`, `.aislop/`, `docs/`, `AGENTS.md`, `.gitignore`, `TEST-REPORT.md`,
+`.preview/`, `.aislop/`, `docs/`, `AGENTS.md`, `.gitignore`, `.gitattributes`, `TEST-REPORT.md`,
 `Directory.Build.props`, `git-wizard.slnx`, project files and lock files); the
-`Preflight contract tests` steps check `run_contracts != 'false'`, so a failed fetch or
-diff, an empty diff, an unknown event or a missing output runs them. Pushes use the
-same rule over the pushed range. The step names stay, so required checks are unchanged.
+`Preflight contract tests` steps check `run_contracts != 'false'` on pull requests, so a
+failed fetch or diff, an empty diff or a missing output runs them. Push and scheduled
+events always run the contracts as a full backstop. The step names stay, so required
+checks are unchanged.
 Never use workflow-level path filtering on required checks.
 `ci/checkout.py clean` supplies both destructive Windows clean/status checks.
 

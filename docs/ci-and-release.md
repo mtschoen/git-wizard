@@ -100,11 +100,12 @@ run the job in full. The same command writes `run_contracts`, which is `false` o
 when the diff succeeded, is nonempty and touches none of the contract tests' inputs
 (`CONTRACT_INPUT_*` in `ci/checkout.py`: `ci/`, `scripts/`, `tools/`, `.gitea/workflows/`,
 `.preview/`, `.aislop/`, `docs/`, `AGENTS.md`, `.gitignore`, `.gitattributes`, `TEST-REPORT.md`,
-`Directory.Build.props`, `git-wizard.slnx`, project files and lock files); the
-`Preflight contract tests` steps check `run_contracts != 'false'` on pull requests, so a
-failed fetch or diff, an empty diff or a missing output runs them. Push and scheduled
-events always run the contracts as a full backstop. The step names stay, so required
-checks are unchanged.
+`Directory.Build.props`, `git-wizard.slnx`, depth-one project files with a
+case-insensitive `.csproj` suffix, and lock files). On pull requests, the
+`Preflight contract tests` steps skip pin/report-only changes or a diff with
+`run_contracts=false`. A failed fetch or diff, an empty diff or missing outputs
+run the contracts. Push and scheduled events always select the contracts,
+including pin/report-only pushes.
 Never use workflow-level path filtering on required checks.
 `ci/checkout.py clean` supplies both destructive Windows clean/status checks.
 
@@ -129,7 +130,7 @@ by CI, never edited in a PR or written by local coverage scripts.
 
 The `CI` workflow also runs nightly at 03:23 UTC. After successful `test-linux` and
 `test-windows` jobs, `publish-report` runs only on main pushes and scheduled main
-runs. The shared early-exit check in `ci/checkout.py pin-only` suppresses test jobs
+runs. The shared early-exit check in `ci/checkout.py pin-only` skips the .NET tests
 and publication for report-only pushes, preventing a bot publication loop without
 workflow-level path filters. Nightly runs collect fresh results even when main has
 not changed.

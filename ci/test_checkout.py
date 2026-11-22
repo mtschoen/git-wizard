@@ -34,12 +34,19 @@ class CheckoutTests(unittest.TestCase):
         workflow = (root / ".gitea/workflows/ci.yml").read_text(encoding="utf-8")
         self.assertEqual(2, workflow.count("ci/checkout.py pin-only"))
         self.assertEqual(2, workflow.count("ci/checkout.py clean"))
+        lines = workflow.splitlines()
+        contract_guard = (
+            "        if: github.event_name != 'pull_request' || "
+            "(steps.changed-files.outputs.pin_only != 'true' && "
+            "steps.changed-files.outputs.run_contracts != 'false')"
+        )
         self.assertEqual(
-            2,
-            workflow.count(
-                "github.event_name == 'push' || "
-                "steps.changed-files.outputs.run_contracts != 'false'"
-            ),
+            [contract_guard, contract_guard],
+            [
+                lines[index + 1]
+                for index, line in enumerate(lines)
+                if line == "      - name: Preflight contract tests"
+            ],
         )
         self.assertNotRegex(workflow, r"(?m)^[ \t]+git clean -ffxd[ \t]*$")
         for path in ("release.yml", "preview.yml", "screenshot.yml"):
@@ -104,6 +111,7 @@ class CheckoutTests(unittest.TestCase):
             (["README.md"], False),
             (["GitWizardUI/Views/MainWindow.axaml", "GitWizard/Repo.cs"], False),
             (["GitWizard/GitWizard.csproj"], True),
+            (["GitWizard/Probe.CSPROJ"], True),
             (["GitWizard/packages.lock.json"], True),
             (["GitWizard/deep/Nested.csproj"], False),
             (["GitWizard/Repo.cs", "ci/test_checkout.py"], True),

@@ -48,7 +48,7 @@ def contracts_input(path):
         path.startswith(CONTRACT_INPUT_PREFIXES)
         or path in CONTRACT_INPUT_FILES
         or name in CONTRACT_INPUT_NAMES
-        or (path.count("/") == 1 and name.endswith(".csproj"))
+        or (path.count("/") == 1 and name.lower().endswith(".csproj"))
     )
 
 

@@ -8,7 +8,9 @@ from pathlib import Path
 EARLY_EXIT_PATHS = frozenset({".aislop/fork-commit", "TEST-REPORT.md"})
 # Everything the ci/test_*.py contracts read or run: the ci, scripts and tools trees, the
 # workflows and previews they parse, the docs and instructions they cross-check, and the
-# solution, project and lock files they copy. A path outside this list cannot change them.
+# solution, project, lock and SDK-pin files they copy. A path outside this list cannot change
+# them. Every spelling here is lowercase and compared against the lowercased path, because a
+# Windows checkout resolves a differently cased path to the same file.
 CONTRACT_INPUT_PREFIXES = (
     "ci/",
     "scripts/",
@@ -20,11 +22,12 @@ CONTRACT_INPUT_PREFIXES = (
 )
 CONTRACT_INPUT_FILES = frozenset(
     {
-        "AGENTS.md",
+        "agents.md",
         ".gitignore",
-        "TEST-REPORT.md",
-        "Directory.Build.props",
+        "test-report.md",
+        "directory.build.props",
         "git-wizard.slnx",
+        "global.json",
     }
 )
 CONTRACT_INPUT_NAMES = frozenset({"packages.lock.json", ".gitattributes"})
@@ -42,12 +45,13 @@ def git(*arguments):
 
 
 def contracts_input(path):
+    path = path.lower()
     name = path.rsplit("/", 1)[-1]
     return (
         path.startswith(CONTRACT_INPUT_PREFIXES)
         or path in CONTRACT_INPUT_FILES
         or name in CONTRACT_INPUT_NAMES
-        or (path.count("/") == 1 and name.lower().endswith(".csproj"))
+        or (path.count("/") == 1 and name.endswith(".csproj"))
     )
 
 

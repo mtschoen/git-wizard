@@ -100,8 +100,9 @@ run the job in full. The same command writes `run_contracts`, which is `false` o
 when the diff succeeded, is nonempty and touches none of the contract tests' inputs
 (`CONTRACT_INPUT_*` in `ci/checkout.py`: `ci/`, `scripts/`, `tools/`, `.gitea/workflows/`,
 `.preview/`, `.aislop/`, `docs/`, `AGENTS.md`, `.gitignore`, `TEST-REPORT.md`,
-`Directory.Build.props`, `git-wizard.slnx`, depth-one project files with a
-case-insensitive `.csproj` suffix, lock files, and `.gitattributes` files at any depth). On pull requests, the
+`Directory.Build.props`, `git-wizard.slnx`, root `global.json`, depth-one project files with a
+case-insensitive `.csproj` suffix, lock files, and `.gitattributes` files at any depth; every comparison ignores path case, while the
+`pin_only` singleton stays exact). On pull requests, the
 `Preflight contract tests` steps skip pin/report-only changes or a diff with
 `run_contracts=false`. A failed fetch or diff, an empty diff or missing outputs
 run the contracts. Push and scheduled events always select the contracts,

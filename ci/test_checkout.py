@@ -125,9 +125,29 @@ class CheckoutTests(unittest.TestCase):
             (["docs/testing.md"], True),
             (["Directory.Build.props"], True),
             (["TEST-REPORT.md"], True),
+            (["global.json"], True),
+            (["GitWizard/global.json"], False),
+            (["Scripts/new-tool.sh"], True),
+            (["CI/test_new.py"], True),
+            (["Tools/helper.sh"], True),
+            ([".Gitea/Workflows/ci.yml"], True),
+            ([".Preview/page.html"], True),
+            ([".AISLOP/rules.yml"], True),
+            (["Docs/testing.md"], True),
+            (["agents.md"], True),
+            (["Test-Report.md"], True),
+            (["directory.build.PROPS"], True),
+            (["Git-Wizard.slnx"], True),
+            (["Global.json"], True),
+            (["GitWizard/Packages.Lock.Json"], True),
+            (["GitWizard/.GitAttributes"], True),
         ):
             with self.subTest(paths=paths):
                 self.assertEqual(expected, checkout.run_contracts(paths))
+
+    def test_pin_only_keeps_exact_case_singleton_rule(self):
+        self.assertFalse(checkout.only_early_exit(["test-report.md"]))
+        self.assertFalse(checkout.only_early_exit([".aislop/Fork-Commit"]))
 
     def test_contracts_output_classifies_nul_delimited_git_paths(self):
         for status, changed, expected in (

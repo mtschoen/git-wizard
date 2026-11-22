@@ -26,7 +26,7 @@ class CheckoutTests(unittest.TestCase):
             ):
                 self.assertEqual(0, checkout.main())
             self.assertEqual(
-                b"pin_only=false\n", output.read_bytes().replace(b"\r\n", b"\n")
+                b"pin_only=false\nrun_contracts=true\n", output.read_bytes().replace(b"\r\n", b"\n")
             )
 
     def test_workflows_reuse_shared_checkout_and_native_recipes(self):
@@ -89,6 +89,58 @@ class CheckoutTests(unittest.TestCase):
                 ),
             ):
                 self.assertEqual(expected, checkout.pin_only())
+
+    def test_contracts_scope_is_fail_open(self):
+        for paths, expected in (
+            (None, True),
+            ([], True),
+            (["README.md"], False),
+            (["GitWizardUI/Views/MainWindow.axaml", "GitWizard/Repo.cs"], False),
+            (["GitWizard/GitWizard.csproj"], True),
+            (["GitWizard/packages.lock.json"], True),
+            (["GitWizard/deep/Nested.csproj"], False),
+            (["GitWizard/Repo.cs", "ci/test_checkout.py"], True),
+            (["scripts/verify-windows.sh"], True),
+            (["tools/ci-preflight.sh"], True),
+            ([".gitea/workflows/ci.yml"], True),
+            (["AGENTS.md"], True),
+            (["docs/testing.md"], True),
+            (["Directory.Build.props"], True),
+            (["TEST-REPORT.md"], True),
+        ):
+            with self.subTest(paths=paths):
+                self.assertEqual(expected, checkout.run_contracts(paths))
+
+    def test_contracts_output_fails_open_when_the_diff_fails(self):
+        for status, changed, expected in (
+            (0, "GitWizard/Repo.cs\n", "false"),
+            (0, "ci/gates.sh\n", "true"),
+            (1, "GitWizard/Repo.cs\n", "true"),
+        ):
+            with tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / "output"
+                with (
+                    self.subTest(status=status, changed=changed),
+                    patch("sys.argv", ["checkout.py", "pin-only"]),
+                    patch.dict(
+                        os.environ,
+                        {
+                            "GITHUB_EVENT_NAME": "pull_request",
+                            "GITHUB_BASE_REF": "main",
+                            "GITHUB_OUTPUT": str(output),
+                        },
+                    ),
+                    patch.object(
+                        checkout,
+                        "git",
+                        side_effect=[
+                            subprocess.CompletedProcess([], 0, ""),
+                            subprocess.CompletedProcess([], status, changed),
+                        ],
+                    ),
+                ):
+                    self.assertEqual(0, checkout.main())
+                    self.assertIn(f"run_contracts={expected}\n", output.read_text())
 
     def test_fetch_failure_never_skips_job(self):
         with (

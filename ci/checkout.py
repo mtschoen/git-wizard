@@ -6,6 +6,28 @@ import subprocess
 from pathlib import Path
 
 EARLY_EXIT_PATHS = frozenset({".aislop/fork-commit", "TEST-REPORT.md"})
+# Everything the ci/test_*.py contracts read or run: the ci, scripts and tools trees, the
+# workflows and previews they parse, the docs and instructions they cross-check, and the
+# solution, project and lock files they copy. A path outside this list cannot change them.
+CONTRACT_INPUT_PREFIXES = (
+    "ci/",
+    "scripts/",
+    "tools/",
+    ".gitea/workflows/",
+    ".preview/",
+    ".aislop/",
+    "docs/",
+)
+CONTRACT_INPUT_FILES = frozenset(
+    {
+        "AGENTS.md",
+        ".gitignore",
+        "TEST-REPORT.md",
+        "Directory.Build.props",
+        "git-wizard.slnx",
+    }
+)
+CONTRACT_INPUT_NAMES = frozenset({"packages.lock.json"})
 
 
 def git(*arguments):
@@ -14,7 +36,23 @@ def git(*arguments):
     )
 
 
-def pin_only():
+def contracts_input(path):
+    name = path.rsplit("/", 1)[-1]
+    return (
+        path.startswith(CONTRACT_INPUT_PREFIXES)
+        or path in CONTRACT_INPUT_FILES
+        or name in CONTRACT_INPUT_NAMES
+        or (path.count("/") == 1 and name.endswith(".csproj"))
+    )
+
+
+def run_contracts(paths):
+    """False only for a successfully computed, nonempty list with no contract input."""
+    return paths is None or not paths or any(contracts_input(path) for path in paths)
+
+
+def changed_paths():
+    """Changed paths for the event, or None when they cannot be computed."""
     event = os.environ.get("GITHUB_EVENT_NAME")
     base = os.environ.get("GITHUB_BASE_REF")
     before = os.environ.get("EVENT_BEFORE")
@@ -24,14 +62,23 @@ def pin_only():
     elif event == "push" and before and before != "0" * 40 and after:
         reference, comparison = before, (before, after)
     else:
-        return False
+        return None
     if git("fetch", "--depth=1", "origin", reference).returncode:
         print("Changed-file fetch failed; running all gates.")
-        return False
+        return None
     changed = git("diff", "--name-only", *comparison)
     print(changed.stdout)
-    lines = changed.stdout.splitlines()
-    return changed.returncode == 0 and len(lines) == 1 and lines[0] in EARLY_EXIT_PATHS
+    if changed.returncode:
+        return None
+    return changed.stdout.splitlines()
+
+
+def pin_only():
+    return only_early_exit(changed_paths())
+
+
+def only_early_exit(paths):
+    return paths is not None and len(paths) == 1 and paths[0] in EARLY_EXIT_PATHS
 
 
 def clean_tree():
@@ -59,7 +106,9 @@ def main():
     if arguments.operation == "clean":
         return clean_tree()
     with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
-        output.write(f"pin_only={str(pin_only()).lower()}\n")
+        paths = changed_paths()
+        output.write(f"pin_only={str(only_early_exit(paths)).lower()}\n")
+        output.write(f"run_contracts={str(run_contracts(paths)).lower()}\n")
     return 0
 
 

@@ -96,7 +96,15 @@ Workflows live in `.gitea/workflows/`; YAML is the source of truth for jobs and
 steps. Preserve job names and required checks. `ci/checkout.py pin-only` is the
 single early-exit implementation for Linux and Windows. Only a successful diff
 containing exactly `.aislop/fork-commit` or `TEST-REPORT.md` skips expensive steps. Probe failures
-run the job in full. Never use workflow-level path filtering on required checks.
+run the job in full. The same command writes `run_contracts`, which is `false` only
+when the diff succeeded, is nonempty and touches none of the contract tests' inputs
+(`CONTRACT_INPUT_*` in `ci/checkout.py`: `ci/`, `scripts/`, `tools/`, `.gitea/workflows/`,
+`.preview/`, `.aislop/`, `docs/`, `AGENTS.md`, `.gitignore`, `TEST-REPORT.md`,
+`Directory.Build.props`, `git-wizard.slnx`, project files and lock files); the
+`Preflight contract tests` steps check `run_contracts != 'false'`, so a failed fetch or
+diff, an empty diff, an unknown event or a missing output runs them. Pushes use the
+same rule over the pushed range. The step names stay, so required checks are unchanged.
+Never use workflow-level path filtering on required checks.
 `ci/checkout.py clean` supplies both destructive Windows clean/status checks.
 
 Both test jobs initialize the submodule and use shared native, restore, build and

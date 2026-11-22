@@ -101,8 +101,9 @@ when the diff succeeded, is nonempty and touches none of the contract tests' inp
 (`CONTRACT_INPUT_*` in `ci/checkout.py`: `ci/`, `scripts/`, `tools/`, `.gitea/workflows/`,
 `.preview/`, `.aislop/`, `docs/`, `AGENTS.md`, `.gitignore`, `TEST-REPORT.md`,
 `Directory.Build.props`, `git-wizard.slnx`, root `global.json`, depth-one project files with a
-case-insensitive `.csproj` suffix, lock files, and `.gitattributes` files at any depth; every comparison ignores path case, while the
-`pin_only` singleton stays exact). On pull requests, the
+case-insensitive `.csproj` suffix, lock files, and `.gitattributes` files at any depth; every comparison case-folds the path, so spellings such as U+017F in `.csproj` match as on Windows, while the
+`pin_only` singleton stays exact). The diff is against the fetched base tip, not the merge base, so base-side
+changes absent from the pull request can conservatively run the contracts. On pull requests, the
 `Preflight contract tests` steps skip pin/report-only changes or a diff with
 `run_contracts=false`. A failed fetch or diff, an empty diff or missing outputs
 run the contracts. Push and scheduled events always select the contracts,

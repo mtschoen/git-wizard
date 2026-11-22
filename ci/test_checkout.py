@@ -112,6 +112,7 @@ class CheckoutTests(unittest.TestCase):
             (["GitWizardUI/Views/MainWindow.axaml", "GitWizard/Repo.cs"], False),
             (["GitWizard/GitWizard.csproj"], True),
             (["GitWizard/Probe.CSPROJ"], True),
+            (["GitWizard/Probe.cſproj"], True),
             (["GitWizard/packages.lock.json"], True),
             (["GitWizard/deep/Nested.csproj"], False),
             (["GitWizard/Repo.cs", "ci/test_checkout.py"], True),

@@ -9,8 +9,10 @@ EARLY_EXIT_PATHS = frozenset({".aislop/fork-commit", "TEST-REPORT.md"})
 # Everything the ci/test_*.py contracts read or run: the ci, scripts and tools trees, the
 # workflows and previews they parse, the docs and instructions they cross-check, and the
 # solution, project, lock and SDK-pin files they copy. A path outside this list cannot change
-# them. Every spelling here is lowercase and compared against the lowercased path, because a
-# Windows checkout resolves a differently cased path to the same file.
+# them. Every spelling here is lowercase and compared against the case-folded path, because a
+# Windows checkout resolves a differently cased path to the same file. Case folding, not
+# lowercasing, because the consumer's Windows glob also matches folded spellings such as
+# U+017F (long s) in a project suffix.
 CONTRACT_INPUT_PREFIXES = (
     "ci/",
     "scripts/",
@@ -45,7 +47,7 @@ def git(*arguments):
 
 
 def contracts_input(path):
-    path = path.lower()
+    path = path.casefold()
     name = path.rsplit("/", 1)[-1]
     return (
         path.startswith(CONTRACT_INPUT_PREFIXES)
@@ -67,6 +69,8 @@ def changed_paths():
     before = os.environ.get("EVENT_BEFORE")
     after = os.environ.get("EVENT_AFTER")
     if event == "pull_request" and base:
+        # The comparison is against the fetched base tip, not the PR merge base, so base-side
+        # changes absent from the PR itself can conservatively select the contracts.
         reference, comparison = base, ("FETCH_HEAD", "HEAD")
     elif event == "push" and before and before != "0" * 40 and after:
         reference, comparison = before, (before, after)

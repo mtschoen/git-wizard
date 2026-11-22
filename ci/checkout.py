@@ -22,13 +22,12 @@ CONTRACT_INPUT_FILES = frozenset(
     {
         "AGENTS.md",
         ".gitignore",
-        ".gitattributes",
         "TEST-REPORT.md",
         "Directory.Build.props",
         "git-wizard.slnx",
     }
 )
-CONTRACT_INPUT_NAMES = frozenset({"packages.lock.json"})
+CONTRACT_INPUT_NAMES = frozenset({"packages.lock.json", ".gitattributes"})
 
 
 def git(*arguments):

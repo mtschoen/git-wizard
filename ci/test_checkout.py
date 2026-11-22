@@ -120,6 +120,8 @@ class CheckoutTests(unittest.TestCase):
             ([".gitea/workflows/ci.yml"], True),
             (["AGENTS.md"], True),
             ([".gitattributes"], True),
+            (["GitWizard/.gitattributes"], True),
+            (["GitWizard/deep/.gitattributes"], True),
             (["docs/testing.md"], True),
             (["Directory.Build.props"], True),
             (["TEST-REPORT.md"], True),

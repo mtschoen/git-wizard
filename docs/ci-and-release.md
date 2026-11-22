@@ -99,9 +99,9 @@ containing exactly `.aislop/fork-commit` or `TEST-REPORT.md` skips expensive ste
 run the job in full. The same command writes `run_contracts`, which is `false` only
 when the diff succeeded, is nonempty and touches none of the contract tests' inputs
 (`CONTRACT_INPUT_*` in `ci/checkout.py`: `ci/`, `scripts/`, `tools/`, `.gitea/workflows/`,
-`.preview/`, `.aislop/`, `docs/`, `AGENTS.md`, `.gitignore`, `.gitattributes`, `TEST-REPORT.md`,
+`.preview/`, `.aislop/`, `docs/`, `AGENTS.md`, `.gitignore`, `TEST-REPORT.md`,
 `Directory.Build.props`, `git-wizard.slnx`, depth-one project files with a
-case-insensitive `.csproj` suffix, and lock files). On pull requests, the
+case-insensitive `.csproj` suffix, lock files, and `.gitattributes` files at any depth). On pull requests, the
 `Preflight contract tests` steps skip pin/report-only changes or a diff with
 `run_contracts=false`. A failed fetch or diff, an empty diff or missing outputs
 run the contracts. Push and scheduled events always select the contracts,

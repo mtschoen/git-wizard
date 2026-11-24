@@ -50,6 +50,44 @@ public class CaseDistinctPosixPathsTests
     }
 
     [Test]
+    public void AddExpansionErrorObservations_CaseDistinctRetainedRoots_ObservesBoth()
+    {
+        var scope = CreateExpandedScope([_upperPath, _lowerPath]);
+        var accumulator = new DiscoveryAccumulator(scope, new HashSet<string>(WatchPath.StringComparer));
+
+        accumulator.AddExpansionErrorObservations();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(accumulator.Observations.Select(item => item.Root), Is.EquivalentTo([_upperPath, _lowerPath]));
+            Assert.That(accumulator.Observations, Has.All.Matches<RootObservation>(item => !item.Complete && item.ExactRoot));
+        }
+    }
+
+    [Test]
+    public void AddExpansionErrorObservations_WindowsShapedRootsDifferingByCase_ObservesOnce()
+    {
+        var scope = CreateExpandedScope([@"C:\Repos", @"c:\repos"]);
+        var accumulator = new DiscoveryAccumulator(scope, new HashSet<string>(WatchPath.StringComparer));
+
+        accumulator.AddExpansionErrorObservations();
+
+        Assert.That(accumulator.Observations, Has.Count.EqualTo(1));
+    }
+
+    static DiscoveryScope CreateExpandedScope(string[] retainedRoots)
+    {
+        var request = new DiscoveryRequest(new GitWizardConfiguration(), DiscoveryPurpose.Watch, false, false, []);
+        var errors = new Dictionary<string, string>(WatchPath.StringComparer);
+        foreach (var root in retainedRoots)
+        {
+            errors[root] = $"Search path does not exist or could not be expanded: {root}";
+        }
+
+        return DiscoveryScope.CreateExpanded(request, [], retainedRoots, [], errors);
+    }
+
+    [Test]
     public void GetNoRootsErrors_CaseDistinctExpansionErrors_KeepsBothAndNoRootsError()
     {
         var scope = CreateScopeWithCaseDistinctMissingPaths();

@@ -130,7 +130,7 @@ sealed class DiscoveryAccumulator
                 continue;
             }
 
-            if (Observations.Any(item => string.Equals(item.Root, root, StringComparison.OrdinalIgnoreCase)))
+            if (Observations.Any(item => WatchPath.StringComparer.Equals(item.Root, root)))
             {
                 continue;
             }

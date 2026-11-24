@@ -76,7 +76,7 @@ jobs:
         run: bash ci/gates.sh test
 
       - name: Preflight contract tests
-        if: steps.changed-files.outputs.pin_only != 'true'
+        if: github.event_name != 'pull_request' || (steps.changed-files.outputs.pin_only != 'true' && steps.changed-files.outputs.run_contracts != 'false')
         run: bash ci/gates.sh contracts
 
       - name: Upload test results
@@ -157,7 +157,7 @@ jobs:
           msbuild-architecture: x64
 
       - name: Preflight contract tests
-        if: steps.changed-files.outputs.pin_only != 'true'
+        if: github.event_name != 'pull_request' || (steps.changed-files.outputs.pin_only != 'true' && steps.changed-files.outputs.run_contracts != 'false')
         shell: bash
         run: bash ci/gates.sh contracts
 

@@ -96,7 +96,20 @@ Workflows live in `.gitea/workflows/`; YAML is the source of truth for jobs and
 steps. Preserve job names and required checks. `ci/checkout.py pin-only` is the
 single early-exit implementation for Linux and Windows. Only a successful diff
 containing exactly `.aislop/fork-commit` or `TEST-REPORT.md` skips expensive steps. Probe failures
-run the job in full. Never use workflow-level path filtering on required checks.
+run the job in full. The same command writes `run_contracts`, which is `false` only
+when the diff succeeded, is nonempty and touches none of the contract tests' inputs
+(`CONTRACT_INPUT_*` in `ci/checkout.py`: `ci/`, `scripts/`, `tools/`, `.gitea/workflows/`,
+`.preview/`, `.aislop/`, `docs/`, `AGENTS.md`, `.gitignore`, `TEST-REPORT.md`,
+`Directory.Build.props`, `git-wizard.slnx`, root `global.json`, depth-one project files (and anything beneath a depth-one name) with a
+case-insensitive `.csproj` suffix, lock files, and `.gitattributes` files at any depth; every comparison case-folds the path, so spellings such as U+017F in `.csproj` match as on Windows, while the
+`pin_only` singleton stays exact). The diff is against the fetched base tip, not the merge base, so base-side
+changes absent from the pull request can conservatively run the contracts. On pull requests, the
+`Preflight contract tests` steps skip pin/report-only changes or a diff with
+`run_contracts=false`. A failed fetch or diff, an empty diff or missing outputs
+run the contracts. Push and scheduled events always select the contracts on enabled jobs,
+including pin/report-only pushes; the Windows job switch (`WINDOWS_CI`, `.gitea/workflows/ci.yml`) still disables
+the Windows backstop while it is `off`.
+Never use workflow-level path filtering on required checks.
 `ci/checkout.py clean` supplies both destructive Windows clean/status checks.
 
 Both test jobs initialize the submodule and use shared native, restore, build and
@@ -120,7 +133,7 @@ by CI, never edited in a PR or written by local coverage scripts.
 
 The `CI` workflow also runs nightly at 03:23 UTC. After successful `test-linux` and
 `test-windows` jobs, `publish-report` runs only on main pushes and scheduled main
-runs. The shared early-exit check in `ci/checkout.py pin-only` suppresses test jobs
+runs. The shared early-exit check in `ci/checkout.py pin-only` skips the .NET tests
 and publication for report-only pushes, preventing a bot publication loop without
 workflow-level path filters. Nightly runs collect fresh results even when main has
 not changed.

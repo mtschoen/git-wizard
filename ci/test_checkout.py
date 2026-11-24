@@ -26,7 +26,7 @@ class CheckoutTests(unittest.TestCase):
             ):
                 self.assertEqual(0, checkout.main())
             self.assertEqual(
-                b"pin_only=false\n", output.read_bytes().replace(b"\r\n", b"\n")
+                b"pin_only=false\nrun_contracts=true\n", output.read_bytes().replace(b"\r\n", b"\n")
             )
 
     def test_workflows_reuse_shared_checkout_and_native_recipes(self):
@@ -34,6 +34,20 @@ class CheckoutTests(unittest.TestCase):
         workflow = (root / ".gitea/workflows/ci.yml").read_text(encoding="utf-8")
         self.assertEqual(2, workflow.count("ci/checkout.py pin-only"))
         self.assertEqual(2, workflow.count("ci/checkout.py clean"))
+        lines = workflow.splitlines()
+        contract_guard = (
+            "        if: github.event_name != 'pull_request' || "
+            "(steps.changed-files.outputs.pin_only != 'true' && "
+            "steps.changed-files.outputs.run_contracts != 'false')"
+        )
+        self.assertEqual(
+            [contract_guard, contract_guard],
+            [
+                lines[index + 1]
+                for index, line in enumerate(lines)
+                if line == "      - name: Preflight contract tests"
+            ],
+        )
         self.assertNotRegex(workflow, r"(?m)^[ \t]+git clean -ffxd[ \t]*$")
         for path in ("release.yml", "preview.yml", "screenshot.yml"):
             source = (root / ".gitea/workflows" / path).read_text(encoding="utf-8")
@@ -66,12 +80,12 @@ class CheckoutTests(unittest.TestCase):
 
     def test_pin_only_requires_a_successful_exact_single_file_diff(self):
         for changed, status, expected in (
-            (".aislop/fork-commit\n", 0, True),
-            ("TEST-REPORT.md\n", 0, True),
-            (".aislop/fork-commit\nREADME.md\n", 0, False),
-            ("TEST-REPORT.md\nREADME.md\n", 0, False),
+            (".aislop/fork-commit\0", 0, True),
+            ("TEST-REPORT.md\0", 0, True),
+            (".aislop/fork-commit\0README.md\0", 0, False),
+            ("TEST-REPORT.md\0README.md\0", 0, False),
             ("", 0, False),
-            (".aislop/fork-commit\n", 1, False),
+            (".aislop/fork-commit\0", 1, False),
         ):
             with (
                 self.subTest(changed=changed, status=status),
@@ -89,6 +103,102 @@ class CheckoutTests(unittest.TestCase):
                 ),
             ):
                 self.assertEqual(expected, checkout.pin_only())
+
+    def test_contracts_scope_is_fail_open(self):
+        for paths, expected in (
+            (None, True),
+            ([], True),
+            (["README.md"], False),
+            (["GitWizardUI/Views/MainWindow.axaml", "GitWizard/Repo.cs"], False),
+            (["GitWizard/GitWizard.csproj"], True),
+            (["GitWizard/Probe.CSPROJ"], True),
+            (["GitWizard/Probe.cſproj"], True),
+            (["GitWizard/packages.lock.json"], True),
+            (["GitWizard/deep/Nested.csproj"], False),
+            (["GitWizard/Probe.csproj/README.md"], True),
+            (["GitWizard/Probe.CSPROJ/deep/file.txt"], True),
+            (["GitWizard/Repo.cs", "ci/test_checkout.py"], True),
+            (["scripts/verify-windows.sh"], True),
+            (["tools/ci-preflight.sh"], True),
+            ([".gitea/workflows/ci.yml"], True),
+            (["AGENTS.md"], True),
+            ([".gitattributes"], True),
+            (["GitWizard/.gitattributes"], True),
+            (["GitWizard/deep/.gitattributes"], True),
+            (["docs/testing.md"], True),
+            (["Directory.Build.props"], True),
+            (["TEST-REPORT.md"], True),
+            (["global.json"], True),
+            (["GitWizard/global.json"], False),
+            (["Scripts/new-tool.sh"], True),
+            (["CI/test_new.py"], True),
+            (["Tools/helper.sh"], True),
+            ([".Gitea/Workflows/ci.yml"], True),
+            ([".Preview/page.html"], True),
+            ([".AISLOP/rules.yml"], True),
+            (["Docs/testing.md"], True),
+            (["agents.md"], True),
+            (["Test-Report.md"], True),
+            (["directory.build.PROPS"], True),
+            (["Git-Wizard.slnx"], True),
+            (["Global.json"], True),
+            (["GitWizard/Packages.Lock.Json"], True),
+            (["GitWizard/.GitAttributes"], True),
+        ):
+            with self.subTest(paths=paths):
+                self.assertEqual(expected, checkout.run_contracts(paths))
+
+    def test_pin_only_keeps_exact_case_singleton_rule(self):
+        self.assertFalse(checkout.only_early_exit(["test-report.md"]))
+        self.assertFalse(checkout.only_early_exit([".aislop/Fork-Commit"]))
+
+    def test_contracts_output_classifies_nul_delimited_git_paths(self):
+        for status, changed, expected_pin_only, expected in (
+            (0, "GitWizard/Repo.cs\0", "false", "false"),
+            (0, "ci/gates.sh\0", "false", "true"),
+            (0, "scripts/café.sh\0", "false", "true"),
+            (0, "scripts/helper.sh\0GitWizard/helper.sh\0", "false", "true"),
+            (0, "scripts/invalid-\udcff.sh\0", "false", "true"),
+            (0, "GitWizard/Probe.csproj/README.md\0", "false", "true"),
+            (1, "GitWizard/Repo.cs\0", "false", "true"),
+            (0, ".aislop/fork-commit\0", "true", "true"),
+            (0, "TEST-REPORT.md\0", "true", "true"),
+        ):
+            with tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / "output"
+                with (
+                    self.subTest(status=status, changed=changed),
+                    patch("sys.argv", ["checkout.py", "pin-only"]),
+                    patch.dict(
+                        os.environ,
+                        {
+                            "GITHUB_EVENT_NAME": "pull_request",
+                            "GITHUB_BASE_REF": "main",
+                            "GITHUB_OUTPUT": str(output),
+                        },
+                    ),
+                    patch.object(
+                        checkout,
+                        "git",
+                        side_effect=[
+                            subprocess.CompletedProcess([], 0, ""),
+                            subprocess.CompletedProcess([], status, changed),
+                        ],
+                    ) as git_mock,
+                ):
+                    self.assertEqual(0, checkout.main())
+                    self.assertEqual(
+                        f"pin_only={expected_pin_only}\nrun_contracts={expected}\n",
+                        output.read_text(),
+                    )
+                    git_mock.assert_called_with(
+                        "diff",
+                        "--name-only",
+                        "--no-renames",
+                        "-z",
+                        "FETCH_HEAD",
+                        "HEAD",
+                    )
 
     def test_fetch_failure_never_skips_job(self):
         with (
@@ -120,7 +230,7 @@ class CheckoutTests(unittest.TestCase):
                 "git",
                 side_effect=[
                     subprocess.CompletedProcess([], 0, ""),
-                    subprocess.CompletedProcess([], 0, "TEST-REPORT.md\n"),
+                    subprocess.CompletedProcess([], 0, "TEST-REPORT.md\0"),
                 ],
             ):
                 self.assertTrue(checkout.pin_only())

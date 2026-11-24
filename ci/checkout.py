@@ -6,32 +6,98 @@ import subprocess
 from pathlib import Path
 
 EARLY_EXIT_PATHS = frozenset({".aislop/fork-commit", "TEST-REPORT.md"})
+# Everything the ci/test_*.py contracts read or run: the ci, scripts and tools trees, the
+# workflows and previews they parse, the docs and instructions they cross-check, and the
+# solution, project, lock and SDK-pin files they copy. A path outside this list cannot change
+# them. Every spelling here is lowercase and compared against the case-folded path, because a
+# Windows checkout resolves a differently cased path to the same file. Case folding, not
+# lowercasing, because the consumer's Windows glob also matches folded spellings such as
+# U+017F (long s) in a project suffix.
+CONTRACT_INPUT_PREFIXES = (
+    "ci/",
+    "scripts/",
+    "tools/",
+    ".gitea/workflows/",
+    ".preview/",
+    ".aislop/",
+    "docs/",
+)
+CONTRACT_INPUT_FILES = frozenset(
+    {
+        "agents.md",
+        ".gitignore",
+        "test-report.md",
+        "directory.build.props",
+        "git-wizard.slnx",
+        "global.json",
+    }
+)
+CONTRACT_INPUT_NAMES = frozenset({"packages.lock.json", ".gitattributes"})
 
 
 def git(*arguments):
     return subprocess.run(
-        ["git", *arguments], capture_output=True, text=True, check=False
+        ["git", *arguments],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="surrogateescape",
+        check=False,
     )
 
 
-def pin_only():
+def project_entry(path):
+    """True for a depth-one project file or anything under a depth-one `*.csproj` name."""
+    segments = path.split("/")
+    return len(segments) > 1 and segments[1].endswith(".csproj")
+
+
+def contracts_input(path):
+    path = path.casefold()
+    name = path.rsplit("/", 1)[-1]
+    return (
+        path.startswith(CONTRACT_INPUT_PREFIXES)
+        or path in CONTRACT_INPUT_FILES
+        or name in CONTRACT_INPUT_NAMES
+        or project_entry(path)
+    )
+
+
+def run_contracts(paths):
+    """False only for a successfully computed, nonempty list with no contract input."""
+    return paths is None or not paths or any(contracts_input(path) for path in paths)
+
+
+def changed_paths():
+    """Changed paths for the event, or None when they cannot be computed."""
     event = os.environ.get("GITHUB_EVENT_NAME")
     base = os.environ.get("GITHUB_BASE_REF")
     before = os.environ.get("EVENT_BEFORE")
     after = os.environ.get("EVENT_AFTER")
     if event == "pull_request" and base:
+        # The comparison is against the fetched base tip, not the PR merge base, so base-side
+        # changes absent from the PR itself can conservatively select the contracts.
         reference, comparison = base, ("FETCH_HEAD", "HEAD")
     elif event == "push" and before and before != "0" * 40 and after:
         reference, comparison = before, (before, after)
     else:
-        return False
+        return None
     if git("fetch", "--depth=1", "origin", reference).returncode:
         print("Changed-file fetch failed; running all gates.")
-        return False
-    changed = git("diff", "--name-only", *comparison)
-    print(changed.stdout)
-    lines = changed.stdout.splitlines()
-    return changed.returncode == 0 and len(lines) == 1 and lines[0] in EARLY_EXIT_PATHS
+        return None
+    changed = git("diff", "--name-only", "--no-renames", "-z", *comparison)
+    print(ascii(changed.stdout))
+    if changed.returncode:
+        return None
+    return [path for path in changed.stdout.split("\0") if path]
+
+
+def pin_only():
+    return only_early_exit(changed_paths())
+
+
+def only_early_exit(paths):
+    return paths is not None and len(paths) == 1 and paths[0] in EARLY_EXIT_PATHS
 
 
 def clean_tree():
@@ -59,7 +125,9 @@ def main():
     if arguments.operation == "clean":
         return clean_tree()
     with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
-        output.write(f"pin_only={str(pin_only()).lower()}\n")
+        paths = changed_paths()
+        output.write(f"pin_only={str(only_early_exit(paths)).lower()}\n")
+        output.write(f"run_contracts={str(run_contracts(paths)).lower()}\n")
     return 0
 
 

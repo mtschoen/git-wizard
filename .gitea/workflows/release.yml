@@ -108,6 +108,7 @@ jobs:
           if-no-files-found: error
 
   publish-windows:
+    if: vars.WINDOWS_CI != 'off'
     name: Publish CLI + Avalonia (win-x64, native MFTLib)
     runs-on: windows-latest
     timeout-minutes: 30

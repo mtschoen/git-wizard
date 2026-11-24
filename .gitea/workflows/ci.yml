@@ -114,6 +114,7 @@ jobs:
         run: bash ci/gates.sh coverage
 
   test-windows:
+    if: vars.WINDOWS_CI != 'off'
     name: Build + Test (Windows, full solution)
     runs-on: windows-latest
     timeout-minutes: 45

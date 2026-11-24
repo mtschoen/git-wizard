@@ -187,6 +187,12 @@ The release attaches `git-wizard-{ver}-{rid}.zip` and
 The macOS artifact is managed-only; there is no macOS native-build runner.
 Manual workflow versions and PR smoke filenames are separate from tag validation.
 
+While the repository variable `WINDOWS_CI` is `off` (no Windows runner), Windows jobs
+skip, and so do `publish-windows` and `release`. Hold `v*` release tags until Windows CI
+is back. If a tag was already pushed during the waiver, its release was skipped: after
+deleting `WINDOWS_CI`, rerun the full workflow for that tag. Running Windows CI on
+`main` does not replay the tag.
+
 ## Verification sources
 
 `tools/ci-preflight.sh` / `ci/preflight.py` implement host selection, aggregation,

@@ -82,6 +82,32 @@ class OfflineLinuxJobTests(unittest.TestCase):
         self.assertNotIn("setup-dotnet", job)
         self.assertNotIn("apt-get", job)
 
+    def test_linux_job_uploads_timings_on_main_pushes(self):
+        job = linux_job_text()
+        self.assertIn(
+            "if: github.event_name == 'push' && github.ref == 'refs/heads/main'"
+            " && steps.changed-files.outputs.pin_only != 'true'\n"
+            "        continue-on-error: true",
+            job,
+        )
+        self.assertIn("REPORTER_SHA: ${{ vars.TIMING_REPORT_SHA }}", job)
+        ordered_steps = (
+            "id: timing_fetch",
+            "id: timing_start",
+            "run: bash ci/gates.sh test",
+            "if: always() && steps.timing_start.outcome == 'success'",
+            "if: always() && steps.timing_report.outcome == 'success'",
+        )
+        positions = [job.find(step) for step in ordered_steps]
+        self.assertNotIn(-1, positions)
+        self.assertEqual(sorted(positions), positions)
+        self.assertIn(
+            "JOB_CONTEXT: ${{ github.workflow }} / Build + Test (Linux, cross-platform projects)"
+            " (${{ github.event_name }})",
+            job,
+        )
+        self.assertIn("name: ci-timings-test-linux", job)
+
     def test_posix_publish_job_downloads_no_toolchain(self):
         text = (ROOT / ".gitea/workflows/release.yml").read_text(encoding="utf-8")
         job = text[text.index("  publish-posix:") : text.index("  publish-windows:")]

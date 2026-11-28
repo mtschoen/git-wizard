@@ -46,9 +46,33 @@ jobs:
         run: |
           python3 ci/checkout.py pin-only
 
+      - name: Fetch pinned timing reporter
+        id: timing_fetch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.changed-files.outputs.pin_only != 'true'
+        continue-on-error: true
+        shell: bash
+        env:
+          REPORTER_SHA: ${{ vars.TIMING_REPORT_SHA }}
+        run: |
+          set -eu
+          [[ "$REPORTER_SHA" =~ ^[0-9a-f]{40}$ ]]
+          directory=$(mktemp -d "${RUNNER_TEMP:-$PWD}/timings.XXXXXXXX")
+          curl --fail --silent --show-error --connect-timeout 10 --max-time 30 \
+            "https://gitea.fleet.sticktoitive.net/schoen/schoen-lab/raw/commit/$REPORTER_SHA/ci/timing_report.py" \
+            --output "$directory/timing_report.py"
+          echo "directory=$directory" >> "$GITHUB_OUTPUT"
+
+      - name: Stamp job start
+        id: timing_start
+        if: steps.timing_fetch.outcome == 'success'
+        continue-on-error: true
+        env:
+          DIRECTORY: ${{ steps.timing_fetch.outputs.directory }}
+        run: python3 "$DIRECTORY/timing_report.py" --write-start-stamp "$DIRECTORY/start.json"
+
       # The fleet Linux image bakes the .NET 10 SDK, cmake, ninja and g++, and mounts the
-      # per-host NuGet cache; restores run in locked mode (ci/gates.sh), so nothing here
-      # downloads (schoen-lab#3353).
+      # per-host NuGet cache; restores run in locked mode (ci/gates.sh) to keep
+      # the build and tests off the public internet.
       # MFTLib is a source submodule (external/MFTLib) until 0.3.0 ships to NuGet.
       # Native via CMake (POSIX path is real: platform_posix.cpp), managed via dotnet;
       # Directory.Build.targets consumes both from fixed paths.
@@ -114,6 +138,27 @@ jobs:
       - name: Coverage gate
         if: steps.changed-files.outputs.pin_only != 'true'
         run: bash ci/gates.sh coverage
+
+      - name: Write test timings even if tests failed
+        id: timing_report
+        if: always() && steps.timing_start.outcome == 'success'
+        continue-on-error: true
+        env:
+          DIRECTORY: ${{ steps.timing_fetch.outputs.directory }}
+          JOB_CONTEXT: ${{ github.workflow }} / Build + Test (Linux, cross-platform projects) (${{ github.event_name }})
+        run: |
+          python3 "$DIRECTORY/timing_report.py" --artifact-dir TestResults \
+            --trx-glob 'test-*/TestResults.trx' --job-name "$JOB_CONTEXT" \
+            --start-stamp "$DIRECTORY/start.json" --output "$DIRECTORY/ci-timings.json"
+
+      - name: Upload test timings
+        if: always() && steps.timing_report.outcome == 'success'
+        continue-on-error: true
+        uses: ChristopherHX/gitea-upload-artifact@81f940d004763f986ba3582c007fd842dd5cb0d7
+        with:
+          name: ci-timings-test-linux
+          path: ${{ steps.timing_fetch.outputs.directory }}/ci-timings.json
+          retention-days: 7
 
   test-windows:
     if: vars.WINDOWS_CI != 'off' && (github.event_name != 'schedule' || vars.NIGHTLY_CI != 'off')

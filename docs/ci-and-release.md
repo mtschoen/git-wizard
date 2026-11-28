@@ -131,7 +131,7 @@ test recipes. Release, preview and screenshot builds also use
 `TEST-REPORT.md`, including additions and deletions. The report is generated on main
 by CI, never edited in a PR or written by local coverage scripts.
 
-The `CI` workflow also runs nightly at 03:23 UTC. After successful `test-linux` and
+The `CI` workflow also runs nightly at 04:53 UTC. After successful `test-linux` and
 `test-windows` jobs, `publish-report` runs only on main pushes and scheduled main
 runs. The shared early-exit check in `ci/checkout.py pin-only` skips the .NET tests
 and publication for report-only pushes, preventing a bot publication loop without

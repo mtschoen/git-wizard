@@ -7,7 +7,8 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    - cron: '23 3 * * *'
+    # Scheduled runs skip every job while the repository variable NIGHTLY_CI is "off" (unset runs them).
+    - cron: '53 4 * * *'
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -16,6 +17,7 @@ concurrency:
 jobs:
   test-linux:
     name: Build + Test (Linux, cross-platform projects)
+    if: (github.event_name != 'schedule' || vars.NIGHTLY_CI != 'off')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
@@ -114,7 +116,7 @@ jobs:
         run: bash ci/gates.sh coverage
 
   test-windows:
-    if: vars.WINDOWS_CI != 'off'
+    if: vars.WINDOWS_CI != 'off' && (github.event_name != 'schedule' || vars.NIGHTLY_CI != 'off')
     name: Build + Test (Windows, full solution)
     runs-on: windows-latest
     timeout-minutes: 45
@@ -386,7 +388,7 @@ jobs:
     # The shared pin/report-only early exit also suppresses report-only bot pushes.
     if: >-
       github.ref == 'refs/heads/main' &&
-      (github.event_name == 'push' || github.event_name == 'schedule') &&
+      (github.event_name == 'push' || (github.event_name == 'schedule' && vars.NIGHTLY_CI != 'off')) &&
       needs.test-linux.outputs.pin_only != 'true' && needs.test-windows.outputs.pin_only != 'true'
     runs-on: windows-latest
     timeout-minutes: 10

@@ -387,10 +387,12 @@ jobs:
     needs: [test-linux, test-windows]
     # The shared pin/report-only early exit also suppresses report-only bot pushes.
     if: >-
-      github.ref == 'refs/heads/main' &&
+      always() && github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || (github.event_name == 'schedule' && vars.NIGHTLY_CI != 'off')) &&
+      needs.test-linux.result == 'success' &&
+      (needs.test-windows.result == 'success' || needs.test-windows.result == 'skipped') &&
       needs.test-linux.outputs.pin_only != 'true' && needs.test-windows.outputs.pin_only != 'true'
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -398,6 +400,7 @@ jobs:
           ref: ${{ github.sha }}
           token: ${{ secrets.CI_REPORT_TOKEN }}
       - name: Download the Windows test results artifact
+        if: needs.test-windows.result == 'success'
         # Gitea-native fork, paired with the upload pin: the stock download action cannot read artifacts uploaded by it.
         uses: ChristopherHX/gitea-download-artifact@75635f32b4c1c41c4b3d64e8f85210112ed4c9c7
         with:
@@ -415,57 +418,70 @@ jobs:
           path: ${{ runner.temp }}/test-report-coverage
       - name: Generate the summary from the downloaded artifacts
         id: summary
-        shell: pwsh
+        shell: bash
         env:
           GITEA_TOKEN: ${{ secrets.CI_REPORT_TOKEN }}
           SERVER_URL: ${{ github.server_url }}
           REPOSITORY: ${{ github.repository }}
           SOURCE_COMMIT: ${{ github.sha }}
           WORKFLOW_RUN: ${{ github.run_id }}
+          WINDOWS_RESULT: ${{ needs.test-windows.result }}
         run: |
-          $ErrorActionPreference = 'Stop'
+          set -euo pipefail
           git fetch origin main
-          if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect main before publication' }
-          $mainCommit = git rev-parse FETCH_HEAD
-          if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve main' }
-          if ($mainCommit -ne $env:SOURCE_COMMIT) {
-            Write-Host 'Main advanced; a newer run owns report publication.'
+          main_commit=$(git rev-parse FETCH_HEAD)
+          if [[ "$main_commit" != "$SOURCE_COMMIT" ]]; then
+            echo 'Main advanced; a newer run owns report publication.'
             exit 0
-          }
-          $headers = @{ Authorization = "token $env:GITEA_TOKEN" }
-          $api = "$env:SERVER_URL/api/v1/repos/$env:REPOSITORY"
-          $run = Invoke-RestMethod "$api/actions/runs/$env:WORKFLOW_RUN" -Headers $headers
-          if ($run.head_sha -ne $env:SOURCE_COMMIT) { throw 'Workflow source commit mismatch' }
-          $windowsTrx = @(Get-ChildItem (Join-Path $env:RUNNER_TEMP 'test-report-windows') -Recurse -File -Filter '*.trx' | ForEach-Object { $_.FullName })
-          $linuxTrx = @(Get-ChildItem (Join-Path $env:RUNNER_TEMP 'test-report-linux') -Recurse -File -Filter '*.trx' | ForEach-Object { $_.FullName })
-          $coverageFiles = @(Get-ChildItem (Join-Path $env:RUNNER_TEMP 'test-report-coverage') -Recurse -File -Filter 'coverage.cobertura.xml' |
-            Where-Object { $_.FullName.Replace('\', '/') -notmatch '/In/' } | ForEach-Object { $_.FullName })
-          if ($windowsTrx.Count -ne 1 -or $linuxTrx.Count -ne 1 -or $coverageFiles.Count -ne 1) {
-            throw "Expected exactly one Windows TRX ($($windowsTrx.Count)), one Linux TRX ($($linuxTrx.Count)) and one Cobertura XML ($($coverageFiles.Count))"
-          }
-          $timestamp = ([DateTimeOffset]$run.created_at).ToUniversalTime().ToString('o')
-          $arguments = @{
-            WindowsTrx = $windowsTrx
-            LinuxTrx = $linuxTrx
-            LinuxCobertura = $coverageFiles
-            Commit = $env:SOURCE_COMMIT; RunId = $env:WORKFLOW_RUN
-            GeneratedAt = $timestamp
-          }
-          & ./scripts/generate-test-report.ps1 @arguments
-          'publish=true' | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+          fi
+          run=$(curl --fail --silent --show-error -H "Authorization: token $GITEA_TOKEN" \
+            "$SERVER_URL/api/v1/repos/$REPOSITORY/actions/runs/$WORKFLOW_RUN")
+          if [[ $(jq -er '.head_sha' <<< "$run") != "$SOURCE_COMMIT" ]]; then
+            echo 'Workflow source commit mismatch' >&2
+            exit 1
+          fi
+          timestamp=$(jq -er '.created_at' <<< "$run")
+
+          shopt -s globstar nullglob
+          windows_arguments=(--windows-skipped)
+          if [[ "$WINDOWS_RESULT" == success ]]; then
+            windows_results=("$RUNNER_TEMP"/test-report-windows/**/*.trx)
+            if [[ ${#windows_results[@]} != 1 || ! -f "${windows_results[0]}" ]]; then
+              echo 'Expected exactly one Windows TRX' >&2
+              exit 1
+            fi
+            windows_arguments=(--windows-trx "${windows_results[0]}")
+          fi
+          linux_results=("$RUNNER_TEMP"/test-report-linux/**/*.trx)
+          coverage_files=()
+          for candidate in "$RUNNER_TEMP"/test-report-coverage/**/coverage.cobertura.xml; do
+            if [[ -f "$candidate" && ${candidate,,} != */in/* ]]; then
+              coverage_files+=("$candidate")
+            fi
+          done
+          if [[ ${#linux_results[@]} != 1 || ! -f "${linux_results[0]}" || ${#coverage_files[@]} != 1 ]]; then
+            echo 'Expected exactly one Linux TRX and one Cobertura XML' >&2
+            exit 1
+          fi
+          python3 scripts/generate_test_report.py "${windows_arguments[@]}" \
+            --linux-trx "${linux_results[0]}" --linux-cobertura "${coverage_files[0]}" \
+            --commit "$SOURCE_COMMIT" --run-id "$WORKFLOW_RUN" --generated-at "$timestamp"
+          printf 'publish=true\n' >> "$GITHUB_OUTPUT"
       - name: Commit the generated report as the bot
         if: steps.summary.outputs.publish == 'true'
-        shell: pwsh
+        shell: bash
         env:
           WORKFLOW_RUN: ${{ github.run_id }}
         run: |
-          $ErrorActionPreference = 'Stop'
+          set -euo pipefail
           git add -- TEST-REPORT.md
-          if ($LASTEXITCODE -ne 0) { throw 'Cannot stage generated report' }
-          git diff --cached --quiet -- TEST-REPORT.md
-          if ($LASTEXITCODE -eq 0) { Write-Host 'Report is unchanged.'; exit 0 }
-          if ($LASTEXITCODE -ne 1) { throw 'Cannot compare generated report' }
-          git -c user.name=test-report-bot -c user.email=test-report-bot@fleet.sticktoitive.net commit -m "chore: regenerate TEST-REPORT.md from $env:WORKFLOW_RUN"
-          if ($LASTEXITCODE -ne 0) { throw 'Cannot commit generated report' }
+          if git diff --cached --quiet -- TEST-REPORT.md; then
+            echo 'Report is unchanged.'
+            exit 0
+          else
+            status=$?
+            if [[ "$status" != 1 ]]; then exit "$status"; fi
+          fi
+          git -c user.name=test-report-bot -c user.email=test-report-bot@fleet.sticktoitive.net \
+            commit -m "chore: regenerate TEST-REPORT.md from $WORKFLOW_RUN"
           git push origin HEAD:main
-          if ($LASTEXITCODE -ne 0) { throw 'Cannot publish report; main may have advanced' }

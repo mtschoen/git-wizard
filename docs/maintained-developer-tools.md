@@ -23,7 +23,7 @@ purpose, operator, and executable CI check.
 | `scripts/run-preview.sh` | Download and launch a published Linux desktop preview | Linux maintainers | bash -n |
 | `scripts/verify-windows.sh` | Run remote Windows non-admin verification | Maintainers with an authorized Windows host | bash -n; ci/test_verify_windows.py |
 | `scripts/format-on-save.py` | Apply C# whitespace formatting after edits | Claude/AGY hooks and maintainers | python -m py_compile; ci/test_format_on_save.py |
-| `scripts/generate-test-report.ps1` | Generate the deterministic CI summary from TRX and Cobertura artifacts | CI publish-report and maintainers with an explicit output path | PowerShell parser; ci/script-tests/generate-test-report.tests.ps1 |
+| `scripts/generate_test_report.py` | Generate the deterministic CI summary from TRX and Cobertura artifacts | CI publish-report and maintainers with an explicit output path | Python parser; ci/test_generate_test_report.py |
 
 ## CLI verb matrix
 

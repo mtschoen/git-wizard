@@ -131,18 +131,21 @@ test recipes. Release, preview and screenshot builds also use
 `TEST-REPORT.md`, including additions and deletions. The report is generated on main
 by CI, never edited in a PR or written by local coverage scripts.
 
-The `CI` workflow also runs nightly at 04:53 UTC. After successful `test-linux` and
-`test-windows` jobs, `publish-report` runs only on main pushes and scheduled main
-runs. The shared early-exit check in `ci/checkout.py pin-only` skips the .NET tests
+The `CI` workflow also runs nightly at 04:53 UTC. `publish-report` runs on
+`ubuntu-latest` only for main pushes and scheduled main runs with `NIGHTLY_CI`
+enabled. It requires `test-linux` to succeed and accepts a successful or skipped
+`test-windows` job. Failed or cancelled Windows jobs still block publication.
+The shared early-exit check in `ci/checkout.py pin-only` skips the .NET tests
 and publication for report-only pushes, preventing a bot publication loop without
 workflow-level path filters. Nightly runs collect fresh results even when main has
 not changed.
 
-The publisher downloads the current run's `test-results-windows`, `test-results-linux`
-and `coverage-cobertura` artifacts with the pinned `ChristopherHX/gitea-download-artifact`
-action, paired with the upload pin, requires usable evidence from both platforms (failing
-loudly when an artifact is missing), and runs `scripts/generate-test-report.ps1`. The
-summary stays below 4096 UTF-8 bytes: per-project TRX Counters totals, passed, failed and
+The publisher downloads the current run's `test-results-linux` and `coverage-cobertura`
+artifacts with the pinned `ChristopherHX/gitea-download-artifact` action, paired with
+the upload pin. It also downloads `test-results-windows` when Windows succeeded.
+Required artifacts must contain exactly one matching file each. If Windows was skipped,
+the report says Windows CI did not run. The publisher runs `scripts/generate_test_report.py`
+with Python 3.11 or newer. The summary stays below 4096 UTF-8 bytes: per-project TRX Counters totals, passed, failed and
 skipped counts, managed Cobertura line and branch coverage, source commit and workflow
 run id as plain text (no host links), and the run's creation timestamp. Skipped counts
 come from the per-result NotExecuted outcomes, because the producer leaves the Counters
@@ -156,10 +159,10 @@ A run whose source is no longer main's tip does not publish; a concurrent main u
 makes the ordinary non-force push fail safely. The first report is created by CI after
 this workflow reaches main.
 
-Run the offline fixtures with `pwsh -NoProfile -File scripts/generate-test-report.ps1`
-or `pwsh -NoProfile -File ci/script-tests/generate-test-report.tests.ps1`. To generate a
-local sample, supply `-WindowsTrx`, `-LinuxTrx`, `-LinuxCobertura`, `-Commit`, `-RunId`,
-`-GeneratedAt`, and an ignored `-OutputPath`. Do not generate the root report locally.
+Run the offline fixtures with `python3 scripts/generate_test_report.py` or through the
+`contracts` gate. To generate a local sample, supply `--windows-trx` (or `--windows-skipped`),
+`--linux-trx`, `--linux-cobertura`, `--commit`, `--run-id`, `--generated-at`, and an
+ignored `--output-path`. Do not generate the root report locally.
 
 ### Release credential provisioning
 
